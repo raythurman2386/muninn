@@ -44,6 +44,10 @@ use crate::wikilink::parse_links;
 pub struct Vault {
     pub root: PathBuf,
     pub notes: Vec<Note>,
+    /// Every non-dot directory under the root (vault-relative, `""` for the
+    /// root), including empty folders. Folders themselves are part of the
+    /// model so the sidebar can show and target empty ones.
+    pub dirs: Vec<String>,
     /// Vault-relative stem (lower-cased) → note id. A path stem is unique on
     /// disk, so this map holds at most one entry per key up to case variants,
     /// where the smallest `rel` wins deterministically.
@@ -59,17 +63,26 @@ impl Vault {
         Vault {
             root: root.as_ref().to_path_buf(),
             notes: Vec::new(),
+            dirs: vec![String::new()],
             by_path: HashMap::new(),
             by_title: HashMap::new(),
         }
     }
 
     /// Scan `root` for `.md` files, creating the folder when it doesn't exist.
+    /// Dot-directories are skipped for both notes and the folder list.
     pub fn load(root: impl AsRef<Path>) -> io::Result<Vault> {
         let root = root.as_ref().to_path_buf();
         fs::create_dir_all(&root)?;
         let mut paths = Vec::new();
-        walk(&root, &mut paths, 0);
+        let mut dirs = Vec::new();
+        walk(&root, &mut paths, &mut dirs, &root, 0);
+        dirs.sort_by(|a, b| {
+            a.to_lowercase()
+                .cmp(&b.to_lowercase())
+                .then_with(|| a.cmp(b))
+        });
+        dirs.dedup();
         paths.sort_by(|a, b| {
             a.to_string_lossy()
                 .to_lowercase()
@@ -106,6 +119,7 @@ impl Vault {
         let mut vault = Vault {
             root,
             notes,
+            dirs,
             by_path: HashMap::new(),
             by_title: HashMap::new(),
         };
@@ -238,16 +252,16 @@ impl Vault {
     }
 
     /// Distinct folders in the vault, vault root first, then sorted
-    /// case-insensitively. The empty string is the vault root.
+    /// case-insensitively. The empty string is the vault root. Includes
+    /// empty folders (from [`Vault::dirs`]), not just note folders.
     #[must_use]
     pub fn folders(&self) -> Vec<String> {
-        let mut folders: Vec<String> = self.notes.iter().map(|n| n.folder().to_owned()).collect();
-        folders.sort_by(|a, b| {
-            (a.is_empty(), a.to_lowercase(), a).cmp(&(b.is_empty(), b.to_lowercase(), b))
-        });
-        folders.dedup();
-        // Root first even though `""` sorts last by the tuple above: move it
-        // to the front explicitly for callers that expect root-first.
+        let mut folders = self.dirs.clone();
+        for folder in self.notes.iter().map(|n| n.folder()) {
+            if !folders.iter().any(|f| f == folder) {
+                folders.push(folder.to_owned());
+            }
+        }
         folders.sort_by(|a, b| {
             let rank = |s: &String| if s.is_empty() { 0 } else { 1 };
             rank(a)
@@ -255,6 +269,7 @@ impl Vault {
                 .then_with(|| a.to_lowercase().cmp(&b.to_lowercase()))
                 .then_with(|| a.cmp(b))
         });
+        folders.dedup();
         folders
     }
 
@@ -462,14 +477,14 @@ impl Vault {
 
     /// Create `name` as a folder under `parent` (`""` = vault root),
     /// returning its absolute path. An existing folder is an error.
-    pub fn create_folder(&self, parent: &str, name: &str) -> io::Result<PathBuf> {
+    pub fn create_folder(&mut self, parent: &str, name: &str) -> io::Result<PathBuf> {
         let name = sanitise_folder_name(name);
         if name.is_empty() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty folder name"));
         }
         let parent_dir = folder_dir(&self.root, parent);
         fs::create_dir_all(&parent_dir)?;
-        let dir = parent_dir.join(name);
+        let dir = parent_dir.join(name.clone());
         if dir.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
@@ -477,6 +492,14 @@ impl Vault {
             ));
         }
         fs::create_dir(&dir)?;
+        let rel = if parent.is_empty() {
+            name
+        } else {
+            format!("{}/{}", parent.trim_matches('/'), name)
+        };
+        if !self.dirs.iter().any(|d| d == &rel) {
+            self.dirs.push(rel);
+        }
         Ok(dir)
     }
 
@@ -519,6 +542,13 @@ impl Vault {
                 note.path = self.root.join(&note.rel);
             }
         }
+        for dir in &mut self.dirs {
+            if dir == folder {
+                *dir = target_rel.clone();
+            } else if let Some(rest) = dir.strip_prefix(&prefix) {
+                *dir = format!("{target_rel}/{rest}");
+            }
+        }
         self.reindex();
         Ok(target)
     }
@@ -526,12 +556,14 @@ impl Vault {
     /// Delete an empty folder. A non-empty folder is an error; recursive
     /// deletes need explicit confirmation in the UI and are out of scope
     /// here by design.
-    pub fn delete_folder(&self, folder: &str) -> io::Result<()> {
+    pub fn delete_folder(&mut self, folder: &str) -> io::Result<()> {
         let folder = folder.trim_matches('/');
         if folder.is_empty() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "cannot delete the root"));
         }
-        fs::remove_dir(folder_dir(&self.root, folder))
+        fs::remove_dir(folder_dir(&self.root, folder))?;
+        self.dirs.retain(|d| d != folder);
+        Ok(())
     }
 
     /// A one-line excerpt of `from` around its link to `target`, for the backlinks rail.
@@ -598,13 +630,17 @@ fn folder_dir(root: &Path, folder: &str) -> PathBuf {
     dir
 }
 
-fn walk(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
+fn walk(dir: &Path, out: &mut Vec<PathBuf>, dirs: &mut Vec<String>, root: &Path, depth: usize) {
     if depth > 12 {
         return;
     }
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
+    // Seed the root itself so folders() always includes "".
+    if depth == 0 {
+        dirs.push(String::new());
+    }
     for entry in entries.flatten() {
         let path = entry.path();
         let name = entry.file_name();
@@ -615,7 +651,10 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
             continue;
         };
         if kind.is_dir() {
-            walk(&path, out, depth + 1);
+            if let Ok(rel) = path.strip_prefix(root) {
+                dirs.push(rel.to_string_lossy().replace('\\', "/"));
+            }
+            walk(&path, out, dirs, root, depth + 1);
         } else if kind.is_file()
             && path
                 .extension()
