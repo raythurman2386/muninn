@@ -48,8 +48,13 @@ All notable changes to Muninn are documented here. The format is based on
   default). Rewriting replaces each inbound target while preserving `|alias` and
   `#heading`, uses the existing atomic note write per file, and only rewrites a bare
   duplicate title when it resolved to this note before the change. Per-file failures are
-  reported without rolling back the rename or move; folder renames leave inbound links
-  alone for now (follow-up).
+  reported without rolling back the rename or move.
+- Folder rename link impact (SAF-06): renaming a folder that has links into it offers the
+  same **Rewrite links** / **Leave links dangling** choice. Rewriting replays pre-rename
+  resolution, so path-qualified, `#heading` and `|alias` links are pointed at the new stems;
+  a bare title that resolved under the old folder becomes path-qualified, while an unrelated
+  duplicate title stays put. Per-file failures are reported without rolling back the
+  directory rename.
 - Atomic note writes: saves and note creation write a hidden, uniquely named temp file in
   the note's folder, flush and fsync it, then rename it into place, followed by a
   best-effort directory fsync on Unix. A failed or interrupted save leaves the previous

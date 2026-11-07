@@ -466,6 +466,31 @@ impl Vault {
         out
     }
 
+    /// SAF-06: notes with at least one link whose target currently resolves to
+    /// a note under `folder` (its stem starts with `folder/`). Used before a
+    /// folder rename to decide whether the link-impact prompt is needed.
+    #[must_use]
+    pub fn link_referrers_for_folder(&self, folder: &str) -> Vec<usize> {
+        let folder = folder.trim_matches('/');
+        if folder.is_empty() {
+            return Vec::new();
+        }
+        let prefix = format!("{}/", folder.to_lowercase());
+        let mut out = Vec::new();
+        for note in &self.notes {
+            let refers = parse_links(&note.source).into_iter().any(|link| {
+                !link.target.is_empty()
+                    && self
+                        .resolve(&link.target)
+                        .is_some_and(|id| self.notes[id].stem().to_lowercase().starts_with(&prefix))
+            });
+            if refers {
+                out.push(note.id);
+            }
+        }
+        out
+    }
+
     /// SAF-06: rewrite inbound wikilinks to `new_stem`, preserving each link's
     /// heading and alias. `inbound` is the pre-mutation result of
     /// [`Vault::link_referrers`].
@@ -517,6 +542,153 @@ impl Vault {
             }
         }
         failures
+    }
+
+    /// SAF-06: rewrite wikilinks that pointed at notes inside a folder that was
+    /// just renamed from `old_folder` to `new_folder`.
+    ///
+    /// Call this **after** [`Vault::rename_folder`]. The notes are already at
+    /// their new paths, so resolution is replayed against the pre-rename layout:
+    /// every link whose target resolved (by path, unique suffix, or bare title)
+    /// to a note that used to live under `old_folder` is pointed at that note's
+    /// new full stem. This also upgrades a bare title that resolved under the
+    /// old folder to the canonical path-qualified form. Headings and aliases are
+    /// preserved.
+    ///
+    /// Files are written one at a time through [`Vault::write_note`] (atomic per
+    /// file). A failure leaves the folder rename in place and is returned as
+    /// `(referrer id, error)` for the caller to surface; there is no rollback.
+    pub fn rewrite_inbound_links_for_folder(
+        &mut self,
+        old_folder: &str,
+        new_folder: &str,
+    ) -> Vec<(usize, io::Error)> {
+        let old_folder = old_folder.trim_matches('/');
+        let new_folder = new_folder.trim_matches('/');
+        if old_folder.is_empty() || old_folder == new_folder {
+            return Vec::new();
+        }
+        let old_prefix = format!("{old_folder}/");
+        let new_prefix = format!("{new_folder}/");
+        let old_prefix_lower = old_prefix.to_lowercase();
+        // Reconstruct the pre-rename rel for every note. Only notes now under
+        // the new folder moved; everything else kept its path.
+        let old_rels: Vec<String> = self
+            .notes
+            .iter()
+            .map(|note| match note.rel.strip_prefix(&new_prefix) {
+                Some(rest) => format!("{old_prefix}{rest}"),
+                None => note.rel.clone(),
+            })
+            .collect();
+        let old_stems: Vec<String> = old_rels
+            .iter()
+            .map(|rel| rel.strip_suffix(".md").unwrap_or(rel).to_owned())
+            .collect();
+
+        // Rewrite in memory first: `write_note` reindexes, which would change
+        // the live resolution this pass is deliberately replaying.
+        let mut edits = Vec::new();
+        for note in &self.notes {
+            let mut out = String::with_capacity(note.source.len());
+            let mut last = 0;
+            let mut changed = false;
+            for link in parse_links(&note.source) {
+                if link.target.is_empty() {
+                    continue;
+                }
+                let Some(winner) = self.resolve_in_old_layout(&link.target, &old_rels, &old_stems)
+                else {
+                    continue;
+                };
+                if !old_stems[winner]
+                    .to_lowercase()
+                    .starts_with(&old_prefix_lower)
+                {
+                    continue;
+                }
+                let new_stem = self.notes[winner].stem();
+                if link.target == new_stem {
+                    continue;
+                }
+                out.push_str(&note.source[last..link.start]);
+                out.push_str("[[");
+                out.push_str(new_stem);
+                if let Some(heading) = &link.heading {
+                    out.push('#');
+                    out.push_str(heading);
+                }
+                if let Some(alias) = &link.alias {
+                    out.push('|');
+                    out.push_str(alias);
+                }
+                out.push_str("]]");
+                last = link.end;
+                changed = true;
+            }
+            if changed {
+                out.push_str(&note.source[last..]);
+                edits.push((note.id, out));
+            }
+        }
+
+        let mut failures = Vec::new();
+        for (id, source) in edits {
+            if let Err(error) = self.write_note(id, &source) {
+                failures.push((id, error));
+            }
+        }
+        failures
+    }
+
+    /// Resolve `target` against a layout captured before a folder rename.
+    /// Mirrors [`Vault::resolve`] (exact path stem, then unique suffix, then
+    /// bare title, deterministic smallest `rel`) but uses `old_rels`/`old_stems`
+    /// for the moved notes. Titles do not change when a folder is renamed.
+    fn resolve_in_old_layout(
+        &self,
+        target: &str,
+        old_rels: &[String],
+        old_stems: &[String],
+    ) -> Option<usize> {
+        let target = normalise_target(target);
+        if target.is_empty() {
+            return None;
+        }
+        let lower = target.to_lowercase();
+        let mut best: Option<usize> = None;
+        let consider = |id: usize, best: &mut Option<usize>| {
+            let better = best.is_none_or(|current| {
+                let (a, b) = (&old_rels[id], &old_rels[current]);
+                (a.to_lowercase(), a.as_str()) < (b.to_lowercase(), b.as_str())
+            });
+            if better {
+                *best = Some(id);
+            }
+        };
+        if lower.contains('/') {
+            for (id, stem) in old_stems.iter().enumerate() {
+                if stem.to_lowercase() == lower {
+                    consider(id, &mut best);
+                }
+            }
+            if best.is_some() {
+                return best;
+            }
+            let tail = format!("/{lower}");
+            for (id, stem) in old_stems.iter().enumerate() {
+                if stem.to_lowercase().ends_with(&tail) {
+                    consider(id, &mut best);
+                }
+            }
+        } else {
+            for note in &self.notes {
+                if note.title.to_lowercase() == lower {
+                    consider(note.id, &mut best);
+                }
+            }
+        }
+        best
     }
 
     /// Replace one note's source atomically on disk and in the index.
@@ -1402,6 +1574,73 @@ mod tests {
             home, "bare [[Index]] and path [[b/Bee]]",
             "a bare link that resolved to the other duplicate stays put"
         );
+    }
+
+    #[test]
+    fn folder_rename_rewrites_qualified_heading_alias_and_bare_links() {
+        let tmp = TempVault::new(&[
+            ("old/one.md", "# One\nbody"),
+            ("old/two.md", "# Two\nbody"),
+            (
+                "Home.md",
+                "[[old/one|alias]] and [[old/two#Two]] and bare [[two]]",
+            ),
+        ]);
+        let mut v = tmp.load();
+        let referrers = v.link_referrers_for_folder("old");
+        assert_eq!(referrers.len(), 1, "{referrers:?}");
+        v.rename_folder("old", "new").expect("rename folder");
+        let failures = v.rewrite_inbound_links_for_folder("old", "new");
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Home.md")).unwrap(),
+            "[[new/one|alias]] and [[new/two#Two]] and bare [[new/two]]"
+        );
+        assert!(v.resolve("new/one").is_some());
+        assert!(v.resolve("new/two").is_some());
+        assert!(v.broken_links().is_empty(), "{:?}", v.broken_links());
+    }
+
+    #[test]
+    fn leaving_folder_links_alone_keeps_them_dangling() {
+        let tmp = TempVault::new(&[
+            ("old/one.md", "# One\nbody"),
+            ("old/two.md", "# Two\nbody"),
+            ("Home.md", "[[old/one|alias]] and [[old/two#Two]]"),
+        ]);
+        let mut v = tmp.load();
+        v.rename_folder("old", "new").expect("rename folder");
+        // The Leave option skips rewriting entirely.
+        let home = fs::read_to_string(tmp.path().join("Home.md")).unwrap();
+        assert_eq!(home, "[[old/one|alias]] and [[old/two#Two]]");
+        let broken: Vec<&str> = v.broken_links().iter().map(|b| b.target.as_str()).collect();
+        assert!(broken.contains(&"old/one"), "{broken:?}");
+        assert!(broken.contains(&"old/two"), "{broken:?}");
+    }
+
+    #[test]
+    fn folder_rename_handles_nested_paths_and_respects_bare_duplicate_choice() {
+        let tmp = TempVault::new(&[
+            ("old/child/deep.md", "# Deep\nbody"),
+            ("elsewhere/deep.md", "other"),
+            ("Home.md", "[[old/child/deep#Deep|d]] and bare [[deep]]"),
+        ]);
+        let mut v = tmp.load();
+        // The bare title resolves to the smaller-rel duplicate outside the
+        // folder, so it must stay bare even though a moved note shares it.
+        assert_eq!(
+            v.resolve("deep")
+                .map(|id| v.notes[id].rel.clone())
+                .as_deref(),
+            Some("elsewhere/deep.md")
+        );
+        v.rename_folder("old", "new").expect("rename folder");
+        assert!(v.rewrite_inbound_links_for_folder("old", "new").is_empty());
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Home.md")).unwrap(),
+            "[[new/child/deep#Deep|d]] and bare [[deep]]"
+        );
+        assert!(v.resolve("new/child/deep").is_some());
     }
 
     #[test]

@@ -90,6 +90,12 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
         {
             list = list.child(rename_folder_row(s, k));
         }
+        if s.folder_rename_confirm
+            .as_ref()
+            .is_some_and(|c| c.folder == folder)
+        {
+            list = list.child(folder_rename_confirm_row(s, k));
+        }
         if s.new_folder_prompt
             .as_ref()
             .is_some_and(|p| p.parent == folder)
@@ -785,12 +791,7 @@ fn rename_confirm_row(s: &State, k: &Kit) -> El {
     link_impact_row(
         k,
         "rename-confirm",
-        &format!(
-            "{} note{} link{} here",
-            confirm.referrers,
-            if confirm.referrers == 1 { "" } else { "s" },
-            if confirm.referrers == 1 { "s" } else { "" }
-        ),
+        &referrer_summary(confirm.referrers, "here"),
         confirm.rewrite,
         State::toggle_rename_rewrite,
         State::confirm_rename_note,
@@ -807,17 +808,44 @@ fn move_confirm_row(s: &State, k: &Kit) -> El {
     link_impact_row(
         k,
         "move-confirm",
-        &format!(
-            "{} note{} link{} here",
-            confirm.referrers,
-            if confirm.referrers == 1 { "" } else { "s" },
-            if confirm.referrers == 1 { "s" } else { "" }
-        ),
+        &referrer_summary(confirm.referrers, "here"),
         confirm.rewrite,
         State::toggle_move_rewrite,
         State::confirm_move_note,
         State::cancel_move_confirm,
         ("Move", "move-confirm-yes", "move-confirm-cancel"),
+    )
+}
+
+/// SAF-06: link-impact confirmation under a folder being renamed. Rewriting
+/// points every link to the notes' new path-qualified stems.
+fn folder_rename_confirm_row(s: &State, k: &Kit) -> El {
+    let Some(confirm) = &s.folder_rename_confirm else {
+        return el();
+    };
+    link_impact_row(
+        k,
+        "folder-rename-confirm",
+        &referrer_summary(confirm.referrers, "into this folder"),
+        confirm.rewrite,
+        State::toggle_folder_rename_rewrite,
+        State::confirm_folder_rename,
+        State::cancel_folder_rename_confirm,
+        (
+            "Rename",
+            "folder-rename-confirm-yes",
+            "folder-rename-confirm-cancel",
+        ),
+    )
+}
+
+/// `2 notes link here` / `1 note links here`, pluralised once for both rows.
+fn referrer_summary(referrers: usize, place: &str) -> String {
+    format!(
+        "{} note{} link{} {place}",
+        referrers,
+        if referrers == 1 { "" } else { "s" },
+        if referrers == 1 { "s" } else { "" }
     )
 }
 

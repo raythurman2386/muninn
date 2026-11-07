@@ -296,6 +296,65 @@ fn sidebar_groups_notes_by_folder_and_collapses() {
 }
 
 #[test]
+fn folder_rename_rewrites_inbound_links_after_confirmation() {
+    let tmp = TempVault::new(&[
+        ("projects/alpha/one.md", "# One\nbody"),
+        ("projects/alpha/two.md", "# Two\nbody"),
+        (
+            "Welcome.md",
+            "See [[projects/alpha/one|alias]] and [[projects/alpha/two#Two]]",
+        ),
+    ]);
+    let mut rt = runtime(&tmp);
+    rt.state.begin_rename_folder("projects/alpha");
+    rt.state.rename_folder_field.replace_text("Gamma");
+    rt.state.submit_rename_folder();
+    rt.frame(1.0 / 60.0);
+    assert!(
+        rt.find("folder-rename-confirm").is_some(),
+        "folder rename asks before touching inbound links"
+    );
+    assert!(rt.state.folder_rename_confirm.as_ref().unwrap().rewrite);
+    rt.state.confirm_folder_rename();
+    assert!(tmp.path().join("projects/Gamma/one.md").is_file());
+    assert!(tmp.path().join("projects/Gamma/two.md").is_file());
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Welcome.md")).unwrap(),
+        "See [[projects/Gamma/one|alias]] and [[projects/Gamma/two#Two]]"
+    );
+    assert!(rt.state.error.is_none(), "{:?}", rt.state.error);
+}
+
+#[test]
+fn folder_rename_leave_option_keeps_links_dangling() {
+    let tmp = TempVault::new(&[
+        ("projects/alpha/one.md", "# One\nbody"),
+        ("Welcome.md", "See [[projects/alpha/one]]"),
+    ]);
+    let mut rt = runtime(&tmp);
+    rt.state.begin_rename_folder("projects/alpha");
+    rt.state.rename_folder_field.replace_text("Gamma");
+    rt.state.submit_rename_folder();
+    assert!(rt.state.folder_rename_confirm.is_some());
+    rt.state.toggle_folder_rename_rewrite();
+    assert!(!rt.state.folder_rename_confirm.as_ref().unwrap().rewrite);
+    rt.state.confirm_folder_rename();
+    assert!(tmp.path().join("projects/Gamma/one.md").is_file());
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Welcome.md")).unwrap(),
+        "See [[projects/alpha/one]]"
+    );
+    assert!(
+        rt.state
+            .vault
+            .broken_links()
+            .iter()
+            .any(|b| b.target == "projects/alpha/one"),
+        "leaving the link keeps it dangling"
+    );
+}
+
+#[test]
 fn folder_new_button_creates_in_that_folder() {
     let tmp = folder_vault();
     let mut rt = runtime(&tmp);

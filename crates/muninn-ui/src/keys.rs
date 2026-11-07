@@ -35,6 +35,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
             s.cancel_move_confirm();
             return true;
         }
+        if s.folder_rename_confirm.is_some() {
+            s.cancel_folder_rename_confirm();
+            return true;
+        }
         if s.menu.is_some() {
             s.close_menu();
             return true;
@@ -77,6 +81,7 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         || s.broken_panel
         || s.rename_confirm.is_some()
         || s.move_confirm.is_some()
+        || s.folder_rename_confirm.is_some()
         || s.new_note_prompt.is_some()
         || s.rename_prompt.is_some()
         || s.new_folder_prompt.is_some()

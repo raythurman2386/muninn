@@ -216,6 +216,17 @@ pub struct MoveConfirm {
     pub rewrite: bool,
 }
 
+/// M2 SAF-06: folder rename confirmation with the inbound-link choice.
+#[derive(Clone, Debug)]
+pub struct FolderRenameConfirm {
+    pub folder: String,
+    pub name: String,
+    /// Notes whose links currently resolve to a note under this folder.
+    pub referrers: usize,
+    /// Rewrite inbound wikilinks to the renamed stems (default on).
+    pub rewrite: bool,
+}
+
 /// M2 NAV-03: how many history entries are kept. Deep enough for a session's
 /// reading path, bounded so a long-running window cannot grow without limit.
 pub(crate) const HISTORY_CAP: usize = 100;
@@ -264,6 +275,8 @@ pub struct State {
     pub rename_confirm: Option<RenameConfirm>,
     /// M2 SAF-06: move waiting on the link-impact choice.
     pub move_confirm: Option<MoveConfirm>,
+    /// M2 SAF-06: folder rename waiting on the link-impact choice.
+    pub folder_rename_confirm: Option<FolderRenameConfirm>,
     /// M2 NAV-03: note-navigation history. Tabs were considered for M2 and
     /// deliberately rejected: one editor plus Back/Forward covers the
     /// "return to what I was reading" case without a tab-strip state model,
@@ -388,6 +401,7 @@ impl State {
             pending_top: false,
             rename_confirm: None,
             move_confirm: None,
+            folder_rename_confirm: None,
             history: Vec::new(),
             history_index: 0,
             mode: Mode::Editor,
@@ -1960,7 +1974,7 @@ impl State {
     /// SAF-06: flip the rename dialog's rewrite choice.
     pub fn toggle_rename_rewrite(&mut self) {
         if let Some(confirm) = self.rename_confirm.as_mut() {
-            confirm.rewrite = !confirm.rewrite;
+            flip_rewrite(&mut confirm.rewrite);
         }
     }
 
@@ -1970,10 +1984,12 @@ impl State {
 
     /// SAF-06: rename now, rewriting (or deliberately leaving) inbound links.
     pub fn confirm_rename_note(&mut self) {
-        let Some(confirm) = self.rename_confirm.take() else {
-            return;
-        };
-        self.apply_rename(confirm.id, &confirm.name, confirm.rewrite);
+        if let Some(RenameConfirm {
+            id, name, rewrite, ..
+        }) = self.rename_confirm.take()
+        {
+            self.apply_rename(id, &name, rewrite);
+        }
     }
 
     fn apply_rename(&mut self, id: usize, name: &str, rewrite: bool) {
@@ -2138,7 +2154,7 @@ impl State {
     /// SAF-06: flip the move dialog's rewrite choice.
     pub fn toggle_move_rewrite(&mut self) {
         if let Some(confirm) = self.move_confirm.as_mut() {
-            confirm.rewrite = !confirm.rewrite;
+            flip_rewrite(&mut confirm.rewrite);
         }
     }
 
@@ -2148,10 +2164,15 @@ impl State {
 
     /// SAF-06: move now, rewriting (or deliberately leaving) inbound links.
     pub fn confirm_move_note(&mut self) {
-        let Some(confirm) = self.move_confirm.take() else {
-            return;
-        };
-        self.apply_move(confirm.id, &confirm.folder, confirm.rewrite);
+        if let Some(MoveConfirm {
+            id,
+            folder,
+            rewrite,
+            ..
+        }) = self.move_confirm.take()
+        {
+            self.apply_move(id, &folder, rewrite);
+        }
     }
 
     fn apply_move(&mut self, id: usize, folder: &str, rewrite: bool) {
@@ -2252,15 +2273,92 @@ impl State {
         let Some(name) = finish_name_field(&mut self.rename_folder_field) else {
             return;
         };
-        // SAF-06: folder renames deliberately do not rewrite inbound links yet.
-        // Every note under the renamed folder (and every link to it) would need
-        // a prefix rewrite; the dashboard shows the resulting breakage and the
-        // per-note rename flow handles the common case. Documented as a
-        // follow-up in CHANGELOG.md.
-        match self.vault.rename_folder(&prompt.folder, &name) {
-            Ok(_) => {
+        self.flush();
+        // SAF-06: count links that resolve under this folder before mutating;
+        // the rewrite itself replays pre-rename resolution after the move.
+        let referrers = self.vault.link_referrers_for_folder(&prompt.folder).len();
+        if referrers == 0 {
+            self.apply_rename_folder(&prompt.folder, &name, false);
+        } else {
+            self.folder_rename_confirm = Some(FolderRenameConfirm {
+                folder: prompt.folder,
+                name,
+                referrers,
+                rewrite: true,
+            });
+        }
+    }
+
+    /// SAF-06: flip the folder-rename dialog's rewrite choice.
+    pub fn toggle_folder_rename_rewrite(&mut self) {
+        if let Some(confirm) = self.folder_rename_confirm.as_mut() {
+            flip_rewrite(&mut confirm.rewrite);
+        }
+    }
+
+    pub fn cancel_folder_rename_confirm(&mut self) {
+        self.folder_rename_confirm = None;
+    }
+
+    /// SAF-06: rename the folder now, rewriting (or deliberately leaving)
+    /// inbound links. The rename is not rolled back if a link file write
+    /// fails; the failure is reported instead.
+    pub fn confirm_folder_rename(&mut self) {
+        if let Some(FolderRenameConfirm {
+            folder,
+            name,
+            rewrite,
+            ..
+        }) = self.folder_rename_confirm.take()
+        {
+            self.apply_rename_folder(&folder, &name, rewrite);
+        }
+    }
+
+    fn apply_rename_folder(&mut self, folder: &str, name: &str, rewrite: bool) {
+        let folder = folder.trim_matches('/');
+        let old_path = self.selected_path.clone();
+        match self.vault.rename_folder(folder, name) {
+            Ok(path) => {
                 self.error = None;
-                self.reload(self.selected_path.clone());
+                let new_folder = path
+                    .strip_prefix(&self.vault.root)
+                    .map(|p| p.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_default();
+                let failures = if rewrite && !new_folder.is_empty() {
+                    self.vault
+                        .rewrite_inbound_links_for_folder(folder, &new_folder)
+                } else {
+                    Vec::new()
+                };
+                // Keep the open note selected across the folder move by mapping
+                // its old path through the same prefix change.
+                let select = old_path.as_ref().map(|old| {
+                    let rel = old
+                        .strip_prefix(&self.vault.root)
+                        .map(|p| p.to_string_lossy().replace('\\', "/"))
+                        .unwrap_or_default();
+                    match rel.strip_prefix(&format!("{folder}/")) {
+                        Some(rest) => self.vault.root.join(format!("{new_folder}/{rest}")),
+                        None => old.clone(),
+                    }
+                });
+                if let (Some(old), Some(new)) = (old_path.as_ref(), select.as_ref()) {
+                    self.rekey_editor(Some(old), new);
+                }
+                // Format before reload: reopening can reorder ids, and these
+                // failures name notes in the rewritten (pre-reload) vault.
+                let failure_message = (!failures.is_empty()).then(|| {
+                    format!(
+                        "Renamed, but {} inbound link file(s) could not be rewritten: {}",
+                        failures.len(),
+                        self.format_rewrite_failures(&failures)
+                    )
+                });
+                self.reload(select);
+                if failure_message.is_some() {
+                    self.error = failure_message;
+                }
             }
             Err(e) => self.error = Some(format!("Could not rename folder: {e}")),
         }
@@ -2576,6 +2674,11 @@ fn list_prefix(line: &str) -> Option<(usize, usize, String)> {
         ));
     }
     None
+}
+
+/// SAF-06: flip one confirmation dialog's rewrite checkbox.
+fn flip_rewrite(rewrite: &mut bool) {
+    *rewrite = !*rewrite;
 }
 
 /// Trim a submitted inline name and clear its focus. `None` means the field

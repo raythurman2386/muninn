@@ -86,8 +86,8 @@ is not in this table. That check is part of `xtask check` and CI.
   the same ids for nodes and edges.
 - **Links are resolved, not stored.** Changing a title re-resolves on the next `reindex`;
   the index is always derived from the files. Rename/move can additionally rewrite inbound
-  wikilink source (SAF-06, per file and atomic), but that is a user-chosen file edit, not
-  index state: the next scan would still work without it.
+  wikilink source (SAF-06, per file and atomic, including folder renames), but that is a
+  user-chosen file edit, not index state: the next scan would still work without it.
 - **Determinism.** The initial graph layout depends only on note order and path hash. Tests
   compare settled positions exactly.
 - **No side database.** Only `.md` files are written, plus the hidden trash folder: a note
