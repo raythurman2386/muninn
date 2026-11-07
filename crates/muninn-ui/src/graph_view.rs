@@ -11,9 +11,20 @@ use muninn_graph::{NODE_H, NODE_W, WORLD};
 
 use crate::{Scope, State};
 
+/// Below this zoom (Global scope only) nodes render as dots instead of
+/// labelled chips: at fit-zoom for hundreds of notes full cards are dense,
+/// unreadable, and dominate the instance count. The sample vault fits near
+/// zoom 0.9 so it keeps chips and its snapshots do not change.
+const LOD_ZOOM: f32 = 0.6;
+/// World size of a low-zoom dot marker (screen size is `DOT * zoom`, so
+/// about 12px at typical Global fit zoom).
+const DOT: f32 = 28.0;
+
 pub fn graph(s: &State, k: &Kit) -> El {
     let visible = s.visible_notes();
     let edges = s.graph.visible_edges(&visible);
+    let viewport = viewport_rect(s);
+    let dots_only = s.scope == Scope::Global && s.cam.zoom() < LOD_ZOOM;
     let mut world = el()
         .key("graph-world")
         .size(WORLD[0], WORLD[1])
@@ -21,10 +32,20 @@ pub fn graph(s: &State, k: &Kit) -> El {
         .live_offset(&s.cam.live_pan)
         .live_scale(&s.cam.live_zoom)
         .child(grid(k))
-        .child(edge_canvas(s, k, &edges));
+        .child(edge_canvas(s, k, &edges, viewport));
     for id in &visible {
         if let Some(node) = s.graph.node(*id) {
-            world = world.child(node_button(s, k, *id, node.pos));
+            // Off-screen cards cost layout instances for nothing; the
+            // selection survives culling so its info card stays meaningful.
+            if is_culled(node.pos, NODE_W, NODE_H, viewport) && s.selected != Some(*id) {
+                continue;
+            }
+            let full = !dots_only || s.selected == Some(*id) || is_neighbour(s, *id);
+            world = world.child(if full {
+                node_button(s, k, *id, node.pos)
+            } else {
+                node_dot(s, k, *id, node.pos)
+            });
         }
     }
 
@@ -94,7 +115,7 @@ pub fn graph(s: &State, k: &Kit) -> El {
 
     canvas_el
         .child(controls(s, k))
-        .child(stats(s, k))
+        .child(stats(s, k, visible.len(), edges.len()))
         .child(info(s, k))
         .child(hint(k))
 }
@@ -118,7 +139,7 @@ fn grid(k: &Kit) -> El {
     })
 }
 
-fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)]) -> El {
+fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)], viewport: [f32; 4]) -> El {
     let base = k.alpha(k.c.text_muted, 0.55);
     let hot = k.alpha(k.c.text_accent, 0.72);
     let mut shape = Shape::new();
@@ -126,6 +147,10 @@ fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)]) -> El {
         let (Some(from), Some(to)) = (s.graph.node(a), s.graph.node(b)) else {
             continue;
         };
+        // Skip segments with both ends off-screen; Rune clips the rest.
+        if is_culled(from.pos, 1.0, 1.0, viewport) && is_culled(to.pos, 1.0, 1.0, viewport) {
+            continue;
+        }
         let touches = s.selected == Some(a) || s.selected == Some(b);
         shape = shape.line(
             from.pos,
@@ -140,15 +165,40 @@ fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)]) -> El {
         .pin(Some(0.0), Some(0.0), None, None)
 }
 
-fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
-    let note = &s.vault.notes[id];
-    let selected = s.selected == Some(id);
-    let neighbour = s.selected.is_none_or(|sel| {
+/// World-space rectangle currently on screen, expanded so cards straddling
+/// the edge are kept.
+fn viewport_rect(s: &State) -> [f32; 4] {
+    let a = s.cam.world([0.0, 0.0]);
+    let b = s.cam.world(s.canvas);
+    let m = NODE_W;
+    [
+        a[0].min(b[0]) - m,
+        a[1].min(b[1]) - m,
+        a[0].max(b[0]) + m,
+        a[1].max(b[1]) + m,
+    ]
+}
+
+fn is_culled(pos: [f32; 2], w: f32, h: f32, viewport: [f32; 4]) -> bool {
+    pos[0] + w / 2.0 < viewport[0]
+        || pos[0] - w / 2.0 > viewport[2]
+        || pos[1] + h / 2.0 < viewport[1]
+        || pos[1] - h / 2.0 > viewport[3]
+}
+
+/// True when `id` is the selection or a direct neighbour of it.
+fn is_neighbour(s: &State, id: usize) -> bool {
+    s.selected.is_none_or(|sel| {
         sel == id
             || s.vault.notes[sel].links.contains(&id)
             || s.vault.notes[sel].backlinks.contains(&id)
-    });
-    let dim = s.selected.is_some() && !neighbour;
+    })
+}
+
+fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
+    let note = &s.vault.notes[id];
+    let selected = s.selected == Some(id);
+    let dim = s.selected.is_some() && !is_neighbour(s, id);
     let accent = k.c.text_accent;
     let fill = if selected {
         k.c.layer_02.mix(accent, 0.18)
@@ -226,6 +276,47 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
         node.shadow(1.0, 4.0, k.alpha(k.c.black, 0.3))
     };
     node
+}
+
+/// Low-zoom marker: same key and gestures as [`node_button`], one filled
+/// circle instead of a labelled card. Colour keeps the chip's degree and
+/// dim encoding (isolated faint, linked accent, dimmed faint border).
+fn node_dot(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
+    let note = &s.vault.notes[id];
+    let dim = s.selected.is_some() && !is_neighbour(s, id);
+    let accent = k.c.text_accent;
+    let degree = note.links.len() + note.backlinks.len();
+    let fill = if degree == 0 {
+        k.c.text_faint
+    } else if dim {
+        k.alpha(accent, 0.25)
+    } else {
+        k.alpha(accent, 0.7)
+    };
+    el().key(format!("graph-node-{id}"))
+        .pin(
+            Some(pos[0] - DOT / 2.0),
+            Some(pos[1] - DOT / 2.0),
+            None,
+            None,
+        )
+        .size(DOT, DOT)
+        .radius(DOT / 2.0)
+        .fill(fill)
+        .border(
+            1.0,
+            if dim {
+                k.c.border_muted
+            } else {
+                k.c.border_base
+            },
+        )
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .on_press(move |s: &mut State| s.select_graph_node(id))
+        .on_double_press(move |s: &mut State| s.open_note(id))
+        .on_drag(move |s: &mut State, d: &mut Drag, _: &mut Tx| s.drag_node(id, d))
 }
 
 fn controls(s: &State, k: &Kit) -> El {
@@ -312,9 +403,7 @@ fn chip(
         .child(text(label).font(k.ty.small_medium).color(k.c.text_muted))
 }
 
-fn stats(s: &State, k: &Kit) -> El {
-    let nodes = s.visible_notes().len();
-    let edges = s.visible_edge_count();
+fn stats(_s: &State, k: &Kit, nodes: usize, edges: usize) -> El {
     row()
         .pin(None, Some(14.0), Some(14.0), None)
         .h(30.0)

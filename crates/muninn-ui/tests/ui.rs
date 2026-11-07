@@ -437,3 +437,32 @@ fn graph_wheel_zooms_and_shift_wheel_pans() {
     assert_eq!(rt.state.cam.zoom(), 1.5, "shift must not zoom");
     assert_ne!(rt.state.cam.pan(), before, "shift must pan");
 }
+
+#[test]
+fn graph_low_zoom_stays_interactive_and_culls_offscreen() {
+    let tmp = temp_vault();
+    let mut rt = runtime(&tmp);
+    rt.state.set_mode(Mode::Graph);
+    rt.frame(1.0 / 60.0);
+    let node0 = format!("graph-node-{}", rt.state.vault.resolve("Alpha").unwrap());
+    assert!(rt.find(&node0).is_some(), "nodes mount in Graph mode");
+    // At low Global zoom the LOD dots must keep the same keys and presses.
+    rt.state.cam.set([0.0, 0.0], 0.3);
+    rt.frame(1.0 / 60.0);
+    assert!(rt.find(&node0).is_some(), "low-zoom dots keep node keys");
+    let (x, y) = rt.find(&node0).expect("node0");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.selected, rt.state.vault.resolve("Alpha"));
+    // Panning far away culls non-selected nodes from the tree.
+    rt.state.cam.set([8000.0, 8000.0], 1.0);
+    rt.frame(1.0 / 60.0);
+    let beta = format!("graph-node-{}", rt.state.vault.resolve("Beta").unwrap());
+    // Beta is not selected after the click-hit Alpha selection above, so it
+    // must be culled; the selected node survives culling.
+    assert!(
+        rt.find(&beta).is_none(),
+        "off-screen non-selected nodes cull"
+    );
+}

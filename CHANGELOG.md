@@ -26,6 +26,9 @@ All notable changes to Muninn are documented here. The format is based on
 - Graph wheel: plain scroll zooms at the pointer and `Shift+scroll` pans, matching the hint.
 - `poll` reports a view change only when a save completed, a node moved or the camera fit
   moved the view, ending spurious “returned true but nothing changed” warnings.
+- Global graph now shows dot markers below zoom `0.6` (labels kept for the selection and its
+  neighbours) and culls off-screen nodes and edges; layout skips repulsion beyond 800 units.
+  Local graph behaviour is unchanged.
 
 ## [0.1.0] - 2026-11-07
 
