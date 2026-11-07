@@ -33,8 +33,13 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io;
+use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Distinguishes concurrent temp files from the same process.
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 use crate::note::Note;
 use crate::preview::excerpt;
@@ -54,9 +59,18 @@ pub struct Vault {
     by_path: HashMap<String, usize>,
     /// Title (lower-cased) → note ids, sorted by `rel` (deterministic).
     by_title: HashMap<String, Vec<usize>>,
+    /// `.md` files the last scan found but could not read (invalid UTF-8,
+    /// permissions, …). They are deliberately absent from the index instead of
+    /// being silently treated as empty notes; the UI surfaces the count.
+    skipped: usize,
 }
 
 impl Vault {
+    /// Hidden folder, directly under the vault root, where deleted notes are
+    /// moved. Starting with `.` means [`Vault::load`]'s walk ignores it, so a
+    /// trashed note never reappears as a live note.
+    pub const TRASH_DIR: &str = ".muninn-trash";
+
     /// A vault with no notes, for a folder that couldn't be read.
     #[must_use]
     pub fn empty(root: impl AsRef<Path>) -> Vault {
@@ -66,14 +80,21 @@ impl Vault {
             dirs: vec![String::new()],
             by_path: HashMap::new(),
             by_title: HashMap::new(),
+            skipped: 0,
         }
     }
 
     /// Scan `root` for `.md` files, creating the folder when it doesn't exist.
     /// Dot-directories are skipped for both notes and the folder list.
+    ///
+    /// A missing root is created empty (the app starts with an empty vault),
+    /// but a root that exists and is not a readable folder is an error. That
+    /// distinction matters: silently returning an empty vault for a permission
+    /// problem would make the UI claim "No notes yet" instead of surfacing the
+    /// OS error.
     pub fn load(root: impl AsRef<Path>) -> io::Result<Vault> {
         let root = root.as_ref().to_path_buf();
-        fs::create_dir_all(&root)?;
+        prepare_root(&root)?;
         let mut paths = Vec::new();
         let mut dirs = Vec::new();
         walk(&root, &mut paths, &mut dirs, &root, 0);
@@ -90,38 +111,14 @@ impl Vault {
                 .then_with(|| a.cmp(b))
         });
 
-        let mut notes = Vec::new();
-        for path in paths {
-            let Ok(source) = fs::read_to_string(&path) else {
-                continue;
-            };
-            let Some(title) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) else {
-                continue;
-            };
-            if title.is_empty() {
-                continue;
-            }
-            let rel = path
-                .strip_prefix(&root)
-                .map(|p| p.to_string_lossy().replace('\\', "/"))
-                .unwrap_or_default();
-            notes.push(Note {
-                id: notes.len(),
-                path,
-                rel,
-                title,
-                source,
-                links: Vec::new(),
-                backlinks: Vec::new(),
-            });
-        }
-
+        let (notes, skipped) = read_notes(&root, paths);
         let mut vault = Vault {
             root,
             notes,
             dirs,
             by_path: HashMap::new(),
             by_title: HashMap::new(),
+            skipped,
         };
         vault.reindex();
         Ok(vault)
@@ -251,6 +248,14 @@ impl Vault {
         &self.notes[id]
     }
 
+    /// How many `.md` files the last scan found but could not index (invalid
+    /// UTF-8, unreadable file, unusable file name). Zero when the scan was
+    /// complete. Use it to warn without failing the whole vault.
+    #[must_use]
+    pub fn skipped_count(&self) -> usize {
+        self.skipped
+    }
+
     /// Distinct folders in the vault, vault root first, then sorted
     /// case-insensitively. The empty string is the vault root. Includes
     /// empty folders (from [`Vault::dirs`]), not just note folders.
@@ -354,12 +359,48 @@ impl Vault {
         }
     }
 
-    /// Replace one note's source on disk and in the index.
+    /// Replace one note's source atomically on disk and in the index.
+    ///
+    /// The in-memory note and the index are updated only after the rename
+    /// succeeds, so a failed write leaves both the file and `note.source`
+    /// unchanged.
     pub fn write_note(&mut self, id: usize, source: &str) -> io::Result<()> {
-        fs::write(&self.notes[id].path, source)?;
+        atomic_write(&self.notes[id].path, source.as_bytes())?;
         self.notes[id].source = source.to_owned();
         self.reindex();
         Ok(())
+    }
+
+    /// SAF-02 prerequisite: a note file's on-disk identity `(mtime, length)`.
+    ///
+    /// The conflict flow is not built yet. TODO(SAF-02): a later lane should
+    /// capture this before an edit and call
+    /// `write_note_if_unmodified(id, source, expected)` before overwriting;
+    /// when the current state differs, offer keep-mine/reload instead of
+    /// silently replacing the other writer's change.
+    pub fn disk_state(&self, id: usize) -> io::Result<(Option<SystemTime>, u64)> {
+        let meta = fs::metadata(&self.notes[id].path)?;
+        Ok((meta.modified().ok(), meta.len()))
+    }
+
+    /// SAF-02 prerequisite: write only when the disk still matches `expected`.
+    ///
+    /// Returns `Ok(false)` when another writer changed the file first; the
+    /// file, the note and the index are left untouched in that case. The
+    /// check is best-effort (a writer can still race between the stat and the
+    /// rename), which is enough to avoid clobbering a git checkout or an
+    /// external editor in normal use.
+    pub fn write_note_if_unmodified(
+        &mut self,
+        id: usize,
+        source: &str,
+        expected: (Option<SystemTime>, u64),
+    ) -> io::Result<bool> {
+        if self.disk_state(id)? != expected {
+            return Ok(false);
+        }
+        self.write_note(id, source)?;
+        Ok(true)
     }
 
     /// Create `title.md` (or `title 2.md`, …) at the vault root, returning
@@ -387,7 +428,8 @@ impl Vault {
             };
             let path = dir.join(name);
             if !path.exists() {
-                fs::write(&path, format!("# {title}\n\n"))?;
+                let body = format!("# {title}\n\n");
+                atomic_write(&path, body.as_bytes())?;
                 return Ok(path);
             }
             n += 1;
@@ -421,6 +463,9 @@ impl Vault {
     }
 
     /// Delete a note's file and its index entry.
+    ///
+    /// This is the permanent variant; the UI deletes through
+    /// [`Vault::delete_note_to_trash`] so the action can be undone.
     pub fn delete_note(&mut self, id: usize) -> io::Result<()> {
         fs::remove_file(&self.notes[id].path)?;
         self.notes.remove(id);
@@ -429,6 +474,107 @@ impl Vault {
         }
         self.reindex();
         Ok(())
+    }
+
+    /// Move a note's file into the vault-local trash and drop it from the
+    /// index, returning the trash-relative path for [`Vault::restore_note`].
+    ///
+    /// Layout: `.muninn-trash/<unix timestamp>[-n]/<original vault-relative
+    /// path>`. The nested path is preserved so restoring is a plain rename
+    /// back to where the note came from; the timestamp folder is unique even
+    /// for repeated deletes in the same second (`-2`, `-3`, …). The move is a
+    /// same-volume `fs::rename`, so it is atomic with no copy and no new
+    /// dependency. On failure the note and its index entry stay untouched.
+    ///
+    /// Only note deletes are trashed; [`Vault::delete_folder`] stays a
+    /// permanent empty-folder `remove_dir`.
+    pub fn delete_note_to_trash(&mut self, id: usize) -> io::Result<String> {
+        let source = self.notes[id].path.clone();
+        let rel = self.notes[id].rel.clone();
+        let trash = self.root.join(Self::TRASH_DIR);
+        fs::create_dir_all(&trash)?;
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let mut slot = trash.join(stamp.to_string());
+        let mut suffix = 2;
+        while slot.exists() {
+            slot = trash.join(format!("{stamp}-{suffix}"));
+            suffix += 1;
+        }
+        let target = slot.join(&rel);
+        if target.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{} already exists", target.display()),
+            ));
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::rename(&source, &target)?;
+        self.notes.remove(id);
+        for (i, note) in self.notes.iter_mut().enumerate() {
+            note.id = i;
+        }
+        self.reindex();
+        Ok(target
+            .strip_prefix(&self.root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default())
+    }
+
+    /// Restore a note previously moved by [`Vault::delete_note_to_trash`].
+    ///
+    /// `trash_rel` is the vault-relative path returned by the delete. The file
+    /// is renamed back to its original location; an existing target is an
+    /// error and is never overwritten. A successful restore rescans the vault,
+    /// so ids, links and folders match the file exactly.
+    pub fn restore_note(&mut self, trash_rel: &str) -> io::Result<PathBuf> {
+        let trash_rel = trash_rel.replace('\\', "/");
+        let invalid = || {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("{} is not a trash path", trash_rel),
+            )
+        };
+        let rest = trash_rel
+            .strip_prefix(Self::TRASH_DIR)
+            .and_then(|rest| rest.strip_prefix('/'))
+            .ok_or_else(invalid)?;
+        let (slot, original) = rest.split_once('/').ok_or_else(invalid)?;
+        // Reject a slot or a path that could escape the vault. Only the
+        // timestamp folder and the original nested path are accepted.
+        if slot.is_empty()
+            || slot == "."
+            || slot == ".."
+            || original.is_empty()
+            || original
+                .split('/')
+                .any(|part| part.is_empty() || part == "." || part == "..")
+        {
+            return Err(invalid());
+        }
+        let source = self.root.join(&trash_rel);
+        if !source.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("{} is no longer in the trash", trash_rel),
+            ));
+        }
+        let target = self.root.join(original);
+        if target.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{} already exists", target.display()),
+            ));
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::rename(&source, &target)?;
+        *self = Vault::load(&self.root)?;
+        Ok(target)
     }
 
     /// Move a note into an existing `folder` (`""` = root), keeping its file
@@ -603,6 +749,59 @@ impl Vault {
     }
 }
 
+/// Write `data` to `path` atomically: a hidden, uniquely named temp file in
+/// the same directory is flushed and fsynced, then renamed over `path`.
+///
+/// A crash at any point leaves either the old bytes or the new bytes at
+/// `path`, never a truncated file. A failed write removes the temp file. The
+/// temp name starts with `.` so the vault walk ignores it even if a killed
+/// process leaves one behind.
+fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
+    let dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let name = path
+        .file_name()
+        .map_or_else(|| "note".into(), |n| n.to_string_lossy().into_owned());
+    let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    // pid + counter keeps concurrent writers (and repeated saves) apart.
+    let temp = dir.join(format!(".{name}.{}.{counter}.tmp", std::process::id()));
+
+    let write = (|| -> io::Result<()> {
+        {
+            let mut file = fs::File::create(&temp)?;
+            file.write_all(data)?;
+            file.flush()?;
+            // fsync before rename: otherwise the rename can reach disk first
+            // and a crash could expose an empty or partial file.
+            file.sync_all()?;
+            // Close before rename; Windows cannot rename an open file.
+        }
+        fs::rename(&temp, path)
+    })();
+
+    if write.is_err() {
+        // Best-effort cleanup: report the original error, not the removal's.
+        let _ = fs::remove_file(&temp);
+        return write;
+    }
+    sync_parent(dir);
+    Ok(())
+}
+
+/// fsync the directory a rename landed in, best-effort.
+///
+/// Some filesystems and platforms reject fsync on a directory. The rename is
+/// already atomic; skipping (or failing) this sync only weakens durability
+/// across a power loss, so the error is deliberately ignored — there is no
+/// logger yet. Windows has no portable directory fsync, so it is a no-op.
+fn sync_parent(dir: &Path) {
+    #[cfg(unix)]
+    if let Ok(handle) = fs::File::open(dir) {
+        let _ = handle.sync_all();
+    }
+    #[cfg(not(unix))]
+    let _ = dir;
+}
+
 /// Normalise a resolve/search target the same way `parse_links` does before
 /// the vault sees it: trim, unify separators, drop a leading `./` or `/` and
 /// a `.md` suffix, and stop at a `#heading`.
@@ -641,6 +840,69 @@ fn folder_dir(root: &Path, folder: &str) -> PathBuf {
         dir.push(part);
     }
     dir
+}
+
+/// Validate (or create) the vault root before scanning.
+///
+/// A missing root is created empty. An existing non-directory is
+/// `NotADirectory`, and any other metadata/read_dir failure is the root's own
+/// error: the scan must not turn a permission problem into "no notes".
+fn prepare_root(root: &Path) -> io::Result<()> {
+    match fs::metadata(root) {
+        Ok(meta) if !meta.is_dir() => {
+            return Err(io::Error::new(
+                io::ErrorKind::NotADirectory,
+                format!("{} is not a folder", root.display()),
+            ));
+        }
+        Ok(_) => {}
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            // A missing vault is created empty; anything else (permission,
+            // loop, …) is the root's own failure and must be reported.
+            fs::create_dir_all(root)?;
+        }
+        Err(e) => return Err(e),
+    }
+    // The root is the vault itself: unlike a nested folder, a read_dir
+    // failure here cannot be treated as "no notes".
+    fs::read_dir(root)?;
+    Ok(())
+}
+
+/// Read the scanned paths into notes, counting the ones that could not be
+/// indexed (invalid UTF-8, permissions, unusable file name) instead of failing
+/// the whole vault. The count is surfaced by [`Vault::skipped_count`].
+fn read_notes(root: &Path, paths: Vec<PathBuf>) -> (Vec<Note>, usize) {
+    let mut notes = Vec::new();
+    let mut skipped = 0;
+    for path in paths {
+        let Ok(source) = fs::read_to_string(&path) else {
+            skipped += 1;
+            continue;
+        };
+        let Some(title) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) else {
+            skipped += 1;
+            continue;
+        };
+        if title.is_empty() {
+            skipped += 1;
+            continue;
+        }
+        let rel = path
+            .strip_prefix(root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        notes.push(Note {
+            id: notes.len(),
+            path,
+            rel,
+            title,
+            source,
+            links: Vec::new(),
+            backlinks: Vec::new(),
+        });
+    }
+    (notes, skipped)
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>, dirs: &mut Vec<String>, root: &Path, depth: usize) {
@@ -907,5 +1169,254 @@ mod tests {
         assert!(v.delete_folder("projects/alpha").is_err());
         assert!(v.delete_folder("").is_err());
         assert!(v.rename_folder("", "x").is_err());
+    }
+}
+
+#[cfg(test)]
+mod trash_tests {
+    use super::*;
+    use crate::testing::TempVault;
+
+    #[test]
+    fn deleted_notes_go_to_hidden_trash_and_restore_with_links() {
+        let tmp = TempVault::new(&[
+            ("Alpha.md", "# Alpha\n\nSee [[Beta]].\n"),
+            ("notes/Beta.md", "# Beta\n\nBack to [[Alpha]].\n"),
+        ]);
+        let mut v = tmp.load();
+        let alpha = v.resolve("Alpha").expect("Alpha");
+
+        let rel = v.delete_note_to_trash(alpha).expect("trash Alpha");
+        assert!(rel.starts_with(".muninn-trash/"), "{rel}");
+        assert!(rel.ends_with("/Alpha.md"), "{rel}");
+        assert!(!tmp.path().join("Alpha.md").exists(), "move, not delete");
+        let trashed = tmp.path().join(&rel);
+        assert_eq!(
+            fs::read_to_string(&trashed).expect("trashed body"),
+            "# Alpha\n\nSee [[Beta]].\n"
+        );
+
+        // Dot-directories are skipped, so the trashed note never reappears as
+        // a live note in a fresh scan.
+        let after = tmp.load();
+        assert_eq!(after.notes.len(), 1);
+        assert!(after.resolve("Alpha").is_none(), "trash is invisible");
+        assert_eq!(after.skipped_count(), 0);
+
+        // Undo is a rename back: content and both link directions survive.
+        v.restore_note(&rel).expect("restore Alpha");
+        assert!(tmp.path().join("Alpha.md").is_file());
+        assert!(!trashed.exists(), "trash copy is moved, not copied");
+        let reloaded = tmp.load();
+        let alpha = reloaded.resolve("Alpha").expect("restored Alpha");
+        let beta = reloaded.resolve("Beta").expect("Beta");
+        assert_eq!(reloaded.note(alpha).source, "# Alpha\n\nSee [[Beta]].\n");
+        assert!(reloaded.note(alpha).links.contains(&beta));
+        assert!(reloaded.note(beta).links.contains(&alpha));
+    }
+
+    #[test]
+    fn trash_preserves_nested_paths_and_is_unique_per_delete() {
+        let tmp = TempVault::new(&[("projects/alpha/note.md", "alpha")]);
+        let mut v = tmp.load();
+        let id = v.resolve("projects/alpha/note").expect("nested note");
+        let first = v.delete_note_to_trash(id).expect("first delete");
+        assert!(
+            first.ends_with("/projects/alpha/note.md"),
+            "nested path kept: {first}"
+        );
+
+        let path = tmp.path().join("projects/alpha/note.md");
+        fs::write(&path, "alpha again").unwrap();
+        let mut v = tmp.load();
+        let id = v.resolve("projects/alpha/note").expect("recreated note");
+        let second = v.delete_note_to_trash(id).expect("second delete");
+        assert_ne!(first, second, "same-second deletes get distinct slots");
+        assert!(tmp.path().join(&first).is_file());
+        assert!(tmp.path().join(&second).is_file());
+    }
+
+    #[test]
+    fn restore_refuses_to_overwrite_an_existing_note() {
+        let tmp = TempVault::new(&[("Alpha.md", "original")]);
+        let mut v = tmp.load();
+        let alpha = v.resolve("Alpha").expect("Alpha");
+        let rel = v.delete_note_to_trash(alpha).expect("trash");
+        fs::write(tmp.path().join("Alpha.md"), "recreated").unwrap();
+
+        let error = v.restore_note(&rel).expect_err("existing target");
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert!(!error.to_string().is_empty());
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Alpha.md")).unwrap(),
+            "recreated",
+            "the live note is never overwritten"
+        );
+        assert!(
+            tmp.path().join(&rel).is_file(),
+            "the trashed copy survives a refused restore"
+        );
+    }
+
+    #[test]
+    fn restore_rejects_paths_outside_the_trash() {
+        let tmp = TempVault::new(&[("Alpha.md", "alpha")]);
+        let mut v = tmp.load();
+        for bad in [
+            "Alpha.md",
+            ".muninn-trash/",
+            ".muninn-trash/1/../../Alpha.md",
+            ".muninn-trash/../Alpha.md",
+        ] {
+            assert!(v.restore_note(bad).is_err(), "must reject {bad}");
+        }
+        assert!(tmp.path().join("Alpha.md").is_file());
+    }
+}
+
+#[cfg(test)]
+mod load_error_tests {
+    use super::*;
+    use crate::testing::TempVault;
+
+    #[test]
+    fn a_file_as_the_vault_root_is_an_error() {
+        let tmp = TempVault::new(&[("not-a-folder.md", "# file")]);
+        let file = tmp.path().join("not-a-folder.md");
+        let error = match Vault::load(&file) {
+            Ok(_) => panic!("a file must not load as a vault"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), io::ErrorKind::NotADirectory);
+    }
+
+    #[test]
+    fn an_unreadable_root_is_an_error_not_an_empty_vault() {
+        let tmp = TempVault::new(&[("Alpha.md", "# Alpha\n")]);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o000)).expect("chmod");
+            // Root ignores mode bits (containers often run as root). Detect
+            // that case and fall back to the non-directory test above for the
+            // error path; the assertion still runs as a normal user.
+            let readable_as_root = fs::read_dir(tmp.path()).is_ok();
+            let loaded = Vault::load(tmp.path());
+            fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o700)).expect("chmod");
+            if readable_as_root {
+                return;
+            }
+            let error = match loaded {
+                Ok(_) => panic!("an unreadable root must not look empty"),
+                Err(error) => error,
+            };
+            assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        }
+        #[cfg(not(unix))]
+        let _ = tmp;
+    }
+
+    #[test]
+    fn a_missing_root_is_created_empty() {
+        let tmp = TempVault::new(&[]);
+        let root = tmp.path().join("brand/new");
+        let v = Vault::load(&root).expect("missing root is created");
+        assert!(root.is_dir());
+        assert!(v.notes.is_empty());
+        assert_eq!(v.skipped_count(), 0);
+    }
+
+    #[test]
+    fn invalid_utf8_notes_are_skipped_and_counted() {
+        let tmp = TempVault::new(&[("Good.md", "# Good\n")]);
+        fs::write(tmp.path().join("Broken.md"), [0xff, 0xfe, 0x00, 0x01]).expect("bytes");
+
+        let v = tmp.load();
+        assert_eq!(v.notes.len(), 1);
+        assert!(v.resolve("Good").is_some());
+        assert!(v.resolve("Broken").is_none());
+        assert_eq!(v.skipped_count(), 1);
+    }
+}
+
+/// Atomic-write guarantees live in their own module so the existing tests
+/// module keeps its size and baseline.
+#[cfg(test)]
+mod atomic_write_tests {
+    use super::*;
+    use crate::testing::TempVault;
+
+    /// Every `.tmp` file left in `dir` (the atomic-write temp files are hidden).
+    fn temp_files(dir: &Path) -> Vec<PathBuf> {
+        fs::read_dir(dir)
+            .expect("read dir")
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "tmp"))
+            .collect()
+    }
+
+    #[test]
+    fn atomic_write_leaves_old_or_new_and_cleans_temp() {
+        let tmp = TempVault::new(&[("note.md", "old")]);
+        let path = tmp.path().join("note.md");
+
+        atomic_write(&path, b"new body").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new body");
+        assert!(
+            temp_files(tmp.path()).is_empty(),
+            "{:?}",
+            temp_files(tmp.path())
+        );
+
+        // Rename onto an existing directory fails after the temp file was
+        // fully written and fsynced: the destination stays untouched and no
+        // partial temp survives. This is the injection point for the
+        // kill-9/rename-failure contract (old bytes or new bytes, never both).
+        let blocked = tmp.path().join("blocked.md");
+        fs::create_dir(&blocked).unwrap();
+        assert!(atomic_write(&blocked, b"never lands").is_err());
+        assert!(blocked.is_dir());
+        assert!(
+            temp_files(tmp.path()).is_empty(),
+            "{:?}",
+            temp_files(tmp.path())
+        );
+    }
+
+    #[test]
+    fn create_note_in_writes_atomically_and_leaves_no_temp() {
+        let tmp = TempVault::new(&[]);
+        let v = tmp.load();
+        let created = v.create_note_in("Atomic", "notes").unwrap();
+
+        assert_eq!(fs::read_to_string(&created).unwrap(), "# Atomic\n\n");
+        let dir = created.parent().unwrap();
+        assert!(temp_files(dir).is_empty(), "{:?}", temp_files(dir));
+
+        // A second create still gets a unique name and leaves no temp behind.
+        let again = v.create_note_in("Atomic", "notes").unwrap();
+        assert_eq!(again.file_name().unwrap(), "Atomic 2.md");
+        assert!(temp_files(dir).is_empty(), "{:?}", temp_files(dir));
+    }
+
+    #[test]
+    fn failed_write_keeps_in_memory_source() {
+        let tmp = TempVault::new(&[("note.md", "old")]);
+        let mut v = tmp.load();
+        let id = v.resolve("note").unwrap();
+        let path = v.note(id).path.clone();
+        // Block the rename: the destination is now a directory.
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+
+        assert!(v.write_note(id, "new text").is_err());
+
+        assert_eq!(v.note(id).source, "old");
+        assert!(
+            temp_files(tmp.path()).is_empty(),
+            "{:?}",
+            temp_files(tmp.path())
+        );
     }
 }

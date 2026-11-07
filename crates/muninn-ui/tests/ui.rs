@@ -18,7 +18,7 @@ fn temp_vault() -> TempVault {
 
 fn runtime(tmp: &TempVault) -> Runtime<State> {
     let mut rt = Runtime::new(
-        State::new(tmp.path().to_path_buf()),
+        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state")),
         view,
         (1180.0, 780.0),
         Env::new(true, 2.0),
@@ -174,7 +174,8 @@ fn graph_shortcut_round_trips_to_the_last_note_mode() {
 #[test]
 fn poll_reports_no_change_while_dirty_before_autosave() {
     let tmp = temp_vault();
-    let mut s = State::new(tmp.path().to_path_buf());
+    let mut s =
+        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state"));
     s.focus_editor();
     s.editor.insert("A new sentence.\n");
     assert!(s.dirty());
@@ -203,7 +204,8 @@ fn poll_reports_no_change_while_dirty_before_autosave() {
 #[test]
 fn graph_poll_settles_and_stays_quiet() {
     let tmp = temp_vault();
-    let mut s = State::new(tmp.path().to_path_buf());
+    let mut s =
+        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state"));
     s.set_mode(Mode::Graph);
     assert_eq!(s.scope, Scope::Global);
     let mut tx = Tx::default();

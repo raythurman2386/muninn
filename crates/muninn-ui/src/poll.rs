@@ -1,11 +1,13 @@
-//! Per-frame work: autosave and graph settling.
+//! Per-frame work: autosave, crash-recovery copies, external-change watch and
+//! graph settling.
 //!
 //! The Rune runtime warns when `poll` returns true while nothing visible
 //! changed, so this returns true **only** when something the user can see
 //! changed since the last frame: a save that reached disk (or surfaced a new
-//! error), a graph node that actually moved, or a camera fit that actually
-//! moved the view. Merely being dirty, or having layout heat left, is not a
-//! visible change and must not wake the window.
+//! error), an external edit that raised a conflict, a vault reload, a graph
+//! node that actually moved, or a camera fit that actually moved the view.
+//! Merely being dirty, writing a recovery copy, or having layout heat left is
+//! not a visible change and must not wake the window.
 
 use rune::Tx;
 
@@ -14,6 +16,14 @@ use crate::{Mode, State};
 pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     s.now = t;
     let mut changed = false;
+
+    // Watch first: an external edit to the dirty note must raise its conflict
+    // before autosave gets a chance to report something less specific. The
+    // watcher itself only touches metadata.
+    if s.watch_tick(t) {
+        changed = true;
+    }
+
     if s.dirty() {
         let since = *s.dirty_at.get_or_insert(t);
         if t - since >= 0.55 {
@@ -35,6 +45,11 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     } else {
         s.dirty_at = None;
     }
+
+    // SAF-05: copy a dirty buffer to the XDG recovery file after a short idle.
+    // This is invisible on screen, so it must not report a change.
+    s.recovery_tick(t);
+
     if s.mode == Mode::Graph {
         let moved = s.graph.step();
         if moved {

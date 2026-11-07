@@ -7,13 +7,16 @@ mod camera;
 mod graph_view;
 mod keys;
 mod poll;
+mod recovery;
 mod state;
 mod view;
+mod watch;
 
 pub use keys::{on_key, shortcut};
 pub use poll::poll;
+pub use recovery::RecoveryEntry;
 pub use state::{
-    ContextMenu, DeleteConfirm, FolderPrompt, FolderRename, MenuTarget, Mode, NamePrompt,
-    RenamePrompt, Scope, State,
+    ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FolderPrompt,
+    FolderRename, MenuTarget, Mode, NamePrompt, RenamePrompt, Scope, State, TrashUndo,
 };
 pub use view::view;

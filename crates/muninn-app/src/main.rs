@@ -20,7 +20,7 @@ fn main() {
     // Match the shipped `muninn.desktop` (`StartupWMClass` + hicolor icon) so
     // the OS can associate this window with the logo.
     rune::set_app_id("muninn");
-    rune::run(AppSpec::<State> {
+    let spec = AppSpec::<State> {
         fonts: theme::FONTS,
         families: theme::FAMILIES,
         min_size: Some((840.0, 560.0)),
@@ -28,7 +28,19 @@ fn main() {
         poll: Some(poll),
         on_key: Some(on_key),
         ..AppSpec::new("Muninn", (1180.0, 780.0), init, view)
-    });
+    };
+    rune::App::new(spec)
+        .on_close(|s, _tx| {
+            // Best-effort: flush the open note on the normal close path. Autosave is
+            // the crash net for SIGTERM/SIGKILL, which never run this hook; Rune's
+            // `AppHandle::quit` / `Tx::quit` also bypass it.
+            //
+            // With a conflict pending (SAF-02), `save_now` refuses to overwrite the
+            // changed file and returns `false`. That is intentional: closing must not
+            // force-overwrite work the user has not resolved.
+            s.save_now();
+        })
+        .run();
 }
 
 fn init() -> State {
@@ -116,5 +128,36 @@ mod tests {
             names,
             ["notes", "preview", "graph", "local", "light", "empty"]
         );
+    }
+
+    /// The `on_close` hook only calls `State::save_now`, so this proves the close path
+    /// flushes a dirty buffer without needing a window or a Rune `Tx`.
+    #[test]
+    fn close_flush_writes_a_dirty_buffer() {
+        use std::fs;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "muninn-app-close-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        drop(fs::remove_dir_all(&dir));
+        fs::create_dir_all(&dir).expect("temp vault");
+        let note = dir.join("Note.md");
+        fs::write(&note, "original").expect("fixture");
+
+        let mut state = State::new(dir.clone());
+        assert_eq!(state.vault.notes.len(), 1);
+        state.editor.replace_text("edited on close");
+        assert!(state.dirty());
+
+        assert!(state.save_now(), "dirty note should be written");
+        assert!(!state.dirty());
+        assert_eq!(fs::read_to_string(&note).expect("read"), "edited on close");
+
+        drop(state);
+        drop(fs::remove_dir_all(&dir));
     }
 }

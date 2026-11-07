@@ -107,7 +107,7 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
             }
         }
     }
-    if empty {
+    if empty && !(s.vault.notes.is_empty() && s.startup_error.is_some()) {
         let (title, hint) = if s.vault.notes.is_empty() {
             ("No notes yet", "Add .md files here, or make one below.")
         } else {
@@ -115,6 +115,7 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
         };
         list = list.child(
             col()
+                .key("no-notes-hint")
                 .py(24.0)
                 .px(12.0)
                 .gap(5.0)
@@ -315,28 +316,29 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
 
 fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
     let target = folder.to_owned();
-    el().key(format!("folder-new-{slug}"))
+    pressable(k, format!("folder-new-{slug}"))
         .size(22.0, 22.0)
-        .radius(6.0)
         .center()
-        .hover(k.c.hover)
-        .press(k.c.pressed)
-        .cursor(Cursor::Pointer)
         .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
         .on_press(move |s: &mut State| s.new_note_in(&target))
 }
 
 fn folder_new_folder_button(k: &Kit, slug: &str, folder: &str) -> El {
     let target = folder.to_owned();
-    el().key(format!("folder-create-{slug}"))
+    pressable(k, format!("folder-create-{slug}"))
         .size(22.0, 22.0)
-        .radius(6.0)
         .center()
-        .hover(k.c.hover)
-        .press(k.c.pressed)
-        .cursor(Cursor::Pointer)
         .child(icon(&ic::FOLDER_ADD_LEFT, 12.0).color(k.c.icon_muted))
         .on_press(move |s: &mut State| s.begin_new_folder(&target))
+}
+
+/// Shared cursor/hover/press base for small pointer targets.
+fn pressable(k: &Kit, key: String) -> El {
+    let mut target = el().key(key);
+    target = target.radius(6.0);
+    target = target.hover(k.c.hover);
+    target = target.press(k.c.pressed);
+    target.cursor(Cursor::Pointer)
 }
 
 /// Stable test key for a folder (`""` → `root`).
@@ -813,7 +815,23 @@ fn logo_mark(size: f32) -> El {
 }
 
 fn main(s: &State, k: &Kit) -> El {
-    let body = if s.mode == Mode::Graph {
+    let mut page = col()
+        .key("main")
+        .grow(1.0)
+        .h_full()
+        .min_w(0.0)
+        .child(topbar(s, k))
+        .child(divider_h(k));
+    if s.startup_error.is_some() && !s.vault.notes.is_empty() {
+        // A partial failure still lets the notes that did load stay usable.
+        page = page.child(startup_banner(s, k));
+    }
+    if !s.recovered.is_empty() {
+        page = page.child(recovery_banner(s, k));
+    }
+    let body = if s.vault.notes.is_empty() && s.startup_error.is_some() {
+        vault_error_page(s, k)
+    } else if s.mode == Mode::Graph {
         crate::graph_view::graph(s, k)
     } else {
         let mut content = row().key("note-body").w_full().grow(1.0).min_h(0.0).child(
@@ -835,14 +853,142 @@ fn main(s: &State, k: &Kit) -> El {
         }
         content
     };
+    page.child(body)
+}
+
+/// The whole vault could not be scanned: show the OS error and Retry instead
+/// of an empty editor (which would read as "your notes are gone").
+fn vault_error_page(s: &State, k: &Kit) -> El {
+    let message = s.startup_error.clone().unwrap_or_default();
     col()
-        .key("main")
+        .key("vault-error")
+        .w_full()
         .grow(1.0)
-        .h_full()
-        .min_w(0.0)
-        .child(topbar(s, k))
-        .child(divider_h(k))
-        .child(body)
+        .min_h(0.0)
+        .px(40.0)
+        .center()
+        .items_center()
+        .gap(9.0)
+        .child(
+            text("Could not open the vault")
+                .font(k.ty.ui_medium)
+                .color(k.c.danger.fg),
+        )
+        .child(
+            text(message)
+                .font(k.ty.caption())
+                .max_w(560.0)
+                .color(k.c.text_muted),
+        )
+        .child(
+            text("Choosing another folder is not available yet; pass --vault or set MUNINN_VAULT.")
+                .font(k.ty.caption())
+                .max_w(560.0)
+                .color(k.c.text_faint),
+        )
+        .child(status_button(
+            k,
+            "Retry",
+            "vault-retry",
+            State::retry_startup,
+        ))
+}
+
+/// A banner above a still-usable vault when the last scan partly failed.
+fn startup_banner(s: &State, k: &Kit) -> El {
+    let message = s.startup_error.clone().unwrap_or_default();
+    row()
+        .key("startup-banner")
+        .w_full()
+        .px(20.0)
+        .py(7.0)
+        .gap(8.0)
+        .center_y()
+        .fill(k.alpha(k.c.danger.fg, 0.08))
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
+        .child(
+            text(message)
+                .font(k.ty.caption())
+                .color(k.c.danger.fg)
+                .grow(1.0)
+                .truncate(),
+        )
+        .child(status_button(
+            k,
+            "Retry",
+            "vault-retry",
+            State::retry_startup,
+        ))
+}
+
+/// SAF-05: dirty buffers found in the state directory at startup. Every row
+/// restores one buffer; Restore all applies them in order (saving each before
+/// the next), and Dismiss discards every listed copy after an explicit click.
+fn recovery_banner(s: &State, k: &Kit) -> El {
+    let count = s.recovered.len();
+    let mut banner = row()
+        .key("recovery-banner")
+        .w_full()
+        .px(20.0)
+        .py(7.0)
+        .gap(8.0)
+        .center_y()
+        .fill(k.alpha(k.c.warning.fg, 0.10))
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.warning.fg))
+        .child(
+            text(format!(
+                "Recovered unsaved edits for {}",
+                plural(count, "note", "notes")
+            ))
+            .font(k.ty.caption())
+            .color(k.c.warning.fg)
+            .truncate(),
+        );
+    for (index, entry) in s.recovered.iter().take(3).enumerate() {
+        let rel = entry.rel.clone();
+        banner = banner.child(
+            row()
+                .gap(4.0)
+                .center_y()
+                .child(
+                    text(entry.rel.clone())
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted)
+                        .max_w(190.0)
+                        .truncate(),
+                )
+                .child(
+                    pressable(k, format!("recovery-restore-{index}"))
+                        .px(6.0)
+                        .py(3.0)
+                        .child(text("Restore").font(k.ty.caption()).color(k.c.text_base))
+                        .on_press(move |s: &mut State| {
+                            s.restore_recovery(&rel);
+                        }),
+                ),
+        );
+    }
+    if count > 3 {
+        banner = banner.child(
+            text(format!("+{} more", count - 3))
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        );
+    }
+    banner
+        .child(spacer())
+        .child(status_button(
+            k,
+            "Restore all",
+            "recovery-restore-all",
+            State::restore_all_recovery,
+        ))
+        .child(status_button(
+            k,
+            "Dismiss",
+            "recovery-dismiss",
+            State::dismiss_recovery,
+        ))
 }
 
 fn topbar(s: &State, k: &Kit) -> El {
@@ -965,7 +1111,19 @@ fn editor(s: &State, k: &Kit) -> El {
             )
             .on_edit(|s: &mut State| &mut s.editor)
             .on_submit(|s: &mut State, _| s.editor.insert("\n"))
-            .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| crate::shortcut(s, e, tx)),
+            .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                // Let menus/prompts/graph shortcuts claim Escape first; an
+                // unclaimed Escape blurs in the same event (EDT-06) so the
+                // typing gate cannot leave F2/Delete disabled until the next
+                // frame. Mirrors the search field's handler above.
+                let handled = crate::shortcut(s, e, tx);
+                if e.key == Key::Escape && !handled {
+                    s.blur_text();
+                    tx.blur();
+                    return true;
+                }
+                handled
+            }),
     );
     col()
         .key("editor-pane")
@@ -1083,6 +1241,9 @@ fn empty_page(k: &Kit, message: &str) -> El {
 }
 
 fn status_bar(s: &State, k: &Kit) -> El {
+    if s.conflict.is_some() {
+        return conflict_bar(s, k);
+    }
     let (dot, label) = if let Some(error) = &s.error {
         (k.c.danger.fg, error.clone())
     } else if s.dirty() {
@@ -1092,15 +1253,8 @@ fn status_bar(s: &State, k: &Kit) -> El {
     } else {
         (k.c.text_faint, "Autosave on".to_owned())
     };
-    let count = s
-        .selected
-        .and_then(|id| s.vault.notes.get(id))
-        .map_or(0, |n| n.links.len());
-    let back = s
-        .selected
-        .and_then(|id| s.vault.notes.get(id))
-        .map_or(0, |n| n.backlinks.len());
-    row()
+    let mut bar = row()
+        .key("status-bar")
         .h(36.0)
         .px(20.0)
         .gap(7.0)
@@ -1111,18 +1265,102 @@ fn status_bar(s: &State, k: &Kit) -> El {
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
                 .truncate(),
+        );
+    if s.error.is_some() && s.dirty() {
+        bar = bar.child(status_button(k, "Retry", "retry-save", State::retry_save));
+    }
+    let skipped = s.vault.skipped_count();
+    if skipped > 0 {
+        bar = bar.child(
+            text(plural(skipped, "file", "files") + " skipped")
+                .key("skipped-count")
+                .font(k.ty.caption())
+                .color(k.c.warning.fg),
+        );
+    }
+    if let Some(undo) = &s.trash_undo {
+        bar = bar
+            .child(
+                text(format!("Deleted {}", undo.label))
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .truncate(),
+            )
+            .child(status_button(k, "Undo", "trash-undo", State::undo_trash));
+    }
+    bar.child(spacer()).child(status_meta(s, k))
+}
+
+/// A conflict outranks the ordinary status line: while one is pending the
+/// only actions are the three explicit resolutions.
+fn conflict_bar(s: &State, k: &Kit) -> El {
+    let Some(conflict) = &s.conflict else {
+        return el();
+    };
+    row()
+        .key("conflict-bar")
+        .h(36.0)
+        .px(20.0)
+        .gap(7.0)
+        .center_y()
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
+        .child(
+            text(conflict.message())
+                .font(k.ty.caption())
+                .color(k.c.danger.fg)
+                .truncate(),
         )
         .child(spacer())
-        .child(
-            text(format!(
-                "{} · {} · {}",
-                plural(s.words(), "word", "words"),
-                plural(count, "link", "links"),
-                plural(back, "backlink", "backlinks")
-            ))
-            .font(k.ty.caption())
-            .color(k.c.text_faint),
-        )
+        .child(status_button(
+            k,
+            "Keep mine",
+            "conflict-keep-mine",
+            State::resolve_conflict_keep_mine,
+        ))
+        .child(status_button(
+            k,
+            "Load theirs",
+            "conflict-load-theirs",
+            State::resolve_conflict_load_theirs,
+        ))
+        .child(status_button(
+            k,
+            "Save copy",
+            "conflict-save-copy",
+            State::resolve_conflict_save_copy,
+        ))
+}
+
+fn status_meta(s: &State, k: &Kit) -> El {
+    let count = s
+        .selected
+        .and_then(|id| s.vault.notes.get(id))
+        .map_or(0, |n| n.links.len());
+    let back = s
+        .selected
+        .and_then(|id| s.vault.notes.get(id))
+        .map_or(0, |n| n.backlinks.len());
+    text(format!(
+        "{} · {} · {}",
+        plural(s.words(), "word", "words"),
+        plural(count, "link", "links"),
+        plural(back, "backlink", "backlinks")
+    ))
+    .font(k.ty.caption())
+    .color(k.c.text_faint)
+}
+
+fn status_button(k: &Kit, label: &str, key: &str, action: fn(&mut State) -> bool) -> El {
+    let label = label.to_owned();
+    let key = key.to_owned();
+    pressable(k, key)
+        .px(8.0)
+        .py(4.0)
+        .center_y()
+        .child(text(label).font(k.ty.caption()).color(k.c.text_base))
+        .on_press(move |s: &mut State| {
+            let _ = action(s);
+        })
 }
 
 fn rail(s: &State, k: &Kit) -> El {
