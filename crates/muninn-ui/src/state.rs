@@ -22,6 +22,61 @@ pub enum Scope {
     Local,
 }
 
+/// What a sidebar context menu acts on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MenuTarget {
+    Note(usize),
+    Folder(String),
+}
+
+impl MenuTarget {
+    fn note(id: usize) -> Self {
+        Self::Note(id)
+    }
+    fn folder(folder: &str) -> Self {
+        Self::Folder(folder.to_owned())
+    }
+}
+
+/// Open right-click menu, anchored in window points.
+#[derive(Clone, Debug)]
+pub struct ContextMenu {
+    pub target: MenuTarget,
+    pub x: f32,
+    pub y: f32,
+}
+
+/// Name being typed for a new note in `folder`.
+#[derive(Clone, Debug)]
+pub struct NamePrompt {
+    pub folder: String,
+}
+
+/// Name being typed for an existing note's rename.
+#[derive(Clone, Debug)]
+pub struct RenamePrompt {
+    pub id: usize,
+}
+
+/// Name being typed for a new folder under `parent`.
+#[derive(Clone, Debug)]
+pub struct FolderPrompt {
+    pub parent: String,
+}
+
+/// New last segment being typed for an existing folder.
+#[derive(Clone, Debug)]
+pub struct FolderRename {
+    pub folder: String,
+}
+
+/// Inline delete confirmation for a note or folder.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DeleteConfirm {
+    Note(usize),
+    Folder(String),
+}
+
 pub struct State {
     pub vault: Vault,
     pub selected: Option<usize>,
@@ -53,6 +108,24 @@ pub struct State {
     pub now: f64,
     /// Collapsed sidebar folders (vault-relative, `""` for the root).
     pub collapsed: HashSet<String>,
+    /// Open right-click menu, if any.
+    pub menu: Option<ContextMenu>,
+    /// Inline name field for a note being created. Empty/cancel creates nothing.
+    pub new_note_prompt: Option<NamePrompt>,
+    pub new_note_field: TextEdit,
+    /// Inline rename field for a note.
+    pub rename_prompt: Option<RenamePrompt>,
+    pub rename_field: TextEdit,
+    /// Inline name field for a folder being created.
+    pub new_folder_prompt: Option<FolderPrompt>,
+    pub new_folder_field: TextEdit,
+    /// Inline rename field for a folder.
+    pub rename_folder_prompt: Option<FolderRename>,
+    pub rename_folder_field: TextEdit,
+    /// Inline delete confirmation.
+    pub delete_confirm: Option<DeleteConfirm>,
+    /// Note being moved: the sidebar shows folder targets under its row.
+    pub move_picker: Option<usize>,
 }
 
 impl State {
@@ -88,6 +161,17 @@ impl State {
             dirty_at: None,
             now: 0.0,
             collapsed: HashSet::new(),
+            menu: None,
+            new_note_prompt: None,
+            new_note_field: TextEdit::new(""),
+            rename_prompt: None,
+            rename_field: TextEdit::new(""),
+            new_folder_prompt: None,
+            new_folder_field: TextEdit::new(""),
+            rename_folder_prompt: None,
+            rename_folder_field: TextEdit::new(""),
+            delete_confirm: None,
+            move_picker: None,
         };
         if let Some(id) = first {
             state.load_note(id, false);
@@ -339,14 +423,256 @@ impl State {
         }
     }
 
+    /// Begin naming a note in the current folder. Nothing is created until
+    /// the field is submitted with a non-empty name.
     pub fn new_note(&mut self) {
         let folder = self.current_folder();
-        self.new_note_in(&folder);
+        self.begin_new_note(&folder);
     }
 
-    /// Create a fresh `Untitled` note in `folder` (`""` = vault root).
+    /// Begin naming a note in `folder`. Nothing is created until the field
+    /// is submitted with a non-empty name.
     pub fn new_note_in(&mut self, folder: &str) {
-        self.create_note_named_in("Untitled", folder);
+        self.begin_new_note(folder);
+    }
+
+    /// Open the inline name field for `folder`, expanding it so the field
+    /// stays visible.
+    pub fn begin_new_note(&mut self, folder: &str) {
+        self.menu = None;
+        self.collapsed.remove(folder);
+        self.new_note_field.replace_text("");
+        self.new_note_field.focused = true;
+        self.editor.focused = false;
+        self.search.focused = false;
+        self.new_note_prompt = Some(NamePrompt {
+            folder: folder.to_owned(),
+        });
+    }
+
+    /// Create the prompted note if the name is non-empty; an empty field
+    /// cancels and creates nothing.
+    pub fn submit_new_note(&mut self) {
+        let Some(prompt) = self.new_note_prompt.take() else {
+            return;
+        };
+        let name = self.new_note_field.text.trim().to_owned();
+        self.new_note_field.focused = false;
+        if name.is_empty() {
+            return;
+        }
+        self.create_note_named_in(&name, &prompt.folder);
+    }
+
+    pub fn cancel_new_note(&mut self) {
+        self.new_note_prompt = None;
+        self.new_note_field.focused = false;
+    }
+
+    pub fn begin_rename_note(&mut self, id: usize) {
+        self.menu = None;
+        let title = self.vault.notes.get(id).map(|n| n.title.clone()).unwrap_or_default();
+        self.rename_field.replace_text(title.as_str());
+        self.rename_field.focused = true;
+        self.editor.focused = false;
+        self.search.focused = false;
+        self.rename_prompt = Some(RenamePrompt { id });
+    }
+
+    pub fn cancel_rename_note(&mut self) {
+        self.rename_prompt = None;
+        self.rename_field.focused = false;
+    }
+
+    pub fn submit_rename_note(&mut self) {
+        let Some(prompt) = self.rename_prompt.take() else {
+            return;
+        };
+        let name = self.rename_field.text.trim().to_owned();
+        self.rename_field.focused = false;
+        if name.is_empty() {
+            return;
+        }
+        self.flush();
+        let was_selected = self.selected == Some(prompt.id);
+        match self.vault.rename_note(prompt.id, &name) {
+            Ok(path) => {
+                self.error = None;
+                // The vault updated in place; reload resyncs ids (tests use
+                // paths) and rebuilds graph titles keyed by rel.
+                let select = if was_selected { Some(path) } else { self.selected_path.clone() };
+                self.reload(select);
+            }
+            Err(e) => self.error = Some(format!("Could not rename note: {e}")),
+        }
+    }
+
+    pub fn delete_note(&mut self, id: usize) {
+        self.delete_confirm = Some(DeleteConfirm::Note(id));
+        self.menu = None;
+    }
+
+    pub fn confirm_delete(&mut self) {
+        let Some(target) = self.delete_confirm.take() else {
+            return;
+        };
+        match target {
+            DeleteConfirm::Note(id) => {
+                let was_selected = self.selected == Some(id);
+                self.flush();
+                match self.vault.delete_note(id) {
+                    Ok(()) => {
+                        self.error = None;
+                        if was_selected {
+                            self.selected = None;
+                            self.selected_path = None;
+                            self.editor.replace_text("");
+                            self.saved.clear();
+                        }
+                        self.reload(None);
+                    }
+                    Err(e) => self.error = Some(format!("Could not delete note: {e}")),
+                }
+            }
+            DeleteConfirm::Folder(folder) => match self.vault.delete_folder(&folder) {
+                Ok(()) => self.reload(self.selected_path.clone()),
+                Err(e) => self.error = Some(format!("Could not delete folder: {e}")),
+            },
+        }
+    }
+
+    pub fn cancel_delete(&mut self) {
+        self.delete_confirm = None;
+    }
+
+    pub fn begin_move_note(&mut self, id: usize) {
+        self.menu = None;
+        self.move_picker = Some(id);
+    }
+
+    pub fn cancel_move(&mut self) {
+        self.move_picker = None;
+    }
+
+    pub fn move_note_to(&mut self, id: usize, folder: &str) {
+        self.move_picker = None;
+        self.flush();
+        match self.vault.move_note(id, folder) {
+            Ok(path) => self.reload(Some(path)),
+            Err(e) => self.error = Some(format!("Could not move note: {e}")),
+        }
+    }
+
+    pub fn begin_new_folder(&mut self, parent: &str) {
+        self.menu = None;
+        self.collapsed.remove(parent);
+        self.new_folder_field.replace_text("");
+        self.new_folder_field.focused = true;
+        self.editor.focused = false;
+        self.search.focused = false;
+        self.new_folder_prompt = Some(FolderPrompt {
+            parent: parent.to_owned(),
+        });
+    }
+
+    pub fn submit_new_folder(&mut self) {
+        let Some(prompt) = self.new_folder_prompt.take() else {
+            return;
+        };
+        let name = self.new_folder_field.text.trim().to_owned();
+        self.new_folder_field.focused = false;
+        if name.is_empty() {
+            return;
+        }
+        match self.vault.create_folder(&prompt.parent, &name) {
+            Ok(_) => {
+                self.error = None;
+                // An empty folder has no notes so grouping won't show it;
+                // keep the parent expanded so the next inline field is visible.
+            }
+            Err(e) => self.error = Some(format!("Could not create folder: {e}")),
+        }
+    }
+
+    pub fn cancel_new_folder(&mut self) {
+        self.new_folder_prompt = None;
+        self.new_folder_field.focused = false;
+    }
+
+    pub fn begin_rename_folder(&mut self, folder: &str) {
+        self.menu = None;
+        let current = folder.rsplit('/').next().unwrap_or(folder).to_owned();
+        self.rename_folder_field.replace_text(current.as_str());
+        self.rename_folder_field.focused = true;
+        self.editor.focused = false;
+        self.search.focused = false;
+        self.rename_folder_prompt = Some(FolderRename {
+            folder: folder.to_owned(),
+        });
+    }
+
+    pub fn cancel_rename_folder(&mut self) {
+        self.rename_folder_prompt = None;
+        self.rename_folder_field.focused = false;
+    }
+
+    pub fn submit_rename_folder(&mut self) {
+        let Some(prompt) = self.rename_folder_prompt.take() else {
+            return;
+        };
+        let name = self.rename_folder_field.text.trim().to_owned();
+        self.rename_folder_field.focused = false;
+        if name.is_empty() {
+            return;
+        }
+        match self.vault.rename_folder(&prompt.folder, &name) {
+            Ok(_) => {
+                self.error = None;
+                self.reload(self.selected_path.clone());
+            }
+            Err(e) => self.error = Some(format!("Could not rename folder: {e}")),
+        }
+    }
+
+    pub fn delete_folder(&mut self, folder: &str) {
+        self.delete_confirm = Some(DeleteConfirm::Folder(folder.to_owned()));
+        self.menu = None;
+    }
+
+    pub fn open_note_menu(&mut self, id: usize, x: f32, y: f32) {
+        self.menu = Some(ContextMenu {
+            target: MenuTarget::note(id),
+            x,
+            y,
+        });
+    }
+
+    pub fn open_folder_menu(&mut self, folder: &str, x: f32, y: f32) {
+        self.menu = Some(ContextMenu {
+            target: MenuTarget::folder(folder),
+            x,
+            y,
+        });
+    }
+
+    pub fn close_menu(&mut self) {
+        self.menu = None;
+    }
+
+    pub fn pick_menu(&mut self, action: &str) {
+        let Some(menu) = self.menu.take() else {
+            return;
+        };
+        match (menu.target, action) {
+            (MenuTarget::Note(id), "rename") => self.begin_rename_note(id),
+            (MenuTarget::Note(id), "delete") => self.delete_note(id),
+            (MenuTarget::Note(id), "move") => self.begin_move_note(id),
+            (MenuTarget::Folder(folder), "new_note") => self.begin_new_note(&folder),
+            (MenuTarget::Folder(folder), "new_folder") => self.begin_new_folder(&folder),
+            (MenuTarget::Folder(folder), "rename") => self.begin_rename_folder(&folder),
+            (MenuTarget::Folder(folder), "delete") => self.delete_folder(&folder),
+            _ => {}
+        }
     }
 
     /// Folder new notes target by default: the selected note's folder, or

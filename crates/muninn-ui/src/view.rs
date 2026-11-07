@@ -9,7 +9,7 @@ use rune_theme_opencode::icons as ic;
 
 use muninn_core::Vault;
 
-use crate::{Mode, State};
+use crate::{DeleteConfirm, MenuTarget, Mode, State};
 
 const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
@@ -37,14 +37,54 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
     let results = s.vault.search(&s.search.text);
     let empty = results.is_empty();
     let filtering = !s.search.text.trim().is_empty();
-    let groups = s.vault.group_by_folder(&results);
+    // Without a query, show every folder (including empty ones so they can
+    // be targeted); with a query, only folders holding a match.
+    let groups: Vec<(String, Vec<usize>)> = if filtering {
+        s.vault.group_by_folder(&results)
+    } else {
+        s.vault
+            .folders()
+            .into_iter()
+            .map(|f| {
+                let ids = s.vault.notes_in_folder(&f);
+                (f, ids)
+            })
+            .collect::<Vec<_>>()
+    };
     let mut list = col().key("note-list").w_full().px(8.0).pb(8.0).gap(2.0);
     for (folder, ids) in groups {
         let collapsed = s.is_collapsed(&folder) && !filtering;
         list = list.child(folder_header(s, k, &folder, ids.len(), collapsed));
+        if s.menu.as_ref().is_some_and(|m| m.target == MenuTarget::Folder(folder.clone())) {
+            list = list.child(context_menu(s, k));
+        }
+        if s.delete_confirm.as_ref() == Some(&DeleteConfirm::Folder(folder.clone())) {
+            list = list.child(delete_confirm_row(s, k, &DeleteConfirm::Folder(folder.clone())));
+        }
+        if s.rename_folder_prompt.as_ref().is_some_and(|p| p.folder == folder) {
+            list = list.child(rename_folder_row(s, k));
+        }
+        if s.new_folder_prompt.as_ref().is_some_and(|p| p.parent == folder) {
+            list = list.child(new_folder_row(s, k));
+        }
         if !collapsed {
+            if s.new_note_prompt.as_ref().is_some_and(|p| p.folder == folder) {
+                list = list.child(new_note_row(s, k));
+            }
             for id in ids {
-                list = list.child(note_row(s, k, id, true));
+                if s.rename_prompt.as_ref().is_some_and(|p| p.id == id) {
+                    list = list.child(rename_note_row(s, k));
+                } else if s.delete_confirm.as_ref() == Some(&DeleteConfirm::Note(id)) {
+                    list = list.child(delete_confirm_row(s, k, &DeleteConfirm::Note(id)));
+                } else {
+                    list = list.child(note_row(s, k, id, true));
+                }
+                if s.menu.as_ref().is_some_and(|m| m.target == MenuTarget::Note(id)) {
+                    list = list.child(context_menu(s, k));
+                }
+                if s.move_picker == Some(id) {
+                    list = list.child(move_picker(s, k, id));
+                }
             }
         }
     }
@@ -207,7 +247,8 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
 }
 
 /// Sidebar folder header: chevron + name + count toggles the group, `+`
-/// creates a note in that folder. Root shows as “Vault root”.
+/// creates a note in that folder, the folder icon starts a new subfolder.
+/// Right-click offers the folder menu. Root shows as “Vault root”.
 fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: bool) -> El {
     let slug = folder_slug(folder);
     let name = if folder.is_empty() {
@@ -217,6 +258,7 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
     };
     let chevron = if collapsed { "▸" } else { "▾" };
     let toggle = folder.to_owned();
+    let press_folder = folder.to_owned();
     row()
         .key(format!("folder-header-{slug}"))
         .w_full()
@@ -228,6 +270,9 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
         .on_press(move |s: &mut State| s.toggle_folder(&toggle))
+        .on_secondary_press(move |s: &mut State, press, _| {
+            s.open_folder_menu(&press_folder, press.x, press.y);
+        })
         .child(
             text(chevron)
                 .font(TextStyle::new(10.0, 600.0))
@@ -246,6 +291,7 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
                 .color(k.c.text_faint),
         )
         .child(folder_new_button(k, &slug, folder))
+        .child(folder_new_folder_button(k, &slug, folder))
 }
 
 fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
@@ -259,6 +305,19 @@ fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
         .cursor(Cursor::Pointer)
         .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
         .on_press(move |s: &mut State| s.new_note_in(&target))
+}
+
+fn folder_new_folder_button(k: &Kit, slug: &str, folder: &str) -> El {
+    let target = folder.to_owned();
+    el().key(format!("folder-create-{slug}"))
+        .size(22.0, 22.0)
+        .radius(6.0)
+        .center()
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .child(icon(&ic::FOLDER_ADD_LEFT, 12.0).color(k.c.icon_muted))
+        .on_press(move |s: &mut State| s.begin_new_folder(&target))
 }
 
 /// Stable test key for a folder (`""` → `root`).
@@ -322,6 +381,9 @@ fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
         .on_press(move |s: &mut State| s.open_from_list(id))
+        .on_secondary_press(move |s: &mut State, press, _| {
+            s.open_note_menu(id, press.x, press.y);
+        })
         .child(el().size(6.0, 6.0).radius(3.0).fill(dot))
         .child(
             col()
@@ -362,6 +424,314 @@ fn theme_button(k: &Kit, dark: bool) -> El {
                 .color(k.c.icon_muted),
         )
         .on_press(move |s: &mut State| s.dark = Some(!dark))
+}
+
+/// Inline name field for a note being created in its folder group.
+/// Enter submits, Escape cancels; an empty name creates nothing.
+fn new_note_row(s: &State, k: &Kit) -> El {
+    row()
+        .key("new-note-prompt")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(9.0)
+        .center_y()
+        .child(
+            text_input(&s.new_note_field, k.ty.ui_compact)
+                .key("new-note-name")
+                .single_line()
+                .grow(1.0)
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .placeholder("Note name", k.c.text_faint)
+                .on_edit(|s: &mut State| &mut s.new_note_field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                    if e.key == Key::Escape {
+                        s.cancel_new_note();
+                        tx.blur();
+                        return true;
+                    }
+                    crate::shortcut(s, e, tx)
+                })
+                .on_submit(|s: &mut State, _| s.submit_new_note()),
+        )
+        .child(
+            row()
+                .key("new-note-cancel")
+                .px(8.0)
+                .py(4.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .on_press(|s: &mut State| s.cancel_new_note()),
+        )
+}
+
+/// Inline rename field replacing a note row. Enter saves, Escape undoes.
+fn rename_note_row(s: &State, k: &Kit) -> El {
+    row()
+        .key("rename-note-prompt")
+        .w_full()
+        .h(48.0)
+        .px(10.0)
+        .pl(20.0)
+        .gap(9.0)
+        .radius(7.0)
+        .center_y()
+        .fill(k.alpha(k.c.text_accent, 0.10))
+        .child(
+            text_input(&s.rename_field, k.ty.ui_compact)
+                .key("rename-note-name")
+                .single_line()
+                .grow(1.0)
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .on_edit(|s: &mut State| &mut s.rename_field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                    if e.key == Key::Escape {
+                        s.cancel_rename_note();
+                        tx.blur();
+                        return true;
+                    }
+                    crate::shortcut(s, e, tx)
+                })
+                .on_submit(|s: &mut State, _| s.submit_rename_note()),
+        )
+        .child(
+            row()
+                .key("rename-note-cancel")
+                .px(8.0)
+                .py(4.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .on_press(|s: &mut State| s.cancel_rename_note()),
+        )
+}
+
+/// Inline name field for a folder being created under its parent group.
+fn new_folder_row(s: &State, k: &Kit) -> El {
+    folder_field_row(s, k, "new-folder-name", "Folder name", true)
+}
+
+/// Inline rename field for a folder, shown under its header.
+fn rename_folder_row(s: &State, k: &Kit) -> El {
+    folder_field_row(s, k, "rename-folder-name", "", false)
+}
+
+fn folder_field_row(s: &State, k: &Kit, key: &str, placeholder: &str, is_new: bool) -> El {
+    let key = key.to_owned();
+    row()
+        .key(format!("{key}-row"))
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(9.0)
+        .center_y()
+        .child(
+            text_input(
+                if is_new {
+                    &s.new_folder_field
+                } else {
+                    &s.rename_folder_field
+                },
+                k.ty.ui_compact,
+            )
+            .key(key)
+            .single_line()
+            .grow(1.0)
+            .color(k.c.text_base)
+            .caret(k.c.text_accent, k.selection())
+            .placeholder(placeholder, k.c.text_faint)
+            .on_edit(move |s: &mut State| -> &mut rune::TextEdit {
+                if is_new {
+                    &mut s.new_folder_field
+                } else {
+                    &mut s.rename_folder_field
+                }
+            })
+            .on_input_key(move |s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                if e.key == Key::Escape {
+                    if is_new {
+                        s.cancel_new_folder();
+                    } else {
+                        s.cancel_rename_folder();
+                    }
+                    tx.blur();
+                    return true;
+                }
+                crate::shortcut(s, e, tx)
+            })
+            .on_submit(move |s: &mut State, _| {
+                if is_new {
+                    s.submit_new_folder();
+                } else {
+                    s.submit_rename_folder();
+                }
+            }),
+        )
+}
+
+/// The open right-click menu, rendered inline under the row that asked.
+/// Right-click opens it; Escape, an action, or Cancel closes it. Primary
+/// behaviour (open note / toggle folder) is untouched.
+fn context_menu(s: &State, k: &Kit) -> El {
+    let Some(menu) = &s.menu else {
+        return el();
+    };
+    let items: Vec<(&str, &str)> = match &menu.target {
+        MenuTarget::Note(_) => vec![
+            ("Rename", "rename"),
+            ("Move to…", "move"),
+            ("Delete", "delete"),
+        ],
+        MenuTarget::Folder(_) => vec![
+            ("New note here", "new_note"),
+            ("New folder…", "new_folder"),
+            ("Rename", "rename"),
+            ("Delete", "delete"),
+        ],
+    };
+    let mut col_menu = col()
+        .key("context-menu")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(2.0)
+        .py(4.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base);
+    for (label, action) in items {
+        col_menu = col_menu.child(
+            row()
+                .key(format!("menu-{action}"))
+                .w_full()
+                .h(30.0)
+                .px(10.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .press(k.c.pressed)
+                .child(
+                    text(label)
+                        .font(k.ty.ui_compact)
+                        .color(if action == "delete" {
+                            k.c.danger.fg
+                        } else {
+                            k.c.text_base
+                        }),
+                )
+                .on_press(move |s: &mut State| s.pick_menu(action)),
+        );
+    }
+    col_menu.child(
+        row()
+            .key("menu-cancel")
+            .w_full()
+            .h(30.0)
+            .px(10.0)
+            .radius(6.0)
+            .center_y()
+            .cursor(Cursor::Pointer)
+            .hover(k.c.hover)
+            .child(text("Cancel").font(k.ty.ui_compact).color(k.c.text_muted))
+            .on_press(|s: &mut State| s.close_menu()),
+    )
+}
+
+/// Inline folder targets under a note being moved.
+fn move_picker(s: &State, k: &Kit, id: usize) -> El {
+    let current = s.vault.notes.get(id).map(|n| n.folder().to_owned()).unwrap_or_default();
+    let mut list = col()
+        .key("move-picker")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(2.0)
+        .py(4.0);
+    for folder in s.vault.folders() {
+        let label = if folder.is_empty() {
+            "Vault root".to_owned()
+        } else {
+            folder.clone()
+        };
+        list = list.child(
+            row()
+                .key(format!("move-to-{}", folder_slug(&folder)))
+                .w_full()
+                .h(30.0)
+                .px(10.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .press(k.c.pressed)
+                .child(
+                    text(if folder == current {
+                        format!("{label} ✓")
+                    } else {
+                        label
+                    })
+                    .font(k.ty.ui_compact)
+                    .color(k.c.text_base),
+                )
+                .on_press(move |s: &mut State| s.move_note_to(id, &folder)),
+        );
+    }
+    list
+}
+
+/// Inline delete confirmation under the row being deleted.
+fn delete_confirm_row(s: &State, k: &Kit, target: &DeleteConfirm) -> El {
+    let _ = s;
+    let label = match target {
+        DeleteConfirm::Note(_) => "Delete this note?",
+        DeleteConfirm::Folder(_) => "Delete folder? (empty only)",
+    };
+    row()
+        .key("delete-confirm")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(8.0)
+        .center_y()
+        .child(
+            text(label)
+                .font(k.ty.caption())
+                .color(k.c.danger.fg)
+                .grow(1.0),
+        )
+        .child(
+            row()
+                .key("delete-yes")
+                .px(10.0)
+                .py(5.0)
+                .radius(6.0)
+                .center_y()
+                .fill(k.c.danger.fg)
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(text("Delete").font(k.ty.caption()).color(Color::WHITE))
+                .on_press(|s: &mut State| s.confirm_delete()),
+        )
+        .child(
+            row()
+                .key("delete-cancel")
+                .px(10.0)
+                .py(5.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .on_press(|s: &mut State| s.cancel_delete()),
+        )
 }
 
 /// The Muninn mark at `size` points, matching `assets/logo.svg`: dark

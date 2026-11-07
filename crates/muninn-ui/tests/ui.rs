@@ -74,15 +74,27 @@ fn command_n_creates_and_opens_a_note() {
     let mut rt = runtime(&tmp);
     rt.key(command('n'));
     rt.frame(1.0 / 60.0);
+    // Empty name creates nothing.
+    assert!(rt.state.new_note_prompt.is_some());
+    assert_eq!(rt.state.vault.notes.len(), 3);
+    rt.state.submit_new_note();
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.vault.notes.len(), 3);
+    // Name-first: type a name and submit.
+    rt.key(command('n'));
+    rt.frame(1.0 / 60.0);
+    rt.state.new_note_field.replace_text("Meeting notes");
+    rt.state.submit_new_note();
+    rt.frame(1.0 / 60.0);
     assert_eq!(rt.state.vault.notes.len(), 4);
     assert!(
         rt.state
             .selected_path
             .as_ref()
-            .is_some_and(|p| p.ends_with("Untitled.md"))
+            .is_some_and(|p| p.ends_with("Meeting notes.md"))
     );
     assert_eq!(rt.state.mode, Mode::Editor);
-    assert!(rt.state.editor.text.starts_with("# Untitled"));
+    assert!(rt.state.editor.text.starts_with("# Meeting notes"));
 }
 
 #[test]
@@ -291,9 +303,13 @@ fn folder_new_button_creates_in_that_folder() {
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);
     rt.frame(1.0 / 60.0);
+    assert!(rt.state.new_note_prompt.is_some());
+    rt.state.new_note_field.replace_text("Fresh");
+    rt.state.submit_new_note();
+    rt.frame(1.0 / 60.0);
     let path = rt.state.selected_path.clone().expect("selected path");
     assert!(
-        path.ends_with("projects/alpha/Untitled.md"),
+        path.ends_with("projects/alpha/Fresh.md"),
         "{}",
         path.display()
     );
@@ -317,9 +333,16 @@ fn new_note_targets_the_selected_notes_folder() {
     rt.state.load_note(beta_note, false);
     rt.state.new_note();
     rt.frame(1.0 / 60.0);
+    assert_eq!(
+        rt.state.new_note_prompt.as_ref().expect("prompt").folder,
+        "projects/beta"
+    );
+    rt.state.new_note_field.replace_text("Draft");
+    rt.state.submit_new_note();
+    rt.frame(1.0 / 60.0);
     let path = rt.state.selected_path.clone().expect("selected path");
     assert!(
-        path.ends_with("projects/beta/Untitled.md"),
+        path.ends_with("projects/beta/Draft.md"),
         "{}",
         path.display()
     );

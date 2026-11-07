@@ -12,5 +12,5 @@ mod view;
 
 pub use keys::{on_key, shortcut};
 pub use poll::poll;
-pub use state::{Mode, Scope, State};
+pub use state::{ContextMenu, DeleteConfirm, FolderPrompt, FolderRename, MenuTarget, Mode, NamePrompt, RenamePrompt, Scope, State};
 pub use view::view;
