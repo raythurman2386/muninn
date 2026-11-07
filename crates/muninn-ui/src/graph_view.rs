@@ -94,7 +94,7 @@ pub fn graph(s: &State, k: &Kit) -> El {
 
     canvas_el
         .child(controls(s, k))
-        .child(stats(s, k))
+        .child(stats(s, k, visible.len(), edges.len()))
         .child(info(s, k))
         .child(hint(k))
 }
@@ -312,9 +312,7 @@ fn chip(
         .child(text(label).font(k.ty.small_medium).color(k.c.text_muted))
 }
 
-fn stats(s: &State, k: &Kit) -> El {
-    let nodes = s.visible_notes().len();
-    let edges = s.visible_edge_count();
+fn stats(_s: &State, k: &Kit, nodes: usize, edges: usize) -> El {
     row()
         .pin(None, Some(14.0), Some(14.0), None)
         .h(30.0)

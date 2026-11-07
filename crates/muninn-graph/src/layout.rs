@@ -99,10 +99,20 @@ impl Graph {
 
     #[must_use]
     pub fn node(&self, note: usize) -> Option<&GNode> {
+        // Nodes are built in Vault order, so `nodes[note].note == note`
+        // almost always; fall back to a scan if that ever breaks.
+        if let Some(found) = self.nodes.get(note)
+            && found.note == note
+        {
+            return Some(found);
+        }
         self.nodes.iter().find(|n| n.note == note)
     }
 
     pub fn node_mut(&mut self, note: usize) -> Option<&mut GNode> {
+        if self.nodes.get(note).is_some_and(|n| n.note == note) {
+            return Some(&mut self.nodes[note]);
+        }
         self.nodes.iter_mut().find(|n| n.note == note)
     }
 
@@ -204,6 +214,15 @@ impl Graph {
     /// Links with both ends visible, in a stable order.
     #[must_use]
     pub fn visible_edges(&self, visible: &[usize]) -> Vec<(usize, usize)> {
+        // Global scope passes every note: every edge is visible, so skip the
+        // set allocation that per-frame view building would otherwise pay.
+        if visible.len() == self.nodes.len()
+            && visible
+                .iter()
+                .all(|&id| self.nodes.get(id).is_some_and(|n| n.note == id))
+        {
+            return self.edges.clone();
+        }
         let set: HashSet<usize> = visible.iter().copied().collect();
         self.edges
             .iter()

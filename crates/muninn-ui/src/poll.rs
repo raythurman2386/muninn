@@ -40,7 +40,9 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         if moved {
             changed = true;
         }
-        if s.auto_fit && (moved || s.graph.heat > 0.0 || s.needs_fit) && s.refit() {
+        // Refit only when the layout moved or a fit is pending. Heat alone
+        // (positions static) must not recompute bounds or wake the view.
+        if s.auto_fit && (moved || s.needs_fit) && s.refit() {
             changed = true;
         }
     }
