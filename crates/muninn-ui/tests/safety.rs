@@ -89,6 +89,38 @@ fn trashed_files(root: &Path, name: &str) -> Vec<PathBuf> {
 }
 
 #[test]
+fn help_shows_trash_usage_and_empty_trash_clears_it() {
+    let tmp = TempVault::new(&[("Alpha.md", "alpha"), ("Beta.md", "beta")]);
+    let mut rt = runtime(&tmp);
+    let alpha = rt.state.vault.resolve("Alpha").expect("Alpha");
+    rt.update(|s, _| {
+        s.delete_note(alpha);
+        s.confirm_delete();
+    });
+    assert!(rt.state.trash_undo.is_some());
+
+    rt.update(|s, _| s.open_help());
+    settle(&mut rt);
+    assert!(rt.find("help-trash").is_some(), "trash readout is present");
+    assert!(
+        rt.find("help-empty-trash").is_some(),
+        "Empty trash is offered"
+    );
+
+    let (files, bytes) = rt.state.trash_size();
+    assert_eq!(files, 1, "one deleted note in the trash");
+    assert!(bytes > 0);
+
+    let mut emptied = false;
+    rt.update(|s, _| emptied = s.empty_trash());
+    assert!(emptied, "emptying succeeds");
+    assert_eq!(rt.state.trash_size(), (0, 0));
+    assert!(rt.state.trash_undo.is_none(), "undo target is gone");
+    assert!(!tmp.path().join(".muninn-trash").exists());
+    assert!(tmp.path().join("Beta.md").is_file(), "live note untouched");
+}
+
+#[test]
 fn delete_moves_to_trash_and_undo_restores_content_and_links() {
     let tmp = TempVault::new(&[
         ("Alpha.md", "# Alpha\n\nSee [[Beta]].\n"),

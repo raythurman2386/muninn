@@ -166,6 +166,14 @@ impl Vault {
     /// trashed note never reappears as a live note.
     pub const TRASH_DIR: &str = ".muninn-trash";
 
+    /// How many trashed files are kept before the oldest timestamp folder is
+    /// pruned. Best-effort and applied after each successful trash move.
+    pub const TRASH_MAX_ENTRIES: usize = 500;
+
+    /// Aggregate trash size kept before the oldest timestamp folder is pruned
+    /// (100 MiB). Best-effort, like [`Vault::TRASH_MAX_ENTRIES`].
+    pub const TRASH_MAX_BYTES: u64 = 100 * 1024 * 1024;
+
     /// A vault with no notes, for a folder that couldn't be read.
     #[must_use]
     pub fn empty(root: impl AsRef<Path>) -> Vault {
@@ -939,10 +947,78 @@ impl Vault {
             note.id = i;
         }
         self.reindex();
+        // Pruning is a budget, not part of the delete: a read-only or busy
+        // trash folder must never turn a successful move into an error.
+        self.prune_trash();
         Ok(target
             .strip_prefix(&self.root)
             .map(|p| p.to_string_lossy().replace('\\', "/"))
             .unwrap_or_default())
+    }
+
+    /// Files and bytes currently held under [`Vault::TRASH_DIR`]. A missing or
+    /// unreadable trash folder reads as `(0, 0)`; this is a readout and prune
+    /// input, never an error path.
+    #[must_use]
+    pub fn trash_size(&self) -> (usize, u64) {
+        trash_usage(&self.root.join(Self::TRASH_DIR))
+    }
+
+    /// Delete everything under [`Vault::TRASH_DIR`], leaving live notes alone.
+    ///
+    /// The folder is renamed to a unique hidden sibling first, so the vault's
+    /// visible tree is unchanged even if removing the renamed copy fails
+    /// part-way. A missing trash folder is success.
+    pub fn empty_trash(&self) -> io::Result<()> {
+        let trash = self.root.join(Self::TRASH_DIR);
+        if !trash.exists() {
+            return Ok(());
+        }
+        let temp = self.root.join(format!(
+            "{}.emptying-{}-{}",
+            Self::TRASH_DIR,
+            std::process::id(),
+            TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::rename(&trash, &temp)?;
+        fs::remove_dir_all(&temp)
+    }
+
+    /// Enforce [`Vault::TRASH_MAX_ENTRIES`] and [`Vault::TRASH_MAX_BYTES`] by
+    /// removing whole timestamp folders, oldest first. Every error is ignored:
+    /// the user asked to delete a note, and a full or unwritable trash folder
+    /// must not make that fail.
+    fn prune_trash(&self) {
+        let trash = self.root.join(Self::TRASH_DIR);
+        let Ok(entries) = fs::read_dir(&trash) else {
+            return;
+        };
+        let mut slots: Vec<(u64, u64, PathBuf)> = entries
+            .flatten()
+            .filter_map(|entry| {
+                let kind = entry.file_type().ok()?;
+                if !kind.is_dir() {
+                    return None;
+                }
+                let name = entry.file_name();
+                let (stamp, suffix) = parse_trash_slot(&name.to_string_lossy())?;
+                Some((stamp, suffix, entry.path()))
+            })
+            .collect();
+        slots.sort_by_key(|(stamp, suffix, _)| (*stamp, *suffix));
+        let (mut files, mut bytes) = self.trash_size();
+        for (_, _, path) in slots {
+            if files <= Self::TRASH_MAX_ENTRIES && bytes <= Self::TRASH_MAX_BYTES {
+                break;
+            }
+            let (slot_files, slot_bytes) = trash_usage(&path);
+            // A failed removal stays for the next prune; this loop still moves
+            // on instead of retrying the same folder.
+            if fs::remove_dir_all(&path).is_ok() {
+                files = files.saturating_sub(slot_files);
+                bytes = bytes.saturating_sub(slot_bytes);
+            }
+        }
     }
 
     /// Restore a note previously moved by [`Vault::delete_note_to_trash`].
@@ -1397,6 +1473,39 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>, dirs: &mut Vec<String>, root: &Path,
         {
             out.push(path);
         }
+    }
+}
+
+/// Files and bytes below `dir`, recursively. Unreadable entries are skipped:
+/// the same best-effort posture as the trash budget that reads it.
+fn trash_usage(dir: &Path) -> (usize, u64) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return (0, 0);
+    };
+    let mut files = 0;
+    let mut bytes = 0;
+    for entry in entries.flatten() {
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        if kind.is_dir() {
+            let (nested_files, nested_bytes) = trash_usage(&entry.path());
+            files += nested_files;
+            bytes += nested_bytes;
+        } else if kind.is_file() {
+            files += 1;
+            bytes += entry.metadata().map_or(0, |meta| meta.len());
+        }
+    }
+    (files, bytes)
+}
+
+/// Order a trash timestamp folder: `<unix seconds>` or `<unix seconds>-<n>`.
+/// `None` for anything else, which is left alone rather than pruned.
+fn parse_trash_slot(name: &str) -> Option<(u64, u64)> {
+    match name.split_once('-') {
+        Some((stamp, suffix)) => Some((stamp.parse().ok()?, suffix.parse().ok()?)),
+        None => Some((name.parse().ok()?, 0)),
     }
 }
 
@@ -1977,6 +2086,104 @@ mod trash_tests {
             assert!(v.restore_note(bad).is_err(), "must reject {bad}");
         }
         assert!(tmp.path().join("Alpha.md").is_file());
+    }
+}
+
+/// The fixed trash budget is separate from the undo/restore contract above:
+/// these build timestamp slots directly, because the cap needs hundreds of
+/// deletes that a per-note test loop would make needlessly slow.
+#[cfg(test)]
+mod trash_budget_tests {
+    use super::*;
+    use crate::testing::TempVault;
+
+    /// Fill `slots` timestamp folders, one file each.
+    fn fill(root: &Path, slots: usize, bytes_each: Option<u64>) -> PathBuf {
+        let trash = root.join(Vault::TRASH_DIR);
+        fs::create_dir_all(&trash).expect("trash");
+        for i in 0..slots {
+            let slot = trash.join(format!("{:010}", i + 1));
+            fs::create_dir_all(&slot).expect("slot");
+            let file = fs::File::create(slot.join("Old.md")).expect("trash file");
+            if let Some(bytes) = bytes_each {
+                file.set_len(bytes).expect("sparse trash file");
+            }
+        }
+        trash
+    }
+
+    #[test]
+    fn prune_keeps_the_entry_cap_and_drops_the_oldest_slots() {
+        let tmp = TempVault::new(&[("keep.md", "keep")]);
+        let vault = tmp.load();
+        let extra = 3;
+        fill(tmp.path(), Vault::TRASH_MAX_ENTRIES + extra, None);
+        assert_eq!(vault.trash_size().0, Vault::TRASH_MAX_ENTRIES + extra);
+
+        vault.prune_trash();
+
+        assert_eq!(vault.trash_size().0, Vault::TRASH_MAX_ENTRIES);
+        let trash = tmp.path().join(Vault::TRASH_DIR);
+        assert!(!trash.join(format!("{:010}", 1)).exists(), "oldest gone");
+        assert!(!trash.join(format!("{:010}", extra)).exists());
+        assert!(
+            trash
+                .join(format!("{:010}", Vault::TRASH_MAX_ENTRIES + extra))
+                .is_dir(),
+            "the newest slot is kept"
+        );
+    }
+
+    #[test]
+    fn prune_keeps_the_byte_cap_and_drops_the_oldest_slot() {
+        let tmp = TempVault::new(&[("keep.md", "keep")]);
+        let vault = tmp.load();
+        let megabyte = 1024 * 1024;
+        let slots = (Vault::TRASH_MAX_BYTES / megabyte + 1) as usize;
+        fill(tmp.path(), slots, Some(megabyte));
+        assert!(vault.trash_size().1 > Vault::TRASH_MAX_BYTES);
+
+        vault.prune_trash();
+
+        assert!(vault.trash_size().1 <= Vault::TRASH_MAX_BYTES);
+        assert!(vault.trash_size().0 < slots, "one slot was pruned");
+        assert!(
+            !tmp.path()
+                .join(Vault::TRASH_DIR)
+                .join(format!("{:010}", 1))
+                .exists(),
+            "oldest gone"
+        );
+    }
+
+    #[test]
+    fn empty_trash_clears_the_budget_without_touching_live_files() {
+        let tmp = TempVault::new(&[("keep.md", "keep")]);
+        let vault = tmp.load();
+        fill(tmp.path(), 2, None);
+        assert_eq!(vault.trash_size().0, 2);
+
+        vault.empty_trash().expect("empty");
+
+        assert_eq!(vault.trash_size(), (0, 0));
+        assert!(!tmp.path().join(Vault::TRASH_DIR).exists());
+        assert!(tmp.path().join("keep.md").is_file(), "live file untouched");
+    }
+
+    #[test]
+    fn an_over_budget_trash_never_fails_a_delete() {
+        let tmp = TempVault::new(&[("gone.md", "gone"), ("keep.md", "keep")]);
+        let mut vault = tmp.load();
+        fill(tmp.path(), Vault::TRASH_MAX_ENTRIES + 5, None);
+        let id = vault.resolve("gone").expect("gone");
+
+        let rel = vault
+            .delete_note_to_trash(id)
+            .expect("a full trash never fails the delete");
+
+        assert!(!tmp.path().join("gone.md").exists());
+        assert!(tmp.path().join(&rel).is_file(), "the new delete is kept");
+        assert!(vault.trash_size().0 <= Vault::TRASH_MAX_ENTRIES, "pruned");
     }
 }
 

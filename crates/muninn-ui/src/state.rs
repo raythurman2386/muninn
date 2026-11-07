@@ -3085,6 +3085,32 @@ impl State {
         }
     }
 
+    /// Files and bytes currently in the vault-local trash, shown in Help and
+    /// used by the core's fixed 500-file / 100 MB budget.
+    #[must_use]
+    pub fn trash_size(&self) -> (usize, u64) {
+        self.vault.trash_size()
+    }
+
+    /// Permanently empty the vault-local trash. Live notes are untouched, and
+    /// the Undo toast is dropped because its file no longer exists.
+    pub fn empty_trash(&mut self) -> bool {
+        let (files, bytes) = self.vault.trash_size();
+        match self.vault.empty_trash() {
+            Ok(()) => {
+                self.trash_undo = None;
+                self.error = None;
+                self.notice = Some("Trash emptied".to_owned());
+                self.log_event("trash-empty", &format!("files={files} bytes={bytes}"));
+                true
+            }
+            Err(e) => {
+                self.error = Some(format!("Could not empty trash: {e}"));
+                false
+            }
+        }
+    }
+
     pub fn cancel_delete(&mut self) {
         self.delete_confirm = None;
     }

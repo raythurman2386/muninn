@@ -65,6 +65,18 @@ missing file starts from defaults instead of blocking startup. It remembers the 
 collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
 autosave delay (0.55 s by default) and up to five recent vaults.
 
+Window size and position are deliberately **not** persisted. Rune (rev `b39c24f`) can *set*
+an initial and runtime size or position — `AppSpec::size`
+(`crates/rune/src/tooling.rs:19`, applied as the inner size at
+`crates/rune/src/windows.rs:148`), `Tx::resize_window`
+(`crates/rune/src/el/tx.rs:255`) and `AppHandle::set_position`
+(`crates/rune/src/app.rs:579`) — but exposes no getter for the current size or position on
+`AppHandle`, `WindowHandle` or `Cx`. Its only persistence helper,
+`rune_mac::remember_frame` / `saved_size` (`crates/rune-mac/src/lib.rs:15,78`), uses AppKit
+and is a no-op on Linux. `settings.json` therefore has no window field instead of one that
+could never be read back; the reasoning is recorded in
+[ARCHITECTURE.md](ARCHITECTURE.md) (step 10).
+
 The **vault chip** at the top of the sidebar opens an in-window menu — there is no native
 menu bar on Linux. **Open vault…** takes a typed path (`~` expands to your home folder) and
 **New vault…** creates a missing folder and opens it empty. Recent vaults are listed newest
@@ -121,7 +133,10 @@ and fit still work. Prefer this over replacing the theme when motion is a proble
 - **New note** asks for a name first (empty or cancelled creates nothing) and targets the
   current or chosen folder. Right-click a note or folder for rename, delete, move and
   new-note/new-folder actions; rename/delete also appear with `F2` and `Delete`. Folder
-  deletes are empty-only.
+  deletes are empty-only. Deleted notes move to the vault's hidden `.muninn-trash` folder so
+  Undo can restore them; the trash keeps at most 500 files or 100 MB, pruning the oldest
+  timestamp folder first. The Help overlay shows the current size with an **Empty trash**
+  button that permanently clears it without touching live notes.
 
 In **Local** mode the graph keeps the open note and its immediate neighbours:
 

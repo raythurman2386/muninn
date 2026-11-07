@@ -1522,7 +1522,9 @@ fn help_panel(s: &State, k: &Kit) -> El {
             .color(k.c.text_faint)
             .padding(4.0),
         )
-        .child(help_diagnostics(s, k));
+        .child(help_diagnostics(s, k))
+        .child(divider_h(k))
+        .child(help_trash(s, k));
     col()
         .key("help-panel")
         .w_full()
@@ -1617,6 +1619,73 @@ fn help_diagnostics(s: &State, k: &Kit) -> El {
                         }),
                 ),
         )
+}
+
+/// Trash readout plus the permanent-empty action. The budget is a fixed
+/// constant in `muninn-core` (500 files or 100 MB, oldest timestamp folder
+/// first), deliberately not a setting.
+fn help_trash(s: &State, k: &Kit) -> El {
+    let (files, bytes) = s.trash_size();
+    let summary = match files {
+        0 => "Trash is empty".to_owned(),
+        1 => format!("Trash · 1 note · {}", trash_bytes(bytes)),
+        _ => format!("Trash · {files} notes · {}", trash_bytes(bytes)),
+    };
+    let empty = files == 0;
+    col()
+        .key("help-trash")
+        .w_full()
+        .gap(6.0)
+        .child(
+            row()
+                .w_full()
+                .gap(8.0)
+                .center_y()
+                .child(
+                    text(summary)
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted)
+                        .grow(1.0),
+                )
+                .child(
+                    pressable(k, "help-empty-trash".to_owned())
+                        .px(8.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(text("Empty trash").font(k.ty.caption()).color(if empty {
+                            k.c.text_faint
+                        } else {
+                            k.c.text_accent
+                        }))
+                        .label("Empty trash")
+                        .on_press(|s: &mut State| {
+                            s.empty_trash();
+                        }),
+                ),
+        )
+        .child(
+            text(
+                "Deleted notes stay here until undo or permanent removal. At most 500 files \
+                 or 100 MB are kept; the oldest timestamp folder is pruned first.",
+            )
+            .font(k.ty.caption())
+            .color(k.c.text_faint)
+            .padding(4.0),
+        )
+}
+
+/// Human byte size for the trash readout. The cap is 100 MB, so one decimal
+/// is enough to make growth visible without a wall of digits.
+fn trash_bytes(bytes: u64) -> String {
+    const KIB: u64 = 1024;
+    const MIB: u64 = 1024 * KIB;
+    if bytes >= MIB {
+        format!("{:.1} MB", bytes as f64 / MIB as f64)
+    } else if bytes >= KIB {
+        format!("{:.1} KB", bytes as f64 / KIB as f64)
+    } else {
+        format!("{bytes} B")
+    }
 }
 
 fn help_row(k: &Kit, keys: &str, action: &str) -> El {

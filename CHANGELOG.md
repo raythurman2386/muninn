@@ -125,7 +125,10 @@ All notable changes to Muninn are documented here. The format is based on
   `.muninn-trash/<unix timestamp>/<original vault-relative path>` with one atomic rename
   (dot-directories are never scanned). The status bar offers **Undo** to rename the file
   back without overwriting an existing note; the toast expires on the next note action.
-  Folder deletes stay permanent and empty-only.
+  Folder deletes stay permanent and empty-only. The trash is capped at 500 files or 100 MB:
+  each successful delete prunes the oldest timestamp folder first (best-effort, never
+  failing the delete), and the Help overlay shows the current size with an **Empty trash**
+  button that permanently clears it without touching live notes.
 - Startup scan failures are visible (SAF-07): a root that exists but is not a readable
   folder shows its OS error with **Retry** instead of an empty "No notes yet" screen, and
   unreadable or invalid-UTF-8 `.md` files are counted in the status bar as "N files
@@ -160,6 +163,12 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Changed
 
+- Window geometry persistence is documented as **blocked** rather than deferred: Rune
+  exposes size and position setters (`AppSpec::size`, `Tx::resize_window`,
+  `AppHandle::set_position`) but no live-window getter, and its only persistence helper
+  (`rune_mac::remember_frame`) is macOS-only, so `settings.json` gains no unreadable window
+  field (README and ARCHITECTURE carry the `file:line` evidence). The README screenshots
+  were regenerated from the current binary.
 - Saves are conflict-safe (SAF-02): autosave compares the note's on-disk `(mtime, length)`
   with the identity captured at load/save and refuses to overwrite an external change or
   deletion. The editor keeps the dirty buffer and the status bar offers **Keep mine**,

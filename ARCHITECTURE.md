@@ -103,7 +103,20 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
     temp-file + rename pattern as note saves; a corrupt file falls back to defaults. The
     startup vault scan is synchronous up to 100 files and chunked (see step 1) above that;
     `load_ms` covers the whole load in either case. Rune's `AppSpec` window size
-    remains fixed; geometry persistence is deferred with the same lane.
+    remains fixed at 1180×780. Window geometry persistence is **BLOCKED**, not
+    merely deferred: Rune (rev `b39c24f`) exposes the setters — `AppSpec::size`
+    (`crates/rune/src/tooling.rs:19`, applied as the inner size at
+    `crates/rune/src/windows.rs:148`), `Tx::resize_window`
+    (`crates/rune/src/el/tx.rs:255`), `WindowHandle::resize`
+    (`crates/rune/src/window/handle.rs:84`) and `AppHandle::set_position`
+    (`crates/rune/src/app.rs:579`) — but no getter for the live window's size or
+    position on `AppHandle`, `WindowHandle` or `Cx`. `El::on_screen_layout`
+    (`crates/rune/src/el/layout_watch.rs:63`) reports a content rect in display
+    points (hidden on Wayland) and cannot be converted to the physical **outer**
+    position those setters take. Rune's only persistence helper,
+    `rune_mac::remember_frame` / `saved_size` (`crates/rune-mac/src/lib.rs:15,78`),
+    uses AppKit's frame autosave and is a no-op elsewhere. `Settings` therefore
+    has no window field: a value written from a guess could not be read back.
 
 ## Invariants
 
@@ -118,7 +131,11 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   positions exactly.
 - **No side database.** Only `.md` files are written, plus the hidden trash folder: a note
   delete moves it to `.muninn-trash/<timestamp>/<original path>` (skipped by the scan) and
-  Undo renames it back, never overwriting. A root that exists but is not a readable folder is
+  Undo renames it back, never overwriting. The trash is budgeted, not a database: after each
+  successful move it is pruned oldest-timestamp-first to at most 500 files or 100 MiB
+  (`Vault::TRASH_MAX_ENTRIES` / `TRASH_MAX_BYTES`), and **Empty trash** renames the whole
+  folder aside before deleting it, so a failure can never touch a live note. Pruning is
+  best-effort and never fails the delete. A root that exists but is not a readable folder is
   an error, not an empty vault. The sample vault stays ordinary content used by tests and
   snapshots.
 - **Attachments stay outside the index.** Only `.md` files are notes. An embed such as
