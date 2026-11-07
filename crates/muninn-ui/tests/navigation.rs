@@ -1,12 +1,14 @@
-//! M2 Lane 1 headless tests: in-note find, keyboard search results and
-//! Back/Forward note history.
+//! M2 headless tests: in-note find, keyboard search results, Back/Forward note
+//! history, per-note undo history (EDT-02) and Markdown comfort (EDT-05).
 //!
 //! Like `ui.rs`, these drive the real Rune runtime against a temporary vault
 //! (no window, no snapshots).
 
+use std::fs;
+
 use muninn_core::testing::TempVault;
 use muninn_ui::{State, on_key, poll, view};
-use rune::{Env, Key, KeyEvent, Mods, Runtime};
+use rune::{Env, Key, KeyEvent, Mods, Runtime, Tx};
 
 fn nav_vault() -> TempVault {
     // Built with `vec!` rather than a tuple array so this fixture stays a
@@ -294,4 +296,221 @@ fn history_keeps_the_caret_and_dedupes_consecutive_visits() {
         rt.state.editor.focus, 5,
         "Back restores the caret stored when Alpha was left"
     );
+}
+
+// ---- M2 EDT-05: Markdown comfort --------------------------------------------
+
+/// Put `text` in the editor with the caret at its end and typing focused.
+fn stage(rt: &mut Runtime<State>, text: &str) {
+    rt.state.editor.replace_text(text);
+    rt.state.focus_editor();
+    frame(rt);
+}
+
+fn enter(rt: &mut Runtime<State>) {
+    rt.key(key(Key::Enter));
+    frame(rt);
+}
+
+#[test]
+fn enter_continues_bullet_lists_keeping_the_indent() {
+    let tmp = nav_vault();
+    let mut rt = runtime(&tmp);
+
+    stage(&mut rt, "- one");
+    enter(&mut rt);
+    assert_eq!(rt.state.editor.text, "- one\n- ");
+    assert_eq!(rt.state.editor.focus, "- one\n- ".len());
+
+    // Typing continues the new item, and the next Enter starts another.
+    rt.key(text("two"));
+    enter(&mut rt);
+    assert_eq!(rt.state.editor.text, "- one\n- two\n- ");
+
+    stage(&mut rt, "  * indented");
+    enter(&mut rt);
+    assert_eq!(
+        rt.state.editor.text, "  * indented\n  * ",
+        "the new marker keeps the original indentation"
+    );
+}
+
+#[test]
+fn enter_increments_numbered_lists() {
+    let tmp = nav_vault();
+    let mut rt = runtime(&tmp);
+
+    stage(&mut rt, "1. first");
+    enter(&mut rt);
+    assert_eq!(rt.state.editor.text, "1. first\n2. ");
+
+    stage(&mut rt, "9. ninth");
+    enter(&mut rt);
+    assert_eq!(rt.state.editor.text, "9. ninth\n10. ");
+}
+
+#[test]
+fn enter_on_an_empty_list_item_ends_the_list() {
+    let tmp = nav_vault();
+    let mut rt = runtime(&tmp);
+
+    stage(&mut rt, "- one\n- ");
+    enter(&mut rt);
+    assert_eq!(rt.state.editor.text, "- one\n");
+    assert_eq!(
+        rt.state.editor.focus,
+        "- one\n".len(),
+        "caret stays on the new empty paragraph"
+    );
+
+    stage(&mut rt, "    * ");
+    enter(&mut rt);
+    assert_eq!(
+        rt.state.editor.text, "",
+        "the marker and its indent go away"
+    );
+}
+
+#[test]
+fn enter_closes_an_unclosed_wikilink_with_the_caret_inside() {
+    let tmp = nav_vault();
+    let mut rt = runtime(&tmp);
+
+    // With the autocomplete list open Enter belongs to it (EDT-03), so this
+    // case is the list declined: no candidate, or Escape dismissed it.
+    stage(&mut rt, "See [[Alpha");
+    rt.state.dismiss_complete();
+    enter(&mut rt);
+    assert_eq!(rt.state.editor.text, "See [[Alpha]]");
+    assert_eq!(
+        rt.state.editor.focus,
+        "See [[Alpha".len(),
+        "caret sits between the closing brackets"
+    );
+
+    // A query with no matching note leaves the completion closed; Enter still
+    // closes the brackets.
+    stage(&mut rt, "See [[zzzz");
+    enter(&mut rt);
+    assert_eq!(rt.state.editor.text, "See [[zzzz]]");
+
+    // A closed link is ordinary text: Enter continues the paragraph.
+    stage(&mut rt, "See [[Alpha]]");
+    enter(&mut rt);
+    assert_eq!(rt.state.editor.text, "See [[Alpha]]\n");
+}
+
+#[test]
+fn tab_indents_four_spaces_without_leaving_the_editor() {
+    let tmp = nav_vault();
+    let mut rt = runtime(&tmp);
+
+    stage(&mut rt, "ab");
+    rt.state.editor.focus = 1;
+    rt.state.editor.anchor = 1;
+    rt.key(key(Key::Tab));
+    frame(&mut rt);
+
+    assert_eq!(rt.state.editor.text, "a    b");
+    assert_eq!(rt.state.editor.focus, 5);
+    assert!(rt.state.editor.focused, "Tab stays in the note");
+}
+
+// ---- M2 EDT-02: per-note undo history ---------------------------------------
+
+#[test]
+fn switching_notes_preserves_each_notes_undo_stack() {
+    let tmp = nav_vault();
+    let mut s =
+        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state"));
+    let alpha = s.vault.resolve("Alpha").expect("Alpha");
+    let beta = s.vault.resolve("Beta").expect("Beta");
+    let original = s.vault.notes[alpha].source.clone();
+    let beta_text = s.vault.notes[beta].source.clone();
+
+    s.editor.focus = s.editor.text.len();
+    s.editor.anchor = s.editor.focus;
+    s.editor.insert("typed");
+
+    // A -> B -> A: the first visit's text and undo stack come back.
+    s.open_note(beta);
+    assert_eq!(s.editor.text, beta_text);
+    s.open_note(alpha);
+    assert_eq!(s.editor.text, format!("{original}typed"));
+    // Rune's own Cmd+Z handler, the path the runtime reaches for the chord.
+    let _ = s.editor.key(&command('z'), None);
+    assert_eq!(
+        s.editor.text, original,
+        "Cmd+Z undoes the edit made on the first visit"
+    );
+}
+
+#[test]
+fn a_never_edited_note_has_no_phantom_history() {
+    let tmp = nav_vault();
+    let mut s =
+        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state"));
+    let beta = s.vault.resolve("Beta").expect("Beta");
+
+    s.editor.focus = s.editor.text.len();
+    s.editor.insert("typed");
+    s.open_note(beta);
+
+    let untouched = s.editor.text.clone();
+    s.editor.undo();
+    assert_eq!(
+        s.editor.text, untouched,
+        "Beta was never edited, so it must not borrow Alpha's history"
+    );
+}
+
+#[test]
+fn save_and_mode_switches_keep_the_note_history() {
+    let tmp = nav_vault();
+    let mut s =
+        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state"));
+    let alpha = s.vault.resolve("Alpha").expect("Alpha");
+    let original = s.vault.notes[alpha].source.clone();
+
+    s.editor.focus = s.editor.text.len();
+    s.editor.insert("typed");
+    assert!(s.save_now(), "the edit is written");
+    s.toggle_preview();
+    s.toggle_preview();
+
+    s.editor.undo();
+    assert_eq!(s.editor.text, original);
+}
+
+#[test]
+fn reloading_a_changed_note_does_not_resurrect_the_old_history() {
+    let tmp = nav_vault();
+    let mut s =
+        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state"));
+    let alpha = s.vault.resolve("Alpha").expect("Alpha");
+    let beta = s.vault.resolve("Beta").expect("Beta");
+    let path = s.vault.notes[alpha].path.clone();
+    let mut tx = Tx::default();
+    assert!(!poll(&mut s, 1.0, &mut tx), "nothing changed yet");
+
+    // Save a typed edit, then let the file change under us while clean.
+    s.editor.focus = s.editor.text.len();
+    s.editor.insert("typed");
+    assert!(s.save_now());
+    fs::write(&path, "# Alpha changed\n").expect("external edit");
+    assert!(poll(&mut s, 2.7, &mut tx), "the watcher reloads");
+    assert_eq!(s.editor.text, "# Alpha changed\n");
+
+    let changed = s.editor.text.clone();
+    s.editor.undo();
+    assert_eq!(
+        s.editor.text, changed,
+        "the reload started a fresh, empty undo stack"
+    );
+
+    // Leaving and returning must not bring the discarded stack back.
+    s.open_note(beta);
+    s.open_note(alpha);
+    s.editor.undo();
+    assert_eq!(s.editor.text, changed);
 }

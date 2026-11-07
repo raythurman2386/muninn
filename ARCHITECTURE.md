@@ -72,6 +72,13 @@ is not in this table. That check is part of `xtask check` and CI.
    rebuilt from the scan; each entry also keeps the caret to restore. In-note find matches
    are recomputed once a frame in `poll` from the query and editor text, because the view
    only borrows `State` and typing commits after the key handler runs.
+9. **Per-note undo (M2 EDT-02).** Rune's `TextEdit` owns its undo stack, and
+   `replace_text` clears it when the app swaps notes. `State` therefore parks a clone of
+   the whole `TextEdit` in a path-keyed, 24-entry cache whenever a note is left; cloning
+   shares Rune's immutable history until the next edit. On revisit the snapshot is
+   restored only while its text still equals the file the vault will show, so an
+   external reload or conflict resolution discards stale history instead of undoing
+   into discarded text. Rename and move re-key the open note's entry.
 
 ## Invariants
 

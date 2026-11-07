@@ -72,6 +72,8 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘F` / `Ctrl+F` | Find in the open note |
 | `Enter` / `Shift+Enter` (find) | Next / previous match |
 | `[[` (editor) | Open wikilink completion for the note being typed |
+| `Enter` (editor) | Continue a list item, end an empty one, or close an open `[[` when completion is not showing |
+| `Tab` (editor) | Indent four spaces instead of leaving the note |
 | `↑` / `↓` (completion) | Move the highlighted suggested note |
 | `Enter` / `Tab` (completion) | Insert `[[stem]]` for the highlighted note |
 | `Esc` (completion) | Dismiss the list, then find, then prompts and menus |

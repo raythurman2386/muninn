@@ -1544,11 +1544,18 @@ fn editor(s: &State, k: &Kit) -> El {
                 k.c.text_faint,
             )
             .on_edit(|s: &mut State| &mut s.editor)
-            .on_submit(|s: &mut State, _| s.editor.insert("\n"))
+            // EDT-05: Enter closes `[[`, continues lists, or inserts a newline.
+            .on_submit(|s: &mut State, _| s.editor_enter())
             .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                 // EDT-03: the completion claims Up/Down/Enter/Tab/Escape (and,
                 // in the Cmd+P picker, the typed filter) before the field.
                 if s.complete_key(e) {
+                    return true;
+                }
+                // EDT-05: Tab indents instead of moving focus out of the note.
+                if e.key == Key::Tab && !e.mods.shift && !e.mods.cmd && !e.mods.ctrl && !e.mods.alt
+                {
+                    s.editor_tab();
                     return true;
                 }
                 // Let menus/prompts/graph shortcuts claim Escape first; an

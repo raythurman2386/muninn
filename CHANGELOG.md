@@ -8,6 +8,16 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- Per-note undo history (EDT-02): switching away from a note and back restores its
+  text, caret and Rune undo/redo stack, so `Cmd/Ctrl+Z` still reverts edits made on the
+  first visit. Snapshot memory follows Rune's per-note cap (128 steps or 1 MiB) and the
+  cache is bounded to 24 notes; an external reload or conflict resolution starts a
+  fresh stack instead of resurrecting history for text that is gone.
+- Markdown comfort in the editor (EDT-05): `Enter` continues `- `, `* `, `+ ` and
+  `1. ` items with the same indentation (numbered items advance), removes the marker on
+  an empty item to end the list, and closes an unclosed `[[` with the caret inside when
+  the wikilink completion is not showing. `Tab` indents four spaces instead of moving
+  focus out of the note.
 - Note and folder CRUD in the sidebar: name-first note creation (no silent `Untitled`),
   inline rename, delete with confirmation, move-to-folder, new/rename/delete folders, and
   a right-click context menu on notes and folders. `F2` renames the selected note and

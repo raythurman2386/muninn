@@ -1,6 +1,6 @@
 //! Application state: the open vault, note, editor, graph and camera.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -220,11 +220,24 @@ pub struct MoveConfirm {
 /// reading path, bounded so a long-running window cannot grow without limit.
 pub(crate) const HISTORY_CAP: usize = 100;
 
+/// M2 EDT-02: how many notes keep their editor state (text, caret and Rune's
+/// undo stack). Rune bounds one note's history at 128 steps or 1 MiB, so this
+/// caps the aggregate snapshot cache at about 24 MiB worst case while covering
+/// a normal session's visits.
+const NOTE_EDITOR_CAP: usize = 24;
+
 pub struct State {
     pub vault: Vault,
     pub selected: Option<usize>,
     pub selected_path: Option<PathBuf>,
     pub editor: TextEdit,
+    /// M2 EDT-02: per-note editor state keyed by vault path. Cloning a
+    /// [`TextEdit`] shares Rune's immutable history (`TextEdit: Clone` keeps
+    /// one history until the next edit), so restoring the clone brings back
+    /// undo/redo as well as text and caret.
+    note_editors: HashMap<PathBuf, TextEdit>,
+    /// Least-recently-used order for [`State::note_editors`].
+    note_editors_order: Vec<PathBuf>,
     /// The text last read from or written to disk.
     pub saved: String,
     pub search: TextEdit,
@@ -361,6 +374,8 @@ impl State {
             selected: None,
             selected_path: None,
             editor: TextEdit::new(""),
+            note_editors: HashMap::new(),
+            note_editors_order: Vec::new(),
             saved: String::new(),
             search: TextEdit::new(""),
             search_selected: None,
@@ -426,6 +441,65 @@ impl State {
         state
     }
 
+    /// M2 EDT-02: keep the live editor under the note being left. The clone
+    /// shares Rune's immutable history, so the next `replace_text` on the live
+    /// editor cannot erase the snapshot's undo stack.
+    fn stash_editor(&mut self) {
+        let Some(path) = self.selected_path.clone() else {
+            return;
+        };
+        let mut snapshot = self.editor.clone();
+        // Focus belongs to the window, not to a note parked in the cache.
+        snapshot.focused = false;
+        self.note_editors.insert(path.clone(), snapshot);
+        self.note_editors_order.retain(|p| p != &path);
+        self.note_editors_order.push(path);
+        while self.note_editors_order.len() > NOTE_EDITOR_CAP {
+            let oldest = self.note_editors_order.remove(0);
+            self.note_editors.remove(&oldest);
+        }
+    }
+
+    /// Take the snapshot for `path`, but only when its text still matches the
+    /// bytes the vault is about to show. A mismatch means the file changed
+    /// under us (external edit, conflict resolution, a discarded dirty buffer),
+    /// so restoring the old stack would resurrect history for text that is no
+    /// longer there.
+    fn take_editor(&mut self, path: &PathBuf, source: &str) -> Option<TextEdit> {
+        let snapshot = self.note_editors.remove(path)?;
+        (snapshot.text == source).then_some(snapshot)
+    }
+
+    /// Move a parked snapshot when the open note itself is renamed or moved.
+    fn rekey_editor(&mut self, from: Option<&PathBuf>, to: &PathBuf) {
+        let Some(from) = from.filter(|old| *old != to) else {
+            return;
+        };
+        let Some(snapshot) = self.note_editors.remove(from) else {
+            return;
+        };
+        self.note_editors.insert(to.clone(), snapshot);
+        for path in &mut self.note_editors_order {
+            if path.as_path() == from.as_path() {
+                *path = to.clone();
+            }
+        }
+    }
+
+    /// Drop one note's snapshot (conflict reload or a closed note).
+    fn forget_editor(&mut self, path: &PathBuf) {
+        self.note_editors.remove(path);
+        self.note_editors_order.retain(|p| p != path);
+    }
+
+    /// Drop snapshots whose files are no longer in the vault: deleted notes and
+    /// paths left behind by a rename.
+    fn prune_editors(&mut self) {
+        let live: HashSet<PathBuf> = self.vault.notes.iter().map(|n| n.path.clone()).collect();
+        self.note_editors.retain(|path, _| live.contains(path));
+        self.note_editors_order.retain(|path| live.contains(path));
+    }
+
     pub fn load_note(&mut self, id: usize, focus: bool) {
         // Opening or switching notes is the next note action: a pending Undo
         // toast expires here (the file stays in the trash).
@@ -440,6 +514,10 @@ impl State {
         // editor starts showing the next one.
         self.sync_history_caret();
         self.flush();
+        // M2 EDT-02: keep the note's text, caret and Rune undo stack for the
+        // next visit. Stashing after `flush` means a successful autosave has
+        // already made the snapshot match the file the vault will reload.
+        self.stash_editor();
         self.load_note_at(id, focus);
         if let Some(path) = self.selected_path.clone() {
             self.record_history(path);
@@ -456,10 +534,17 @@ impl State {
         self.pending_top = false;
         let note = &self.vault.notes[id];
         let (source, path) = (note.source.clone(), note.path.clone());
-        self.editor.replace_text(source.clone());
-        // Open at the top; a new note moves the caret to its end when it is created.
-        self.editor.anchor = 0;
-        self.editor.focus = 0;
+        // M2 EDT-02: a revisited note comes back with its text, caret and undo
+        // stack. Fresh or externally changed notes start with empty history.
+        if let Some(mut snapshot) = self.take_editor(&path, &source) {
+            snapshot.focused = false;
+            self.editor = snapshot;
+        } else {
+            self.editor.replace_text(source.clone());
+            // Open at the top; a new note moves the caret to its end when it is created.
+            self.editor.anchor = 0;
+            self.editor.focus = 0;
+        }
         self.saved = source;
         self.selected = Some(id);
         self.selected_path = Some(path);
@@ -601,6 +686,7 @@ impl State {
                 self.history_index = cursor as usize;
                 if self.selected != Some(id) {
                     self.flush();
+                    self.stash_editor();
                     self.load_note_at(id, true);
                 }
                 let caret = floor_char_boundary(&self.editor.text, caret);
@@ -983,6 +1069,61 @@ impl State {
     fn set_text_focus(&mut self, editor: bool, search: bool) {
         self.editor.focused = editor;
         self.search.focused = search;
+    }
+
+    /// M2 EDT-05: Enter inside the editor.
+    ///
+    /// An unclosed `[[` is closed first (`]]`, caret left inside), matching the
+    /// completion flow that the user is still typing. Then a Markdown list
+    /// item continues its marker with the same indentation (numbered items
+    /// advance by one); Enter on an empty item removes the marker and ends the
+    /// list. Everywhere else it inserts a plain newline, as Rune's plain field
+    /// did before.
+    pub fn editor_enter(&mut self) {
+        let (anchor, focus) = self.editor.range();
+        if anchor != focus {
+            self.editor.insert("\n");
+            return;
+        }
+        let caret = floor_char_boundary(&self.editor.text, focus);
+        if unclosed_link(&self.editor.text, caret).is_some() {
+            self.editor.insert("]]");
+            self.editor.anchor = caret;
+            self.editor.focus = caret;
+            return;
+        }
+        let line_start = self.editor.text[..caret].rfind('\n').map_or(0, |at| at + 1);
+        let line_end = self.editor.text[caret..]
+            .find('\n')
+            .map_or(self.editor.text.len(), |at| caret + at);
+        let line = self.editor.text[line_start..line_end].to_owned();
+        let Some((indent_len, marker_len, next_marker)) = list_prefix(&line) else {
+            self.editor.insert("\n");
+            return;
+        };
+        let content_start = line_start + indent_len + marker_len;
+        // Enter before the marker is an ordinary paragraph break.
+        if caret < content_start {
+            self.editor.insert("\n");
+            return;
+        }
+        if self.editor.text[content_start..line_end].trim().is_empty() {
+            // Empty item: drop the marker (and its indent) and stay on a blank
+            // line. That is how a Markdown list ends without a trailing item.
+            self.editor.set_selection(line_start, content_start);
+            self.editor.insert("");
+            self.editor.anchor = line_start;
+            self.editor.focus = line_start;
+            return;
+        }
+        let indent = &line[..indent_len];
+        self.editor.insert(&format!("\n{indent}{next_marker}"));
+    }
+
+    /// M2 EDT-05: Tab indents by four spaces at the caret (replacing any
+    /// selection) instead of moving focus out of the note.
+    pub fn editor_tab(&mut self) {
+        self.editor.insert("    ");
     }
 
     pub fn set_mode(&mut self, mode: Mode) {
@@ -1605,6 +1746,9 @@ impl State {
             .map(|note| note.path.clone())
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "note is no longer indexed"))?;
         let source = fs::read_to_string(&path)?;
+        // EDT-02: resolving a conflict by loading the disk bytes discards the
+        // buffer's undo stack; the parked snapshot must go with it.
+        self.forget_editor(&path);
         self.editor.replace_text(source.clone());
         self.editor.anchor = 0;
         self.editor.focus = 0;
@@ -1641,6 +1785,9 @@ impl State {
     }
 
     fn clear_open_note(&mut self) {
+        if let Some(path) = self.selected_path.clone() {
+            self.forget_editor(&path);
+        }
         self.selected = None;
         self.selected_path = None;
         self.editor.replace_text("");
@@ -1666,6 +1813,9 @@ impl State {
     fn reload(&mut self, select: Option<PathBuf>) {
         let root = self.vault.root.clone();
         let path = select.or_else(|| self.selected_path.clone());
+        // EDT-02: park the editor before the selection resets below; a same-note
+        // reload replaces it only if the reloaded text still matches.
+        self.stash_editor();
         match Vault::load(&root) {
             Ok(v) => {
                 self.vault = v;
@@ -1686,6 +1836,7 @@ impl State {
                     self.editor.replace_text("");
                     self.saved.clear();
                 }
+                self.prune_editors();
                 self.needs_fit = true;
                 self.search.focused = false;
                 self.refresh_watch();
@@ -1827,6 +1978,7 @@ impl State {
 
     fn apply_rename(&mut self, id: usize, name: &str, rewrite: bool) {
         let was_selected = self.selected == Some(id);
+        let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
         let inbound = if rewrite {
             self.vault.link_referrers(id)
         } else {
@@ -1849,6 +2001,10 @@ impl State {
                 // The vault updated in place; reload resyncs ids (tests use
                 // paths) and rebuilds graph titles keyed by rel.
                 let select = if was_selected {
+                    // EDT-02: the open note's parked undo stack follows its new
+                    // path instead of being dropped as a stale entry.
+                    self.rekey_editor(old_path.as_ref(), &path);
+                    self.selected_path = Some(path.clone());
                     Some(path)
                 } else {
                     self.selected_path.clone()
@@ -1999,6 +2155,8 @@ impl State {
     }
 
     fn apply_move(&mut self, id: usize, folder: &str, rewrite: bool) {
+        let was_selected = self.selected == Some(id);
+        let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
         let inbound = if rewrite {
             self.vault.link_referrers(id)
         } else {
@@ -2018,6 +2176,10 @@ impl State {
                 } else {
                     Vec::new()
                 };
+                if was_selected {
+                    self.rekey_editor(old_path.as_ref(), &path);
+                    self.selected_path = Some(path.clone());
+                }
                 self.reload(Some(path));
                 if !failures.is_empty() {
                     self.error = Some(format!(
@@ -2391,6 +2553,29 @@ fn floor_char_boundary(text: &str, at: usize) -> usize {
         at -= 1;
     }
     at
+}
+
+/// M2 EDT-05: a Markdown list prefix at the start of `line`: indentation byte
+/// length, marker byte length, and the marker a continued item repeats
+/// (numbered items advance by one). Supports `- `, `* `, `+ ` and `N. `.
+fn list_prefix(line: &str) -> Option<(usize, usize, String)> {
+    let indent_len = line.len() - line.trim_start_matches([' ', '\t']).len();
+    let rest = &line[indent_len..];
+    for marker in ["- ", "* ", "+ "] {
+        if rest.starts_with(marker) {
+            return Some((indent_len, marker.len(), marker.to_owned()));
+        }
+    }
+    let digits = rest.bytes().take_while(|b| b.is_ascii_digit()).count();
+    if digits > 0 && rest[digits..].starts_with(". ") {
+        let number = rest[..digits].parse::<u64>().unwrap_or(0);
+        return Some((
+            indent_len,
+            digits + 2,
+            format!("{}. ", number.saturating_add(1)),
+        ));
+    }
+    None
 }
 
 /// Trim a submitted inline name and clear its focus. `None` means the field
