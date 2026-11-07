@@ -1,7 +1,42 @@
 //! Rewrite wikilinks into ordinary Markdown links for the reader view.
 
+use std::path::{Path, PathBuf};
+
 use crate::vault::Vault;
-use crate::wikilink::parse_links;
+use crate::wikilink::{WikiLink, parse_links};
+
+/// One attachment embed (`![[pic.png]]`) found in a note's source.
+///
+/// The reader shows a filename and size instead of the image bytes: Rune's
+/// Markdown view has no image pipeline in this revision, and its image cache
+/// is only created from an `AppSpec::setup` hook Muninn does not own here.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Attachment {
+    /// The target exactly as written (`assets/pic.png`).
+    pub target: String,
+    /// The last path segment (`pic.png`), used as the visible label.
+    pub name: String,
+    /// An optional display alias (`![[pic.png|the shot]]`).
+    pub alias: Option<String>,
+    /// The absolute file path when the attachment exists in the vault.
+    pub path: Option<PathBuf>,
+    /// File size in bytes when the file exists and its metadata is readable.
+    pub size: Option<u64>,
+}
+
+impl Attachment {
+    /// `12.4 KB`-style size for the placeholder, or `None` for a missing file.
+    #[must_use]
+    pub fn size_label(&self) -> Option<String> {
+        self.size.map(human_size)
+    }
+
+    /// True when [`Attachment::path`] exists on disk.
+    #[must_use]
+    pub fn exists(&self) -> bool {
+        self.path.is_some()
+    }
+}
 
 impl Vault {
     /// Rewrite `[[wikilinks]]` into ordinary Markdown links: `note:<stem>`
@@ -55,36 +90,145 @@ impl Vault {
     }
 
     /// DES-02: the reader source. Attachment embeds (`![[pic.png]]`) become a
-    /// filename placeholder before the ordinary wikilink rewrite runs, because
-    /// Rune's Markdown view has no image pipeline and would otherwise paint
-    /// them as faint missing note links.
+    /// filename-and-size placeholder before the ordinary wikilink rewrite runs,
+    /// because Rune's Markdown view has no image pipeline and would otherwise
+    /// paint them as faint missing note links.
     #[must_use]
     pub fn preview_with_attachments(&self, source: &str, current: usize) -> String {
-        let source = rewrite_attachments(source);
+        let source = self.rewrite_attachments(source, current);
         self.preview(&source, current)
+    }
+
+    /// Every distinct attachment embed in `source`, in reading order, with its
+    /// resolved vault path and size when the file exists.
+    ///
+    /// This is the metadata behind the reader's attachment strip: the Markdown
+    /// body cannot draw an image, so the Open button opens the real file with
+    /// the platform handler instead.
+    #[must_use]
+    pub fn attachments(&self, source: &str, current: usize) -> Vec<Attachment> {
+        let mut out: Vec<Attachment> = Vec::new();
+        for link in attachment_links(source) {
+            let Some(name) = attachment_name(&link.target).map(str::to_owned) else {
+                continue;
+            };
+            if out
+                .iter()
+                .any(|seen| seen.target.eq_ignore_ascii_case(&link.target))
+            {
+                continue;
+            }
+            let path = self
+                .attachment_path(&link.target, current)
+                .and_then(|path| fs_canonical(&path));
+            let size = path.as_deref().and_then(file_size);
+            out.push(Attachment {
+                target: link.target,
+                name,
+                alias: link.alias,
+                path,
+                size,
+            });
+        }
+        out
+    }
+
+    /// Resolve an attachment target to a file inside this vault.
+    ///
+    /// Resolution is deliberately conservative: try the note's own folder,
+    /// then the vault root, then every scanned folder by full relative target
+    /// and by bare filename (so `![[pic.png]]` finds `assets/pic.png`). `..`
+    /// and absolute targets are refused; the result must be an existing file.
+    #[must_use]
+    pub fn attachment_path(&self, target: &str, current: usize) -> Option<PathBuf> {
+        let rel = target.trim().replace('\\', "/");
+        if rel.starts_with('/') {
+            return None;
+        }
+        let rel = rel.trim_start_matches("./");
+        if rel.is_empty()
+            || rel
+                .split('/')
+                .any(|part| part.is_empty() || part == "." || part == "..")
+        {
+            return None;
+        }
+        let name = rel.rsplit('/').next().unwrap_or(rel);
+        let mut candidates: Vec<PathBuf> = Vec::new();
+        if let Some(note) = self.notes.get(current) {
+            let folder = note.folder();
+            if !folder.is_empty() {
+                candidates.push(self.root.join(folder).join(rel));
+            }
+        }
+        candidates.push(self.root.join(rel));
+        for dir in &self.dirs {
+            let base = if dir.is_empty() {
+                self.root.clone()
+            } else {
+                self.root.join(dir)
+            };
+            candidates.push(base.join(rel));
+            if name != rel {
+                candidates.push(base.join(name));
+            }
+        }
+        candidates.into_iter().find(|path| path.is_file())
+    }
+
+    /// Replace every `![[attachment]]` span with a visible placeholder, leaving
+    /// note embeds and plain links for [`Vault::preview`].
+    fn rewrite_attachments(&self, source: &str, current: usize) -> String {
+        let embeds = attachment_links(source);
+        if embeds.is_empty() {
+            return source.to_owned();
+        }
+        let mut out = String::with_capacity(source.len() + embeds.len() * 32);
+        let mut last = 0;
+        for link in embeds {
+            out.push_str(&source[last..link.start - 1]);
+            let size = self
+                .attachment_path(&link.target, current)
+                .as_deref()
+                .and_then(file_size);
+            attachment_placeholder(&link, size, &mut out);
+            last = link.end;
+        }
+        out.push_str(&source[last..]);
+        out
     }
 }
 
-/// Replace every `![[attachment]]` span with a visible placeholder, leaving
-/// note embeds and plain links for [`Vault::preview`].
-fn rewrite_attachments(source: &str) -> String {
-    let links = parse_links(source);
-    let embeds: Vec<_> = links
-        .iter()
+/// Attachment embeds in reading order. A plain `[[pic.png]]` (no `!`) and a
+/// `![[Note]]` note embed are deliberately left to [`Vault::preview`].
+fn attachment_links(source: &str) -> Vec<WikiLink> {
+    parse_links(source)
+        .into_iter()
         .filter(|link| is_attachment_embed(source, link.start, &link.target))
-        .collect();
-    if embeds.is_empty() {
-        return source.to_owned();
+        .collect()
+}
+
+fn fs_canonical(path: &Path) -> Option<PathBuf> {
+    std::fs::canonicalize(path).ok()
+}
+
+fn file_size(path: &Path) -> Option<u64> {
+    std::fs::metadata(path).ok().map(|meta| meta.len())
+}
+
+/// `999 B`, `12.4 KB`, `3.1 MB`; binary units keep the number short.
+fn human_size(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    let bytes_f = bytes as f64;
+    if bytes < 1024 {
+        format!("{bytes} B")
+    } else if bytes_f < KB * KB {
+        format!("{:.1} KB", bytes_f / KB)
+    } else if bytes_f < KB * KB * KB {
+        format!("{:.1} MB", bytes_f / (KB * KB))
+    } else {
+        format!("{:.1} GB", bytes_f / (KB * KB * KB))
     }
-    let mut out = String::with_capacity(source.len() + embeds.len() * 24);
-    let mut last = 0;
-    for link in embeds {
-        out.push_str(&source[last..link.start - 1]);
-        attachment_placeholder(link, &mut out);
-        last = link.end;
-    }
-    out.push_str(&source[last..]);
-    out
 }
 
 /// True when `![[target]]` (the `!` is the byte before `start`) names an
@@ -110,10 +254,11 @@ fn attachment_name(target: &str) -> Option<&str> {
 }
 
 /// A reader-visible placeholder for an attachment embed. Rune has no image
-/// pipeline and `Tx::open_url` refuses `file:` links, so the filename is
-/// shown in an inline code span and marked as an attachment; the file itself
-/// stays opaque (the vault scan ignores non-`.md` files).
-fn attachment_placeholder(link: &crate::wikilink::WikiLink, out: &mut String) {
+/// pipeline and `Tx::open_url` refuses `file:` links, so the filename and size
+/// are shown in an inline code span and marked as an attachment; the file
+/// itself stays opaque (the vault scan ignores non-`.md` files) and the
+/// reader's attachment strip offers an Open button.
+fn attachment_placeholder(link: &WikiLink, size: Option<u64>, out: &mut String) {
     let name = attachment_name(&link.target).unwrap_or(&link.target);
     out.push('`');
     for c in name.chars() {
@@ -126,6 +271,13 @@ fn attachment_placeholder(link: &crate::wikilink::WikiLink, out: &mut String) {
         escape_label(alias, out);
     }
     out.push(')');
+    match size {
+        Some(bytes) => {
+            out.push_str(" · ");
+            out.push_str(&human_size(bytes));
+        }
+        None => out.push_str(" · missing"),
+    }
 }
 
 pub(crate) fn escape_label(label: &str, out: &mut String) {

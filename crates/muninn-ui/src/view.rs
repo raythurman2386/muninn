@@ -28,6 +28,19 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
                 tx.instant();
             }
         })
+        // DES-02: dropping files anywhere in the window imports them into the
+        // current folder. Markdown becomes a note; images/PDFs are copied but
+        // stay out of the index (the reader's attachment strip can open them).
+        .on_drop_files(|s: &mut State, files: &[std::path::PathBuf], tx: &mut Tx| {
+            if s.import_files(files).changed() {
+                tx.instant();
+            }
+        })
+        .accepts_extensions(crate::state::IMPORT_EXTENSIONS)
+        .on_drop_rejected(|s: &mut State, files: &[std::path::PathBuf], tx: &mut Tx| {
+            s.reject_drop(files);
+            tx.instant();
+        })
         .child(sidebar(s, k, dark))
         .child(divider(k))
         .child(main_column(s, k))
@@ -955,6 +968,8 @@ fn context_menu(s: &State, k: &Kit) -> El {
     };
     let items: Vec<(&str, &str)> = match &menu.target {
         MenuTarget::Note(_) => vec![
+            ("Open externally", "open_external"),
+            ("Reveal in file manager", "reveal"),
             ("Rename", "rename"),
             ("Move to…", "move"),
             ("Delete", "delete"),
@@ -1334,33 +1349,42 @@ fn main(s: &State, k: &Kit) -> El {
     if !s.recovered.is_empty() {
         page = page.child(recovery_banner(s, k));
     }
-    let body = if s.vault.notes.is_empty() && s.startup_error.is_some() {
-        vault_error_page(s, k)
-    } else if s.broken_panel {
-        broken_links_panel(s, k)
-    } else if s.mode == Mode::Graph {
-        crate::graph_view::graph(s, k)
-    } else {
-        let mut content = row().key("note-body").w_full().grow(1.0).min_h(0.0).child(
-            col()
-                .key("page")
-                .grow(1.0)
-                .min_w(0.0)
-                .min_h(0.0)
-                .child(if s.mode == Mode::Preview {
-                    preview(s, k)
-                } else {
-                    editor(s, k)
-                })
-                .child(status_bar(s, k)),
-        );
-        // A tiled or narrow window keeps the page; the rail returns when there is room.
-        if s.window_width >= 980.0 && s.selected.is_some() {
-            content = content.child(divider(k)).child(rail(s, k));
-        }
-        content
-    };
-    page.child(body)
+    page.child(main_body(s, k))
+}
+
+/// Pick the body under the chrome: the loading progress page first (no partial
+/// vault exists yet), then the error page, dashboards, graph or note surface.
+fn main_body(s: &State, k: &Kit) -> El {
+    if s.loading() {
+        return loading_page(s, k);
+    }
+    if s.vault.notes.is_empty() && s.startup_error.is_some() {
+        return vault_error_page(s, k);
+    }
+    if s.broken_panel {
+        return broken_links_panel(s, k);
+    }
+    if s.mode == Mode::Graph {
+        return crate::graph_view::graph(s, k);
+    }
+    let mut content = row().key("note-body").w_full().grow(1.0).min_h(0.0).child(
+        col()
+            .key("page")
+            .grow(1.0)
+            .min_w(0.0)
+            .min_h(0.0)
+            .child(if s.mode == Mode::Preview {
+                preview(s, k)
+            } else {
+                editor(s, k)
+            })
+            .child(status_bar(s, k)),
+    );
+    // A tiled or narrow window keeps the page; the rail returns when there is room.
+    if s.window_width >= 980.0 && s.selected.is_some() {
+        content = content.child(divider(k)).child(rail(s, k));
+    }
+    content
 }
 
 /// M3 wrapper around [`main`]: the Help overlay takes the whole column, and a
@@ -1616,10 +1640,90 @@ fn help_row(k: &Kit, keys: &str, action: &str) -> El {
         )
 }
 
+/// A large vault is still being read: show bounded progress and the one action
+/// that matters (Cancel, also on Escape). The invisible 1×1 text field is the
+/// Escape owner: a focused field sees keys before the window shortcut table,
+/// and the loading screen has no editor to hand focus to.
+fn loading_page(s: &State, k: &Kit) -> El {
+    let (done, total) = s.load_progress().unwrap_or((0, 0));
+    let fraction = if total == 0 {
+        0.0
+    } else {
+        (done as f32 / total as f32).clamp(0.0, 1.0)
+    };
+    let mut bar = row()
+        .key("scan-progress-bar")
+        .w_full()
+        .max_w(420.0)
+        .h(6.0)
+        .radius(3.0)
+        .clip_rounded(3.0)
+        .fill(k.alpha(k.c.text_faint, 0.18));
+    if fraction > 0.0 {
+        bar = bar.child(el().h(6.0).grow(fraction).radius(3.0).fill(k.c.text_accent));
+    }
+    if fraction < 1.0 {
+        bar = bar.child(el().h(6.0).grow(1.0 - fraction));
+    }
+    col()
+        .key("scan-loading")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .center()
+        .items_center()
+        .gap(12.0)
+        .child(
+            text("Scanning your vault")
+                .font(k.ty.ui_medium)
+                .color(k.c.text_base),
+        )
+        .child(bar)
+        .child(
+            text(format!("Scanning {done}/{total} notes — Esc to cancel"))
+                .key("scan-progress-label")
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        )
+        .child(status_button(
+            k,
+            "Cancel",
+            "scan-cancel",
+            State::cancel_scan,
+        ))
+        .child(
+            text_input(&s.scan_field, k.ty.ui_compact)
+                .key("scan-escape")
+                .single_line()
+                .size(1.0, 1.0)
+                .opacity(0.01)
+                .on_edit(|s: &mut State| &mut s.scan_field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+                    if e.key == Key::Escape && s.loading() {
+                        s.cancel_scan();
+                        true
+                    } else {
+                        false
+                    }
+                }),
+        )
+}
+
 /// The whole vault could not be scanned: show the OS error and Retry instead
 /// of an empty editor (which would read as "your notes are gone").
 fn vault_error_page(s: &State, k: &Kit) -> El {
     let message = s.startup_error.clone().unwrap_or_default();
+    let cancelled = message.starts_with("Scan cancelled");
+    let title = if cancelled {
+        "Scan cancelled"
+    } else {
+        "Could not open the vault"
+    };
+    let hint = if cancelled {
+        "Retry scans the vault again, or pick another folder from the vault chip."
+    } else {
+        "Pick another folder from the sidebar vault chip, or pass --vault / set MUNINN_VAULT."
+    };
     col()
         .key("vault-error")
         .w_full()
@@ -1629,11 +1733,7 @@ fn vault_error_page(s: &State, k: &Kit) -> El {
         .center()
         .items_center()
         .gap(9.0)
-        .child(
-            text("Could not open the vault")
-                .font(k.ty.ui_medium)
-                .color(k.c.danger.fg),
-        )
+        .child(text(title).font(k.ty.ui_medium).color(k.c.danger.fg))
         .child(
             text(message)
                 .font(k.ty.caption())
@@ -1641,7 +1741,7 @@ fn vault_error_page(s: &State, k: &Kit) -> El {
                 .color(k.c.text_muted),
         )
         .child(
-            text("Pick another folder from the sidebar vault chip, or pass --vault / set MUNINN_VAULT.")
+            text(hint)
                 .font(k.ty.caption())
                 .max_w(560.0)
                 .color(k.c.text_faint),
@@ -2249,10 +2349,7 @@ fn preview(s: &State, k: &Kit) -> El {
     // EDT-04: top-level heading blocks get stable keys so a deep link can
     // scroll one into view. Offsets are computed against the preview source
     // (link rewriting changes byte lengths), matching `Markdown::block_keys`.
-    let block_keys: Vec<(usize, String)> = headings(&source)
-        .into_iter()
-        .map(|(offset, _)| (offset, format!("heading-{offset}")))
-        .collect();
+    let block_keys = heading_keys(&source);
     let accent = k.c.text_accent;
     let faint = k.c.text_faint;
     let faint_rule = k.alpha(faint, 0.5);
@@ -2290,7 +2387,117 @@ fn preview(s: &State, k: &Kit) -> El {
         .w_full()
         .grow(1.0)
         .min_h(0.0)
-        .child(scroller.child(col().w_full().max_w(744.0).px(52.0).py(36.0).child(body)))
+        .child(
+            scroller.child(
+                col()
+                    .w_full()
+                    .max_w(744.0)
+                    .px(52.0)
+                    .py(36.0)
+                    .child(body)
+                    .child(attachment_strip(s, id, k)),
+            ),
+        )
+}
+
+/// EDT-04: stable block keys for the preview's top-level headings.
+fn heading_keys(source: &str) -> Vec<(usize, String)> {
+    headings(source)
+        .into_iter()
+        .map(|(offset, _)| (offset, format!("heading-{offset}")))
+        .collect()
+}
+
+/// DES-02: attachments are real files but not notes, and Rune's Markdown has
+/// no image pipeline. The reader therefore lists each embed with its size and
+/// an Open button, which hands the canonical path to the platform opener
+/// (`State::open_attachment`) instead of faking a preview.
+fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
+    let attachments = s.vault.attachments(&s.editor.text, current);
+    if attachments.is_empty() {
+        return el();
+    }
+    let mut rows = col().w_full().gap(4.0);
+    for (index, attachment) in attachments.iter().enumerate() {
+        let target = attachment.target.clone();
+        let size = attachment
+            .size_label()
+            .unwrap_or_else(|| "missing file".to_owned());
+        let mut body = col()
+            .grow(1.0)
+            .min_w(0.0)
+            .gap(1.0)
+            .child(
+                text(&attachment.name)
+                    .font(k.ty.ui_compact)
+                    .color(k.c.text_base)
+                    .truncate(),
+            )
+            .child(text(size).font(k.ty.caption()).color(k.c.text_faint));
+        if let Some(alias) = &attachment.alias {
+            body = body.child(
+                text(alias)
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .truncate(),
+            );
+        }
+        rows = rows.child(
+            row()
+                .key(format!("attachment-row-{index}"))
+                .w_full()
+                .px(10.0)
+                .py(7.0)
+                .gap(9.0)
+                .radius(7.0)
+                .center_y()
+                .fill(k.c.layer_01)
+                .border(1.0, k.c.border_muted)
+                .child(icon(&ic::PHOTO, 15.0).color(k.c.icon_muted))
+                .child(body)
+                .child(
+                    pressable(k, format!("attachment-open-{index}"))
+                        .px(9.0)
+                        .py(4.0)
+                        .center_y()
+                        .border(1.0, k.c.border_muted)
+                        .child(text("Open").font(k.ty.caption()).color(k.c.text_accent))
+                        .on_press(move |s: &mut State| {
+                            s.open_attachment(&target);
+                        }),
+                ),
+        );
+    }
+    col()
+        .key("attachments")
+        .w_full()
+        .mt(28.0)
+        .pt(18.0)
+        .gap(9.0)
+        .child(
+            row()
+                .w_full()
+                .gap(8.0)
+                .center_y()
+                .child(
+                    text("ATTACHMENTS")
+                        .font(TextStyle::new(10.0, 650.0).tracking(0.9))
+                        .color(k.c.text_muted),
+                )
+                .child(
+                    text(attachments.len().to_string())
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                )
+                .child(spacer())
+                .child(
+                    text("Files stay outside the note index")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
+        )
+        .child(divider_h(k))
+        .child(rows)
 }
 
 fn no_note(k: &Kit) -> El {
@@ -2348,6 +2555,10 @@ fn status_bar(s: &State, k: &Kit) -> El {
         (k.c.danger.fg, error.clone())
     } else if s.dirty() {
         (k.c.warning.fg, "Saving…".to_owned())
+    } else if let Some(notice) = &s.notice {
+        // DES-02: imported attachments have no sidebar row, so the status bar
+        // is where their count is reported.
+        (k.c.text_accent, notice.clone())
     } else if s.last_save.is_some() {
         (k.c.success.fg, "Saved".to_owned())
     } else {

@@ -102,12 +102,19 @@ and fit still work. Prefer this over replacing the theme when motion is a proble
 - Unresolved wikilinks are drawn faintly in Read mode. Clicking one creates the note and opens
   it in Write mode. Path-qualified links (`[[folder/note]]`) resolve to that folder; a bare
   title shared by several notes resolves deterministically and displays with its folder.
-- Attachments stay opaque: only `.md` files are notes, and the scan ignores everything else.
-  An image embed such as `![[pic.png]]` renders in Read mode as a filename placeholder, not a
-  faint missing note link. Rune's Markdown view has no image pipeline in this revision, and
-  `Tx::open_url` refuses `file:` links, so there is no in-app image render or
-  reveal-in-file-manager yet. This Rune revision does expose `El::on_drop_files`, but
-  Muninn has not wired file drops into attachments; that remains a later task.
+- Attachments are files, not notes: only `.md` files are indexed. An embed such as
+  `![[pic.png]]` renders in Read mode as a filename-and-size placeholder, not a faint missing
+  note link, and the reader's attachment strip lists each file with **Open**. Rune's Markdown
+  view has no image pipeline in this revision and `Tx::open_url` refuses `file:` URLs, so Open
+  hands the canonical path to the platform handler instead (`xdg-open` on Linux, `open` on
+  macOS, `start` on Windows). Right-click a note for **Open externally** and **Reveal in file
+  manager**.
+- Drop files on the window to import them into the current folder: `.md` becomes a note and
+  opens, while png/jpg/jpeg/gif/webp/pdf files are copied as attachments that stay out of the
+  sidebar (the status bar reports the count). Imports are atomic copies and never overwrite:
+  an existing filename is refused with its name. File drops work on macOS, Windows and X11;
+  Wayland reports no file drags to winit 0.30, so dropping from a file manager there does
+  nothing — use the sidebar actions instead.
 - Word count uses whitespace splitting, so a CJK run without spaces counts as one word
   (documented, not locale-aware segmentation). Unicode titles (CJK, accents, RTL) search and
   resolve by the same case-folded title/path rules as ASCII.

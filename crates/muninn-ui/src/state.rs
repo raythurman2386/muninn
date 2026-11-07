@@ -1,13 +1,14 @@
 //! Application state: the open vault, note, editor, graph and camera.
 
 use std::collections::{HashMap, HashSet};
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime};
 
-use muninn_core::{Vault, heading_offset, unclosed_link};
+use muninn_core::{ScanJob, Vault, atomic_copy, heading_offset, unclosed_link};
 use muninn_graph::{Graph, WORLD, world_centre};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
@@ -255,6 +256,49 @@ pub(crate) const HISTORY_CAP: usize = 100;
 /// a normal session's visits.
 const NOTE_EDITOR_CAP: usize = 24;
 
+/// Up to this many note files a scan is synchronous: a progress bar for a
+/// sub-frame load would flash for no reason. Larger vaults read their bodies in
+/// bounded chunks from [`crate::poll`], one frame at a time.
+pub(crate) const SCAN_SYNC_LIMIT: usize = 100;
+
+/// Note bodies read per poll tick. Reading is the expensive part (the walk is
+/// metadata only); 50 keeps a tick far below one frame on a cold cache while a
+/// 2,000-note vault finishes in about forty ticks.
+pub(crate) const SCAN_CHUNK: usize = 50;
+
+/// File types drag-and-drop imports: Markdown becomes a note, the rest are
+/// copied as attachments. Only the `.md` files reach the sidebar/index; the
+/// vault scan deliberately ignores every other extension.
+pub const IMPORT_EXTENSIONS: &[&str] = &["md", "png", "jpg", "jpeg", "gif", "webp", "pdf"];
+
+/// Which system handler a path should reach.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileAction {
+    /// Hand the file to its default application.
+    Open,
+    /// Open the containing folder in the file manager.
+    Reveal,
+}
+
+/// What one [`State::import_files`] call did.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ImportReport {
+    /// Destination paths written into the vault, in input order.
+    pub imported: Vec<PathBuf>,
+    /// How many of [`ImportReport::imported`] are Markdown notes.
+    pub notes: usize,
+    /// Why individual files were refused (`name: reason`), never overwritten.
+    pub refused: Vec<String>,
+}
+
+impl ImportReport {
+    /// A successful write happened.
+    #[must_use]
+    pub fn changed(&self) -> bool {
+        !self.imported.is_empty()
+    }
+}
+
 /// X-01: the Rune revision pinned in the workspace `Cargo.toml`. Logged at
 /// startup and shown in diagnostics; update it with the pin together.
 pub(crate) const RUNE_REV: &str = "b39c24f";
@@ -331,6 +375,10 @@ pub struct State {
     /// Scroll the sidebar to this note on the next frame.
     pub reveal: Option<usize>,
     pub error: Option<String>,
+    /// A successful but non-note-changing action worth one status line, such as
+    /// importing images (which the sidebar cannot show). Cleared by the next
+    /// import; errors still outrank it in the status bar.
+    pub notice: Option<String>,
     /// Identity `(mtime, length)` this editor expects on disk for the open
     /// note. Captured on load and after every successful save.
     pub expected_disk: Option<DiskState>,
@@ -390,9 +438,21 @@ pub struct State {
     /// save, so this stays the source for values the UI does not own (recent
     /// vaults, autosave delay).
     settings: Settings,
-    /// Wall-clock cost of the startup scan, shown in the status bar. The scan
-    /// is synchronous; a chunked progress bar is deferred (see ARCHITECTURE).
+    /// Wall-clock cost of the startup scan, shown in the status bar. The fast
+    /// path is synchronous; a large vault is scanned in chunks (see
+    /// [`State::scan`]) and records the whole load when the last chunk lands.
     load_ms: f64,
+    /// Chunked startup scan still reading note bodies. While this is `Some`,
+    /// `vault` is an empty placeholder — a partial index is never exposed.
+    scan: Option<ScanJob>,
+    /// Start of the chunked scan, so `load_ms` covers the whole load.
+    scan_started: Option<Instant>,
+    /// Note to reopen when the chunked scan completes (session restore).
+    restore_after_scan: Option<String>,
+    /// Invisible, focused key catcher for the loading screen: a focused text
+    /// field sees Escape before the window shortcut table, so the progress view
+    /// can cancel without owning `keys.rs`.
+    pub(crate) scan_field: TextEdit,
     /// The vault folder did not exist before startup and is still empty.
     pub welcome: bool,
     /// DES-01: in-window keyboard-shortcuts overlay.
@@ -453,13 +513,18 @@ impl State {
         settings: Settings,
     ) -> State {
         // A vault folder that had to be created is the first-run signal. Capture
-        // it before `Vault::load`, which creates a missing root.
+        // it before the scan, which creates a missing root.
         let existed = root.is_dir();
         let restore_vault = settings
             .last_vault
             .as_deref()
             .is_some_and(|path| same_path(path, &root));
         let restore_rel = settings.selected_rel.clone();
+        let restore_after_scan = if restore_vault {
+            restore_rel.clone()
+        } else {
+            None
+        };
         let theme = settings.theme;
         let collapsed: HashSet<String> = settings.collapsed.iter().cloned().collect();
         let restore_mode = settings.mode;
@@ -467,8 +532,17 @@ impl State {
         let reduced_motion = reduced_motion_from_env();
         let log_path = state_home.join("muninn").join("session.log");
         let started = Instant::now();
-        let (vault, startup_error) = match Vault::load(&root) {
-            Ok(vault) => (vault, None),
+        let mut scan = None;
+        let (vault, startup_error) = match Vault::scan_start(&root) {
+            Ok(mut job) if job.total() <= SCAN_SYNC_LIMIT => {
+                job.read_chunk(usize::MAX);
+                (job.finish(), None)
+            }
+            Ok(job) => {
+                // Large vault: keep the placeholder empty and read in `poll`.
+                scan = Some(job);
+                (Vault::empty(root.clone()), None)
+            }
             Err(e) => {
                 eprintln!("muninn: cannot read {}: {e}", root.display());
                 (
@@ -477,8 +551,13 @@ impl State {
                 )
             }
         };
-        let load_ms = started.elapsed().as_secs_f64() * 1_000.0;
-        let welcome = !existed && startup_error.is_none() && vault.notes.is_empty();
+        let loading = scan.is_some();
+        let load_ms = if loading {
+            0.0
+        } else {
+            started.elapsed().as_secs_f64() * 1_000.0
+        };
+        let welcome = !existed && startup_error.is_none() && !loading && vault.notes.is_empty();
         // Key recovery by the canonical root *after* the load above: a missing
         // root is created by the load, and the next launch must derive the same
         // vault id (canonicalization succeeds then). A symlinked path would
@@ -526,6 +605,7 @@ impl State {
             dark: theme,
             reveal: None,
             error: None,
+            notice: None,
             expected_disk: None,
             conflict: None,
             last_save: None,
@@ -558,6 +638,14 @@ impl State {
             settings_home,
             settings,
             load_ms,
+            scan,
+            scan_started: loading.then_some(started),
+            restore_after_scan,
+            scan_field: {
+                let mut field = TextEdit::new("");
+                field.focused = loading;
+                field
+            },
             welcome,
             help: false,
             vault_menu: false,
@@ -582,11 +670,16 @@ impl State {
                 state.load_ms,
                 if state.startup_error.is_some() {
                     " error=unreadable"
+                } else if state.loading() {
+                    " scan=pending"
                 } else {
                     ""
                 }
             ),
         );
+        if let Some(job) = state.scan.as_ref() {
+            state.log_event("scan-start", &format!("total={}", job.total()));
+        }
         // LIF-01: reopen the note that was open last time, but only when this is
         // the same vault. A `--vault` override gets that vault's first note
         // instead of a path that happens to exist in another vault.
@@ -606,7 +699,7 @@ impl State {
         }
         state.set_scope(restore_scope);
         state.set_mode(restore_mode);
-        if state.mode == Mode::Editor {
+        if state.mode == Mode::Editor && !state.loading() {
             state.focus_editor();
         }
         if state.settings_home.is_some() {
@@ -615,7 +708,9 @@ impl State {
             state.settings.last_vault = Some(root);
             state.save_settings();
         }
-        state.refresh_watch();
+        if !state.loading() {
+            state.refresh_watch();
+        }
         state
     }
 
@@ -636,7 +731,12 @@ impl State {
             folders
         };
         settings.last_vault = Some(self.vault.root.clone());
-        settings.selected_rel = self.selected_rel().map(str::to_owned);
+        // While a chunked scan runs there is no selection yet; keep the note the
+        // session would restore instead of overwriting it with `None`.
+        settings.selected_rel = self
+            .selected_rel()
+            .map(str::to_owned)
+            .or_else(|| self.restore_after_scan.clone());
         settings.mode = self.mode;
         settings.scope = self.scope;
         match settings.save_to(config_home) {
@@ -861,6 +961,13 @@ impl State {
         let started = Instant::now();
         match Vault::load(&root) {
             Ok(vault) => {
+                // A successful explicit switch abandons any chunked startup scan
+                // for the old vault; otherwise its completion would overwrite
+                // the newly installed vault.
+                self.scan = None;
+                self.scan_started = None;
+                self.restore_after_scan = None;
+                self.scan_field.focused = false;
                 self.vault = vault;
                 self.log_open(started);
                 self.selected = None;
@@ -2594,22 +2701,25 @@ impl State {
         }
     }
 
-    /// Retry the startup scan after [`State::startup_error`]. On success the
-    /// vault and graph are rebuilt and the first note opens; on failure the
-    /// error is refreshed and the empty fallback stays in place. The folder
-    /// picker is still pending (LIF-01), so this is the only recovery path.
+    /// Retry the startup scan after [`State::startup_error`]. A small vault is
+    /// scanned synchronously; a large one starts the same chunked path as
+    /// startup, and `poll` completes it. On failure the error is refreshed.
     pub fn retry_startup(&mut self) -> bool {
-        match Vault::load(&self.vault.root) {
-            Ok(vault) => {
-                self.vault = vault;
-                self.graph.sync(&self.vault);
-                self.startup_error = None;
-                self.error = None;
-                self.needs_fit = true;
-                if let Some(id) = self.vault.notes.first().map(|n| n.id) {
-                    self.load_note(id, false);
+        match Vault::scan_start(&self.vault.root) {
+            Ok(mut job) => {
+                let total = job.total();
+                if total <= SCAN_SYNC_LIMIT {
+                    job.read_chunk(usize::MAX);
+                    self.install_scanned_vault(job.finish());
+                } else {
+                    self.startup_error = None;
+                    self.error = None;
+                    self.restore_after_scan = None;
+                    self.scan_field.focused = true;
+                    self.scan = Some(job);
+                    self.scan_started = Some(Instant::now());
+                    self.log_event("scan-start", &format!("total={total}"));
                 }
-                self.refresh_watch();
                 true
             }
             Err(e) => {
@@ -2617,6 +2727,115 @@ impl State {
                 false
             }
         }
+    }
+
+    /// True while the startup scan is still reading note bodies. The view shows
+    /// the progress page and `poll` advances the scan; no partial vault is
+    /// exposed.
+    #[must_use]
+    pub fn loading(&self) -> bool {
+        self.scan.is_some()
+    }
+
+    /// Progress as `(files done, files total)` while loading.
+    #[must_use]
+    pub fn load_progress(&self) -> Option<(usize, usize)> {
+        self.scan.as_ref().map(|job| (job.done(), job.total()))
+    }
+
+    /// Read the next chunk of a large startup scan, installing the vault when
+    /// the last file lands. Returns true when something visible changed
+    /// (progress or the finished vault), so `poll` can wake the window.
+    pub(crate) fn scan_tick(&mut self) -> bool {
+        let Some(job) = self.scan.as_mut() else {
+            return false;
+        };
+        job.read_chunk(SCAN_CHUNK);
+        if !job.is_done() {
+            return true;
+        }
+        let Some(job) = self.scan.take() else {
+            return false;
+        };
+        let total = job.total();
+        let vault = job.finish();
+        self.load_ms = self
+            .scan_started
+            .take()
+            .map_or(0.0, |started| started.elapsed().as_secs_f64() * 1_000.0);
+        self.install_scanned_vault(vault);
+        self.log_event(
+            "scan-complete",
+            &format!(
+                "notes={} total={} load_ms={:.1}",
+                self.vault.notes.len(),
+                total,
+                self.load_ms
+            ),
+        );
+        true
+    }
+
+    /// Escape on the loading screen: abandon the scan and leave the app on the
+    /// startup error page with Retry. The placeholder vault stays empty — a
+    /// half-read index is never installed.
+    pub fn cancel_scan(&mut self) -> bool {
+        let Some(job) = self.scan.take() else {
+            return false;
+        };
+        let (done, total) = (job.done(), job.total());
+        self.scan_started = None;
+        self.restore_after_scan = None;
+        self.scan_field.focused = false;
+        self.startup_error = Some(format!("Scan cancelled after {done} of {total} notes"));
+        self.log_event("scan-cancelled", &format!("done={done} total={total}"));
+        true
+    }
+
+    /// Replace the placeholder with a finished scan: build the graph, reopen
+    /// the session's note (or the first one) and start watching the folder.
+    fn install_scanned_vault(&mut self, vault: Vault) {
+        self.vault = vault;
+        self.scan_field.focused = false;
+        self.startup_error = None;
+        self.error = None;
+        self.selected = None;
+        self.selected_path = None;
+        self.history.clear();
+        self.history_index = 0;
+        self.note_editors.clear();
+        self.note_editors_order.clear();
+        self.graph = Graph::new(&self.vault);
+        self.cam = Camera::new();
+        self.graph_focus = None;
+        self.needs_fit = true;
+        self.auto_fit = true;
+        self.dragging = None;
+        self.conflict = None;
+        self.expected_disk = None;
+        self.dirty_at = None;
+        self.trash_undo = None;
+        self.broken_panel = false;
+        let restore = self.restore_after_scan.take();
+        let id = restore
+            .and_then(|rel| {
+                self.vault
+                    .notes
+                    .iter()
+                    .find(|note| note.rel == rel)
+                    .map(|note| note.id)
+            })
+            .or_else(|| self.vault.notes.first().map(|note| note.id));
+        if let Some(id) = id {
+            self.load_note(id, false);
+        } else {
+            self.clear_open_note();
+        }
+        let root = self.vault.root.clone();
+        self.settings.push_recent(&root);
+        self.settings.last_vault = Some(root);
+        self.save_settings();
+        self.refresh_watch();
     }
 
     /// Begin naming a note in the current folder. Nothing is created until
@@ -3137,6 +3356,12 @@ impl State {
             (MenuTarget::Note(id), "rename") => self.begin_rename_note(id),
             (MenuTarget::Note(id), "delete") => self.delete_note(id),
             (MenuTarget::Note(id), "move") => self.begin_move_note(id),
+            (MenuTarget::Note(id), "reveal") => {
+                self.reveal_note(id);
+            }
+            (MenuTarget::Note(id), "open_external") => {
+                self.open_note_externally(id);
+            }
             (MenuTarget::Folder(folder), "new_note") => self.begin_new_note(&folder),
             (MenuTarget::Folder(folder), "new_folder") => self.begin_new_folder(&folder),
             (MenuTarget::Folder(folder), "rename") => self.begin_rename_folder(&folder),
@@ -3210,6 +3435,222 @@ impl State {
         } else if tx.open_url(url).is_err() {
             // External links are best-effort: the platform may have no opener.
         }
+    }
+
+    // ---- Attachments: open, reveal and drag-drop import ----------------------
+
+    /// Open a file with the platform handler (`xdg-open` on Linux).
+    ///
+    /// Rune's `Tx::open_url` refuses `file:` links, so the OS opener is spawned
+    /// directly. The exported path is canonicalised first: only an existing
+    /// file is handed out, and failures become a status error instead of a
+    /// panic or a silent no-op.
+    pub fn open_externally(&mut self, path: &Path) -> bool {
+        self.run_file_action(FileAction::Open, path)
+    }
+
+    /// Open the containing folder in the file manager.
+    pub fn reveal_in_file_manager(&mut self, path: &Path) -> bool {
+        self.run_file_action(FileAction::Reveal, path)
+    }
+
+    /// Open a note with its default external application.
+    pub fn open_note_externally(&mut self, id: usize) -> bool {
+        self.note_file_action(id, FileAction::Open)
+    }
+
+    /// Reveal a note in the file manager.
+    pub fn reveal_note(&mut self, id: usize) -> bool {
+        self.note_file_action(id, FileAction::Reveal)
+    }
+
+    fn note_file_action(&mut self, id: usize, action: FileAction) -> bool {
+        match self.vault.notes.get(id).map(|note| note.path.clone()) {
+            Some(path) => self.run_file_action(action, &path),
+            None => {
+                self.error = Some(format!("Note {id} is no longer in this vault"));
+                false
+            }
+        }
+    }
+
+    /// Open an attachment named by a note embed (`![[assets/pic.png]]`). The
+    /// target is resolved against the selected note before the platform opener
+    /// runs, so a stale embed reports a clear error.
+    pub fn open_attachment(&mut self, target: &str) -> bool {
+        let Some(current) = self.selected else {
+            self.error = Some(format!("Cannot open {target}: no note is selected"));
+            return false;
+        };
+        let Some(path) = self.vault.attachment_path(target, current) else {
+            self.error = Some(format!(
+                "Attachment {target} is not in this vault — drop it in, or fix the embed"
+            ));
+            return false;
+        };
+        self.open_externally(&path)
+    }
+
+    fn run_file_action(&mut self, action: FileAction, path: &Path) -> bool {
+        let absolute = match fs::canonicalize(path) {
+            Ok(path) if path.is_file() => path,
+            Ok(_) => {
+                self.error = Some(format!("{} is not a file", path.display()));
+                return false;
+            }
+            Err(_) => {
+                self.error = Some(format!("{} no longer exists", path.display()));
+                return false;
+            }
+        };
+        let (program, args) = match file_action_command(action, &absolute) {
+            Ok(command) => command,
+            Err(message) => {
+                self.error = Some(message);
+                return false;
+            }
+        };
+        let verb = match action {
+            FileAction::Open => "open",
+            FileAction::Reveal => "reveal",
+        };
+        // Fire and forget: a spawned opener returns at once and must not block a
+        // frame. A missing program is the one failure worth surfacing.
+        match Command::new(&program)
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(_) => {
+                self.trace_log(&format!("{verb}-external"), &absolute.display().to_string());
+                true
+            }
+            Err(error) => {
+                self.error = Some(format!(
+                    "Could not {verb} {}: {error}. {}",
+                    absolute.display(),
+                    opener_hint()
+                ));
+                false
+            }
+        }
+    }
+
+    /// Import dropped files into the current folder, then reload the vault.
+    ///
+    /// Markdown becomes notes; images and PDFs are copied as attachments the
+    /// scan deliberately ignores, so the sidebar shows no row for them. Every
+    /// destination is written through a hidden temp file + rename (the same
+    /// crash-safe pattern as note saves) and an existing file is never
+    /// overwritten: the refusal names the file.
+    pub fn import_files(&mut self, paths: &[PathBuf]) -> ImportReport {
+        let mut report = ImportReport::default();
+        self.notice = None;
+        if paths.is_empty() {
+            return report;
+        }
+        let folder = self.current_folder();
+        let dest_dir = if folder.is_empty() {
+            self.vault.root.clone()
+        } else {
+            self.vault.root.join(&folder)
+        };
+        if let Err(error) = fs::create_dir_all(&dest_dir) {
+            self.error = Some(format!(
+                "Could not import into {}: {error}",
+                dest_dir.display()
+            ));
+            return report;
+        }
+        let mut first_note: Option<PathBuf> = None;
+        for source in paths {
+            let name = source
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| source.display().to_string());
+            if !source.is_file() {
+                report.refused.push(format!("{name}: not a file"));
+                continue;
+            }
+            let extension = source
+                .extension()
+                .and_then(OsStr::to_str)
+                .map(str::to_ascii_lowercase);
+            let Some(extension) =
+                extension.filter(|extension| IMPORT_EXTENSIONS.contains(&extension.as_str()))
+            else {
+                report
+                    .refused
+                    .push(format!("{name}: unsupported file type"));
+                continue;
+            };
+            let some_name = source.file_name().unwrap_or(OsStr::new(""));
+            let dest = dest_dir.join(some_name);
+            if dest.exists() {
+                report
+                    .refused
+                    .push(format!("{name}: already exists in this folder"));
+                continue;
+            }
+            match atomic_copy(source, &dest) {
+                Ok(()) => {
+                    report.imported.push(dest.clone());
+                    if extension == "md" {
+                        report.notes += 1;
+                        if first_note.is_none() {
+                            first_note = Some(dest);
+                        }
+                    }
+                }
+                Err(error) => report.refused.push(format!("{name}: {error}")),
+            }
+        }
+        if let Some(first_note) = first_note {
+            // Save the open buffer before the index is rebuilt, then land on the
+            // first imported note so the drop has a visible result.
+            self.flush();
+            self.reload(Some(first_note));
+        }
+        if report.refused.is_empty() {
+            self.notice = Some(import_notice(&report));
+            self.trace_log(
+                "import",
+                &format!("files={} notes={}", report.imported.len(), report.notes),
+            );
+        } else {
+            self.notice = report.changed().then(|| import_notice(&report));
+            self.error = Some(if report.imported.is_empty() {
+                format!("Import refused: {}", report.refused.join("; "))
+            } else {
+                format!(
+                    "Imported {} of {}; refused: {}",
+                    report.imported.len(),
+                    report.imported.len() + report.refused.len(),
+                    report.refused.join("; ")
+                )
+            });
+        }
+        report
+    }
+
+    /// Explain a drag full of files the drop target does not accept.
+    pub fn reject_drop(&mut self, paths: &[PathBuf]) {
+        let names: Vec<String> = paths
+            .iter()
+            .take(3)
+            .map(|path| {
+                path.file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.display().to_string())
+            })
+            .collect();
+        self.notice = None;
+        self.error = Some(format!(
+            "Cannot import {}: drop .md, png, jpg, jpeg, gif, webp or pdf files",
+            names.join(", ")
+        ));
     }
 
     /// Create a note for an unresolved link. A path-qualified target names its
@@ -3413,6 +3854,101 @@ fn find_matches(text: &str, query: &str) -> (Vec<usize>, Vec<usize>) {
         from = stop;
     }
     (starts, ends)
+}
+
+/// The platform command that opens or reveals `path`.
+///
+/// Kept separate from [`State::run_file_action`] so the command shape is
+/// testable without launching anything. Linux/BSD: `xdg-open` (the file for
+/// Open, its parent folder for Reveal). macOS: `open` / `open -R`. Windows:
+/// `cmd /C start ""` / `explorer /select,`. Any other target returns a message
+/// rather than guessing.
+pub fn file_action_command(
+    action: FileAction,
+    path: &Path,
+) -> Result<(String, Vec<OsString>), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let mut args = match action {
+            FileAction::Open => Vec::new(),
+            FileAction::Reveal => vec![OsString::from("-R")],
+        };
+        args.push(path.as_os_str().to_owned());
+        Ok(("open".to_owned(), args))
+    }
+    #[cfg(target_os = "windows")]
+    {
+        match action {
+            FileAction::Open => Ok((
+                "cmd".to_owned(),
+                vec![
+                    OsString::from("/C"),
+                    OsString::from("start"),
+                    OsString::from(""),
+                    path.as_os_str().to_owned(),
+                ],
+            )),
+            FileAction::Reveal => Ok((
+                "explorer".to_owned(),
+                vec![OsString::from(format!("/select,{}", path.display()))],
+            )),
+        }
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let target = match action {
+            FileAction::Open => path.to_path_buf(),
+            FileAction::Reveal => path
+                .parent()
+                .map_or_else(|| path.to_path_buf(), Path::to_path_buf),
+        };
+        Ok(("xdg-open".to_owned(), vec![target.into_os_string()]))
+    }
+    #[cfg(not(any(unix, target_os = "windows")))]
+    {
+        let _ = (action, path);
+        Err("No file opener is documented for this platform; open the file manually".to_owned())
+    }
+}
+
+/// The install hint appended when spawning the opener fails.
+fn opener_hint() -> &'static str {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        "Install xdg-utils (for xdg-open) or open the file manually."
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "The system `open` command failed; open the file from Finder."
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "The system opener failed; open the file from Explorer."
+    }
+    #[cfg(not(any(unix, target_os = "windows")))]
+    {
+        "Open the file manually."
+    }
+}
+
+/// Copy `source` to `dest` through a hidden sibling temp file + rename, so a
+/// failed or interrupted import never leaves a partial attachment behind and
+/// never replaces an existing file.
+/// One status line for an import: counts, and why the sidebar may stay empty.
+fn import_notice(report: &ImportReport) -> String {
+    let files = report.imported.len();
+    let mut text = format!("Imported {files} file{}", if files == 1 { "" } else { "s" });
+    if report.notes > 0 {
+        text.push_str(&format!(
+            " · {} note{}",
+            report.notes,
+            if report.notes == 1 { "" } else { "s" }
+        ));
+    }
+    if files > report.notes {
+        text.push_str(" · non-Markdown files stay attachments");
+    }
+    text
 }
 
 /// Clamp a byte offset to `text` and step back to the nearest character

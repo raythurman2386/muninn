@@ -7,30 +7,8 @@
 
 use std::time::{Duration, Instant};
 
-use muninn_core::testing::TempVault;
+use muninn_core::testing::big_vault;
 use muninn_graph::Graph;
-
-/// 25-note star groups plus a chain: realistic hubs without a single
-/// pathological 80-link node.
-fn big_vault(n: usize) -> TempVault {
-    let mut files = Vec::with_capacity(n);
-    for i in 0..n {
-        let mut body = String::new();
-        if i > 0 {
-            body.push_str(&format!("[[Note {:04}]]\n", i - 1));
-        }
-        let hub = i - i % 25;
-        if hub != i {
-            body.push_str(&format!("[[Note {hub:04}]]\n"));
-        }
-        files.push((format!("Note {i:04}.md"), format!("# Note {i:04}\n{body}")));
-    }
-    let refs: Vec<(&str, &str)> = files
-        .iter()
-        .map(|(name, body)| (name.as_str(), body.as_str()))
-        .collect();
-    TempVault::new(&refs)
-}
 
 #[test]
 fn step_p95_fits_the_2000_note_budget() {
@@ -72,19 +50,27 @@ fn step_p95_fits_the_2000_note_budget() {
     );
 }
 
-#[test]
-#[ignore = "manual measurement: 2000-note settle is slow in a debug test build"]
-fn settle_time_at_2000_notes_is_reported() {
-    let tmp = big_vault(2000);
-    let v = tmp.load();
-    let mut g = Graph::new(&v);
-    let start = Instant::now();
-    let mut frames = 0;
-    let mut quiet_by = None;
-    while frames < 4000 {
+/// The outcome of driving a layout until it has been quiet for 30 frames.
+struct Settle {
+    dormant: Option<usize>,
+    frames: usize,
+    /// Largest per-node move in the last frame that actually moved a node.
+    residual: f32,
+    under_one: Option<usize>,
+}
+
+fn drive_until_dormant(g: &mut Graph, budget: usize) -> Settle {
+    let mut out = Settle {
+        dormant: None,
+        frames: 0,
+        residual: 0.0,
+        under_one: None,
+    };
+    let mut quiet = 0;
+    for frame in 1..=budget {
+        out.frames = frame;
         let before: Vec<[f32; 2]> = g.nodes.iter().map(|node| node.pos).collect();
-        g.step();
-        frames += 1;
+        let moved = g.step();
         let max = g
             .nodes
             .iter()
@@ -93,36 +79,49 @@ fn settle_time_at_2000_notes_is_reported() {
                 max.max((node.pos[0] - old[0]).abs())
                     .max((node.pos[1] - old[1]).abs())
             });
-        if max < 1.0 && quiet_by.is_none() {
-            quiet_by = Some((frames, start.elapsed()));
+        if moved {
+            quiet = 0;
+            out.residual = max;
+        } else {
+            quiet += 1;
+            if quiet == 30 {
+                out.dormant = Some(frame);
+                break;
+            }
         }
-        if frames % 600 == 0 {
-            let over = |limit: f32| {
-                g.nodes
-                    .iter()
-                    .zip(&before)
-                    .filter(|(node, old)| {
-                        (node.pos[0] - old[0]).abs() > limit || (node.pos[1] - old[1]).abs() > limit
-                    })
-                    .count()
-            };
-            println!(
-                "  2000-note frame {frames}: max motion {max:.3} pt; >1pt {}; >10pt {}",
-                over(1.0),
-                over(10.0)
-            );
-        }
-        if max < 0.04 {
-            break;
+        if max < 1.0 && out.under_one.is_none() {
+            out.under_one = Some(frame);
         }
     }
+    out
+}
+
+#[test]
+#[ignore = "manual measurement: 2000-note settle is slow in a debug test build"]
+fn settle_time_at_2000_notes_is_reported() {
+    let tmp = big_vault(2000);
+    let v = tmp.load();
+    let mut g = Graph::new(&v);
+    let start = Instant::now();
+    let settle = drive_until_dormant(&mut g, 4000);
     println!(
-        "2000-note settle: {frames} frames in {:.0} ms; <1pt at {}",
+        "2000-note settle: dormant at {:?} ({} frames in {:.0} ms), last residual {:.3} pt; <1pt at {:?}",
+        settle.dormant,
+        settle.frames,
         start.elapsed().as_secs_f64() * 1000.0,
-        quiet_by.map_or_else(
-            || "never".to_owned(),
-            |(f, t)| format!("{f} frames / {:.0} ms", t.as_secs_f64() * 1000.0)
-        )
+        settle.residual,
+        settle.under_one,
+    );
+    // Heat-aware dormancy is the documented end state: 30 quiet frames and a
+    // bounded, sub-pixel residual, within the 4000-frame budget.
+    assert!(
+        settle.dormant.is_some(),
+        "2000-note layout must go dormant in 4000 frames"
+    );
+    assert!(
+        settle.residual < 0.5,
+        "residual at dormancy must be < 0.5 pt, got {:.3}",
+        settle.residual
     );
 }
 

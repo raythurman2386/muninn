@@ -80,6 +80,86 @@ pub struct Vault {
     broken: Vec<BrokenLink>,
 }
 
+/// An in-progress chunked scan started by [`Vault::scan_start`].
+///
+/// The folder walk and path sort happen immediately (metadata only); note
+/// bodies are read in bounded chunks with [`ScanJob::read_chunk`], and the link
+/// index is rebuilt once in [`ScanJob::finish`] because links need the global
+/// title/path map. The result is identical to [`Vault::load`].
+pub struct ScanJob {
+    root: PathBuf,
+    paths: Vec<PathBuf>,
+    dirs: Vec<String>,
+    /// Index of the next path to read; also the number of files processed.
+    next: usize,
+    notes: Vec<Note>,
+    skipped: usize,
+}
+
+impl ScanJob {
+    /// Every `.md` file the walk found, including ones a read will skip.
+    #[must_use]
+    pub fn total(&self) -> usize {
+        self.paths.len()
+    }
+
+    /// Files processed so far (read or skipped). Progress is `done()/total()`.
+    #[must_use]
+    pub fn done(&self) -> usize {
+        self.next
+    }
+
+    /// True once every path has been read (or skipped).
+    #[must_use]
+    pub fn is_done(&self) -> bool {
+        self.next >= self.paths.len()
+    }
+
+    /// The vault root this job scans.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Read up to `limit` note files, returning how many were processed. A
+    /// skipped file (invalid UTF-8, permissions, unusable name) counts toward
+    /// progress and [`Vault::skipped_count`], exactly as in a full load.
+    pub fn read_chunk(&mut self, limit: usize) -> usize {
+        let end = self.next.saturating_add(limit).min(self.paths.len());
+        let mut read = 0;
+        while self.next < end {
+            let path = self.paths[self.next].clone();
+            match note_from_path(&self.root, &path, self.notes.len()) {
+                Some(note) => self.notes.push(note),
+                None => self.skipped += 1,
+            }
+            self.next += 1;
+            read += 1;
+        }
+        read
+    }
+
+    /// Build the vault and resolve every link. Any unread paths are read first,
+    /// so `finish` is safe even mid-scan (it is the synchronous path).
+    #[must_use]
+    pub fn finish(mut self) -> Vault {
+        if !self.is_done() {
+            self.read_chunk(usize::MAX);
+        }
+        let mut vault = Vault {
+            root: self.root,
+            notes: self.notes,
+            dirs: self.dirs,
+            by_path: HashMap::new(),
+            by_title: HashMap::new(),
+            skipped: self.skipped,
+            broken: Vec::new(),
+        };
+        vault.reindex();
+        vault
+    }
+}
+
 impl Vault {
     /// Hidden folder, directly under the vault root, where deleted notes are
     /// moved. Starting with `.` means [`Vault::load`]'s walk ignores it, so a
@@ -109,6 +189,20 @@ impl Vault {
     /// problem would make the UI claim "No notes yet" instead of surfacing the
     /// OS error.
     pub fn load(root: impl AsRef<Path>) -> io::Result<Vault> {
+        let mut job = Self::scan_start(root)?;
+        job.read_chunk(usize::MAX);
+        Ok(job.finish())
+    }
+
+    /// Begin a chunked scan: resolve the root, walk it once, and collect the
+    /// note paths and folders. Reading the note bodies — the expensive part —
+    /// is deferred to [`ScanJob::read_chunk`], so a UI can show progress without
+    /// a background thread.
+    ///
+    /// The result is the same as [`Vault::load`] once every chunk is read and
+    /// [`ScanJob::finish`] reindexes. A missing root is created and an
+    /// unreadable root is still an error (see [`Vault::load`]).
+    pub fn scan_start(root: impl AsRef<Path>) -> io::Result<ScanJob> {
         let root = root.as_ref().to_path_buf();
         prepare_root(&root)?;
         let mut paths = Vec::new();
@@ -126,19 +220,14 @@ impl Vault {
                 .cmp(&b.to_string_lossy().to_lowercase())
                 .then_with(|| a.cmp(b))
         });
-
-        let (notes, skipped) = read_notes(&root, paths);
-        let mut vault = Vault {
+        Ok(ScanJob {
             root,
-            notes,
+            paths,
             dirs,
-            by_path: HashMap::new(),
-            by_title: HashMap::new(),
-            skipped,
-            broken: Vec::new(),
-        };
-        vault.reindex();
-        Ok(vault)
+            next: 0,
+            notes: Vec::new(),
+            skipped: 0,
+        })
     }
 
     /// Rebuild the title index and every note's link lists.
@@ -1108,6 +1197,29 @@ fn group_broken(broken: HashMap<String, (String, Vec<usize>)>) -> Vec<BrokenLink
 /// temp name starts with `.` so the vault walk ignores it even if a killed
 /// process leaves one behind.
 fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
+    atomic_replace(path, true, |file| file.write_all(data))
+}
+
+/// Copy `source` into `dest` through the same hidden temp + fsync + rename path
+/// as note saves. An existing `dest` is never replaced.
+///
+/// Drag-drop imports use this so a half-copied attachment can never appear in
+/// the vault and a same-named file keeps its bytes.
+pub fn atomic_copy(source: &Path, dest: &Path) -> io::Result<()> {
+    atomic_replace(dest, false, |file| {
+        let mut reader = fs::File::open(source)?;
+        io::copy(&mut reader, file).map(|_| ())
+    })
+}
+
+/// The one temp-file + rename implementation behind note saves and attachment
+/// imports. `replace` is false for imports: the destination is re-checked just
+/// before the rename so a racing copy cannot overwrite a file that appeared.
+fn atomic_replace(
+    path: &Path,
+    replace: bool,
+    write: impl FnOnce(&mut fs::File) -> io::Result<()>,
+) -> io::Result<()> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     let name = path
         .file_name()
@@ -1119,12 +1231,18 @@ fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
     let write = (|| -> io::Result<()> {
         {
             let mut file = fs::File::create(&temp)?;
-            file.write_all(data)?;
+            write(&mut file)?;
             file.flush()?;
             // fsync before rename: otherwise the rename can reach disk first
             // and a crash could expose an empty or partial file.
             file.sync_all()?;
             // Close before rename; Windows cannot rename an open file.
+        }
+        if !replace && path.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "destination exists",
+            ));
         }
         fs::rename(&temp, path)
     })();
@@ -1220,40 +1338,31 @@ fn prepare_root(root: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// Read the scanned paths into notes, counting the ones that could not be
-/// indexed (invalid UTF-8, permissions, unusable file name) instead of failing
-/// the whole vault. The count is surfaced by [`Vault::skipped_count`].
-fn read_notes(root: &Path, paths: Vec<PathBuf>) -> (Vec<Note>, usize) {
-    let mut notes = Vec::new();
-    let mut skipped = 0;
-    for path in paths {
-        let Ok(source) = fs::read_to_string(&path) else {
-            skipped += 1;
-            continue;
-        };
-        let Some(title) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) else {
-            skipped += 1;
-            continue;
-        };
-        if title.is_empty() {
-            skipped += 1;
-            continue;
-        }
-        let rel = path
-            .strip_prefix(root)
-            .map(|p| p.to_string_lossy().replace('\\', "/"))
-            .unwrap_or_default();
-        notes.push(Note {
-            id: notes.len(),
-            path,
-            rel,
-            title,
-            source,
-            links: Vec::new(),
-            backlinks: Vec::new(),
-        });
+/// Read one scanned path into a note, returning `None` when it cannot be
+/// indexed (invalid UTF-8, permissions, unusable file name). The caller counts
+/// those as skipped instead of failing the whole vault.
+fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
+    let source = fs::read_to_string(path).ok()?;
+    let title = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(str::to_owned)?;
+    if title.is_empty() {
+        return None;
     }
-    (notes, skipped)
+    let rel = path
+        .strip_prefix(root)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    Some(Note {
+        id,
+        path: path.to_path_buf(),
+        rel,
+        title,
+        source,
+        links: Vec::new(),
+        backlinks: Vec::new(),
+    })
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>, dirs: &mut Vec<String>, root: &Path, depth: usize) {
@@ -1340,6 +1449,46 @@ fn sanitise_folder_name(name: &str) -> String {
 mod tests {
     use super::*;
     use crate::testing::TempVault;
+
+    #[test]
+    fn chunked_scan_matches_a_full_load() {
+        let tmp = TempVault::new(&[
+            ("Alpha.md", "to [[Beta]] and [[folder/Gamma]]"),
+            ("Beta.md", "back to [[Alpha]]"),
+            ("folder/Gamma.md", "third, [[delta|Dee]]"),
+            ("delta.md", "fourth"),
+            ("folder/Delta.md", "duplicate title, [[Gamma]]"),
+        ]);
+        // A file the scan must count as skipped in both paths.
+        fs::write(tmp.path().join("bad.md"), [0xff, 0xfe, 0xfd]).expect("invalid utf8");
+
+        let full = Vault::load(tmp.path()).expect("full load");
+        let mut job = Vault::scan_start(tmp.path()).expect("scan start");
+        assert_eq!(job.total(), 6);
+        assert_eq!(job.done(), 0);
+        let mut chunks = 0;
+        while !job.is_done() {
+            assert_eq!(job.read_chunk(2), 2);
+            chunks += 1;
+        }
+        assert!(chunks > 1, "the fixture must span several chunks");
+        let chunked = job.finish();
+
+        assert_eq!(chunked.notes.len(), full.notes.len());
+        assert_eq!(chunked.dirs, full.dirs);
+        assert_eq!(chunked.skipped_count(), full.skipped_count());
+        assert_eq!(chunked.skipped_count(), 1);
+        assert_eq!(chunked.broken_links(), full.broken_links());
+        for (a, b) in full.notes.iter().zip(&chunked.notes) {
+            assert_eq!(a.id, b.id);
+            assert_eq!(a.rel, b.rel);
+            assert_eq!(a.title, b.title);
+            assert_eq!(a.source, b.source);
+            assert_eq!(a.links, b.links);
+            assert_eq!(a.backlinks, b.backlinks);
+        }
+        assert_eq!(chunked.display_label(0), full.display_label(0));
+    }
 
     #[test]
     fn links_resolve_by_title_path_and_case() {

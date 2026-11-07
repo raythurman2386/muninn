@@ -28,12 +28,34 @@ All notable changes to Muninn are documented here. The format is based on
 - Attachments and Unicode (X-02/DES-02): `![[image.png]]` renders as a filename placeholder
   instead of a faint missing note (Rune has no image pipeline and refuses `file:` URLs), and
   CJK/accented/RTL titles have regression tests for search, resolve and duplicate labels.
+- Attachment open and reveal (DES-02): the reader shows each embed as filename + size in an
+  attachment strip with an **Open** action, and a note's context menu gained **Open
+  externally** and **Reveal in file manager**. Both spawn the platform handler
+  (`xdg-open` / `open` / `start`) on a canonical path, since `Tx::open_url` still refuses
+  `file:`; a failure lands in the status bar rather than panicking.
+- Drag-drop import (DES-02): dropping `.md` or png/jpg/jpeg/gif/webp/pdf files anywhere in the
+  window copies them into the current folder through the atomic temp+rename path and reloads;
+  Markdown opens in the editor, non-Markdown files stay attachments. An existing filename is
+  refused with its name and never overwritten. Works on macOS, Windows and X11; Wayland
+  exposes no file drags in winit 0.30.
 - Reduced motion and labels (DES-03): `MUNINN_REDUCED_MOTION=1` (`true`, `yes`, `on`) freezes
   the force layout at its deterministic seed positions without waking the window, and the
   icon-only theme, help and folder `+` buttons now carry accessible labels and tooltips.
 - First-run welcome and scan timing (LIF-01): a vault folder created at launch shows
   "New vault created at … — make your first note" instead of an empty editor, and the status
-  bar reports the synchronous startup scan time. A chunked progress bar remains for M3 Lane 3.
+  bar reports the startup scan time.
+- Chunked vault scan with progress and cancel (M3): a vault above 100 `.md` files reads 50
+  note bodies per poll tick and shows "Scanning N/M notes — Esc to cancel" with a progress
+  bar, so startup stays responsive at 2,000 notes; `Esc` (or **Cancel**) abandons the scan and
+  leaves the Retry page without ever installing a partial index. Vaults at or below 100 files
+  still load synchronously in one frame, and every completed chunked scan produces exactly the
+  same notes, folders, links and backlinks as `Vault::load`.
+- Large-vault settle and dormancy (GRP-01): dense layouts now seed inside the world instead of
+  wedging against its walls, damp and cap velocity more tightly, and derive velocity from the
+  separation correction so the wall/spring/repulsion tail loses energy. Once heat is zero and
+  no node moves faster than 0.4 pt/step the simulation goes dormant and `poll` sleeps; the
+  2,000-note fixture is quiet by frame ~2,600 with a final-frame residual of 0.39 pt. Vaults up
+  to 200 notes keep the exhaustive path bit-for-bit, including the sample layout.
 - Large-vault graph performance (GRP-01): repulsion and card separation now use a
   uniform spatial grid above 200 notes, with a density-tapered cutoff and force
   normalisation. A 2000-note star+chain fixture steps at 4.8 ms p95 in release

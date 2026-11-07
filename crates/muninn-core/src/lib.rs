@@ -17,5 +17,6 @@ mod wikilink;
 pub mod testing;
 
 pub use note::Note;
-pub use vault::{BrokenLink, Vault};
+pub use preview::Attachment;
+pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy};
 pub use wikilink::{WikiLink, heading_offset, headings, parse_links, unclosed_link};

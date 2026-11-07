@@ -30,7 +30,13 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
 ## Data flow
 
 1. **Scan.** `muninn_core::Vault::load` walks the root (up to 12 levels, skipping dot-dirs),
-   reads every `.md` file and records its title, vault-relative path, folder and source.
+   reads every `.md` file and records its title, vault-relative path, folder and source. The
+   walk is a metadata pass; reading bodies is the expensive part. `Vault::scan_start` returns a
+   `ScanJob` with the same sorted path/folder lists, `read_chunk(n)` reads a bounded number of
+   files, and `finish` builds the vault. `Vault::load` is exactly `scan_start` + one unbounded
+   chunk + `finish`, so both paths produce identical indexes. On startup the UI loads vaults of
+   up to 100 files synchronously; above that `poll` advances 50 files per frame behind a
+   progress bar, and Escape cancels without ever installing a partial vault.
 2. **Index.** `Vault::reindex` resolves every `[[wikilink]]` through lower-cased
    path/title indexes and writes each note's `links` and `backlinks` lists. Both are
    unique and sorted. It also caches unresolved targets with their referrers
@@ -41,6 +47,12 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    runs one deterministic force step and reports true only when a node actually moved;
    above 200 notes repulsion and separation use a uniform spatial grid with a
    density-tapered cutoff, while smaller vaults keep the exhaustive pass unchanged.
+   Dense vaults seed their spiral scaled to fit the world, damp velocity a little harder,
+   absorb separation corrections into velocity (position-based damping), and go dormant
+   once heat is zero and no node moves faster than 0.4 pt/step. Dormancy freezes positions
+   with a bounded sub-pixel residual, so `poll` can sleep; `reheat` (drag, scope/mode
+   change, resync) resumes the simulation. A 2,000-note fixture goes quiet by frame ~2,600;
+   the exhaustive ≤200-note path and the sample layout stay bit-identical.
 4. **Render.** `muninn_ui::view` builds the Rune element tree from `State`. The graph camera
    publishes pan/zoom through `Live` values so a drag redraws without rebuilding the tree.
    `poll` reports true only when visible state changed (a save completed, a node moved,
@@ -89,8 +101,8 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
     mode/scope, recent-vault MRU and the autosave delay — are written as small JSON to
     `$XDG_CONFIG_HOME/muninn/settings.json` (fallback `~/.config/muninn/`) with the same
     temp-file + rename pattern as note saves; a corrupt file falls back to defaults. The
-    startup vault scan stays synchronous and reports its duration in the status bar; a
-    chunked progress bar/cancel path is deferred to M3 Lane 3. Rune's `AppSpec` window size
+    startup vault scan is synchronous up to 100 files and chunked (see step 1) above that;
+    `load_ms` covers the whole load in either case. Rune's `AppSpec` window size
     remains fixed; geometry persistence is deferred with the same lane.
 
 ## Invariants
@@ -109,6 +121,12 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   Undo renames it back, never overwriting. A root that exists but is not a readable folder is
   an error, not an empty vault. The sample vault stays ordinary content used by tests and
   snapshots.
+- **Attachments stay outside the index.** Only `.md` files are notes. An embed such as
+  `![[pic.png]]` becomes a filename+size placeholder, and the reader lists attachment files
+  with an Open action. Open/Reveal spawn the platform handler on a canonical path
+  (`xdg-open`/`open`/`start`) because Rune's `Tx::open_url` refuses `file:`; drag-drop imports
+  copy accepted files into the current folder with the same temp+rename rule and never
+  overwrite an existing name.
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
   atomic rename. A crash or failed write leaves the previous bytes intact instead of a

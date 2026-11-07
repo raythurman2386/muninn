@@ -15,6 +15,16 @@ use crate::{Mode, State};
 
 pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     s.now = t;
+    // A large vault is still scanning: advance one bounded chunk and keep the
+    // progress bar moving. Autosave/watch/graph all wait for a real vault, and
+    // the status bar has nothing to save while the placeholder is empty.
+    if s.loading() {
+        let changed = s.scan_tick();
+        if changed {
+            tx.instant();
+        }
+        return changed;
+    }
     let mut changed = false;
 
     // M2: query-derived state (search highlight, in-note find matches) is

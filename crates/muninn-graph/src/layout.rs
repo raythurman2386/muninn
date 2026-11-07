@@ -12,6 +12,13 @@
 //! grid; cells are scanned in a fixed order and repulsion strength is
 //! normalised by density, which keeps a 2000-note graph both fast and finite
 //! instead of pinning every node at `MAX_SPEED`.
+//!
+//! Dense vaults also seed inside the world instead of clamping a spiral that is
+//! wider than the world against the walls, and they settle under a heat-aware
+//! dormancy rule: once heat has decayed to zero and no node still moves faster
+//! than `0.4 pt/step`, the simulation stops (`Graph::step` returns false) with a
+//! bounded, sub-pixel residual. [`Graph::reheat`] wakes it again. Small vaults
+//! never take these branches, so their settled positions stay bit-identical.
 
 use std::collections::{HashMap, HashSet};
 
@@ -51,8 +58,19 @@ const SEP_FULL_FILL: f32 = 0.35;
 const SPRING: f32 = 0.008;
 const LINK_LEN: f32 = 132.0;
 const GRAVITY: f32 = 0.0016;
+/// Velocity retained per step. Small vaults keep the original constant so their
+/// settled positions stay bit-identical; dense vaults are damped a little more
+/// so the spring/repulsion/separation tail loses energy instead of orbiting.
 const DAMPING: f32 = 0.86;
+const DAMPING_DENSE: f32 = 0.80;
 const MAX_SPEED: f32 = 26.0;
+/// Dense vaults are not allowed to fling a node across the world in one step;
+/// the lower cap keeps a pile at a wall from oscillating at the full speed.
+const MAX_SPEED_DENSE: f32 = 18.0;
+/// Below this speed (squared) a cooled dense layout is treated as dormant: the
+/// remaining creep is sub-pixel and invisible, so the simulation stops instead
+/// of waking the window forever. `0.4 pt/step` is bounded residual motion.
+const DORMANT_SPEED_SQ: f32 = 0.16;
 const EDGE: f32 = 78.0;
 
 #[derive(Clone, Debug)]
@@ -73,6 +91,63 @@ pub struct Graph {
     pub edges: Vec<(usize, usize)>,
     /// Extra energy while the layout settles.
     pub heat: f32,
+}
+
+#[derive(Clone, Copy)]
+struct StepParams {
+    centre: [f32; 2],
+    damping: f32,
+    max_speed: f32,
+    /// Dense vaults zero a velocity component that would leave the world; the
+    /// small-vault path keeps the original clamp-only behaviour.
+    wall: bool,
+}
+
+/// Add link-spring forces to `force` (one pass over the deduplicated edges).
+fn add_springs(force: &mut [[f32; 2]], nodes: &[GNode], edges: &[(usize, usize)]) {
+    for &(a, b) in edges {
+        pair_force(force, nodes, a, b, PairForce::Spring);
+    }
+}
+
+/// Integrate one node: gravity, damping, speed cap, wall absorption (dense
+/// only) and the world clamp.
+fn integrate(node: &mut GNode, force: [f32; 2], p: StepParams) {
+    if node.fixed {
+        node.vel = [0.0; 2];
+        return;
+    }
+    let gx = (p.centre[0] - node.pos[0]) * GRAVITY;
+    let gy = (p.centre[1] - node.pos[1]) * GRAVITY;
+    node.vel[0] = (node.vel[0] + force[0] + gx) * p.damping;
+    node.vel[1] = (node.vel[1] + force[1] + gy) * p.damping;
+    let speed = (node.vel[0] * node.vel[0] + node.vel[1] * node.vel[1]).sqrt();
+    if speed > p.max_speed {
+        node.vel[0] *= p.max_speed / speed;
+        node.vel[1] *= p.max_speed / speed;
+    }
+    let max_x = WORLD[0] - EDGE;
+    let max_y = WORLD[1] - EDGE;
+    if p.wall {
+        // A wall is not a spring: without this the clamped position is static
+        // while velocity keeps pointing out of the world, which pins a pile at
+        // the edge at `MAX_SPEED` forever.
+        if node.pos[0] + node.vel[0] <= EDGE || node.pos[0] + node.vel[0] >= max_x {
+            node.vel[0] = 0.0;
+        }
+        if node.pos[1] + node.vel[1] <= EDGE || node.pos[1] + node.vel[1] >= max_y {
+            node.vel[1] = 0.0;
+        }
+    }
+    node.pos[0] = (node.pos[0] + node.vel[0]).clamp(EDGE, max_x);
+    node.pos[1] = (node.pos[1] + node.vel[1]).clamp(EDGE, max_y);
+}
+
+/// The visible-motion gate: did any node move more than 0.04 pt in an axis?
+fn moved_since(nodes: &[GNode], before: &[[f32; 2]]) -> bool {
+    nodes.iter().zip(before).any(|(node, old)| {
+        (node.pos[0] - old[0]).abs() > 0.04 || (node.pos[1] - old[1]).abs() > 0.04
+    })
 }
 
 impl Graph {
@@ -103,7 +178,7 @@ impl Graph {
             let (pos, vel) = old
                 .get(&note.rel)
                 .copied()
-                .unwrap_or_else(|| (seed(note.id, &note.rel), [0.0; 2]));
+                .unwrap_or_else(|| (seed(note.id, &note.rel, vault.notes.len()), [0.0; 2]));
             self.nodes.push(GNode {
                 note: note.id,
                 title: note.title.clone(),
@@ -154,52 +229,64 @@ impl Graph {
     /// reheated” timer, but heat alone is **not** visible state: pollers must
     /// not report “changed” just because heat has not reached zero yet.
     /// Callers that need the cooling timer read [`Graph::heat`] directly.
+    ///
+    /// Above [`EXHAUSTIVE_LIMIT`] nodes a cooled layout goes dormant when the
+    /// fastest node is below `0.4 pt/step`; from then on this returns false
+    /// without integrating (positions are frozen). [`Graph::reheat`] resumes
+    /// it, as does a sync that adds/removes nodes or links.
     pub fn step(&mut self) -> bool {
         if self.nodes.is_empty() {
             return false;
         }
+        if self.dormant() {
+            for node in &mut self.nodes {
+                node.vel = [0.0; 2];
+            }
+            return false;
+        }
+        let dense = self.nodes.len() > EXHAUSTIVE_LIMIT;
+        let params = StepParams {
+            centre: crate::camera::world_centre(),
+            damping: if dense { DAMPING_DENSE } else { DAMPING },
+            max_speed: if dense { MAX_SPEED_DENSE } else { MAX_SPEED },
+            wall: dense,
+        };
         let before: Vec<[f32; 2]> = self.nodes.iter().map(|n| n.pos).collect();
         let mut force = repulsion_force(&self.nodes);
-        for &(a, b) in &self.edges {
-            let dx = self.nodes[b].pos[0] - self.nodes[a].pos[0];
-            let dy = self.nodes[b].pos[1] - self.nodes[a].pos[1];
-            let d = (dx * dx + dy * dy).sqrt().max(0.01);
-            let f = (d - LINK_LEN) * SPRING;
-            let ux = dx / d;
-            let uy = dy / d;
-            force[a][0] += ux * f;
-            force[a][1] += uy * f;
-            force[b][0] -= ux * f;
-            force[b][1] -= uy * f;
-        }
-        let c = crate::camera::world_centre();
+        add_springs(&mut force, &self.nodes, &self.edges);
         for (i, node) in self.nodes.iter_mut().enumerate() {
-            if node.fixed {
-                node.vel = [0.0; 2];
-                continue;
-            }
-            let gx = (c[0] - node.pos[0]) * GRAVITY;
-            let gy = (c[1] - node.pos[1]) * GRAVITY;
-            node.vel[0] = (node.vel[0] + force[i][0] + gx) * DAMPING;
-            node.vel[1] = (node.vel[1] + force[i][1] + gy) * DAMPING;
-            let speed = (node.vel[0] * node.vel[0] + node.vel[1] * node.vel[1]).sqrt();
-            if speed > MAX_SPEED {
-                node.vel[0] *= MAX_SPEED / speed;
-                node.vel[1] *= MAX_SPEED / speed;
-            }
-            node.pos[0] = (node.pos[0] + node.vel[0]).clamp(EDGE, WORLD[0] - EDGE);
-            node.pos[1] = (node.pos[1] + node.vel[1]).clamp(EDGE, WORLD[1] - EDGE);
+            integrate(node, force[i], params);
         }
         separate(&mut self.nodes);
+        if dense {
+            // Position-based damping for dense vaults: separation moves positions
+            // after the force pass, so a node at a wall otherwise re-applies its
+            // pre-separation outward velocity every step while separation pushes
+            // it back — a limit cycle that never falls under the motion gate.
+            // Deriving velocity from the actual displacement lets the correction
+            // absorb it; the free-flight case is unchanged (displacement is the
+            // velocity the force pass just wrote).
+            for (node, old) in self.nodes.iter_mut().zip(&before) {
+                if !node.fixed {
+                    node.vel = [node.pos[0] - old[0], node.pos[1] - old[1]];
+                }
+            }
+        }
         self.heat = (self.heat - 0.012).max(0.0);
         // Only visible motion counts: sub-pixel creep from the spring vs.
         // separation tug-of-war or damped velocity tails is invisible and
         // must not keep waking the window (Rune: "returned true but nothing
         // changed"). The threshold matches the old speed gate (0.04 pt/step)
         // so mid-settling motion still reports while the tail stays quiet.
-        self.nodes.iter().zip(&before).any(|(node, old)| {
-            (node.pos[0] - old[0]).abs() > 0.04 || (node.pos[1] - old[1]).abs() > 0.04
-        })
+        moved_since(&self.nodes, &before)
+    }
+
+    /// A cooled dense layout whose fastest node is below the dormant threshold:
+    /// integration stops and the residual creep (bounded, sub-pixel) is frozen.
+    fn dormant(&self) -> bool {
+        self.nodes.len() > EXHAUSTIVE_LIMIT
+            && self.heat == 0.0
+            && self.max_speed_sq() <= DORMANT_SPEED_SQ
     }
 
     #[must_use]
@@ -251,10 +338,19 @@ impl Graph {
         self.heat = 1.0;
     }
 
+    /// Largest per-node speed, squared. Used by the dense-vault dormancy gate.
+    fn max_speed_sq(&self) -> f32 {
+        self.nodes
+            .iter()
+            .map(|n| n.vel[0] * n.vel[0] + n.vel[1] * n.vel[1])
+            .fold(0.0, f32::max)
+    }
+
     /// Put every node back on its starting spiral and settle from there.
     pub fn reset(&mut self) {
+        let count = self.nodes.len();
         for (i, node) in self.nodes.iter_mut().enumerate() {
-            node.pos = seed(i, &node.rel);
+            node.pos = seed(i, &node.rel, count);
             node.vel = [0.0; 2];
             node.fixed = false;
         }
@@ -311,17 +407,44 @@ fn repulsion_strength(n: usize) -> f32 {
 }
 
 fn add_repulsion(force: &mut [[f32; 2]], nodes: &[GNode], i: usize, j: usize, strength: f32) {
+    pair_force(force, nodes, i, j, PairForce::Repel(strength));
+}
+
+/// The two force kernels share their delta/unit-vector arithmetic; keeping one
+/// function makes the float operations identical for the exhaustive path while
+/// avoiding a near-clone.
+#[derive(Clone, Copy)]
+enum PairForce {
+    Spring,
+    /// Inverse-square repulsion with the original 36 pt² floor.
+    Repel(f32),
+}
+
+/// Apply one pair force from `i` to `j`; a negative magnitude pushes apart.
+fn pair_force(force: &mut [[f32; 2]], nodes: &[GNode], i: usize, j: usize, kind: PairForce) {
     let dx = nodes[j].pos[0] - nodes[i].pos[0];
     let dy = nodes[j].pos[1] - nodes[i].pos[1];
-    let d2 = (dx * dx + dy * dy).max(36.0);
-    let d = d2.sqrt();
-    let f = strength / d2;
-    let ux = dx / d;
-    let uy = dy / d;
-    force[i][0] -= ux * f;
-    force[i][1] -= uy * f;
-    force[j][0] += ux * f;
-    force[j][1] += uy * f;
+    let raw = dx * dx + dy * dy;
+    let (d, f) = match kind {
+        PairForce::Spring => {
+            let d = raw.sqrt().max(0.01);
+            (d, (d - LINK_LEN) * SPRING)
+        }
+        PairForce::Repel(strength) => {
+            let d2 = raw.max(36.0);
+            (d2.sqrt(), -strength / d2)
+        }
+    };
+    push_pair(force, i, j, dx / d, dy / d, f);
+}
+
+/// Apply one equal-and-opposite pair force along the unit vector `(ux, uy)`:
+/// `i` is pushed by `+f`, `j` by `-f`.
+fn push_pair(force: &mut [[f32; 2]], i: usize, j: usize, ux: f32, uy: f32, f: f32) {
+    force[i][0] += ux * f;
+    force[i][1] += uy * f;
+    force[j][0] -= ux * f;
+    force[j][1] -= uy * f;
 }
 
 /// The original all-pairs pass. Small vaults use it so their settled
@@ -399,12 +522,16 @@ fn repulsion_force(nodes: &[GNode]) -> Vec<[f32; 2]> {
 fn separate(nodes: &mut [GNode]) -> bool {
     let extent = separation_extent(nodes.len());
     if nodes.len() <= EXHAUSTIVE_LIMIT {
-        return separate_exhaustive(nodes, extent);
+        return separate_exhaustive(nodes, extent, 0.0);
     }
+    // Dense cards are drawn as dots, so a sub-visible overlap is not worth a
+    // position change. Chasing it is what keeps the tail above the 0.04 pt
+    // motion gate forever; the threshold is below that gate for one pair.
+    let min_overlap = 0.04;
     let mut moved = false;
     let mut candidates = Vec::new();
-    for _ in 0..2 {
-        if !separate_grid_pass(nodes, extent, &mut candidates) {
+    for _ in 0..6 {
+        if !separate_grid_pass(nodes, extent, min_overlap, &mut candidates) {
             break;
         }
         moved = true;
@@ -412,15 +539,20 @@ fn separate(nodes: &mut [GNode]) -> bool {
     moved
 }
 
-fn separate_grid_pass(nodes: &mut [GNode], extent: [f32; 2], candidates: &mut Vec<usize>) -> bool {
+fn separate_grid_pass(
+    nodes: &mut [GNode],
+    extent: [f32; 2],
+    min_overlap: f32,
+    candidates: &mut Vec<usize>,
+) -> bool {
     let grid = Grid::build(nodes, extent);
     let mut moved = false;
     for i in 0..nodes.len() {
         candidates.clear();
-        collect_overlaps(nodes, i, &grid, extent, candidates);
+        collect_overlaps(nodes, i, &grid, extent, min_overlap, candidates);
         candidates.sort_unstable();
         for &j in candidates.iter() {
-            moved |= separate_pair(nodes, i, j, extent);
+            moved |= separate_pair(nodes, i, j, extent, min_overlap);
         }
     }
     moved
@@ -431,6 +563,7 @@ fn collect_overlaps(
     i: usize,
     grid: &Grid,
     extent: [f32; 2],
+    min_overlap: f32,
     out: &mut Vec<usize>,
 ) {
     let (cx, cy) = grid.coord(nodes[i].pos);
@@ -446,7 +579,7 @@ fn collect_overlaps(
                 }
                 let dx = nodes[j].pos[0] - nodes[i].pos[0];
                 let dy = nodes[j].pos[1] - nodes[i].pos[1];
-                if dx.abs() < extent[0] && dy.abs() < extent[1] {
+                if dx.abs() < extent[0] - min_overlap && dy.abs() < extent[1] - min_overlap {
                     out.push(j);
                 }
             }
@@ -456,13 +589,13 @@ fn collect_overlaps(
 
 /// The original all-pairs separation pass, kept for small vaults so their
 /// layout is unchanged.
-fn separate_exhaustive(nodes: &mut [GNode], extent: [f32; 2]) -> bool {
+fn separate_exhaustive(nodes: &mut [GNode], extent: [f32; 2], min_overlap: f32) -> bool {
     let mut moved = false;
     for _ in 0..2 {
         let mut pass_moved = false;
         for i in 0..nodes.len() {
             for j in i + 1..nodes.len() {
-                if separate_pair(nodes, i, j, extent) {
+                if separate_pair(nodes, i, j, extent, min_overlap) {
                     moved = true;
                     pass_moved = true;
                 }
@@ -491,12 +624,18 @@ fn separation_extent(n: usize) -> [f32; 2] {
 }
 
 /// Separate one pair, if it overlaps. Returns true when a position changed.
-fn separate_pair(nodes: &mut [GNode], i: usize, j: usize, extent: [f32; 2]) -> bool {
+fn separate_pair(
+    nodes: &mut [GNode],
+    i: usize,
+    j: usize,
+    extent: [f32; 2],
+    min_overlap: f32,
+) -> bool {
     let dx = nodes[j].pos[0] - nodes[i].pos[0];
     let dy = nodes[j].pos[1] - nodes[i].pos[1];
     let ox = extent[0] - dx.abs();
     let oy = extent[1] - dy.abs();
-    if ox <= 0.0 || oy <= 0.0 {
+    if ox <= min_overlap || oy <= min_overlap {
         return false;
     }
     let (share_i, share_j) = match (nodes[i].fixed, nodes[j].fixed) {
@@ -518,14 +657,30 @@ fn separate_pair(nodes: &mut [GNode], i: usize, j: usize, extent: [f32; 2]) -> b
     true
 }
 
-fn seed(index: usize, rel: &str) -> [f32; 2] {
+fn seed(index: usize, rel: &str, count: usize) -> [f32; 2] {
     let c = crate::camera::world_centre();
     let angle = index as f32 * 2.399_963_2 + (hash(rel) % 1000) as f32 / 1000.0 * 0.9;
-    let radius = 74.0 + 27.0 * (index as f32).sqrt();
+    let radius = (74.0 + 27.0 * (index as f32).sqrt()) * seed_scale(count);
     [
         c[0] + angle.cos() * radius * 1.16,
         c[1] + angle.sin() * radius * 0.86,
     ]
+}
+
+/// Keep the starting spiral inside the world once it is wider than the world.
+///
+/// A 2000-note spiral reaches ~1100 pt below the centre, so without this most
+/// nodes start clamped against the top and bottom walls; the pile's own
+/// repulsion then holds them there and the layout never settles. The scale is
+/// exactly `1.0` up to [`EXHAUSTIVE_LIMIT`], so small vaults (the sample and the
+/// snapshot tests) keep their original seeds.
+fn seed_scale(count: usize) -> f32 {
+    if count <= EXHAUSTIVE_LIMIT {
+        return 1.0;
+    }
+    let max_radius = 74.0 + 27.0 * ((count - 1) as f32).sqrt();
+    let available = ((WORLD[0] * 0.5 - EDGE) / 1.16).min((WORLD[1] * 0.5 - EDGE) / 0.86);
+    (available / max_radius).clamp(0.15, 1.0)
 }
 
 fn hash(s: &str) -> u64 {
@@ -615,32 +770,75 @@ mod tests {
 }
 
 #[cfg(test)]
+mod dense {
+    use super::*;
+    use muninn_core::testing::big_vault;
+
+    #[test]
+    fn dense_layout_goes_dormant_with_bounded_residual() {
+        // Above EXHAUSTIVE_LIMIT, so the dense settling rules apply.
+        let tmp = big_vault(260);
+        let v = tmp.load();
+        let mut g = Graph::new(&v);
+        let mut quiet = 0;
+        let mut last_delta = 0.0f32;
+        let mut dormant_at = None;
+        for frame in 1..=4000 {
+            let before: Vec<[f32; 2]> = g.nodes.iter().map(|node| node.pos).collect();
+            let moved = g.step();
+            let delta = g
+                .nodes
+                .iter()
+                .zip(&before)
+                .fold(0.0f32, |max, (node, old)| {
+                    max.max((node.pos[0] - old[0]).abs())
+                        .max((node.pos[1] - old[1]).abs())
+                });
+            if moved {
+                quiet = 0;
+                last_delta = delta;
+            } else {
+                quiet += 1;
+                if quiet == 30 {
+                    dormant_at = Some(frame);
+                    break;
+                }
+            }
+        }
+        let frame = dormant_at.expect("dense layout must quiesce within 4000 frames");
+        assert!(
+            last_delta < 0.5,
+            "residual motion at dormancy must be sub-pixel, got {last_delta} pt at frame {frame}"
+        );
+        // Heat-aware dormancy stops integration; reheat resumes it.
+        assert_eq!(g.heat, 0.0);
+        g.reheat();
+        let _ = g.step();
+        assert!(g.heat > 0.0 && g.heat < 1.0, "reheat must resume the step");
+    }
+
+    #[test]
+    fn dense_seeds_stay_inside_the_world() {
+        // The old spiral reached ~1100 pt below centre at 2000 notes and wedged
+        // most nodes against a wall. Scaling only above EXHAUSTIVE_LIMIT keeps
+        // the small-vault sample exact.
+        for count in [201usize, 500, 2000] {
+            for index in [0usize, count / 2, count - 1] {
+                let p = seed(index, "folder/note", count);
+                assert!(p[0] > EDGE && p[0] < WORLD[0] - EDGE, "{count}: {p:?}");
+                assert!(p[1] > EDGE && p[1] < WORLD[1] - EDGE, "{count}: {p:?}");
+            }
+        }
+        // At and below the exhaustive limit the scale is exactly 1.0.
+        assert_eq!(seed_scale(EXHAUSTIVE_LIMIT), 1.0);
+        assert_eq!(seed(5, "x", EXHAUSTIVE_LIMIT), seed(5, "x", 2));
+    }
+}
+
+#[cfg(test)]
 mod grid {
     use super::*;
-    use muninn_core::testing::TempVault;
-
-    /// `n` notes mixed from 25-note star groups and a chain: every note links
-    /// to its group hub and the previous note, giving realistic high-degree
-    /// nodes without a single 80-link hub.
-    fn big_vault(n: usize) -> TempVault {
-        let mut files = Vec::with_capacity(n);
-        for i in 0..n {
-            let mut body = String::new();
-            if i > 0 {
-                body.push_str(&format!("[[Note {:04}]]\n", i - 1));
-            }
-            let hub = i - i % 25;
-            if hub != i {
-                body.push_str(&format!("[[Note {hub:04}]]\n"));
-            }
-            files.push((format!("Note {i:04}.md"), format!("# Note {i:04}\n{body}")));
-        }
-        let refs: Vec<(&str, &str)> = files
-            .iter()
-            .map(|(name, body)| (name.as_str(), body.as_str()))
-            .collect();
-        TempVault::new(&refs)
-    }
+    use muninn_core::testing::big_vault;
 
     #[test]
     fn grid_repulsion_matches_the_exhaustive_pass() {
