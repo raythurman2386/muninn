@@ -7,9 +7,9 @@ use rune::{
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 use rune_theme_opencode::icons as ic;
 
-use muninn_core::Vault;
+use muninn_core::{Vault, headings};
 
-use crate::{DeleteConfirm, MenuTarget, Mode, State};
+use crate::{DeleteConfirm, LinkComplete, MenuTarget, Mode, State};
 
 const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
@@ -107,6 +107,12 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                     .is_some_and(|m| m.target == MenuTarget::Note(id))
                 {
                     list = list.child(context_menu(s, k));
+                }
+                if s.rename_confirm.as_ref().is_some_and(|c| c.id == id) {
+                    list = list.child(rename_confirm_row(s, k));
+                }
+                if s.move_confirm.as_ref().is_some_and(|c| c.id == id) {
+                    list = list.child(move_confirm_row(s, k));
                 }
                 if s.move_picker == Some(id) {
                     list = list.child(move_picker(s, k, id));
@@ -278,8 +284,26 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                     .color(k.c.text_faint),
                 )
                 .child(spacer())
+                .child(broken_chip(s, k))
                 .child(text("⌘K").font(k.ty.caption()).color(k.c.text_faint)),
         )
+}
+
+/// NAV-02: sidebar footer chip that opens the broken-links dashboard. It is
+/// always present, so the "All links resolve" empty state is reachable too.
+fn broken_chip(s: &State, k: &Kit) -> El {
+    let broken = s.broken_count();
+    let (label, color) = if broken == 0 {
+        ("links ok".to_owned(), k.c.text_faint)
+    } else {
+        (format!("{broken} broken"), k.c.warning.fg)
+    };
+    pressable(k, "broken-chip".to_owned())
+        .px(6.0)
+        .py(3.0)
+        .center_y()
+        .child(text(label).font(k.ty.caption()).color(color))
+        .on_press(|s: &mut State| s.open_broken_links())
 }
 
 /// Sidebar folder header: chevron + name + count toggles the group, `+`
@@ -729,6 +753,137 @@ fn move_picker(s: &State, k: &Kit, id: usize) -> El {
     list
 }
 
+/// SAF-06: link-impact confirmation under a note being renamed. Default is to
+/// rewrite inbound wikilinks; the toggle switches to leaving them dangling.
+fn rename_confirm_row(s: &State, k: &Kit) -> El {
+    let Some(confirm) = &s.rename_confirm else {
+        return el();
+    };
+    link_impact_row(
+        k,
+        "rename-confirm",
+        &format!(
+            "{} note{} link{} here",
+            confirm.referrers,
+            if confirm.referrers == 1 { "" } else { "s" },
+            if confirm.referrers == 1 { "s" } else { "" }
+        ),
+        confirm.rewrite,
+        State::toggle_rename_rewrite,
+        State::confirm_rename_note,
+        State::cancel_rename_confirm,
+        ("Rename", "rename-confirm-yes", "rename-confirm-cancel"),
+    )
+}
+
+/// SAF-06: the same choice before moving a note to another folder.
+fn move_confirm_row(s: &State, k: &Kit) -> El {
+    let Some(confirm) = &s.move_confirm else {
+        return el();
+    };
+    link_impact_row(
+        k,
+        "move-confirm",
+        &format!(
+            "{} note{} link{} here",
+            confirm.referrers,
+            if confirm.referrers == 1 { "" } else { "s" },
+            if confirm.referrers == 1 { "s" } else { "" }
+        ),
+        confirm.rewrite,
+        State::toggle_move_rewrite,
+        State::confirm_move_note,
+        State::cancel_move_confirm,
+        ("Move", "move-confirm-yes", "move-confirm-cancel"),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn link_impact_row(
+    k: &Kit,
+    key: &str,
+    summary: &str,
+    rewrite: bool,
+    toggle: fn(&mut State),
+    confirm: fn(&mut State),
+    cancel: fn(&mut State),
+    (confirm_label, confirm_key, cancel_key): (&str, &str, &str),
+) -> El {
+    let confirm_label = confirm_label.to_owned();
+    let confirm_key = confirm_key.to_owned();
+    let cancel_key = cancel_key.to_owned();
+    let toggle_key = format!("{key}-toggle");
+    col()
+        .key(key.to_owned())
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .py(6.0)
+        .gap(4.0)
+        .radius(7.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .child(
+            text(summary.to_owned())
+                .font(k.ty.caption())
+                .color(k.c.warning.fg),
+        )
+        .child(
+            row()
+                .key(toggle_key)
+                .w_full()
+                .h(26.0)
+                .gap(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .on_press(move |s: &mut State| toggle(s))
+                .child(
+                    text(if rewrite { "▣" } else { "▢" })
+                        .font(TextStyle::new(12.0, 600.0))
+                        .color(if rewrite {
+                            k.c.text_accent
+                        } else {
+                            k.c.text_faint
+                        }),
+                )
+                .child(
+                    text(if rewrite {
+                        "Rewrite links to new name"
+                    } else {
+                        "Leave links dangling"
+                    })
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted),
+                ),
+        )
+        .child(
+            row()
+                .w_full()
+                .gap(6.0)
+                .center_y()
+                .child(
+                    pressable(k, confirm_key)
+                        .px(8.0)
+                        .py(3.0)
+                        .fill(k.c.layer_03)
+                        .child(
+                            text(confirm_label)
+                                .font(k.ty.caption())
+                                .color(k.c.text_base),
+                        )
+                        .on_press(move |s: &mut State| confirm(s)),
+                )
+                .child(
+                    pressable(k, cancel_key)
+                        .px(8.0)
+                        .py(3.0)
+                        .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(move |s: &mut State| cancel(s)),
+                ),
+        )
+}
+
 /// Inline delete confirmation under the row being deleted.
 fn delete_confirm_row(s: &State, k: &Kit, target: &DeleteConfirm) -> El {
     let _ = s;
@@ -850,6 +1005,8 @@ fn main(s: &State, k: &Kit) -> El {
     }
     let body = if s.vault.notes.is_empty() && s.startup_error.is_some() {
         vault_error_page(s, k)
+    } else if s.broken_panel {
+        broken_links_panel(s, k)
     } else if s.mode == Mode::Graph {
         crate::graph_view::graph(s, k)
     } else {
@@ -911,6 +1068,130 @@ fn vault_error_page(s: &State, k: &Kit) -> El {
             "vault-retry",
             State::retry_startup,
         ))
+}
+
+/// NAV-02: vault-hygiene dashboard listing unresolved wikilink targets.
+///
+/// Clicking a target creates the note (folder-aware, like a reader click);
+/// clicking a referrer opens that note. The list comes from the cache built by
+/// `Vault::reindex`, so opening this surface never scans notes.
+fn broken_links_panel(s: &State, k: &Kit) -> El {
+    let broken = s.vault.broken_links();
+    let mut list = col().key("broken-list").w_full().gap(4.0).px(28.0).pb(24.0);
+    if broken.is_empty() {
+        list = list.child(
+            text("All links resolve")
+                .key("broken-empty")
+                .font(k.ty.ui_compact)
+                .color(k.c.success.fg)
+                .padding(8.0),
+        );
+    }
+    for entry in broken {
+        let slug = folder_slug(&entry.target);
+        let target = entry.target.clone();
+        let count = entry.referrers.len();
+        list = list.child(
+            row()
+                .key(format!("broken-target-{slug}"))
+                .w_full()
+                .h(38.0)
+                .px(10.0)
+                .gap(8.0)
+                .radius(7.0)
+                .center_y()
+                .hover(k.c.hover)
+                .cursor(Cursor::Pointer)
+                .on_press(move |s: &mut State| s.open_broken_target(&target))
+                .child(icon(&ic::LINK, 13.0).color(k.c.warning.fg))
+                .child(
+                    text(entry.target.clone())
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base)
+                        .grow(1.0)
+                        .truncate(),
+                )
+                .child(
+                    text(plural(count, "referrer", "referrers"))
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
+        );
+        for &id in &entry.referrers {
+            let label = s.vault.display_label(id);
+            let rel = s.vault.notes[id].rel.clone();
+            list = list.child(
+                row()
+                    .key(format!("broken-ref-{slug}-{id}"))
+                    .w_full()
+                    .h(30.0)
+                    .pl(40.0)
+                    .pr(10.0)
+                    .gap(7.0)
+                    .radius(6.0)
+                    .center_y()
+                    .hover(k.c.hover)
+                    .cursor(Cursor::Pointer)
+                    .on_press(move |s: &mut State| s.open_broken_referrer(id))
+                    .child(text("↳").font(k.ty.caption()).color(k.c.text_faint))
+                    .child(
+                        text(label)
+                            .font(k.ty.caption())
+                            .color(k.c.text_muted)
+                            .truncate(),
+                    )
+                    .child(
+                        text(rel)
+                            .font(k.ty.caption())
+                            .color(k.c.text_faint)
+                            .truncate(),
+                    ),
+            );
+        }
+    }
+    col()
+        .key("broken-panel")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .child(
+            row()
+                .h(58.0)
+                .px(28.0)
+                .gap(10.0)
+                .center_y()
+                .child(
+                    text("Broken links")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(
+                    text(plural(broken.len(), "target", "targets"))
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                )
+                .child(spacer())
+                .child(
+                    pressable(k, "broken-close".to_owned())
+                        .px(10.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(text("Close").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(|s: &mut State| s.close_broken_links()),
+                ),
+        )
+        .child(divider_h(k))
+        .child(
+            col()
+                .key("broken-scroll")
+                .w_full()
+                .grow(1.0)
+                .min_h(0.0)
+                .scroll(ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(list),
+        )
 }
 
 /// A banner above a still-usable vault when the last scan partly failed.
@@ -1252,7 +1533,7 @@ fn editor(s: &State, k: &Kit) -> El {
     if s.selected.is_none() {
         return no_note(k);
     }
-    let body = col().w_full().max_w(780.0).px(52.0).py(36.0).child(
+    let mut body = col().w_full().max_w(780.0).px(52.0).py(36.0).child(
         text_input(&s.editor, k.ty.body.lh(25.0))
             .key("editor")
             .w_full()
@@ -1265,6 +1546,11 @@ fn editor(s: &State, k: &Kit) -> El {
             .on_edit(|s: &mut State| &mut s.editor)
             .on_submit(|s: &mut State, _| s.editor.insert("\n"))
             .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                // EDT-03: the completion claims Up/Down/Enter/Tab/Escape (and,
+                // in the Cmd+P picker, the typed filter) before the field.
+                if s.complete_key(e) {
+                    return true;
+                }
                 // Let menus/prompts/graph shortcuts claim Escape first; an
                 // unclaimed Escape blurs in the same event (EDT-06) so the
                 // typing gate cannot leave F2/Delete disabled until the next
@@ -1278,6 +1564,11 @@ fn editor(s: &State, k: &Kit) -> El {
                 handled
             }),
     );
+    if let Some(complete) = &s.complete
+        && !complete.items.is_empty()
+    {
+        body = body.child(link_complete_list(s, k, complete));
+    }
     col()
         .key("editor-pane")
         .w_full()
@@ -1297,6 +1588,52 @@ fn editor(s: &State, k: &Kit) -> El {
         )
 }
 
+/// EDT-03: the completion/picker list under the editor. The highlighted row is
+/// moved with Up/Down (and wraps); clicking a row accepts it. Duplicate titles
+/// show their folder through `display_label`.
+fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) -> El {
+    let mut list = col()
+        .key("link-complete")
+        .mt(8.0)
+        .w(420.0)
+        .gap(1.0)
+        .padding(4.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base);
+    for (index, &id) in complete.items.iter().enumerate() {
+        let on = complete.index == index;
+        let label = s.vault.display_label(id);
+        let key = format!("complete-item-{id}");
+        list = list.child(
+            row()
+                .key(key)
+                .w_full()
+                .h(28.0)
+                .px(8.0)
+                .radius(5.0)
+                .center_y()
+                .fill(if on {
+                    k.alpha(k.c.text_accent, 0.12)
+                } else {
+                    Color::TRANSPARENT
+                })
+                .hover(k.c.hover)
+                .cursor(Cursor::Pointer)
+                .on_press(move |s: &mut State| {
+                    s.complete_choose(id);
+                })
+                .child(
+                    text(label)
+                        .font(k.ty.ui_compact)
+                        .color(if on { k.c.text_accent } else { k.c.text_base })
+                        .truncate(),
+                ),
+        );
+    }
+    list
+}
+
 fn preview(s: &State, k: &Kit) -> El {
     let Some(id) = s.selected else {
         return no_note(k);
@@ -1305,6 +1642,13 @@ fn preview(s: &State, k: &Kit) -> El {
         return empty_page(k, "This note is empty. Write something in the editor.");
     }
     let source = s.vault.preview(&s.editor.text, id);
+    // EDT-04: top-level heading blocks get stable keys so a deep link can
+    // scroll one into view. Offsets are computed against the preview source
+    // (link rewriting changes byte lengths), matching `Markdown::block_keys`.
+    let block_keys: Vec<(usize, String)> = headings(&source)
+        .into_iter()
+        .map(|(offset, _)| (offset, format!("heading-{offset}")))
+        .collect();
     let accent = k.c.text_accent;
     let faint = k.c.text_faint;
     let faint_rule = k.alpha(faint, 0.5);
@@ -1316,6 +1660,7 @@ fn preview(s: &State, k: &Kit) -> El {
             .link_underline(k.alpha(accent, 0.35));
         Markdown::new(&source)
             .style(style)
+            .block_keys(block_keys)
             .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| s.open_link(url, tx))
             .link_style(move |url| {
                 url.strip_prefix("missing:").map(|_| {
@@ -1327,23 +1672,21 @@ fn preview(s: &State, k: &Kit) -> El {
             })
             .build(k)
     });
+    let scroller = col()
+        .key("preview-scroll")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .items_center()
+        .scroll(ScrollSpec {
+            stick_bottom: false,
+        });
     col()
         .key("preview-pane")
         .w_full()
         .grow(1.0)
         .min_h(0.0)
-        .child(
-            col()
-                .key("preview-scroll")
-                .w_full()
-                .grow(1.0)
-                .min_h(0.0)
-                .items_center()
-                .scroll(ScrollSpec {
-                    stick_bottom: false,
-                })
-                .child(col().w_full().max_w(744.0).px(52.0).py(36.0).child(body)),
-        )
+        .child(scroller.child(col().w_full().max_w(744.0).px(52.0).py(36.0).child(body)))
 }
 
 fn no_note(k: &Kit) -> El {

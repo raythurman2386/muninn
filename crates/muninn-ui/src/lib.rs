@@ -17,7 +17,7 @@ pub use poll::poll;
 pub use recovery::RecoveryEntry;
 pub use state::{
     ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FindState, FolderPrompt,
-    FolderRename, HistoryEntry, MenuTarget, Mode, NamePrompt, RenamePrompt, Scope, State,
-    TrashUndo,
+    FolderRename, HistoryEntry, LinkComplete, MenuTarget, Mode, MoveConfirm, NamePrompt,
+    RenameConfirm, RenamePrompt, Scope, State, TrashUndo,
 };
 pub use view::view;

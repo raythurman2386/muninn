@@ -45,6 +45,18 @@ use crate::note::Note;
 use crate::preview::excerpt;
 use crate::wikilink::parse_links;
 
+/// A missing wikilink target and the notes that refer to it.
+///
+/// Built by [`Vault::reindex`] so the broken-links dashboard reads a cache
+/// instead of re-parsing every note each frame. Targets are grouped
+/// case-insensitively; `target` keeps the first spelling seen in note order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrokenLink {
+    pub target: String,
+    /// Referrer note ids, unique and sorted.
+    pub referrers: Vec<usize>,
+}
+
 /// A folder of notes plus the index its links resolve through.
 pub struct Vault {
     pub root: PathBuf,
@@ -63,6 +75,9 @@ pub struct Vault {
     /// permissions, …). They are deliberately absent from the index instead of
     /// being silently treated as empty notes; the UI surfaces the count.
     skipped: usize,
+    /// NAV-02: unresolved link targets, grouped, with referrers. Rebuilt by
+    /// [`Vault::reindex`].
+    broken: Vec<BrokenLink>,
 }
 
 impl Vault {
@@ -81,6 +96,7 @@ impl Vault {
             by_path: HashMap::new(),
             by_title: HashMap::new(),
             skipped: 0,
+            broken: Vec::new(),
         }
     }
 
@@ -119,6 +135,7 @@ impl Vault {
             by_path: HashMap::new(),
             by_title: HashMap::new(),
             skipped,
+            broken: Vec::new(),
         };
         vault.reindex();
         Ok(vault)
@@ -164,30 +181,11 @@ impl Vault {
             note.links.clear();
             note.backlinks.clear();
         }
+        let mut broken = HashMap::new();
         for i in 0..self.notes.len() {
-            let mut seen = HashSet::new();
-            let links = {
-                let note = &self.notes[i];
-                let mut links = Vec::new();
-                for link in parse_links(&note.source) {
-                    // Empty target is a self-link (`[[#Heading]]`); it must
-                    // resolve to this note even when the title is duplicated.
-                    let resolved = if link.target.is_empty() {
-                        Some(i)
-                    } else {
-                        self.resolve(&link.target)
-                    };
-                    if let Some(id) = resolved
-                        && id != i
-                        && seen.insert(id)
-                    {
-                        links.push(id);
-                    }
-                }
-                links
-            };
-            self.notes[i].links = links;
+            self.notes[i].links = self.note_outgoing(i, &mut broken);
         }
+        self.broken = group_broken(broken);
         for i in 0..self.notes.len() {
             let links = self.notes[i].links.clone();
             for target in links {
@@ -200,6 +198,41 @@ impl Vault {
             note.backlinks.sort_unstable();
             note.backlinks.dedup();
         }
+    }
+
+    /// Resolve one note's outgoing links, recording each unresolved target in
+    /// `broken` (keyed case-insensitively, first spelling kept).
+    fn note_outgoing(
+        &self,
+        i: usize,
+        broken: &mut HashMap<String, (String, Vec<usize>)>,
+    ) -> Vec<usize> {
+        let note = &self.notes[i];
+        let mut seen = HashSet::new();
+        let mut links = Vec::new();
+        for link in parse_links(&note.source) {
+            // Empty target is a self-link (`[[#Heading]]`); it must resolve to
+            // this note even when the title is duplicated.
+            let resolved = if link.target.is_empty() {
+                Some(i)
+            } else {
+                self.resolve(&link.target)
+            };
+            match resolved {
+                Some(id) => {
+                    if id != i && seen.insert(id) {
+                        links.push(id);
+                    }
+                }
+                None => {
+                    let entry = broken
+                        .entry(link.target.to_lowercase())
+                        .or_insert_with(|| (link.target.clone(), Vec::new()));
+                    entry.1.push(i);
+                }
+            }
+        }
+        links
     }
 
     /// Resolve a wikilink target by the documented rule: path-qualified
@@ -357,6 +390,133 @@ impl Vault {
         } else {
             format!("{}/{}", folder, note.title)
         }
+    }
+
+    /// NAV-02: unresolved link targets grouped with their referrers, rebuilt by
+    /// [`Vault::reindex`]. The dashboard reads this cache; it never scans notes
+    /// per frame.
+    #[must_use]
+    pub fn broken_links(&self) -> &[BrokenLink] {
+        &self.broken
+    }
+
+    /// EDT-03: note ids whose title or vault-relative stem matches `query`
+    /// case-insensitively, best first, capped at `cap`.
+    ///
+    /// Ranking is title-prefix, stem-prefix, title-contains, stem-contains, then
+    /// title and path for stability. An empty query lists every note in title
+    /// order, which is what the explicit insert-link picker shows.
+    #[must_use]
+    pub fn suggest_links(&self, query: &str, cap: usize) -> Vec<usize> {
+        let query = query.trim().to_lowercase();
+        let mut ranked: Vec<(u8, usize)> = Vec::new();
+        for note in &self.notes {
+            let title = note.title.to_lowercase();
+            let stem = note.stem().to_lowercase();
+            let score = if query.is_empty() || title.starts_with(&query) {
+                0
+            } else if stem.starts_with(&query) {
+                1
+            } else if title.contains(&query) {
+                2
+            } else if stem.contains(&query) {
+                3
+            } else {
+                continue;
+            };
+            ranked.push((score, note.id));
+        }
+        ranked.sort_by(|&(sa, a), &(sb, b)| {
+            let (na, nb) = (&self.notes[a], &self.notes[b]);
+            sa.cmp(&sb)
+                .then_with(|| na.title.to_lowercase().cmp(&nb.title.to_lowercase()))
+                .then_with(|| na.rel.to_lowercase().cmp(&nb.rel.to_lowercase()))
+                .then_with(|| na.rel.cmp(&nb.rel))
+        });
+        ranked.truncate(cap);
+        ranked.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// SAF-06: notes that link to `id`, with the distinct target spellings that
+    /// resolve there. Computed before a rename or move so the rewrite knows
+    /// exactly which links pointed at this note (a bare duplicate title is only
+    /// included when it resolved here under the documented rule).
+    #[must_use]
+    pub fn link_referrers(&self, id: usize) -> Vec<(usize, Vec<String>)> {
+        let mut out = Vec::new();
+        for note in &self.notes {
+            if note.id == id {
+                continue;
+            }
+            let mut targets: Vec<String> = Vec::new();
+            for link in parse_links(&note.source) {
+                if link.target.is_empty() {
+                    continue;
+                }
+                if self.resolve(&link.target) == Some(id)
+                    && !targets.iter().any(|t| t == &link.target)
+                {
+                    targets.push(link.target.clone());
+                }
+            }
+            if !targets.is_empty() {
+                out.push((note.id, targets));
+            }
+        }
+        out
+    }
+
+    /// SAF-06: rewrite inbound wikilinks to `new_stem`, preserving each link's
+    /// heading and alias. `inbound` is the pre-mutation result of
+    /// [`Vault::link_referrers`].
+    ///
+    /// Each changed file is written through [`Vault::write_note`], so every
+    /// file replaces its old bytes atomically and the index is rebuilt. The
+    /// rewrite is *not* a cross-file transaction: if one file fails, the others
+    /// stay rewritten and the failure is returned as `(referrer id, error)`.
+    /// Callers surface those errors and must not roll back the rename/move.
+    pub fn rewrite_inbound_links(
+        &mut self,
+        inbound: &[(usize, Vec<String>)],
+        new_stem: &str,
+    ) -> Vec<(usize, io::Error)> {
+        let mut failures = Vec::new();
+        for (from, targets) in inbound {
+            let Some(note) = self.notes.get(*from) else {
+                continue;
+            };
+            let source = note.source.clone();
+            let mut out = String::with_capacity(source.len());
+            let mut last = 0;
+            let mut changed = false;
+            for link in parse_links(&source) {
+                if link.target.is_empty() || !targets.iter().any(|t| t.as_str() == link.target) {
+                    continue;
+                }
+                out.push_str(&source[last..link.start]);
+                out.push_str("[[");
+                out.push_str(new_stem);
+                if let Some(heading) = &link.heading {
+                    out.push('#');
+                    out.push_str(heading);
+                }
+                if let Some(alias) = &link.alias {
+                    out.push('|');
+                    out.push_str(alias);
+                }
+                out.push_str("]]");
+                last = link.end;
+                changed = true;
+            }
+            if !changed {
+                continue;
+            }
+            out.push_str(&source[last..]);
+            if let Err(error) = self.write_note(*from, &out) {
+                failures.push((*from, error));
+            }
+        }
+        failures
     }
 
     /// Replace one note's source atomically on disk and in the index.
@@ -749,6 +909,25 @@ impl Vault {
     }
 }
 
+/// Group collected missing targets into sorted [`BrokenLink`] rows.
+fn group_broken(broken: HashMap<String, (String, Vec<usize>)>) -> Vec<BrokenLink> {
+    let mut rows: Vec<BrokenLink> = broken
+        .into_values()
+        .map(|(target, mut referrers)| {
+            referrers.sort_unstable();
+            referrers.dedup();
+            BrokenLink { target, referrers }
+        })
+        .collect();
+    rows.sort_by(|a, b| {
+        a.target
+            .to_lowercase()
+            .cmp(&b.target.to_lowercase())
+            .then_with(|| a.target.cmp(&b.target))
+    });
+    rows
+}
+
 /// Write `data` to `path` atomically: a hidden, uniquely named temp file in
 /// the same directory is flushed and fsynced, then renamed over `path`.
 ///
@@ -1118,6 +1297,111 @@ mod tests {
         assert!(again.ends_with("projects/alpha/Draft 2.md"));
         let root_created = v.create_note("Draft").unwrap();
         assert!(root_created.ends_with("Draft.md"));
+    }
+
+    #[test]
+    fn broken_links_are_cached_grouped_and_update_after_create() {
+        let tmp = TempVault::new(&[
+            ("Home.md", "[[Missing]] and [[gone/Else#Part]] and [[Beta]]"),
+            ("Beta.md", "also [[Missing]] and [[Missing]]"),
+            ("Else.md", "fine"),
+        ]);
+        let v = tmp.load();
+        let broken = v.broken_links();
+        assert_eq!(broken.len(), 2, "{broken:?}");
+        assert_eq!(broken[0].target, "gone/Else", "{broken:?}");
+        assert_eq!(broken[1].target, "Missing");
+        let home = v.resolve("Home").unwrap();
+        let beta = v.resolve("Beta").unwrap();
+        let mut referrers = broken[1].referrers.clone();
+        referrers.sort_unstable();
+        assert_eq!(
+            referrers,
+            {
+                let mut ids = vec![home, beta];
+                ids.sort_unstable();
+                ids
+            },
+            "both referrers are recorded once"
+        );
+        // Creating the target on disk and rescanning clears it.
+        v.create_note("Missing").unwrap();
+        let v = tmp.load();
+        assert_eq!(v.broken_links().len(), 1);
+        assert_eq!(v.broken_links()[0].target, "gone/Else");
+    }
+
+    #[test]
+    fn suggestions_rank_titles_and_show_duplicates_by_folder() {
+        let tmp = TempVault::new(&[
+            ("Home.md", "home"),
+            ("a/Index.md", "a"),
+            ("b/Index.md", "b"),
+            ("India.md", "i"),
+        ]);
+        let v = tmp.load();
+        let hits = v.suggest_links("ind", 8);
+        // Both `Index` duplicates and `India` are title-prefix matches; the
+        // duplicates carry their folder in `display_label`.
+        let labels: Vec<String> = hits.iter().map(|&id| v.display_label(id)).collect();
+        assert!(labels.contains(&"a/Index".to_owned()), "{labels:?}");
+        assert!(labels.contains(&"b/Index".to_owned()), "{labels:?}");
+        // Case-insensitive and capped.
+        assert!(
+            v.suggest_links("HOME", 8)
+                .iter()
+                .any(|&id| id == v.resolve("Home").unwrap())
+        );
+        assert_eq!(v.suggest_links("", 2).len(), 2);
+        assert!(v.suggest_links("zzz", 8).is_empty());
+    }
+
+    #[test]
+    fn rename_rewrite_preserves_alias_heading_and_duplicate_choice() {
+        let tmp = TempVault::new(&[
+            ("Home.md", "See [[Alpha]] and [[Alpha#Top|the top]]"),
+            ("Second.md", "Back to [[alpha|A]]"),
+            ("Alpha.md", "# Top\nbody"),
+        ]);
+        let mut v = tmp.load();
+        let alpha = v.resolve("Alpha").expect("Alpha");
+        let inbound = v.link_referrers(alpha);
+        assert_eq!(inbound.len(), 2, "{inbound:?}");
+        v.rename_note(alpha, "Beta").expect("rename");
+        let new_stem = v.notes[alpha].stem().to_owned();
+        let failures = v.rewrite_inbound_links(&inbound, &new_stem);
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Home.md")).unwrap(),
+            "See [[Beta]] and [[Beta#Top|the top]]"
+        );
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Second.md")).unwrap(),
+            "Back to [[Beta|A]]"
+        );
+        assert!(v.broken_links().is_empty(), "{:?}", v.broken_links());
+    }
+
+    #[test]
+    fn duplicate_bare_title_is_rewritten_only_when_it_resolved_here() {
+        let tmp = TempVault::new(&[
+            ("a/Index.md", "a"),
+            ("b/Index.md", "b"),
+            ("Home.md", "bare [[Index]] and path [[b/Index]]"),
+        ]);
+        let mut v = tmp.load();
+        let b = v.resolve("b/Index").expect("b index");
+        let inbound = v.link_referrers(b);
+        assert_eq!(inbound.len(), 1);
+        assert_eq!(inbound[0].1, vec!["b/Index".to_owned()]);
+        v.rename_note(b, "Bee").expect("rename");
+        let new_stem = v.notes[b].stem().to_owned();
+        assert!(v.rewrite_inbound_links(&inbound, &new_stem).is_empty());
+        let home = fs::read_to_string(tmp.path().join("Home.md")).unwrap();
+        assert_eq!(
+            home, "bare [[Index]] and path [[b/Bee]]",
+            "a bare link that resolved to the other duplicate stays put"
+        );
     }
 
     #[test]

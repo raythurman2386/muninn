@@ -30,8 +30,9 @@ is not in this table. That check is part of `xtask check` and CI.
    reads every `.md` file and records its title, vault-relative path, folder and source.
 2. **Index.** `Vault::reindex` resolves every `[[wikilink]]` through lower-cased
    path/title indexes and writes each note's `links` and `backlinks` lists. Both are
-   unique and sorted. The sidebar groups notes by folder; duplicate titles are
-   identified by their vault-relative path.
+   unique and sorted. It also caches unresolved targets with their referrers
+   (`Vault::broken_links`) so the dashboard never scans notes per frame. The sidebar
+   groups notes by folder; duplicate titles are identified by their vault-relative path.
 3. **Layout.** `muninn_graph::Graph::sync` mirrors the vault as nodes and undirected,
    deduplicated edges, keyed by `rel` so duplicates keep distinct nodes. `Graph::step`
    runs one deterministic force step and reports true only when a node actually moved.
@@ -76,8 +77,10 @@ is not in this table. That check is part of `xtask check` and CI.
 
 - **Note ids are indexes.** `Note::id` is always the position in `Vault::notes`. The graph uses
   the same ids for nodes and edges.
-- **Links are resolved, not stored.** Changing a title re-resolves on the next `reindex`; no
-  cross-file state needs repairing.
+- **Links are resolved, not stored.** Changing a title re-resolves on the next `reindex`;
+  the index is always derived from the files. Rename/move can additionally rewrite inbound
+  wikilink source (SAF-06, per file and atomic), but that is a user-chosen file edit, not
+  index state: the next scan would still work without it.
 - **Determinism.** The initial graph layout depends only on note order and path hash. Tests
   compare settled positions exactly.
 - **No side database.** Only `.md` files are written, plus the hidden trash folder: a note
@@ -109,7 +112,11 @@ Links to the current note are allowed in the source but do not produce self-edge
 Unresolved targets stay in the source, render faintly, and create a note when clicked —
 path-qualified ones inside their folder, bare ones in the current note's folder.
 New notes otherwise target the selected note's folder; each folder header's `+` chooses a
-different one. Dot-directories stay ignored by the scan.
+different one. Dot-directories stay ignored by the scan. Heading links
+(`[[Note#Heading]]`) resolve the note and then put the Write caret on that heading line or
+scroll the Read view to it, matching case-insensitively outside fenced blocks; a missing
+heading opens the note at the top. Rename/move rewrites only targets that resolved to the
+note before the change, so a bare duplicate title that resolved elsewhere is untouched.
 
 ## Scaling notes
 

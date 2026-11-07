@@ -11,8 +11,30 @@ All notable changes to Muninn are documented here. The format is based on
 - Note and folder CRUD in the sidebar: name-first note creation (no silent `Untitled`),
   inline rename, delete with confirmation, move-to-folder, new/rename/delete folders, and
   a right-click context menu on notes and folders. `F2` renames the selected note and
-  `Delete` asks to delete it. Renaming does not rewrite inbound `[[wikilinks]]`; stale
-  bare targets keep resolving by the documented rule or become missing.
+  `Delete` asks to delete it. Renaming and moving now offer to rewrite inbound
+  `[[wikilinks]]` (SAF-06, below); choosing to leave them keeps the old documented
+  resolution rule.
+- Wikilink completion (EDT-03): typing an unclosed `[[` opens a list of up to eight
+  matching notes ranked by title/stem prefix, with duplicate titles disambiguated by
+  folder. Up/Down move the highlight, Enter/Tab insert the full `[[stem]]`, Escape
+  dismisses, and a pointer click accepts. Completion ignores inline code and fenced
+  blocks. `Cmd/Ctrl+P` opens the same insert-link picker without typing brackets — it
+  inserts links, not feed search; `Cmd/Ctrl+K` is still the search field.
+- Heading deep links (EDT-04): `[[Note#Heading]]` and `note:stem#Heading` resolve the
+  note and then place the caret on the heading line in Write or scroll the reader to it
+  in Read. Matching is case-insensitive and heading decoration is not shown; a missing
+  heading opens the note at the top instead of erroring.
+- Broken-links dashboard (NAV-02): a sidebar chip shows the number of unresolved targets
+  and opens a panel listing each target with its referrers. Clicking a target creates it
+  in the right folder; clicking a referrer opens that note. The list is cached and
+  rebuilt by `Vault::reindex`, and the empty state says "All links resolve".
+- Rename/move link impact (SAF-06): renaming or moving a note with inbound links asks
+  first, showing the referrer count and a **Rewrite links to new name** toggle (on by
+  default). Rewriting replaces each inbound target while preserving `|alias` and
+  `#heading`, uses the existing atomic note write per file, and only rewrites a bare
+  duplicate title when it resolved to this note before the change. Per-file failures are
+  reported without rolling back the rename or move; folder renames leave inbound links
+  alone for now (follow-up).
 - Atomic note writes: saves and note creation write a hidden, uniquely named temp file in
   the note's folder, flush and fsync it, then rename it into place, followed by a
   best-effort directory fsync on Unix. A failed or interrupted save leaves the previous

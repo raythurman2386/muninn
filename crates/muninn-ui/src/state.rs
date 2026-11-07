@@ -6,9 +6,9 @@ use std::io;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use muninn_core::Vault;
+use muninn_core::{Vault, heading_offset, unclosed_link};
 use muninn_graph::{Graph, WORLD};
-use rune::{Drag, Phase, TextEdit};
+use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::Camera;
 use crate::recovery::{RecoveryEntry, RecoveryStore};
@@ -182,6 +182,40 @@ pub struct FindState {
     had_query: bool,
 }
 
+/// M2 EDT-03: inline `[[` autocomplete, or the explicit insert-link picker.
+#[derive(Clone, Debug)]
+pub struct LinkComplete {
+    /// Byte offset of the `[[` being completed; `None` for the Cmd+P picker.
+    pub open: Option<usize>,
+    /// Where the picker inserts on accept (the caret when it opened).
+    pub at: usize,
+    /// Text after `[[`, or the picker's typed filter.
+    pub query: String,
+    /// Candidate note ids, best first, capped at eight.
+    pub items: Vec<usize>,
+    pub index: usize,
+}
+
+/// M2 SAF-06: rename confirmation with the inbound-link choice.
+#[derive(Clone, Debug)]
+pub struct RenameConfirm {
+    pub id: usize,
+    pub name: String,
+    /// Notes whose links currently resolve to this note.
+    pub referrers: usize,
+    /// Rewrite inbound wikilinks to the new stem (default on).
+    pub rewrite: bool,
+}
+
+/// M2 SAF-06: move confirmation with the inbound-link choice.
+#[derive(Clone, Debug)]
+pub struct MoveConfirm {
+    pub id: usize,
+    pub folder: String,
+    pub referrers: usize,
+    pub rewrite: bool,
+}
+
 /// M2 NAV-03: how many history entries are kept. Deep enough for a session's
 /// reading path, bounded so a long-running window cannot grow without limit.
 pub(crate) const HISTORY_CAP: usize = 100;
@@ -201,6 +235,22 @@ pub struct State {
     search_query: String,
     /// M2 EDT-01: open in-note find bar, if any.
     pub find: Option<FindState>,
+    /// M2 EDT-03: open wikilink completion or insert-link picker.
+    pub complete: Option<LinkComplete>,
+    /// Inline completion dismissed with Escape at `(open offset, caret)`; it
+    /// stays closed until either moves.
+    complete_dismissed: Option<(usize, usize)>,
+    /// M2 NAV-02: the broken-links dashboard is open.
+    pub broken_panel: bool,
+    /// M2 EDT-04: heading a Read-mode open should scroll to on the next frame.
+    pub pending_heading: Option<String>,
+    /// M2 EDT-04: a heading link whose heading is absent scrolls Read mode to
+    /// the top instead of doing nothing.
+    pub pending_top: bool,
+    /// M2 SAF-06: rename waiting on the link-impact choice.
+    pub rename_confirm: Option<RenameConfirm>,
+    /// M2 SAF-06: move waiting on the link-impact choice.
+    pub move_confirm: Option<MoveConfirm>,
     /// M2 NAV-03: note-navigation history. Tabs were considered for M2 and
     /// deliberately rejected: one editor plus Back/Forward covers the
     /// "return to what I was reading" case without a tab-strip state model,
@@ -316,6 +366,13 @@ impl State {
             search_selected: None,
             search_query: String::new(),
             find: None,
+            complete: None,
+            complete_dismissed: None,
+            broken_panel: false,
+            pending_heading: None,
+            pending_top: false,
+            rename_confirm: None,
+            move_confirm: None,
             history: Vec::new(),
             history_index: 0,
             mode: Mode::Editor,
@@ -393,6 +450,10 @@ impl State {
     /// navigation. History-recording callers push afterwards; Back/Forward
     /// call this directly so moving through history does not rewrite it.
     fn load_note_at(&mut self, id: usize, focus: bool) {
+        self.complete = None;
+        self.complete_dismissed = None;
+        self.pending_heading = None;
+        self.pending_top = false;
         let note = &self.vault.notes[id];
         let (source, path) = (note.source.clone(), note.path.clone());
         self.editor.replace_text(source.clone());
@@ -612,6 +673,8 @@ impl State {
 
     /// Cmd/Ctrl+F: open the find bar, or refocus it when it is already open.
     pub fn open_find(&mut self) {
+        self.complete = None;
+        self.complete_dismissed = None;
         if let Some(find) = self.find.as_mut() {
             find.field.focused = true;
         } else {
@@ -704,11 +767,206 @@ impl State {
         true
     }
 
+    // ---- M2 EDT-03: wikilink completion -------------------------------------
+
+    /// Detect an open `[[…` at the caret or refresh the candidate list.
+    ///
+    /// Runs from `poll` once a frame, like the find bar's match list, because
+    /// the view only borrows `State`. The explicit Cmd+P picker is not
+    /// detected here: its query is typed into the picker, not the note.
+    /// Returns true when something the user can see changed.
+    pub fn complete_tick(&mut self) -> bool {
+        if let Some(c) = &self.complete {
+            let Some(open) = c.open else {
+                return false;
+            };
+            let query = c.query.clone();
+            if !self.editor.focused || self.find.is_some() {
+                self.complete = None;
+                return true;
+            }
+            let caret = self.editor.focus.min(self.editor.text.len());
+            return match unclosed_link(&self.editor.text, caret) {
+                Some((mark, current)) if mark == open => {
+                    if current == query {
+                        false
+                    } else {
+                        let items = self.vault.suggest_links(&current, 8);
+                        if let Some(c) = self.complete.as_mut() {
+                            c.query = current;
+                            c.items = items;
+                            c.index = 0;
+                        }
+                        true
+                    }
+                }
+                _ => {
+                    self.complete = None;
+                    true
+                }
+            };
+        }
+        if !self.editor.focused || self.find.is_some() || self.selected.is_none() {
+            return false;
+        }
+        let caret = self.editor.focus.min(self.editor.text.len());
+        let Some((open, query)) = unclosed_link(&self.editor.text, caret) else {
+            return false;
+        };
+        if self.complete_dismissed == Some((open, caret)) {
+            return false;
+        }
+        self.complete_dismissed = None;
+        let items = self.vault.suggest_links(&query, 8);
+        if items.is_empty() {
+            return false;
+        }
+        self.complete = Some(LinkComplete {
+            open: Some(open),
+            at: caret,
+            query,
+            items,
+            index: 0,
+        });
+        true
+    }
+
+    /// Cmd/Ctrl+P: show the insert-link picker at the caret even without `[[`.
+    /// This is deliberately not a command palette or feed search: it lists
+    /// notes and inserts a wikilink.
+    pub fn open_link_picker(&mut self) {
+        if self.selected.is_none() {
+            return;
+        }
+        // Inserting edits the note, so a picker opened from Read or Graph
+        // returns to Write first.
+        self.set_mode(Mode::Editor);
+        self.find = None;
+        self.focus_editor();
+        let at = self.editor.focus.min(self.editor.text.len());
+        let items = self.vault.suggest_links("", 8);
+        self.complete = Some(LinkComplete {
+            open: None,
+            at,
+            query: String::new(),
+            items,
+            index: 0,
+        });
+        self.complete_dismissed = None;
+    }
+
+    /// Keys claimed while a completion or the picker is open. Up/Down move the
+    /// highlight, Enter/Tab accept, Escape dismisses. Typing filters only in
+    /// the explicit picker; in inline mode the note itself receives the text
+    /// and `complete_tick` follows the query.
+    pub fn complete_key(&mut self, e: &KeyEvent) -> bool {
+        let Some((picker, current)) = self
+            .complete
+            .as_ref()
+            .map(|c| (c.open.is_none(), c.items.get(c.index).copied()))
+        else {
+            return false;
+        };
+        match &e.key {
+            Key::Escape => {
+                self.dismiss_complete();
+                true
+            }
+            Key::Enter | Key::Tab => {
+                if let Some(id) = current {
+                    self.complete_choose(id);
+                } else {
+                    self.dismiss_complete();
+                }
+                true
+            }
+            Key::Up => {
+                self.complete_step(-1);
+                true
+            }
+            Key::Down => {
+                self.complete_step(1);
+                true
+            }
+            Key::Backspace if picker => {
+                if let Some(c) = self.complete.as_mut() {
+                    c.query.pop();
+                    c.index = 0;
+                    let query = c.query.clone();
+                    c.items = self.vault.suggest_links(&query, 8);
+                }
+                true
+            }
+            Key::Text(text) if picker && !e.mods.cmd && !e.mods.ctrl && !e.mods.alt => {
+                if let Some(c) = self.complete.as_mut() {
+                    c.query.push_str(text);
+                    c.index = 0;
+                    let query = c.query.clone();
+                    c.items = self.vault.suggest_links(&query, 8);
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Move the highlighted suggestion, wrapping at both ends.
+    pub fn complete_step(&mut self, delta: isize) -> bool {
+        let Some(c) = self.complete.as_mut() else {
+            return false;
+        };
+        if c.items.is_empty() {
+            return false;
+        }
+        let len = c.items.len() as isize;
+        c.index = (c.index as isize + delta).rem_euclid(len) as usize;
+        true
+    }
+
+    /// Insert `[[stem]]` for `id`, replacing the open `[[query` or inserting at
+    /// the picker's caret. Pointer clicks use this too.
+    pub fn complete_choose(&mut self, id: usize) -> bool {
+        let Some(c) = self.complete.take() else {
+            return false;
+        };
+        let Some(note) = self.vault.notes.get(id) else {
+            return false;
+        };
+        let text = format!("[[{}]]", note.stem());
+        match c.open {
+            Some(open) => {
+                let caret = self.editor.focus.min(self.editor.text.len());
+                self.editor.set_selection(open.min(caret), caret);
+                self.editor.insert(&text);
+            }
+            None => {
+                self.editor.set_caret(c.at.min(self.editor.text.len()));
+                self.editor.insert(&text);
+            }
+        }
+        self.complete_dismissed = None;
+        self.dirty_at.get_or_insert(self.now);
+        true
+    }
+
+    /// Escape: close the list. Inline completion remembers where it was
+    /// dismissed so the next frame does not immediately reopen it.
+    pub fn dismiss_complete(&mut self) {
+        if let Some(c) = self.complete.take()
+            && let Some(open) = c.open
+        {
+            let caret = self.editor.focus.min(self.editor.text.len());
+            self.complete_dismissed = Some((open, caret));
+        }
+    }
+
     pub fn focus_editor(&mut self) {
         self.set_text_focus(true, false);
     }
 
     pub fn focus_search(&mut self) {
+        self.complete = None;
+        self.complete_dismissed = None;
         self.set_text_focus(false, true);
     }
 
@@ -731,6 +989,9 @@ impl State {
         if mode == self.mode {
             return;
         }
+        self.pending_heading = None;
+        self.pending_top = false;
+        self.complete = None;
         if mode != Mode::Graph && self.mode != Mode::Graph {
             self.last_note_mode = mode;
         }
@@ -1530,10 +1791,61 @@ impl State {
             return;
         };
         self.flush();
-        let was_selected = self.selected == Some(prompt.id);
-        match self.vault.rename_note(prompt.id, &name) {
+        // SAF-06: count inbound links before mutating; the rewrite itself reads
+        // the pre-mutation resolution so duplicate bare titles stay correct.
+        let referrers = self.vault.link_referrers(prompt.id).len();
+        if referrers == 0 {
+            self.apply_rename(prompt.id, &name, false);
+        } else {
+            self.rename_confirm = Some(RenameConfirm {
+                id: prompt.id,
+                name,
+                referrers,
+                rewrite: true,
+            });
+        }
+    }
+
+    /// SAF-06: flip the rename dialog's rewrite choice.
+    pub fn toggle_rename_rewrite(&mut self) {
+        if let Some(confirm) = self.rename_confirm.as_mut() {
+            confirm.rewrite = !confirm.rewrite;
+        }
+    }
+
+    pub fn cancel_rename_confirm(&mut self) {
+        self.rename_confirm = None;
+    }
+
+    /// SAF-06: rename now, rewriting (or deliberately leaving) inbound links.
+    pub fn confirm_rename_note(&mut self) {
+        let Some(confirm) = self.rename_confirm.take() else {
+            return;
+        };
+        self.apply_rename(confirm.id, &confirm.name, confirm.rewrite);
+    }
+
+    fn apply_rename(&mut self, id: usize, name: &str, rewrite: bool) {
+        let was_selected = self.selected == Some(id);
+        let inbound = if rewrite {
+            self.vault.link_referrers(id)
+        } else {
+            Vec::new()
+        };
+        match self.vault.rename_note(id, name) {
             Ok(path) => {
                 self.error = None;
+                let failures = if rewrite {
+                    let stem = self
+                        .vault
+                        .notes
+                        .get(id)
+                        .map(|note| note.stem().to_owned())
+                        .unwrap_or_default();
+                    self.vault.rewrite_inbound_links(&inbound, &stem)
+                } else {
+                    Vec::new()
+                };
                 // The vault updated in place; reload resyncs ids (tests use
                 // paths) and rebuilds graph titles keyed by rel.
                 let select = if was_selected {
@@ -1542,9 +1854,31 @@ impl State {
                     self.selected_path.clone()
                 };
                 self.reload(select);
+                if !failures.is_empty() {
+                    self.error = Some(format!(
+                        "Renamed, but {} inbound link file(s) could not be rewritten: {}",
+                        failures.len(),
+                        self.format_rewrite_failures(&failures)
+                    ));
+                }
             }
             Err(e) => self.error = Some(format!("Could not rename note: {e}")),
         }
+    }
+
+    fn format_rewrite_failures(&self, failures: &[(usize, io::Error)]) -> String {
+        failures
+            .iter()
+            .map(|(id, error)| {
+                let rel = self
+                    .vault
+                    .notes
+                    .get(*id)
+                    .map_or("(unknown note)", |note| note.rel.as_str());
+                format!("{rel}: {error}")
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     pub fn delete_note(&mut self, id: usize) {
@@ -1632,8 +1966,67 @@ impl State {
     pub fn move_note_to(&mut self, id: usize, folder: &str) {
         self.move_picker = None;
         self.flush();
+        let referrers = self.vault.link_referrers(id).len();
+        if referrers == 0 {
+            self.apply_move(id, folder, false);
+        } else {
+            self.move_confirm = Some(MoveConfirm {
+                id,
+                folder: folder.to_owned(),
+                referrers,
+                rewrite: true,
+            });
+        }
+    }
+
+    /// SAF-06: flip the move dialog's rewrite choice.
+    pub fn toggle_move_rewrite(&mut self) {
+        if let Some(confirm) = self.move_confirm.as_mut() {
+            confirm.rewrite = !confirm.rewrite;
+        }
+    }
+
+    pub fn cancel_move_confirm(&mut self) {
+        self.move_confirm = None;
+    }
+
+    /// SAF-06: move now, rewriting (or deliberately leaving) inbound links.
+    pub fn confirm_move_note(&mut self) {
+        let Some(confirm) = self.move_confirm.take() else {
+            return;
+        };
+        self.apply_move(confirm.id, &confirm.folder, confirm.rewrite);
+    }
+
+    fn apply_move(&mut self, id: usize, folder: &str, rewrite: bool) {
+        let inbound = if rewrite {
+            self.vault.link_referrers(id)
+        } else {
+            Vec::new()
+        };
         match self.vault.move_note(id, folder) {
-            Ok(path) => self.reload(Some(path)),
+            Ok(path) => {
+                self.error = None;
+                let failures = if rewrite {
+                    let stem = self
+                        .vault
+                        .notes
+                        .get(id)
+                        .map(|note| note.stem().to_owned())
+                        .unwrap_or_default();
+                    self.vault.rewrite_inbound_links(&inbound, &stem)
+                } else {
+                    Vec::new()
+                };
+                self.reload(Some(path));
+                if !failures.is_empty() {
+                    self.error = Some(format!(
+                        "Moved, but {} inbound link file(s) could not be rewritten: {}",
+                        failures.len(),
+                        self.format_rewrite_failures(&failures)
+                    ));
+                }
+            }
             Err(e) => self.error = Some(format!("Could not move note: {e}")),
         }
     }
@@ -1697,6 +2090,11 @@ impl State {
         let Some(name) = finish_name_field(&mut self.rename_folder_field) else {
             return;
         };
+        // SAF-06: folder renames deliberately do not rewrite inbound links yet.
+        // Every note under the renamed folder (and every link to it) would need
+        // a prefix rewrite; the dashboard shows the resulting breakage and the
+        // per-note rename flow handles the common case. Documented as a
+        // follow-up in CHANGELOG.md.
         match self.vault.rename_folder(&prompt.folder, &name) {
             Ok(_) => {
                 self.error = None;
@@ -1793,24 +2191,104 @@ impl State {
     }
 
     pub fn open_link(&mut self, url: &str, tx: &mut rune::Tx) {
-        if let Some(title) = url.strip_prefix("note:") {
-            if let Some(id) = self.vault.resolve(title) {
+        if let Some(rest) = url.strip_prefix("note:") {
+            // EDT-04: `note:stem#Heading` opens the note and then places the
+            // caret (Write) or scrolls the reader (Read) to that heading.
+            let (target, heading) = match rest.split_once('#') {
+                Some((target, heading)) => (target, Some(heading)),
+                None => (rest, None),
+            };
+            if let Some(id) = self.vault.resolve(target) {
                 self.open_from_link(id);
+                if let Some(heading) = heading.filter(|h| !h.trim().is_empty()) {
+                    self.goto_heading(heading, tx);
+                }
             }
         } else if let Some(raw) = url.strip_prefix("missing:") {
-            // A path-qualified missing link names its folder; a bare one is
-            // created in the current note's folder (see `create_note_named`).
-            let normalised = raw.replace('\\', "/");
-            if let Some((folder, title)) = normalised.rsplit_once('/')
-                && !title.is_empty()
-            {
-                self.create_note_named_in(title, folder);
-            } else {
-                self.create_note_named(raw);
-            }
+            self.create_missing_link(raw);
         } else if tx.open_url(url).is_err() {
             // External links are best-effort: the platform may have no opener.
         }
+    }
+
+    /// Create a note for an unresolved link. A path-qualified target names its
+    /// folder; a bare one is created in the current note's folder (see
+    /// `create_note_named`). Shared by reader clicks and the broken-links
+    /// dashboard.
+    pub fn create_missing_link(&mut self, raw: &str) {
+        let normalised = raw.replace('\\', "/");
+        if let Some((folder, title)) = normalised.rsplit_once('/')
+            && !title.is_empty()
+        {
+            self.create_note_named_in(title, folder);
+        } else {
+            self.create_note_named(raw);
+        }
+    }
+
+    /// EDT-04: place the caret on `heading` in Write mode, or scroll the reader
+    /// in Read mode. A missing heading is not an error: the note opens at the
+    /// top instead.
+    fn goto_heading(&mut self, heading: &str, tx: &mut rune::Tx) {
+        self.pending_heading = None;
+        self.pending_top = false;
+        let offset = heading_offset(&self.editor.text, heading);
+        match self.mode {
+            Mode::Preview => {
+                // The reader shows the preview-rewritten source, whose byte
+                // offsets differ from the note's, so resolve the key against
+                // that source. Block keys are `heading-<preview offset>`.
+                let key = self.selected.and_then(|id| {
+                    let source = self.vault.preview(&self.editor.text, id);
+                    heading_offset(&source, heading).map(|offset| format!("heading-{offset}"))
+                });
+                match key {
+                    Some(key) => {
+                        self.pending_heading = Some(heading.to_owned());
+                        tx.scroll_into_view_in("preview-scroll", key);
+                    }
+                    None => {
+                        self.pending_top = true;
+                        tx.scroll_to_y("preview-scroll", 0.0);
+                    }
+                }
+            }
+            Mode::Editor => {
+                let offset = offset.unwrap_or(0);
+                self.editor.anchor = offset;
+                self.editor.focus = offset;
+            }
+            Mode::Graph => {}
+        }
+    }
+
+    // ---- M2 NAV-02: broken-links dashboard ----------------------------------
+
+    #[must_use]
+    pub fn broken_count(&self) -> usize {
+        self.vault.broken_links().len()
+    }
+
+    pub fn open_broken_links(&mut self) {
+        self.broken_panel = true;
+        self.menu = None;
+        self.blur_text();
+    }
+
+    pub fn close_broken_links(&mut self) {
+        self.broken_panel = false;
+    }
+
+    /// Create the note a missing target names, then leave the dashboard for it.
+    pub fn open_broken_target(&mut self, target: &str) {
+        self.broken_panel = false;
+        self.create_missing_link(target);
+    }
+
+    /// Open a note that refers to a missing target.
+    pub fn open_broken_referrer(&mut self, id: usize) {
+        self.broken_panel = false;
+        self.open_from_list(id);
     }
 
     pub fn drag_node(&mut self, id: usize, drag: &Drag) {

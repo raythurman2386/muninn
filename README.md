@@ -71,6 +71,11 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `Enter` (search) | Open the highlighted result (first when none is highlighted) |
 | `⌘F` / `Ctrl+F` | Find in the open note |
 | `Enter` / `Shift+Enter` (find) | Next / previous match |
+| `[[` (editor) | Open wikilink completion for the note being typed |
+| `↑` / `↓` (completion) | Move the highlighted suggested note |
+| `Enter` / `Tab` (completion) | Insert `[[stem]]` for the highlighted note |
+| `Esc` (completion) | Dismiss the list, then find, then prompts and menus |
+| `⌘P` / `Ctrl+P` | Insert a wikilink at the caret (link picker, not feed search) |
 | `⌘[` / `Ctrl+[` | Back in note history |
 | `⌘]` / `Ctrl+]` | Forward in note history |
 | `⌘N` / `Ctrl+N` | New note |
@@ -82,6 +87,12 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `Esc` | Leave the graph |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
+
+Typing `[[` shows notes whose title or path matches what follows; the list inserts the
+full vault-relative stem, so a link keeps working when two notes share a title.
+`[[Note#Heading]]` opens the note at that heading (caret in Write, scroll in Read).
+The sidebar's broken-links chip counts unresolved targets; open it to create a missing
+note or jump to a referrer.
 
 ## Crates
 

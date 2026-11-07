@@ -27,7 +27,13 @@ impl Vault {
                 self.resolve(&link.target)
             };
             let dest = match resolved {
-                Some(id) => format!("note:{}", self.notes[id].stem()),
+                // EDT-04: keep the heading in the destination so `open_link`
+                // can place the caret (Write) or scroll (Read) after resolving
+                // the note.
+                Some(id) => match &link.heading {
+                    Some(heading) => format!("note:{}#{heading}", self.notes[id].stem()),
+                    None => format!("note:{}", self.notes[id].stem()),
+                },
                 None => format!("missing:{}", link.target),
             };
             out.push('[');
@@ -127,8 +133,8 @@ mod tests {
         let target = v.resolve("Target").unwrap();
         assert_eq!(v.note(home).links, vec![target]);
         let out = v.preview(&v.note(home).source, home);
-        assert!(out.contains("[the part](<note:Target>)"), "{out}");
-        assert!(out.contains("[Local](<note:Home>)"), "{out}");
+        assert!(out.contains("[the part](<note:Target#Part>)"), "{out}");
+        assert!(out.contains("[Local](<note:Home#Local>)"), "{out}");
     }
 
     #[test]

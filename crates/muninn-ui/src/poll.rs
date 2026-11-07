@@ -26,6 +26,9 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.find_tick() {
         changed = true;
     }
+    if s.complete_tick() {
+        changed = true;
+    }
 
     // Watch first: an external edit to the dirty note must raise its conflict
     // before autosave gets a chance to report something less specific. The
