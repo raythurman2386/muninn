@@ -16,6 +16,8 @@ All notable changes to Muninn are documented here. The format is based on
   vault-relative path, and new notes can target the current or a chosen folder.
 - Documented wikilink resolution preferring path-qualified targets, then unambiguous titles,
   then a deterministic smallest-path choice for duplicates.
+- App logo (`assets/logo.svg`): README header, sidebar brand mark, desktop entry and release
+  assets.
 
 ### Changed
 
