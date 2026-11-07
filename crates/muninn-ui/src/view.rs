@@ -30,7 +30,7 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
         })
         .child(sidebar(s, k, dark))
         .child(divider(k))
-        .child(main(s, k))
+        .child(main_column(s, k))
 }
 
 fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
@@ -165,7 +165,10 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                 .color(k.c.text_base)
                 .grow(1.0),
         )
+        .child(help_button(k))
         .child(theme_button(k, dark));
+
+    let vault = vault_chip_area(s, k);
 
     let search = row()
         .key("search-box")
@@ -258,6 +261,7 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
         .h_full()
         .fill(k.c.bg_deep)
         .child(brand)
+        .child(vault)
         .child(search)
         .child(new_note)
         .child(divider_h(k).mt(8.0))
@@ -513,7 +517,265 @@ fn theme_button(k: &Kit, dark: bool) -> El {
                 .font(TextStyle::new(14.0, 500.0))
                 .color(k.c.icon_muted),
         )
-        .on_press(move |s: &mut State| s.dark = Some(!dark))
+        .on_press(move |s: &mut State| s.set_theme(Some(!dark)))
+}
+
+/// DES-01: the sidebar Help button, next to the theme toggle.
+fn help_button(k: &Kit) -> El {
+    pressable(k, "help-open".to_owned())
+        .size(28.0, 28.0)
+        .center()
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                s.open_help();
+                true
+            } else {
+                false
+            }
+        })
+        .child(
+            text("?")
+                .font(TextStyle::new(14.0, 600.0))
+                .color(k.c.icon_muted),
+        )
+        .on_press(|s: &mut State| s.open_help())
+}
+
+/// DES-01/LIF-01: the current-vault chip and its in-window menu.
+///
+/// There is no native menu bar on Linux, so the chip is the vault surface:
+/// Open vault… (typed path), the recent-vault MRU, and New vault (creates a
+/// missing folder through `Vault::load`'s auto-create).
+fn vault_chip_area(s: &State, k: &Kit) -> El {
+    let label = s
+        .vault
+        .root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .map_or_else(|| display_path(&s.vault.root), |name| name.to_owned());
+    let mut area = col().w_full().px(12.0).pb(2.0).gap(4.0);
+    area = area.child(
+        row()
+            .key("vault-chip")
+            .w_full()
+            .h(28.0)
+            .px(8.0)
+            .gap(6.0)
+            .radius(7.0)
+            .center_y()
+            .fill(if s.vault_menu {
+                k.c.layer_02
+            } else {
+                Color::TRANSPARENT
+            })
+            .hover(k.c.hover)
+            .press(k.c.pressed)
+            .cursor(Cursor::Pointer)
+            .child(
+                text("▤")
+                    .font(TextStyle::new(12.0, 600.0))
+                    .color(k.c.text_accent),
+            )
+            .child(
+                text(label)
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .grow(1.0)
+                    .truncate(),
+            )
+            .child(
+                text(if s.vault_menu { "▴" } else { "▾" })
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint),
+            )
+            .on_press(|s: &mut State| s.toggle_vault_menu()),
+    );
+    if s.vault_menu {
+        area = area.child(vault_menu(s, k));
+    }
+    if s.vault_prompt {
+        area = area.child(vault_prompt_row(s, k));
+    }
+    area
+}
+
+fn vault_menu(s: &State, k: &Kit) -> El {
+    let mut menu = col()
+        .key("vault-menu")
+        .w_full()
+        .px(8.0)
+        .py(5.0)
+        .gap(2.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .child(
+            row()
+                .key("vault-open-prompt")
+                .w_full()
+                .h(28.0)
+                .px(7.0)
+                .radius(5.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(
+                    text("Open vault…")
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base),
+                )
+                .on_press(|s: &mut State| s.begin_vault_prompt()),
+        )
+        .child(
+            row()
+                .key("vault-new-prompt")
+                .w_full()
+                .h(28.0)
+                .px(7.0)
+                .radius(5.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(
+                    text("New vault…")
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base),
+                )
+                .on_press(|s: &mut State| s.begin_vault_prompt()),
+        );
+    if !s.recent_vaults().is_empty() {
+        menu = menu.child(
+            text("RECENT")
+                .font(TextStyle::new(9.0, 650.0).tracking(0.8))
+                .color(k.c.text_faint)
+                .padding(7.0),
+        );
+        for (index, path) in s.recent_vaults().iter().enumerate() {
+            let label = display_path(path);
+            menu = menu.child(
+                row()
+                    .key(format!("vault-recent-{index}"))
+                    .w_full()
+                    .h(26.0)
+                    .px(7.0)
+                    .radius(5.0)
+                    .center_y()
+                    .cursor(Cursor::Pointer)
+                    .hover(k.c.hover)
+                    .child(
+                        text(label)
+                            .font(k.ty.caption())
+                            .color(k.c.text_muted)
+                            .grow(1.0)
+                            .truncate(),
+                    )
+                    .on_press(move |s: &mut State| {
+                        s.open_recent_vault(index);
+                    }),
+            );
+        }
+    }
+    menu.child(
+        row()
+            .key("vault-menu-cancel")
+            .w_full()
+            .h(26.0)
+            .px(7.0)
+            .radius(5.0)
+            .center_y()
+            .cursor(Cursor::Pointer)
+            .hover(k.c.hover)
+            .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+            .on_press(|s: &mut State| s.close_vault_menu()),
+    )
+}
+
+fn vault_prompt_row(s: &State, k: &Kit) -> El {
+    col()
+        .key("vault-prompt")
+        .w_full()
+        .gap(4.0)
+        .px(8.0)
+        .py(6.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .child(
+            text_input(&s.vault_field, k.ty.ui_compact)
+                .key("vault-path")
+                .single_line()
+                .w_full()
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .placeholder("~/notes", k.c.text_faint)
+                .on_edit(|s: &mut State| &mut s.vault_field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                    if e.key == Key::Escape {
+                        s.cancel_vault_prompt();
+                        tx.blur();
+                        return true;
+                    }
+                    crate::shortcut(s, e, tx)
+                })
+                .on_submit(|s: &mut State, _| s.submit_vault_path()),
+        )
+        .child(
+            text("Paste a folder path; ~ expands to your home folder.")
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        )
+        .child(if let Some(error) = &s.error {
+            text(error.clone())
+                .font(k.ty.caption())
+                .color(k.c.danger.fg)
+        } else {
+            el()
+        })
+        .child(
+            row()
+                .w_full()
+                .gap(6.0)
+                .center_y()
+                .child(
+                    pressable(k, "vault-open".to_owned())
+                        .px(8.0)
+                        .py(3.0)
+                        .fill(k.c.layer_03)
+                        .child(text("Open").font(k.ty.caption()).color(k.c.text_base))
+                        .on_press(|s: &mut State| s.submit_vault_path()),
+                )
+                .child(
+                    pressable(k, "vault-create".to_owned())
+                        .px(8.0)
+                        .py(3.0)
+                        .child(text("New vault").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(|s: &mut State| s.submit_new_vault()),
+                )
+                .child(
+                    pressable(k, "vault-cancel".to_owned())
+                        .px(8.0)
+                        .py(3.0)
+                        .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(|s: &mut State| s.cancel_vault_prompt()),
+                ),
+        )
+}
+
+/// `~/sub/path` when below the home directory, otherwise the full path.
+fn display_path(path: &std::path::Path) -> String {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+    if let Some(home) = home.map(std::path::PathBuf::from)
+        && let Ok(rest) = path.strip_prefix(&home)
+    {
+        if rest.as_os_str().is_empty() {
+            return "~".to_owned();
+        }
+        return format!("~/{}", rest.to_string_lossy());
+    }
+    path.to_string_lossy().into_owned()
 }
 
 /// Inline name field for a note being created in its folder group.
@@ -1083,6 +1345,218 @@ fn main(s: &State, k: &Kit) -> El {
     page.child(body)
 }
 
+/// M3 wrapper around [`main`]: the Help overlay takes the whole column, and a
+/// first-run welcome banner sits above the ordinary page.
+fn main_column(s: &State, k: &Kit) -> El {
+    if s.help {
+        return help_panel(s, k);
+    }
+    if s.welcome && s.vault.notes.is_empty() && s.startup_error.is_none() {
+        return col()
+            .key("main-with-welcome")
+            .grow(1.0)
+            .h_full()
+            .min_w(0.0)
+            .child(welcome_banner(s, k))
+            .child(main(s, k));
+    }
+    main(s, k)
+}
+
+/// LIF-01: first run created the vault folder. Point at the next action rather
+/// than an empty editor that reads as "your notes are gone".
+fn welcome_banner(s: &State, k: &Kit) -> El {
+    row()
+        .key("welcome-banner")
+        .w_full()
+        .px(20.0)
+        .py(9.0)
+        .gap(9.0)
+        .center_y()
+        .fill(k.alpha(k.c.text_accent, 0.10))
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.text_accent))
+        .child(
+            text(format!(
+                "New vault created at {} — make your first note",
+                display_path(&s.vault.root)
+            ))
+            .font(k.ty.caption())
+            .color(k.c.text_base)
+            .grow(1.0)
+            .truncate(),
+        )
+        .child(status_button(k, "New note", "welcome-new-note", |s| {
+            s.new_note();
+            true
+        }))
+        .child(status_button(k, "Dismiss", "welcome-dismiss", |s| {
+            s.dismiss_welcome();
+            true
+        }))
+}
+
+const ISSUES_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/issues");
+
+/// DES-01: the in-window Help overlay. Native menu bars are unavailable on
+/// Linux (the desktop verification wave blocked DES-01's menubar path), so the
+/// full shortcut map lives here, reachable from the sidebar `?` button,
+/// `Cmd/Ctrl+?`, or plain `?` when no text field owns the keyboard.
+fn help_panel(s: &State, k: &Kit) -> El {
+    let groups: [(&str, &[(&str, &str)]); 4] = [
+        (
+            "Navigation",
+            &[
+                ("⌘K / Ctrl+K", "Focus search"),
+                ("↑ / ↓ (search)", "Move the highlighted result"),
+                ("Enter (search)", "Open the highlighted result"),
+                ("⌘[ / Ctrl+[", "Back in note history"),
+                ("⌘] / Ctrl+]", "Forward in note history"),
+                ("⌘1 / ⌘2 / ⌘3", "Write / Read / Graph"),
+                ("Esc", "Close the outermost layer"),
+            ],
+        ),
+        (
+            "Edit",
+            &[
+                ("⌘F / Ctrl+F", "Find in the open note"),
+                ("⌘P / Ctrl+P", "Insert a wikilink"),
+                ("⌘N / Ctrl+N", "New note"),
+                ("⌘S / Ctrl+S", "Save now (autosave is on)"),
+                ("⌘E / Ctrl+E", "Toggle Write / Read"),
+                ("[[", "Wikilink completion"),
+                ("Tab (editor)", "Indent four spaces"),
+                ("F2", "Rename the selected note"),
+                ("Del", "Delete the selected note"),
+            ],
+        ),
+        (
+            "Graph",
+            &[
+                ("⌘G / Ctrl+G", "Toggle Graph"),
+                ("⌘L / Ctrl+L", "Toggle Global / Local"),
+                ("Arrows", "Move the focus ring"),
+                ("Enter", "Open the focused note"),
+                ("+ / -", "Zoom in / out"),
+                ("0 / F", "Fit the visible nodes"),
+                ("I", "Toggle Isolate"),
+                ("Esc", "Leave the graph"),
+            ],
+        ),
+        (
+            "Sidebar",
+            &[
+                ("⌘?", "Open this Help"),
+                ("?", "Open Help when not typing"),
+                ("Tab / Shift+Tab", "Move between panes"),
+                ("↑ / ↓ (list)", "Move through a list"),
+                ("Enter / Space", "Open the focused row"),
+                ("Right-click", "Note and folder actions"),
+                ("Vault chip", "Open / recent / new vault"),
+            ],
+        ),
+    ];
+    let mut list = col().w_full().px(40.0).pb(28.0).gap(14.0);
+    for (title, shortcuts) in groups {
+        let mut section = col().w_full().gap(3.0).child(
+            text(title.to_owned())
+                .font(TextStyle::new(10.0, 650.0).tracking(0.9))
+                .color(k.c.text_muted)
+                .padding(4.0),
+        );
+        for (keys, action) in shortcuts {
+            section = section.child(help_row(k, keys, action));
+        }
+        list = list.child(section);
+    }
+    list = list
+        .child(divider_h(k))
+        .child(
+            text(format!(
+                "Autosave writes {:.2} s after you stop typing. Version {}.",
+                s.autosave_delay(),
+                env!("CARGO_PKG_VERSION")
+            ))
+            .font(k.ty.caption())
+            .color(k.c.text_faint)
+            .padding(4.0),
+        )
+        .child(
+            pressable(k, "help-report-issue".to_owned())
+                .px(8.0)
+                .py(4.0)
+                .border(1.0, k.c.border_muted)
+                .child(
+                    text("Report an issue on GitHub")
+                        .font(k.ty.caption())
+                        .color(k.c.text_accent),
+                )
+                .on_press_tx(|_: &mut State, tx: &mut Tx| {
+                    // Best-effort: the platform may have no URL opener.
+                    let _ = tx.open_url(ISSUES_URL);
+                }),
+        );
+    col()
+        .key("help-panel")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .child(
+            row()
+                .h(58.0)
+                .px(40.0)
+                .gap(10.0)
+                .center_y()
+                .child(
+                    text("Keyboard shortcuts")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(spacer())
+                .child(
+                    pressable(k, "help-close".to_owned())
+                        .px(10.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(text("Close").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(|s: &mut State| s.close_help()),
+                ),
+        )
+        .child(divider_h(k))
+        .child(
+            col()
+                .key("help-scroll")
+                .w_full()
+                .grow(1.0)
+                .min_h(0.0)
+                .items_center()
+                .scroll(ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(list.max_w(720.0)),
+        )
+}
+
+fn help_row(k: &Kit, keys: &str, action: &str) -> El {
+    row()
+        .w_full()
+        .min_h(26.0)
+        .px(4.0)
+        .gap(12.0)
+        .center_y()
+        .child(
+            text(keys.to_owned())
+                .font(TextStyle::new(11.0, 600.0))
+                .color(k.c.text_base)
+                .w(170.0),
+        )
+        .child(
+            text(action.to_owned())
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .grow(1.0),
+        )
+}
+
 /// The whole vault could not be scanned: show the OS error and Retry instead
 /// of an empty editor (which would read as "your notes are gone").
 fn vault_error_page(s: &State, k: &Kit) -> El {
@@ -1108,7 +1582,7 @@ fn vault_error_page(s: &State, k: &Kit) -> El {
                 .color(k.c.text_muted),
         )
         .child(
-            text("Choosing another folder is not available yet; pass --vault or set MUNINN_VAULT.")
+            text("Pick another folder from the sidebar vault chip, or pass --vault / set MUNINN_VAULT.")
                 .font(k.ty.caption())
                 .max_w(560.0)
                 .color(k.c.text_faint),
@@ -1854,6 +2328,14 @@ fn status_bar(s: &State, k: &Kit) -> El {
                     .truncate(),
             )
             .child(status_button(k, "Undo", "trash-undo", State::undo_trash));
+    }
+    if s.load_ms() >= 5.0 {
+        bar = bar.child(
+            text(format!("scan {:.0} ms", s.load_ms()))
+                .key("scan-ms")
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        );
     }
     bar.child(spacer()).child(status_meta(s, k))
 }

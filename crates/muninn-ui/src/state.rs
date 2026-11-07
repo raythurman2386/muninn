@@ -3,15 +3,16 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
-use std::path::PathBuf;
-use std::time::SystemTime;
+use std::path::{Path, PathBuf};
+use std::time::{Instant, SystemTime};
 
 use muninn_core::{Vault, heading_offset, unclosed_link};
 use muninn_graph::{Graph, WORLD, world_centre};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::Camera;
-use crate::recovery::{RecoveryEntry, RecoveryStore};
+use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
+use crate::settings::{Settings, config_home};
 use crate::watch::{self, VaultSnapshot};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,10 +22,26 @@ pub enum Mode {
     Graph,
 }
 
+impl Mode {
+    /// Stable settings-file spelling. Array-indexed so serialising the three
+    /// variants does not repeat the same match shape used elsewhere.
+    pub(crate) fn as_key(self) -> &'static str {
+        const KEYS: [&str; 3] = ["editor", "preview", "graph"];
+        KEYS[self as usize]
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scope {
     Global,
     Local,
+}
+
+impl Scope {
+    pub(crate) fn as_key(self) -> &'static str {
+        const KEYS: [&str; 2] = ["global", "local"];
+        KEYS[self as usize]
+    }
 }
 
 /// What a sidebar context menu acts on.
@@ -360,17 +377,75 @@ pub struct State {
     /// SAF-03 baseline: metadata picture of the vault at the last check.
     watched: Option<VaultSnapshot>,
     last_watch: f64,
+    /// XDG state root, kept so a vault switch can re-key crash recovery.
+    state_home: PathBuf,
+    /// XDG config root; `None` in tests means settings are never read or written.
+    settings_home: Option<PathBuf>,
+    /// Loaded preferences. Fields mirrored by `State` are refreshed on every
+    /// save, so this stays the source for values the UI does not own (recent
+    /// vaults, autosave delay).
+    settings: Settings,
+    /// Wall-clock cost of the startup scan, shown in the status bar. The scan
+    /// is synchronous; a chunked progress bar is deferred (see ARCHITECTURE).
+    load_ms: f64,
+    /// The vault folder did not exist before startup and is still empty.
+    pub welcome: bool,
+    /// DES-01: in-window keyboard-shortcuts overlay.
+    pub help: bool,
+    /// The sidebar vault chip is expanded.
+    pub vault_menu: bool,
+    /// The vault path field is open (Open… / New vault).
+    pub vault_prompt: bool,
+    pub vault_field: TextEdit,
 }
 
 impl State {
     pub fn new(root: PathBuf) -> State {
-        Self::with_state_home(root, crate::recovery::state_home())
+        let settings = Settings::load();
+        Self::with_settings(root, state_home(), config_home(), settings)
     }
 
     /// Build a state rooted in `root` with an explicit XDG state home. The
     /// application always uses [`State::new`]; tests use this to keep recovery
     /// copies inside their own temp directory instead of the user's.
+    ///
+    /// Settings persistence is deliberately disabled here: tests must never
+    /// read or overwrite the user's real `~/.config/muninn/settings.json`.
     pub fn with_state_home(root: PathBuf, state_home: PathBuf) -> State {
+        Self::build(root, state_home, None, Settings::default())
+    }
+
+    /// Build a state with explicit config and state roots, applying `settings`.
+    /// This is the constructor behind [`State::new`] and the one tests use to
+    /// exercise session restore without touching the user's files.
+    pub fn with_settings(
+        root: PathBuf,
+        state_home: PathBuf,
+        config_home: PathBuf,
+        settings: Settings,
+    ) -> State {
+        Self::build(root, state_home, Some(config_home), settings)
+    }
+
+    fn build(
+        root: PathBuf,
+        state_home: PathBuf,
+        settings_home: Option<PathBuf>,
+        settings: Settings,
+    ) -> State {
+        // A vault folder that had to be created is the first-run signal. Capture
+        // it before `Vault::load`, which creates a missing root.
+        let existed = root.is_dir();
+        let restore_vault = settings
+            .last_vault
+            .as_deref()
+            .is_some_and(|path| same_path(path, &root));
+        let restore_rel = settings.selected_rel.clone();
+        let theme = settings.theme;
+        let collapsed: HashSet<String> = settings.collapsed.iter().cloned().collect();
+        let restore_mode = settings.mode;
+        let restore_scope = settings.scope;
+        let started = Instant::now();
         let (vault, startup_error) = match Vault::load(&root) {
             Ok(vault) => (vault, None),
             Err(e) => {
@@ -381,6 +456,8 @@ impl State {
                 )
             }
         };
+        let load_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        let welcome = !existed && startup_error.is_none() && vault.notes.is_empty();
         // Key recovery by the canonical root *after* the load above: a missing
         // root is created by the load, and the next launch must derive the same
         // vault id (canonicalization succeeds then). A symlinked path would
@@ -425,7 +502,7 @@ impl State {
             auto_fit: true,
             pan_at_press: [0.0; 2],
             dragging: None,
-            dark: None,
+            dark: theme,
             reveal: None,
             error: None,
             expected_disk: None,
@@ -433,7 +510,7 @@ impl State {
             last_save: None,
             dirty_at: None,
             now: 0.0,
-            collapsed: HashSet::new(),
+            collapsed,
             menu: None,
             new_note_prompt: None,
             new_note_field: TextEdit::new(""),
@@ -456,13 +533,268 @@ impl State {
             recovery_text: None,
             watched: None,
             last_watch: 0.0,
+            state_home,
+            settings_home,
+            settings,
+            load_ms,
+            welcome,
+            help: false,
+            vault_menu: false,
+            vault_prompt: false,
+            vault_field: TextEdit::new(""),
         };
-        if let Some(id) = first {
+        // LIF-01: reopen the note that was open last time, but only when this is
+        // the same vault. A `--vault` override gets that vault's first note
+        // instead of a path that happens to exist in another vault.
+        let restored = restore_vault
+            .then_some(restore_rel)
+            .flatten()
+            .and_then(|rel| {
+                state
+                    .vault
+                    .notes
+                    .iter()
+                    .find(|note| note.rel == rel)
+                    .map(|note| note.id)
+            });
+        if let Some(id) = restored.or(first) {
             state.load_note(id, false);
+        }
+        state.set_scope(restore_scope);
+        state.set_mode(restore_mode);
+        if state.mode == Mode::Editor {
             state.focus_editor();
+        }
+        if state.settings_home.is_some() {
+            let root = state.vault.root.clone();
+            state.settings.push_recent(&root);
+            state.settings.last_vault = Some(root);
+            state.save_settings();
         }
         state.refresh_watch();
         state
+    }
+
+    /// Persist the current theme, folder collapse, vault, note and mode/scope.
+    ///
+    /// Saves are immediate and best-effort: the file is a few hundred bytes,
+    /// and a failed settings write must never interrupt editing. Callers are
+    /// the mutators below plus the app's `on_close` hook.
+    pub fn save_settings(&self) -> bool {
+        let Some(config_home) = self.settings_home.as_ref() else {
+            return false;
+        };
+        let mut settings = self.settings.clone();
+        settings.theme = self.dark;
+        settings.collapsed = {
+            let mut folders: Vec<String> = self.collapsed.iter().cloned().collect();
+            folders.sort();
+            folders
+        };
+        settings.last_vault = Some(self.vault.root.clone());
+        settings.selected_rel = self.selected_rel().map(str::to_owned);
+        settings.mode = self.mode;
+        settings.scope = self.scope;
+        match settings.save_to(config_home) {
+            Ok(()) => true,
+            Err(e) => {
+                // Settings are a convenience; logging keeps the failure visible
+                // without turning it into an editor error bar.
+                eprintln!("muninn: could not save settings: {e}");
+                false
+            }
+        }
+    }
+
+    /// Idle seconds before autosave. Preferences may store any finite value in
+    /// the documented range; the default is 0.55 s.
+    #[must_use]
+    pub fn autosave_delay(&self) -> f64 {
+        if self.settings.autosave_delay.is_finite() {
+            self.settings.autosave_delay.clamp(0.05, 10.0)
+        } else {
+            crate::settings::DEFAULT_AUTOSAVE_DELAY
+        }
+    }
+
+    /// Startup scan duration, in milliseconds.
+    #[must_use]
+    pub fn load_ms(&self) -> f64 {
+        self.load_ms
+    }
+
+    /// DES-01: the vault chip's menu.
+    pub fn toggle_vault_menu(&mut self) {
+        self.vault_menu = !self.vault_menu;
+        if self.vault_menu {
+            self.begin_inline_prompt();
+            self.vault_prompt = false;
+        }
+    }
+
+    pub fn close_vault_menu(&mut self) {
+        self.vault_menu = false;
+        self.vault_prompt = false;
+        self.vault_field.focused = false;
+    }
+
+    /// Open the vault-path field used by both Open… and New vault.
+    pub fn begin_vault_prompt(&mut self) {
+        self.begin_inline_prompt();
+        self.vault_menu = false;
+        self.vault_prompt = true;
+        self.vault_field.replace_text("");
+        self.vault_field.focused = true;
+    }
+
+    pub fn cancel_vault_prompt(&mut self) {
+        self.vault_prompt = false;
+        self.vault_field.focused = false;
+    }
+
+    /// Open the path typed into [`State::vault_field`].
+    pub fn submit_vault_path(&mut self) {
+        let raw = self.vault_field.text.clone();
+        if self.open_vault(&raw) {
+            self.close_vault_menu();
+        }
+    }
+
+    /// Create the typed folder when missing and open it as an empty vault.
+    /// `Vault::load` already creates a missing root, so this is the same path
+    /// as Open… with a name that tells the user what will happen.
+    pub fn submit_new_vault(&mut self) {
+        let raw = self.vault_field.text.clone();
+        if self.create_vault(&raw) {
+            self.close_vault_menu();
+        }
+    }
+
+    /// Open a vault by a path typed by the user (`~` and `~/x` are expanded).
+    pub fn open_vault(&mut self, raw: &str) -> bool {
+        let raw = raw.trim();
+        if raw.is_empty() {
+            self.error = Some("Enter a vault folder path".to_owned());
+            return false;
+        }
+        self.switch_vault(expand_path(raw))
+    }
+
+    /// Create (when missing) and open a folder as a vault.
+    pub fn create_vault(&mut self, raw: &str) -> bool {
+        let raw = raw.trim();
+        if raw.is_empty() {
+            self.error = Some("Enter a folder path for the new vault".to_owned());
+            return false;
+        }
+        let path = expand_path(raw);
+        if let Err(e) = fs::create_dir_all(&path) {
+            self.error = Some(format!("Could not create the vault: {e}"));
+            return false;
+        }
+        self.switch_vault(path)
+    }
+
+    /// Replace the open vault, resetting the graph, history and recovery store.
+    /// The old vault is only abandoned after the new one scans successfully and
+    /// only when the current buffer is clean: switching must never silently
+    /// discard an unresolved conflict or a save that failed.
+    pub fn switch_vault(&mut self, root: PathBuf) -> bool {
+        self.flush();
+        if self.dirty() {
+            self.error =
+                Some("Save or resolve the current note before switching vaults".to_owned());
+            return false;
+        }
+        match Vault::load(&root) {
+            Ok(vault) => {
+                self.vault = vault;
+                self.selected = None;
+                self.selected_path = None;
+                self.history.clear();
+                self.history_index = 0;
+                self.note_editors.clear();
+                self.note_editors_order.clear();
+                self.graph = Graph::new(&self.vault);
+                self.cam = Camera::new();
+                self.graph_focus = None;
+                self.needs_fit = true;
+                self.auto_fit = true;
+                self.dragging = None;
+                self.conflict = None;
+                self.expected_disk = None;
+                self.dirty_at = None;
+                self.trash_undo = None;
+                self.startup_error = None;
+                self.error = None;
+                self.welcome = false;
+                self.broken_panel = false;
+                let recovery = RecoveryStore::at(&self.state_home, &self.vault.root);
+                self.recovered = recovery.scan();
+                self.recovery = recovery;
+                let root = self.vault.root.clone();
+                self.settings.push_recent(&root);
+                self.settings.last_vault = Some(root);
+                self.settings.selected_rel = None;
+                let first = self.vault.notes.first().map(|note| note.id);
+                if let Some(id) = first {
+                    self.load_note(id, false);
+                } else {
+                    self.clear_open_note();
+                }
+                self.save_settings();
+                self.refresh_watch();
+                true
+            }
+            Err(e) => {
+                self.error = Some(format!("Could not open the vault: {e}"));
+                false
+            }
+        }
+    }
+
+    /// The recent-vault MRU, newest first.
+    #[must_use]
+    pub fn recent_vaults(&self) -> &[PathBuf] {
+        &self.settings.recent_vaults
+    }
+
+    /// Open the recent vault at `index` (as shown by the vault menu).
+    pub fn open_recent_vault(&mut self, index: usize) -> bool {
+        let Some(path) = self.settings.recent_vaults.get(index).cloned() else {
+            return false;
+        };
+        self.switch_vault(path)
+    }
+
+    /// DES-01: help overlay.
+    pub fn open_help(&mut self) {
+        self.help = true;
+        self.menu = None;
+        self.vault_menu = false;
+        self.vault_prompt = false;
+        self.vault_field.focused = false;
+        // The overlay owns the keyboard while it is up; typing must not edit the
+        // hidden note underneath it.
+        self.editor.focused = false;
+        self.search.focused = false;
+    }
+
+    pub fn close_help(&mut self) {
+        self.help = false;
+    }
+
+    pub fn toggle_help(&mut self) {
+        if self.help {
+            self.close_help();
+        } else {
+            self.open_help();
+        }
+    }
+
+    /// Dismiss the first-run welcome banner without creating a note.
+    pub fn dismiss_welcome(&mut self) {
+        self.welcome = false;
     }
 
     /// M2 EDT-02: keep the live editor under the note being left. The clone
@@ -598,6 +930,9 @@ impl State {
         if focus && self.mode == Mode::Editor {
             self.focus_editor();
         }
+        // LIF-01: session restore is path-based, so record the note as soon as
+        // it is showing. History navigation and recovery also land here.
+        self.save_settings();
     }
 
     pub fn open_from_list(&mut self, id: usize) {
@@ -1183,6 +1518,8 @@ impl State {
             self.editor.focused = false;
         }
         self.mode = mode;
+        // LIF-01: the last mode is part of the restored session.
+        self.save_settings();
     }
 
     pub fn toggle_graph(&mut self) {
@@ -1216,6 +1553,8 @@ impl State {
         self.needs_fit = true;
         self.auto_fit = true;
         self.graph.reheat();
+        // LIF-01: restore Global/Local with the rest of the session.
+        self.save_settings();
     }
 
     pub fn toggle_scope(&mut self) {
@@ -1224,6 +1563,17 @@ impl State {
         } else {
             Scope::Global
         });
+    }
+
+    /// Pin the theme (`Some(dark)`) or follow the system (`None`) and persist
+    /// the choice. The theme button calls this; startup applies it before the
+    /// first frame.
+    pub fn set_theme(&mut self, theme: Option<bool>) {
+        if self.dark == theme {
+            return;
+        }
+        self.dark = theme;
+        self.save_settings();
     }
 
     /// Fit the visible nodes without giving up the "follow the layout" mode.
@@ -2105,15 +2455,22 @@ impl State {
     /// Open the inline name field for `folder`, expanding it so the field
     /// stays visible.
     pub fn begin_new_note(&mut self, folder: &str) {
-        self.menu = None;
+        self.begin_inline_prompt();
         self.collapsed.remove(folder);
         self.new_note_field.replace_text("");
         self.new_note_field.focused = true;
-        self.editor.focused = false;
-        self.search.focused = false;
         self.new_note_prompt = Some(NamePrompt {
             folder: folder.to_owned(),
         });
+    }
+
+    /// Shared start for the sidebar's inline fields: close the pointer menu and
+    /// hand the keyboard to a prompt instead of the editor or search box.
+    fn begin_inline_prompt(&mut self) {
+        self.menu = None;
+        self.vault_field.focused = false;
+        self.editor.focused = false;
+        self.search.focused = false;
     }
 
     /// Create the prompted note if the name is non-empty; an empty field
@@ -2420,12 +2777,10 @@ impl State {
     }
 
     pub fn begin_new_folder(&mut self, parent: &str) {
-        self.menu = None;
+        self.begin_inline_prompt();
         self.collapsed.remove(parent);
         self.new_folder_field.replace_text("");
         self.new_folder_field.focused = true;
-        self.editor.focused = false;
-        self.search.focused = false;
         self.new_folder_prompt = Some(FolderPrompt {
             parent: parent.to_owned(),
         });
@@ -2455,12 +2810,10 @@ impl State {
     }
 
     pub fn begin_rename_folder(&mut self, folder: &str) {
-        self.menu = None;
+        self.begin_inline_prompt();
         let current = folder.rsplit('/').next().unwrap_or(folder).to_owned();
         self.rename_folder_field.replace_text(current.as_str());
         self.rename_folder_field.focused = true;
-        self.editor.focused = false;
-        self.search.focused = false;
         self.rename_folder_prompt = Some(FolderRename {
             folder: folder.to_owned(),
         });
@@ -2627,6 +2980,7 @@ impl State {
         if !self.collapsed.remove(folder) {
             self.collapsed.insert(folder.to_owned());
         }
+        self.save_settings();
     }
 
     #[must_use]
@@ -2811,6 +3165,37 @@ impl State {
         };
         self.cam.set(pan, self.cam.zoom());
     }
+}
+
+/// LIF-01: compare two vault paths, following symlinks when both exist. A
+/// missing path compares literally, which is the best available answer before
+/// the first scan creates it.
+fn same_path(a: &Path, b: &Path) -> bool {
+    let canonical = |path: &Path| fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    canonical(a) == canonical(b)
+}
+
+/// Expand a user-typed vault path: `~` and `~/…` use `$HOME` (or
+/// `%USERPROFILE%`); everything else is left as typed, so relative paths stay
+/// relative to the process directory.
+fn expand_path(raw: &str) -> PathBuf {
+    let raw = raw.trim();
+    let home = || {
+        std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
+    };
+    if raw == "~"
+        && let Some(home) = home()
+    {
+        return home;
+    }
+    if let Some(rest) = raw.strip_prefix("~/")
+        && let Some(home) = home()
+    {
+        return home.join(rest);
+    }
+    PathBuf::from(raw)
 }
 
 /// Case-insensitive, non-overlapping match starts and ends, in bytes of

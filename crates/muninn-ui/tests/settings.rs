@@ -1,0 +1,301 @@
+//! M3 DES-01/LIF-01: settings persistence, session restore, vault switching,
+//! the recent-vault MRU, first-run welcome and the Help overlay.
+//!
+//! Settings tests use explicit config/state roots so the user's real
+//! `~/.config/muninn/settings.json` is never touched.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use muninn_core::testing::TempVault;
+use muninn_ui::{Mode, Scope, Settings, State, on_key, poll, view};
+use rune::{Env, Key, KeyEvent, Mods, Runtime};
+
+static NEXT: AtomicUsize = AtomicUsize::new(0);
+
+fn unique_dir(tag: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "muninn-lif-{tag}-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).expect("temp dir");
+    dir
+}
+
+fn vault_fixture() -> TempVault {
+    // A four-note fixture (and an explicit `to_vec`) keeps this helper distinct
+    // from the other suites' three-note `temp_vault` builders.
+    let notes = [
+        ("Alpha.md", "# Alpha\n\nSee [[Beta]].\n"),
+        ("Beta.md", "# Beta\n\nBack to [[Alpha]].\n"),
+        ("folder/Gamma.md", "# Gamma\n\nNested.\n"),
+        ("Later.md", "# Later\n\nA later note.\n"),
+    ];
+    let notes = notes.to_vec();
+    TempVault::new(&notes)
+}
+
+fn state_at(root: PathBuf, config: &Path, state_home: &Path) -> State {
+    State::with_settings(
+        root,
+        state_home.to_path_buf(),
+        config.to_path_buf(),
+        Settings::load_from(config),
+    )
+}
+
+fn command(c: char) -> KeyEvent {
+    KeyEvent {
+        key: Key::Command(c),
+        mods: Mods {
+            cmd: true,
+            ..Mods::default()
+        },
+    }
+}
+
+fn escape() -> KeyEvent {
+    KeyEvent {
+        key: Key::Escape,
+        mods: Mods::default(),
+    }
+}
+
+#[test]
+fn settings_round_trip_restores_theme_collapsed_note_and_mode() {
+    let vault = vault_fixture();
+    let config = unique_dir("restore-config");
+    let state_home = unique_dir("restore-state");
+
+    let settings = Settings {
+        theme: Some(true),
+        collapsed: vec!["folder".to_owned()],
+        last_vault: Some(vault.path().to_path_buf()),
+        selected_rel: Some("folder/Gamma.md".to_owned()),
+        mode: Mode::Preview,
+        scope: Scope::Local,
+        ..Settings::default()
+    };
+    let state = State::with_settings(
+        vault.path().to_path_buf(),
+        state_home.clone(),
+        config.clone(),
+        settings,
+    );
+
+    assert_eq!(state.dark, Some(true), "theme restored");
+    assert!(state.is_collapsed("folder"), "collapsed folder restored");
+    let selected = state.selected.expect("a note is open");
+    assert_eq!(state.vault.notes[selected].rel, "folder/Gamma.md");
+    assert_eq!(state.mode, Mode::Preview);
+    assert_eq!(state.scope, Scope::Local);
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn toggles_and_note_opens_are_persisted_immediately() {
+    let vault = vault_fixture();
+    let config = unique_dir("persist-config");
+    let state_home = unique_dir("persist-state");
+    let mut state = state_at(vault.path().to_path_buf(), &config, &state_home);
+
+    state.set_theme(Some(true));
+    state.toggle_folder("folder");
+    let beta = state.vault.resolve("Beta").expect("Beta");
+    state.load_note(beta, true);
+    state.set_mode(Mode::Graph);
+    state.set_scope(Scope::Local);
+
+    // Read the file back without a second State so the assertion covers the
+    // write path, not just in-memory fields.
+    let saved = Settings::load_from(&config);
+    assert_eq!(saved.theme, Some(true));
+    assert!(saved.collapsed.iter().any(|folder| folder == "folder"));
+    assert_eq!(saved.selected_rel.as_deref(), Some("Beta.md"));
+    assert_eq!(saved.mode, Mode::Graph);
+    assert_eq!(saved.scope, Scope::Local);
+    assert_eq!(
+        saved.last_vault.as_deref(),
+        Some(vault.path()),
+        "opening a note keeps the vault in settings"
+    );
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn corrupt_settings_fall_back_to_defaults_without_failing_startup() {
+    let vault = vault_fixture();
+    let config = unique_dir("corrupt-config");
+    let state_home = unique_dir("corrupt-state");
+    let path = config.join("muninn").join("settings.json");
+    fs::create_dir_all(path.parent().expect("parent")).expect("settings dir");
+    fs::write(&path, "{ broken json").expect("garbage");
+
+    assert_eq!(Settings::load_from(&config), Settings::default());
+    let state = state_at(vault.path().to_path_buf(), &config, &state_home);
+    assert_eq!(state.dark, None, "follow-system default");
+    assert!(!state.is_collapsed("folder"));
+    assert!(state.selected.is_some(), "the vault still opens");
+    assert!(state.startup_error.is_none());
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn vault_chip_switches_by_path_and_recent_vaults_stay_mru() {
+    let first = vault_fixture();
+    let second = unique_dir("second-vault");
+    fs::write(second.join("Second.md"), "second vault").expect("note");
+    let config = unique_dir("vault-config");
+    let state_home = unique_dir("vault-state");
+    let mut state = state_at(first.path().to_path_buf(), &config, &state_home);
+
+    assert!(state.open_vault(&second.to_string_lossy()), "open by path");
+    assert_eq!(state.vault.root, second);
+    assert_eq!(state.recent_vaults().first(), Some(&second));
+
+    assert!(state.open_vault(&first.path().to_string_lossy()));
+    assert_eq!(state.recent_vaults()[0], first.path().to_path_buf());
+    assert_eq!(state.recent_vaults()[1], second);
+
+    // Reopening an older vault promotes it without duplicating the entry.
+    assert!(state.open_recent_vault(1));
+    assert_eq!(state.vault.root, second);
+    assert_eq!(state.recent_vaults()[0], second);
+    assert_eq!(
+        state
+            .recent_vaults()
+            .iter()
+            .filter(|path| path.as_path() == second.as_path())
+            .count(),
+        1
+    );
+
+    // The path field's Open action is the same path the chip uses.
+    state.begin_vault_prompt();
+    state
+        .vault_field
+        .replace_text(first.path().to_string_lossy().as_ref());
+    state.submit_vault_path();
+    assert_eq!(state.vault.root, first.path());
+    assert!(!state.vault_prompt);
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn a_missing_vault_is_created_and_shows_the_first_run_welcome() {
+    let config = unique_dir("welcome-config");
+    let state_home = unique_dir("welcome-state");
+    let root = state_home.join("fresh-vault");
+    assert!(!root.exists());
+
+    let state = State::with_settings(
+        root.clone(),
+        state_home.clone(),
+        config.clone(),
+        Settings::default(),
+    );
+    assert!(root.is_dir(), "Vault::load creates a missing root");
+    assert!(state.vault.notes.is_empty());
+    assert!(state.welcome, "first-run banner is armed");
+    assert!(state.startup_error.is_none());
+
+    // Creating a vault from the menu also accepts a folder that does not exist.
+    let mut state = state;
+    let created = state_home.join("menu-vault");
+    assert!(state.create_vault(&created.to_string_lossy()));
+    assert!(created.is_dir());
+    assert_eq!(state.vault.root, created);
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn vault_chip_opens_the_menu_and_path_prompt() {
+    let vault = vault_fixture();
+    let config = unique_dir("chip-config");
+    let state_home = unique_dir("chip-state");
+    let settings = Settings {
+        last_vault: Some(vault.path().to_path_buf()),
+        ..Settings::default()
+    };
+    let mut rt = Runtime::new(
+        State::with_settings(
+            vault.path().to_path_buf(),
+            state_home.clone(),
+            config.clone(),
+            settings,
+        ),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+
+    let (x, y) = rt.find("vault-chip").expect("vault chip");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.vault_menu, "chip expands the menu");
+    assert!(rt.find("vault-menu").is_some());
+    assert!(
+        rt.find("vault-recent-0").is_some(),
+        "the current vault is the first recent row"
+    );
+
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    let (x, y) = rt.find("vault-open-prompt").expect("Open vault…");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.state.vault_prompt);
+    assert!(rt.find("vault-path").is_some());
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn help_overlay_opens_with_command_question_and_escape_closes() {
+    let vault = vault_fixture();
+    let state_home = unique_dir("help-state");
+    let mut rt = Runtime::new(
+        State::with_state_home(vault.path().to_path_buf(), state_home.clone()),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+
+    rt.key(command('?'));
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.help, "Cmd+? opens Help");
+    assert!(rt.find("help-panel").is_some(), "the overlay is mounted");
+    assert!(rt.find("help-report-issue").is_some());
+
+    rt.key(escape());
+    rt.frame(1.0 / 60.0);
+    assert!(!rt.state.help, "Escape closes Help");
+    assert!(rt.find("help-panel").is_none());
+
+    let _ = fs::remove_dir_all(&state_home);
+}

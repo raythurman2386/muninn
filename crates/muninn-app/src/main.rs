@@ -8,11 +8,13 @@
 //! cargo run -p muninn-app -- --vault ~/notes
 //! ```
 //!
-//! Without `--vault`, Muninn opens `$MUNINN_VAULT` or `~/Muninn`.
+//! Without `--vault` or `$MUNINN_VAULT`, Muninn reopens the last vault recorded
+//! in `$XDG_CONFIG_HOME/muninn/settings.json`, then falls back to `~/Muninn`.
+//! A missing last vault folder is created empty on first run.
 
 use std::path::PathBuf;
 
-use muninn_ui::{Mode, Scope, State, on_key, poll, view};
+use muninn_ui::{Mode, Scope, Settings, State, on_key, poll, view};
 use rune::AppSpec;
 use rune_theme_opencode as theme;
 
@@ -39,16 +41,31 @@ fn main() {
             // changed file and returns `false`. That is intentional: closing must not
             // force-overwrite work the user has not resolved.
             s.save_now();
+            // LIF-01: settings are also written on each toggle/open, but the close
+            // hook captures the final note/mode if the window is closed right after
+            // a change that did not reach a mutator.
+            s.save_settings();
         })
         .run();
 }
 
 fn init() -> State {
-    State::new(vault_path(rune::extra_args()))
+    let settings = Settings::load();
+    State::new(vault_path(rune::extra_args(), &settings))
 }
 
-fn vault_path(args: &[String]) -> PathBuf {
-    vault_arg(args).unwrap_or_else(default_vault)
+/// `--vault` wins over `$MUNINN_VAULT`, which wins over the last vault in
+/// settings, which falls back to `~/Muninn`.
+fn vault_path(args: &[String], settings: &Settings) -> PathBuf {
+    if let Some(path) = vault_arg(args) {
+        return path;
+    }
+    if let Some(path) = std::env::var_os("MUNINN_VAULT")
+        && !path.is_empty()
+    {
+        return PathBuf::from(path);
+    }
+    settings.last_vault.clone().unwrap_or_else(default_vault)
 }
 
 fn vault_arg(args: &[String]) -> Option<PathBuf> {
@@ -69,9 +86,6 @@ fn vault_arg(args: &[String]) -> Option<PathBuf> {
 }
 
 fn default_vault() -> PathBuf {
-    if let Some(path) = std::env::var_os("MUNINN_VAULT") {
-        return PathBuf::from(path);
-    }
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map_or_else(
@@ -148,7 +162,7 @@ mod tests {
         let note = dir.join("Note.md");
         fs::write(&note, "original").expect("fixture");
 
-        let mut state = State::new(dir.clone());
+        let mut state = State::with_state_home(dir.clone(), dir.with_extension("state"));
         assert_eq!(state.vault.notes.len(), 1);
         state.editor.replace_text("edited on close");
         assert!(state.dirty());

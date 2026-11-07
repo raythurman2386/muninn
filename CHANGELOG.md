@@ -8,6 +8,19 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- Session restore and settings (LIF-01): theme, collapsed folders, the last vault and note,
+  Write/Read/Graph mode, Global/Local scope and the recent-vault MRU persist in
+  `$XDG_CONFIG_HOME/muninn/settings.json` (fallback `~/.config/muninn/`). Writes are immediate
+  and atomic; a corrupt or missing file starts from defaults instead of failing.
+- Vault switching (LIF-01): the sidebar vault chip opens an in-window menu with **Open vault…**
+  (typed path, `~` expansion), **New vault…** (creates a missing folder) and the five most
+  recent vaults, newest first. A successful open resets the graph, history and recovery store.
+- Help overlay (DES-01): `Cmd/Ctrl+?`, the sidebar `?` button, or plain `?` outside a text field
+  opens a grouped shortcut map with autosave timing, the version and a GitHub issue link.
+  `Esc` closes it; there is no native menu bar on Linux.
+- First-run welcome and scan timing (LIF-01): a vault folder created at launch shows
+  "New vault created at … — make your first note" instead of an empty editor, and the status
+  bar reports the synchronous startup scan time. A chunked progress bar remains for M3 Lane 3.
 - Large-vault graph performance (GRP-01): repulsion and card separation now use a
   uniform spatial grid above 200 notes, with a density-tapered cutoff and force
   normalisation. A 2000-note star+chain fixture steps at 4.8 ms p95 in release

@@ -38,7 +38,22 @@ cargo run -p muninn-app -- --vault ~/notes
 MUNINN_VAULT=~/notes cargo run -p muninn-app
 ```
 
-Without `--vault` or `MUNINN_VAULT`, Muninn opens `~/Muninn` and creates it when needed.
+Without `--vault` or `MUNINN_VAULT`, Muninn reopens the last vault recorded in its
+settings file (falling back to `~/Muninn`, created when needed).
+
+### Settings and vaults
+
+Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
+`~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
+missing file starts from defaults instead of blocking startup. It remembers the theme,
+collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
+autosave delay (0.55 s by default) and up to five recent vaults.
+
+The **vault chip** at the top of the sidebar opens an in-window menu — there is no native
+menu bar on Linux. **Open vault…** takes a typed path (`~` expands to your home folder) and
+**New vault…** creates a missing folder and opens it empty. Recent vaults are listed newest
+first, and opening one promotes it to the top. `Cmd/Ctrl+?` (or the sidebar `?` button, or plain
+`?` when no text field has focus) opens the full shortcut map; `Esc` closes it.
 
 ## What it does
 
@@ -104,6 +119,9 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `Esc` | Leave the graph |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
+| `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |
+| `?` (when not typing) | Open Help; `Esc` closes it |
+| Vault chip | Open / recent / new vault, typed path support |
 
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
 full vault-relative stem, so a link keeps working when two notes share a title.

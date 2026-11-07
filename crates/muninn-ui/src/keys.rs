@@ -12,6 +12,19 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     // Escape dismisses inline prompts/menus before falling through to the
     // graph escape below. Text fields handle Escape first and never reach here.
     if e.key == Key::Escape {
+        // DES-01: the help overlay and the vault menu are the outermost layers.
+        if s.help {
+            s.close_help();
+            return true;
+        }
+        if s.vault_prompt {
+            s.cancel_vault_prompt();
+            return true;
+        }
+        if s.vault_menu {
+            s.close_vault_menu();
+            return true;
+        }
         // M2 EDT-03: autocomplete dismisses before find, prompts and menus.
         if s.complete.is_some() {
             s.dismiss_complete();
@@ -91,7 +104,18 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         || s.rename_prompt.is_some()
         || s.new_folder_prompt.is_some()
         || s.rename_folder_prompt.is_some();
+    // DES-01: Cmd/Ctrl+? opens Help from anywhere, including the editor (it is
+    // a command chord, not typed text). Plain `?` also works when no text field
+    // owns the keyboard; inside the editor `?` stays a literal question mark.
+    if e.is_command('?') {
+        s.toggle_help();
+        return true;
+    }
     if !typing {
+        if e.key == Key::Text("?".to_owned()) {
+            s.toggle_help();
+            return true;
+        }
         if e.key == Key::Function(2)
             && let Some(id) = s.selected
         {

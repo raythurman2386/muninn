@@ -25,7 +25,6 @@
 //! A recovery file is removed as soon as the buffer reaches disk or the user
 //! discards it. Clean buffers are never written here.
 
-use std::env;
 use std::fs::{self, File};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
@@ -143,17 +142,7 @@ impl RecoveryStore {
 /// The XDG state root: `$XDG_STATE_HOME`, else `$HOME/.local/state`, else a
 /// temp fallback for platforms without either variable.
 pub(crate) fn state_home() -> PathBuf {
-    if let Some(value) = env::var_os("XDG_STATE_HOME")
-        && !value.is_empty()
-    {
-        return PathBuf::from(value);
-    }
-    if let Some(home) = env::var_os("HOME")
-        && !home.is_empty()
-    {
-        return PathBuf::from(home).join(".local").join("state");
-    }
-    env::temp_dir().join("muninn-state")
+    crate::settings::xdg_dir("XDG_STATE_HOME", &[".local", "state"], "muninn-state")
 }
 
 /// Stable 64-bit FNV-1a of the canonical vault path.

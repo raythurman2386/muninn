@@ -39,7 +39,7 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
 
     if s.dirty() {
         let since = *s.dirty_at.get_or_insert(t);
-        if t - since >= 0.55 {
+        if t - since >= s.autosave_delay() {
             let before_error = s.error.clone();
             let saved = s.save_now();
             // A save that reached disk flips the status bar from "Saving…"

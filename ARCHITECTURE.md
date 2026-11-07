@@ -82,6 +82,14 @@ is not in this table. That check is part of `xtask check` and CI.
    external reload or conflict resolution discards stale history instead of undoing
    into discarded text. Rename and move re-key the open note's entry.
 
+10. **Settings (M3 LIF-01).** UI preferences — theme, collapsed folders, last vault/note,
+    mode/scope, recent-vault MRU and the autosave delay — are written as small JSON to
+    `$XDG_CONFIG_HOME/muninn/settings.json` (fallback `~/.config/muninn/`) with the same
+    temp-file + rename pattern as note saves; a corrupt file falls back to defaults. The
+    startup vault scan stays synchronous and reports its duration in the status bar; a
+    chunked progress bar/cancel path is deferred to M3 Lane 3. Rune's `AppSpec` window size
+    remains fixed; geometry persistence is deferred with the same lane.
+
 ## Invariants
 
 - **Note ids are indexes.** `Note::id` is always the position in `Vault::notes`. The graph uses
