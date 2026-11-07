@@ -40,13 +40,15 @@ Without `--vault` or `MUNINN_VAULT`, Muninn opens `~/Muninn` and creates it when
 
 - **Write / Read / Graph** modes for the same note.
 - Autosave after a short idle, with a `Saved` indicator in the status bar.
-- Searchable note list, a links rail with outgoing links and backlinks (including the line that
-  made each link), and a one-click local graph.
+- Searchable note list grouped by folder with collapsing sections, a links rail with outgoing links
+  and backlinks (including the line that made each link), and a one-click local graph.
 - **Global** and **Local** graph views. Local keeps the open note and its immediate neighbours.
 - Dragging a graph node pins it while you drag; the force layout settles around it. Drag the
-  background to pan, scroll to pan, pinch or Ctrl/Cmd+scroll to zoom.
+  background to pan, scroll to zoom at the pointer, Shift+scroll to pan, pinch or Ctrl/Cmd+scroll
+  to zoom.
 - Unresolved wikilinks are drawn faintly in Read mode. Clicking one creates the note and opens
-  it in Write mode.
+  it in Write mode. Path-qualified links (`[[folder/note]]`) resolve to that folder; a bare
+  title shared by several notes resolves deterministically and displays with its folder.
 
 In **Local** mode the graph keeps the open note and its immediate neighbours:
 
