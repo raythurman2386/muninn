@@ -18,7 +18,7 @@ jobs:
     name: fmt / clippy / test / layers
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux window dependencies
         run: |
@@ -52,7 +52,7 @@ jobs:
     env:
       RUSTDOCFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux window dependencies
         run: |
