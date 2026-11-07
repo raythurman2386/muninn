@@ -230,10 +230,10 @@ impl Graph {
     /// not report “changed” just because heat has not reached zero yet.
     /// Callers that need the cooling timer read [`Graph::heat`] directly.
     ///
-    /// Above [`EXHAUSTIVE_LIMIT`] nodes a cooled layout goes dormant when the
-    /// fastest node is below `0.4 pt/step`; from then on this returns false
-    /// without integrating (positions are frozen). [`Graph::reheat`] resumes
-    /// it, as does a sync that adds/removes nodes or links.
+    /// Above the exhaustive-layout limit nodes a cooled layout goes dormant
+    /// when the fastest node is below `0.4 pt/step`; from then on this
+    /// returns false without integrating (positions are frozen). [`Graph::reheat`]
+    /// resumes it, as does a sync that adds/removes nodes or links.
     pub fn step(&mut self) -> bool {
         if self.nodes.is_empty() {
             return false;

@@ -3884,7 +3884,7 @@ fn find_matches(text: &str, query: &str) -> (Vec<usize>, Vec<usize>) {
 
 /// The platform command that opens or reveals `path`.
 ///
-/// Kept separate from [`State::run_file_action`] so the command shape is
+/// Kept separate from the runner so the command shape is
 /// testable without launching anything. Linux/BSD: `xdg-open` (the file for
 /// Open, its parent folder for Reveal). macOS: `open` / `open -R`. Windows:
 /// `cmd /C start ""` / `explorer /select,`. Any other target returns a message
