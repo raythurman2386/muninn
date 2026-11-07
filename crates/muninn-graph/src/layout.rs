@@ -17,6 +17,11 @@ pub const NODE_W: f32 = 136.0;
 pub const NODE_H: f32 = 38.0;
 
 const REPULSION: f32 = 9000.0;
+/// Pairs farther apart contribute at most `REPULSION / 800² ≈ 0.014` and are
+/// skipped. The sample vault's largest pair distance is below this, so its
+/// layout (and snapshots) are unchanged; larger vaults skip about half their
+/// pairs. The cutoff is fixed, so the result stays deterministic.
+const REPULSION_CUTOFF_SQ: f32 = 800.0 * 800.0;
 const SPRING: f32 = 0.008;
 const LINK_LEN: f32 = 132.0;
 const GRAVITY: f32 = 0.0016;
@@ -134,7 +139,11 @@ impl Graph {
             for j in i + 1..n {
                 let dx = self.nodes[j].pos[0] - self.nodes[i].pos[0];
                 let dy = self.nodes[j].pos[1] - self.nodes[i].pos[1];
-                let d2 = (dx * dx + dy * dy).max(36.0);
+                let d2_raw = dx * dx + dy * dy;
+                if d2_raw > REPULSION_CUTOFF_SQ {
+                    continue;
+                }
+                let d2 = d2_raw.max(36.0);
                 let d = d2.sqrt();
                 let f = REPULSION / d2;
                 let ux = dx / d;
@@ -250,44 +259,47 @@ impl Graph {
 /// Keep the wide node cards out of each other's labels. Two passes of rectangle separation
 /// per step, along the axis with the smaller overlap.
 fn separate(nodes: &mut [GNode]) -> bool {
-    const PAD_X: f32 = 28.0;
-    const PAD_Y: f32 = 15.0;
     let mut moved = false;
     for _ in 0..2 {
         for i in 0..nodes.len() {
             for j in i + 1..nodes.len() {
-                let dx = nodes[j].pos[0] - nodes[i].pos[0];
-                let dy = nodes[j].pos[1] - nodes[i].pos[1];
-                let ox = NODE_W + PAD_X - dx.abs();
-                let oy = NODE_H + PAD_Y - dy.abs();
-                if ox <= 0.0 || oy <= 0.0 {
-                    continue;
+                if separate_pair(nodes, i, j) {
+                    moved = true;
                 }
-                let (share_i, share_j) = match (nodes[i].fixed, nodes[j].fixed) {
-                    (true, true) => continue,
-                    (true, false) => (0.0, 1.0),
-                    (false, true) => (1.0, 0.0),
-                    (false, false) => (0.5, 0.5),
-                };
-                // `u` points from j to i along the axis of smaller overlap.
-                let (ux, uy, amount) = if ox < oy {
-                    (if dx >= 0.0 { -1.0 } else { 1.0 }, 0.0, ox)
-                } else {
-                    (0.0, if dy >= 0.0 { -1.0 } else { 1.0 }, oy)
-                };
-                nodes[i].pos[0] =
-                    (nodes[i].pos[0] + ux * amount * share_i).clamp(EDGE, WORLD[0] - EDGE);
-                nodes[i].pos[1] =
-                    (nodes[i].pos[1] + uy * amount * share_i).clamp(EDGE, WORLD[1] - EDGE);
-                nodes[j].pos[0] =
-                    (nodes[j].pos[0] - ux * amount * share_j).clamp(EDGE, WORLD[0] - EDGE);
-                nodes[j].pos[1] =
-                    (nodes[j].pos[1] - uy * amount * share_j).clamp(EDGE, WORLD[1] - EDGE);
-                moved = true;
             }
         }
     }
     moved
+}
+
+/// Separate one pair, if it overlaps. Returns true when a position changed.
+fn separate_pair(nodes: &mut [GNode], i: usize, j: usize) -> bool {
+    const PAD_X: f32 = 28.0;
+    const PAD_Y: f32 = 15.0;
+    let dx = nodes[j].pos[0] - nodes[i].pos[0];
+    let dy = nodes[j].pos[1] - nodes[i].pos[1];
+    let ox = NODE_W + PAD_X - dx.abs();
+    let oy = NODE_H + PAD_Y - dy.abs();
+    if ox <= 0.0 || oy <= 0.0 {
+        return false;
+    }
+    let (share_i, share_j) = match (nodes[i].fixed, nodes[j].fixed) {
+        (true, true) => return false,
+        (true, false) => (0.0, 1.0),
+        (false, true) => (1.0, 0.0),
+        (false, false) => (0.5, 0.5),
+    };
+    // `u` points from j to i along the axis of smaller overlap.
+    let (ux, uy, amount) = if ox < oy {
+        (if dx >= 0.0 { -1.0 } else { 1.0 }, 0.0, ox)
+    } else {
+        (0.0, if dy >= 0.0 { -1.0 } else { 1.0 }, oy)
+    };
+    nodes[i].pos[0] = (nodes[i].pos[0] + ux * amount * share_i).clamp(EDGE, WORLD[0] - EDGE);
+    nodes[i].pos[1] = (nodes[i].pos[1] + uy * amount * share_i).clamp(EDGE, WORLD[1] - EDGE);
+    nodes[j].pos[0] = (nodes[j].pos[0] - ux * amount * share_j).clamp(EDGE, WORLD[0] - EDGE);
+    nodes[j].pos[1] = (nodes[j].pos[1] - uy * amount * share_j).clamp(EDGE, WORLD[1] - EDGE);
+    true
 }
 
 fn seed(index: usize, rel: &str) -> [f32; 2] {
