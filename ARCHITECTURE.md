@@ -24,34 +24,131 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
 `cargo run -p xtask -- layers` reads `cargo metadata` and rejects any new `muninn-*` edge that
 is not in this table. That check is part of `xtask check` and CI.
 
+The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-core` directly
+(and `--check` never creates a missing vault) before Rune starts a window or GPU context.
+
 ## Data flow
 
 1. **Scan.** `muninn_core::Vault::load` walks the root (up to 12 levels, skipping dot-dirs),
-   reads every `.md` file and records its title, vault-relative path, folder and source.
+   reads every `.md` file and records its title, vault-relative path, folder and source. The
+   walk is a metadata pass; reading bodies is the expensive part. `Vault::scan_start` returns a
+   `ScanJob` with the same sorted path/folder lists, `read_chunk(n)` reads a bounded number of
+   files, and `finish` builds the vault. `Vault::load` is exactly `scan_start` + one unbounded
+   chunk + `finish`, so both paths produce identical indexes. On startup the UI loads vaults of
+   up to 100 files synchronously; above that `poll` advances 50 files per frame behind a
+   progress bar, and Escape cancels without ever installing a partial vault.
 2. **Index.** `Vault::reindex` resolves every `[[wikilink]]` through lower-cased
    path/title indexes and writes each note's `links` and `backlinks` lists. Both are
-   unique and sorted. The sidebar groups notes by folder; duplicate titles are
-   identified by their vault-relative path.
+   unique and sorted. It also caches unresolved targets with their referrers
+   (`Vault::broken_links`) so the dashboard never scans notes per frame. The sidebar
+   groups notes by folder; duplicate titles are identified by their vault-relative path.
 3. **Layout.** `muninn_graph::Graph::sync` mirrors the vault as nodes and undirected,
    deduplicated edges, keyed by `rel` so duplicates keep distinct nodes. `Graph::step`
-   runs one deterministic force step and reports true only when a node actually moved.
+   runs one deterministic force step and reports true only when a node actually moved;
+   above 200 notes repulsion and separation use a uniform spatial grid with a
+   density-tapered cutoff, while smaller vaults keep the exhaustive pass unchanged.
+   Dense vaults seed their spiral scaled to fit the world, damp velocity a little harder,
+   absorb separation corrections into velocity (position-based damping), and go dormant
+   once heat is zero and no node moves faster than 0.4 pt/step. Dormancy freezes positions
+   with a bounded sub-pixel residual, so `poll` can sleep; `reheat` (drag, scope/mode
+   change, resync) resumes the simulation. A 2,000-note fixture goes quiet by frame ~2,600;
+   the exhaustive ≤200-note path and the sample layout stay bit-identical.
 4. **Render.** `muninn_ui::view` builds the Rune element tree from `State`. The graph camera
    publishes pan/zoom through `Live` values so a drag redraws without rebuilding the tree.
    `poll` reports true only when visible state changed (a save completed, a node moved,
    or the camera fit moved the view), never just because the editor is dirty or heat remains.
-5. **Save.** `muninn_ui::poll` notices an edited buffer, waits 0.55 s of idle, writes the file
-   and re-indexes. A failed write becomes a status-bar error, never a silent change.
+5. **Save.** `muninn_ui::poll` notices an edited buffer, waits 0.55 s of idle, and writes the
+   file only when its on-disk `(mtime, length)` still matches what the editor loaded. The write
+   is atomic (a hidden, uniquely named temp file in the same folder is flushed and fsynced,
+   then renamed over the old one) and re-indexes. An external change or deletion pauses
+   autosave and raises a conflict (Keep mine / Load theirs / Save copy) instead of
+   overwriting; a failed write becomes a status-bar error with Retry, never a silent change
+   or a truncated file.
+6. **Crash recovery (SAF-05).** While a buffer is dirty it is copied, after a 0.2 s idle
+   (and at most one second apart during continuous typing), to the XDG state directory:
+   `$XDG_STATE_HOME/muninn/recovery/<sanitized-rel>.txt`, with a tiny
+   `<sanitized-rel>.json` sidecar holding the exact vault-relative path, a stable hash of
+   the canonical vault root and a Unix timestamp. The hash keeps two vaults that share a
+   note name from listing each other's edits. The copy uses the same temp-file + fsync +
+   rename pattern, so a `kill -9` leaves the newest complete text. Clean buffers are never
+   written; saving, discarding or resolving a conflict to the incoming file removes the
+   copy. On launch `State::new` scans that folder and shows a banner with the note paths
+   plus Restore/Restore all/Dismiss. The vault itself is never used for recovery state.
+7. **External changes (SAF-03).** Every 1.5 s `poll` takes a metadata-only snapshot of the
+   vault (`fs::metadata` for each note and known folder; no file contents) and compares it
+   with the previous one. Folder mtimes make new, renamed and deleted notes visible without
+   a rescan. A change to a clean vault reloads it while preserving selection, mode, scope
+   and collapsed folders. A change to the dirty open note raises the same typed conflict as
+   a guarded save instead of touching the buffer; reloads are deferred until that buffer is
+   clean. A snapshot failure is represented as a missing entry and stays quiet rather than
+   reporting every tick.
+8. **Navigation (M2).** Back/Forward is a path-keyed history deque, not a tab model: every
+   `load_note` that changes the selection appends the note's path (consecutive repeats
+   collapse, a new open truncates the abandoned forward branch, the list is capped at 100).
+   Storing paths instead of note ids keeps history valid across a reload, where ids are
+   rebuilt from the scan; each entry also keeps the caret to restore. In-note find matches
+   are recomputed once a frame in `poll` from the query and editor text, because the view
+   only borrows `State` and typing commits after the key handler runs.
+9. **Per-note undo (M2 EDT-02).** Rune's `TextEdit` owns its undo stack, and
+   `replace_text` clears it when the app swaps notes. `State` therefore parks a clone of
+   the whole `TextEdit` in a path-keyed, 24-entry cache whenever a note is left; cloning
+   shares Rune's immutable history until the next edit. On revisit the snapshot is
+   restored only while its text still equals the file the vault will show, so an
+   external reload or conflict resolution discards stale history instead of undoing
+   into discarded text. Rename and move re-key the open note's entry.
+
+10. **Settings (M3 LIF-01).** UI preferences — theme, collapsed folders, last vault/note,
+    mode/scope, recent-vault MRU and the autosave delay — are written as small JSON to
+    `$XDG_CONFIG_HOME/muninn/settings.json` (fallback `~/.config/muninn/`) with the same
+    temp-file + rename pattern as note saves; a corrupt file falls back to defaults. The
+    startup vault scan is synchronous up to 100 files and chunked (see step 1) above that;
+    `load_ms` covers the whole load in either case. Rune's `AppSpec` window size
+    remains fixed at 1180×780. Window geometry persistence is **BLOCKED**, not
+    merely deferred: Rune (rev `b39c24f`) exposes the setters — `AppSpec::size`
+    (`crates/rune/src/tooling.rs:19`, applied as the inner size at
+    `crates/rune/src/windows.rs:148`), `Tx::resize_window`
+    (`crates/rune/src/el/tx.rs:255`), `WindowHandle::resize`
+    (`crates/rune/src/window/handle.rs:84`) and `AppHandle::set_position`
+    (`crates/rune/src/app.rs:579`) — but no getter for the live window's size or
+    position on `AppHandle`, `WindowHandle` or `Cx`. `El::on_screen_layout`
+    (`crates/rune/src/el/layout_watch.rs:63`) reports a content rect in display
+    points (hidden on Wayland) and cannot be converted to the physical **outer**
+    position those setters take. Rune's only persistence helper,
+    `rune_mac::remember_frame` / `saved_size` (`crates/rune-mac/src/lib.rs:15,78`),
+    uses AppKit's frame autosave and is a no-op elsewhere. `Settings` therefore
+    has no window field: a value written from a guess could not be read back.
 
 ## Invariants
 
 - **Note ids are indexes.** `Note::id` is always the position in `Vault::notes`. The graph uses
   the same ids for nodes and edges.
-- **Links are resolved, not stored.** Changing a title re-resolves on the next `reindex`; no
-  cross-file state needs repairing.
-- **Determinism.** The initial graph layout depends only on note order and path hash. Tests
-  compare settled positions exactly.
-- **No hidden state on disk.** Only `.md` files are written. The sample vault is ordinary
-  content used by tests and snapshots.
+- **Links are resolved, not stored.** Changing a title re-resolves on the next `reindex`;
+  the index is always derived from the files. Rename/move can additionally rewrite inbound
+  wikilink source (SAF-06, per file and atomic, including folder renames), but that is a
+  user-chosen file edit, not index state: the next scan would still work without it.
+- **Determinism.** The initial graph layout depends only on note order and path hash, and the
+  large-vault grid visits cells in a fixed order (never hash iteration). Tests compare settled
+  positions exactly.
+- **No side database.** Only `.md` files are written, plus the hidden trash folder: a note
+  delete moves it to `.muninn-trash/<timestamp>/<original path>` (skipped by the scan) and
+  Undo renames it back, never overwriting. The trash is budgeted, not a database: after each
+  successful move it is pruned oldest-timestamp-first to at most 500 files or 100 MiB
+  (`Vault::TRASH_MAX_ENTRIES` / `TRASH_MAX_BYTES`), and **Empty trash** renames the whole
+  folder aside before deleting it, so a failure can never touch a live note. Pruning is
+  best-effort and never fails the delete. A root that exists but is not a readable folder is
+  an error, not an empty vault. The sample vault stays ordinary content used by tests and
+  snapshots.
+- **Attachments stay outside the index.** Only `.md` files are notes. An embed such as
+  `![[pic.png]]` becomes a filename+size placeholder, and the reader lists attachment files
+  with an Open action. Open/Reveal spawn the platform handler on a canonical path
+  (`xdg-open`/`open`/`start`) because Rune's `Tx::open_url` refuses `file:`; drag-drop imports
+  copy accepted files into the current folder with the same temp+rename rule and never
+  overwrite an existing name.
+- **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
+  note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
+  atomic rename. A crash or failed write leaves the previous bytes intact instead of a
+  truncated file. Crash-recovery copies use the same pattern under the XDG state directory
+  and are deleted once their buffer is saved, so the vault never accumulates recovery files.
 - **Code is not a link.** Wikilinks inside inline code and fenced blocks are ignored by the
   parser and preserved by the preview rewriter.
 
@@ -71,7 +168,11 @@ Links to the current note are allowed in the source but do not produce self-edge
 Unresolved targets stay in the source, render faintly, and create a note when clicked —
 path-qualified ones inside their folder, bare ones in the current note's folder.
 New notes otherwise target the selected note's folder; each folder header's `+` chooses a
-different one. Dot-directories stay ignored by the scan.
+different one. Dot-directories stay ignored by the scan. Heading links
+(`[[Note#Heading]]`) resolve the note and then put the Write caret on that heading line or
+scroll the Read view to it, matching case-insensitively outside fenced blocks; a missing
+heading opens the note at the top. Rename/move rewrites only targets that resolved to the
+note before the change, so a bare duplicate title that resolved elsewhere is untouched.
 
 ## Scaling notes
 

@@ -8,19 +8,59 @@
 //! cargo run -p muninn-app -- --vault ~/notes
 //! ```
 //!
-//! Without `--vault`, Muninn opens `$MUNINN_VAULT` or `~/Muninn`.
+//! Without `--vault` or `$MUNINN_VAULT`, Muninn reopens the last vault recorded
+//! in `$XDG_CONFIG_HOME/muninn/settings.json`, then falls back to `~/Muninn`.
+//! A missing last vault folder is created empty on first run.
+//!
+//! `--check` and `--list-links` are headless vault inspectors; they return
+//! before any Rune window or GPU context exists. `--trace` adds every autosave
+//! tick to `$XDG_STATE_HOME/muninn/session.log`.
 
-use std::path::PathBuf;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use muninn_ui::{Mode, Scope, State, on_key, poll, view};
+use muninn_core::{Vault, parse_links};
+use muninn_ui::{Mode, Scope, Settings, State, on_key, poll, view};
 use rune::AppSpec;
 use rune_theme_opencode as theme;
 
+/// `--trace` is parsed before Rune starts, but `init` is a plain function
+/// pointer; this carries the flag between them.
+static TRACE: AtomicBool = AtomicBool::new(false);
+
 fn main() {
+    // Rune consumes `--help` for its own headless-tooling usage before
+    // `extra_args`, so answer the app's help from the raw process arguments.
+    if std::env::args_os()
+        .skip(1)
+        .any(|arg| arg == std::ffi::OsStr::new("--help") || arg == std::ffi::OsStr::new("-h"))
+    {
+        print_help(&mut std::io::stdout());
+        return;
+    }
+    let args = rune::extra_args();
+    match cli(args) {
+        Cli::Check(path) => {
+            let mut out = std::io::stdout().lock();
+            std::process::exit(check_vault(&path, &mut out));
+        }
+        Cli::ListLinks(path) => {
+            let mut out = std::io::stdout().lock();
+            std::process::exit(list_links(&path, &mut out));
+        }
+        Cli::Error(message) => {
+            eprintln!("muninn: {message}\n");
+            print_help(&mut std::io::stderr());
+            std::process::exit(2);
+        }
+        Cli::Run => {}
+    }
+    TRACE.store(has_flag(args, "--trace"), Ordering::Relaxed);
     // Match the shipped `muninn.desktop` (`StartupWMClass` + hicolor icon) so
     // the OS can associate this window with the logo.
     rune::set_app_id("muninn");
-    rune::run(AppSpec::<State> {
+    let spec = AppSpec::<State> {
         fonts: theme::FONTS,
         families: theme::FAMILIES,
         min_size: Some((840.0, 560.0)),
@@ -28,15 +68,228 @@ fn main() {
         poll: Some(poll),
         on_key: Some(on_key),
         ..AppSpec::new("Muninn", (1180.0, 780.0), init, view)
-    });
+    };
+    rune::App::new(spec)
+        .on_close(|s, _tx| {
+            // Best-effort: flush the open note on the normal close path. Autosave is
+            // the crash net for SIGTERM/SIGKILL, which never run this hook; Rune's
+            // `AppHandle::quit` / `Tx::quit` also bypass it.
+            //
+            // With a conflict pending (SAF-02), `save_now` refuses to overwrite the
+            // changed file and returns `false`. That is intentional: closing must not
+            // force-overwrite work the user has not resolved.
+            s.save_now();
+            // LIF-01: settings are also written on each toggle/open, but the close
+            // hook captures the final note/mode if the window is closed right after
+            // a change that did not reach a mutator.
+            s.save_settings();
+        })
+        .run();
 }
 
 fn init() -> State {
-    State::new(vault_path(rune::extra_args()))
+    let settings = Settings::load();
+    let mut state = State::new(vault_path(rune::extra_args(), &settings));
+    state.set_trace(TRACE.load(Ordering::Relaxed));
+    state
 }
 
-fn vault_path(args: &[String]) -> PathBuf {
-    vault_arg(args).unwrap_or_else(default_vault)
+/// The headless CLI surface, parsed from Rune's extra arguments before any
+/// window or GPU context exists.
+enum Cli {
+    Run,
+    Check(PathBuf),
+    ListLinks(PathBuf),
+    Error(String),
+}
+
+fn cli(args: &[String]) -> Cli {
+    match flag_value(args, "--check") {
+        Err(message) => return Cli::Error(message),
+        Ok(Some(path)) => return Cli::Check(path),
+        Ok(None) => {}
+    }
+    match flag_value(args, "--list-links") {
+        Err(message) => return Cli::Error(message),
+        Ok(Some(path)) => return Cli::ListLinks(path),
+        Ok(None) => {}
+    }
+    Cli::Run
+}
+
+fn has_flag(args: &[String], flag: &str) -> bool {
+    args.iter().any(|arg| arg == flag)
+}
+
+/// `--flag PATH` or `--flag=PATH`. `Ok(None)` means the flag is absent.
+fn flag_value(args: &[String], flag: &str) -> Result<Option<PathBuf>, String> {
+    let joined = format!("{flag}=");
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == flag {
+            return match args.get(i + 1) {
+                Some(value) if !value.starts_with('-') && !value.is_empty() => {
+                    Ok(Some(PathBuf::from(value)))
+                }
+                _ => Err(format!("{flag} needs a vault folder")),
+            };
+        }
+        if let Some(value) = args[i].strip_prefix(&joined) {
+            return if value.is_empty() {
+                Err(format!("{flag} needs a vault folder"))
+            } else {
+                Ok(Some(PathBuf::from(value)))
+            };
+        }
+        i += 1;
+    }
+    Ok(None)
+}
+
+fn print_help(out: &mut impl std::io::Write) {
+    let _ = writeln!(
+        out,
+        "Muninn {} — a local-first Markdown vault\n\
+         \n\
+         Usage:\n  \
+         muninn [--vault PATH] [--trace]\n  \
+         muninn --check <vault>\n  \
+         muninn --list-links <vault>\n  \
+         muninn --help\n\
+         \n\
+         Options:\n  \
+         --vault PATH     Open this vault (else $MUNINN_VAULT, the last vault, ~/Muninn)\n  \
+         --trace          Log every autosave tick to the session log\n  \
+         --check          Headless: exit 0 if clean, 1 for broken links/duplicates, 2 if unreadable\n  \
+         --list-links     Headless: one `referrer -> target` line per wikilink, sorted",
+        env!("CARGO_PKG_VERSION"),
+    );
+}
+
+/// X-03: headless vault health check. The vault must already exist: `--check`
+/// never creates a missing folder (unlike the app, which creates a first-run
+/// vault). Returns the process exit code.
+fn check_vault(root: &Path, out: &mut impl std::io::Write) -> i32 {
+    if !root.is_dir() {
+        let _ = writeln!(
+            out,
+            "error: {} is not a readable vault folder",
+            root.display()
+        );
+        return 2;
+    }
+    let vault = match Vault::load(root) {
+        Ok(vault) => vault,
+        Err(error) => {
+            let _ = writeln!(out, "error: could not read {}: {error}", root.display());
+            return 2;
+        }
+    };
+    let broken = vault.broken_links();
+    let _ = writeln!(out, "notes: {}", vault.notes.len());
+    let _ = writeln!(out, "broken links: {}", broken.len());
+    for link in broken {
+        for &referrer in &link.referrers {
+            let _ = writeln!(out, "  {} -> {}", vault.notes[referrer].rel, link.target);
+        }
+    }
+
+    let mut titles: BTreeMap<String, (String, usize)> = BTreeMap::new();
+    for note in &vault.notes {
+        let entry = titles
+            .entry(note.title.to_lowercase())
+            .or_insert_with(|| (note.title.clone(), 0));
+        entry.1 += 1;
+    }
+    let duplicates: Vec<(String, usize)> = titles
+        .into_values()
+        .filter(|(_, count)| *count > 1)
+        .collect();
+    let _ = writeln!(out, "duplicates: {}", duplicates.len());
+    for (title, count) in &duplicates {
+        let _ = writeln!(out, "  {title} ({count} notes)");
+    }
+
+    let _ = writeln!(out, "skipped: {}", vault.skipped_count());
+    let deepest = vault
+        .dirs
+        .iter()
+        .map(|dir| {
+            if dir.is_empty() {
+                0
+            } else {
+                dir.split('/').count()
+            }
+        })
+        .max()
+        .unwrap_or(0);
+    if deepest >= 12 {
+        let _ = writeln!(
+            out,
+            "warning: folders nest {deepest} levels deep; the scan stops below 12"
+        );
+    }
+
+    if broken.is_empty() && duplicates.is_empty() {
+        0
+    } else {
+        1
+    }
+}
+
+/// X-03: every wikilink as `referrer -> target`, sorted. Resolved links use
+/// the target note's vault-relative path; unresolved ones keep `missing:` so
+/// the output is scriptable without a second lookup.
+fn list_links(root: &Path, out: &mut impl std::io::Write) -> i32 {
+    if !root.is_dir() {
+        let _ = writeln!(
+            out,
+            "error: {} is not a readable vault folder",
+            root.display()
+        );
+        return 2;
+    }
+    let vault = match Vault::load(root) {
+        Ok(vault) => vault,
+        Err(error) => {
+            let _ = writeln!(out, "error: could not read {}: {error}", root.display());
+            return 2;
+        }
+    };
+    let mut lines = Vec::new();
+    for note in &vault.notes {
+        for link in parse_links(&note.source) {
+            let target = if link.target.is_empty() {
+                note.rel.clone()
+            } else {
+                vault.resolve(&link.target).map_or_else(
+                    || format!("missing:{}", link.target),
+                    |id| vault.notes[id].rel.clone(),
+                )
+            };
+            lines.push(format!("{} -> {target}", note.rel));
+        }
+    }
+    lines.sort();
+    lines.dedup();
+    for line in lines {
+        let _ = writeln!(out, "{line}");
+    }
+    0
+}
+
+/// `--vault` wins over `$MUNINN_VAULT`, which wins over the last vault in
+/// settings, which falls back to `~/Muninn`.
+fn vault_path(args: &[String], settings: &Settings) -> PathBuf {
+    if let Some(path) = vault_arg(args) {
+        return path;
+    }
+    if let Some(path) = std::env::var_os("MUNINN_VAULT")
+        && !path.is_empty()
+    {
+        return PathBuf::from(path);
+    }
+    settings.last_vault.clone().unwrap_or_else(default_vault)
 }
 
 fn vault_arg(args: &[String]) -> Option<PathBuf> {
@@ -57,9 +310,6 @@ fn vault_arg(args: &[String]) -> Option<PathBuf> {
 }
 
 fn default_vault() -> PathBuf {
-    if let Some(path) = std::env::var_os("MUNINN_VAULT") {
-        return PathBuf::from(path);
-    }
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map_or_else(
@@ -117,4 +367,38 @@ mod tests {
             ["notes", "preview", "graph", "local", "light", "empty"]
         );
     }
+
+    /// The `on_close` hook only calls `State::save_now`, so this proves the close path
+    /// flushes a dirty buffer without needing a window or a Rune `Tx`.
+    #[test]
+    fn close_flush_writes_a_dirty_buffer() {
+        use std::fs;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "muninn-app-close-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        drop(fs::remove_dir_all(&dir));
+        fs::create_dir_all(&dir).expect("temp vault");
+        let note = dir.join("Note.md");
+        fs::write(&note, "original").expect("fixture");
+
+        let mut state = State::with_state_home(dir.clone(), dir.with_extension("state"));
+        assert_eq!(state.vault.notes.len(), 1);
+        state.editor.replace_text("edited on close");
+        assert!(state.dirty());
+
+        assert!(state.save_now(), "dirty note should be written");
+        assert!(!state.dirty());
+        assert_eq!(fs::read_to_string(&note).expect("read"), "edited on close");
+
+        drop(state);
+        drop(fs::remove_dir_all(&dir));
+    }
 }
+
+#[cfg(test)]
+mod cli_tests;

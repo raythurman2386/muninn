@@ -7,9 +7,9 @@ use rune::{
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 use rune_theme_opencode::icons as ic;
 
-use muninn_core::Vault;
+use muninn_core::{Vault, headings};
 
-use crate::{Mode, State};
+use crate::{DeleteConfirm, LinkComplete, MenuTarget, Mode, State};
 
 const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
@@ -28,27 +28,127 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
                 tx.instant();
             }
         })
+        // DES-02: dropping files anywhere in the window imports them into the
+        // current folder. Markdown becomes a note; images/PDFs are copied but
+        // stay out of the index (the reader's attachment strip can open them).
+        .on_drop_files(|s: &mut State, files: &[std::path::PathBuf], tx: &mut Tx| {
+            if s.import_files(files).changed() {
+                tx.instant();
+            }
+        })
+        .accepts_extensions(crate::state::IMPORT_EXTENSIONS)
+        .on_drop_rejected(|s: &mut State, files: &[std::path::PathBuf], tx: &mut Tx| {
+            s.reject_drop(files);
+            tx.instant();
+        })
         .child(sidebar(s, k, dark))
         .child(divider(k))
-        .child(main(s, k))
+        .child(main_column(s, k))
 }
 
 fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
-    let results = s.vault.search(&s.search.text);
+    // No debounce: the filter is an in-memory linear scan (~1–3 ms at 2,000
+    // notes), so a per-keystroke rebuild stays cheap; revisit if a much larger
+    // vault ever makes typing lag.
+    let results = s.search_results();
+    // NAV-01: highlight the row the search field's Up/Down selection points at.
+    let picked = s
+        .search_selected
+        .and_then(|index| results.get(index).copied());
     let empty = results.is_empty();
     let filtering = !s.search.text.trim().is_empty();
-    let groups = s.vault.group_by_folder(&results);
-    let mut list = col().key("note-list").w_full().px(8.0).pb(8.0).gap(2.0);
+    // Without a query, show every folder (including empty ones so they can
+    // be targeted); with a query, only folders holding a match.
+    let groups: Vec<(String, Vec<usize>)> = if filtering {
+        s.vault.group_by_folder(&results)
+    } else {
+        s.vault
+            .folders()
+            .into_iter()
+            .map(|f| {
+                let ids = s.vault.notes_in_folder(&f);
+                (f, ids)
+            })
+            .collect::<Vec<_>>()
+    };
+    // M2 A11Y-01: one Tab stop for the whole note list; Up/Down rove and
+    // Enter/Space open the focused row, as in a macOS source list.
+    let mut list = col()
+        .key("note-list")
+        .w_full()
+        .px(8.0)
+        .pb(8.0)
+        .gap(2.0)
+        .focus_group()
+        .role("list");
     for (folder, ids) in groups {
         let collapsed = s.is_collapsed(&folder) && !filtering;
         list = list.child(folder_header(s, k, &folder, ids.len(), collapsed));
+        if s.menu
+            .as_ref()
+            .is_some_and(|m| m.target == MenuTarget::Folder(folder.clone()))
+        {
+            list = list.child(context_menu(s, k));
+        }
+        if s.delete_confirm.as_ref() == Some(&DeleteConfirm::Folder(folder.clone())) {
+            list = list.child(delete_confirm_row(
+                s,
+                k,
+                &DeleteConfirm::Folder(folder.clone()),
+            ));
+        }
+        if s.rename_folder_prompt
+            .as_ref()
+            .is_some_and(|p| p.folder == folder)
+        {
+            list = list.child(rename_folder_row(s, k));
+        }
+        if s.folder_rename_confirm
+            .as_ref()
+            .is_some_and(|c| c.folder == folder)
+        {
+            list = list.child(folder_rename_confirm_row(s, k));
+        }
+        if s.new_folder_prompt
+            .as_ref()
+            .is_some_and(|p| p.parent == folder)
+        {
+            list = list.child(new_folder_row(s, k));
+        }
         if !collapsed {
+            if s.new_note_prompt
+                .as_ref()
+                .is_some_and(|p| p.folder == folder)
+            {
+                list = list.child(new_note_row(s, k));
+            }
             for id in ids {
-                list = list.child(note_row(s, k, id, true));
+                if s.rename_prompt.as_ref().is_some_and(|p| p.id == id) {
+                    list = list.child(rename_note_row(s, k));
+                } else if s.delete_confirm.as_ref() == Some(&DeleteConfirm::Note(id)) {
+                    list = list.child(delete_confirm_row(s, k, &DeleteConfirm::Note(id)));
+                } else {
+                    list = list.child(note_row(s, k, id, picked == Some(id)));
+                }
+                if s.menu
+                    .as_ref()
+                    .is_some_and(|m| m.target == MenuTarget::Note(id))
+                {
+                    list = list.child(context_menu(s, k));
+                }
+                if s.rename_confirm.as_ref().is_some_and(|c| c.id == id) {
+                    list = list.child(rename_confirm_row(s, k));
+                }
+                if s.move_confirm.as_ref().is_some_and(|c| c.id == id) {
+                    list = list.child(move_confirm_row(s, k));
+                }
+                if s.move_picker == Some(id) {
+                    list = list.child(move_picker(s, k, id));
+                }
             }
         }
     }
-    if empty {
+    if empty && !(s.vault.notes.is_empty() && s.startup_error.is_some()) {
         let (title, hint) = if s.vault.notes.is_empty() {
             ("No notes yet", "Add .md files here, or make one below.")
         } else {
@@ -56,6 +156,7 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
         };
         list = list.child(
             col()
+                .key("no-notes-hint")
                 .py(24.0)
                 .px(12.0)
                 .gap(5.0)
@@ -77,7 +178,10 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                 .color(k.c.text_base)
                 .grow(1.0),
         )
+        .child(help_button(k))
         .child(theme_button(k, dark));
+
+    let vault = vault_chip_area(s, k);
 
     let search = row()
         .key("search-box")
@@ -115,19 +219,28 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                 .placeholder("Search notes", k.c.text_faint)
                 .on_edit(|s: &mut State| &mut s.search)
                 .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
-                    if e.key == Key::Escape {
-                        s.search.focused = false;
-                        s.editor.focused = false;
-                        tx.blur();
-                        return true;
+                    // M2 NAV-01: Up/Down walk the ranked results and wrap.
+                    // Enter opens the highlighted row (or the first result).
+                    match e.key {
+                        Key::Escape => {
+                            s.search.focused = false;
+                            s.editor.focused = false;
+                            tx.blur();
+                            return true;
+                        }
+                        Key::Down => {
+                            s.search_step(1);
+                            return true;
+                        }
+                        Key::Up => {
+                            s.search_step(-1);
+                            return true;
+                        }
+                        _ => {}
                     }
                     crate::shortcut(s, e, tx)
                 })
-                .on_submit(|s: &mut State, _| {
-                    if let Some(id) = s.vault.search(&s.search.text).first().copied() {
-                        s.open_from_list(id);
-                    }
-                }),
+                .on_submit(|s: &mut State, _| s.open_search_selected()),
         );
 
     let new_note = row()
@@ -161,6 +274,7 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
         .h_full()
         .fill(k.c.bg_deep)
         .child(brand)
+        .child(vault)
         .child(search)
         .child(new_note)
         .child(divider_h(k).mt(8.0))
@@ -202,12 +316,43 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                     .color(k.c.text_faint),
                 )
                 .child(spacer())
+                .child(broken_chip(s, k))
                 .child(text("⌘K").font(k.ty.caption()).color(k.c.text_faint)),
         )
 }
 
+/// NAV-02: sidebar footer chip that opens the broken-links dashboard. It is
+/// always present, so the "All links resolve" empty state is reachable too.
+fn broken_chip(s: &State, k: &Kit) -> El {
+    let broken = s.broken_count();
+    let (label, color) = if broken == 0 {
+        ("links ok".to_owned(), k.c.text_faint)
+    } else {
+        (format!("{broken} broken"), k.c.warning.fg)
+    };
+    pressable(k, "broken-chip".to_owned())
+        .px(6.0)
+        .py(3.0)
+        .center_y()
+        // M2 A11Y-01: a focused button presses on Space for free; Enter needs
+        // an explicit handler on a control outside a list group.
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                s.open_broken_links();
+                true
+            } else {
+                false
+            }
+        })
+        .child(text(label).font(k.ty.caption()).color(color))
+        .on_press(|s: &mut State| s.open_broken_links())
+}
+
 /// Sidebar folder header: chevron + name + count toggles the group, `+`
-/// creates a note in that folder. Root shows as “Vault root”.
+/// creates a note in that folder, the folder icon starts a new subfolder.
+/// Right-click offers the folder menu. Root shows as “Vault root”.
 fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: bool) -> El {
     let slug = folder_slug(folder);
     let name = if folder.is_empty() {
@@ -217,6 +362,7 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
     };
     let chevron = if collapsed { "▸" } else { "▾" };
     let toggle = folder.to_owned();
+    let press_folder = folder.to_owned();
     row()
         .key(format!("folder-header-{slug}"))
         .w_full()
@@ -228,6 +374,9 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
         .on_press(move |s: &mut State| s.toggle_folder(&toggle))
+        .on_secondary_press(move |s: &mut State, press, _| {
+            s.open_folder_menu(&press_folder, press.x, press.y);
+        })
         .child(
             text(chevron)
                 .font(TextStyle::new(10.0, 600.0))
@@ -246,19 +395,48 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
                 .color(k.c.text_faint),
         )
         .child(folder_new_button(k, &slug, folder))
+        .child(folder_new_folder_button(k, &slug, folder))
 }
 
 fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
     let target = folder.to_owned();
-    el().key(format!("folder-new-{slug}"))
+    let place = if folder.is_empty() {
+        "the vault root".to_owned()
+    } else {
+        folder.to_owned()
+    };
+    pressable(k, format!("folder-new-{slug}"))
         .size(22.0, 22.0)
-        .radius(6.0)
         .center()
-        .hover(k.c.hover)
-        .press(k.c.pressed)
-        .cursor(Cursor::Pointer)
         .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
+        .label(format!("New note in {place}"))
+        .help(format!("New note in {place}"))
         .on_press(move |s: &mut State| s.new_note_in(&target))
+}
+
+fn folder_new_folder_button(k: &Kit, slug: &str, folder: &str) -> El {
+    let target = folder.to_owned();
+    let place = if folder.is_empty() {
+        "the vault root".to_owned()
+    } else {
+        folder.to_owned()
+    };
+    pressable(k, format!("folder-create-{slug}"))
+        .size(22.0, 22.0)
+        .center()
+        .child(icon(&ic::FOLDER_ADD_LEFT, 12.0).color(k.c.icon_muted))
+        .label(format!("New folder in {place}"))
+        .help(format!("New folder in {place}"))
+        .on_press(move |s: &mut State| s.begin_new_folder(&target))
+}
+
+/// Shared cursor/hover/press base for small pointer targets.
+fn pressable(k: &Kit, key: String) -> El {
+    let mut target = el().key(key);
+    target = target.radius(6.0);
+    target = target.hover(k.c.hover);
+    target = target.press(k.c.pressed);
+    target.cursor(Cursor::Pointer)
 }
 
 /// Stable test key for a folder (`""` → `root`).
@@ -274,9 +452,12 @@ fn folder_slug(folder: &str) -> String {
         .to_owned()
 }
 
-fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
+fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
     let note = &s.vault.notes[id];
     let on = s.selected == Some(id);
+    // NAV-01: the keyboard search highlight uses the same accent fill as the
+    // open note, so Up/Down reads as a selection moving through the list.
+    let lit = on || picked;
     let accent = k.c.text_accent;
     let dot = if note.links.is_empty() {
         k.c.text_faint
@@ -307,21 +488,26 @@ fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
     } else {
         links
     };
-    let row = row()
+    row()
         .key(format!("note-row-{id}"))
         .w_full()
         .h(48.0)
         .gap(9.0)
         .radius(7.0)
         .center_y()
-        .fill(if on {
+        .fill(if lit {
             k.alpha(accent, 0.10)
         } else {
             Color::TRANSPARENT
         })
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
+        .focusable(true)
+        .focus_ring(2.0, 1.0, accent)
         .on_press(move |s: &mut State| s.open_from_list(id))
+        .on_secondary_press(move |s: &mut State, press, _| {
+            s.open_note_menu(id, press.x, press.y);
+        })
         .child(el().size(6.0, 6.0).radius(3.0).fill(dot))
         .child(
             col()
@@ -331,7 +517,7 @@ fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
                 .child(
                     text(note.title.clone())
                         .font(k.ty.ui_medium)
-                        .color(if on { accent } else { k.c.text_base })
+                        .color(if lit { accent } else { k.c.text_base })
                         .truncate(),
                 )
                 .child(
@@ -340,12 +526,9 @@ fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
                         .color(k.c.text_faint)
                         .truncate(),
                 ),
-        );
-    if indented {
-        row.px(10.0).pl(20.0)
-    } else {
-        row.px(10.0)
-    }
+        )
+        .px(10.0)
+        .pl(20.0)
 }
 
 fn theme_button(k: &Kit, dark: bool) -> El {
@@ -361,7 +544,737 @@ fn theme_button(k: &Kit, dark: bool) -> El {
                 .font(TextStyle::new(14.0, 500.0))
                 .color(k.c.icon_muted),
         )
-        .on_press(move |s: &mut State| s.dark = Some(!dark))
+        .label("Toggle theme")
+        .help("Toggle theme")
+        .on_press(move |s: &mut State| s.set_theme(Some(!dark)))
+}
+
+/// DES-01: the sidebar Help button, next to the theme toggle.
+fn help_button(k: &Kit) -> El {
+    pressable(k, "help-open".to_owned())
+        .size(28.0, 28.0)
+        .center()
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                s.open_help();
+                true
+            } else {
+                false
+            }
+        })
+        .child(
+            text("?")
+                .font(TextStyle::new(14.0, 600.0))
+                .color(k.c.icon_muted),
+        )
+        .label("Keyboard shortcuts")
+        .help("Keyboard shortcuts")
+        .on_press(|s: &mut State| s.open_help())
+}
+
+/// DES-01/LIF-01: the current-vault chip and its in-window menu.
+///
+/// There is no native menu bar on Linux, so the chip is the vault surface:
+/// Open vault… (typed path), the recent-vault MRU, and New vault (creates a
+/// missing folder through `Vault::load`'s auto-create).
+fn vault_chip_area(s: &State, k: &Kit) -> El {
+    let label = s
+        .vault
+        .root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .map_or_else(|| display_path(&s.vault.root), |name| name.to_owned());
+    let mut area = col().w_full().px(12.0).pb(2.0).gap(4.0);
+    area = area.child(
+        row()
+            .key("vault-chip")
+            .w_full()
+            .h(28.0)
+            .px(8.0)
+            .gap(6.0)
+            .radius(7.0)
+            .center_y()
+            .fill(if s.vault_menu {
+                k.c.layer_02
+            } else {
+                Color::TRANSPARENT
+            })
+            .hover(k.c.hover)
+            .press(k.c.pressed)
+            .cursor(Cursor::Pointer)
+            .child(
+                text("▤")
+                    .font(TextStyle::new(12.0, 600.0))
+                    .color(k.c.text_accent),
+            )
+            .child(
+                text(label)
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .grow(1.0)
+                    .truncate(),
+            )
+            .child(
+                text(if s.vault_menu { "▴" } else { "▾" })
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint),
+            )
+            .on_press(|s: &mut State| s.toggle_vault_menu()),
+    );
+    if s.vault_menu {
+        area = area.child(vault_menu(s, k));
+    }
+    if s.vault_prompt {
+        area = area.child(vault_prompt_row(s, k));
+    }
+    area
+}
+
+fn vault_menu(s: &State, k: &Kit) -> El {
+    let mut menu = col()
+        .key("vault-menu")
+        .w_full()
+        .px(8.0)
+        .py(5.0)
+        .gap(2.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .child(
+            row()
+                .key("vault-open-prompt")
+                .w_full()
+                .h(28.0)
+                .px(7.0)
+                .radius(5.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(
+                    text("Open vault…")
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base),
+                )
+                .on_press(|s: &mut State| s.begin_vault_prompt()),
+        )
+        .child(
+            row()
+                .key("vault-new-prompt")
+                .w_full()
+                .h(28.0)
+                .px(7.0)
+                .radius(5.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(
+                    text("New vault…")
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base),
+                )
+                .on_press(|s: &mut State| s.begin_vault_prompt()),
+        );
+    if !s.recent_vaults().is_empty() {
+        menu = menu.child(
+            text("RECENT")
+                .font(TextStyle::new(9.0, 650.0).tracking(0.8))
+                .color(k.c.text_faint)
+                .padding(7.0),
+        );
+        for (index, path) in s.recent_vaults().iter().enumerate() {
+            let label = display_path(path);
+            menu = menu.child(
+                row()
+                    .key(format!("vault-recent-{index}"))
+                    .w_full()
+                    .h(26.0)
+                    .px(7.0)
+                    .radius(5.0)
+                    .center_y()
+                    .cursor(Cursor::Pointer)
+                    .hover(k.c.hover)
+                    .child(
+                        text(label)
+                            .font(k.ty.caption())
+                            .color(k.c.text_muted)
+                            .grow(1.0)
+                            .truncate(),
+                    )
+                    .on_press(move |s: &mut State| {
+                        s.open_recent_vault(index);
+                    }),
+            );
+        }
+    }
+    menu.child(
+        row()
+            .key("vault-menu-cancel")
+            .w_full()
+            .h(26.0)
+            .px(7.0)
+            .radius(5.0)
+            .center_y()
+            .cursor(Cursor::Pointer)
+            .hover(k.c.hover)
+            .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+            .on_press(|s: &mut State| s.close_vault_menu()),
+    )
+}
+
+fn vault_prompt_row(s: &State, k: &Kit) -> El {
+    col()
+        .key("vault-prompt")
+        .w_full()
+        .gap(4.0)
+        .px(8.0)
+        .py(6.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .child(
+            text_input(&s.vault_field, k.ty.ui_compact)
+                .key("vault-path")
+                .single_line()
+                .w_full()
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .placeholder("~/notes", k.c.text_faint)
+                .on_edit(|s: &mut State| &mut s.vault_field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                    if e.key == Key::Escape {
+                        s.cancel_vault_prompt();
+                        tx.blur();
+                        return true;
+                    }
+                    crate::shortcut(s, e, tx)
+                })
+                .on_submit(|s: &mut State, _| s.submit_vault_path()),
+        )
+        .child(
+            text("Paste a folder path; ~ expands to your home folder.")
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        )
+        .child(if let Some(error) = &s.error {
+            text(error.clone())
+                .font(k.ty.caption())
+                .color(k.c.danger.fg)
+        } else {
+            el()
+        })
+        .child(
+            row()
+                .w_full()
+                .gap(6.0)
+                .center_y()
+                .child(
+                    pressable(k, "vault-open".to_owned())
+                        .px(8.0)
+                        .py(3.0)
+                        .fill(k.c.layer_03)
+                        .child(text("Open").font(k.ty.caption()).color(k.c.text_base))
+                        .on_press(|s: &mut State| s.submit_vault_path()),
+                )
+                .child(
+                    pressable(k, "vault-create".to_owned())
+                        .px(8.0)
+                        .py(3.0)
+                        .child(text("New vault").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(|s: &mut State| s.submit_new_vault()),
+                )
+                .child(
+                    pressable(k, "vault-cancel".to_owned())
+                        .px(8.0)
+                        .py(3.0)
+                        .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(|s: &mut State| s.cancel_vault_prompt()),
+                ),
+        )
+}
+
+/// `~/sub/path` when below the home directory, otherwise the full path.
+fn display_path(path: &std::path::Path) -> String {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+    if let Some(home) = home.map(std::path::PathBuf::from)
+        && let Ok(rest) = path.strip_prefix(&home)
+    {
+        if rest.as_os_str().is_empty() {
+            return "~".to_owned();
+        }
+        return format!("~/{}", rest.to_string_lossy());
+    }
+    path.to_string_lossy().into_owned()
+}
+
+/// Inline name field for a note being created in its folder group.
+/// Enter submits, Escape cancels; an empty name creates nothing.
+fn new_note_row(s: &State, k: &Kit) -> El {
+    row()
+        .key("new-note-prompt")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(9.0)
+        .center_y()
+        .child(
+            text_input(&s.new_note_field, k.ty.ui_compact)
+                .key("new-note-name")
+                .single_line()
+                .grow(1.0)
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .placeholder("Note name", k.c.text_faint)
+                .on_edit(|s: &mut State| &mut s.new_note_field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                    if e.key == Key::Escape {
+                        s.cancel_new_note();
+                        tx.blur();
+                        return true;
+                    }
+                    crate::shortcut(s, e, tx)
+                })
+                .on_submit(|s: &mut State, _| s.submit_new_note()),
+        )
+        .child(
+            row()
+                .key("new-note-cancel")
+                .px(8.0)
+                .py(4.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .on_press(|s: &mut State| s.cancel_new_note()),
+        )
+}
+
+/// Inline rename field replacing a note row. Enter saves, Escape undoes.
+fn rename_note_row(s: &State, k: &Kit) -> El {
+    row()
+        .key("rename-note-prompt")
+        .w_full()
+        .h(48.0)
+        .px(10.0)
+        .pl(20.0)
+        .gap(9.0)
+        .radius(7.0)
+        .center_y()
+        .fill(k.alpha(k.c.text_accent, 0.10))
+        .child(
+            text_input(&s.rename_field, k.ty.ui_compact)
+                .key("rename-note-name")
+                .single_line()
+                .grow(1.0)
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .on_edit(|s: &mut State| &mut s.rename_field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                    if e.key == Key::Escape {
+                        s.cancel_rename_note();
+                        tx.blur();
+                        return true;
+                    }
+                    crate::shortcut(s, e, tx)
+                })
+                .on_submit(|s: &mut State, _| s.submit_rename_note()),
+        )
+        .child(
+            row()
+                .key("rename-note-cancel")
+                .px(8.0)
+                .py(4.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .on_press(|s: &mut State| s.cancel_rename_note()),
+        )
+}
+
+/// Inline name field for a folder being created under its parent group.
+fn new_folder_row(s: &State, k: &Kit) -> El {
+    folder_field_row(s, k, "new-folder-name", "Folder name", true)
+}
+
+/// Inline rename field for a folder, shown under its header.
+fn rename_folder_row(s: &State, k: &Kit) -> El {
+    folder_field_row(s, k, "rename-folder-name", "", false)
+}
+
+fn folder_field_row(s: &State, k: &Kit, key: &str, placeholder: &str, is_new: bool) -> El {
+    let key = key.to_owned();
+    row()
+        .key(format!("{key}-row"))
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(9.0)
+        .center_y()
+        .child(
+            text_input(
+                if is_new {
+                    &s.new_folder_field
+                } else {
+                    &s.rename_folder_field
+                },
+                k.ty.ui_compact,
+            )
+            .key(key)
+            .single_line()
+            .grow(1.0)
+            .color(k.c.text_base)
+            .caret(k.c.text_accent, k.selection())
+            .placeholder(placeholder, k.c.text_faint)
+            .on_edit(move |s: &mut State| -> &mut rune::TextEdit {
+                if is_new {
+                    &mut s.new_folder_field
+                } else {
+                    &mut s.rename_folder_field
+                }
+            })
+            .on_input_key(move |s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                if e.key == Key::Escape {
+                    if is_new {
+                        s.cancel_new_folder();
+                    } else {
+                        s.cancel_rename_folder();
+                    }
+                    tx.blur();
+                    return true;
+                }
+                crate::shortcut(s, e, tx)
+            })
+            .on_submit(move |s: &mut State, _| {
+                if is_new {
+                    s.submit_new_folder();
+                } else {
+                    s.submit_rename_folder();
+                }
+            }),
+        )
+}
+
+/// The open right-click menu, rendered inline under the row that asked.
+/// Right-click opens it; Escape, an action, or Cancel closes it. Primary
+/// behaviour (open note / toggle folder) is untouched.
+fn context_menu(s: &State, k: &Kit) -> El {
+    let Some(menu) = &s.menu else {
+        return el();
+    };
+    let items: Vec<(&str, &str)> = match &menu.target {
+        MenuTarget::Note(_) => vec![
+            ("Open externally", "open_external"),
+            ("Reveal in file manager", "reveal"),
+            ("Rename", "rename"),
+            ("Move to…", "move"),
+            ("Delete", "delete"),
+        ],
+        MenuTarget::Folder(_) => vec![
+            ("New note here", "new_note"),
+            ("New folder…", "new_folder"),
+            ("Rename", "rename"),
+            ("Delete", "delete"),
+        ],
+    };
+    let mut col_menu = col()
+        .key("context-menu")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(2.0)
+        .py(4.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base);
+    for (label, action) in items {
+        col_menu = col_menu.child(
+            row()
+                .key(format!("menu-{action}"))
+                .w_full()
+                .h(30.0)
+                .px(10.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .press(k.c.pressed)
+                .child(
+                    text(label)
+                        .font(k.ty.ui_compact)
+                        .color(if action == "delete" {
+                            k.c.danger.fg
+                        } else {
+                            k.c.text_base
+                        }),
+                )
+                .on_press(move |s: &mut State| s.pick_menu(action)),
+        );
+    }
+    col_menu.child(
+        row()
+            .key("menu-cancel")
+            .w_full()
+            .h(30.0)
+            .px(10.0)
+            .radius(6.0)
+            .center_y()
+            .cursor(Cursor::Pointer)
+            .hover(k.c.hover)
+            .child(text("Cancel").font(k.ty.ui_compact).color(k.c.text_muted))
+            .on_press(|s: &mut State| s.close_menu()),
+    )
+}
+
+/// Inline folder targets under a note being moved.
+fn move_picker(s: &State, k: &Kit, id: usize) -> El {
+    let current = s
+        .vault
+        .notes
+        .get(id)
+        .map(|n| n.folder().to_owned())
+        .unwrap_or_default();
+    let mut list = col()
+        .key("move-picker")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(2.0)
+        .py(4.0);
+    for folder in s.vault.folders() {
+        let label = if folder.is_empty() {
+            "Vault root".to_owned()
+        } else {
+            folder.clone()
+        };
+        list = list.child(
+            row()
+                .key(format!("move-to-{}", folder_slug(&folder)))
+                .w_full()
+                .h(30.0)
+                .px(10.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .press(k.c.pressed)
+                .child(
+                    text(if folder == current {
+                        format!("{label} ✓")
+                    } else {
+                        label
+                    })
+                    .font(k.ty.ui_compact)
+                    .color(k.c.text_base),
+                )
+                .on_press(move |s: &mut State| s.move_note_to(id, &folder)),
+        );
+    }
+    list
+}
+
+/// SAF-06: link-impact confirmation under a note being renamed. Default is to
+/// rewrite inbound wikilinks; the toggle switches to leaving them dangling.
+fn rename_confirm_row(s: &State, k: &Kit) -> El {
+    let Some(confirm) = &s.rename_confirm else {
+        return el();
+    };
+    link_impact_row(
+        k,
+        "rename-confirm",
+        &referrer_summary(confirm.referrers, "here"),
+        confirm.rewrite,
+        State::toggle_rename_rewrite,
+        State::confirm_rename_note,
+        State::cancel_rename_confirm,
+        ("Rename", "rename-confirm-yes", "rename-confirm-cancel"),
+    )
+}
+
+/// SAF-06: the same choice before moving a note to another folder.
+fn move_confirm_row(s: &State, k: &Kit) -> El {
+    let Some(confirm) = &s.move_confirm else {
+        return el();
+    };
+    link_impact_row(
+        k,
+        "move-confirm",
+        &referrer_summary(confirm.referrers, "here"),
+        confirm.rewrite,
+        State::toggle_move_rewrite,
+        State::confirm_move_note,
+        State::cancel_move_confirm,
+        ("Move", "move-confirm-yes", "move-confirm-cancel"),
+    )
+}
+
+/// SAF-06: link-impact confirmation under a folder being renamed. Rewriting
+/// points every link to the notes' new path-qualified stems.
+fn folder_rename_confirm_row(s: &State, k: &Kit) -> El {
+    let Some(confirm) = &s.folder_rename_confirm else {
+        return el();
+    };
+    link_impact_row(
+        k,
+        "folder-rename-confirm",
+        &referrer_summary(confirm.referrers, "into this folder"),
+        confirm.rewrite,
+        State::toggle_folder_rename_rewrite,
+        State::confirm_folder_rename,
+        State::cancel_folder_rename_confirm,
+        (
+            "Rename",
+            "folder-rename-confirm-yes",
+            "folder-rename-confirm-cancel",
+        ),
+    )
+}
+
+/// `2 notes link here` / `1 note links here`, pluralised once for both rows.
+fn referrer_summary(referrers: usize, place: &str) -> String {
+    format!(
+        "{} note{} link{} {place}",
+        referrers,
+        if referrers == 1 { "" } else { "s" },
+        if referrers == 1 { "s" } else { "" }
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn link_impact_row(
+    k: &Kit,
+    key: &str,
+    summary: &str,
+    rewrite: bool,
+    toggle: fn(&mut State),
+    confirm: fn(&mut State),
+    cancel: fn(&mut State),
+    (confirm_label, confirm_key, cancel_key): (&str, &str, &str),
+) -> El {
+    let confirm_label = confirm_label.to_owned();
+    let confirm_key = confirm_key.to_owned();
+    let cancel_key = cancel_key.to_owned();
+    let toggle_key = format!("{key}-toggle");
+    col()
+        .key(key.to_owned())
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .py(6.0)
+        .gap(4.0)
+        .radius(7.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .child(
+            text(summary.to_owned())
+                .font(k.ty.caption())
+                .color(k.c.warning.fg),
+        )
+        .child(
+            row()
+                .key(toggle_key)
+                .w_full()
+                .h(26.0)
+                .gap(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .on_press(move |s: &mut State| toggle(s))
+                .child(
+                    text(if rewrite { "▣" } else { "▢" })
+                        .font(TextStyle::new(12.0, 600.0))
+                        .color(if rewrite {
+                            k.c.text_accent
+                        } else {
+                            k.c.text_faint
+                        }),
+                )
+                .child(
+                    text(if rewrite {
+                        "Rewrite links to new name"
+                    } else {
+                        "Leave links dangling"
+                    })
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted),
+                ),
+        )
+        .child(
+            row()
+                .w_full()
+                .gap(6.0)
+                .center_y()
+                .child(
+                    pressable(k, confirm_key)
+                        .px(8.0)
+                        .py(3.0)
+                        .fill(k.c.layer_03)
+                        .child(
+                            text(confirm_label)
+                                .font(k.ty.caption())
+                                .color(k.c.text_base),
+                        )
+                        .on_press(move |s: &mut State| confirm(s)),
+                )
+                .child(
+                    pressable(k, cancel_key)
+                        .px(8.0)
+                        .py(3.0)
+                        .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(move |s: &mut State| cancel(s)),
+                ),
+        )
+}
+
+/// Inline delete confirmation under the row being deleted.
+fn delete_confirm_row(s: &State, k: &Kit, target: &DeleteConfirm) -> El {
+    let _ = s;
+    let label = match target {
+        DeleteConfirm::Note(_) => "Delete this note?",
+        DeleteConfirm::Folder(_) => "Delete folder? (empty only)",
+    };
+    row()
+        .key("delete-confirm")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(8.0)
+        .center_y()
+        .child(
+            text(label)
+                .font(k.ty.caption())
+                .color(k.c.danger.fg)
+                .grow(1.0),
+        )
+        .child(
+            row()
+                .key("delete-yes")
+                .px(10.0)
+                .py(5.0)
+                .radius(6.0)
+                .center_y()
+                .fill(k.c.danger.fg)
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(text("Delete").font(k.ty.caption()).color(Color::WHITE))
+                .on_press(|s: &mut State| s.confirm_delete()),
+        )
+        .child(
+            row()
+                .key("delete-cancel")
+                .px(10.0)
+                .py(5.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(Cursor::Pointer)
+                .hover(k.c.hover)
+                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .on_press(|s: &mut State| s.cancel_delete()),
+        )
 }
 
 /// The Muninn mark at `size` points, matching `assets/logo.svg`: dark
@@ -419,36 +1332,729 @@ fn logo_mark(size: f32) -> El {
 }
 
 fn main(s: &State, k: &Kit) -> El {
-    let body = if s.mode == Mode::Graph {
-        crate::graph_view::graph(s, k)
-    } else {
-        let mut content = row().key("note-body").w_full().grow(1.0).min_h(0.0).child(
-            col()
-                .key("page")
-                .grow(1.0)
-                .min_w(0.0)
-                .min_h(0.0)
-                .child(if s.mode == Mode::Preview {
-                    preview(s, k)
-                } else {
-                    editor(s, k)
-                })
-                .child(status_bar(s, k)),
-        );
-        // A tiled or narrow window keeps the page; the rail returns when there is room.
-        if s.window_width >= 980.0 && s.selected.is_some() {
-            content = content.child(divider(k)).child(rail(s, k));
-        }
-        content
-    };
-    col()
+    let mut page = col()
         .key("main")
         .grow(1.0)
         .h_full()
         .min_w(0.0)
         .child(topbar(s, k))
+        .child(divider_h(k));
+    if s.find.is_some() {
+        page = page.child(find_bar(s, k));
+    }
+    if s.startup_error.is_some() && !s.vault.notes.is_empty() {
+        // A partial failure still lets the notes that did load stay usable.
+        page = page.child(startup_banner(s, k));
+    }
+    if !s.recovered.is_empty() {
+        page = page.child(recovery_banner(s, k));
+    }
+    page.child(main_body(s, k))
+}
+
+/// Pick the body under the chrome: the loading progress page first (no partial
+/// vault exists yet), then the error page, dashboards, graph or note surface.
+fn main_body(s: &State, k: &Kit) -> El {
+    if s.loading() {
+        return loading_page(s, k);
+    }
+    if s.vault.notes.is_empty() && s.startup_error.is_some() {
+        return vault_error_page(s, k);
+    }
+    if s.broken_panel {
+        return broken_links_panel(s, k);
+    }
+    if s.mode == Mode::Graph {
+        return crate::graph_view::graph(s, k);
+    }
+    let mut content = row().key("note-body").w_full().grow(1.0).min_h(0.0).child(
+        col()
+            .key("page")
+            .grow(1.0)
+            .min_w(0.0)
+            .min_h(0.0)
+            .child(if s.mode == Mode::Preview {
+                preview(s, k)
+            } else {
+                editor(s, k)
+            })
+            .child(status_bar(s, k)),
+    );
+    // A tiled or narrow window keeps the page; the rail returns when there is room.
+    if s.window_width >= 980.0 && s.selected.is_some() {
+        content = content.child(divider(k)).child(rail(s, k));
+    }
+    content
+}
+
+/// M3 wrapper around [`main`]: the Help overlay takes the whole column, and a
+/// first-run welcome banner sits above the ordinary page.
+fn main_column(s: &State, k: &Kit) -> El {
+    if s.help {
+        return help_panel(s, k);
+    }
+    if s.welcome && s.vault.notes.is_empty() && s.startup_error.is_none() {
+        return col()
+            .key("main-with-welcome")
+            .grow(1.0)
+            .h_full()
+            .min_w(0.0)
+            .child(welcome_banner(s, k))
+            .child(main(s, k));
+    }
+    main(s, k)
+}
+
+/// LIF-01: first run created the vault folder. Point at the next action rather
+/// than an empty editor that reads as "your notes are gone".
+fn welcome_banner(s: &State, k: &Kit) -> El {
+    row()
+        .key("welcome-banner")
+        .w_full()
+        .px(20.0)
+        .py(9.0)
+        .gap(9.0)
+        .center_y()
+        .fill(k.alpha(k.c.text_accent, 0.10))
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.text_accent))
+        .child(
+            text(format!(
+                "New vault created at {} — make your first note",
+                display_path(&s.vault.root)
+            ))
+            .font(k.ty.caption())
+            .color(k.c.text_base)
+            .grow(1.0)
+            .truncate(),
+        )
+        .child(status_button(k, "New note", "welcome-new-note", |s| {
+            s.new_note();
+            true
+        }))
+        .child(status_button(k, "Dismiss", "welcome-dismiss", |s| {
+            s.dismiss_welcome();
+            true
+        }))
+}
+
+const ISSUES_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/issues");
+
+/// DES-01: the in-window Help overlay. Native menu bars are unavailable on
+/// Linux (the desktop verification wave blocked DES-01's menubar path), so the
+/// full shortcut map lives here, reachable from the sidebar `?` button,
+/// `Cmd/Ctrl+?`, or plain `?` when no text field owns the keyboard.
+fn help_panel(s: &State, k: &Kit) -> El {
+    let groups: [(&str, &[(&str, &str)]); 4] = [
+        (
+            "Navigation",
+            &[
+                ("⌘K / Ctrl+K", "Focus search"),
+                ("↑ / ↓ (search)", "Move the highlighted result"),
+                ("Enter (search)", "Open the highlighted result"),
+                ("⌘[ / Ctrl+[", "Back in note history"),
+                ("⌘] / Ctrl+]", "Forward in note history"),
+                ("⌘1 / ⌘2 / ⌘3", "Write / Read / Graph"),
+                ("Esc", "Close the outermost layer"),
+            ],
+        ),
+        (
+            "Edit",
+            &[
+                ("⌘F / Ctrl+F", "Find in the open note"),
+                ("⌘P / Ctrl+P", "Insert a wikilink"),
+                ("⌘N / Ctrl+N", "New note"),
+                ("⌘S / Ctrl+S", "Save now (autosave is on)"),
+                ("⌘E / Ctrl+E", "Toggle Write / Read"),
+                ("[[", "Wikilink completion"),
+                ("Tab (editor)", "Indent four spaces"),
+                ("F2", "Rename the selected note"),
+                ("Del", "Delete the selected note"),
+            ],
+        ),
+        (
+            "Graph",
+            &[
+                ("⌘G / Ctrl+G", "Toggle Graph"),
+                ("⌘L / Ctrl+L", "Toggle Global / Local"),
+                ("Arrows", "Move the focus ring"),
+                ("Enter", "Open the focused note"),
+                ("+ / -", "Zoom in / out"),
+                ("0 / F", "Fit the visible nodes"),
+                ("I", "Toggle Isolate"),
+                ("Esc", "Leave the graph"),
+            ],
+        ),
+        (
+            "Sidebar",
+            &[
+                ("⌘?", "Open this Help"),
+                ("?", "Open Help when not typing"),
+                ("Tab / Shift+Tab", "Move between panes"),
+                ("↑ / ↓ (list)", "Move through a list"),
+                ("Enter / Space", "Open the focused row"),
+                ("Right-click", "Note and folder actions"),
+                ("Vault chip", "Open / recent / new vault"),
+            ],
+        ),
+    ];
+    let mut list = col().w_full().px(40.0).pb(28.0).gap(14.0);
+    for (title, shortcuts) in groups {
+        let mut section = col().w_full().gap(3.0).child(
+            text(title.to_owned())
+                .font(TextStyle::new(10.0, 650.0).tracking(0.9))
+                .color(k.c.text_muted)
+                .padding(4.0),
+        );
+        for (keys, action) in shortcuts {
+            section = section.child(help_row(k, keys, action));
+        }
+        list = list.child(section);
+    }
+    list = list
         .child(divider_h(k))
-        .child(body)
+        .child(
+            text(format!(
+                "Autosave writes {:.2} s after you stop typing. Version {}.",
+                s.autosave_delay(),
+                env!("CARGO_PKG_VERSION")
+            ))
+            .font(k.ty.caption())
+            .color(k.c.text_faint)
+            .padding(4.0),
+        )
+        .child(help_diagnostics(s, k))
+        .child(divider_h(k))
+        .child(help_trash(s, k));
+    col()
+        .key("help-panel")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .child(
+            row()
+                .h(58.0)
+                .px(40.0)
+                .gap(10.0)
+                .center_y()
+                .child(
+                    text("Keyboard shortcuts")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(spacer())
+                .child(
+                    pressable(k, "help-close".to_owned())
+                        .px(10.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(text("Close").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(|s: &mut State| s.close_help()),
+                ),
+        )
+        .child(divider_h(k))
+        .child(
+            col()
+                .key("help-scroll")
+                .w_full()
+                .grow(1.0)
+                .min_h(0.0)
+                .items_center()
+                .scroll(ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(list.max_w(720.0)),
+        )
+}
+
+/// X-01: a selectable diagnostics block plus "Copy diagnostics".
+///
+/// `Tx::copy` is available in this Rune revision, so the version, counts and
+/// last five session-log lines are one click from a bug report. If a future
+/// Rune drops it, the block is still visible and selectable.
+fn help_diagnostics(s: &State, k: &Kit) -> El {
+    col()
+        .w_full()
+        .gap(6.0)
+        .child(
+            col()
+                .key("help-diagnostics")
+                .w_full()
+                .gap(2.0)
+                .radius(6.0)
+                .padding(8.0)
+                .fill(k.c.layer_01)
+                .child(text(s.diagnostics()).font(k.ty.mono).color(k.c.text_muted)),
+        )
+        .child(
+            row()
+                .gap(8.0)
+                .child(
+                    pressable(k, "help-copy-diagnostics".to_owned())
+                        .px(8.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(
+                            text("Copy diagnostics")
+                                .font(k.ty.caption())
+                                .color(k.c.text_accent),
+                        )
+                        .label("Copy diagnostics")
+                        .on_press_tx(|s: &mut State, tx: &mut Tx| {
+                            tx.copy(s.diagnostics());
+                        }),
+                )
+                .child(
+                    pressable(k, "help-report-issue".to_owned())
+                        .px(8.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(
+                            text("Report an issue on GitHub")
+                                .font(k.ty.caption())
+                                .color(k.c.text_accent),
+                        )
+                        .on_press_tx(|_: &mut State, tx: &mut Tx| {
+                            // Best-effort: the platform may have no URL opener.
+                            let _ = tx.open_url(ISSUES_URL);
+                        }),
+                ),
+        )
+}
+
+/// Trash readout plus the permanent-empty action. The budget is a fixed
+/// constant in `muninn-core` (500 files or 100 MB, oldest timestamp folder
+/// first), deliberately not a setting.
+fn help_trash(s: &State, k: &Kit) -> El {
+    let (files, bytes) = s.trash_size();
+    let summary = match files {
+        0 => "Trash is empty".to_owned(),
+        1 => format!("Trash · 1 note · {}", trash_bytes(bytes)),
+        _ => format!("Trash · {files} notes · {}", trash_bytes(bytes)),
+    };
+    let empty = files == 0;
+    col()
+        .key("help-trash")
+        .w_full()
+        .gap(6.0)
+        .child(
+            row()
+                .w_full()
+                .gap(8.0)
+                .center_y()
+                .child(
+                    text(summary)
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted)
+                        .grow(1.0),
+                )
+                .child(
+                    pressable(k, "help-empty-trash".to_owned())
+                        .px(8.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(text("Empty trash").font(k.ty.caption()).color(if empty {
+                            k.c.text_faint
+                        } else {
+                            k.c.text_accent
+                        }))
+                        .label("Empty trash")
+                        .on_press(|s: &mut State| {
+                            s.empty_trash();
+                        }),
+                ),
+        )
+        .child(
+            text(
+                "Deleted notes stay here until undo or permanent removal. At most 500 files \
+                 or 100 MB are kept; the oldest timestamp folder is pruned first.",
+            )
+            .font(k.ty.caption())
+            .color(k.c.text_faint)
+            .padding(4.0),
+        )
+}
+
+/// Human byte size for the trash readout. The cap is 100 MB, so one decimal
+/// is enough to make growth visible without a wall of digits.
+fn trash_bytes(bytes: u64) -> String {
+    const KIB: u64 = 1024;
+    const MIB: u64 = 1024 * KIB;
+    if bytes >= MIB {
+        format!("{:.1} MB", bytes as f64 / MIB as f64)
+    } else if bytes >= KIB {
+        format!("{:.1} KB", bytes as f64 / KIB as f64)
+    } else {
+        format!("{bytes} B")
+    }
+}
+
+fn help_row(k: &Kit, keys: &str, action: &str) -> El {
+    row()
+        .w_full()
+        .min_h(26.0)
+        .px(4.0)
+        .gap(12.0)
+        .center_y()
+        .child(
+            text(keys.to_owned())
+                .font(TextStyle::new(11.0, 600.0))
+                .color(k.c.text_base)
+                .w(170.0),
+        )
+        .child(
+            text(action.to_owned())
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .grow(1.0),
+        )
+}
+
+/// A large vault is still being read: show bounded progress and the one action
+/// that matters (Cancel, also on Escape). The invisible 1×1 text field is the
+/// Escape owner: a focused field sees keys before the window shortcut table,
+/// and the loading screen has no editor to hand focus to.
+fn loading_page(s: &State, k: &Kit) -> El {
+    let (done, total) = s.load_progress().unwrap_or((0, 0));
+    let fraction = if total == 0 {
+        0.0
+    } else {
+        (done as f32 / total as f32).clamp(0.0, 1.0)
+    };
+    let mut bar = row()
+        .key("scan-progress-bar")
+        .w_full()
+        .max_w(420.0)
+        .h(6.0)
+        .radius(3.0)
+        .clip_rounded(3.0)
+        .fill(k.alpha(k.c.text_faint, 0.18));
+    if fraction > 0.0 {
+        bar = bar.child(el().h(6.0).grow(fraction).radius(3.0).fill(k.c.text_accent));
+    }
+    if fraction < 1.0 {
+        bar = bar.child(el().h(6.0).grow(1.0 - fraction));
+    }
+    col()
+        .key("scan-loading")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .center()
+        .items_center()
+        .gap(12.0)
+        .child(
+            text("Scanning your vault")
+                .font(k.ty.ui_medium)
+                .color(k.c.text_base),
+        )
+        .child(bar)
+        .child(
+            text(format!("Scanning {done}/{total} notes — Esc to cancel"))
+                .key("scan-progress-label")
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        )
+        .child(status_button(
+            k,
+            "Cancel",
+            "scan-cancel",
+            State::cancel_scan,
+        ))
+        .child(
+            text_input(&s.scan_field, k.ty.ui_compact)
+                .key("scan-escape")
+                .single_line()
+                .size(1.0, 1.0)
+                .opacity(0.01)
+                .on_edit(|s: &mut State| &mut s.scan_field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+                    if e.key == Key::Escape && s.loading() {
+                        s.cancel_scan();
+                        true
+                    } else {
+                        false
+                    }
+                }),
+        )
+}
+
+/// The whole vault could not be scanned: show the OS error and Retry instead
+/// of an empty editor (which would read as "your notes are gone").
+fn vault_error_page(s: &State, k: &Kit) -> El {
+    let message = s.startup_error.clone().unwrap_or_default();
+    let cancelled = message.starts_with("Scan cancelled");
+    let title = if cancelled {
+        "Scan cancelled"
+    } else {
+        "Could not open the vault"
+    };
+    let hint = if cancelled {
+        "Retry scans the vault again, or pick another folder from the vault chip."
+    } else {
+        "Pick another folder from the sidebar vault chip, or pass --vault / set MUNINN_VAULT."
+    };
+    col()
+        .key("vault-error")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .px(40.0)
+        .center()
+        .items_center()
+        .gap(9.0)
+        .child(text(title).font(k.ty.ui_medium).color(k.c.danger.fg))
+        .child(
+            text(message)
+                .font(k.ty.caption())
+                .max_w(560.0)
+                .color(k.c.text_muted),
+        )
+        .child(
+            text(hint)
+                .font(k.ty.caption())
+                .max_w(560.0)
+                .color(k.c.text_faint),
+        )
+        .child(status_button(
+            k,
+            "Retry",
+            "vault-retry",
+            State::retry_startup,
+        ))
+}
+
+/// NAV-02: vault-hygiene dashboard listing unresolved wikilink targets.
+///
+/// Clicking a target creates the note (folder-aware, like a reader click);
+/// clicking a referrer opens that note. The list comes from the cache built by
+/// `Vault::reindex`, so opening this surface never scans notes.
+fn broken_links_panel(s: &State, k: &Kit) -> El {
+    let broken = s.vault.broken_links();
+    // M2 A11Y-01: Up/Down rove the dashboard as one list, and Enter opens the
+    // focused target or referrer.
+    let mut list = col()
+        .key("broken-list")
+        .w_full()
+        .gap(4.0)
+        .px(28.0)
+        .pb(24.0)
+        .focus_group()
+        .role("list");
+    if broken.is_empty() {
+        list = list.child(
+            text("All links resolve")
+                .key("broken-empty")
+                .font(k.ty.ui_compact)
+                .color(k.c.success.fg)
+                .padding(8.0),
+        );
+    }
+    for entry in broken {
+        let slug = folder_slug(&entry.target);
+        let target = entry.target.clone();
+        let count = entry.referrers.len();
+        list = list.child(
+            row()
+                .key(format!("broken-target-{slug}"))
+                .w_full()
+                .h(38.0)
+                .px(10.0)
+                .gap(8.0)
+                .radius(7.0)
+                .center_y()
+                .hover(k.c.hover)
+                .cursor(Cursor::Pointer)
+                .focusable(true)
+                .focus_ring(2.0, 1.0, k.c.warning.fg)
+                .on_press(move |s: &mut State| s.open_broken_target(&target))
+                .child(icon(&ic::LINK, 13.0).color(k.c.warning.fg))
+                .child(
+                    text(entry.target.clone())
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base)
+                        .grow(1.0)
+                        .truncate(),
+                )
+                .child(
+                    text(plural(count, "referrer", "referrers"))
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
+        );
+        for &id in &entry.referrers {
+            let label = s.vault.display_label(id);
+            let rel = s.vault.notes[id].rel.clone();
+            list = list.child(
+                row()
+                    .key(format!("broken-ref-{slug}-{id}"))
+                    .w_full()
+                    .h(30.0)
+                    .pl(40.0)
+                    .pr(10.0)
+                    .gap(7.0)
+                    .radius(6.0)
+                    .center_y()
+                    .hover(k.c.hover)
+                    .cursor(Cursor::Pointer)
+                    .focusable(true)
+                    .focus_ring(2.0, 1.0, k.c.warning.fg)
+                    .on_press(move |s: &mut State| s.open_broken_referrer(id))
+                    .child(text("↳").font(k.ty.caption()).color(k.c.text_faint))
+                    .child(
+                        text(label)
+                            .font(k.ty.caption())
+                            .color(k.c.text_muted)
+                            .truncate(),
+                    )
+                    .child(
+                        text(rel)
+                            .font(k.ty.caption())
+                            .color(k.c.text_faint)
+                            .truncate(),
+                    ),
+            );
+        }
+    }
+    col()
+        .key("broken-panel")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .child(
+            row()
+                .h(58.0)
+                .px(28.0)
+                .gap(10.0)
+                .center_y()
+                .child(
+                    text("Broken links")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(
+                    text(plural(broken.len(), "target", "targets"))
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                )
+                .child(spacer())
+                .child(
+                    pressable(k, "broken-close".to_owned())
+                        .px(10.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(text("Close").font(k.ty.caption()).color(k.c.text_muted))
+                        .on_press(|s: &mut State| s.close_broken_links()),
+                ),
+        )
+        .child(divider_h(k))
+        .child(
+            col()
+                .key("broken-scroll")
+                .w_full()
+                .grow(1.0)
+                .min_h(0.0)
+                .scroll(ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(list),
+        )
+}
+
+/// A banner above a still-usable vault when the last scan partly failed.
+fn startup_banner(s: &State, k: &Kit) -> El {
+    let message = s.startup_error.clone().unwrap_or_default();
+    row()
+        .key("startup-banner")
+        .w_full()
+        .px(20.0)
+        .py(7.0)
+        .gap(8.0)
+        .center_y()
+        .fill(k.alpha(k.c.danger.fg, 0.08))
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
+        .child(
+            text(message)
+                .font(k.ty.caption())
+                .color(k.c.danger.fg)
+                .grow(1.0)
+                .truncate(),
+        )
+        .child(status_button(
+            k,
+            "Retry",
+            "vault-retry",
+            State::retry_startup,
+        ))
+}
+
+/// SAF-05: dirty buffers found in the state directory at startup. Every row
+/// restores one buffer; Restore all applies them in order (saving each before
+/// the next), and Dismiss discards every listed copy after an explicit click.
+fn recovery_banner(s: &State, k: &Kit) -> El {
+    let count = s.recovered.len();
+    let mut banner = row()
+        .key("recovery-banner")
+        .w_full()
+        .px(20.0)
+        .py(7.0)
+        .gap(8.0)
+        .center_y()
+        .fill(k.alpha(k.c.warning.fg, 0.10))
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.warning.fg))
+        .child(
+            text(format!(
+                "Recovered unsaved edits for {}",
+                plural(count, "note", "notes")
+            ))
+            .font(k.ty.caption())
+            .color(k.c.warning.fg)
+            .truncate(),
+        );
+    for (index, entry) in s.recovered.iter().take(3).enumerate() {
+        let rel = entry.rel.clone();
+        banner = banner.child(
+            row()
+                .gap(4.0)
+                .center_y()
+                .child(
+                    text(entry.rel.clone())
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted)
+                        .max_w(190.0)
+                        .truncate(),
+                )
+                .child(
+                    pressable(k, format!("recovery-restore-{index}"))
+                        .px(6.0)
+                        .py(3.0)
+                        .child(text("Restore").font(k.ty.caption()).color(k.c.text_base))
+                        .on_press(move |s: &mut State| {
+                            s.restore_recovery(&rel);
+                        }),
+                ),
+        );
+    }
+    if count > 3 {
+        banner = banner.child(
+            text(format!("+{} more", count - 3))
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        );
+    }
+    banner
+        .child(spacer())
+        .child(status_button(
+            k,
+            "Restore all",
+            "recovery-restore-all",
+            State::restore_all_recovery,
+        ))
+        .child(status_button(
+            k,
+            "Dismiss",
+            "recovery-dismiss",
+            State::dismiss_recovery,
+        ))
 }
 
 fn topbar(s: &State, k: &Kit) -> El {
@@ -488,8 +2094,52 @@ fn topbar(s: &State, k: &Kit) -> El {
         .px(20.0)
         .gap(12.0)
         .center_y()
+        .child(history_button(
+            k,
+            "history-back",
+            "‹",
+            s.can_back(),
+            State::back,
+        ))
+        .child(history_button(
+            k,
+            "history-forward",
+            "›",
+            s.can_forward(),
+            State::forward,
+        ))
         .child(title_col)
         .child(mode_switch(s, k))
+}
+
+/// M2 NAV-03: a compact Back/Forward chip. Disabled chips dim but keep their
+/// place, so the title bar does not reflow as history grows.
+fn history_button(
+    k: &Kit,
+    key: &'static str,
+    glyph: &'static str,
+    enabled: bool,
+    action: fn(&mut State) -> bool,
+) -> El {
+    let mut button = pressable(k, key.to_owned())
+        .size(26.0, 26.0)
+        .center()
+        .border(1.0, k.c.border_muted)
+        .child(
+            text(glyph)
+                .font(TextStyle::new(15.0, 600.0))
+                .color(if enabled {
+                    k.c.text_muted
+                } else {
+                    k.alpha(k.c.text_faint, 0.4)
+                }),
+        );
+    if enabled {
+        button = button.on_press(move |s: &mut State| {
+            let _ = action(s);
+        });
+    }
+    button
 }
 
 fn mode_switch(s: &State, k: &Kit) -> El {
@@ -555,11 +2205,101 @@ fn mode_button(
         .on_press(move |s: &mut State| s.set_mode(mode))
 }
 
+/// EDT-01: the in-note find bar under the title bar.
+///
+/// Matches are recomputed in `State::find_tick` (called from `poll`), not here:
+/// `view` only borrows `State`. The count reads `index + 1 / total`; Enter and
+/// Shift+Enter step and wrap, Escape closes and returns typing to the editor.
+fn find_bar(s: &State, k: &Kit) -> El {
+    let Some(find) = &s.find else {
+        return el();
+    };
+    let total = find.matches.len();
+    let count = if total == 0 {
+        "0/0".to_owned()
+    } else {
+        format!("{}/{}", find.index + 1, total)
+    };
+    row()
+        .key("find-bar")
+        .w_full()
+        .h(40.0)
+        .px(20.0)
+        .gap(8.0)
+        .center_y()
+        .fill(k.c.layer_01)
+        .child(icon(&ic::MAGNIFYING_GLASS, 13.0).color(k.c.text_muted))
+        .child(
+            text_input(&find.field, k.ty.ui_compact)
+                .key("find")
+                .single_line()
+                .w(280.0)
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .placeholder("Find in note", k.c.text_faint)
+                .on_edit(|s: &mut State| &mut s.find.as_mut().expect("find bar").field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                    match e.key {
+                        Key::Escape => {
+                            s.close_find();
+                            return true;
+                        }
+                        Key::Enter => {
+                            if e.mods.shift {
+                                s.find_prev();
+                            } else {
+                                s.find_next();
+                            }
+                            return true;
+                        }
+                        _ => {}
+                    }
+                    crate::shortcut(s, e, tx)
+                }),
+        )
+        .child(
+            text(count)
+                .key("find-count")
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        )
+        .child(
+            pressable(k, "find-prev".to_owned())
+                .size(24.0, 24.0)
+                .center()
+                .child(
+                    text("‹")
+                        .font(TextStyle::new(14.0, 600.0))
+                        .color(k.c.text_muted),
+                )
+                .on_press(|s: &mut State| s.find_prev()),
+        )
+        .child(
+            pressable(k, "find-next".to_owned())
+                .size(24.0, 24.0)
+                .center()
+                .child(
+                    text("›")
+                        .font(TextStyle::new(14.0, 600.0))
+                        .color(k.c.text_muted),
+                )
+                .on_press(|s: &mut State| s.find_next()),
+        )
+        .child(spacer())
+        .child(
+            pressable(k, "find-close".to_owned())
+                .size(24.0, 24.0)
+                .center()
+                .child(text("✕").font(k.ty.caption()).color(k.c.text_faint))
+                .on_press(|s: &mut State| s.close_find()),
+        )
+}
+
 fn editor(s: &State, k: &Kit) -> El {
     if s.selected.is_none() {
         return no_note(k);
     }
-    let body = col().w_full().max_w(780.0).px(52.0).py(36.0).child(
+    let mut body = col().w_full().max_w(780.0).px(52.0).py(36.0).child(
         text_input(&s.editor, k.ty.body.lh(25.0))
             .key("editor")
             .w_full()
@@ -570,9 +2310,38 @@ fn editor(s: &State, k: &Kit) -> El {
                 k.c.text_faint,
             )
             .on_edit(|s: &mut State| &mut s.editor)
-            .on_submit(|s: &mut State, _| s.editor.insert("\n"))
-            .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| crate::shortcut(s, e, tx)),
+            // EDT-05: Enter closes `[[`, continues lists, or inserts a newline.
+            .on_submit(|s: &mut State, _| s.editor_enter())
+            .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                // EDT-03: the completion claims Up/Down/Enter/Tab/Escape (and,
+                // in the Cmd+P picker, the typed filter) before the field.
+                if s.complete_key(e) {
+                    return true;
+                }
+                // EDT-05: Tab indents instead of moving focus out of the note.
+                if e.key == Key::Tab && !e.mods.shift && !e.mods.cmd && !e.mods.ctrl && !e.mods.alt
+                {
+                    s.editor_tab();
+                    return true;
+                }
+                // Let menus/prompts/graph shortcuts claim Escape first; an
+                // unclaimed Escape blurs in the same event (EDT-06) so the
+                // typing gate cannot leave F2/Delete disabled until the next
+                // frame. Mirrors the search field's handler above.
+                let handled = crate::shortcut(s, e, tx);
+                if e.key == Key::Escape && !handled {
+                    s.blur_text();
+                    tx.blur();
+                    return true;
+                }
+                handled
+            }),
     );
+    if let Some(complete) = &s.complete
+        && !complete.items.is_empty()
+    {
+        body = body.child(link_complete_list(s, k, complete));
+    }
     col()
         .key("editor-pane")
         .w_full()
@@ -592,6 +2361,52 @@ fn editor(s: &State, k: &Kit) -> El {
         )
 }
 
+/// EDT-03: the completion/picker list under the editor. The highlighted row is
+/// moved with Up/Down (and wraps); clicking a row accepts it. Duplicate titles
+/// show their folder through `display_label`.
+fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) -> El {
+    let mut list = col()
+        .key("link-complete")
+        .mt(8.0)
+        .w(420.0)
+        .gap(1.0)
+        .padding(4.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base);
+    for (index, &id) in complete.items.iter().enumerate() {
+        let on = complete.index == index;
+        let label = s.vault.display_label(id);
+        let key = format!("complete-item-{id}");
+        list = list.child(
+            row()
+                .key(key)
+                .w_full()
+                .h(28.0)
+                .px(8.0)
+                .radius(5.0)
+                .center_y()
+                .fill(if on {
+                    k.alpha(k.c.text_accent, 0.12)
+                } else {
+                    Color::TRANSPARENT
+                })
+                .hover(k.c.hover)
+                .cursor(Cursor::Pointer)
+                .on_press(move |s: &mut State| {
+                    s.complete_choose(id);
+                })
+                .child(
+                    text(label)
+                        .font(k.ty.ui_compact)
+                        .color(if on { k.c.text_accent } else { k.c.text_base })
+                        .truncate(),
+                ),
+        );
+    }
+    list
+}
+
 fn preview(s: &State, k: &Kit) -> El {
     let Some(id) = s.selected else {
         return no_note(k);
@@ -599,7 +2414,11 @@ fn preview(s: &State, k: &Kit) -> El {
     if s.editor.text.trim().is_empty() {
         return empty_page(k, "This note is empty. Write something in the editor.");
     }
-    let source = s.vault.preview(&s.editor.text, id);
+    let source = s.vault.preview_with_attachments(&s.editor.text, id);
+    // EDT-04: top-level heading blocks get stable keys so a deep link can
+    // scroll one into view. Offsets are computed against the preview source
+    // (link rewriting changes byte lengths), matching `Markdown::block_keys`.
+    let block_keys = heading_keys(&source);
     let accent = k.c.text_accent;
     let faint = k.c.text_faint;
     let faint_rule = k.alpha(faint, 0.5);
@@ -611,6 +2430,7 @@ fn preview(s: &State, k: &Kit) -> El {
             .link_underline(k.alpha(accent, 0.35));
         Markdown::new(&source)
             .style(style)
+            .block_keys(block_keys)
             .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| s.open_link(url, tx))
             .link_style(move |url| {
                 url.strip_prefix("missing:").map(|_| {
@@ -622,23 +2442,131 @@ fn preview(s: &State, k: &Kit) -> El {
             })
             .build(k)
     });
+    let scroller = col()
+        .key("preview-scroll")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .items_center()
+        .scroll(ScrollSpec {
+            stick_bottom: false,
+        });
     col()
         .key("preview-pane")
         .w_full()
         .grow(1.0)
         .min_h(0.0)
         .child(
-            col()
-                .key("preview-scroll")
-                .w_full()
-                .grow(1.0)
-                .min_h(0.0)
-                .items_center()
-                .scroll(ScrollSpec {
-                    stick_bottom: false,
-                })
-                .child(col().w_full().max_w(744.0).px(52.0).py(36.0).child(body)),
+            scroller.child(
+                col()
+                    .w_full()
+                    .max_w(744.0)
+                    .px(52.0)
+                    .py(36.0)
+                    .child(body)
+                    .child(attachment_strip(s, id, k)),
+            ),
         )
+}
+
+/// EDT-04: stable block keys for the preview's top-level headings.
+fn heading_keys(source: &str) -> Vec<(usize, String)> {
+    headings(source)
+        .into_iter()
+        .map(|(offset, _)| (offset, format!("heading-{offset}")))
+        .collect()
+}
+
+/// DES-02: attachments are real files but not notes, and Rune's Markdown has
+/// no image pipeline. The reader therefore lists each embed with its size and
+/// an Open button, which hands the canonical path to the platform opener
+/// (`State::open_attachment`) instead of faking a preview.
+fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
+    let attachments = s.vault.attachments(&s.editor.text, current);
+    if attachments.is_empty() {
+        return el();
+    }
+    let mut rows = col().w_full().gap(4.0);
+    for (index, attachment) in attachments.iter().enumerate() {
+        let target = attachment.target.clone();
+        let size = attachment
+            .size_label()
+            .unwrap_or_else(|| "missing file".to_owned());
+        let mut body = col()
+            .grow(1.0)
+            .min_w(0.0)
+            .gap(1.0)
+            .child(
+                text(&attachment.name)
+                    .font(k.ty.ui_compact)
+                    .color(k.c.text_base)
+                    .truncate(),
+            )
+            .child(text(size).font(k.ty.caption()).color(k.c.text_faint));
+        if let Some(alias) = &attachment.alias {
+            body = body.child(
+                text(alias)
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .truncate(),
+            );
+        }
+        rows = rows.child(
+            row()
+                .key(format!("attachment-row-{index}"))
+                .w_full()
+                .px(10.0)
+                .py(7.0)
+                .gap(9.0)
+                .radius(7.0)
+                .center_y()
+                .fill(k.c.layer_01)
+                .border(1.0, k.c.border_muted)
+                .child(icon(&ic::PHOTO, 15.0).color(k.c.icon_muted))
+                .child(body)
+                .child(
+                    pressable(k, format!("attachment-open-{index}"))
+                        .px(9.0)
+                        .py(4.0)
+                        .center_y()
+                        .border(1.0, k.c.border_muted)
+                        .child(text("Open").font(k.ty.caption()).color(k.c.text_accent))
+                        .on_press(move |s: &mut State| {
+                            s.open_attachment(&target);
+                        }),
+                ),
+        );
+    }
+    col()
+        .key("attachments")
+        .w_full()
+        .mt(28.0)
+        .pt(18.0)
+        .gap(9.0)
+        .child(
+            row()
+                .w_full()
+                .gap(8.0)
+                .center_y()
+                .child(
+                    text("ATTACHMENTS")
+                        .font(TextStyle::new(10.0, 650.0).tracking(0.9))
+                        .color(k.c.text_muted),
+                )
+                .child(
+                    text(attachments.len().to_string())
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                )
+                .child(spacer())
+                .child(
+                    text("Files stay outside the note index")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
+        )
+        .child(divider_h(k))
+        .child(rows)
 }
 
 fn no_note(k: &Kit) -> El {
@@ -689,24 +2617,24 @@ fn empty_page(k: &Kit, message: &str) -> El {
 }
 
 fn status_bar(s: &State, k: &Kit) -> El {
+    if s.conflict.is_some() {
+        return conflict_bar(s, k);
+    }
     let (dot, label) = if let Some(error) = &s.error {
         (k.c.danger.fg, error.clone())
     } else if s.dirty() {
         (k.c.warning.fg, "Saving…".to_owned())
+    } else if let Some(notice) = &s.notice {
+        // DES-02: imported attachments have no sidebar row, so the status bar
+        // is where their count is reported.
+        (k.c.text_accent, notice.clone())
     } else if s.last_save.is_some() {
         (k.c.success.fg, "Saved".to_owned())
     } else {
         (k.c.text_faint, "Autosave on".to_owned())
     };
-    let count = s
-        .selected
-        .and_then(|id| s.vault.notes.get(id))
-        .map_or(0, |n| n.links.len());
-    let back = s
-        .selected
-        .and_then(|id| s.vault.notes.get(id))
-        .map_or(0, |n| n.backlinks.len());
-    row()
+    let mut bar = row()
+        .key("status-bar")
         .h(36.0)
         .px(20.0)
         .gap(7.0)
@@ -717,18 +2645,110 @@ fn status_bar(s: &State, k: &Kit) -> El {
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
                 .truncate(),
+        );
+    if s.error.is_some() && s.dirty() {
+        bar = bar.child(status_button(k, "Retry", "retry-save", State::retry_save));
+    }
+    let skipped = s.vault.skipped_count();
+    if skipped > 0 {
+        bar = bar.child(
+            text(plural(skipped, "file", "files") + " skipped")
+                .key("skipped-count")
+                .font(k.ty.caption())
+                .color(k.c.warning.fg),
+        );
+    }
+    if let Some(undo) = &s.trash_undo {
+        bar = bar
+            .child(
+                text(format!("Deleted {}", undo.label))
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .truncate(),
+            )
+            .child(status_button(k, "Undo", "trash-undo", State::undo_trash));
+    }
+    if s.load_ms() >= 5.0 {
+        bar = bar.child(
+            text(format!("scan {:.0} ms", s.load_ms()))
+                .key("scan-ms")
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        );
+    }
+    bar.child(spacer()).child(status_meta(s, k))
+}
+
+/// A conflict outranks the ordinary status line: while one is pending the
+/// only actions are the three explicit resolutions.
+fn conflict_bar(s: &State, k: &Kit) -> El {
+    let Some(conflict) = &s.conflict else {
+        return el();
+    };
+    row()
+        .key("conflict-bar")
+        .h(36.0)
+        .px(20.0)
+        .gap(7.0)
+        .center_y()
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
+        .child(
+            text(conflict.message())
+                .font(k.ty.caption())
+                .color(k.c.danger.fg)
+                .truncate(),
         )
         .child(spacer())
-        .child(
-            text(format!(
-                "{} · {} · {}",
-                plural(s.words(), "word", "words"),
-                plural(count, "link", "links"),
-                plural(back, "backlink", "backlinks")
-            ))
-            .font(k.ty.caption())
-            .color(k.c.text_faint),
-        )
+        .child(status_button(
+            k,
+            "Keep mine",
+            "conflict-keep-mine",
+            State::resolve_conflict_keep_mine,
+        ))
+        .child(status_button(
+            k,
+            "Load theirs",
+            "conflict-load-theirs",
+            State::resolve_conflict_load_theirs,
+        ))
+        .child(status_button(
+            k,
+            "Save copy",
+            "conflict-save-copy",
+            State::resolve_conflict_save_copy,
+        ))
+}
+
+fn status_meta(s: &State, k: &Kit) -> El {
+    let count = s
+        .selected
+        .and_then(|id| s.vault.notes.get(id))
+        .map_or(0, |n| n.links.len());
+    let back = s
+        .selected
+        .and_then(|id| s.vault.notes.get(id))
+        .map_or(0, |n| n.backlinks.len());
+    text(format!(
+        "{} · {} · {}",
+        plural(s.words(), "word", "words"),
+        plural(count, "link", "links"),
+        plural(back, "backlink", "backlinks")
+    ))
+    .font(k.ty.caption())
+    .color(k.c.text_faint)
+}
+
+fn status_button(k: &Kit, label: &str, key: &str, action: fn(&mut State) -> bool) -> El {
+    let label = label.to_owned();
+    let key = key.to_owned();
+    pressable(k, key)
+        .px(8.0)
+        .py(4.0)
+        .center_y()
+        .child(text(label).font(k.ty.caption()).color(k.c.text_base))
+        .on_press(move |s: &mut State| {
+            let _ = action(s);
+        })
 }
 
 fn rail(s: &State, k: &Kit) -> El {
@@ -736,16 +2756,24 @@ fn rail(s: &State, k: &Kit) -> El {
         return col().w(RAIL).h_full().fill(k.c.bg_deep);
     };
     let note = &s.vault.notes[id];
+    let outgoing_len = note.links.len();
     let mut outgoing = col().w_full().gap(2.0);
-    for &target in &note.links {
-        outgoing = outgoing.child(rail_link(k, target, &s.vault, false, id));
+    for (index, &target) in note.links.iter().enumerate() {
+        outgoing = outgoing.child(rail_link(k, target, &s.vault, false, id, index));
     }
     if note.links.is_empty() {
         outgoing = outgoing.child(empty(k, "No outgoing links"));
     }
     let mut backlinks = col().w_full().gap(2.0);
-    for &from in &note.backlinks {
-        backlinks = backlinks.child(rail_link(k, from, &s.vault, true, id));
+    for (offset, &from) in note.backlinks.iter().enumerate() {
+        backlinks = backlinks.child(rail_link(
+            k,
+            from,
+            &s.vault,
+            true,
+            id,
+            outgoing_len + offset,
+        ));
     }
     if note.backlinks.is_empty() {
         backlinks = backlinks.child(empty(k, "No backlinks yet"));
@@ -778,6 +2806,8 @@ fn rail(s: &State, k: &Kit) -> El {
                 .px(11.0)
                 .py(12.0)
                 .gap(18.0)
+                .focus_group()
+                .role("list")
                 .scroll(ScrollSpec {
                     stick_bottom: false,
                 })
@@ -817,7 +2847,14 @@ fn section(k: &Kit, title: &str, count: usize, body: El) -> El {
     col().w_full().gap(5.0).child(head).child(body)
 }
 
-fn rail_link(k: &Kit, id: usize, vault: &Vault, with_snippet: bool, current: usize) -> El {
+fn rail_link(
+    k: &Kit,
+    id: usize,
+    vault: &Vault,
+    with_snippet: bool,
+    current: usize,
+    index: usize,
+) -> El {
     // Duplicate titles need their folder to be distinguishable here too.
     let title = vault.display_label(id);
     let mut body = col().grow(1.0).min_w(0.0).gap(3.0).child(
@@ -835,6 +2872,7 @@ fn rail_link(k: &Kit, id: usize, vault: &Vault, with_snippet: bool, current: usi
         );
     }
     row()
+        .key(format!("rail-link-{index}-{id}"))
         .w_full()
         .px(8.0)
         .py(if with_snippet { 7.0 } else { 6.0 })
@@ -843,6 +2881,12 @@ fn rail_link(k: &Kit, id: usize, vault: &Vault, with_snippet: bool, current: usi
         .center_y()
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
+        // M2 A11Y-01: the editor owns Tab (EDT-05), so the rail's rows are
+        // the first stops in the window and Tab from any non-editor field
+        // lands here. Up/Down rove the whole rail; Enter/Space open a row.
+        .focusable(true)
+        .tab_index(1)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
         .on_press(move |s: &mut State| s.open_from_link(id))
         .child(icon(if with_snippet { &ic::BRANCH } else { &ic::LINK }, 13.0).color(k.c.icon_faint))
         .child(body)
