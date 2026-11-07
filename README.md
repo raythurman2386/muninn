@@ -69,6 +69,11 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘K` / `Ctrl+K` | Focus search |
 | `↑` / `↓` (search) | Move the highlighted search result |
 | `Enter` (search) | Open the highlighted result (first when none is highlighted) |
+| `Esc`, then `Tab` | Release the editor and start keyboard traversal at the links rail |
+| `↑` / `↓` (rail) | Move through outgoing links and backlinks |
+| `Enter` / `Space` (rail, note list) | Open the focused note or link |
+| `Enter` / `Space` (broken links) | Open the focused dashboard target or referrer |
+| `Tab` / `Shift+Tab` | Move between the rail, search, note list, broken-links chip and editor |
 | `⌘F` / `Ctrl+F` | Find in the open note |
 | `Enter` / `Shift+Enter` (find) | Next / previous match |
 | `[[` (editor) | Open wikilink completion for the note being typed |
@@ -95,6 +100,12 @@ full vault-relative stem, so a link keeps working when two notes share a title.
 `[[Note#Heading]]` opens the note at that heading (caret in Write, scroll in Read).
 The sidebar's broken-links chip counts unresolved targets; open it to create a missing
 note or jump to a referrer.
+
+Tab order is rail → search → note list → broken-links chip → editor. `Tab` indents
+inside the editor (EDT-05), so press `Esc` once to release it: the next `Tab` lands on
+the links rail. `↑`/`↓` then move through outgoing links and backlinks and `Enter`
+opens one, all without a pointer. The sidebar note rows and broken-links dashboard rows
+use the same list pattern.
 
 ## Crates
 

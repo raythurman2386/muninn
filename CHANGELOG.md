@@ -38,6 +38,11 @@ All notable changes to Muninn are documented here. The format is based on
   and opens a panel listing each target with its referrers. Clicking a target creates it
   in the right folder; clicking a referrer opens that note. The list is cached and
   rebuilt by `Vault::reindex`, and the empty state says "All links resolve".
+- Keyboard access to links (A11Y-01): the links rail's outgoing and backlink rows, the
+  sidebar note list and the broken-links chip and dashboard rows are focusable. `Esc`
+  releases the editor, `Tab` reaches the rail (its rows are the first stops, since the
+  editor keeps `Tab` for indentation), `↑`/`↓` move through a list, and `Enter` or
+  `Space` opens the focused note, link, target or referrer.
 - Rename/move link impact (SAF-06): renaming or moving a note with inbound links asks
   first, showing the referrer count and a **Rewrite links to new name** toggle (on by
   default). Rewriting replaces each inbound target while preserving `|alias` and

@@ -58,7 +58,16 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
             })
             .collect::<Vec<_>>()
     };
-    let mut list = col().key("note-list").w_full().px(8.0).pb(8.0).gap(2.0);
+    // M2 A11Y-01: one Tab stop for the whole note list; Up/Down rove and
+    // Enter/Space open the focused row, as in a macOS source list.
+    let mut list = col()
+        .key("note-list")
+        .w_full()
+        .px(8.0)
+        .pb(8.0)
+        .gap(2.0)
+        .focus_group()
+        .role("list");
     for (folder, ids) in groups {
         let collapsed = s.is_collapsed(&folder) && !filtering;
         list = list.child(folder_header(s, k, &folder, ids.len(), collapsed));
@@ -302,6 +311,18 @@ fn broken_chip(s: &State, k: &Kit) -> El {
         .px(6.0)
         .py(3.0)
         .center_y()
+        // M2 A11Y-01: a focused button presses on Space for free; Enter needs
+        // an explicit handler on a control outside a list group.
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                s.open_broken_links();
+                true
+            } else {
+                false
+            }
+        })
         .child(text(label).font(k.ty.caption()).color(color))
         .on_press(|s: &mut State| s.open_broken_links())
 }
@@ -444,6 +465,8 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
         })
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
+        .focusable(true)
+        .focus_ring(2.0, 1.0, accent)
         .on_press(move |s: &mut State| s.open_from_list(id))
         .on_secondary_press(move |s: &mut State, press, _| {
             s.open_note_menu(id, press.x, press.y);
@@ -1077,7 +1100,16 @@ fn vault_error_page(s: &State, k: &Kit) -> El {
 /// `Vault::reindex`, so opening this surface never scans notes.
 fn broken_links_panel(s: &State, k: &Kit) -> El {
     let broken = s.vault.broken_links();
-    let mut list = col().key("broken-list").w_full().gap(4.0).px(28.0).pb(24.0);
+    // M2 A11Y-01: Up/Down rove the dashboard as one list, and Enter opens the
+    // focused target or referrer.
+    let mut list = col()
+        .key("broken-list")
+        .w_full()
+        .gap(4.0)
+        .px(28.0)
+        .pb(24.0)
+        .focus_group()
+        .role("list");
     if broken.is_empty() {
         list = list.child(
             text("All links resolve")
@@ -1102,6 +1134,8 @@ fn broken_links_panel(s: &State, k: &Kit) -> El {
                 .center_y()
                 .hover(k.c.hover)
                 .cursor(Cursor::Pointer)
+                .focusable(true)
+                .focus_ring(2.0, 1.0, k.c.warning.fg)
                 .on_press(move |s: &mut State| s.open_broken_target(&target))
                 .child(icon(&ic::LINK, 13.0).color(k.c.warning.fg))
                 .child(
@@ -1132,6 +1166,8 @@ fn broken_links_panel(s: &State, k: &Kit) -> El {
                     .center_y()
                     .hover(k.c.hover)
                     .cursor(Cursor::Pointer)
+                    .focusable(true)
+                    .focus_ring(2.0, 1.0, k.c.warning.fg)
                     .on_press(move |s: &mut State| s.open_broken_referrer(id))
                     .child(text("↳").font(k.ty.caption()).color(k.c.text_faint))
                     .child(
@@ -1871,16 +1907,24 @@ fn rail(s: &State, k: &Kit) -> El {
         return col().w(RAIL).h_full().fill(k.c.bg_deep);
     };
     let note = &s.vault.notes[id];
+    let outgoing_len = note.links.len();
     let mut outgoing = col().w_full().gap(2.0);
-    for &target in &note.links {
-        outgoing = outgoing.child(rail_link(k, target, &s.vault, false, id));
+    for (index, &target) in note.links.iter().enumerate() {
+        outgoing = outgoing.child(rail_link(k, target, &s.vault, false, id, index));
     }
     if note.links.is_empty() {
         outgoing = outgoing.child(empty(k, "No outgoing links"));
     }
     let mut backlinks = col().w_full().gap(2.0);
-    for &from in &note.backlinks {
-        backlinks = backlinks.child(rail_link(k, from, &s.vault, true, id));
+    for (offset, &from) in note.backlinks.iter().enumerate() {
+        backlinks = backlinks.child(rail_link(
+            k,
+            from,
+            &s.vault,
+            true,
+            id,
+            outgoing_len + offset,
+        ));
     }
     if note.backlinks.is_empty() {
         backlinks = backlinks.child(empty(k, "No backlinks yet"));
@@ -1913,6 +1957,8 @@ fn rail(s: &State, k: &Kit) -> El {
                 .px(11.0)
                 .py(12.0)
                 .gap(18.0)
+                .focus_group()
+                .role("list")
                 .scroll(ScrollSpec {
                     stick_bottom: false,
                 })
@@ -1952,7 +1998,14 @@ fn section(k: &Kit, title: &str, count: usize, body: El) -> El {
     col().w_full().gap(5.0).child(head).child(body)
 }
 
-fn rail_link(k: &Kit, id: usize, vault: &Vault, with_snippet: bool, current: usize) -> El {
+fn rail_link(
+    k: &Kit,
+    id: usize,
+    vault: &Vault,
+    with_snippet: bool,
+    current: usize,
+    index: usize,
+) -> El {
     // Duplicate titles need their folder to be distinguishable here too.
     let title = vault.display_label(id);
     let mut body = col().grow(1.0).min_w(0.0).gap(3.0).child(
@@ -1970,6 +2023,7 @@ fn rail_link(k: &Kit, id: usize, vault: &Vault, with_snippet: bool, current: usi
         );
     }
     row()
+        .key(format!("rail-link-{index}-{id}"))
         .w_full()
         .px(8.0)
         .py(if with_snippet { 7.0 } else { 6.0 })
@@ -1978,6 +2032,12 @@ fn rail_link(k: &Kit, id: usize, vault: &Vault, with_snippet: bool, current: usi
         .center_y()
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
+        // M2 A11Y-01: the editor owns Tab (EDT-05), so the rail's rows are
+        // the first stops in the window and Tab from any non-editor field
+        // lands here. Up/Down rove the whole rail; Enter/Space open a row.
+        .focusable(true)
+        .tab_index(1)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
         .on_press(move |s: &mut State| s.open_from_link(id))
         .child(icon(if with_snippet { &ic::BRANCH } else { &ic::LINK }, 13.0).color(k.c.icon_faint))
         .child(body)

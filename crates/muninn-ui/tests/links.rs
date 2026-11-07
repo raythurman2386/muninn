@@ -400,3 +400,95 @@ fn move_rewrites_inbound_links_to_the_new_stem() {
     );
     assert!(rt.state.vault.broken_links().is_empty());
 }
+
+// ---- M2 A11Y-01: keyboard-reachable rail and broken-links chip --------------
+
+/// The element the runtime reports as focused, by its stable test key.
+fn focused_key(rt: &Runtime<State>) -> Option<String> {
+    rt.elements()
+        .into_iter()
+        .find(|element| element.focused)
+        .and_then(|element| element.key)
+}
+
+/// Press Tab until `wanted` owns focus, failing with the last stop reached.
+fn tab_until(rt: &mut Runtime<State>, wanted: &str) {
+    for _ in 0..16 {
+        if focused_key(rt).as_deref() == Some(wanted) {
+            return;
+        }
+        rt.key(key(Key::Tab));
+        frame(rt);
+    }
+    panic!(
+        "Tab never reached {wanted}; last focus was {:?}",
+        focused_key(rt)
+    );
+}
+
+#[test]
+fn tab_reaches_the_rail_and_enter_opens_a_backlink() {
+    let tmp = TempVault::new(&[
+        ("Alpha.md", "Alpha body with no outgoing links"),
+        ("Hub.md", "[[Alpha]]"),
+        ("Gamma.md", "[[Alpha]]"),
+    ]);
+    let mut rt = runtime(&tmp);
+    let alpha = rt.state.vault.resolve("Alpha").expect("Alpha");
+    rt.state.open_note(alpha);
+    frame(&mut rt);
+
+    let backlinks = rt.state.vault.notes[alpha].backlinks.clone();
+    assert!(rt.state.vault.notes[alpha].links.is_empty());
+    assert_eq!(backlinks.len(), 2, "{backlinks:?}");
+    let first = backlinks[0];
+
+    // Escape releases the editor (EDT-05 keeps Tab inside it); with nothing
+    // focused, Tab starts at the rail because its rows are the first stops.
+    rt.key(key(Key::Escape));
+    frame(&mut rt);
+    tab_until(&mut rt, &format!("rail-link-0-{first}"));
+
+    rt.key(key(Key::Enter));
+    frame(&mut rt);
+    assert_eq!(
+        rt.state.selected,
+        Some(first),
+        "Enter on a focused backlink opens that note"
+    );
+    assert!(
+        rt.state.editor.focused,
+        "opening returns typing to the editor"
+    );
+}
+
+#[test]
+fn tab_reaches_the_broken_chip_and_enter_opens_the_panel() {
+    let tmp = TempVault::new(&[("Home.md", "[[Missing On Purpose]]")]);
+    let mut rt = runtime(&tmp);
+    frame(&mut rt);
+
+    rt.key(key(Key::Escape));
+    frame(&mut rt);
+    tab_until(&mut rt, "broken-chip");
+
+    rt.key(key(Key::Enter));
+    frame(&mut rt);
+    assert!(rt.state.broken_panel, "Enter on the focused chip opens it");
+    assert!(rt.find("broken-panel").is_some());
+
+    // The dashboard is a list too: Tab reaches its first target and Enter
+    // creates the missing note.
+    tab_until(&mut rt, "broken-target-Missing-On-Purpose");
+    rt.key(key(Key::Enter));
+    frame(&mut rt);
+    assert!(!rt.state.broken_panel);
+    assert!(
+        rt.state
+            .vault
+            .notes
+            .iter()
+            .any(|note| note.title == "Missing On Purpose"),
+        "Enter on a focused target creates the note"
+    );
+}
