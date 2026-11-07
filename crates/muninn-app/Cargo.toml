@@ -1,0 +1,21 @@
+[package]
+name = "muninn-app"
+description = "Muninn, a local-first Markdown vault with a wikilink graph."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "muninn"
+path = "src/main.rs"
+
+[dependencies]
+muninn-ui.workspace = true
+rune.workspace = true
+rune-theme-opencode.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,54 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/muninn-core",
+    "crates/muninn-graph",
+    "crates/muninn-ui",
+    "crates/muninn-app",
+    "xtask",
+]
+default-members = ["crates/muninn-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://github.com/raythurman2386/muninn"
+authors = ["Muninn contributors"]
+
+[workspace.dependencies]
+muninn-core = { path = "crates/muninn-core", version = "0.1.0" }
+muninn-graph = { path = "crates/muninn-graph", version = "0.1.0" }
+muninn-ui = { path = "crates/muninn-ui", version = "0.1.0" }
+
+# Rune is a young framework and is not published to crates.io. Pin the exact revision the app
+# was built and tested against. For local Rune development, run `./scripts/use-local-rune.sh`.
+rune = { git = "https://github.com/anomalyco/rune.git", rev = "b39c24f7fb588defba035113f3cc8431fae15935" }
+rune-kit = { git = "https://github.com/anomalyco/rune.git", rev = "b39c24f7fb588defba035113f3cc8431fae15935", features = ["markdown"] }
+rune-theme-opencode = { git = "https://github.com/anomalyco/rune.git", rev = "b39c24f7fb588defba035113f3cc8431fae15935" }
+
+serde_json = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+# Rune is large; dependency debug info is not worth the link time during development.
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 16
+strip = "symbols"
+
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
