@@ -1,0 +1,16 @@
+[package]
+name = "muninn-core"
+description = "Vault scanning, wikilink parsing and link indexing for Muninn."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+# Exposes `muninn_core::testing::TempVault` for tests in other workspace crates.
+test-support = []
+
+[lints]
+workspace = true

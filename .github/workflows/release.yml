@@ -1,0 +1,100 @@
+name: Release
+
+# Cut a release by pushing an annotated tag:
+#   git tag -a v0.1.0 -m "v0.1.0" && git push origin v0.1.0
+# Tags containing a hyphen (v0.2.0-rc.1) are published as prereleases.
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: "1.99.1"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { runner: ubuntu-latest, os: linux, arch: x86_64, archive: tar.gz }
+          - { runner: macos-latest, os: macos, arch: aarch64, archive: tar.gz }
+          - { runner: windows-latest, os: windows, arch: x86_64, archive: zip }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux system libraries
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libwayland-dev libgl1-mesa-dev
+
+      - name: Build release binary
+        run: cargo build --locked --release -p muninn-app
+
+      - name: Package
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          OS: ${{ matrix.os }}
+          ARCH: ${{ matrix.arch }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          name="muninn_${TAG}_${OS}_${ARCH}"
+          bin="muninn"
+          if [ "$OS" = "windows" ]; then bin="muninn.exe"; fi
+          mkdir -p "dist/$name"
+          cp "target/release/$bin" LICENSE README.md ARCHITECTURE.md CHANGELOG.md "dist/$name/"
+          cp -R vault "dist/$name/vault"
+          if [ "$ARCHIVE" = "zip" ]; then
+            (cd dist && 7z a -tzip "$name.zip" "$name" > /dev/null)
+          else
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+          fi
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: muninn-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*.${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz *.zip > checksums.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          prerelease=""
+          case "$TAG" in *-*) prerelease="--prerelease" ;; esac  # v0.2.0-rc.1
+          gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt \
+            --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag $prerelease

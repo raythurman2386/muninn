@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        patterns: ["*"]
+        exclude-patterns:
+          - "rune"
+          - "rune-kit"
+          - "rune-theme-opencode"
+    ignore:
+      # Rune is pinned deliberately; update it in a dedicated PR after testing.
+      - dependency-name: "rune"
+      - dependency-name: "rune-kit"
+      - dependency-name: "rune-theme-opencode"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5

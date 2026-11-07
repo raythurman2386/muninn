@@ -1,0 +1,22 @@
+[package]
+name = "muninn-ui"
+description = "Rune views and application state for Muninn."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+muninn-core.workspace = true
+muninn-graph.workspace = true
+rune.workspace = true
+rune-kit.workspace = true
+rune-theme-opencode.workspace = true
+
+[dev-dependencies]
+muninn-core = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true
