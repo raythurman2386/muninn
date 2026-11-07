@@ -72,6 +72,11 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.toggle_graph();
         return true;
     }
+    // M3 GRP-02: arrows, Enter and the zoom/fit/isolate keys are graph-only;
+    // State owns them so the canvas can be tested without a window.
+    if s.mode == Mode::Graph && s.graph_key(e) {
+        return true;
+    }
     // F2 renames the selected note, Delete asks to delete it. When a text
     // field is focused, Delete edits text instead, so skip both then.
     let typing = s.editor.focused

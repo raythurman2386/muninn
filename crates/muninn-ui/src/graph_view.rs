@@ -2,7 +2,7 @@
 
 use rune::{
     Color, Cursor, Drag, El, LineCap, MagnifyEvent, PointerButton, Shape, Tx, WheelEvent, canvas,
-    col, el, icon, row, text,
+    col, el, icon, row, text, text_input,
 };
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
@@ -16,6 +16,9 @@ use crate::{Scope, State};
 /// unreadable, and dominate the instance count. The sample vault fits near
 /// zoom 0.9 so it keeps chips and its snapshots do not change.
 const LOD_ZOOM: f32 = 0.6;
+/// Local has only one hop around the selection, so labels stay useful a
+/// little longer; below this only the selection keeps its card.
+const LOCAL_LOD_ZOOM: f32 = 0.55;
 /// World size of a low-zoom dot marker (screen size is `DOT * zoom`, so
 /// about 12px at typical Global fit zoom).
 const DOT: f32 = 28.0;
@@ -24,7 +27,10 @@ pub fn graph(s: &State, k: &Kit) -> El {
     let visible = s.visible_notes();
     let edges = s.graph.visible_edges(&visible);
     let viewport = viewport_rect(s);
-    let dots_only = s.scope == Scope::Global && s.cam.zoom() < LOD_ZOOM;
+    let dots_only = match s.scope {
+        Scope::Global => s.cam.zoom() < LOD_ZOOM,
+        Scope::Local => s.cam.zoom() < LOCAL_LOD_ZOOM,
+    };
     let mut world = el()
         .key("graph-world")
         .size(WORLD[0], WORLD[1])
@@ -33,21 +39,7 @@ pub fn graph(s: &State, k: &Kit) -> El {
         .live_scale(&s.cam.live_zoom)
         .child(grid(k))
         .child(edge_canvas(s, k, &edges, viewport));
-    for id in &visible {
-        if let Some(node) = s.graph.node(*id) {
-            // Off-screen cards cost layout instances for nothing; the
-            // selection survives culling so its info card stays meaningful.
-            if is_culled(node.pos, NODE_W, NODE_H, viewport) && s.selected != Some(*id) {
-                continue;
-            }
-            let full = !dots_only || s.selected == Some(*id) || is_neighbour(s, *id);
-            world = world.child(if full {
-                node_button(s, k, *id, node.pos)
-            } else {
-                node_dot(s, k, *id, node.pos)
-            });
-        }
-    }
+    world = nodes_world(world, s, k, &visible, dots_only, viewport);
 
     let mut canvas_el = el()
         .key("graph-canvas")
@@ -118,6 +110,50 @@ pub fn graph(s: &State, k: &Kit) -> El {
         .child(stats(s, k, visible.len(), edges.len()))
         .child(info(s, k))
         .child(hint(k))
+}
+
+/// Append the visible nodes (rings first, then cards/dots) to the world.
+fn nodes_world(
+    mut world: El,
+    s: &State,
+    k: &Kit,
+    visible: &[usize],
+    dots_only: bool,
+    viewport: [f32; 4],
+) -> El {
+    for &id in visible {
+        let Some(node) = s.graph.node(id) else {
+            continue;
+        };
+        // Off-screen cards cost layout instances for nothing; the selection
+        // and keyboard focus survive culling so their rings stay meaningful.
+        let focused = s.graph_focus == Some(id);
+        if is_culled(node.pos, NODE_W, NODE_H, viewport) && s.selected != Some(id) && !focused {
+            continue;
+        }
+        // Global keeps neighbours labelled at low zoom; Local keeps only the
+        // selection. Isolate dims every non-neighbour to a dot.
+        let labelled = !dots_only
+            || s.selected == Some(id)
+            || (s.scope == Scope::Global && is_neighbour(s, id));
+        let isolated = s.graph_isolate && s.selected.is_some() && !is_neighbour(s, id) && !focused;
+        let as_dot = !labelled || isolated;
+        if focused {
+            let (w, h) = if as_dot {
+                let side = dot_size(degree(s, id));
+                (side, side)
+            } else {
+                card_size(degree(s, id))
+            };
+            world = world.child(focus_ring(k, node.pos, w, h));
+        }
+        world = world.child(if as_dot {
+            node_dot(s, k, id, node.pos)
+        } else {
+            node_button(s, k, id, node.pos)
+        });
+    }
+    world
 }
 
 fn grid(k: &Kit) -> El {
@@ -195,6 +231,43 @@ fn is_neighbour(s: &State, id: usize) -> bool {
     })
 }
 
+fn degree(s: &State, id: usize) -> usize {
+    let note = &s.vault.notes[id];
+    note.links.len() + note.backlinks.len()
+}
+
+/// Hub cards grow to 1.18×. The layout's separation envelope keeps 28pt of
+/// horizontal and 15pt of vertical slack, so the largest card still fits.
+fn card_scale(degree: usize) -> f32 {
+    1.0 + (degree.min(9) as f32) * 0.02
+}
+
+fn card_size(degree: usize) -> (f32, f32) {
+    let scale = card_scale(degree);
+    (NODE_W * scale, NODE_H * scale)
+}
+
+fn dot_size(degree: usize) -> f32 {
+    DOT * (1.0 + (degree.min(12) as f32) * 0.05)
+}
+
+/// GRP-02: an outline outside the card, distinct from the selection's filled
+/// accent card and shadow. Non-interactive; the card keeps its own gestures.
+fn focus_ring(k: &Kit, pos: [f32; 2], w: f32, h: f32) -> El {
+    const INSET: f32 = 3.0;
+    el().key("graph-focus-ring")
+        .pin(
+            Some(pos[0] - w / 2.0 - INSET),
+            Some(pos[1] - h / 2.0 - INSET),
+            None,
+            None,
+        )
+        .size(w + INSET * 2.0, h + INSET * 2.0)
+        .radius(12.0)
+        .fill(Color::TRANSPARENT)
+        .border(1.5, k.c.text_accent)
+}
+
 fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
     let note = &s.vault.notes[id];
     let selected = s.selected == Some(id);
@@ -221,7 +294,7 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
     } else {
         k.c.text_base
     };
-    let degree = note.links.len() + note.backlinks.len();
+    let degree = degree(s, id);
     let dot = if degree == 0 {
         k.c.text_faint
     } else if selected {
@@ -241,18 +314,16 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
     } else {
         note.title.clone()
     };
+    let (w, h) = card_size(degree);
+    let scale = card_scale(degree);
+    let marker = 6.0 * scale;
     let mut node = row()
         .key(format!("graph-node-{id}"))
-        .pin(
-            Some(pos[0] - NODE_W / 2.0),
-            Some(pos[1] - NODE_H / 2.0),
-            None,
-            None,
-        )
-        .size(NODE_W, NODE_H)
+        .pin(Some(pos[0] - w / 2.0), Some(pos[1] - h / 2.0), None, None)
+        .size(w, h)
         .px(9.0)
         .gap(7.0)
-        .radius(9.0)
+        .radius(9.0 * scale)
         .center_y()
         .fill(fill)
         .border(1.0, border)
@@ -262,10 +333,10 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
         .on_press(move |s: &mut State| s.select_graph_node(id))
         .on_double_press(move |s: &mut State| s.open_note(id))
         .on_drag(move |s: &mut State, d: &mut Drag, _: &mut Tx| s.drag_node(id, d))
-        .child(el().size(6.0, 6.0).radius(3.0).fill(dot))
+        .child(el().size(marker, marker).radius(marker / 2.0).fill(dot))
         .child(
             text(label)
-                .font(rune::TextStyle::new(12.0, 500.0))
+                .font(rune::TextStyle::new(12.0 + (scale - 1.0) * 8.0, 500.0))
                 .color(ink)
                 .truncate()
                 .grow(1.0),
@@ -282,10 +353,9 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
 /// circle instead of a labelled card. Colour keeps the chip's degree and
 /// dim encoding (isolated faint, linked accent, dimmed faint border).
 fn node_dot(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
-    let note = &s.vault.notes[id];
     let dim = s.selected.is_some() && !is_neighbour(s, id);
     let accent = k.c.text_accent;
-    let degree = note.links.len() + note.backlinks.len();
+    let degree = degree(s, id);
     let fill = if degree == 0 {
         k.c.text_faint
     } else if dim {
@@ -293,15 +363,16 @@ fn node_dot(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
     } else {
         k.alpha(accent, 0.7)
     };
+    let side = dot_size(degree);
     el().key(format!("graph-node-{id}"))
         .pin(
-            Some(pos[0] - DOT / 2.0),
-            Some(pos[1] - DOT / 2.0),
+            Some(pos[0] - side / 2.0),
+            Some(pos[1] - side / 2.0),
             None,
             None,
         )
-        .size(DOT, DOT)
-        .radius(DOT / 2.0)
+        .size(side, side)
+        .radius(side / 2.0)
         .fill(fill)
         .border(
             1.0,
@@ -324,16 +395,74 @@ fn controls(s: &State, k: &Kit) -> El {
         .pin(Some(14.0), Some(14.0), None, None)
         .gap(6.0)
         .child(scope_switch(s, k))
-        .child(chip(k, "Fit", &ic::EXPAND, "graph-fit", |s: &mut State| {
-            s.fit_graph()
-        }))
+        .child(graph_search(s, k))
+        .child(chip(
+            k,
+            "Fit",
+            &ic::EXPAND,
+            "graph-fit",
+            false,
+            |s: &mut State| s.fit_graph(),
+        ))
         .child(chip(
             k,
             "Reset",
             &ic::REFRESH,
             "graph-reset",
+            false,
             |s: &mut State| s.reset_graph(),
         ))
+        .child(chip(
+            k,
+            "Isolate",
+            &ic::SHARE,
+            "graph-isolate",
+            s.graph_isolate,
+            |s: &mut State| s.toggle_graph_isolate(),
+        ))
+}
+
+/// GRP-03: type a title or path, Enter selects the best match and centres it.
+fn graph_search(s: &State, k: &Kit) -> El {
+    row()
+        .key("graph-search-box")
+        .h(30.0)
+        .w(174.0)
+        .px(8.0)
+        .gap(6.0)
+        .radius(7.0)
+        .center_y()
+        .fill(k.alpha(k.c.layer_02, 0.96))
+        .border(
+            1.0,
+            if s.graph_query.focused {
+                k.c.border_focus
+            } else {
+                k.c.border_base
+            },
+        )
+        .cursor(Cursor::Text)
+        .child(
+            icon(&ic::MAGNIFYING_GLASS, 12.0).color(if s.graph_query.focused {
+                k.c.text_accent
+            } else {
+                k.c.icon_muted
+            }),
+        )
+        .child(
+            text_input(&s.graph_query, k.ty.ui_compact)
+                .key("graph-search")
+                .grow(1.0)
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .placeholder("Find node · Enter", k.c.text_faint)
+                .on_edit(|s: &mut State| &mut s.graph_query)
+                .on_submit(|s: &mut State, tx: &mut Tx| {
+                    s.reveal_graph_search();
+                    // Return keys to the canvas so arrows/I work immediately.
+                    tx.blur();
+                }),
+        )
 }
 
 fn scope_switch(s: &State, k: &Kit) -> El {
@@ -379,11 +508,13 @@ fn scope_button(k: &Kit, label: &str, scope: Scope, active: Scope, key: &str) ->
         }))
 }
 
+/// A control chip. `on` is the toggle state; plain chips pass false.
 fn chip(
     k: &Kit,
     label: &str,
     glyph: &'static rune::Icon,
     key: &str,
+    on: bool,
     press: impl Fn(&mut State) + 'static,
 ) -> El {
     row()
@@ -393,14 +524,22 @@ fn chip(
         .gap(6.0)
         .radius(7.0)
         .center_y()
-        .fill(k.alpha(k.c.layer_02, 0.96))
-        .border(1.0, k.c.border_base)
+        .fill(if on {
+            k.c.layer_03
+        } else {
+            k.alpha(k.c.layer_02, 0.96)
+        })
+        .border(1.0, if on { k.c.text_accent } else { k.c.border_base })
         .hover(k.c.hover)
         .press(k.c.pressed)
         .cursor(Cursor::Pointer)
         .on_press(press)
-        .child(icon(glyph, 12.0).color(k.c.icon_muted))
-        .child(text(label).font(k.ty.small_medium).color(k.c.text_muted))
+        .child(icon(glyph, 12.0).color(if on { k.c.text_accent } else { k.c.icon_muted }))
+        .child(text(label).font(k.ty.small_medium).color(if on {
+            k.c.text_base
+        } else {
+            k.c.text_muted
+        }))
 }
 
 fn stats(_s: &State, k: &Kit, nodes: usize, edges: usize) -> El {
@@ -467,6 +606,7 @@ fn info(s: &State, k: &Kit) -> El {
                     "Open note",
                     &ic::OPEN_FILE,
                     "graph-open-note",
+                    false,
                     move |s: &mut State| s.open_note(id),
                 ))
                 .child(if s.scope == Scope::Local {
@@ -475,6 +615,7 @@ fn info(s: &State, k: &Kit) -> El {
                         "Global",
                         &ic::SHARE,
                         "graph-scope",
+                        false,
                         move |s: &mut State| s.set_scope(Scope::Global),
                     )
                 } else {
@@ -483,6 +624,7 @@ fn info(s: &State, k: &Kit) -> El {
                         "Local",
                         &ic::SHARE,
                         "graph-scope",
+                        false,
                         move |s: &mut State| s.set_scope(Scope::Local),
                     )
                 }),
@@ -506,7 +648,9 @@ fn hint(k: &Kit) -> El {
         .center_y()
         .fill(k.alpha(k.c.bg_deep, 0.78))
         .child(
-            text("Drag to pan · Scroll to zoom · Double-click a node to open")
+            text(
+                "Arrows focus · Enter open · +/- zoom · 0/F fit · I isolate · Drag pan · Scroll zoom",
+            )
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )

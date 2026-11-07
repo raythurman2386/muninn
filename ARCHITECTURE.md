@@ -35,7 +35,9 @@ is not in this table. That check is part of `xtask check` and CI.
    groups notes by folder; duplicate titles are identified by their vault-relative path.
 3. **Layout.** `muninn_graph::Graph::sync` mirrors the vault as nodes and undirected,
    deduplicated edges, keyed by `rel` so duplicates keep distinct nodes. `Graph::step`
-   runs one deterministic force step and reports true only when a node actually moved.
+   runs one deterministic force step and reports true only when a node actually moved;
+   above 200 notes repulsion and separation use a uniform spatial grid with a
+   density-tapered cutoff, while smaller vaults keep the exhaustive pass unchanged.
 4. **Render.** `muninn_ui::view` builds the Rune element tree from `State`. The graph camera
    publishes pan/zoom through `Live` values so a drag redraws without rebuilding the tree.
    `poll` reports true only when visible state changed (a save completed, a node moved,
@@ -88,8 +90,9 @@ is not in this table. That check is part of `xtask check` and CI.
   the index is always derived from the files. Rename/move can additionally rewrite inbound
   wikilink source (SAF-06, per file and atomic, including folder renames), but that is a
   user-chosen file edit, not index state: the next scan would still work without it.
-- **Determinism.** The initial graph layout depends only on note order and path hash. Tests
-  compare settled positions exactly.
+- **Determinism.** The initial graph layout depends only on note order and path hash, and the
+  large-vault grid visits cells in a fixed order (never hash iteration). Tests compare settled
+  positions exactly.
 - **No side database.** Only `.md` files are written, plus the hidden trash folder: a note
   delete moves it to `.muninn-trash/<timestamp>/<original path>` (skipped by the scan) and
   Undo renames it back, never overwriting. A root that exists but is not a readable folder is

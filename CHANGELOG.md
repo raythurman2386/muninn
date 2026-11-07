@@ -8,6 +8,19 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- Large-vault graph performance (GRP-01): repulsion and card separation now use a
+  uniform spatial grid above 200 notes, with a density-tapered cutoff and force
+  normalisation. A 2000-note star+chain fixture steps at 4.8 ms p95 in release
+  (19.9 ms in an unoptimised test build); the 186 visible notes in the reference
+  vault settle in 61 ms of layout work. Small vaults keep the exhaustive pass, so
+  their settled positions and snapshots are unchanged.
+- Keyboard-complete graph (GRP-02): arrows move a visible focus ring distinct from
+  the selection, `Enter` opens the focused note, `+`/`-` zoom, `0`/`F` fit, and
+  `Esc` still leaves the graph. The arrow move is nearest-in-direction with a
+  deterministic sorted-order wrap.
+- Graph discovery controls (GRP-03): degree-scaled node cards and dots, a
+  search-to-node field that selects and centres a title/path match, an Isolate
+  toggle that dims non-neighbours, and Local label thinning to dots at far zoom.
 - Per-note undo history (EDT-02): switching away from a note and back restores its
   text, caret and Rune undo/redo stack, so `Cmd/Ctrl+Z` still reverts edits made on the
   first visit. Snapshot memory follows Rune's per-note cap (128 steps or 1 MiB) and the

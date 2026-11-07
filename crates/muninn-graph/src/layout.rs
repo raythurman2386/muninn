@@ -6,6 +6,12 @@
 //! gravity and damping then settle it. Node ids are note ids; positions
 //! survive a save or a new note because [`Graph::sync`] keeps them by `rel`,
 //! not by title.
+//!
+//! Vaults up to [`EXHAUSTIVE_LIMIT`] notes use the original all-pairs passes,
+//! so their layout is unchanged. Larger vaults bucket nodes into a uniform
+//! grid; cells are scanned in a fixed order and repulsion strength is
+//! normalised by density, which keeps a 2000-note graph both fast and finite
+//! instead of pinning every node at `MAX_SPEED`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -17,11 +23,31 @@ pub const NODE_W: f32 = 136.0;
 pub const NODE_H: f32 = 38.0;
 
 const REPULSION: f32 = 9000.0;
-/// Pairs farther apart contribute at most `REPULSION / 800² ≈ 0.014` and are
-/// skipped. The sample vault's largest pair distance is below this, so its
-/// layout (and snapshots) are unchanged; larger vaults skip about half their
-/// pairs. The cutoff is fixed, so the result stays deterministic.
-const REPULSION_CUTOFF_SQ: f32 = 800.0 * 800.0;
+/// Small vaults keep the original exhaustive 800 cutoff, bit for bit, so the
+/// sample vault, its snapshots and the small deterministic tests do not move.
+/// Above this many nodes the cutoff tapers with `1/sqrt(n)`: a 2000-note
+/// world cannot afford 800 (it is wider than the world, so no pair pruning),
+/// and the omitted far wake is below gravity at ordinary displacements while
+/// the grid keeps the result deterministic.
+const EXHAUSTIVE_LIMIT: usize = 200;
+const REPULSION_CUTOFF_SMALL: f32 = 800.0;
+const REPULSION_CUTOFF_MIN: f32 = 220.0;
+/// A 5×5 cell window covers a cutoff when the cell is half of it.
+const REPULSION_CELL_DIVISOR: f32 = 2.0;
+/// A node card may grow to 1.18× for a hub (see the UI), which stays inside
+/// the separation pads below.
+const SEP_PAD_X: f32 = 28.0;
+const SEP_PAD_Y: f32 = 15.0;
+/// Separation only acts when both spans overlap, so cells are the overlap
+/// reach in each axis: a 3×3 window is the whole candidate set.
+const SEP_CELL_X: f32 = NODE_W + SEP_PAD_X;
+const SEP_CELL_Y: f32 = NODE_H + SEP_PAD_Y;
+const SEP_AREA: f32 = SEP_CELL_X * SEP_CELL_Y;
+/// Above this fraction of [`WORLD`], full-size cards cannot all fit. The
+/// separation envelope shrinks with density so a large vault can settle into
+/// a stable packing instead of kicking cards across the world forever; the
+/// view draws those densities as dots (see `LOD_ZOOM`).
+const SEP_FULL_FILL: f32 = 0.35;
 const SPRING: f32 = 0.008;
 const LINK_LEN: f32 = 132.0;
 const GRAVITY: f32 = 0.0016;
@@ -133,27 +159,7 @@ impl Graph {
             return false;
         }
         let before: Vec<[f32; 2]> = self.nodes.iter().map(|n| n.pos).collect();
-        let n = self.nodes.len();
-        let mut force = vec![[0.0f32; 2]; n];
-        for i in 0..n {
-            for j in i + 1..n {
-                let dx = self.nodes[j].pos[0] - self.nodes[i].pos[0];
-                let dy = self.nodes[j].pos[1] - self.nodes[i].pos[1];
-                let d2_raw = dx * dx + dy * dy;
-                if d2_raw > REPULSION_CUTOFF_SQ {
-                    continue;
-                }
-                let d2 = d2_raw.max(36.0);
-                let d = d2.sqrt();
-                let f = REPULSION / d2;
-                let ux = dx / d;
-                let uy = dy / d;
-                force[i][0] -= ux * f;
-                force[i][1] -= uy * f;
-                force[j][0] += ux * f;
-                force[j][1] += uy * f;
-            }
-        }
+        let mut force = repulsion_force(&self.nodes);
         for &(a, b) in &self.edges {
             let dx = self.nodes[b].pos[0] - self.nodes[a].pos[0];
             let dy = self.nodes[b].pos[1] - self.nodes[a].pos[1];
@@ -256,30 +262,240 @@ impl Graph {
     }
 }
 
-/// Keep the wide node cards out of each other's labels. Two passes of rectangle separation
-/// per step, along the axis with the smaller overlap.
-fn separate(nodes: &mut [GNode]) -> bool {
-    let mut moved = false;
-    for _ in 0..2 {
-        for i in 0..nodes.len() {
-            for j in i + 1..nodes.len() {
-                if separate_pair(nodes, i, j) {
-                    moved = true;
+/// A uniform bucket grid over [`WORLD`]. Cells hold node indices in node
+/// order, so a scan is deterministic: no hash iteration enters the result.
+struct Grid {
+    cell: [f32; 2],
+    cols: usize,
+    rows: usize,
+    cells: Vec<Vec<usize>>,
+}
+
+impl Grid {
+    fn build(nodes: &[GNode], cell: [f32; 2]) -> Grid {
+        let cols = (WORLD[0] / cell[0]).ceil().max(1.0) as usize;
+        let rows = (WORLD[1] / cell[1]).ceil().max(1.0) as usize;
+        let mut grid = Grid {
+            cell,
+            cols,
+            rows,
+            cells: vec![Vec::new(); cols * rows],
+        };
+        for (index, node) in nodes.iter().enumerate() {
+            let (x, y) = grid.coord(node.pos);
+            grid.cells[y * cols + x].push(index);
+        }
+        grid
+    }
+
+    fn coord(&self, pos: [f32; 2]) -> (usize, usize) {
+        let x = ((pos[0] / self.cell[0]).floor() as isize).clamp(0, self.cols as isize - 1);
+        let y = ((pos[1] / self.cell[1]).floor() as isize).clamp(0, self.rows as isize - 1);
+        (x as usize, y as usize)
+    }
+}
+
+fn repulsion_cutoff(n: usize) -> f32 {
+    if n <= EXHAUSTIVE_LIMIT {
+        return REPULSION_CUTOFF_SMALL;
+    }
+    (REPULSION_CUTOFF_SMALL * (EXHAUSTIVE_LIMIT as f32 / n as f32).sqrt()).max(REPULSION_CUTOFF_MIN)
+}
+
+/// Repulsive pressure is summed over all neighbours; a fixed constant would
+/// grow with density and overpower springs and gravity. Keeping the total
+/// roughly constant is what lets a large vault settle instead of pinning
+/// every node at `MAX_SPEED`.
+fn repulsion_strength(n: usize) -> f32 {
+    REPULSION * (EXHAUSTIVE_LIMIT as f32 / n.max(EXHAUSTIVE_LIMIT) as f32)
+}
+
+fn add_repulsion(force: &mut [[f32; 2]], nodes: &[GNode], i: usize, j: usize, strength: f32) {
+    let dx = nodes[j].pos[0] - nodes[i].pos[0];
+    let dy = nodes[j].pos[1] - nodes[i].pos[1];
+    let d2 = (dx * dx + dy * dy).max(36.0);
+    let d = d2.sqrt();
+    let f = strength / d2;
+    let ux = dx / d;
+    let uy = dy / d;
+    force[i][0] -= ux * f;
+    force[i][1] -= uy * f;
+    force[j][0] += ux * f;
+    force[j][1] += uy * f;
+}
+
+/// The original all-pairs pass. Small vaults use it so their settled
+/// positions (and snapshots) stay byte-identical; it is also the reference
+/// the grid path is tested against.
+fn pairwise_repulsion(nodes: &[GNode]) -> Vec<[f32; 2]> {
+    let mut force = vec![[0.0f32; 2]; nodes.len()];
+    let cutoff_sq = repulsion_cutoff(nodes.len()).powi(2);
+    let strength = repulsion_strength(nodes.len());
+    for i in 0..nodes.len() {
+        for j in i + 1..nodes.len() {
+            let dx = nodes[j].pos[0] - nodes[i].pos[0];
+            let dy = nodes[j].pos[1] - nodes[i].pos[1];
+            if dx * dx + dy * dy <= cutoff_sq {
+                add_repulsion(&mut force, nodes, i, j, strength);
+            }
+        }
+    }
+    force
+}
+
+/// Pairwise repulsion over a uniform grid. Cells hold node indices in node
+/// order and are visited in a fixed order, so the result is deterministic;
+/// the summation order differs from [`pairwise_repulsion`] only, within
+/// float rounding.
+fn repulsion_force(nodes: &[GNode]) -> Vec<[f32; 2]> {
+    if nodes.len() <= EXHAUSTIVE_LIMIT {
+        return pairwise_repulsion(nodes);
+    }
+    let mut force = vec![[0.0f32; 2]; nodes.len()];
+    let cutoff = repulsion_cutoff(nodes.len());
+    let cutoff_sq = cutoff * cutoff;
+    let strength = repulsion_strength(nodes.len());
+    let cell = cutoff / REPULSION_CELL_DIVISOR;
+    let grid = Grid::build(nodes, [cell; 2]);
+    let reach = REPULSION_CELL_DIVISOR.ceil() as isize;
+    let mut neighbours = Vec::new();
+    for i in 0..nodes.len() {
+        let (cx, cy) = grid.coord(nodes[i].pos);
+        neighbours.clear();
+        for gy in cy as isize - reach..=cy as isize + reach {
+            if gy < 0 || gy >= grid.rows as isize {
+                continue;
+            }
+            for gx in cx as isize - reach..=cx as isize + reach {
+                if gx < 0 || gx >= grid.cols as isize {
+                    continue;
+                }
+                for &j in &grid.cells[gy as usize * grid.cols + gx as usize] {
+                    if j <= i {
+                        continue;
+                    }
+                    let dx = nodes[j].pos[0] - nodes[i].pos[0];
+                    let dy = nodes[j].pos[1] - nodes[i].pos[1];
+                    if dx * dx + dy * dy <= cutoff_sq {
+                        neighbours.push(j);
+                    }
                 }
             }
+        }
+        for &j in &neighbours {
+            add_repulsion(&mut force, nodes, i, j, strength);
+        }
+    }
+    force
+}
+
+/// Keep the wide node cards out of each other's labels. Two passes of
+/// rectangle separation per step, along the axis with the smaller overlap.
+///
+/// The grid holds positions from the start of a pass. A pair that only moves
+/// into overlap during that pass is caught by the next pass; the old
+/// exhaustive scan saw it in the same pass, so this is a documented, bounded
+/// approximation rather than an exact reordering.
+fn separate(nodes: &mut [GNode]) -> bool {
+    let extent = separation_extent(nodes.len());
+    if nodes.len() <= EXHAUSTIVE_LIMIT {
+        return separate_exhaustive(nodes, extent);
+    }
+    let mut moved = false;
+    let mut candidates = Vec::new();
+    for _ in 0..2 {
+        if !separate_grid_pass(nodes, extent, &mut candidates) {
+            break;
+        }
+        moved = true;
+    }
+    moved
+}
+
+fn separate_grid_pass(nodes: &mut [GNode], extent: [f32; 2], candidates: &mut Vec<usize>) -> bool {
+    let grid = Grid::build(nodes, extent);
+    let mut moved = false;
+    for i in 0..nodes.len() {
+        candidates.clear();
+        collect_overlaps(nodes, i, &grid, extent, candidates);
+        candidates.sort_unstable();
+        for &j in candidates.iter() {
+            moved |= separate_pair(nodes, i, j, extent);
         }
     }
     moved
 }
 
+fn collect_overlaps(
+    nodes: &[GNode],
+    i: usize,
+    grid: &Grid,
+    extent: [f32; 2],
+    out: &mut Vec<usize>,
+) {
+    let (cx, cy) = grid.coord(nodes[i].pos);
+    let y0 = cy.saturating_sub(1);
+    let y1 = (cy + 1).min(grid.rows - 1);
+    let x0 = cx.saturating_sub(1);
+    let x1 = (cx + 1).min(grid.cols - 1);
+    for gy in y0..=y1 {
+        for gx in x0..=x1 {
+            for &j in &grid.cells[gy * grid.cols + gx] {
+                if j <= i {
+                    continue;
+                }
+                let dx = nodes[j].pos[0] - nodes[i].pos[0];
+                let dy = nodes[j].pos[1] - nodes[i].pos[1];
+                if dx.abs() < extent[0] && dy.abs() < extent[1] {
+                    out.push(j);
+                }
+            }
+        }
+    }
+}
+
+/// The original all-pairs separation pass, kept for small vaults so their
+/// layout is unchanged.
+fn separate_exhaustive(nodes: &mut [GNode], extent: [f32; 2]) -> bool {
+    let mut moved = false;
+    for _ in 0..2 {
+        let mut pass_moved = false;
+        for i in 0..nodes.len() {
+            for j in i + 1..nodes.len() {
+                if separate_pair(nodes, i, j, extent) {
+                    moved = true;
+                    pass_moved = true;
+                }
+            }
+        }
+        if !pass_moved {
+            break;
+        }
+    }
+    moved
+}
+
+/// Full card packing while it fits; below that, shrink both axes so the
+/// available world area per node is respected.
+fn separation_extent(n: usize) -> [f32; 2] {
+    if n == 0 {
+        return [SEP_CELL_X, SEP_CELL_Y];
+    }
+    let fill = n as f32 * SEP_AREA / (WORLD[0] * WORLD[1]);
+    let scale = if fill <= SEP_FULL_FILL {
+        1.0
+    } else {
+        (SEP_FULL_FILL / fill).sqrt()
+    };
+    [SEP_CELL_X * scale, SEP_CELL_Y * scale]
+}
+
 /// Separate one pair, if it overlaps. Returns true when a position changed.
-fn separate_pair(nodes: &mut [GNode], i: usize, j: usize) -> bool {
-    const PAD_X: f32 = 28.0;
-    const PAD_Y: f32 = 15.0;
+fn separate_pair(nodes: &mut [GNode], i: usize, j: usize, extent: [f32; 2]) -> bool {
     let dx = nodes[j].pos[0] - nodes[i].pos[0];
     let dy = nodes[j].pos[1] - nodes[i].pos[1];
-    let ox = NODE_W + PAD_X - dx.abs();
-    let oy = NODE_H + PAD_Y - dy.abs();
+    let ox = extent[0] - dx.abs();
+    let oy = extent[1] - dy.abs();
     if ox <= 0.0 || oy <= 0.0 {
         return false;
     }
@@ -395,5 +611,54 @@ mod tests {
         let edges = g.visible_edges(&[a, b, c]);
         assert!(edges.contains(&(a.min(b), a.max(b))));
         assert_eq!(g.visible_edges(&[a]), Vec::new());
+    }
+}
+
+#[cfg(test)]
+mod grid {
+    use super::*;
+    use muninn_core::testing::TempVault;
+
+    /// `n` notes mixed from 25-note star groups and a chain: every note links
+    /// to its group hub and the previous note, giving realistic high-degree
+    /// nodes without a single 80-link hub.
+    fn big_vault(n: usize) -> TempVault {
+        let mut files = Vec::with_capacity(n);
+        for i in 0..n {
+            let mut body = String::new();
+            if i > 0 {
+                body.push_str(&format!("[[Note {:04}]]\n", i - 1));
+            }
+            let hub = i - i % 25;
+            if hub != i {
+                body.push_str(&format!("[[Note {hub:04}]]\n"));
+            }
+            files.push((format!("Note {i:04}.md"), format!("# Note {i:04}\n{body}")));
+        }
+        let refs: Vec<(&str, &str)> = files
+            .iter()
+            .map(|(name, body)| (name.as_str(), body.as_str()))
+            .collect();
+        TempVault::new(&refs)
+    }
+
+    #[test]
+    fn grid_repulsion_matches_the_exhaustive_pass() {
+        // Above EXHAUSTIVE_LIMIT, so `repulsion_force` takes the grid path.
+        let tmp = big_vault(260);
+        let v = tmp.load();
+        let mut g = Graph::new(&v);
+        // Spread the spiral into several grid cells before comparing.
+        for _ in 0..40 {
+            g.step();
+        }
+        let grid = repulsion_force(&g.nodes);
+        let exhaustive = pairwise_repulsion(&g.nodes);
+        for (i, (a, b)) in grid.iter().zip(&exhaustive).enumerate() {
+            // Same candidate set and forces; only the float summation order
+            // differs, so the tolerance is rounding, not approximation.
+            assert!((a[0] - b[0]).abs() < 1e-3, "node {i}: {a:?} vs {b:?}");
+            assert!((a[1] - b[1]).abs() < 1e-3, "node {i}: {a:?} vs {b:?}");
+        }
     }
 }

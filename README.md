@@ -50,6 +50,10 @@ Without `--vault` or `MUNINN_VAULT`, Muninn opens `~/Muninn` and creates it when
 - Dragging a graph node pins it while you drag; the force layout settles around it. Drag the
   background to pan, scroll to zoom at the pointer, Shift+scroll to pan, pinch or Ctrl/Cmd+scroll
   to zoom.
+- The graph is keyboard-complete: arrows move a focus ring between visible notes, `Enter` opens
+  the focused note, `+`/`-` zoom, `0`/`F` fit, and `Esc` leaves. The **Find node** field selects
+  and centres a title or path; **Isolate** dims everything outside the selection's neighbourhood.
+  Hub notes draw larger, and at far zoom labels thin to dots in Local as well as Global.
 - Unresolved wikilinks are drawn faintly in Read mode. Clicking one creates the note and opens
   it in Write mode. Path-qualified links (`[[folder/note]]`) resolve to that folder; a bare
   title shared by several notes resolves deterministically and displays with its folder.
@@ -91,6 +95,12 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘G` / `Ctrl+G` | Toggle Graph |
 | `⌘L` / `Ctrl+L` | Toggle Global / Local graph |
 | `⌘1` / `⌘2` / `⌘3` | Write / Read / Graph |
+| `↑` / `↓` / `←` / `→` (graph) | Move the focus ring to the nearest node (sorted order wraps when no node lies that way) |
+| `Enter` (graph) | Open the focused note |
+| `+` / `-` (graph) | Zoom in / out at the canvas centre |
+| `0` / `F` (graph) | Fit the visible nodes |
+| `I` (graph) | Toggle Isolate (dim non-neighbours) |
+| `Enter` (Find node) | Select and centre the best title/path match |
 | `Esc` | Leave the graph |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use muninn_core::{Vault, heading_offset, unclosed_link};
-use muninn_graph::{Graph, WORLD};
+use muninn_graph::{Graph, WORLD, world_centre};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::Camera;
@@ -289,6 +289,13 @@ pub struct State {
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
+    /// Keyboard focus in the graph, deliberately separate from `selected`:
+    /// arrows move the focus ring, Enter opens the focused note.
+    pub graph_focus: Option<usize>,
+    /// Search-to-node field in the graph controls.
+    pub graph_query: TextEdit,
+    /// Isolate mode: non-neighbours stay as faint dots.
+    pub graph_isolate: bool,
     /// The graph canvas's measured size, in points.
     pub canvas: [f32; 2],
     /// The last measured window width, so narrow layouts can drop the links rail.
@@ -409,6 +416,9 @@ impl State {
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
+            graph_focus: None,
+            graph_query: TextEdit::new(""),
+            graph_isolate: false,
             canvas: [900.0, 620.0],
             window_width: 1180.0,
             needs_fit: true,
@@ -607,6 +617,8 @@ impl State {
     }
 
     pub fn select_graph_node(&mut self, id: usize) {
+        // A pointer selection is also where the keyboard focus ring sits.
+        self.graph_focus = Some(id);
         self.load_note(id, false);
     }
 
@@ -1154,6 +1166,14 @@ impl State {
             self.needs_fit = true;
             self.auto_fit = true;
             self.graph.reheat();
+            if self
+                .graph_focus
+                .is_none_or(|id| id >= self.vault.notes.len())
+            {
+                self.graph_focus = self
+                    .selected
+                    .or_else(|| self.vault.notes.first().map(|note| note.id));
+            }
         }
         if mode == Mode::Editor {
             self.focus_editor();
@@ -1233,6 +1253,191 @@ impl State {
         self.graph.reset();
         self.needs_fit = true;
         self.auto_fit = true;
+    }
+
+    /// M3 GRP-02: graph-only keyboard commands. Kept on `State` so the window
+    /// shortcut table stays a table and the canvas's keys are testable without
+    /// a window.
+    pub fn graph_key(&mut self, e: &KeyEvent) -> bool {
+        if self.mode != Mode::Graph || e.mods.cmd || e.mods.ctrl || e.mods.alt {
+            return false;
+        }
+        match &e.key {
+            Key::Left => self.graph_focus_step(-1.0, 0.0),
+            Key::Right => self.graph_focus_step(1.0, 0.0),
+            Key::Up => self.graph_focus_step(0.0, -1.0),
+            Key::Down => self.graph_focus_step(0.0, 1.0),
+            Key::Enter => {
+                let Some(id) = self.graph_focus else {
+                    return false;
+                };
+                self.open_note(id);
+            }
+            Key::Text(t) => match t.as_str() {
+                "+" | "=" => self.zoom_graph(1.25),
+                "-" | "_" => self.zoom_graph(0.8),
+                "0" | "f" | "F" => self.fit_graph(),
+                "i" | "I" => self.toggle_graph_isolate(),
+                _ => return false,
+            },
+            _ => return false,
+        }
+        true
+    }
+
+    /// Move the focus ring to the nearest visible node in a screen direction.
+    ///
+    /// The score is squared distance plus twice the squared sideways offset,
+    /// so a modestly farther but on-axis node wins over a near off-axis one.
+    /// Ties go to the lower note id. With no node in that half-plane (e.g.
+    /// Left from the leftmost node) the stable sorted order wraps instead, as
+    /// documented in the README.
+    pub fn graph_focus_step(&mut self, dx: f32, dy: f32) {
+        let visible = self.visible_notes();
+        if visible.is_empty() {
+            self.graph_focus = None;
+            return;
+        }
+        let current = self
+            .graph_focus
+            .filter(|id| visible.contains(id))
+            .or_else(|| self.selected.filter(|id| visible.contains(id)));
+        let Some(current) = current else {
+            self.graph_focus = Some(visible[0]);
+            return;
+        };
+        let Some(origin) = self.graph.node(current).map(|node| node.pos) else {
+            self.graph_focus = Some(visible[0]);
+            return;
+        };
+        let mut best: Option<(f32, usize)> = None;
+        for &id in &visible {
+            if id == current {
+                continue;
+            }
+            let Some(node) = self.graph.node(id) else {
+                continue;
+            };
+            let ddx = node.pos[0] - origin[0];
+            let ddy = node.pos[1] - origin[1];
+            let along = ddx * dx + ddy * dy;
+            if along <= 0.5 {
+                continue;
+            }
+            let sideways = (ddx * dy - ddy * dx).abs();
+            let score = ddx * ddx + ddy * ddy + 2.0 * sideways * sideways;
+            let better = match best {
+                None => true,
+                Some((best_score, best_id)) => match score.total_cmp(&best_score) {
+                    std::cmp::Ordering::Less => true,
+                    std::cmp::Ordering::Equal => id < best_id,
+                    std::cmp::Ordering::Greater => false,
+                },
+            };
+            if better {
+                best = Some((score, id));
+            }
+        }
+        let next = if let Some((_, id)) = best {
+            id
+        } else {
+            let mut sorted = visible;
+            sorted.sort_unstable();
+            let index = sorted.binary_search(&current).unwrap_or(0);
+            let step = if dx + dy < 0.0 { sorted.len() - 1 } else { 1 };
+            sorted[(index + step) % sorted.len()]
+        };
+        self.graph_focus = Some(next);
+        self.keep_graph_focus_visible();
+    }
+
+    /// Pan (and minimally zoom in) so `id` is comfortably on screen.
+    pub fn center_graph_on(&mut self, id: usize) {
+        let Some(pos) = self.graph.node(id).map(|node| node.pos) else {
+            return;
+        };
+        let centre = world_centre();
+        let zoom = self.cam.zoom().max(0.9);
+        self.cam.set(
+            [
+                self.canvas[0] / 2.0 - centre[0] - (pos[0] - centre[0]) * zoom,
+                self.canvas[1] / 2.0 - centre[1] - (pos[1] - centre[1]) * zoom,
+            ],
+            zoom,
+        );
+        self.auto_fit = false;
+    }
+
+    fn keep_graph_focus_visible(&mut self) {
+        let Some(id) = self.graph_focus else {
+            return;
+        };
+        let Some(node) = self.graph.node(id) else {
+            return;
+        };
+        let point = self.cam.screen(node.pos);
+        let margin = 48.0;
+        if point[0] >= margin
+            && point[0] <= self.canvas[0] - margin
+            && point[1] >= margin
+            && point[1] <= self.canvas[1] - margin
+        {
+            return;
+        }
+        self.center_graph_on(id);
+    }
+
+    pub fn zoom_graph(&mut self, factor: f32) {
+        self.auto_fit = false;
+        self.cam
+            .zoom_at([self.canvas[0] / 2.0, self.canvas[1] / 2.0], factor);
+    }
+
+    pub fn toggle_graph_isolate(&mut self) {
+        self.graph_isolate = !self.graph_isolate;
+    }
+
+    /// The note the graph search field points at: title-exact, then title
+    /// prefix, then title substring, then path substring; ties by note id.
+    #[must_use]
+    pub fn graph_search_match(&self) -> Option<usize> {
+        let query = self.graph_query.text.trim().to_lowercase();
+        if query.is_empty() {
+            return None;
+        }
+        let mut best: Option<(u8, usize)> = None;
+        for note in &self.vault.notes {
+            let title = note.title.to_lowercase();
+            let rank = if title == query {
+                0
+            } else if title.starts_with(&query) {
+                1
+            } else if title.contains(&query) {
+                2
+            } else if note.rel.to_lowercase().contains(&query) {
+                3
+            } else {
+                continue;
+            };
+            let better = best.is_none_or(|(best_rank, best_id)| {
+                rank < best_rank || (rank == best_rank && note.id < best_id)
+            });
+            if better {
+                best = Some((rank, note.id));
+            }
+        }
+        best.map(|(_, id)| id)
+    }
+
+    /// GRP-03: search-to-node. Selects the match, focuses it, and centres it.
+    pub fn reveal_graph_search(&mut self) -> bool {
+        let Some(id) = self.graph_search_match() else {
+            return false;
+        };
+        self.select_graph_node(id);
+        self.graph_focus = Some(id);
+        self.center_graph_on(id);
+        true
     }
 
     #[must_use]
