@@ -3,7 +3,9 @@
 use crate::vault::Vault;
 
 impl Vault {
-    /// Notes matching `query` by title or body, alphabetically. An empty query matches all.
+    /// Notes matching `query` by title or body, alphabetically by title with
+    /// a deterministic `rel` tie-break for duplicate titles (the sidebar
+    /// re-groups these by folder). An empty query matches all.
     #[must_use]
     pub fn search(&self, query: &str) -> Vec<usize> {
         let q = query.trim().to_lowercase();
@@ -17,12 +19,13 @@ impl Vault {
             })
             .map(|n| n.id)
             .collect();
-        ids.sort_by_key(|&id| {
-            let note = &self.notes[id];
-            (
-                !note.title.to_lowercase().contains(&q),
-                note.title.to_lowercase(),
-            )
+        ids.sort_by(|&a, &b| {
+            let (na, nb) = (&self.notes[a], &self.notes[b]);
+            (!na.title.to_lowercase().contains(&q))
+                .cmp(&!nb.title.to_lowercase().contains(&q))
+                .then_with(|| na.title.to_lowercase().cmp(&nb.title.to_lowercase()))
+                .then_with(|| na.rel.to_lowercase().cmp(&nb.rel.to_lowercase()))
+                .then_with(|| na.rel.cmp(&nb.rel))
         });
         ids
     }

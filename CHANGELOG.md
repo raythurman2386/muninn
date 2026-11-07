@@ -12,6 +12,10 @@ All notable changes to Muninn are documented here. The format is based on
 - `cargo run -p xtask -- check`, `layers`, `bundle` and `snapshots` tasks.
 - GitHub CI, release workflow, issue templates and Dependabot configuration.
 - `scripts/use-local-rune.sh` for development against a local Rune checkout.
+- Folder-aware sidebar: notes grouped by folder with collapsing sections; duplicates show their
+  vault-relative path, and new notes can target the current or a chosen folder.
+- Documented wikilink resolution preferring path-qualified targets, then unambiguous titles,
+  then a deterministic smallest-path choice for duplicates.
 
 ### Changed
 
@@ -19,6 +23,9 @@ All notable changes to Muninn are documented here. The format is based on
 - Pinned Rune to an exact git revision instead of a sibling path dependency.
 - Default vault is now `$MUNINN_VAULT`, `--vault`, or `~/Muninn`; the sample vault is opt-in.
 - Split the vault parser, layout engine and UI into layered crates.
+- Graph wheel: plain scroll zooms at the pointer and `Shift+scroll` pans, matching the hint.
+- `poll` reports a view change only when a save completed, a node moved or the camera fit
+  moved the view, ending spurious “returned true but nothing changed” warnings.
 
 ## [0.1.0] - 2026-11-07
 

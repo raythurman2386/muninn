@@ -1,5 +1,6 @@
 //! Application state: the open vault, note, editor, graph and camera.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use muninn_core::Vault;
@@ -50,6 +51,8 @@ pub struct State {
     pub last_save: Option<f64>,
     pub dirty_at: Option<f64>,
     pub now: f64,
+    /// Collapsed sidebar folders (vault-relative, `""` for the root).
+    pub collapsed: HashSet<String>,
 }
 
 impl State {
@@ -84,6 +87,7 @@ impl State {
             last_save: None,
             dirty_at: None,
             now: 0.0,
+            collapsed: HashSet::new(),
         };
         if let Some(id) = first {
             state.load_note(id, false);
@@ -207,12 +211,21 @@ impl State {
     }
 
     /// Fit the visible nodes without giving up the "follow the layout" mode.
-    pub fn refit(&mut self) {
+    /// Returns true when the camera pan/zoom actually changed beyond a
+    /// sub-pixel threshold, so pollers can report only visible changes.
+    /// The threshold absorbs the layout's invisible spring-vs-separation
+    /// creep (a few thousandths of a point per step).
+    pub fn refit(&mut self) -> bool {
+        let before = (self.cam.pan(), self.cam.zoom());
         let visible = self.visible_notes();
         if let Some(bounds) = self.graph.bounds(&visible) {
             self.cam.fit(bounds, self.canvas);
         }
         self.needs_fit = false;
+        let after = (self.cam.pan(), self.cam.zoom());
+        (before.0[0] - after.0[0]).abs() > 0.5
+            || (before.0[1] - after.0[1]).abs() > 0.5
+            || (before.1 - after.1).abs() > 0.005
     }
 
     pub fn fit_graph(&mut self) {
@@ -327,12 +340,46 @@ impl State {
     }
 
     pub fn new_note(&mut self) {
-        self.create_note_named("Untitled");
+        let folder = self.current_folder();
+        self.new_note_in(&folder);
+    }
+
+    /// Create a fresh `Untitled` note in `folder` (`""` = vault root).
+    pub fn new_note_in(&mut self, folder: &str) {
+        self.create_note_named_in("Untitled", folder);
+    }
+
+    /// Folder new notes target by default: the selected note's folder, or
+    /// the vault root when nothing is selected.
+    #[must_use]
+    pub fn current_folder(&self) -> String {
+        self.selected
+            .and_then(|id| self.vault.notes.get(id))
+            .map(|n| n.folder().to_owned())
+            .unwrap_or_default()
+    }
+
+    /// Collapse or expand one sidebar folder.
+    pub fn toggle_folder(&mut self, folder: &str) {
+        if !self.collapsed.remove(folder) {
+            self.collapsed.insert(folder.to_owned());
+        }
+    }
+
+    #[must_use]
+    pub fn is_collapsed(&self, folder: &str) -> bool {
+        self.collapsed.contains(folder)
     }
 
     pub fn create_note_named(&mut self, title: &str) {
+        let folder = self.current_folder();
+        self.create_note_named_in(title, &folder);
+    }
+
+    /// Create `title` directly in `folder`, then open it in the editor.
+    pub fn create_note_named_in(&mut self, title: &str, folder: &str) {
         self.flush();
-        match self.vault.create_note(title) {
+        match self.vault.create_note_in(title, folder) {
             Ok(path) => {
                 self.reload(Some(path));
                 self.mode = Mode::Editor;
@@ -350,8 +397,17 @@ impl State {
             if let Some(id) = self.vault.resolve(title) {
                 self.open_from_link(id);
             }
-        } else if let Some(title) = url.strip_prefix("missing:") {
-            self.create_note_named(title);
+        } else if let Some(raw) = url.strip_prefix("missing:") {
+            // A path-qualified missing link names its folder; a bare one is
+            // created in the current note's folder (see `create_note_named`).
+            let normalised = raw.replace('\\', "/");
+            if let Some((folder, title)) = normalised.rsplit_once('/')
+                && !title.is_empty()
+            {
+                self.create_note_named_in(title, folder);
+            } else {
+                self.create_note_named(raw);
+            }
         } else if tx.open_url(url).is_err() {
             // External links are best-effort: the platform may have no opener.
         }

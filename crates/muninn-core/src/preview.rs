@@ -4,8 +4,12 @@ use crate::vault::Vault;
 use crate::wikilink::parse_links;
 
 impl Vault {
-    /// Rewrite `[[wikilinks]]` into ordinary Markdown links: `note:<title>` when a note exists,
-    /// `missing:<title>` when it doesn't. Code spans and fenced blocks keep their brackets.
+    /// Rewrite `[[wikilinks]]` into ordinary Markdown links: `note:<stem>`
+    /// when a note exists, `missing:<target>` when it doesn't. The destination
+    /// is the vault-relative stem (not the bare title) so a link to a nested
+    /// or duplicate-titled note opens the right file without relying on the
+    /// duplicate-title fallback. Code spans and fenced blocks keep their
+    /// brackets.
     #[must_use]
     pub fn preview(&self, source: &str, current: usize) -> String {
         let links = parse_links(source);
@@ -23,7 +27,7 @@ impl Vault {
                 self.resolve(&link.target)
             };
             let dest = match resolved {
-                Some(id) => format!("note:{}", self.notes[id].title),
+                Some(id) => format!("note:{}", self.notes[id].stem()),
                 None => format!("missing:{}", link.target),
             };
             out.push('[');
@@ -125,5 +129,21 @@ mod tests {
         let out = v.preview(&v.note(home).source, home);
         assert!(out.contains("[the part](<note:Target>)"), "{out}");
         assert!(out.contains("[Local](<note:Home>)"), "{out}");
+    }
+
+    #[test]
+    fn nested_preview_uses_the_full_stem() {
+        let tmp = TempVault::new(&[
+            ("Home.md", "see [[b/note]] and [[note]]"),
+            ("a/note.md", "a"),
+            ("b/note.md", "b"),
+        ]);
+        let v = tmp.load();
+        let home = v.resolve("Home").unwrap();
+        let out = v.preview(&v.note(home).source, home);
+        // The path-qualified link keeps its folder; the bare duplicate goes
+        // to the deterministic smallest-rel note but still renders its stem.
+        assert!(out.contains("note:b/note"), "{out}");
+        assert!(out.contains("note:a/note"), "{out}");
     }
 }
