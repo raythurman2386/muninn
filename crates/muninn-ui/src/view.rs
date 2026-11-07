@@ -36,9 +36,17 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
 fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
     let results = s.vault.search(&s.search.text);
     let empty = results.is_empty();
+    let filtering = !s.search.text.trim().is_empty();
+    let groups = s.vault.group_by_folder(&results);
     let mut list = col().key("note-list").w_full().px(8.0).pb(8.0).gap(2.0);
-    for id in results {
-        list = list.child(note_row(s, k, id));
+    for (folder, ids) in groups {
+        let collapsed = s.is_collapsed(&folder) && !filtering;
+        list = list.child(folder_header(s, k, &folder, ids.len(), collapsed));
+        if !collapsed {
+            for id in ids {
+                list = list.child(note_row(s, k, id, true));
+            }
+        }
     }
     if empty {
         let (title, hint) = if s.vault.notes.is_empty() {
@@ -204,7 +212,75 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
         )
 }
 
-fn note_row(s: &State, k: &Kit, id: usize) -> El {
+/// Sidebar folder header: chevron + name + count toggles the group, `+`
+/// creates a note in that folder. Root shows as “Vault root”.
+fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: bool) -> El {
+    let slug = folder_slug(folder);
+    let name = if folder.is_empty() {
+        "Vault root".to_owned()
+    } else {
+        folder.to_owned()
+    };
+    let chevron = if collapsed { "▸" } else { "▾" };
+    let toggle = folder.to_owned();
+    row()
+        .key(format!("folder-header-{slug}"))
+        .w_full()
+        .h(30.0)
+        .px(6.0)
+        .gap(6.0)
+        .radius(6.0)
+        .center_y()
+        .hover(k.c.hover)
+        .cursor(Cursor::Pointer)
+        .on_press(move |s: &mut State| s.toggle_folder(&toggle))
+        .child(
+            text(chevron)
+                .font(TextStyle::new(10.0, 600.0))
+                .color(k.c.text_faint),
+        )
+        .child(
+            text(name)
+                .font(k.ty.small_medium)
+                .color(k.c.text_muted)
+                .grow(1.0)
+                .truncate(),
+        )
+        .child(
+            text(count.to_string())
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        )
+        .child(folder_new_button(k, &slug, folder))
+}
+
+fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
+    let target = folder.to_owned();
+    el().key(format!("folder-new-{slug}"))
+        .size(22.0, 22.0)
+        .radius(6.0)
+        .center()
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
+        .on_press(move |s: &mut State| s.new_note_in(&target))
+}
+
+/// Stable test key for a folder (`""` → `root`).
+fn folder_slug(folder: &str) -> String {
+    if folder.is_empty() {
+        return "root".to_owned();
+    }
+    folder
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_owned()
+}
+
+fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
     let note = &s.vault.notes[id];
     let on = s.selected == Some(id);
     let accent = k.c.text_accent;
@@ -215,7 +291,7 @@ fn note_row(s: &State, k: &Kit, id: usize) -> El {
     } else {
         k.alpha(accent, 0.55)
     };
-    let subtitle = match (note.links.len(), note.backlinks.len()) {
+    let links = match (note.links.len(), note.backlinks.len()) {
         (0, 0) => "no links".to_owned(),
         (0, b) => plural(b, "backlink", "backlinks"),
         (l, 0) => plural(l, "link", "links"),
@@ -225,11 +301,22 @@ fn note_row(s: &State, k: &Kit, id: usize) -> El {
             plural(b, "backlink", "backlinks")
         ),
     };
-    row()
+    // Duplicate titles are only distinguishable by folder, so the subtitle
+    // carries the vault-relative folder for those rows.
+    let subtitle = if s.vault.is_duplicate(id) {
+        let folder = note.folder();
+        if folder.is_empty() {
+            format!("vault root · {links}")
+        } else {
+            format!("{folder} · {links}")
+        }
+    } else {
+        links
+    };
+    let row = row()
         .key(format!("note-row-{id}"))
         .w_full()
         .h(48.0)
-        .px(10.0)
         .gap(9.0)
         .radius(7.0)
         .center_y()
@@ -259,7 +346,12 @@ fn note_row(s: &State, k: &Kit, id: usize) -> El {
                         .color(k.c.text_faint)
                         .truncate(),
                 ),
-        )
+        );
+    if indented {
+        row.px(10.0).pl(20.0)
+    } else {
+        row.px(10.0)
+    }
 }
 
 fn theme_button(k: &Kit, dark: bool) -> El {
@@ -678,8 +770,8 @@ fn section(k: &Kit, title: &str, count: usize, body: El) -> El {
 }
 
 fn rail_link(k: &Kit, id: usize, vault: &Vault, with_snippet: bool, current: usize) -> El {
-    let note = &vault.notes[id];
-    let title = note.title.clone();
+    // Duplicate titles need their folder to be distinguishable here too.
+    let title = vault.display_label(id);
     let mut body = col().grow(1.0).min_w(0.0).gap(3.0).child(
         text(title)
             .font(k.ty.ui_compact)

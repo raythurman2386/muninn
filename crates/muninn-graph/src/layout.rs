@@ -1,9 +1,11 @@
 //! A deterministic force-directed layout for a vault's link graph.
 //!
-//! Nodes start on a golden-angle spiral seeded by their title, so the same vault lays out the
-//! same way every launch. Repulsion, link springs, gravity and damping then settle it. Node ids
-//! are note ids; positions survive a save or a new note because [`Graph::sync`] keeps them by
-//! title.
+//! Nodes start on a golden-angle spiral seeded by their vault-relative path,
+//! so the same vault lays out the same way every launch (duplicate titles in
+//! different folders seed to different angles). Repulsion, link springs,
+//! gravity and damping then settle it. Node ids are note ids; positions
+//! survive a save or a new note because [`Graph::sync`] keeps them by `rel`,
+//! not by title.
 
 use std::collections::{HashMap, HashSet};
 
@@ -26,6 +28,8 @@ const EDGE: f32 = 78.0;
 pub struct GNode {
     pub note: usize,
     pub title: String,
+    /// Vault-relative path, the stable identity for a node across syncs.
+    pub rel: String,
     pub pos: [f32; 2],
     pub vel: [f32; 2],
     /// Held still while the pointer drags it.
@@ -54,23 +58,25 @@ impl Graph {
     }
 
     /// Rebuild nodes and links from the vault, keeping the positions of notes that remain.
+    /// Positions are keyed by `rel` so duplicate titles keep distinct nodes.
     pub fn sync(&mut self, vault: &Vault) {
         let old: HashMap<String, ([f32; 2], [f32; 2])> = self
             .nodes
             .iter()
-            .map(|n| (n.title.clone(), (n.pos, n.vel)))
+            .map(|n| (n.rel.clone(), (n.pos, n.vel)))
             .collect();
         let old_edges = self.edges.clone();
         let old_len = self.nodes.len();
         self.nodes.clear();
         for note in &vault.notes {
             let (pos, vel) = old
-                .get(&note.title)
+                .get(&note.rel)
                 .copied()
-                .unwrap_or_else(|| (seed(note.id, &note.title), [0.0; 2]));
+                .unwrap_or_else(|| (seed(note.id, &note.rel), [0.0; 2]));
             self.nodes.push(GNode {
                 note: note.id,
                 title: note.title.clone(),
+                rel: note.rel.clone(),
                 pos,
                 vel,
                 fixed: false,
@@ -100,11 +106,18 @@ impl Graph {
         self.nodes.iter_mut().find(|n| n.note == note)
     }
 
-    /// Push the layout one fixed step; true while anything moved or is still hot.
+    /// Push the layout one fixed step; true only when a node (or separation)
+    /// actually moved this step.
+    ///
+    /// `heat` decays by a fixed amount each call as a “how long since it was
+    /// reheated” timer, but heat alone is **not** visible state: pollers must
+    /// not report “changed” just because heat has not reached zero yet.
+    /// Callers that need the cooling timer read [`Graph::heat`] directly.
     pub fn step(&mut self) -> bool {
         if self.nodes.is_empty() {
             return false;
         }
+        let before: Vec<[f32; 2]> = self.nodes.iter().map(|n| n.pos).collect();
         let n = self.nodes.len();
         let mut force = vec![[0.0f32; 2]; n];
         for i in 0..n {
@@ -135,7 +148,6 @@ impl Graph {
             force[b][1] -= uy * f;
         }
         let c = crate::camera::world_centre();
-        let mut moved = false;
         for (i, node) in self.nodes.iter_mut().enumerate() {
             if node.fixed {
                 node.vel = [0.0; 2];
@@ -152,13 +164,17 @@ impl Graph {
             }
             node.pos[0] = (node.pos[0] + node.vel[0]).clamp(EDGE, WORLD[0] - EDGE);
             node.pos[1] = (node.pos[1] + node.vel[1]).clamp(EDGE, WORLD[1] - EDGE);
-            if speed > 0.04 {
-                moved = true;
-            }
         }
-        moved |= separate(&mut self.nodes);
+        separate(&mut self.nodes);
         self.heat = (self.heat - 0.012).max(0.0);
-        moved || self.heat > 0.0
+        // Only visible motion counts: sub-pixel creep from the spring vs.
+        // separation tug-of-war or damped velocity tails is invisible and
+        // must not keep waking the window (Rune: "returned true but nothing
+        // changed"). The threshold matches the old speed gate (0.04 pt/step)
+        // so mid-settling motion still reports while the tail stays quiet.
+        self.nodes.iter().zip(&before).any(|(node, old)| {
+            (node.pos[0] - old[0]).abs() > 0.04 || (node.pos[1] - old[1]).abs() > 0.04
+        })
     }
 
     #[must_use]
@@ -204,7 +220,7 @@ impl Graph {
     /// Put every node back on its starting spiral and settle from there.
     pub fn reset(&mut self) {
         for (i, node) in self.nodes.iter_mut().enumerate() {
-            node.pos = seed(i, &node.title);
+            node.pos = seed(i, &node.rel);
             node.vel = [0.0; 2];
             node.fixed = false;
         }
@@ -255,9 +271,9 @@ fn separate(nodes: &mut [GNode]) -> bool {
     moved
 }
 
-fn seed(index: usize, title: &str) -> [f32; 2] {
+fn seed(index: usize, rel: &str) -> [f32; 2] {
     let c = crate::camera::world_centre();
-    let angle = index as f32 * 2.399_963_2 + (hash(title) % 1000) as f32 / 1000.0 * 0.9;
+    let angle = index as f32 * 2.399_963_2 + (hash(rel) % 1000) as f32 / 1000.0 * 0.9;
     let radius = 74.0 + 27.0 * (index as f32).sqrt();
     [
         c[0] + angle.cos() * radius * 1.16,

@@ -49,11 +49,22 @@ pub fn graph(s: &State, k: &Kit) -> El {
         })
         .on_wheel(|s: &mut State, e: WheelEvent, tx: &mut Tx| {
             s.auto_fit = false;
-            if e.mods.cmd || e.mods.ctrl {
-                let factor = if e.dy < 0.0 { 1.08 } else { 0.93 };
-                s.cam.zoom_at([e.x, e.y], factor);
-            } else {
+            if e.mods.shift {
+                // Shift+wheel keeps the old pan behaviour (mostly horizontal
+                // on a notched mouse wheel); it never zooms.
                 s.cam.pan_by(e.dx, e.dy);
+            } else {
+                // Plain wheel zooms at the pointer, as the hint promises.
+                // Ctrl/Cmd/Alt+wheel (and trackpad pinch-as-wheel) take the
+                // same branch. Direction follows the vertical delta, falling
+                // back to the horizontal one for sideways-only wheels.
+                let delta = if e.dy.abs() > f32::EPSILON {
+                    e.dy
+                } else {
+                    e.dx
+                };
+                let factor = if delta < 0.0 { 1.08 } else { 0.93 };
+                s.cam.zoom_at([e.x, e.y], factor);
             }
             tx.live_only();
             true
@@ -168,6 +179,18 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
     } else {
         k.alpha(accent, if dim { 0.25 } else { 0.7 })
     };
+    // Duplicate titles share a graph label; the parent keeps the node
+    // readable in the 136pt card (full path is in the info card below).
+    let label = if s.vault.is_duplicate(id) {
+        let parent = note.parent();
+        if parent.is_empty() {
+            format!("{} (root)", note.title)
+        } else {
+            format!("{} ({parent})", note.title)
+        }
+    } else {
+        note.title.clone()
+    };
     let mut node = row()
         .key(format!("graph-node-{id}"))
         .pin(
@@ -191,7 +214,7 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
         .on_drag(move |s: &mut State, d: &mut Drag, _: &mut Tx| s.drag_node(id, d))
         .child(el().size(6.0, 6.0).radius(3.0).fill(dot))
         .child(
-            text(note.title.clone())
+            text(label)
                 .font(rune::TextStyle::new(12.0, 500.0))
                 .color(ink)
                 .truncate()
@@ -337,6 +360,12 @@ fn info(s: &State, k: &Kit) -> El {
             text(note.title.clone())
                 .font(k.ty.ui_medium)
                 .color(k.c.text_base)
+                .truncate(),
+        )
+        .child(
+            text(note.rel.clone())
+                .font(k.ty.caption())
+                .color(k.c.text_faint)
                 .truncate(),
         )
         .child(text(stats).font(k.ty.caption()).color(k.c.text_muted))
