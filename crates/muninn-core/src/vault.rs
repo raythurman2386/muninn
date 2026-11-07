@@ -379,6 +379,161 @@ impl Vault {
         }
     }
 
+    /// Rename a note's stem (file name) in place, keeping its folder. The
+    /// new title is sanitised like a create name; an existing target file is
+    /// an error (never overwrite). Updates the note and the index, so the
+    /// graph node title follows.
+    pub fn rename_note(&mut self, id: usize, new_title: &str) -> io::Result<PathBuf> {
+        let old = self.notes[id].path.clone();
+        let title = sanitise_title(new_title);
+        let dir = old.parent().map(PathBuf::from).unwrap_or_else(|| self.root.clone());
+        let target = dir.join(format!("{title}.md"));
+        if target == old {
+            return Ok(target);
+        }
+        if target.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{} already exists", target.display()),
+            ));
+        }
+        fs::rename(&old, &target)?;
+        self.apply_path(id, &target);
+        Ok(target)
+    }
+
+    /// Delete a note's file and its index entry.
+    pub fn delete_note(&mut self, id: usize) -> io::Result<()> {
+        fs::remove_file(&self.notes[id].path)?;
+        self.notes.remove(id);
+        for (i, note) in self.notes.iter_mut().enumerate() {
+            note.id = i;
+        }
+        self.reindex();
+        Ok(())
+    }
+
+    /// Move a note into an existing `folder` (`""` = root), keeping its file
+    /// name. An existing target file is an error.
+    pub fn move_note(&mut self, id: usize, folder: &str) -> io::Result<PathBuf> {
+        let old = self.notes[id].path.clone();
+        let dir = folder_dir(&self.root, folder);
+        if !dir.is_dir() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("{} is not a folder", dir.display()),
+            ));
+        }
+        let name = old
+            .file_name()
+            .map(|n| n.to_owned())
+            .unwrap_or_else(|| "Untitled.md".into());
+        let target = dir.join(name);
+        if target == old {
+            return Ok(target);
+        }
+        if target.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{} already exists", target.display()),
+            ));
+        }
+        fs::rename(&old, &target)?;
+        self.apply_path(id, &target);
+        Ok(target)
+    }
+
+    fn apply_path(&mut self, id: usize, path: &Path) {
+        let rel = path
+            .strip_prefix(&self.root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        let title = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_owned();
+        let note = &mut self.notes[id];
+        note.path = path.to_path_buf();
+        note.rel = rel;
+        note.title = title;
+        self.reindex();
+    }
+
+    /// Create `name` as a folder under `parent` (`""` = vault root),
+    /// returning its absolute path. An existing folder is an error.
+    pub fn create_folder(&self, parent: &str, name: &str) -> io::Result<PathBuf> {
+        let name = sanitise_folder_name(name);
+        if name.is_empty() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty folder name"));
+        }
+        let parent_dir = folder_dir(&self.root, parent);
+        fs::create_dir_all(&parent_dir)?;
+        let dir = parent_dir.join(name);
+        if dir.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{} already exists", dir.display()),
+            ));
+        }
+        fs::create_dir(&dir)?;
+        Ok(dir)
+    }
+
+    /// Rename one folder's last segment. `folder` is the vault-relative path
+    /// of the folder to rename; `new_name` is its new last segment.
+    /// Notes under the renamed folder keep resolving.
+    pub fn rename_folder(&mut self, folder: &str, new_name: &str) -> io::Result<PathBuf> {
+        let folder = folder.trim_matches('/');
+        if folder.is_empty() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "cannot rename the root"));
+        }
+        let name = sanitise_folder_name(new_name);
+        if name.is_empty() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty folder name"));
+        }
+        let (parent, _old) = folder
+            .rsplit_once('/')
+            .unwrap_or(("", folder));
+        let source = folder_dir(&self.root, folder);
+        let parent_dir = folder_dir(&self.root, parent);
+        let target = parent_dir.join(name);
+        if target == source {
+            return Ok(target);
+        }
+        if target.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{} already exists", target.display()),
+            ));
+        }
+        fs::rename(&source, &target)?;
+        let target_rel = target
+            .strip_prefix(&self.root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        let prefix = format!("{folder}/");
+        for note in &mut self.notes {
+            if let Some(rest) = note.rel.strip_prefix(&prefix) {
+                note.rel = format!("{target_rel}/{rest}");
+                note.path = self.root.join(&note.rel);
+            }
+        }
+        self.reindex();
+        Ok(target)
+    }
+
+    /// Delete an empty folder. A non-empty folder is an error; recursive
+    /// deletes need explicit confirmation in the UI and are out of scope
+    /// here by design.
+    pub fn delete_folder(&self, folder: &str) -> io::Result<()> {
+        let folder = folder.trim_matches('/');
+        if folder.is_empty() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "cannot delete the root"));
+        }
+        fs::remove_dir(folder_dir(&self.root, folder))
+    }
+
     /// A one-line excerpt of `from` around its link to `target`, for the backlinks rail.
     #[must_use]
     pub fn snippet(&self, from: usize, target: usize) -> String {
@@ -491,6 +646,29 @@ fn sanitise_title(title: &str) -> String {
     } else {
         title
     }
+}
+
+/// Sanitise a single folder segment: like a title, but an empty result stays
+/// empty so callers can reject it instead of silently inventing a name.
+fn sanitise_folder_name(name: &str) -> String {
+    let mut name: String = name
+        .trim()
+        .chars()
+        .map(|c| {
+            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+                '-'
+            } else {
+                c
+            }
+        })
+        .collect();
+    while name.ends_with('.') || name.ends_with(' ') {
+        name.pop();
+    }
+    if name == "." || name == ".." || name.starts_with('.') {
+        return String::new();
+    }
+    name
 }
 
 #[cfg(test)]
@@ -626,5 +804,56 @@ mod tests {
         assert!(again.ends_with("projects/alpha/Draft 2.md"));
         let root_created = v.create_note("Draft").unwrap();
         assert!(root_created.ends_with("Draft.md"));
+    }
+
+    #[test]
+    fn note_crud_rename_delete_and_move() {
+        let tmp = TempVault::new(&[
+            ("notes/alpha.md", "alpha body"),
+            ("notes/beta.md", "beta body"),
+            ("other/gamma.md", "gamma body"),
+        ]);
+        let mut v = tmp.load();
+        let alpha = v.resolve("notes/alpha").unwrap();
+        // Rename keeps the folder and the file contents.
+        let renamed = v.rename_note(alpha, "Alpha Two").unwrap();
+        assert!(renamed.ends_with("notes/Alpha Two.md"));
+        assert_eq!(fs::read_to_string(&renamed).unwrap(), "alpha body");
+        // Renaming onto an existing name must fail rather than overwrite.
+        assert_eq!(
+            v.rename_note(alpha, "beta").unwrap_err().kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        // Move into another folder; moving onto an existing name fails.
+        let moved = v.move_note(alpha, "other").unwrap();
+        assert!(moved.ends_with("other/Alpha Two.md"));
+        let beta = v.resolve("notes/beta").unwrap();
+        assert!(v.move_note(beta, "missing").is_err());
+        // Delete removes the file.
+        v.delete_note(beta).unwrap();
+        assert!(!tmp.path().join("notes/beta.md").exists());
+        // Sanitise: illegal characters become dashes.
+        let third = v.resolve("other/gamma").unwrap();
+        let sanitised = v.rename_note(third, "a/b:c").unwrap();
+        assert!(sanitised.ends_with("other/a-b-c.md"));
+    }
+
+    #[test]
+    fn folder_crud_create_rename_and_delete_empty_only() {
+        let tmp = TempVault::new(&[("projects/alpha/note.md", "n")]);
+        let mut v = tmp.load();
+        // Create under a folder and at the root; duplicates and dot names fail.
+        let created = v.create_folder("projects", "Beta").unwrap();
+        assert!(created.ends_with("projects/Beta"));
+        assert!(v.create_folder("projects", "Beta").is_err());
+        assert!(v.create_folder("", ".hidden").is_err());
+        // Rename moves the directory.
+        let renamed = v.rename_folder("projects/Beta", "Gamma").unwrap();
+        assert!(renamed.ends_with("projects/Gamma"));
+        // Delete is empty-only: populated folders fail, empty ones succeed.
+        assert!(v.delete_folder("projects/Gamma").is_ok());
+        assert!(v.delete_folder("projects/alpha").is_err());
+        assert!(v.delete_folder("").is_err());
+        assert!(v.rename_folder("", "x").is_err());
     }
 }
