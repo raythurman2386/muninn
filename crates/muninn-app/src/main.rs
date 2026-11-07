@@ -17,6 +17,9 @@ use rune::AppSpec;
 use rune_theme_opencode as theme;
 
 fn main() {
+    // Match the shipped `muninn.desktop` (`StartupWMClass` + hicolor icon) so
+    // the OS can associate this window with the logo.
+    rune::set_app_id("muninn");
     rune::run(AppSpec::<State> {
         fonts: theme::FONTS,
         families: theme::FAMILIES,

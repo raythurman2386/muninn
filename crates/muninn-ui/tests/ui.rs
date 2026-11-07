@@ -244,6 +244,7 @@ fn folder_vault() -> TempVault {
 fn sidebar_groups_notes_by_folder_and_collapses() {
     let tmp = folder_vault();
     let mut rt = runtime(&tmp);
+    assert!(rt.find("brand-logo").is_some());
     assert!(rt.find("folder-header-root").is_some());
     assert!(rt.find("folder-header-projects-alpha").is_some());
     assert!(rt.find("folder-header-projects-beta").is_some());

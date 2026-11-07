@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Muninn logo" width="96" height="96" />
+</p>
+
 # Muninn
 
 A local-first Markdown vault with an Obsidian-style wikilink graph, built with

@@ -1,8 +1,8 @@
 //! The window's chrome: vault sidebar, note title bar, editor, Markdown preview and links rail.
 
 use rune::{
-    Color, Cursor, Cx, El, Key, KeyEvent, LinkPaint, ScrollSpec, Span, TextStyle, Tx, col, el,
-    icon, row, spacer, text, text_input,
+    Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, ScrollSpec, Shape, Span, TextStyle,
+    Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 use rune_theme_opencode::icons as ic;
@@ -70,13 +70,7 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
         .px(16.0)
         .gap(9.0)
         .center_y()
-        .child(
-            el().size(24.0, 24.0)
-                .radius(7.0)
-                .fill(k.alpha(k.c.text_accent, 0.15))
-                .center()
-                .child(icon(&ic::DOT_GRID, 14.0).color(k.c.text_accent)),
-        )
+        .child(logo_mark(24.0))
         .child(
             text("Muninn")
                 .font(k.ty.ui_medium)
@@ -368,6 +362,60 @@ fn theme_button(k: &Kit, dark: bool) -> El {
                 .color(k.c.icon_muted),
         )
         .on_press(move |s: &mut State| s.dark = Some(!dark))
+}
+
+/// The Muninn mark at `size` points, matching `assets/logo.svg`: dark
+/// rounded tile, white geometric M and a violet core node. Gradients are
+/// solid colours on the canvas (the tile itself uses a radial gradient).
+fn logo_mark(size: f32) -> El {
+    let bg = rune::color::hex("#12141A").unwrap_or(Color::BLACK);
+    let edge = rune::color::hex("#272A30").unwrap_or(Color::BLACK);
+    let ink = Color::WHITE;
+    let node = rune::color::hex("#7C4DFF").unwrap_or(Color::WHITE);
+    let corner = size * 112.0 / 512.0;
+    let scale = size / 512.0;
+    let shape = Shape::new()
+        .view_box(512.0, 512.0)
+        .stroke(
+            vec![
+                [136.0, 360.0],
+                [136.0, 152.0],
+                [256.0, 272.0],
+                [376.0, 152.0],
+                [376.0, 360.0],
+            ],
+            12.0 * scale,
+            ink,
+        )
+        .line(
+            [256.0, 272.0],
+            [256.0, 272.0],
+            28.0 * scale,
+            LineCap::Round,
+            node,
+        )
+        .line(
+            [256.0, 272.0],
+            [256.0, 272.0],
+            12.0 * scale,
+            LineCap::Round,
+            ink,
+        );
+    el().key("brand-logo")
+        .size(size, size)
+        .radius(corner)
+        .fill(bg)
+        .radial_gradient(
+            [0.5, 0.5],
+            size * 0.75,
+            [
+                (0.0, rune::color::hex("#18191E").unwrap_or(bg)),
+                (1.0, rune::color::hex("#0B0C0E").unwrap_or(bg)),
+            ],
+        )
+        .border(1.0, edge)
+        .clip_rounded(corner)
+        .child(canvas(shape).size(size, size))
 }
 
 fn main(s: &State, k: &Kit) -> El {

@@ -59,6 +59,7 @@ jobs:
           mkdir -p "dist/$name"
           cp "target/release/$bin" LICENSE README.md ARCHITECTURE.md CHANGELOG.md "dist/$name/"
           cp -R vault "dist/$name/vault"
+          cp -R assets "dist/$name/assets"
           if [ "$ARCHIVE" = "zip" ]; then
             (cd dist && 7z a -tzip "$name.zip" "$name" > /dev/null)
           else

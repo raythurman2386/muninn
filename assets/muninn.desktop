@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Muninn
+GenericName=Markdown vault
+Comment=Local-first Markdown vault with a wikilink graph
+Exec=muninn
+Icon=muninn
+Terminal=false
+Categories=Office;TextEditor;
+Keywords=markdown;notes;vault;graph;
+StartupWMClass=muninn
+Actions=Write;Graph;
