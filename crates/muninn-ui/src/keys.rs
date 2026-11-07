@@ -12,6 +12,12 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     // Escape dismisses inline prompts/menus before falling through to the
     // graph escape below. Text fields handle Escape first and never reach here.
     if e.key == Key::Escape {
+        // M2 EDT-01: the find bar closes first and returns typing to the
+        // editor; the find field itself handles its own Escape before this.
+        if s.find.is_some() {
+            s.close_find();
+            return true;
+        }
         if s.menu.is_some() {
             s.close_menu();
             return true;
@@ -49,6 +55,7 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     // field is focused, Delete edits text instead, so skip both then.
     let typing = s.editor.focused
         || s.search.focused
+        || s.find.is_some()
         || s.new_note_prompt.is_some()
         || s.rename_prompt.is_some()
         || s.new_folder_prompt.is_some()
@@ -69,6 +76,16 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     }
     if e.is_command('k') {
         s.focus_search();
+    } else if e.is_command('f') {
+        // M2 EDT-01: find inside the open note. Cmd/Ctrl+F is the
+        // platform-standard chord and leaves Vim-style Ctrl+[ free.
+        s.open_find();
+    } else if e.is_command('[') {
+        // M2 NAV-03: browser-standard Back. Chosen over Alt+Left because
+        // Option+Left is word-wise caret movement inside text fields on macOS.
+        s.back();
+    } else if e.is_command(']') {
+        s.forward();
     } else if e.is_command('n') {
         s.new_note();
     } else if e.is_command('s') {

@@ -151,6 +151,41 @@ pub struct TrashUndo {
     pub trash_rel: String,
 }
 
+/// M2 NAV-03: one point in the note-navigation history.
+///
+/// History is path-based, not id-based, so it survives a vault reload (ids are
+/// positions in the scan and change when files appear or disappear).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HistoryEntry {
+    pub path: PathBuf,
+    /// Caret byte offset when the note was left; restored on Back/Forward.
+    pub caret: usize,
+}
+
+/// M2 EDT-01: the in-note find bar.
+#[derive(Clone, Debug, Default)]
+pub struct FindState {
+    /// The query the matches were computed for (mirrors `field.text`).
+    pub query: String,
+    /// Byte offsets of each match start in `editor.text`, in document order.
+    pub matches: Vec<usize>,
+    /// Match end offsets, parallel to `matches` (needed to move the selection).
+    end: Vec<usize>,
+    /// Index of the current match in `matches`.
+    pub index: usize,
+    /// The bar's single-line field; focused while the bar is open.
+    pub field: TextEdit,
+    /// Editor text the matches were computed against.
+    hay: String,
+    /// Whether the query has been non-empty at least once. Clearing it then
+    /// closes the bar (opening it empty must not close it immediately).
+    had_query: bool,
+}
+
+/// M2 NAV-03: how many history entries are kept. Deep enough for a session's
+/// reading path, bounded so a long-running window cannot grow without limit.
+pub(crate) const HISTORY_CAP: usize = 100;
+
 pub struct State {
     pub vault: Vault,
     pub selected: Option<usize>,
@@ -159,6 +194,20 @@ pub struct State {
     /// The text last read from or written to disk.
     pub saved: String,
     pub search: TextEdit,
+    /// M2 NAV-01: highlighted row in the search results, an index into
+    /// [`State::search_results`]. `None` means Enter opens the first result.
+    pub search_selected: Option<usize>,
+    /// The query `search_selected` belongs to; a change clears the selection.
+    search_query: String,
+    /// M2 EDT-01: open in-note find bar, if any.
+    pub find: Option<FindState>,
+    /// M2 NAV-03: note-navigation history. Tabs were considered for M2 and
+    /// deliberately rejected: one editor plus Back/Forward covers the
+    /// "return to what I was reading" case without a tab-strip state model,
+    /// per-tab dirty buffers, or a second focus owner.
+    pub history: Vec<HistoryEntry>,
+    /// Index of the current note in [`State::history`].
+    pub history_index: usize,
     pub mode: Mode,
     pub last_note_mode: Mode,
     pub scope: Scope,
@@ -264,6 +313,11 @@ impl State {
             editor: TextEdit::new(""),
             saved: String::new(),
             search: TextEdit::new(""),
+            search_selected: None,
+            search_query: String::new(),
+            find: None,
+            history: Vec::new(),
+            history_index: 0,
             mode: Mode::Editor,
             last_note_mode: Mode::Editor,
             scope: Scope::Global,
@@ -325,7 +379,20 @@ impl State {
             }
             return;
         }
+        // Remember where the caret was in the note we are leaving before the
+        // editor starts showing the next one.
+        self.sync_history_caret();
         self.flush();
+        self.load_note_at(id, focus);
+        if let Some(path) = self.selected_path.clone() {
+            self.record_history(path);
+        }
+    }
+
+    /// The actual note swap, shared by [`State::load_note`] and history
+    /// navigation. History-recording callers push afterwards; Back/Forward
+    /// call this directly so moving through history does not rewrite it.
+    fn load_note_at(&mut self, id: usize, focus: bool) {
         let note = &self.vault.notes[id];
         let (source, path) = (note.source.clone(), note.path.clone());
         self.editor.replace_text(source.clone());
@@ -381,6 +448,260 @@ impl State {
 
     pub fn select_graph_node(&mut self, id: usize) {
         self.load_note(id, false);
+    }
+
+    // ---- M2 NAV-03: Back / Forward note history -----------------------------
+
+    /// Save the live caret into the current history entry. Called before the
+    /// editor loads another note (and before Back/Forward moves away).
+    fn sync_history_caret(&mut self) {
+        let Some(path) = self.selected_path.as_ref() else {
+            return;
+        };
+        if let Some(entry) = self.history.get_mut(self.history_index)
+            && &entry.path == path
+        {
+            entry.caret = floor_char_boundary(&self.editor.text, self.editor.focus);
+        }
+    }
+
+    /// Push `path` as the newest history point.
+    ///
+    /// Consecutive visits to the same note collapse (a reload keeps its place),
+    /// a new open drops the abandoned forward branch, and the list is capped at
+    /// [`HISTORY_CAP`] entries.
+    fn record_history(&mut self, path: PathBuf) {
+        if let Some(entry) = self.history.get_mut(self.history_index)
+            && entry.path == path
+        {
+            entry.caret = floor_char_boundary(&self.editor.text, self.editor.focus);
+            return;
+        }
+        self.history.truncate(self.history_index + 1);
+        self.history.push(HistoryEntry { path, caret: 0 });
+        if self.history.len() > HISTORY_CAP {
+            let excess = self.history.len() - HISTORY_CAP;
+            self.history.drain(0..excess);
+        }
+        self.history_index = self.history.len() - 1;
+    }
+
+    /// Open the previous note in history. Returns false when there is none.
+    pub fn back(&mut self) -> bool {
+        self.navigate_history(-1)
+    }
+
+    /// Open the next note in history. Returns false when there is none.
+    pub fn forward(&mut self) -> bool {
+        self.navigate_history(1)
+    }
+
+    #[must_use]
+    pub fn can_back(&self) -> bool {
+        self.history.get(..self.history_index).is_some_and(|past| {
+            past.iter()
+                .any(|entry| self.note_at_path(&entry.path).is_some())
+        })
+    }
+
+    #[must_use]
+    pub fn can_forward(&self) -> bool {
+        self.history
+            .get(self.history_index + 1..)
+            .is_some_and(|rest| {
+                rest.iter()
+                    .any(|entry| self.note_at_path(&entry.path).is_some())
+            })
+    }
+
+    fn note_at_path(&self, path: &PathBuf) -> Option<usize> {
+        self.vault
+            .notes
+            .iter()
+            .find(|note| &note.path == path)
+            .map(|note| note.id)
+    }
+
+    /// Move `delta` entries through history, skipping notes whose files are
+    /// gone (a deleted note must not trap Back/Forward).
+    fn navigate_history(&mut self, delta: isize) -> bool {
+        if self.history.is_empty() {
+            return false;
+        }
+        self.sync_history_caret();
+        let len = self.history.len() as isize;
+        let mut cursor = self.history_index as isize + delta;
+        while (0..len).contains(&cursor) {
+            let (path, caret) = {
+                let entry = &self.history[cursor as usize];
+                (entry.path.clone(), entry.caret)
+            };
+            if let Some(id) = self.note_at_path(&path) {
+                self.history_index = cursor as usize;
+                if self.selected != Some(id) {
+                    self.flush();
+                    self.load_note_at(id, true);
+                }
+                let caret = floor_char_boundary(&self.editor.text, caret);
+                self.editor.anchor = caret;
+                self.editor.focus = caret;
+                return true;
+            }
+            cursor += delta;
+        }
+        false
+    }
+
+    // ---- M2 NAV-01: keyboard search results ---------------------------------
+
+    /// The current search result order. Ranking stays title-first in
+    /// [`Vault::search`]; this is only the id list the selection indexes into.
+    ///
+    /// M2 deliberately keeps the row subtitle (link counts / duplicate folder)
+    /// instead of adding a body snippet: the sidebar is not query-aware enough
+    /// to make an excerpt worth the extra rebuild work yet.
+    #[must_use]
+    pub fn search_results(&self) -> Vec<usize> {
+        self.vault.search(&self.search.text)
+    }
+
+    /// Move the search highlight by `delta`, wrapping at both ends. The first
+    /// Down selects the first row; the first Up selects the last.
+    pub fn search_step(&mut self, delta: isize) {
+        self.search_tick();
+        let len = self.search_results().len();
+        if len == 0 {
+            self.search_selected = None;
+            return;
+        }
+        let next = match self.search_selected {
+            Some(index) if index < len => index as isize + delta,
+            _ if delta < 0 => len as isize - 1,
+            _ => 0,
+        };
+        self.search_selected = Some(next.rem_euclid(len as isize) as usize);
+    }
+
+    /// Enter in the search field: open the highlighted row, or the first
+    /// result when nothing is highlighted.
+    pub fn open_search_selected(&mut self) {
+        self.search_tick();
+        let results = self.search_results();
+        if let Some(index) = self
+            .search_selected
+            .filter(|index| *index < results.len())
+            .or(if results.is_empty() { None } else { Some(0) })
+        {
+            self.search_selected = Some(index);
+            self.open_from_list(results[index]);
+        }
+    }
+
+    /// Drop the highlight when the query changes. `poll` calls this once a
+    /// frame, so typing (which runs after the key event) resets on the next
+    /// frame instead of pointing at a row from the previous query.
+    pub fn search_tick(&mut self) -> bool {
+        if self.search_query == self.search.text {
+            return false;
+        }
+        self.search_query.clone_from(&self.search.text);
+        self.search_selected.take().is_some()
+    }
+
+    // ---- M2 EDT-01: find in the open note -----------------------------------
+
+    /// Cmd/Ctrl+F: open the find bar, or refocus it when it is already open.
+    pub fn open_find(&mut self) {
+        if let Some(find) = self.find.as_mut() {
+            find.field.focused = true;
+        } else {
+            let mut field = TextEdit::new("");
+            field.focused = true;
+            self.find = Some(FindState {
+                field,
+                ..FindState::default()
+            });
+        }
+        self.editor.focused = false;
+        self.search.focused = false;
+        self.find_tick();
+    }
+
+    /// Escape: close the bar, clear its highlight and hand typing back to the
+    /// editor. A later Cmd/Ctrl+F reopens an empty bar (M2 keeps no query
+    /// history).
+    pub fn close_find(&mut self) {
+        self.find = None;
+        self.set_text_focus(true, false);
+    }
+
+    pub fn find_next(&mut self) {
+        self.find_step(1);
+    }
+
+    pub fn find_prev(&mut self) {
+        self.find_step(-1);
+    }
+
+    fn find_step(&mut self, delta: isize) {
+        self.find_tick();
+        let Some(find) = self.find.as_mut() else {
+            return;
+        };
+        if find.matches.is_empty() {
+            return;
+        }
+        let len = find.matches.len() as isize;
+        find.index = (find.index as isize + delta).rem_euclid(len) as usize;
+        let (start, end) = (find.matches[find.index], find.end[find.index]);
+        self.editor.anchor = start;
+        self.editor.focus = end;
+    }
+
+    /// Recompute matches when the query or the note's text changed.
+    ///
+    /// This runs from `poll` (once a frame, after the field has committed the
+    /// typed character) rather than from the view, which only borrows `State`.
+    /// That keeps a text edit and its match list in the same state object and
+    /// avoids threading an owned match list through every sidebar rebuild.
+    /// Returns true when something visible changed.
+    pub fn find_tick(&mut self) -> bool {
+        let Some(current) = self.find.as_ref() else {
+            return false;
+        };
+        let query = current.field.text.clone();
+        if query.trim().is_empty() && current.had_query {
+            self.close_find();
+            return true;
+        }
+        let Some(find) = self.find.as_mut() else {
+            return false;
+        };
+        if query.trim().is_empty() {
+            let changed = !find.matches.is_empty();
+            find.query.clear();
+            find.matches.clear();
+            find.end.clear();
+            find.index = 0;
+            find.hay.clone_from(&self.editor.text);
+            return changed;
+        }
+        find.had_query = true;
+        if find.query == query && find.hay == self.editor.text {
+            return false;
+        }
+        let (matches, ends) = find_matches(&self.editor.text, &query);
+        find.query = query;
+        find.hay.clone_from(&self.editor.text);
+        find.matches = matches;
+        find.end = ends;
+        find.index = 0;
+        if let Some((&start, &end)) = find.matches.first().zip(find.end.first()) {
+            // Highlight by moving the editor's selection to the match.
+            self.editor.anchor = start;
+            self.editor.focus = end;
+        }
+        true
     }
 
     pub fn focus_editor(&mut self) {
@@ -1090,6 +1411,9 @@ impl State {
                 self.graph.sync(&self.vault);
                 // A later successful scan proves the startup failure is gone.
                 self.startup_error = None;
+                // Reloads keep the note by path identity; save its caret before
+                // the id-based selection is rebuilt below.
+                self.sync_history_caret();
                 self.selected = None;
                 self.selected_path = None;
                 let id = path
@@ -1544,6 +1868,51 @@ impl State {
         };
         self.cam.set(pan, self.cam.zoom());
     }
+}
+
+/// Case-insensitive, non-overlapping match starts and ends, in bytes of
+/// `text`. The haystack is folded character by character with a byte-origin
+/// map so Unicode case folding (including a character that lowers to more than
+/// one) still reports offsets into the original note.
+fn find_matches(text: &str, query: &str) -> (Vec<usize>, Vec<usize>) {
+    let needle = query.to_lowercase();
+    if needle.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+    let mut folded = String::with_capacity(text.len());
+    let mut origin = Vec::with_capacity(text.len() + 1);
+    let mut buf = [0u8; 4];
+    for (offset, ch) in text.char_indices() {
+        for lower in ch.to_lowercase() {
+            let bytes = lower.encode_utf8(&mut buf);
+            for _ in 0..bytes.len() {
+                origin.push(offset);
+            }
+            folded.push_str(bytes);
+        }
+    }
+    origin.push(text.len());
+    let mut starts = Vec::new();
+    let mut ends = Vec::new();
+    let mut from = 0;
+    while let Some(found) = folded[from..].find(&needle) {
+        let start = from + found;
+        let stop = start + needle.len();
+        starts.push(origin[start]);
+        ends.push(origin[stop]);
+        from = stop;
+    }
+    (starts, ends)
+}
+
+/// Clamp a byte offset to `text` and step back to the nearest character
+/// boundary. Carets kept in history can outlive a shorter reloaded note.
+fn floor_char_boundary(text: &str, at: usize) -> usize {
+    let mut at = at.min(text.len());
+    while at > 0 && !text.is_char_boundary(at) {
+        at -= 1;
+    }
+    at
 }
 
 /// Trim a submitted inline name and clear its focus. `None` means the field

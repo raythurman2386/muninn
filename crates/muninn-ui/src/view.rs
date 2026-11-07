@@ -34,7 +34,14 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
 }
 
 fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
-    let results = s.vault.search(&s.search.text);
+    // No debounce: the filter is an in-memory linear scan (~1–3 ms at 2,000
+    // notes), so a per-keystroke rebuild stays cheap; revisit if a much larger
+    // vault ever makes typing lag.
+    let results = s.search_results();
+    // NAV-01: highlight the row the search field's Up/Down selection points at.
+    let picked = s
+        .search_selected
+        .and_then(|index| results.get(index).copied());
     let empty = results.is_empty();
     let filtering = !s.search.text.trim().is_empty();
     // Without a query, show every folder (including empty ones so they can
@@ -93,7 +100,7 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                 } else if s.delete_confirm.as_ref() == Some(&DeleteConfirm::Note(id)) {
                     list = list.child(delete_confirm_row(s, k, &DeleteConfirm::Note(id)));
                 } else {
-                    list = list.child(note_row(s, k, id, true));
+                    list = list.child(note_row(s, k, id, picked == Some(id)));
                 }
                 if s.menu
                     .as_ref()
@@ -175,19 +182,28 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                 .placeholder("Search notes", k.c.text_faint)
                 .on_edit(|s: &mut State| &mut s.search)
                 .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
-                    if e.key == Key::Escape {
-                        s.search.focused = false;
-                        s.editor.focused = false;
-                        tx.blur();
-                        return true;
+                    // M2 NAV-01: Up/Down walk the ranked results and wrap.
+                    // Enter opens the highlighted row (or the first result).
+                    match e.key {
+                        Key::Escape => {
+                            s.search.focused = false;
+                            s.editor.focused = false;
+                            tx.blur();
+                            return true;
+                        }
+                        Key::Down => {
+                            s.search_step(1);
+                            return true;
+                        }
+                        Key::Up => {
+                            s.search_step(-1);
+                            return true;
+                        }
+                        _ => {}
                     }
                     crate::shortcut(s, e, tx)
                 })
-                .on_submit(|s: &mut State, _| {
-                    if let Some(id) = s.vault.search(&s.search.text).first().copied() {
-                        s.open_from_list(id);
-                    }
-                }),
+                .on_submit(|s: &mut State, _| s.open_search_selected()),
         );
 
     let new_note = row()
@@ -354,9 +370,12 @@ fn folder_slug(folder: &str) -> String {
         .to_owned()
 }
 
-fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
+fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
     let note = &s.vault.notes[id];
     let on = s.selected == Some(id);
+    // NAV-01: the keyboard search highlight uses the same accent fill as the
+    // open note, so Up/Down reads as a selection moving through the list.
+    let lit = on || picked;
     let accent = k.c.text_accent;
     let dot = if note.links.is_empty() {
         k.c.text_faint
@@ -387,14 +406,14 @@ fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
     } else {
         links
     };
-    let row = row()
+    row()
         .key(format!("note-row-{id}"))
         .w_full()
         .h(48.0)
         .gap(9.0)
         .radius(7.0)
         .center_y()
-        .fill(if on {
+        .fill(if lit {
             k.alpha(accent, 0.10)
         } else {
             Color::TRANSPARENT
@@ -414,7 +433,7 @@ fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
                 .child(
                     text(note.title.clone())
                         .font(k.ty.ui_medium)
-                        .color(if on { accent } else { k.c.text_base })
+                        .color(if lit { accent } else { k.c.text_base })
                         .truncate(),
                 )
                 .child(
@@ -423,12 +442,9 @@ fn note_row(s: &State, k: &Kit, id: usize, indented: bool) -> El {
                         .color(k.c.text_faint)
                         .truncate(),
                 ),
-        );
-    if indented {
-        row.px(10.0).pl(20.0)
-    } else {
-        row.px(10.0)
-    }
+        )
+        .px(10.0)
+        .pl(20.0)
 }
 
 fn theme_button(k: &Kit, dark: bool) -> El {
@@ -822,6 +838,9 @@ fn main(s: &State, k: &Kit) -> El {
         .min_w(0.0)
         .child(topbar(s, k))
         .child(divider_h(k));
+    if s.find.is_some() {
+        page = page.child(find_bar(s, k));
+    }
     if s.startup_error.is_some() && !s.vault.notes.is_empty() {
         // A partial failure still lets the notes that did load stay usable.
         page = page.child(startup_banner(s, k));
@@ -1028,8 +1047,52 @@ fn topbar(s: &State, k: &Kit) -> El {
         .px(20.0)
         .gap(12.0)
         .center_y()
+        .child(history_button(
+            k,
+            "history-back",
+            "‹",
+            s.can_back(),
+            State::back,
+        ))
+        .child(history_button(
+            k,
+            "history-forward",
+            "›",
+            s.can_forward(),
+            State::forward,
+        ))
         .child(title_col)
         .child(mode_switch(s, k))
+}
+
+/// M2 NAV-03: a compact Back/Forward chip. Disabled chips dim but keep their
+/// place, so the title bar does not reflow as history grows.
+fn history_button(
+    k: &Kit,
+    key: &'static str,
+    glyph: &'static str,
+    enabled: bool,
+    action: fn(&mut State) -> bool,
+) -> El {
+    let mut button = pressable(k, key.to_owned())
+        .size(26.0, 26.0)
+        .center()
+        .border(1.0, k.c.border_muted)
+        .child(
+            text(glyph)
+                .font(TextStyle::new(15.0, 600.0))
+                .color(if enabled {
+                    k.c.text_muted
+                } else {
+                    k.alpha(k.c.text_faint, 0.4)
+                }),
+        );
+    if enabled {
+        button = button.on_press(move |s: &mut State| {
+            let _ = action(s);
+        });
+    }
+    button
 }
 
 fn mode_switch(s: &State, k: &Kit) -> El {
@@ -1093,6 +1156,96 @@ fn mode_button(
             k.c.text_muted
         }))
         .on_press(move |s: &mut State| s.set_mode(mode))
+}
+
+/// EDT-01: the in-note find bar under the title bar.
+///
+/// Matches are recomputed in `State::find_tick` (called from `poll`), not here:
+/// `view` only borrows `State`. The count reads `index + 1 / total`; Enter and
+/// Shift+Enter step and wrap, Escape closes and returns typing to the editor.
+fn find_bar(s: &State, k: &Kit) -> El {
+    let Some(find) = &s.find else {
+        return el();
+    };
+    let total = find.matches.len();
+    let count = if total == 0 {
+        "0/0".to_owned()
+    } else {
+        format!("{}/{}", find.index + 1, total)
+    };
+    row()
+        .key("find-bar")
+        .w_full()
+        .h(40.0)
+        .px(20.0)
+        .gap(8.0)
+        .center_y()
+        .fill(k.c.layer_01)
+        .child(icon(&ic::MAGNIFYING_GLASS, 13.0).color(k.c.text_muted))
+        .child(
+            text_input(&find.field, k.ty.ui_compact)
+                .key("find")
+                .single_line()
+                .w(280.0)
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .placeholder("Find in note", k.c.text_faint)
+                .on_edit(|s: &mut State| &mut s.find.as_mut().expect("find bar").field)
+                .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                    match e.key {
+                        Key::Escape => {
+                            s.close_find();
+                            return true;
+                        }
+                        Key::Enter => {
+                            if e.mods.shift {
+                                s.find_prev();
+                            } else {
+                                s.find_next();
+                            }
+                            return true;
+                        }
+                        _ => {}
+                    }
+                    crate::shortcut(s, e, tx)
+                }),
+        )
+        .child(
+            text(count)
+                .key("find-count")
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        )
+        .child(
+            pressable(k, "find-prev".to_owned())
+                .size(24.0, 24.0)
+                .center()
+                .child(
+                    text("‹")
+                        .font(TextStyle::new(14.0, 600.0))
+                        .color(k.c.text_muted),
+                )
+                .on_press(|s: &mut State| s.find_prev()),
+        )
+        .child(
+            pressable(k, "find-next".to_owned())
+                .size(24.0, 24.0)
+                .center()
+                .child(
+                    text("›")
+                        .font(TextStyle::new(14.0, 600.0))
+                        .color(k.c.text_muted),
+                )
+                .on_press(|s: &mut State| s.find_next()),
+        )
+        .child(spacer())
+        .child(
+            pressable(k, "find-close".to_owned())
+                .size(24.0, 24.0)
+                .center()
+                .child(text("✕").font(k.ty.caption()).color(k.c.text_faint))
+                .on_press(|s: &mut State| s.close_find()),
+        )
 }
 
 fn editor(s: &State, k: &Kit) -> El {

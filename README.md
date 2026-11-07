@@ -67,6 +67,12 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | Shortcut | Action |
 | --- | --- |
 | `⌘K` / `Ctrl+K` | Focus search |
+| `↑` / `↓` (search) | Move the highlighted search result |
+| `Enter` (search) | Open the highlighted result (first when none is highlighted) |
+| `⌘F` / `Ctrl+F` | Find in the open note |
+| `Enter` / `Shift+Enter` (find) | Next / previous match |
+| `⌘[` / `Ctrl+[` | Back in note history |
+| `⌘]` / `Ctrl+]` | Forward in note history |
 | `⌘N` / `Ctrl+N` | New note |
 | `⌘S` / `Ctrl+S` | Save now (autosave is already on) |
 | `⌘E` / `Ctrl+E` | Toggle Write / Read |

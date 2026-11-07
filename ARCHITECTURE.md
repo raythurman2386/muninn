@@ -64,6 +64,13 @@ is not in this table. That check is part of `xtask check` and CI.
    a guarded save instead of touching the buffer; reloads are deferred until that buffer is
    clean. A snapshot failure is represented as a missing entry and stays quiet rather than
    reporting every tick.
+8. **Navigation (M2).** Back/Forward is a path-keyed history deque, not a tab model: every
+   `load_note` that changes the selection appends the note's path (consecutive repeats
+   collapse, a new open truncates the abandoned forward branch, the list is capped at 100).
+   Storing paths instead of note ids keeps history valid across a reload, where ids are
+   rebuilt from the scan; each entry also keeps the caret to restore. In-note find matches
+   are recomputed once a frame in `poll` from the query and editor text, because the view
+   only borrows `State` and typing commits after the key handler runs.
 
 ## Invariants
 

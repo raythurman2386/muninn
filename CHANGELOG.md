@@ -37,6 +37,17 @@ All notable changes to Muninn are documented here. The format is based on
   notes within about two seconds. A clean vault reloads in place (selection, mode, scope
   and collapsed folders preserved); an external edit to the dirty open note raises the
   existing conflict bar and never clobbers the buffer.
+- Find in the open note (EDT-01): `Cmd/Ctrl+F` opens a bar with a live match count
+  (`3/12`). Enter and Shift+Enter step forward and backward with wrapping, the match is
+  selected in the editor, and Escape closes the bar and returns typing to the note.
+  Matching is case-insensitive on Unicode without changing the note's text.
+- Keyboard search results (NAV-01): Up/Down move a highlighted row through the ranked
+  results with wrapping, and Enter opens the highlighted note instead of always the
+  first. Changing the query clears the highlight; title-first ranking is unchanged.
+- Back/Forward note history (NAV-03): the topbar chips and `Cmd/Ctrl+[` / `Cmd/Ctrl+]`
+  revisit notes by path, keep the caret per entry, drop the abandoned forward branch on
+  a new open, and cap the list at 100 entries. M2 deliberately chose history-only over
+  tabs so there is still one editor, one dirty buffer and one focus owner.
 
 ### Fixed
 

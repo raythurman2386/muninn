@@ -16,7 +16,8 @@ pub use keys::{on_key, shortcut};
 pub use poll::poll;
 pub use recovery::RecoveryEntry;
 pub use state::{
-    ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FolderPrompt,
-    FolderRename, MenuTarget, Mode, NamePrompt, RenamePrompt, Scope, State, TrashUndo,
+    ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FindState, FolderPrompt,
+    FolderRename, HistoryEntry, MenuTarget, Mode, NamePrompt, RenamePrompt, Scope, State,
+    TrashUndo,
 };
 pub use view::view;

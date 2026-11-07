@@ -17,6 +17,16 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     s.now = t;
     let mut changed = false;
 
+    // M2: query-derived state (search highlight, in-note find matches) is
+    // recomputed here, before this frame's commit, because the view only
+    // borrows `State` and typing is committed after the key handler runs.
+    if s.search_tick() {
+        changed = true;
+    }
+    if s.find_tick() {
+        changed = true;
+    }
+
     // Watch first: an external edit to the dirty note must raise its conflict
     // before autosave gets a chance to report something less specific. The
     // watcher itself only touches metadata.
