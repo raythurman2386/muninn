@@ -18,6 +18,19 @@ All notable changes to Muninn are documented here. The format is based on
 - Help overlay (DES-01): `Cmd/Ctrl+?`, the sidebar `?` button, or plain `?` outside a text field
   opens a grouped shortcut map with autosave timing, the version and a GitHub issue link.
   `Esc` closes it; there is no native menu bar on Linux.
+- Session log and diagnostics (X-01): `$XDG_STATE_HOME/muninn/session.log` records startup
+  build/vault/counts, vault opens with scan time, save failures, conflicts, trash/restore and
+  watcher reloads as timestamped key-only lines (never note bodies). `--trace` logs every
+  autosave tick, and Help shows the last five lines with a **Copy diagnostics** button.
+- Headless vault checks (X-03): `muninn --check <vault>` prints broken links, duplicate titles,
+  skipped files and a depth warning with exit codes 0/1/2; `--list-links` prints sorted
+  `referrer -> target` lines. Both run before Rune starts a window.
+- Attachments and Unicode (X-02/DES-02): `![[image.png]]` renders as a filename placeholder
+  instead of a faint missing note (Rune has no image pipeline and refuses `file:` URLs), and
+  CJK/accented/RTL titles have regression tests for search, resolve and duplicate labels.
+- Reduced motion and labels (DES-03): `MUNINN_REDUCED_MOTION=1` (`true`, `yes`, `on`) freezes
+  the force layout at its deterministic seed positions without waking the window, and the
+  icon-only theme, help and folder `+` buttons now carry accessible labels and tooltips.
 - First-run welcome and scan timing (LIF-01): a vault folder created at launch shows
   "New vault created at … — make your first note" instead of an empty editor, and the status
   bar reports the synchronous startup scan time. A chunked progress bar remains for M3 Lane 3.

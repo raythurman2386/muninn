@@ -41,6 +41,22 @@ MUNINN_VAULT=~/notes cargo run -p muninn-app
 Without `--vault` or `MUNINN_VAULT`, Muninn reopens the last vault recorded in its
 settings file (falling back to `~/Muninn`, created when needed).
 
+### Headless checks
+
+Two commands inspect a vault without opening a window (no GPU context is created):
+
+```sh
+cargo run -p muninn-app -- --check ~/notes
+cargo run -p muninn-app -- --list-links ~/notes
+```
+
+`--check` prints the note count, every broken link as `referrer -> target`, duplicate
+titles with their note counts, the skipped-file count and a folder-depth warning. It
+exits `0` when clean, `1` when there are broken links or duplicate titles, and `2` when
+the path is not a readable vault folder. It never creates a missing folder. `--list-links`
+prints one sorted `referrer -> target` line per wikilink, with unresolved targets
+prefixed `missing:`. `muninn --help` prints this usage without starting Rune.
+
 ### Settings and vaults
 
 Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
@@ -54,6 +70,20 @@ menu bar on Linux. **Open vault…** takes a typed path (`~` expands to your hom
 **New vault…** creates a missing folder and opens it empty. Recent vaults are listed newest
 first, and opening one promotes it to the top. `Cmd/Ctrl+?` (or the sidebar `?` button, or plain
 `?` when no text field has focus) opens the full shortcut map; `Esc` closes it.
+
+### Session log and diagnostics
+
+Muninn appends short, timestamped lines to
+`$XDG_STATE_HOME/muninn/session.log` (fallback `~/.local/state/muninn/session.log`):
+startup build/vault/counts, vault opens with scan time, saved and failed saves, conflict
+raises, trash/restore and watcher reloads. Lines carry keys only (vault-relative names,
+counts, results) and **never note bodies**, so the file is safe to attach to a bug report.
+`--trace` adds every autosave tick. The Help overlay shows the last five lines plus the
+version, Rune revision and vault counts, with a **Copy diagnostics** button.
+
+`MUNINN_REDUCED_MOTION=1` (also `true`, `yes` or `on`) freezes the force layout: nodes
+keep their deterministic seed positions, no auto-settle wakes the window, and pan, zoom
+and fit still work. Prefer this over replacing the theme when motion is a problem.
 
 ## What it does
 
@@ -72,6 +102,15 @@ first, and opening one promotes it to the top. `Cmd/Ctrl+?` (or the sidebar `?` 
 - Unresolved wikilinks are drawn faintly in Read mode. Clicking one creates the note and opens
   it in Write mode. Path-qualified links (`[[folder/note]]`) resolve to that folder; a bare
   title shared by several notes resolves deterministically and displays with its folder.
+- Attachments stay opaque: only `.md` files are notes, and the scan ignores everything else.
+  An image embed such as `![[pic.png]]` renders in Read mode as a filename placeholder, not a
+  faint missing note link. Rune's Markdown view has no image pipeline in this revision, and
+  `Tx::open_url` refuses `file:` links, so there is no in-app image render or
+  reveal-in-file-manager yet. This Rune revision does expose `El::on_drop_files`, but
+  Muninn has not wired file drops into attachments; that remains a later task.
+- Word count uses whitespace splitting, so a CJK run without spaces counts as one word
+  (documented, not locale-aware segmentation). Unicode titles (CJK, accents, RTL) search and
+  resolve by the same case-folded title/path rules as ASCII.
 - **New note** asks for a name first (empty or cancelled creates nothing) and targets the
   current or chosen folder. Right-click a note or folder for rename, delete, move and
   new-note/new-folder actions; rename/delete also appear with `F2` and `Delete`. Folder

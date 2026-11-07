@@ -64,7 +64,9 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     s.recovery_tick(t);
 
     if s.mode == Mode::Graph {
-        let moved = s.graph.step();
+        // DES-03: `graph_step` honours MUNINN_REDUCED_MOTION (heat pinned to
+        // zero, no movement); pan, zoom and the initial fit still work.
+        let moved = s.graph_step();
         if moved {
             changed = true;
         }

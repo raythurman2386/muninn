@@ -387,19 +387,33 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
 
 fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
     let target = folder.to_owned();
+    let place = if folder.is_empty() {
+        "the vault root".to_owned()
+    } else {
+        folder.to_owned()
+    };
     pressable(k, format!("folder-new-{slug}"))
         .size(22.0, 22.0)
         .center()
         .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
+        .label(format!("New note in {place}"))
+        .help(format!("New note in {place}"))
         .on_press(move |s: &mut State| s.new_note_in(&target))
 }
 
 fn folder_new_folder_button(k: &Kit, slug: &str, folder: &str) -> El {
     let target = folder.to_owned();
+    let place = if folder.is_empty() {
+        "the vault root".to_owned()
+    } else {
+        folder.to_owned()
+    };
     pressable(k, format!("folder-create-{slug}"))
         .size(22.0, 22.0)
         .center()
         .child(icon(&ic::FOLDER_ADD_LEFT, 12.0).color(k.c.icon_muted))
+        .label(format!("New folder in {place}"))
+        .help(format!("New folder in {place}"))
         .on_press(move |s: &mut State| s.begin_new_folder(&target))
 }
 
@@ -517,6 +531,8 @@ fn theme_button(k: &Kit, dark: bool) -> El {
                 .font(TextStyle::new(14.0, 500.0))
                 .color(k.c.icon_muted),
         )
+        .label("Toggle theme")
+        .help("Toggle theme")
         .on_press(move |s: &mut State| s.set_theme(Some(!dark)))
 }
 
@@ -540,6 +556,8 @@ fn help_button(k: &Kit) -> El {
                 .font(TextStyle::new(14.0, 600.0))
                 .color(k.c.icon_muted),
         )
+        .label("Keyboard shortcuts")
+        .help("Keyboard shortcuts")
         .on_press(|s: &mut State| s.open_help())
 }
 
@@ -1480,21 +1498,7 @@ fn help_panel(s: &State, k: &Kit) -> El {
             .color(k.c.text_faint)
             .padding(4.0),
         )
-        .child(
-            pressable(k, "help-report-issue".to_owned())
-                .px(8.0)
-                .py(4.0)
-                .border(1.0, k.c.border_muted)
-                .child(
-                    text("Report an issue on GitHub")
-                        .font(k.ty.caption())
-                        .color(k.c.text_accent),
-                )
-                .on_press_tx(|_: &mut State, tx: &mut Tx| {
-                    // Best-effort: the platform may have no URL opener.
-                    let _ = tx.open_url(ISSUES_URL);
-                }),
-        );
+        .child(help_diagnostics(s, k));
     col()
         .key("help-panel")
         .w_full()
@@ -1533,6 +1537,61 @@ fn help_panel(s: &State, k: &Kit) -> El {
                     stick_bottom: false,
                 })
                 .child(list.max_w(720.0)),
+        )
+}
+
+/// X-01: a selectable diagnostics block plus "Copy diagnostics".
+///
+/// `Tx::copy` is available in this Rune revision, so the version, counts and
+/// last five session-log lines are one click from a bug report. If a future
+/// Rune drops it, the block is still visible and selectable.
+fn help_diagnostics(s: &State, k: &Kit) -> El {
+    col()
+        .w_full()
+        .gap(6.0)
+        .child(
+            col()
+                .key("help-diagnostics")
+                .w_full()
+                .gap(2.0)
+                .radius(6.0)
+                .padding(8.0)
+                .fill(k.c.layer_01)
+                .child(text(s.diagnostics()).font(k.ty.mono).color(k.c.text_muted)),
+        )
+        .child(
+            row()
+                .gap(8.0)
+                .child(
+                    pressable(k, "help-copy-diagnostics".to_owned())
+                        .px(8.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(
+                            text("Copy diagnostics")
+                                .font(k.ty.caption())
+                                .color(k.c.text_accent),
+                        )
+                        .label("Copy diagnostics")
+                        .on_press_tx(|s: &mut State, tx: &mut Tx| {
+                            tx.copy(s.diagnostics());
+                        }),
+                )
+                .child(
+                    pressable(k, "help-report-issue".to_owned())
+                        .px(8.0)
+                        .py(4.0)
+                        .border(1.0, k.c.border_muted)
+                        .child(
+                            text("Report an issue on GitHub")
+                                .font(k.ty.caption())
+                                .color(k.c.text_accent),
+                        )
+                        .on_press_tx(|_: &mut State, tx: &mut Tx| {
+                            // Best-effort: the platform may have no URL opener.
+                            let _ = tx.open_url(ISSUES_URL);
+                        }),
+                ),
         )
 }
 
@@ -2186,7 +2245,7 @@ fn preview(s: &State, k: &Kit) -> El {
     if s.editor.text.trim().is_empty() {
         return empty_page(k, "This note is empty. Write something in the editor.");
     }
-    let source = s.vault.preview(&s.editor.text, id);
+    let source = s.vault.preview_with_attachments(&s.editor.text, id);
     // EDT-04: top-level heading blocks get stable keys so a deep link can
     // scroll one into view. Offsets are computed against the preview source
     // (link rewriting changes byte lengths), matching `Markdown::block_keys`.

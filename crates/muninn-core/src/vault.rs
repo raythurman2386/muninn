@@ -1472,6 +1472,40 @@ mod tests {
     }
 
     #[test]
+    fn unicode_titles_search_resolve_and_duplicate_labels() {
+        // X-02: CJK, accented Latin and RTL titles are just path segments.
+        // Resolution is exact after Unicode lower-casing (never locale
+        // stemming), and search is a substring match over the same strings.
+        let tmp = TempVault::new(&[
+            ("日本語.md", "日本語のノート [[Café]] [[مرحبا]]"),
+            ("Café.md", "accented"),
+            ("مرحبا.md", "right to left"),
+            ("a/日本語.md", "duplicate in a"),
+            ("b/日本語.md", "duplicate in b"),
+        ]);
+        let v = tmp.load();
+        assert!(v.resolve("日本語").is_some(), "CJK title resolves");
+        assert!(v.resolve("日本語のノート").is_none());
+        assert!(v.resolve("café").is_some(), "accented title is case-folded");
+        assert!(v.resolve("CAFÉ").is_some());
+        assert!(v.resolve("مرحبا").is_some(), "RTL title resolves");
+        assert_eq!(v.search("日本").len(), 3, "CJK substring search");
+        assert_eq!(v.search("café").len(), 2);
+        assert_eq!(v.search("مرحبا").len(), 2);
+
+        // Duplicate CJK titles disambiguate by folder exactly like ASCII ones.
+        for folder in ["a", "b"] {
+            let id = v
+                .resolve(&format!("{folder}/日本語"))
+                .unwrap_or_else(|| panic!("{folder} resolves"));
+            assert!(v.is_duplicate(id), "{folder} is a duplicate");
+            assert_eq!(v.display_label(id), format!("{folder}/日本語"));
+        }
+        let bare = v.resolve("日本語").expect("bare duplicate");
+        assert_eq!(v.note(bare).rel, "a/日本語.md");
+    }
+
+    #[test]
     fn broken_links_are_cached_grouped_and_update_after_create() {
         let tmp = TempVault::new(&[
             ("Home.md", "[[Missing]] and [[gone/Else#Part]] and [[Beta]]"),

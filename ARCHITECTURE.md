@@ -24,6 +24,9 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
 `cargo run -p xtask -- layers` reads `cargo metadata` and rejects any new `muninn-*` edge that
 is not in this table. That check is part of `xtask check` and CI.
 
+The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-core` directly
+(and `--check` never creates a missing vault) before Rune starts a window or GPU context.
+
 ## Data flow
 
 1. **Scan.** `muninn_core::Vault::load` walks the root (up to 12 levels, skipping dot-dirs),

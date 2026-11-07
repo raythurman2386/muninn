@@ -1,8 +1,9 @@
 //! Application state: the open vault, note, editor, graph and camera.
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fs;
-use std::io;
+use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
@@ -254,6 +255,10 @@ pub(crate) const HISTORY_CAP: usize = 100;
 /// a normal session's visits.
 const NOTE_EDITOR_CAP: usize = 24;
 
+/// X-01: the Rune revision pinned in the workspace `Cargo.toml`. Logged at
+/// startup and shown in diagnostics; update it with the pin together.
+pub(crate) const RUNE_REV: &str = "b39c24f";
+
 pub struct State {
     pub vault: Vault,
     pub selected: Option<usize>,
@@ -397,12 +402,26 @@ pub struct State {
     /// The vault path field is open (Open… / New vault).
     pub vault_prompt: bool,
     pub vault_field: TextEdit,
+    /// X-01: append-only session log (`$XDG_STATE_HOME/muninn/session.log`).
+    pub(crate) log_path: PathBuf,
+    /// X-01: `--trace` logs every autosave tick as well as the normal events.
+    pub trace: bool,
+    /// DES-03: `MUNINN_REDUCED_MOTION=1` freezes the force layout.
+    pub reduced_motion: bool,
 }
 
 impl State {
     pub fn new(root: PathBuf) -> State {
         let settings = Settings::load();
         Self::with_settings(root, state_home(), config_home(), settings)
+    }
+
+    /// Turn verbose session logging on or off.
+    pub fn set_trace(&mut self, trace: bool) {
+        self.trace = trace;
+        if trace {
+            self.log_event("trace", "enabled");
+        }
     }
 
     /// Build a state rooted in `root` with an explicit XDG state home. The
@@ -445,6 +464,8 @@ impl State {
         let collapsed: HashSet<String> = settings.collapsed.iter().cloned().collect();
         let restore_mode = settings.mode;
         let restore_scope = settings.scope;
+        let reduced_motion = reduced_motion_from_env();
+        let log_path = state_home.join("muninn").join("session.log");
         let started = Instant::now();
         let (vault, startup_error) = match Vault::load(&root) {
             Ok(vault) => (vault, None),
@@ -542,7 +563,30 @@ impl State {
             vault_menu: false,
             vault_prompt: false,
             vault_field: TextEdit::new(""),
+            log_path,
+            trace: false,
+            reduced_motion,
         };
+        // X-01: one startup line with the build, the vault path and counts.
+        // Keys only: note bodies and titles never reach the log.
+        state.log_event(
+            "startup",
+            &format!(
+                "muninn={} rune={} vault={} notes={} dirs={} skipped={} load_ms={:.1}{}",
+                env!("CARGO_PKG_VERSION"),
+                RUNE_REV,
+                state.vault.root.display(),
+                state.vault.notes.len(),
+                state.vault.dirs.len(),
+                state.vault.skipped_count(),
+                state.load_ms,
+                if state.startup_error.is_some() {
+                    " error=unreadable"
+                } else {
+                    ""
+                }
+            ),
+        );
         // LIF-01: reopen the note that was open last time, but only when this is
         // the same vault. A `--vault` override gets that vault's first note
         // instead of a path that happens to exist in another vault.
@@ -604,6 +648,114 @@ impl State {
                 false
             }
         }
+    }
+
+    // ---- X-01: session log and diagnostics --------------------------------
+
+    /// The append-only session log path.
+    #[must_use]
+    pub fn session_log_path(&self) -> &Path {
+        &self.log_path
+    }
+
+    /// Append one timestamped event line. Best-effort: a read-only state
+    /// directory must never interrupt editing or saving.
+    ///
+    /// Callers pass keys (vault-relative names, counts, results), never note
+    /// bodies, so the log is safe to attach to a bug report.
+    fn log_event(&self, event: &str, detail: &str) {
+        let line = if detail.is_empty() {
+            format!("{} {event}", conflict_stamp())
+        } else {
+            format!("{} {event} {detail}", conflict_stamp())
+        };
+        if let Some(parent) = self.log_path.parent()
+            && fs::create_dir_all(parent).is_err()
+        {
+            return;
+        }
+        if let Ok(mut file) = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.log_path)
+        {
+            let _ = writeln!(file, "{line}");
+        }
+    }
+
+    /// Log a verbose event only with `--trace`.
+    pub fn trace_log(&self, event: &str, detail: &str) {
+        if self.trace {
+            self.log_event(event, detail);
+        }
+    }
+
+    /// Log a successful vault open with counts and the synchronous scan time.
+    fn log_open(&self, started: Instant) {
+        self.log_event(
+            "open",
+            &format!(
+                "{} notes={} dirs={} skipped={} load_ms={:.1}",
+                self.vault.root.display(),
+                self.vault.notes.len(),
+                self.vault.dirs.len(),
+                self.vault.skipped_count(),
+                started.elapsed().as_secs_f64() * 1_000.0,
+            ),
+        );
+    }
+
+    /// Log a failed save with the note key and the OS error, never its text.
+    fn log_save_failure(&self, error: &io::Error) {
+        let rel = self.selected_rel().unwrap_or("(no note)");
+        self.log_event("save-failed", &format!("{rel}: {error}"));
+    }
+
+    /// Shared post-write bookkeeping: drop the recovery copy and trace the
+    /// autosave tick with the note key only, never its text.
+    fn after_save(&mut self, rel: &str) {
+        self.clear_recovery(rel);
+        self.trace_log("autosave", rel);
+    }
+
+    /// The newest `count` complete log lines (oldest first).
+    #[must_use]
+    pub fn log_tail(&self, count: usize) -> Vec<String> {
+        let Ok(text) = fs::read_to_string(&self.log_path) else {
+            return Vec::new();
+        };
+        let lines: Vec<&str> = text.lines().collect();
+        lines[lines.len().saturating_sub(count)..]
+            .iter()
+            .map(|line| (*line).to_owned())
+            .collect()
+    }
+
+    /// X-01 diagnostics shown in the Help overlay (and copied to the
+    /// clipboard): build, vault counts, log path and the last five lines.
+    #[must_use]
+    pub fn diagnostics(&self) -> String {
+        let mut out = format!(
+            "Muninn {} · rune {}\nvault {} · {} notes · {} folders · {} skipped\nlog {}\n",
+            env!("CARGO_PKG_VERSION"),
+            RUNE_REV,
+            self.vault.root.display(),
+            self.vault.notes.len(),
+            self.vault.folders().len(),
+            self.vault.skipped_count(),
+            self.log_path.display(),
+        );
+        let tail = self.log_tail(5);
+        if tail.is_empty() {
+            out.push_str("(no log lines yet)");
+        } else {
+            out.push_str("last log lines:\n");
+            for line in tail {
+                out.push_str(&line);
+                out.push('\n');
+            }
+        }
+        out
     }
 
     /// Idle seconds before autosave. Preferences may store any finite value in
@@ -706,9 +858,11 @@ impl State {
                 Some("Save or resolve the current note before switching vaults".to_owned());
             return false;
         }
+        let started = Instant::now();
         match Vault::load(&root) {
             Ok(vault) => {
                 self.vault = vault;
+                self.log_open(started);
                 self.selected = None;
                 self.selected_path = None;
                 self.history.clear();
@@ -747,6 +901,7 @@ impl State {
                 true
             }
             Err(e) => {
+                self.log_event("open-failed", &format!("{}: {e}", root.display()));
                 self.error = Some(format!("Could not open the vault: {e}"));
                 false
             }
@@ -1487,6 +1642,17 @@ impl State {
         self.editor.insert("    ");
     }
 
+    /// DES-03: one layout tick. Reduced motion pins heat to zero and never
+    /// moves a node; the deterministic seed positions stay where they are.
+    pub(crate) fn graph_step(&mut self) -> bool {
+        if self.reduced_motion {
+            self.graph.heat = 0.0;
+            false
+        } else {
+            self.graph.step()
+        }
+    }
+
     pub fn set_mode(&mut self, mode: Mode) {
         if mode == self.mode {
             return;
@@ -1883,7 +2049,7 @@ impl State {
                 self.expected_disk = self.vault.disk_state(id).ok();
                 self.graph.sync(&self.vault);
                 if let Some(rel) = self.selected_rel().map(str::to_owned) {
-                    self.clear_recovery(&rel);
+                    self.after_save(&rel);
                 }
                 self.refresh_watch();
                 true
@@ -1902,6 +2068,7 @@ impl State {
             // The save failed before touching `saved`, so the editor keeps its
             // dirty state and the in-memory note still matches the old file.
             Err(e) => {
+                self.log_save_failure(&e);
                 self.error = Some(format!("Could not save: {e}"));
                 false
             }
@@ -2072,6 +2239,7 @@ impl State {
         if let Err(e) = self.recovery.save(rel, &buffer) {
             self.error = Some(format!("Could not persist recovery copy: {e}"));
         }
+        self.log_event("recovery", &format!("restored {rel}"));
         self.recovered.retain(|entry| entry.rel != rel);
         true
     }
@@ -2193,6 +2361,7 @@ impl State {
         self.reload(select);
         self.editor.focused = editor_focused;
         self.search.focused = search_focused;
+        self.log_event("watch", &format!("reload notes={}", self.vault.notes.len()));
         true
     }
 
@@ -2343,6 +2512,17 @@ impl State {
         reason: ConflictReason,
         observed: Option<DiskState>,
     ) {
+        let kind = match reason {
+            ConflictReason::Modified => "modified",
+            ConflictReason::Deleted => "deleted",
+        };
+        let rel = self
+            .vault
+            .notes
+            .get(note_id)
+            .map_or("(missing)", |note| note.rel.as_str())
+            .to_owned();
+        self.log_event("conflict", &format!("{rel} {kind}"));
         self.conflict = Some(ConflictState {
             note_id,
             expected: self.expected_disk,
@@ -2639,6 +2819,7 @@ impl State {
                 match self.vault.delete_note_to_trash(id) {
                     Ok(trash_rel) => {
                         self.error = None;
+                        self.log_event("trash", &trash_rel);
                         if was_selected {
                             self.selected = None;
                             self.selected_path = None;
@@ -2673,6 +2854,7 @@ impl State {
         match self.vault.restore_note(&undo.trash_rel) {
             Ok(path) => {
                 self.error = None;
+                self.log_event("restore", &undo.trash_rel);
                 self.reload(Some(path));
                 true
             }
@@ -3058,7 +3240,7 @@ impl State {
                 // offsets differ from the note's, so resolve the key against
                 // that source. Block keys are `heading-<preview offset>`.
                 let key = self.selected.and_then(|id| {
-                    let source = self.vault.preview(&self.editor.text, id);
+                    let source = self.vault.preview_with_attachments(&self.editor.text, id);
                     heading_offset(&source, heading).map(|offset| format!("heading-{offset}"))
                 });
                 match key {
@@ -3291,6 +3473,22 @@ fn safe_rel(rel: &str) -> bool {
             .any(|part| part.is_empty() || part == "." || part == "..")
 }
 
+/// DES-03: whether `MUNINN_REDUCED_MOTION` asks for the reduced-motion mode.
+fn reduced_motion_from_env() -> bool {
+    flag_on(std::env::var_os("MUNINN_REDUCED_MOTION").as_deref())
+}
+
+/// A documented boolean environment flag: `1`, `true`, `yes` or `on`
+/// (case-insensitive) is on; anything else, including unset, is off.
+fn flag_on(value: Option<&OsStr>) -> bool {
+    value.is_some_and(|value| {
+        matches!(
+            value.to_string_lossy().trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
+}
+
 /// UTC `YYYYMMDD-HHMMSS`, used to give a conflict copy a unique, sortable name.
 fn conflict_stamp() -> String {
     let secs = SystemTime::now()
@@ -3313,4 +3511,20 @@ fn conflict_stamp() -> String {
         year += 1;
     }
     format!("{year:04}{month:02}{day:02}-{hour:02}{minute:02}{second:02}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reduced_motion_flag_accepts_documented_values() {
+        for on in ["1", "true", "TRUE", " yes ", "On"] {
+            assert!(flag_on(Some(OsStr::new(on))), "{on:?} should be on");
+        }
+        for off in ["", "0", "false", "no", "off", "2"] {
+            assert!(!flag_on(Some(OsStr::new(off))), "{off:?} should be off");
+        }
+        assert!(!flag_on(None));
+    }
 }

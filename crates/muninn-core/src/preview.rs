@@ -53,6 +53,79 @@ impl Vault {
         out.push_str(&source[last..]);
         out
     }
+
+    /// DES-02: the reader source. Attachment embeds (`![[pic.png]]`) become a
+    /// filename placeholder before the ordinary wikilink rewrite runs, because
+    /// Rune's Markdown view has no image pipeline and would otherwise paint
+    /// them as faint missing note links.
+    #[must_use]
+    pub fn preview_with_attachments(&self, source: &str, current: usize) -> String {
+        let source = rewrite_attachments(source);
+        self.preview(&source, current)
+    }
+}
+
+/// Replace every `![[attachment]]` span with a visible placeholder, leaving
+/// note embeds and plain links for [`Vault::preview`].
+fn rewrite_attachments(source: &str) -> String {
+    let links = parse_links(source);
+    let embeds: Vec<_> = links
+        .iter()
+        .filter(|link| is_attachment_embed(source, link.start, &link.target))
+        .collect();
+    if embeds.is_empty() {
+        return source.to_owned();
+    }
+    let mut out = String::with_capacity(source.len() + embeds.len() * 24);
+    let mut last = 0;
+    for link in embeds {
+        out.push_str(&source[last..link.start - 1]);
+        attachment_placeholder(link, &mut out);
+        last = link.end;
+    }
+    out.push_str(&source[last..]);
+    out
+}
+
+/// True when `![[target]]` (the `!` is the byte before `start`) names an
+/// attachment: a non-Markdown extension, optionally path-qualified. A bare
+/// `![[Note]]` keeps the ordinary link rewrite.
+fn is_attachment_embed(source: &str, start: usize, target: &str) -> bool {
+    let bang = start > 0
+        && source.as_bytes()[start - 1] == b'!'
+        && (start < 2 || source.as_bytes()[start - 2] != b'\\');
+    if !bang || target.is_empty() {
+        return false;
+    }
+    attachment_name(target).is_some()
+}
+
+/// The file name of an attachment target (`assets/pic.png` → `pic.png`), or
+/// `None` when the extension is Markdown or missing.
+fn attachment_name(target: &str) -> Option<&str> {
+    let name = target.rsplit(['/', '\\']).next().unwrap_or(target);
+    let (stem, extension) = name.rsplit_once('.')?;
+    (!stem.is_empty() && !extension.is_empty() && !extension.eq_ignore_ascii_case("md"))
+        .then_some(name)
+}
+
+/// A reader-visible placeholder for an attachment embed. Rune has no image
+/// pipeline and `Tx::open_url` refuses `file:` links, so the filename is
+/// shown in an inline code span and marked as an attachment; the file itself
+/// stays opaque (the vault scan ignores non-`.md` files).
+fn attachment_placeholder(link: &crate::wikilink::WikiLink, out: &mut String) {
+    let name = attachment_name(&link.target).unwrap_or(&link.target);
+    out.push('`');
+    for c in name.chars() {
+        // A backtick would close the code span and turn the rest into text.
+        out.push(if c == '`' { '\'' } else { c });
+    }
+    out.push_str("` (attachment");
+    if let Some(alias) = &link.alias {
+        out.push_str(" — ");
+        escape_label(alias, out);
+    }
+    out.push(')');
 }
 
 pub(crate) fn escape_label(label: &str, out: &mut String) {
@@ -135,6 +208,23 @@ mod tests {
         let out = v.preview(&v.note(home).source, home);
         assert!(out.contains("[the part](<note:Target#Part>)"), "{out}");
         assert!(out.contains("[Local](<note:Home#Local>)"), "{out}");
+    }
+
+    #[test]
+    fn attachment_embeds_render_a_placeholder_not_a_missing_link() {
+        let tmp = TempVault::new(&[("Home.md", "![[pic.png]] and ![[assets/shot.jpg|A shot]]\n")]);
+        let v = tmp.load();
+        let home = v.resolve("Home").unwrap();
+        let out = v.preview_with_attachments(&v.note(home).source, home);
+        assert!(out.contains("`pic.png` (attachment)"), "{out}");
+        assert!(out.contains("`shot.jpg` (attachment — A shot)"), "{out}");
+        assert!(!out.contains("missing:pic.png"), "{out}");
+        assert!(!out.contains("![[pic.png]]"), "{out}");
+        // A plain (non-embed) attachment link and a ![[Note]] embed are not
+        // attachment placeholders: note embeds still rewrite as note links.
+        let out = v.preview("[[pic.png]] and ![[Other]]", home);
+        assert!(out.contains("missing:pic.png"), "{out}");
+        assert!(out.contains("[Other](<missing:Other>)"), "{out}");
     }
 
     #[test]
