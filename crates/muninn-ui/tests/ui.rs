@@ -490,3 +490,179 @@ fn graph_low_zoom_stays_interactive_and_culls_offscreen() {
         "off-screen non-selected nodes cull"
     );
 }
+
+#[test]
+fn rename_note_via_prompt_keeps_it_open() {
+    let tmp = folder_vault();
+    let mut rt = runtime(&tmp);
+    let alpha_note = rt
+        .state
+        .vault
+        .resolve("projects/alpha/note")
+        .expect("alpha note");
+    rt.state.load_note(alpha_note, false);
+    rt.state.begin_rename_note(alpha_note);
+    rt.frame(1.0 / 60.0);
+    assert!(rt.find("rename-note-name").is_some());
+    rt.state.rename_field.replace_text("Renamed");
+    rt.state.submit_rename_note();
+    rt.frame(1.0 / 60.0);
+    let renamed = rt
+        .state
+        .vault
+        .resolve("projects/alpha/Renamed")
+        .expect("renamed note");
+    assert_eq!(rt.state.selected, Some(renamed));
+    assert!(
+        rt.state
+            .selected_path
+            .as_ref()
+            .is_some_and(|p| p.ends_with("projects/alpha/Renamed.md"))
+    );
+    assert!(rt.state.editor.text.contains("Alpha note"));
+}
+
+#[test]
+fn delete_note_and_folder_require_confirmation() {
+    let tmp = folder_vault();
+    let mut rt = runtime(&tmp);
+    let beta_note = rt
+        .state
+        .vault
+        .resolve("projects/beta/note")
+        .expect("beta note");
+    rt.update(|s, _| s.load_note(beta_note, false));
+    rt.update(|s, _| s.delete_note(beta_note));
+    rt.frame(1.0 / 60.0);
+    assert!(rt.find("delete-confirm").is_some());
+    // New rows fade/slide in; let the layout settle before clicking them.
+    for _ in 0..10 {
+        rt.frame(1.0 / 60.0);
+    }
+    // Cancel keeps the note.
+    let (x, y) = rt.find("delete-cancel").expect("cancel");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.vault.notes.iter().any(|n| n.title == "note"));
+    // Confirm deletes the file and clears the open selection.
+    rt.update(|s, _| s.delete_note(beta_note));
+    rt.frame(1.0 / 60.0);
+    for _ in 0..10 {
+        rt.frame(1.0 / 60.0);
+    }
+    let (x, y) = rt.find("delete-yes").expect("confirm");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert!(!tmp.path().join("projects/beta/note.md").exists());
+    // Deleting the open note moves selection to the first remaining note.
+    assert!(
+        rt.state
+            .selected_path
+            .as_ref()
+            .is_none_or(|p| !p.ends_with("projects/beta/note.md"))
+    );
+
+    // Folder delete is empty-only: a populated folder errors, not deletes.
+    rt.update(|s, _| s.delete_folder("projects/alpha"));
+    rt.frame(1.0 / 60.0);
+    for _ in 0..10 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.find("delete-confirm").is_some());
+    rt.update(|s, _| s.confirm_delete());
+    rt.frame(1.0 / 60.0);
+    assert!(tmp.path().join("projects/alpha/note.md").exists());
+    assert!(rt.state.error.is_some());
+}
+
+#[test]
+fn new_folder_then_create_note_inside_it() {
+    let tmp = folder_vault();
+    let mut rt = runtime(&tmp);
+    rt.update(|s, _| s.begin_new_folder("projects/alpha"));
+    rt.frame(1.0 / 60.0);
+    assert!(rt.find("new-folder-name").is_some());
+    rt.update(|s, _| {
+        s.new_folder_field.replace_text("Sub");
+        s.submit_new_folder();
+    });
+    rt.frame(1.0 / 60.0);
+    assert!(tmp.path().join("projects/alpha/Sub").is_dir());
+    assert!(rt.state.vault.folders().contains(&"projects/alpha/Sub".to_owned()));
+    rt.update(|s, _| s.begin_new_note("projects/alpha/Sub"));
+    rt.frame(1.0 / 60.0);
+    assert!(rt.find("new-note-name").is_some());
+    rt.update(|s, _| {
+        s.new_note_field.replace_text("Deep");
+        s.submit_new_note();
+    });
+    rt.frame(1.0 / 60.0);
+    assert!(tmp.path().join("projects/alpha/Sub/Deep.md").exists());
+}
+
+#[test]
+fn right_click_opens_note_menu_and_move_relocates() {
+    let tmp = folder_vault();
+    let mut rt = runtime(&tmp);
+    let alpha_note = rt
+        .state
+        .vault
+        .resolve("projects/alpha/note")
+        .expect("alpha note");
+    let (x, y) = rt
+        .find(&format!("note-row-{alpha_note}"))
+        .expect("alpha row");
+    rt.secondary_down(x, y);
+    rt.secondary_up(x, y);
+    rt.frame(1.0 / 60.0);
+    // The menu slides in over the following rows; settle before picking.
+    for _ in 0..10 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.find("context-menu").is_some());
+    assert!(rt.find("menu-rename").is_some());
+    let (mx, my) = rt.find("menu-move").expect("move item");
+    rt.pointer_down(mx, my);
+    rt.pointer_up(mx, my);
+    rt.frame(1.0 / 60.0);
+    // The move picker slides in too.
+    for _ in 0..10 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert_eq!(rt.state.move_picker, Some(alpha_note));
+    // Move the uniquely-named sibling instead: `note` already exists in beta.
+    let overview = rt
+        .state
+        .vault
+        .resolve("projects/alpha/overview")
+        .expect("overview");
+    rt.update(|s, _| s.move_note_to(overview, "projects/beta"));
+    rt.frame(1.0 / 60.0);
+    assert!(tmp.path().join("projects/beta/overview.md").exists());
+    assert!(!tmp.path().join("projects/alpha/overview.md").exists());
+}
+
+#[test]
+fn keyboard_f2_renames_and_delete_asks() {
+    let tmp = temp_vault();
+    let mut rt = runtime(&tmp);
+    let beta = rt.state.vault.resolve("Beta").expect("Beta");
+    rt.state.load_note(beta, false);
+    rt.state.editor.focused = false;
+    rt.state.search.focused = false;
+    rt.key(KeyEvent {
+        key: Key::Function(2),
+        mods: Mods::default(),
+    });
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.rename_prompt.is_some());
+    rt.state.cancel_rename_note();
+    rt.key(KeyEvent {
+        key: Key::Delete,
+        mods: Mods::default(),
+    });
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.delete_confirm, Some(muninn_ui::DeleteConfirm::Note(beta)));
+}
