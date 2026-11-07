@@ -55,20 +55,36 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
     for (folder, ids) in groups {
         let collapsed = s.is_collapsed(&folder) && !filtering;
         list = list.child(folder_header(s, k, &folder, ids.len(), collapsed));
-        if s.menu.as_ref().is_some_and(|m| m.target == MenuTarget::Folder(folder.clone())) {
+        if s.menu
+            .as_ref()
+            .is_some_and(|m| m.target == MenuTarget::Folder(folder.clone()))
+        {
             list = list.child(context_menu(s, k));
         }
         if s.delete_confirm.as_ref() == Some(&DeleteConfirm::Folder(folder.clone())) {
-            list = list.child(delete_confirm_row(s, k, &DeleteConfirm::Folder(folder.clone())));
+            list = list.child(delete_confirm_row(
+                s,
+                k,
+                &DeleteConfirm::Folder(folder.clone()),
+            ));
         }
-        if s.rename_folder_prompt.as_ref().is_some_and(|p| p.folder == folder) {
+        if s.rename_folder_prompt
+            .as_ref()
+            .is_some_and(|p| p.folder == folder)
+        {
             list = list.child(rename_folder_row(s, k));
         }
-        if s.new_folder_prompt.as_ref().is_some_and(|p| p.parent == folder) {
+        if s.new_folder_prompt
+            .as_ref()
+            .is_some_and(|p| p.parent == folder)
+        {
             list = list.child(new_folder_row(s, k));
         }
         if !collapsed {
-            if s.new_note_prompt.as_ref().is_some_and(|p| p.folder == folder) {
+            if s.new_note_prompt
+                .as_ref()
+                .is_some_and(|p| p.folder == folder)
+            {
                 list = list.child(new_note_row(s, k));
             }
             for id in ids {
@@ -79,7 +95,10 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                 } else {
                     list = list.child(note_row(s, k, id, true));
                 }
-                if s.menu.as_ref().is_some_and(|m| m.target == MenuTarget::Note(id)) {
+                if s.menu
+                    .as_ref()
+                    .is_some_and(|m| m.target == MenuTarget::Note(id))
+                {
                     list = list.child(context_menu(s, k));
                 }
                 if s.move_picker == Some(id) {
@@ -647,7 +666,12 @@ fn context_menu(s: &State, k: &Kit) -> El {
 
 /// Inline folder targets under a note being moved.
 fn move_picker(s: &State, k: &Kit, id: usize) -> El {
-    let current = s.vault.notes.get(id).map(|n| n.folder().to_owned()).unwrap_or_default();
+    let current = s
+        .vault
+        .notes
+        .get(id)
+        .map(|n| n.folder().to_owned())
+        .unwrap_or_default();
     let mut list = col()
         .key("move-picker")
         .w_full()

@@ -53,6 +53,10 @@ Without `--vault` or `MUNINN_VAULT`, Muninn opens `~/Muninn` and creates it when
 - Unresolved wikilinks are drawn faintly in Read mode. Clicking one creates the note and opens
   it in Write mode. Path-qualified links (`[[folder/note]]`) resolve to that folder; a bare
   title shared by several notes resolves deterministically and displays with its folder.
+- **New note** asks for a name first (empty or cancelled creates nothing) and targets the
+  current or chosen folder. Right-click a note or folder for rename, delete, move and
+  new-note/new-folder actions; rename/delete also appear with `F2` and `Delete`. Folder
+  deletes are empty-only.
 
 In **Local** mode the graph keeps the open note and its immediate neighbours:
 
@@ -70,6 +74,8 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘L` / `Ctrl+L` | Toggle Global / Local graph |
 | `⌘1` / `⌘2` / `⌘3` | Write / Read / Graph |
 | `Esc` | Leave the graph |
+| `F2` | Rename selected note |
+| `Del` | Delete selected note (with confirmation) |
 
 ## Crates
 

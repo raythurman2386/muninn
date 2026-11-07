@@ -6,6 +6,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Note and folder CRUD in the sidebar: name-first note creation (no silent `Untitled`),
+  inline rename, delete with confirmation, move-to-folder, new/rename/delete folders, and
+  a right-click context menu on notes and folders. `F2` renames the selected note and
+  `Delete` asks to delete it. Renaming does not rewrite inbound `[[wikilinks]]`; stale
+  bare targets keep resolving by the documented rule or become missing.
+
 ## [0.2.0] - 2026-11-07
 
 ### Added

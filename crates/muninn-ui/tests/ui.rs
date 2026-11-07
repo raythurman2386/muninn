@@ -590,7 +590,12 @@ fn new_folder_then_create_note_inside_it() {
     });
     rt.frame(1.0 / 60.0);
     assert!(tmp.path().join("projects/alpha/Sub").is_dir());
-    assert!(rt.state.vault.folders().contains(&"projects/alpha/Sub".to_owned()));
+    assert!(
+        rt.state
+            .vault
+            .folders()
+            .contains(&"projects/alpha/Sub".to_owned())
+    );
     rt.update(|s, _| s.begin_new_note("projects/alpha/Sub"));
     rt.frame(1.0 / 60.0);
     assert!(rt.find("new-note-name").is_some());
@@ -664,5 +669,8 @@ fn keyboard_f2_renames_and_delete_asks() {
         mods: Mods::default(),
     });
     rt.frame(1.0 / 60.0);
-    assert_eq!(rt.state.delete_confirm, Some(muninn_ui::DeleteConfirm::Note(beta)));
+    assert_eq!(
+        rt.state.delete_confirm,
+        Some(muninn_ui::DeleteConfirm::Note(beta))
+    );
 }

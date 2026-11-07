@@ -471,7 +471,12 @@ impl State {
 
     pub fn begin_rename_note(&mut self, id: usize) {
         self.menu = None;
-        let title = self.vault.notes.get(id).map(|n| n.title.clone()).unwrap_or_default();
+        let title = self
+            .vault
+            .notes
+            .get(id)
+            .map(|n| n.title.clone())
+            .unwrap_or_default();
         self.rename_field.replace_text(title.as_str());
         self.rename_field.focused = true;
         self.editor.focused = false;
@@ -500,7 +505,11 @@ impl State {
                 self.error = None;
                 // The vault updated in place; reload resyncs ids (tests use
                 // paths) and rebuilds graph titles keyed by rel.
-                let select = if was_selected { Some(path) } else { self.selected_path.clone() };
+                let select = if was_selected {
+                    Some(path)
+                } else {
+                    self.selected_path.clone()
+                };
                 self.reload(select);
             }
             Err(e) => self.error = Some(format!("Could not rename note: {e}")),

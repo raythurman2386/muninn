@@ -401,7 +401,10 @@ impl Vault {
     pub fn rename_note(&mut self, id: usize, new_title: &str) -> io::Result<PathBuf> {
         let old = self.notes[id].path.clone();
         let title = sanitise_title(new_title);
-        let dir = old.parent().map(PathBuf::from).unwrap_or_else(|| self.root.clone());
+        let dir = old
+            .parent()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.root.clone());
         let target = dir.join(format!("{title}.md"));
         if target == old {
             return Ok(target);
@@ -480,7 +483,10 @@ impl Vault {
     pub fn create_folder(&mut self, parent: &str, name: &str) -> io::Result<PathBuf> {
         let name = sanitise_folder_name(name);
         if name.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty folder name"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "empty folder name",
+            ));
         }
         let parent_dir = folder_dir(&self.root, parent);
         fs::create_dir_all(&parent_dir)?;
@@ -509,15 +515,19 @@ impl Vault {
     pub fn rename_folder(&mut self, folder: &str, new_name: &str) -> io::Result<PathBuf> {
         let folder = folder.trim_matches('/');
         if folder.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "cannot rename the root"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot rename the root",
+            ));
         }
         let name = sanitise_folder_name(new_name);
         if name.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty folder name"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "empty folder name",
+            ));
         }
-        let (parent, _old) = folder
-            .rsplit_once('/')
-            .unwrap_or(("", folder));
+        let (parent, _old) = folder.rsplit_once('/').unwrap_or(("", folder));
         let source = folder_dir(&self.root, folder);
         let parent_dir = folder_dir(&self.root, parent);
         let target = parent_dir.join(name);
@@ -559,7 +569,10 @@ impl Vault {
     pub fn delete_folder(&mut self, folder: &str) -> io::Result<()> {
         let folder = folder.trim_matches('/');
         if folder.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "cannot delete the root"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot delete the root",
+            ));
         }
         fs::remove_dir(folder_dir(&self.root, folder))?;
         self.dirs.retain(|d| d != folder);
