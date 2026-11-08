@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-08
+
 ### Added
 
 - Default note template: Settings now has a wrapped multi-line **Default note
