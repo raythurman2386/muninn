@@ -1625,6 +1625,7 @@ fn welcome_banner(s: &State, k: &Kit) -> El {
             .grow(1.0)
             .truncate(),
         )
+        .child(welcome_graph_hint(k))
         .child(status_button(k, "New note", "welcome-new-note", |s| {
             s.new_note();
             true
@@ -1633,6 +1634,29 @@ fn welcome_banner(s: &State, k: &Kit) -> El {
             s.dismiss_welcome();
             true
         }))
+}
+
+/// A one-pill preview of what a `[[link]]` unlocks: open the link graph.
+/// It sits in the first-run banner so the empty vault still shows the
+/// headline feature without adding a second page.
+fn welcome_graph_hint(k: &Kit) -> El {
+    pressable(k, "welcome-graph-hint".to_owned())
+        .px(9.0)
+        .py(4.0)
+        .radius(999.0)
+        .fill(k.alpha(k.c.text_accent, 0.12))
+        .border(1.0, k.alpha(k.c.text_accent, 0.35))
+        .center_y()
+        .label("Open the link graph")
+        .help("See how notes connect through [[links]]")
+        .child(
+            text("[[a note]] → graph")
+                .font(k.ty.caption())
+                .color(k.c.text_accent),
+        )
+        .on_press(|s: &mut State| {
+            s.set_mode(Mode::Graph);
+        })
 }
 
 const ISSUES_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/issues");
@@ -3391,36 +3415,88 @@ fn empty_page(k: &Kit, message: &str) -> El {
         .child(text(message).font(k.ty.ui).color(k.c.text_faint))
 }
 
+/// Visual weight of the save-state indicator. Only failures and in-flight
+/// saves colour their text; a clean save stays a calm muted line with a
+/// green dot, so the status bar never competes with the note.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StatusTone {
+    Danger,
+    Warning,
+    Notice,
+    Saved,
+    Calm,
+}
+
+impl StatusTone {
+    /// Stable suffix for the indicator's test key (`status-state-danger`).
+    fn slug(self) -> &'static str {
+        match self {
+            StatusTone::Danger => "danger",
+            StatusTone::Warning => "warning",
+            StatusTone::Notice => "notice",
+            StatusTone::Saved => "saved",
+            StatusTone::Calm => "autosave",
+        }
+    }
+
+    fn dot(self, k: &Kit) -> Color {
+        match self {
+            StatusTone::Danger => k.c.danger.fg,
+            StatusTone::Warning => k.c.warning.fg,
+            StatusTone::Notice => k.c.text_accent,
+            StatusTone::Saved => k.c.success.fg,
+            StatusTone::Calm => k.c.text_faint,
+        }
+    }
+}
+
 fn status_bar(s: &State, k: &Kit) -> El {
     if s.conflict.is_some() {
         return conflict_bar(s, k);
     }
-    let (dot, label) = if let Some(error) = &s.error {
-        (k.c.danger.fg, error.clone())
+    let (tone, label, text_color) = if let Some(error) = &s.error {
+        (StatusTone::Danger, error.clone(), Some(k.c.danger.fg))
     } else if s.dirty() {
-        (k.c.warning.fg, "Saving…".to_owned())
+        (
+            StatusTone::Warning,
+            "Saving…".to_owned(),
+            Some(k.c.warning.fg),
+        )
     } else if let Some(notice) = &s.notice {
         // DES-02: imported attachments have no sidebar row, so the status bar
         // is where their count is reported.
-        (k.c.text_accent, notice.clone())
+        (StatusTone::Notice, notice.clone(), None)
     } else if s.last_save.is_some() {
-        (k.c.success.fg, "Saved".to_owned())
+        (StatusTone::Saved, "Saved".to_owned(), None)
     } else {
-        (k.c.text_faint, "Autosave on".to_owned())
+        (StatusTone::Calm, "Autosave on".to_owned(), None)
     };
+    // The dot and the words carry the same tone on failure or while saving;
+    // a clean save keeps the muted text and only lights the dot.
+    let indicator = row()
+        .key(format!("status-state-{}", tone.slug()))
+        .gap(7.0)
+        .center_y()
+        .child(
+            el().key("status-dot")
+                .size(6.0, 6.0)
+                .radius(3.0)
+                .fill(tone.dot(k)),
+        )
+        .child(
+            text(label)
+                .key("status-text")
+                .font(k.ty.caption())
+                .color(text_color.unwrap_or(k.c.text_faint))
+                .truncate(),
+        );
     let mut bar = row()
         .key("status-bar")
         .h(36.0)
         .px(20.0)
         .gap(7.0)
         .center_y()
-        .child(el().size(6.0, 6.0).radius(3.0).fill(dot))
-        .child(
-            text(label)
-                .font(k.ty.caption())
-                .color(k.c.text_faint)
-                .truncate(),
-        );
+        .child(indicator);
     if s.error.is_some() && s.dirty() {
         bar = bar.child(status_button(k, "Retry", "retry-save", State::retry_save));
     }
@@ -3466,9 +3542,15 @@ fn conflict_bar(s: &State, k: &Kit) -> El {
         .px(20.0)
         .gap(7.0)
         .center_y()
-        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
+        .child(
+            el().key("conflict-dot")
+                .size(6.0, 6.0)
+                .radius(3.0)
+                .fill(k.c.danger.fg),
+        )
         .child(
             text(conflict.message())
+                .key("conflict-text")
                 .font(k.ty.caption())
                 .color(k.c.danger.fg)
                 .truncate(),
