@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{Mode, Scope, Settings, State, on_key, poll, view};
+use muninn_ui::{Mode, Scope, Settings, State, ThemeMode, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -71,7 +71,7 @@ fn settings_round_trip_restores_theme_collapsed_note_and_mode() {
     let state_home = unique_dir("restore-state");
 
     let settings = Settings {
-        theme: Some(true),
+        theme: ThemeMode::Dark,
         collapsed: vec!["folder".to_owned()],
         last_vault: Some(vault.path().to_path_buf()),
         selected_rel: Some("folder/Gamma.md".to_owned()),
@@ -86,7 +86,7 @@ fn settings_round_trip_restores_theme_collapsed_note_and_mode() {
         settings,
     );
 
-    assert_eq!(state.dark, Some(true), "theme restored");
+    assert_eq!(state.theme, ThemeMode::Dark, "theme restored");
     assert!(state.is_collapsed("folder"), "collapsed folder restored");
     let selected = state.selected.expect("a note is open");
     assert_eq!(state.vault.notes[selected].rel, "folder/Gamma.md");
@@ -104,7 +104,7 @@ fn toggles_and_note_opens_are_persisted_immediately() {
     let state_home = unique_dir("persist-state");
     let mut state = state_at(vault.path().to_path_buf(), &config, &state_home);
 
-    state.set_theme(Some(true));
+    state.set_theme(ThemeMode::Dark);
     state.toggle_folder("folder");
     let beta = state.vault.resolve("Beta").expect("Beta");
     state.load_note(beta, true);
@@ -114,7 +114,7 @@ fn toggles_and_note_opens_are_persisted_immediately() {
     // Read the file back without a second State so the assertion covers the
     // write path, not just in-memory fields.
     let saved = Settings::load_from(&config);
-    assert_eq!(saved.theme, Some(true));
+    assert_eq!(saved.theme, ThemeMode::Dark);
     assert!(saved.collapsed.iter().any(|folder| folder == "folder"));
     assert_eq!(saved.selected_rel.as_deref(), Some("Beta.md"));
     assert_eq!(saved.mode, Mode::Graph);
@@ -140,7 +140,11 @@ fn corrupt_settings_fall_back_to_defaults_without_failing_startup() {
 
     assert_eq!(Settings::load_from(&config), Settings::default());
     let state = state_at(vault.path().to_path_buf(), &config, &state_home);
-    assert_eq!(state.dark, None, "follow-system default");
+    assert_eq!(
+        state.theme,
+        ThemeMode::Omarchy,
+        "omarchy is the default theme source"
+    );
     assert!(!state.is_collapsed("folder"));
     assert!(state.selected.is_some(), "the vault still opens");
     assert!(state.startup_error.is_none());

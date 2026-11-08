@@ -14,7 +14,7 @@ use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::Camera;
 use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
-use crate::settings::{Settings, config_home};
+use crate::settings::{Settings, ThemeMode, config_home};
 use crate::watch::{self, VaultSnapshot};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -371,7 +371,18 @@ pub struct State {
     pub auto_fit: bool,
     pub pan_at_press: [f32; 2],
     pub dragging: Option<(usize, [f32; 2])>,
-    pub dark: Option<bool>,
+    /// Which palette source the window follows (see [`ThemeMode`]).
+    pub theme: ThemeMode,
+    /// Omarchy palette file watched for live theme switches.
+    pub omarchy_path: PathBuf,
+    /// Content hash of the palette file at the last check (0 when missing).
+    pub omarchy_rev: u64,
+    /// Last seen palette metadata: the cheap trigger so `poll` only re-reads
+    /// and re-hashes the file when it actually changed.
+    pub omarchy_mtime: Option<SystemTime>,
+    pub omarchy_len: u64,
+    /// Skip the palette file entirely (tests, and `MUNINN_OMARCHY_COLORS=""`).
+    pub omarchy_disabled: bool,
     /// Scroll the sidebar to this note on the next frame.
     pub reveal: Option<usize>,
     pub error: Option<String>,
@@ -602,7 +613,12 @@ impl State {
             auto_fit: true,
             pan_at_press: [0.0; 2],
             dragging: None,
-            dark: theme,
+            theme,
+            omarchy_path: crate::omarchy::colors_path(),
+            omarchy_rev: 0,
+            omarchy_mtime: None,
+            omarchy_len: 0,
+            omarchy_disabled: false,
             reveal: None,
             error: None,
             notice: None,
@@ -724,7 +740,7 @@ impl State {
             return false;
         };
         let mut settings = self.settings.clone();
-        settings.theme = self.dark;
+        settings.theme = self.theme;
         settings.collapsed = {
             let mut folders: Vec<String> = self.collapsed.iter().cloned().collect();
             folders.sort();
@@ -1838,15 +1854,66 @@ impl State {
         });
     }
 
-    /// Pin the theme (`Some(dark)`) or follow the system (`None`) and persist
-    /// the choice. The theme button calls this; startup applies it before the
-    /// first frame.
-    pub fn set_theme(&mut self, theme: Option<bool>) {
-        if self.dark == theme {
+    /// Set the palette source and persist the choice. The theme button calls
+    /// this (cycling through the sources); startup applies it before the first
+    /// frame.
+    pub fn set_theme(&mut self, theme: ThemeMode) {
+        if self.theme == theme {
+            // Still repaint: a pinned or followed palette may have changed
+            // underneath (e.g. a system appearance flip), and the button is
+            // the user's cue that the mode was confirmed.
+            self.save_settings();
             return;
         }
-        self.dark = theme;
+        self.theme = theme;
         self.save_settings();
+    }
+
+    /// Advance the theme button's cycle (Omarchy → System → Dark → Light).
+    pub fn cycle_theme(&mut self) {
+        self.set_theme(self.theme.next());
+    }
+
+    /// The Omarchy palette file that `poll` watches. Overridable in tests and
+    /// by `MUNINN_OMARCHY_COLORS` (which `crate::omarchy::colors_path` reads
+    /// once at startup); a test points this at a fixture file instead.
+    pub fn set_omarchy_path(&mut self, path: PathBuf) {
+        self.omarchy_path = path;
+    }
+
+    /// Never look up the shared Omarchy palette (tests, embedded use).
+    pub fn disable_omarchy_theme(&mut self) {
+        self.omarchy_disabled = true;
+    }
+
+    /// `poll` hook: cheap mtime/length check, then content-hash compare.
+    /// Returns true when the palette content actually changed, so the theme
+    /// switch is a visible change (`omarchy-theme-set` rewrites the file).
+    /// The first check only adopts the current signature as the baseline:
+    /// first paint reads the file fresh anyway, so boot is not a "change"
+    /// (and must not wake the window for `poll`'s callers).
+    pub fn omarchy_tick(&mut self) -> bool {
+        if self.omarchy_disabled || self.theme != ThemeMode::Omarchy {
+            return false;
+        }
+        let (mtime, len, hash) = crate::omarchy::signature(&self.omarchy_path);
+        if self.omarchy_mtime.is_none() && self.omarchy_len == 0 && self.omarchy_rev == 0 {
+            self.omarchy_mtime = mtime;
+            self.omarchy_len = len;
+            self.omarchy_rev = hash;
+            return false;
+        }
+        if mtime == self.omarchy_mtime && len == self.omarchy_len {
+            return false;
+        }
+        self.omarchy_mtime = mtime;
+        self.omarchy_len = len;
+        if hash == self.omarchy_rev {
+            // Some tools rewrite the file with identical bytes; nothing to show.
+            return false;
+        }
+        self.omarchy_rev = hash;
+        true
     }
 
     /// Fit the visible nodes without giving up the "follow the layout" mode.

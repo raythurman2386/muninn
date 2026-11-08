@@ -16,7 +16,12 @@ fn cli_parses_check_list_links_help_and_trace() {
         _ => panic!("--list-links= should select the list command"),
     }
     assert!(matches!(cli(&["--check".to_owned()]), Cli::Error(_)));
-    assert!(matches!(cli(&["--trace".to_owned()]), Cli::Run));
+    assert!(matches!(cli(&["--trace".to_owned()]), Cli::Run(None)));
+    assert!(matches!(
+        cli(&["--theme".to_owned(), "light".to_owned()]),
+        Cli::Run(Some(ThemeMode::Light))
+    ));
+    assert!(matches!(cli(&["--theme=wobble".to_owned()]), Cli::Error(_)));
     assert!(has_flag(
         &["--vault".to_owned(), "/v".to_owned(), "--trace".to_owned()],
         "--trace"

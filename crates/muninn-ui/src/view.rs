@@ -9,14 +9,13 @@ use rune_theme_opencode::icons as ic;
 
 use muninn_core::{Vault, headings};
 
-use crate::{DeleteConfirm, LinkComplete, MenuTarget, Mode, State};
+use crate::{DeleteConfirm, LinkComplete, MenuTarget, Mode, State, ThemeMode};
 
 const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
 
 pub fn view(s: &State, cx: &mut Cx<State>) -> El {
-    let dark = s.dark.unwrap_or_else(|| cx.system_dark());
-    let k = rune_theme_opencode::kit(dark);
+    let k = crate::omarchy::resolve_kit(s, cx.system_dark());
     row()
         .key("root")
         .w_full()
@@ -41,12 +40,12 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
             s.reject_drop(files);
             tx.instant();
         })
-        .child(sidebar(s, k, dark))
-        .child(divider(k))
-        .child(main_column(s, k))
+        .child(sidebar(s, &k))
+        .child(divider(&k))
+        .child(main_column(s, &k))
 }
 
-fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
+fn sidebar(s: &State, k: &Kit) -> El {
     // No debounce: the filter is an in-memory linear scan (~1–3 ms at 2,000
     // notes), so a per-keystroke rebuild stays cheap; revisit if a much larger
     // vault ever makes typing lag.
@@ -166,7 +165,7 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
         );
     }
 
-    let brand = row()
+    let mut brand = row()
         .h(58.0)
         .px(16.0)
         .gap(9.0)
@@ -178,8 +177,13 @@ fn sidebar(s: &State, k: &Kit, dark: bool) -> El {
                 .color(k.c.text_base)
                 .grow(1.0),
         )
-        .child(help_button(k))
-        .child(theme_button(k, dark));
+        .child(help_button(k));
+    // Following the shared Omarchy palette hides the switcher: Omarchy is the
+    // system theme, not a cycle stop. A diverged (pinned/system) or
+    // non-Omarchy session keeps the button.
+    if !crate::omarchy::is_following(s) {
+        brand = brand.child(theme_button(k, s.theme));
+    }
 
     let vault = vault_chip_area(s, k);
 
@@ -531,7 +535,11 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
         .pl(20.0)
 }
 
-fn theme_button(k: &Kit, dark: bool) -> El {
+fn theme_button(k: &Kit, mode: ThemeMode) -> El {
+    let label = format!(
+        "Theme: {} — click to cycle (System, Dark, Light)",
+        mode.label()
+    );
     el().key("theme")
         .size(28.0, 28.0)
         .radius(7.0)
@@ -544,9 +552,9 @@ fn theme_button(k: &Kit, dark: bool) -> El {
                 .font(TextStyle::new(14.0, 500.0))
                 .color(k.c.icon_muted),
         )
-        .label("Toggle theme")
-        .help("Toggle theme")
-        .on_press(move |s: &mut State| s.set_theme(Some(!dark)))
+        .label(label.clone())
+        .help(label)
+        .on_press(|s: &mut State| s.cycle_theme())
 }
 
 /// DES-01: the sidebar Help button, next to the theme toggle.
@@ -2423,25 +2431,30 @@ fn preview(s: &State, k: &Kit) -> El {
     let faint = k.c.text_faint;
     let faint_rule = k.alpha(faint, 0.5);
     let faint_hover = k.alpha(faint, 0.6);
-    let body = rune::memo(format!("preview-{id}"), source.clone(), move || {
-        let style = MarkdownStyle::from_kit(k)
-            .body_font(k.ty.body.lh(25.0))
-            .link(accent)
-            .link_underline(k.alpha(accent, 0.35));
-        Markdown::new(&source)
-            .style(style)
-            .block_keys(block_keys)
-            .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| s.open_link(url, tx))
-            .link_style(move |url| {
-                url.strip_prefix("missing:").map(|_| {
-                    (
-                        Span::new(0, 0).color(faint).underline(faint_rule),
-                        LinkPaint::new().color(faint).underline(faint_hover),
-                    )
+    // Palette identity in the memo version: a theme switch rebuilds the styled preview.
+    let body = rune::memo(
+        format!("preview-{id}"),
+        (source.clone(), crate::omarchy::kit_id(s, k.dark)),
+        move || {
+            let style = MarkdownStyle::from_kit(k)
+                .body_font(k.ty.body.lh(25.0))
+                .link(accent)
+                .link_underline(k.alpha(accent, 0.35));
+            Markdown::new(&source)
+                .style(style)
+                .block_keys(block_keys)
+                .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| s.open_link(url, tx))
+                .link_style(move |url| {
+                    url.strip_prefix("missing:").map(|_| {
+                        (
+                            Span::new(0, 0).color(faint).underline(faint_rule),
+                            LinkPaint::new().color(faint).underline(faint_hover),
+                        )
+                    })
                 })
-            })
-            .build(k)
-    });
+                .build(k)
+        },
+    );
     let scroller = col()
         .key("preview-scroll")
         .w_full()

@@ -37,7 +37,7 @@ pub fn graph(s: &State, k: &Kit) -> El {
         .pin(Some(0.0), Some(0.0), None, None)
         .live_offset(&s.cam.live_pan)
         .live_scale(&s.cam.live_zoom)
-        .child(grid(k))
+        .child(grid(s, k))
         .child(edge_canvas(s, k, &edges, viewport));
     world = nodes_world(world, s, k, &visible, dots_only, viewport);
 
@@ -156,8 +156,8 @@ fn nodes_world(
     world
 }
 
-fn grid(k: &Kit) -> El {
-    rune::memo("graph-grid", k.dark, move || {
+fn grid(s: &State, k: &Kit) -> El {
+    rune::memo("graph-grid", crate::omarchy::kit_id(s, k.dark), move || {
         let color = k.alpha(k.c.text_base, 0.055);
         let mut shape = Shape::new();
         let mut y = 24.0;

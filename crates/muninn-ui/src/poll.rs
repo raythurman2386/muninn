@@ -47,6 +47,12 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         changed = true;
     }
 
+    // Omarchy: `omarchy-theme-set` rewrites the shared palette file; follow
+    // the switch live without a restart.
+    if s.omarchy_tick() {
+        changed = true;
+    }
+
     if s.dirty() {
         let since = *s.dirty_at.get_or_insert(t);
         if t - since >= s.autosave_delay() {
