@@ -1,0 +1,6 @@
+[
+  {"t":0.5,"type":"key","name":",","cmd":true},
+  {"t":1.5,"type":"tap","key":"segment2"},
+  {"t":2.6,"type":"tap","key":"segment3"},
+  {"t":3.8,"type":"mark","name":"end"}
+]

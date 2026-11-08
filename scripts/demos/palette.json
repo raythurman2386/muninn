@@ -1,0 +1,5 @@
+[
+  {"t":0.5,"type":"key","name":"p","cmd":true,"shift":true},
+  {"t":1.6,"type":"key","name":"Enter"},
+  {"t":3.0,"type":"mark","name":"end"}
+]
