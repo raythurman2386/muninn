@@ -26,7 +26,7 @@ use serde_json::{Value, json};
 use crate::{Mode, Scope};
 
 /// Default idle window before autosave, in seconds. The settings modal can
-/// tune it between [`AUTOSAVE_MIN_DELAY`] and [`AUTOSAVE_MAX_DELAY`].
+/// tune it between 0.05 and 10 seconds.
 pub const DEFAULT_AUTOSAVE_DELAY: f64 = 0.55;
 
 /// Shortest autosave idle window, in seconds.
