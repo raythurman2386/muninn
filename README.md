@@ -67,8 +67,9 @@ autosave delay (0.55 s by default) and up to five recent vaults.
 
 The default theme follows the shared Omarchy system theme
 (`~/.local/state/omarchy/current/theme/colors.toml`), so `omarchy theme set` recolours the
-window live; off Omarchy it falls back to the system appearance. The sidebar theme button
-cycles Omarchy → System → Dark → Light, and `muninn --theme omarchy|system|dark|light`
+window live and the sidebar theme toggle hides while Omarchy is followed (it is the system
+theme, not a switcher stop). Off Omarchy it falls back to the system appearance; a diverged
+session's toggle cycles System → Dark → Light, and `muninn --theme omarchy|system|dark|light`
 overrides that for one session. `MUNINN_OMARCHY_COLORS` can point at a palette file.
 
 Window size and position are deliberately **not** persisted. Rune (rev `b39c24f`) can *set*

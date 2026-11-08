@@ -228,6 +228,19 @@ pub fn signature(path: &std::path::Path) -> (Option<SystemTime>, u64, u64) {
     (mtime, len, hash)
 }
 
+/// Whether the window is currently following the shared Omarchy palette:
+/// Omarchy mode, lookup enabled, and the file yields a kit. The theme button
+/// hides in exactly this state — Omarchy is the system theme, not a switcher
+/// stop; the switcher only appears for diverged or non-Omarchy sessions.
+#[must_use]
+pub fn is_following(s: &State) -> bool {
+    s.theme == ThemeMode::Omarchy
+        && !s.omarchy_disabled
+        && load(&s.omarchy_path)
+            .and_then(|colors| colors.kit())
+            .is_some()
+}
+
 /// The owned [`Kit`] for the current theme choice. OpenCode's light/dark kits
 /// are `&'static`; the Omarchy kit is built on the fly, hence an owned value.
 #[must_use]

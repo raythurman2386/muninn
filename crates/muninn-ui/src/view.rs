@@ -165,7 +165,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
         );
     }
 
-    let brand = row()
+    let mut brand = row()
         .h(58.0)
         .px(16.0)
         .gap(9.0)
@@ -177,8 +177,13 @@ fn sidebar(s: &State, k: &Kit) -> El {
                 .color(k.c.text_base)
                 .grow(1.0),
         )
-        .child(help_button(k))
-        .child(theme_button(k, s.theme));
+        .child(help_button(k));
+    // Following the shared Omarchy palette hides the switcher: Omarchy is the
+    // system theme, not a cycle stop. A diverged (pinned/system) or
+    // non-Omarchy session keeps the button.
+    if !crate::omarchy::is_following(s) {
+        brand = brand.child(theme_button(k, s.theme));
+    }
 
     let vault = vault_chip_area(s, k);
 
@@ -532,7 +537,7 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
 
 fn theme_button(k: &Kit, mode: ThemeMode) -> El {
     let label = format!(
-        "Theme: {} — click to cycle (Omarchy, System, Dark, Light)",
+        "Theme: {} — click to cycle (System, Dark, Light)",
         mode.label()
     );
     el().key("theme")

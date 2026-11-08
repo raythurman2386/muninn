@@ -67,7 +67,10 @@ fn theme_switch_in_the_palette_file_restarts_the_view_without_a_restart() {
     rt.frame(0.0);
     let first_rev = rt.state.omarchy_rev;
     assert_ne!(first_rev, 0, "dark palette picked up");
-    assert!(rt.find("theme").is_some(), "theme button mounted");
+    assert!(
+        rt.find("theme").is_none(),
+        "following Omarchy hides the switcher"
+    );
 
     fs::write(&palette, LIGHT_PALETTE).expect("switch palette");
     rt.frame(1.0 / 60.0);
@@ -143,30 +146,37 @@ fn disabled_theme_never_watches_the_palette_file() {
 }
 
 #[test]
-fn theme_button_cycles_the_palette_source_and_persists_it() {
+fn theme_button_cycles_system_dark_light_and_persists_it() {
     let vault = vault_fixture();
     let config = unique_dir("cycle-config");
     let state_home = unique_dir("cycle-state");
+    let palette_dir = unique_dir("cycle-palette");
 
+    // Start diverged from Omarchy (a missing palette file, a pinned source):
+    // the switcher is visible and Omarchy is never a cycle stop.
+    let settings = Settings {
+        theme: ThemeMode::Follow,
+        ..Settings::default()
+    };
     let mut state = State::with_settings(
         vault.path().to_path_buf(),
         state_home.clone(),
         config.clone(),
-        Settings::default(),
+        settings,
     );
-    state.disable_omarchy_theme();
+    state.set_omarchy_path(palette_dir.join("colors.toml"));
     let mut rt = runtime(state);
     rt.frame(0.0);
-    assert_eq!(rt.state.theme, ThemeMode::Omarchy);
+    assert_eq!(rt.state.theme, ThemeMode::Follow);
 
     let (x, y) = rt.find("theme").expect("theme button");
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);
     rt.frame(1.0 / 60.0);
-    assert_eq!(rt.state.theme, ThemeMode::Follow, "Omarchy -> System");
+    assert_eq!(rt.state.theme, ThemeMode::Dark, "System -> Dark");
     assert_eq!(
         Settings::load_from(&config).theme,
-        ThemeMode::Follow,
+        ThemeMode::Dark,
         "persisted"
     );
 
@@ -174,8 +184,48 @@ fn theme_button_cycles_the_palette_source_and_persists_it() {
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);
     rt.frame(1.0 / 60.0);
-    assert_eq!(rt.state.theme, ThemeMode::Dark, "System -> Dark");
+    assert_eq!(rt.state.theme, ThemeMode::Light, "Dark -> Light");
+
+    let (x, y) = rt.find("theme").expect("theme button");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.theme, ThemeMode::Follow, "Light -> System");
 
     let _ = fs::remove_dir_all(&config);
     let _ = fs::remove_dir_all(&state_home);
+    let _ = fs::remove_dir_all(&palette_dir);
+}
+
+#[test]
+fn pinned_theme_keeps_the_switcher_visible_with_a_palette_present() {
+    let vault = vault_fixture();
+    let config = unique_dir("pinned-config");
+    let state_home = unique_dir("pinned-state");
+    let palette_dir = unique_dir("pinned-palette");
+    let palette = palette_dir.join("colors.toml");
+    fs::write(&palette, DARK_PALETTE).expect("palette");
+
+    let settings = Settings {
+        theme: ThemeMode::Dark,
+        ..Settings::default()
+    };
+    let mut state = State::with_settings(
+        vault.path().to_path_buf(),
+        state_home.clone(),
+        config.clone(),
+        settings,
+    );
+    state.set_omarchy_path(palette.clone());
+
+    let mut rt = runtime(state);
+    rt.frame(0.0);
+    assert!(
+        rt.find("theme").is_some(),
+        "diverged from Omarchy, so the switcher stays"
+    );
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+    let _ = fs::remove_dir_all(&palette_dir);
 }

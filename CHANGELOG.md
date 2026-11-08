@@ -15,10 +15,12 @@ All notable changes to Muninn are documented here. The format is based on
   selection and status colours while fonts and radii stay with the OpenCode
   theme. A theme switch is picked up live (no restart). Off Omarchy the
   palette file is absent and Muninn falls back to the system appearance, so
-  non-Omarchy systems see no change. The sidebar theme button cycles
-  Omarchy → System → Dark → Light, and `--theme omarchy|system|dark|light`
-  overrides the choice for one session. `MUNINN_OMARCHY_COLORS` points at an
-  alternate palette file (or `""` to disable).
+  non-Omarchy systems see no change. While following Omarchy the sidebar
+  theme toggle is hidden: Omarchy is the system theme, not a switcher stop.
+  For diverged sessions it cycles System → Dark → Light, and
+  `--theme omarchy|system|dark|light` overrides the choice for one session.
+  `MUNINN_OMARCHY_COLORS` points at an alternate palette file (or `""` to
+  disable).
 
 ## [0.3.0] - 2026-11-07
 

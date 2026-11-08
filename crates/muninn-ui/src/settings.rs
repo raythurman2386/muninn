@@ -63,14 +63,16 @@ impl ThemeMode {
         }
     }
 
-    /// The next mode for the theme button's cycle.
+    /// The next mode for the theme button's cycle: System → Dark → Light →
+    /// System. Omarchy is the system default, not a switcher stop; from
+    /// Omarchy the cycle diverges to System.
     #[must_use]
     pub fn next(self) -> ThemeMode {
         match self {
             ThemeMode::Omarchy => ThemeMode::Follow,
             ThemeMode::Follow => ThemeMode::Dark,
             ThemeMode::Dark => ThemeMode::Light,
-            ThemeMode::Light => ThemeMode::Omarchy,
+            ThemeMode::Light => ThemeMode::Follow,
         }
     }
 
