@@ -107,7 +107,9 @@ version, Rune revision and vault counts, with a **Copy diagnostics** button.
 
 `MUNINN_REDUCED_MOTION=1` (also `true`, `yes` or `on`) freezes the force layout: nodes
 keep their deterministic seed positions, no auto-settle wakes the window, and pan, zoom
-and fit still work. Prefer this over replacing the theme when motion is a problem.
+and fit still work. Graph camera glides and node-highlight tweens become instant, so a
+selection or scope switch cannot wake the window either. Prefer this over replacing the
+theme when motion is a problem.
 
 ## What it does
 
@@ -116,6 +118,8 @@ and fit still work. Prefer this over replacing the theme when motion is a proble
 - Searchable note list grouped by folder with collapsing sections, a links rail with outgoing links
   and backlinks (including the line that made each link), and a one-click local graph.
 - **Global** and **Local** graph views. Local keeps the open note and its immediate neighbours.
+  Selecting a node glides the camera to it, and switching scopes eases the camera into the
+  new framing while the nodes that enter or leave fade.
 - Dragging a graph node pins it while you drag; the force layout settles around it. Drag the
   background to pan, scroll to zoom at the pointer, Shift+scroll to pan, pinch or Ctrl/Cmd+scroll
   to zoom.
@@ -184,7 +188,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘L` / `Ctrl+L` | Toggle Global / Local graph |
 | `⌘1` / `⌘2` / `⌘3` | Write / Read / Graph |
 | `↑` / `↓` / `←` / `→` (graph) | Move the focus ring to the nearest node (sorted order wraps when no node lies that way) |
-| `Enter` (graph) | Open the focused note |
+| `Enter` (graph) | Open the focused note; when it is already open, glide the camera back to it |
 | `+` / `-` (graph) | Zoom in / out at the canvas centre |
 | `0` / `F` (graph) | Fit the visible nodes |
 | `I` (graph) | Toggle Isolate (dim non-neighbours) |

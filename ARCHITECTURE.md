@@ -55,8 +55,11 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    the exhaustive ≤200-note path and the sample layout stay bit-identical.
 4. **Render.** `muninn_ui::view` builds the Rune element tree from `State`. The graph camera
    publishes pan/zoom through `Live` values so a drag redraws without rebuilding the tree.
-   `poll` reports true only when visible state changed (a save completed, a node moved,
-   or the camera fit moved the view), never just because the editor is dirty or heat remains.
+   Selecting a node or changing scope starts a spring camera glide held in `State` (never in
+   `muninn-graph`, which stays Rune-free); `poll` steps it and asks for the next frame only
+   while it is in flight, so reduced motion snaps and sleeps. `poll` reports true only when
+   visible state changed (a save completed, a node moved, a glide moved the camera, or the
+   camera fit moved the view), never just because the editor is dirty or heat remains.
 5. **Save.** `muninn_ui::poll` notices an edited buffer, waits 0.55 s of idle, and writes the
    file only when its on-disk `(mtime, length)` still matches what the editor loaded. The write
    is atomic (a hidden, uniquely named temp file in the same folder is flushed and fsynced,

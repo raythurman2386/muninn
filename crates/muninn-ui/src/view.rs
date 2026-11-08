@@ -15,6 +15,11 @@ const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
 
 pub fn view(s: &State, cx: &mut Cx<State>) -> El {
+    // DES-03: the app's env flag is an accessibility preference too, so let
+    // Rune's transitions (node dimming, panel fades) honour it alongside the
+    // host setting.
+    let reduced = cx.system_reduced_motion() || s.reduced_motion;
+    cx.reduced_motion(reduced);
     let k = crate::omarchy::resolve_kit(s, cx.system_dark());
     let base = row()
         .key("root")

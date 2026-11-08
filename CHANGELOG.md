@@ -16,6 +16,14 @@ All notable changes to Muninn are documented here. The format is based on
   followed the dialog says so instead of offering a fixed theme, matching the
   hidden sidebar theme toggle. The shortcut is listed in the README and the Help
   overlay.
+- Animated graph focus (v0.5): selecting a node glides the camera to it on a
+  short spring instead of snapping, and neighbour dimming eases in on the same
+  frame. **Enter** on the already-open focused note glides it back to the
+  centre. Switching Global/Local eases the camera into the new fit and fades
+  the nodes that enter or leave. Arrow focus and **Find node** keep the same
+  glide when they bring an off-screen note into view.
+  `MUNINN_REDUCED_MOTION=1` keeps the camera instant and starts no glide, so it
+  never wakes the window for one.
 
 ## [0.4.1] - 2026-11-08
 
