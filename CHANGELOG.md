@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-08
+
 ### Added
 
 - Settings modal (v0.5): `Cmd/Ctrl+,` or the new sidebar gear opens an in-window
