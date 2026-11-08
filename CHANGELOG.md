@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-08
+
 ### Added
 
 - Omarchy theming: the window follows the shared Omarchy system theme
@@ -21,6 +23,11 @@ All notable changes to Muninn are documented here. The format is based on
   `--theme omarchy|system|dark|light` overrides the choice for one session.
   `MUNINN_OMARCHY_COLORS` points at an alternate palette file (or `""` to
   disable).
+- Linux `.deb` package (`muninn_0.4.0-1_amd64.deb`, installable with
+  `sudo apt install ./muninn_*.deb`) and signed releases: every tarball,
+  zip and `.deb` now carries a SLSA build-provenance attestation
+  (`gh attestation verify`), and `checksums.txt` is signed with cosign
+  (Sigstore keyless, `checksums.txt.sigstore.json`).
 
 ### Changed
 
