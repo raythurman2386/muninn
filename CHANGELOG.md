@@ -31,6 +31,16 @@ All notable changes to Muninn are documented here. The format is based on
   actions and recently opened notes only. Up/Down wrap the highlight, Enter
   opens or runs the highlighted row, and Esc closes the palette and restores
   the focus that had it.
+- The first-run welcome banner previews the link graph with a
+  `[[a note]] → graph` pill: clicking it opens the graph for the new vault
+  without leaving the banner.
+
+### Changed
+
+- The save-status indicator now makes a clean save and a failure visually
+  distinct: a green dot with muted "Saved" stays calm, while a failed save
+  or a pending conflict shows a danger/warning dot and matching words, and a
+  failed save surfaces Retry beside the message.
 
 ## [0.4.1] - 2026-11-08
 
