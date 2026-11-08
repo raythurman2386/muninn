@@ -6,6 +6,17 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Settings modal (v0.5): `Cmd/Ctrl+,` or the new sidebar gear opens an in-window
+  dialog with a segmented theme control (Omarchy / System / Dark / Light), an
+  autosave-delay stepper clamped to 0.05–10 s, and the recent-vault list. Changes
+  write through `settings.json` immediately; `Esc` closes the modal and returns
+  typing focus to the editor or search field that opened it. While Omarchy is
+  followed the dialog says so instead of offering a fixed theme, matching the
+  hidden sidebar theme toggle. The shortcut is listed in the README and the Help
+  overlay.
+
 ## [0.4.1] - 2026-11-08
 
 ### Fixed

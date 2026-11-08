@@ -12,6 +12,11 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     // Escape dismisses inline prompts/menus before falling through to the
     // graph escape below. Text fields handle Escape first and never reach here.
     if e.key == Key::Escape {
+        // v0.5: the settings modal is the topmost layer.
+        if s.settings_modal {
+            s.close_settings();
+            return true;
+        }
         // DES-01: the help overlay and the vault menu are the outermost layers.
         if s.help {
             s.close_help();
@@ -85,6 +90,14 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.toggle_graph();
         return true;
     }
+    // The settings modal owns the keyboard while it is mounted: only the
+    // toggle chord is read here, everything else belongs to its controls.
+    if s.settings_modal {
+        if e.is_command(',') {
+            s.close_settings();
+        }
+        return true;
+    }
     // M3 GRP-02: arrows, Enter and the zoom/fit/isolate keys are graph-only;
     // State owns them so the canvas can be tested without a window.
     if s.mode == Mode::Graph && s.graph_key(e) {
@@ -155,6 +168,9 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.toggle_graph();
     } else if e.is_command('l') {
         s.toggle_scope();
+    } else if e.is_command(',') {
+        // v0.5: platform-standard preferences chord (VSCode style).
+        s.open_settings();
     } else if e.is_command('1') {
         s.set_mode(Mode::Editor);
     } else if e.is_command('2') {

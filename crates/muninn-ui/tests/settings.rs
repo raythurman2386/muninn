@@ -305,6 +305,93 @@ fn help_overlay_opens_with_command_question_and_escape_closes() {
 }
 
 #[test]
+fn settings_modal_opens_by_shortcut_changes_persist_and_returns_focus() {
+    let vault = vault_fixture();
+    let config = unique_dir("modal-config");
+    let state_home = unique_dir("modal-state");
+    let settings = Settings {
+        theme: ThemeMode::Dark,
+        last_vault: Some(vault.path().to_path_buf()),
+        ..Settings::default()
+    };
+    let mut rt = Runtime::new(
+        State::with_settings(
+            vault.path().to_path_buf(),
+            state_home.clone(),
+            config.clone(),
+            settings,
+        ),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+
+    // Typing focus is the invoker: the modal must take it and give it back.
+    rt.state.focus_editor();
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.editor.focused);
+
+    rt.key(command(','));
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.state.settings_modal, "Ctrl/Cmd+, opens Settings");
+    assert!(
+        rt.find("settings-dialog").is_some(),
+        "the dialog is mounted"
+    );
+    assert!(
+        !rt.state.editor.focused,
+        "the overlay owns the keyboard while open"
+    );
+
+    // Other app shortcuts must not reach the page behind the scrim.
+    let notes = rt.state.vault.notes.len();
+    rt.key(command('n'));
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.vault.notes.len(), notes);
+    assert!(rt.state.new_note_prompt.is_none());
+
+    // Theme is a segmented control; the fourth segment is Light.
+    let (x, y) = rt.find("segment3").expect("Light segment");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.theme, ThemeMode::Light);
+
+    // Autosave steps by 0.05 s and is clamped by the setter.
+    let (x, y) = rt.find("settings-autosave-plus").expect("autosave +");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+
+    let saved = Settings::load_from(&config);
+    assert_eq!(saved.theme, ThemeMode::Light, "theme persisted immediately");
+    assert!(
+        (saved.autosave_delay - 0.60).abs() < 1e-6,
+        "autosave delay persisted: {}",
+        saved.autosave_delay
+    );
+
+    rt.key(escape());
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(!rt.state.settings_modal, "Escape closes Settings");
+    assert!(rt.find("settings-dialog").is_none());
+    assert!(
+        rt.state.editor.focused,
+        "Escape returns typing focus to the editor"
+    );
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
 fn vault_prompt_text_stays_inside_the_card() {
     // The hint (and any vault error) lives in the 258pt sidebar card, so a
     // single unwrapped line overflows the card border and the window.

@@ -25,9 +25,15 @@ use serde_json::{Value, json};
 
 use crate::{Mode, Scope};
 
-/// Default idle window before autosave, in seconds. The UI keeps this default;
-/// the field is persisted so a later settings surface can change it.
+/// Default idle window before autosave, in seconds. The settings modal can
+/// tune it between [`AUTOSAVE_MIN_DELAY`] and [`AUTOSAVE_MAX_DELAY`].
 pub const DEFAULT_AUTOSAVE_DELAY: f64 = 0.55;
+
+/// Shortest autosave idle window, in seconds.
+pub const AUTOSAVE_MIN_DELAY: f64 = 0.05;
+
+/// Longest autosave idle window, in seconds.
+pub const AUTOSAVE_MAX_DELAY: f64 = 10.0;
 
 /// How many recently opened vaults are remembered (MRU, newest first).
 pub const RECENT_VAULTS_MAX: usize = 5;
@@ -53,6 +59,14 @@ pub enum ThemeMode {
 }
 
 impl ThemeMode {
+    /// Every choice in the order the settings segmented control shows them.
+    pub const ALL: [ThemeMode; 4] = [
+        ThemeMode::Omarchy,
+        ThemeMode::Follow,
+        ThemeMode::Dark,
+        ThemeMode::Light,
+    ];
+
     #[must_use]
     pub fn id(self) -> u8 {
         match self {
@@ -180,7 +194,8 @@ impl Settings {
     pub fn save_to(&self, config_home: &Path) -> io::Result<()> {
         let path = settings_path(config_home);
         let delay = if self.autosave_delay.is_finite() {
-            self.autosave_delay.clamp(0.05, 10.0)
+            self.autosave_delay
+                .clamp(AUTOSAVE_MIN_DELAY, AUTOSAVE_MAX_DELAY)
         } else {
             DEFAULT_AUTOSAVE_DELAY
         };
@@ -249,7 +264,7 @@ impl Settings {
         if let Some(delay) = value.get("autosave_delay").and_then(Value::as_f64)
             && delay.is_finite()
         {
-            settings.autosave_delay = delay.clamp(0.05, 10.0);
+            settings.autosave_delay = delay.clamp(AUTOSAVE_MIN_DELAY, AUTOSAVE_MAX_DELAY);
         }
         if let Some(items) = value.get("recent_vaults").and_then(Value::as_array) {
             for item in items {

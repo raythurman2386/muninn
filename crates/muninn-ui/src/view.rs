@@ -4,7 +4,7 @@ use rune::{
     Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, ScrollSpec, Shape, Span, TextStyle,
     Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
-use rune_kit::{Kit, Markdown, MarkdownStyle};
+use rune_kit::{Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl};
 use rune_theme_opencode::icons as ic;
 
 use muninn_core::{Vault, headings};
@@ -16,7 +16,7 @@ const RAIL: f32 = 286.0;
 
 pub fn view(s: &State, cx: &mut Cx<State>) -> El {
     let k = crate::omarchy::resolve_kit(s, cx.system_dark());
-    row()
+    let base = row()
         .key("root")
         .w_full()
         .h_full()
@@ -42,7 +42,16 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
         })
         .child(sidebar(s, &k))
         .child(divider(&k))
-        .child(main_column(s, &k))
+        .child(main_column(s, &k));
+    if !s.settings_modal {
+        return base;
+    }
+    // v0.5: rune-kit dialogs render on their own scrim/layer above the whole
+    // window, unlike the help page (which replaces the main column). Mount the
+    // layer only while open so the ordinary view tree is unchanged otherwise.
+    let mut layer = Vec::new();
+    settings_dialog(s, &k).build(&k, &mut layer);
+    rune_kit::root(base, layer)
 }
 
 fn sidebar(s: &State, k: &Kit) -> El {
@@ -177,7 +186,8 @@ fn sidebar(s: &State, k: &Kit) -> El {
                 .color(k.c.text_base)
                 .grow(1.0),
         )
-        .child(help_button(k));
+        .child(help_button(k))
+        .child(settings_button(k));
     // Following the shared Omarchy palette hides the switcher: Omarchy is the
     // system theme, not a cycle stop. A diverged (pinned/system) or
     // non-Omarchy session keeps the button.
@@ -580,6 +590,170 @@ fn help_button(k: &Kit) -> El {
         .label("Keyboard shortcuts")
         .help("Keyboard shortcuts")
         .on_press(|s: &mut State| s.open_help())
+}
+
+/// v0.5: the sidebar Settings button, next to Help. At 28 pt it matches the
+/// `?` and theme buttons and stays reachable from the keyboard.
+fn settings_button(k: &Kit) -> El {
+    pressable(k, "settings-open".to_owned())
+        .size(28.0, 28.0)
+        .center()
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                s.open_settings();
+                true
+            } else {
+                false
+            }
+        })
+        .child(icon(&ic::SETTINGS_GEAR, 15.0).color(k.c.icon_muted))
+        .label("Settings")
+        .help("Settings (Ctrl+,)")
+        .on_press(|s: &mut State| s.open_settings())
+}
+
+/// v0.5: the settings surface. Preferences write through their existing
+/// `State` setters, so a click or key press is persisted before the next
+/// frame; there is no separate Save button.
+fn settings_dialog(s: &State, k: &Kit) -> Dialog {
+    let theme = if crate::omarchy::is_following(s) {
+        text("Following Omarchy system theme")
+            .key("settings-theme-note")
+            .font(k.ty.ui_compact)
+            .color(k.c.text_muted)
+            .wrap()
+    } else {
+        let labels: Vec<&str> = ThemeMode::ALL.iter().map(|mode| mode.label()).collect();
+        SegmentedControl::new(&labels, Some(s.theme.id() as usize))
+            .label("Theme")
+            .on_pick(|s: &mut State, index, _: &mut Tx| {
+                if let Some(mode) = ThemeMode::ALL.get(index) {
+                    s.set_theme(*mode);
+                }
+            })
+            .build(k)
+    };
+
+    let delay = s.autosave_delay();
+    let stepper = row()
+        .key("settings-autosave")
+        .gap(8.0)
+        .center_y()
+        .child(
+            Button::new("−")
+                .variant(ButtonVariant::Ghost)
+                .on_press(|s: &mut State| s.nudge_autosave_delay(-0.05))
+                .build(k)
+                .key("settings-autosave-minus"),
+        )
+        .child(
+            text(format!("{delay:.2} s"))
+                .key("settings-autosave-value")
+                .font(k.ty.ui_medium)
+                .color(k.c.text_base),
+        )
+        .child(
+            Button::new("+")
+                .variant(ButtonVariant::Ghost)
+                .on_press(|s: &mut State| s.nudge_autosave_delay(0.05))
+                .build(k)
+                .key("settings-autosave-plus"),
+        );
+
+    let mut recents = col().key("settings-recents").w_full().gap(2.0);
+    if s.recent_vaults().is_empty() {
+        recents = recents.child(
+            text("No recent vaults yet")
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        );
+    } else {
+        for (index, path) in s.recent_vaults().iter().enumerate() {
+            recents = recents.child(
+                row()
+                    .key(format!("settings-recent-{index}"))
+                    .w_full()
+                    .h(28.0)
+                    .px(8.0)
+                    .radius(6.0)
+                    .center_y()
+                    .cursor(Cursor::Pointer)
+                    .hover(k.c.hover)
+                    .press(k.c.pressed)
+                    .child(
+                        text(display_path(path))
+                            .font(k.ty.ui_compact)
+                            .color(k.c.text_base)
+                            .grow(1.0)
+                            .truncate(),
+                    )
+                    .on_press(move |s: &mut State| {
+                        if s.open_recent_vault(index) {
+                            s.close_settings();
+                        }
+                    }),
+            );
+        }
+    }
+
+    let body = col()
+        .key("settings-body")
+        .w_full()
+        .padding(16.0)
+        .gap(18.0)
+        .child(
+            col()
+                .w_full()
+                .gap(8.0)
+                .child(text("Theme").font(k.ty.ui_medium).color(k.c.text_base))
+                .child(theme),
+        )
+        .child(
+            col()
+                .w_full()
+                .gap(8.0)
+                .child(
+                    text("Autosave delay")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(
+                    text("Idle seconds before the open note is written.")
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted),
+                )
+                .child(stepper),
+        )
+        .child(
+            col()
+                .w_full()
+                .gap(6.0)
+                .child(
+                    text("Recent vaults")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(recents),
+        )
+        .child(
+            row().w_full().justify_end().child(
+                Button::new("Close")
+                    .variant(ButtonVariant::Ghost)
+                    .on_press(|s: &mut State| s.close_settings())
+                    .build(k)
+                    .key("settings-close"),
+            ),
+        );
+
+    Dialog::new("settings", "Settings")
+        .description("Preferences are saved as you change them.")
+        .width(440.0)
+        .fit()
+        .open(true)
+        .on_close(|s: &mut State| s.close_settings())
+        .child(body)
 }
 
 /// DES-01/LIF-01: the current-vault chip and its in-window menu.
@@ -1603,6 +1777,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("Enter / Space", "Open the focused row"),
                 ("Right-click", "Note and folder actions"),
                 ("Vault chip", "Open / recent / new vault"),
+                ("⌘, / Ctrl+,", "Open Settings"),
             ],
         ),
     ]
