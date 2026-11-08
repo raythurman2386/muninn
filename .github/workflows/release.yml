@@ -18,6 +18,11 @@ jobs:
   build:
     name: Build ${{ matrix.os }}/${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
+    permissions:
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      contents: read
     strategy:
       fail-fast: true
       matrix:
@@ -40,10 +45,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
-            libxkbcommon-dev libwayland-dev libgl1-mesa-dev
+            libxkbcommon-dev libwayland-dev libgl1-mesa-dev \
+            dpkg-dev liblzma-dev
 
       - name: Build release binary
         run: cargo build --locked --release -p muninn-app
+
+      - name: Install cargo-deb
+        if: matrix.os == 'linux'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+
+      - name: Build .deb
+        if: matrix.os == 'linux'
+        run: |
+          cargo deb -p muninn-app --no-build
+          ls -lh target/debian/*.deb
 
       - name: Package
         shell: bash
@@ -66,11 +84,24 @@ jobs:
             tar -C dist -czf "dist/$name.tar.gz" "$name"
           fi
 
+      - name: Attest archive
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/*.${{ matrix.archive }}'
+
+      - name: Attest .deb
+        if: matrix.os == 'linux'
+        uses: actions/attest@v4
+        with:
+          subject-path: 'target/debian/*.deb'
+
       - name: Upload archive
         uses: actions/upload-artifact@v7
         with:
           name: muninn-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/*.${{ matrix.archive }}
+          path: |
+            dist/*.${{ matrix.archive }}
+            target/debian/*.deb
           if-no-files-found: error
 
   release:
@@ -79,6 +110,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Download archives
         uses: actions/download-artifact@v8
@@ -88,7 +121,13 @@ jobs:
 
       - name: Checksums
         working-directory: dist
-        run: sha256sum *.tar.gz *.zip > checksums.txt
+        run: sha256sum *.tar.gz *.zip *.deb > checksums.txt
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4
+
+      - name: Sign checksums
+        run: cosign sign-blob --yes dist/checksums.txt --bundle dist/checksums.txt.sigstore.json
 
       - name: Create release
         env:
@@ -97,5 +136,5 @@ jobs:
         run: |
           prerelease=""
           case "$TAG" in *-*) prerelease="--prerelease" ;; esac  # v0.2.0-rc.1
-          gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt \
+          gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/*.deb dist/checksums.txt dist/checksums.txt.sigstore.json \
             --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag $prerelease

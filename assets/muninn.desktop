@@ -10,3 +10,11 @@ Categories=Office;TextEditor;
 Keywords=markdown;notes;vault;graph;
 StartupWMClass=muninn
 Actions=Write;Graph;
+
+[Desktop Action Write]
+Name=Write
+Exec=muninn
+
+[Desktop Action Graph]
+Name=Graph
+Exec=muninn
