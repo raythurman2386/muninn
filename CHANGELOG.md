@@ -6,6 +6,20 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Omarchy theming: the window follows the shared Omarchy system theme
+  (`$XDG_STATE_HOME/omarchy/current/theme/colors.toml`, i.e.
+  `~/.local/state/omarchy/current/theme/colors.toml`) by default, deriving
+  the full `rune-kit` palette from its background/foreground/accent, layer,
+  selection and status colours while fonts and radii stay with the OpenCode
+  theme. A theme switch is picked up live (no restart). Off Omarchy the
+  palette file is absent and Muninn falls back to the system appearance, so
+  non-Omarchy systems see no change. The sidebar theme button cycles
+  Omarchy → System → Dark → Light, and `--theme omarchy|system|dark|light`
+  overrides the choice for one session. `MUNINN_OMARCHY_COLORS` points at an
+  alternate palette file (or `""` to disable).
+
 ## [0.3.0] - 2026-11-07
 
 ### Added

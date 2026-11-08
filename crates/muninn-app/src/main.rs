@@ -14,20 +14,26 @@
 //!
 //! `--check` and `--list-links` are headless vault inspectors; they return
 //! before any Rune window or GPU context exists. `--trace` adds every autosave
-//! tick to `$XDG_STATE_HOME/muninn/session.log`.
+//! tick to `$XDG_STATE_HOME/muninn/session.log`. `--theme omarchy|system|dark|light`
+//! overrides the persisted theme for this session only (Omarchy is the
+//! default: follow the shared Omarchy palette, else the system appearance).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use muninn_core::{Vault, parse_links};
-use muninn_ui::{Mode, Scope, Settings, State, on_key, poll, view};
+use muninn_ui::{Mode, Scope, Settings, State, ThemeMode, on_key, poll, view};
 use rune::AppSpec;
 use rune_theme_opencode as theme;
 
 /// `--trace` is parsed before Rune starts, but `init` is a plain function
 /// pointer; this carries the flag between them.
 static TRACE: AtomicBool = AtomicBool::new(false);
+
+/// `--theme` is carried the same way: an unsaved session override that does
+/// not touch the persisted theme preference.
+static THEME: std::sync::Mutex<Option<ThemeMode>> = std::sync::Mutex::new(None);
 
 fn main() {
     // Rune consumes `--help` for its own headless-tooling usage before
@@ -54,7 +60,9 @@ fn main() {
             print_help(&mut std::io::stderr());
             std::process::exit(2);
         }
-        Cli::Run => {}
+        Cli::Run(session_theme) => {
+            *THEME.lock().expect("theme lock") = session_theme;
+        }
     }
     TRACE.store(has_flag(args, "--trace"), Ordering::Relaxed);
     // Match the shipped `muninn.desktop` (`StartupWMClass` + hicolor icon) so
@@ -91,19 +99,38 @@ fn init() -> State {
     let settings = Settings::load();
     let mut state = State::new(vault_path(rune::extra_args(), &settings));
     state.set_trace(TRACE.load(Ordering::Relaxed));
+    if let Some(theme) = THEME.lock().expect("theme lock").take() {
+        state.theme = theme;
+    }
     state
 }
 
 /// The headless CLI surface, parsed from Rune's extra arguments before any
 /// window or GPU context exists.
 enum Cli {
-    Run,
+    Run(Option<ThemeMode>),
     Check(PathBuf),
     ListLinks(PathBuf),
     Error(String),
 }
 
 fn cli(args: &[String]) -> Cli {
+    let theme = match flag_value(args, "--theme") {
+        Err(message) => return Cli::Error(message),
+        Ok(None) => None,
+        Ok(Some(path)) => match path.to_str() {
+            Some("omarchy") => Some(ThemeMode::Omarchy),
+            Some("system") => Some(ThemeMode::Follow),
+            Some("dark") => Some(ThemeMode::Dark),
+            Some("light") => Some(ThemeMode::Light),
+            other => {
+                return Cli::Error(format!(
+                    "--theme needs one of omarchy|system|dark|light, got {:?}",
+                    other.unwrap_or_default()
+                ));
+            }
+        },
+    };
     match flag_value(args, "--check") {
         Err(message) => return Cli::Error(message),
         Ok(Some(path)) => return Cli::Check(path),
@@ -114,7 +141,7 @@ fn cli(args: &[String]) -> Cli {
         Ok(Some(path)) => return Cli::ListLinks(path),
         Ok(None) => {}
     }
-    Cli::Run
+    Cli::Run(theme)
 }
 
 fn has_flag(args: &[String], flag: &str) -> bool {
@@ -152,13 +179,14 @@ fn print_help(out: &mut impl std::io::Write) {
         "Muninn {} — a local-first Markdown vault\n\
          \n\
          Usage:\n  \
-         muninn [--vault PATH] [--trace]\n  \
+         muninn [--vault PATH] [--trace] [--theme omarchy|system|dark|light]\n  \
          muninn --check <vault>\n  \
          muninn --list-links <vault>\n  \
          muninn --help\n\
          \n\
          Options:\n  \
          --vault PATH     Open this vault (else $MUNINN_VAULT, the last vault, ~/Muninn)\n  \
+         --theme MODE     Session theme override: omarchy (default), system, dark, light\n  \
          --trace          Log every autosave tick to the session log\n  \
          --check          Headless: exit 0 if clean, 1 for broken links/duplicates, 2 if unreadable\n  \
          --list-links     Headless: one `referrer -> target` line per wikilink, sorted",
@@ -335,7 +363,7 @@ fn scenes() -> &'static [Scene] {
             }
             s.open_local_graph();
         }),
-        ("light", |s| s.dark = Some(false)),
+        ("light", |s| s.theme = muninn_ui::ThemeMode::Light),
         ("empty", |s| {
             s.selected = None;
             s.selected_path = None;

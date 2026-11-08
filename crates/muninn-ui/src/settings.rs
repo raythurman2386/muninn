@@ -35,16 +35,92 @@ pub const RECENT_VAULTS_MAX: usize = 5;
 /// Distinguishes temp files written by the same process.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// Which palette the window follows. `Omarchy` (the default) tracks the
+/// shared Omarchy system theme (`~/.local/state/omarchy/current/theme/colors.toml`)
+/// and falls back to the system appearance when that file is absent, so
+/// non-Omarchy systems see no change. `Follow` is the old "follow the system"
+/// behaviour. `Dark`/`Light` pin the appearance.
+///
+/// Serialized as `"omarchy"` / `"system"` / `"dark"` / `"light"`; a bare
+/// boolean (`"true"`/`"false"`) still parses as dark/light for old files.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ThemeMode {
+    #[default]
+    Omarchy,
+    Follow,
+    Dark,
+    Light,
+}
+
+impl ThemeMode {
+    #[must_use]
+    pub fn id(self) -> u8 {
+        match self {
+            ThemeMode::Omarchy => 0,
+            ThemeMode::Follow => 1,
+            ThemeMode::Dark => 2,
+            ThemeMode::Light => 3,
+        }
+    }
+
+    /// The next mode for the theme button's cycle.
+    #[must_use]
+    pub fn next(self) -> ThemeMode {
+        match self {
+            ThemeMode::Omarchy => ThemeMode::Follow,
+            ThemeMode::Follow => ThemeMode::Dark,
+            ThemeMode::Dark => ThemeMode::Light,
+            ThemeMode::Light => ThemeMode::Omarchy,
+        }
+    }
+
+    #[must_use]
+    pub fn as_key(self) -> &'static str {
+        match self {
+            ThemeMode::Omarchy => "omarchy",
+            ThemeMode::Follow => "system",
+            ThemeMode::Dark => "dark",
+            ThemeMode::Light => "light",
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            ThemeMode::Omarchy => "Omarchy",
+            ThemeMode::Follow => "System",
+            ThemeMode::Dark => "Dark",
+            ThemeMode::Light => "Light",
+        }
+    }
+}
+
+/// The stored spelling for a persisted `theme` value. A bare boolean is
+/// accepted for forward/backward compatibility.
+fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
+    match value {
+        Some("dark") => ThemeMode::Dark,
+        Some("light") => ThemeMode::Light,
+        Some("omarchy") => ThemeMode::Omarchy,
+        Some("system") => ThemeMode::Follow,
+        Some(other) => match other.parse::<bool>() {
+            Ok(true) => ThemeMode::Dark,
+            Ok(false) => ThemeMode::Light,
+            Err(_) => ThemeMode::default(),
+        },
+        None => ThemeMode::default(),
+    }
+}
+
 /// Preferences shared by every vault.
 ///
-/// `theme` is `None` for "follow the system", `Some(true)` for dark and
-/// `Some(false)` for light. `collapsed` and the mode/scope/last-note fields are
-/// written whenever the user changes them, so a restart restores the session
-/// without a separate "save workspace" step.
+/// `theme` picks the palette source (see [`ThemeMode`]). `collapsed` and the
+/// mode/scope/last-note fields are written whenever the user changes them, so
+/// a restart restores the session without a separate "save workspace" step.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Settings {
-    /// `None` follows the system appearance; `Some(dark)` pins it.
-    pub theme: Option<bool>,
+    /// Which palette the window follows; restored by [`State`](crate::State).
+    pub theme: ThemeMode,
     /// Collapsed sidebar folders (vault-relative, `""` for the root).
     pub collapsed: Vec<String>,
     /// Most recently opened vault, if any.
@@ -63,7 +139,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            theme: None,
+            theme: ThemeMode::Omarchy,
             collapsed: Vec::new(),
             last_vault: None,
             selected_rel: None,
@@ -107,11 +183,7 @@ impl Settings {
             DEFAULT_AUTOSAVE_DELAY
         };
         let value = json!({
-            "theme": match self.theme {
-                None => "system",
-                Some(true) => "dark",
-                Some(false) => "light",
-            },
+            "theme": self.theme.as_key(),
             "collapsed": self.collapsed,
             "last_vault": self
                 .last_vault
@@ -144,13 +216,7 @@ impl Settings {
 
     fn from_value(value: &Value) -> Settings {
         let mut settings = Settings {
-            theme: match value.get("theme").and_then(Value::as_str) {
-                Some("dark") => Some(true),
-                Some("light") => Some(false),
-                Some("system") | None => None,
-                // A bare boolean is accepted for forward/backward compatibility.
-                Some(other) => other.parse::<bool>().ok(),
-            },
+            theme: parse_theme_mode(value.get("theme").and_then(Value::as_str)),
             ..Settings::default()
         };
         if let Some(items) = value.get("collapsed").and_then(Value::as_array) {
@@ -276,7 +342,7 @@ mod tests {
     fn settings_round_trip_through_disk() {
         let home = temp_config("round-trip");
         let settings = Settings {
-            theme: Some(true),
+            theme: ThemeMode::Dark,
             collapsed: vec!["folder".to_owned(), String::new()],
             last_vault: Some(PathBuf::from("/tmp/notes")),
             selected_rel: Some("folder/Alpha.md".to_owned()),

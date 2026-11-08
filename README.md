@@ -65,6 +65,12 @@ missing file starts from defaults instead of blocking startup. It remembers the 
 collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
 autosave delay (0.55 s by default) and up to five recent vaults.
 
+The default theme follows the shared Omarchy system theme
+(`~/.local/state/omarchy/current/theme/colors.toml`), so `omarchy theme set` recolours the
+window live; off Omarchy it falls back to the system appearance. The sidebar theme button
+cycles Omarchy → System → Dark → Light, and `muninn --theme omarchy|system|dark|light`
+overrides that for one session. `MUNINN_OMARCHY_COLORS` can point at a palette file.
+
 Window size and position are deliberately **not** persisted. Rune (rev `b39c24f`) can *set*
 an initial and runtime size or position — `AppSpec::size`
 (`crates/rune/src/tooling.rs:19`, applied as the inner size at
