@@ -1274,8 +1274,7 @@ impl State {
         &self.settings.note_template
     }
 
-    /// Persist a new default note template, clamped to
-    /// [`NOTE_TEMPLATE_MAX_CHARS`](crate::NOTE_TEMPLATE_MAX_CHARS). The
+    /// Persist a new default note template, clamped to 4096 characters. The
     /// settings textarea is kept in sync, so a pasted over-long value shows
     /// exactly what will be stored. Called after each edit; there is no Save
     /// button.

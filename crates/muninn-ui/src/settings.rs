@@ -167,7 +167,7 @@ pub struct Settings {
     /// Markdown inserted at the top of each new note, exactly as typed (a
     /// missing trailing newline is added when the note is created). Empty —
     /// the default — keeps the original heading-only note body. Clamped to
-    /// [`NOTE_TEMPLATE_MAX_CHARS`].
+    /// 4096 characters.
     pub note_template: String,
 }
 
