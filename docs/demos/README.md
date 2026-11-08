@@ -20,6 +20,11 @@ target/debug/muninn --vault vault --scene notes \
 MUNINN_OMARCHY_COLORS= target/debug/muninn --vault vault --scene notes \
   --script scripts/demos/theme.json \
   --video docs/demos/theme.mp4 --keys --pointer
+
+XDG_STATE_HOME=/tmp/demo/state XDG_CONFIG_HOME=/tmp/demo/config \
+MUNINN_OMARCHY_COLORS= target/debug/muninn --vault vault --scene notes \
+  --script scripts/demos/e2e.json \
+  --video docs/demos/e2e.mp4 --fps 30 --keys --pointer
 ```
 
 - `--keys` draws keycaps for script keys/chords; `--pointer` ripples where the
@@ -39,6 +44,10 @@ MUNINN_OMARCHY_COLORS= target/debug/muninn --vault vault --scene notes \
 - `palette.mp4` — `⌘⇧P` opens the command palette, Enter jumps to the
   local graph.
 - `theme.mp4` — changing the theme live in Settings (Omarchy → Dark → Light).
+- `e2e.mp4` — a full end-to-end tour: search, open, create a note, glide
+  through the graph, command palette into the local graph, theme change,
+  and the Help overlay. It runs under isolated `XDG_STATE_HOME`/`XDG_CONFIG_HOME`
+  so it starts from the default state even if you re-record from a dirty machine.
 
 GIF versions (`*.gif`, 720 px, 12 fps) are palette-encoded
 `ffmpeg -i <clip>.mp4` variants for README embedding.
