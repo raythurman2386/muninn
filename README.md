@@ -63,10 +63,12 @@ Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 `~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
 missing file starts from defaults instead of blocking startup. It remembers the theme,
 collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
-autosave delay (0.55 s by default) and up to five recent vaults. `Cmd/Ctrl+,`
+autosave delay (0.55 s by default), the default note template and up to five recent vaults. `Cmd/Ctrl+,`
 opens the in-window Settings modal: pick Omarchy / System / Dark / Light, step the
 autosave delay (0.05–10 s), open or create a vault from the Vaults section, or reopen a
-recent one. Choices persist immediately,
+recent one. A non-empty default note template is inserted verbatim at the top of
+every new note (a trailing newline is added when missing); an empty template
+keeps the plain `# Title` body. Choices persist immediately,
 and `Esc` returns to the editor or search field that opened it. While Omarchy is
 followed the modal says so instead of offering a theme choice, matching the
 hidden sidebar theme toggle.
@@ -204,7 +206,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |
-| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, autosave delay, recent vaults) |
+| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, autosave delay, note template, recent vaults) |
 | `?` (when not typing) | Open Help; `Esc` closes it |
 
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the

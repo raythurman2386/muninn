@@ -14,7 +14,9 @@ use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::{Camera, CameraGlide};
 use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
-use crate::settings::{AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY, Settings, ThemeMode, config_home};
+use crate::settings::{
+    AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY, Settings, ThemeMode, clamp_note_template, config_home,
+};
 use crate::watch::{self, VaultSnapshot};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -596,6 +598,10 @@ pub struct State {
     /// typing to the same field.
     settings_return_editor: bool,
     settings_return_search: bool,
+    /// v0.5: the settings modal's default-note-template textarea buffer. It
+    /// mirrors [`Settings::note_template`]; edits persist through
+    /// [`State::set_note_template`].
+    pub note_template_field: TextEdit,
     /// v0.5: command palette (notes and actions in one input).
     pub palette: Option<PaletteState>,
     /// The palette's persistent input field; focused while it is open.
@@ -674,6 +680,7 @@ impl State {
         let restore_scope = settings.scope;
         let reduced_motion = reduced_motion_from_env();
         let log_path = state_home.join("muninn").join("session.log");
+        let note_template_field = TextEdit::new(&settings.note_template);
         let started = Instant::now();
         let mut scan = None;
         let (vault, startup_error) = match Vault::scan_start(&root) {
@@ -801,6 +808,7 @@ impl State {
             settings_modal: false,
             settings_return_editor: false,
             settings_return_search: false,
+            note_template_field,
             palette: None,
             palette_field: TextEdit::new(""),
             palette_focus: (false, false),
@@ -1257,6 +1265,26 @@ impl State {
     pub fn nudge_autosave_delay(&mut self, delta: f64) {
         let next = (self.autosave_delay() + delta) * 20.0;
         self.set_autosave_delay(next.round() / 20.0);
+    }
+
+    /// The Markdown inserted at the top of every new note. Empty (the
+    /// default) keeps the plain `# Title` body.
+    #[must_use]
+    pub fn note_template(&self) -> &str {
+        &self.settings.note_template
+    }
+
+    /// Persist a new default note template, clamped to 4096 characters. The
+    /// settings textarea is kept in sync, so a pasted over-long value shows
+    /// exactly what will be stored. Called after each edit; there is no Save
+    /// button.
+    pub fn set_note_template(&mut self, template: &str) {
+        let template = clamp_note_template(template);
+        if self.note_template_field.text != template {
+            self.note_template_field.replace_text(template.as_str());
+        }
+        self.settings.note_template = template;
+        self.save_settings();
     }
 
     // ---- v0.5: command palette ---------------------------------------------
@@ -3427,7 +3455,8 @@ impl State {
     }
 
     /// Begin naming a note in the current folder. Nothing is created until
-    /// the field is submitted with a non-empty name.
+    /// the field is submitted with a non-empty name; the new note then starts
+    /// with the configured default template (see [`Self::set_note_template`]).
     pub fn new_note(&mut self) {
         let folder = self.current_folder();
         self.begin_new_note(&folder);
@@ -4020,6 +4049,9 @@ impl State {
         self.flush();
         match self.vault.create_note_in(title, folder) {
             Ok(path) => {
+                if let Err(e) = self.apply_note_template(&path) {
+                    self.error = Some(format!("Could not add the note template: {e}"));
+                }
                 self.reload(Some(path));
                 self.mode = Mode::Editor;
                 self.focus_editor();
@@ -4029,6 +4061,23 @@ impl State {
             }
             Err(e) => self.error = Some(format!("Could not create a note: {e}")),
         }
+    }
+
+    /// Prepend the default note template to a just-created note file. The
+    /// template is inserted verbatim before the heading; a missing trailing
+    /// newline is added so the two do not run together. An empty template
+    /// writes nothing, keeping the default note body byte-for-byte unchanged.
+    fn apply_note_template(&self, path: &Path) -> io::Result<()> {
+        let template = self.settings.note_template.as_str();
+        if template.is_empty() {
+            return Ok(());
+        }
+        let mut body = template.to_owned();
+        if !body.ends_with('\n') {
+            body.push('\n');
+        }
+        body.push_str(&fs::read_to_string(path)?);
+        fs::write(path, body)
     }
 
     pub fn open_link(&mut self, url: &str, tx: &mut rune::Tx) {

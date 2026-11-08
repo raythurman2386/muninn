@@ -4,7 +4,9 @@ use rune::{
     Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, ScrollSpec, Shape, Span, TextStyle,
     Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
-use rune_kit::{Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl};
+use rune_kit::{
+    Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl, TextArea,
+};
 use rune_theme_opencode::icons as ic;
 
 use muninn_core::{Vault, headings};
@@ -730,6 +732,38 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
                         .color(k.c.text_muted),
                 )
                 .child(stepper),
+        )
+        .child(
+            col()
+                .w_full()
+                .gap(8.0)
+                .child(
+                    text("Default note template")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(
+                    text(
+                        "Markdown inserted at the top of every new note. \
+                         Leave empty for a plain heading.",
+                    )
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .wrap(),
+                )
+                .child(
+                    TextArea::new(&s.note_template_field)
+                        .label("Default note template")
+                        .placeholder("Markdown inserted at the top of each new note")
+                        .width(None)
+                        .rows(3)
+                        .on_edit(|s: &mut State| &mut s.note_template_field)
+                        .on_change(|s: &mut State, _: &mut Tx| {
+                            let template = s.note_template_field.text.clone();
+                            s.set_note_template(&template);
+                        })
+                        .build(k),
+                ),
         )
         .child(
             col()

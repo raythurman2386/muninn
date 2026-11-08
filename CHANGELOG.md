@@ -6,6 +6,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Default note template: Settings now has a wrapped multi-line **Default note
+  template** field. Non-empty text is inserted verbatim at the top of every new
+  note (a missing trailing newline is added), which makes YAML frontmatter easy
+  to start with. An empty template keeps the original `# Title` body. The value
+  is stored as `note_template` in `settings.json`, clamped to 4096 characters.
+
 ### Changed
 
 - The sidebar vault chip row is gone; the sidebar is now just the top bar, search,
