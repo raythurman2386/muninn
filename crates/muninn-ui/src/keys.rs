@@ -22,17 +22,9 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
             s.close_settings();
             return true;
         }
-        // DES-01: the help overlay and the vault menu are the outermost layers.
+        // DES-01: the help overlay is the outermost page layer.
         if s.help {
             s.close_help();
-            return true;
-        }
-        if s.vault_prompt {
-            s.cancel_vault_prompt();
-            return true;
-        }
-        if s.vault_menu {
-            s.close_vault_menu();
             return true;
         }
         // M2 EDT-03: autocomplete dismisses before find, prompts and menus.
