@@ -22,6 +22,15 @@ All notable changes to Muninn are documented here. The format is based on
   `MUNINN_OMARCHY_COLORS` points at an alternate palette file (or `""` to
   disable).
 
+### Changed
+
+- Keyboard shortcuts help lays its sections out in a grid: two columns on a normal
+  desktop, four when the window is wide enough for a card per section, and one
+  column when a second card would be too narrow. Keys render as keycaps (with
+  `⌘` and Ctrl chords kept readable), and autosave, diagnostics and trash each
+  sit in their own block. Diagnostics lines wrap, and the log scrolls once it
+  outgrows its block.
+
 ## [0.3.0] - 2026-11-07
 
 ### Added

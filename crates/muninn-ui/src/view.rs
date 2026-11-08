@@ -1447,12 +1447,105 @@ fn welcome_banner(s: &State, k: &Kit) -> El {
 
 const ISSUES_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/issues");
 
-/// DES-01: the in-window Help overlay. Native menu bars are unavailable on
-/// Linux (the desktop verification wave blocked DES-01's menubar path), so the
-/// full shortcut map lives here, reachable from the sidebar `?` button,
-/// `Cmd/Ctrl+?`, or plain `?` when no text field owns the keyboard.
-fn help_panel(s: &State, k: &Kit) -> El {
-    let groups: [(&str, &[(&str, &str)]); 4] = [
+/// Horizontal padding of the help page. Column count is chosen from the width
+/// left after this inset, so the grid and the footer share one measure.
+const HELP_PAD_X: f32 = 24.0;
+
+/// How the shortcut map fills the main column.
+///
+/// The sidebar keeps its own width rule (`window_width < 900` shrinks it).
+/// What remains, minus [`HELP_PAD_X`], picks the grid: one column while a
+/// second card would be narrower than a key column plus a wrapping
+/// description, two columns on a normal desktop, and four once each card can
+/// still hold a wrapped key row (about 300pt).
+struct HelpLayout {
+    columns: usize,
+    /// Keys sit above the description. A four-column card is too narrow for a
+    /// side-by-side key column.
+    stacked: bool,
+    /// Width of the key column when [`HelpLayout::stacked`] is false, so every
+    /// row in a card lines up.
+    key_width: f32,
+}
+
+fn help_layout(window_width: f32) -> HelpLayout {
+    let sidebar = if window_width < 900.0 {
+        SIDEBAR - 30.0
+    } else {
+        SIDEBAR
+    };
+    let content = (window_width - sidebar - 1.0).max(0.0);
+    let inner = (content - HELP_PAD_X * 2.0).max(0.0);
+    let columns = if inner >= 1200.0 {
+        4
+    } else if inner >= 760.0 {
+        2
+    } else {
+        1
+    };
+    HelpLayout {
+        columns,
+        stacked: columns >= 4,
+        key_width: if columns == 1 { 220.0 } else { 196.0 },
+    }
+}
+
+/// One shortcut label: chords separated by ` / `, each chord split on `+` or a
+/// leading `⌘`, plus an optional `(context)` suffix.
+struct ShortcutLabel {
+    chords: Vec<Vec<String>>,
+    note: Option<String>,
+}
+
+fn shortcut_label(raw: &str) -> ShortcutLabel {
+    let (body, note) = match raw.rfind(" (") {
+        Some(start) if raw.ends_with(')') && start + 2 < raw.len() - 1 => (
+            &raw[..start],
+            Some(raw[start + 2..raw.len() - 1].to_owned()),
+        ),
+        _ => (raw, None),
+    };
+    let chords = body
+        .split(" / ")
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(split_chord)
+        .collect();
+    ShortcutLabel { chords, note }
+}
+
+fn split_chord(raw: &str) -> Vec<String> {
+    // "Ctrl+K" and "Shift+Tab" are chords. A lone "+" is the zoom-in key, and
+    // splitting it would throw the plus away.
+    let parts: Vec<&str> = raw
+        .split('+')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect();
+    if parts.len() >= 2 {
+        return parts.into_iter().map(str::to_owned).collect();
+    }
+    if let Some(rest) = raw.strip_prefix('⌘')
+        && !rest.is_empty()
+    {
+        return vec!["⌘".to_owned(), rest.to_owned()];
+    }
+    vec![raw.to_owned()]
+}
+
+/// A single letter draws in uppercase, the way a keycap is printed. Names
+/// (`Ctrl`, `Enter`, `Space`) and symbols stay as written.
+fn keycap_text(key: &str) -> String {
+    let upper = key.to_uppercase();
+    if key.chars().count() == 1 && upper.to_lowercase() == key {
+        upper
+    } else {
+        key.to_owned()
+    }
+}
+
+fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)]); 4] {
+    [
         (
             "Navigation",
             &[
@@ -1504,61 +1597,32 @@ fn help_panel(s: &State, k: &Kit) -> El {
                 ("Vault chip", "Open / recent / new vault"),
             ],
         ),
-    ];
-    let mut list = col().w_full().px(40.0).pb(28.0).gap(14.0);
-    for (title, shortcuts) in groups {
-        let mut section = col().w_full().gap(3.0).child(
-            text(title.to_owned())
-                .font(TextStyle::new(10.0, 650.0).tracking(0.9))
-                .color(k.c.text_muted)
-                .padding(4.0),
-        );
-        for (keys, action) in shortcuts {
-            section = section.child(help_row(k, keys, action));
-        }
-        list = list.child(section);
+    ]
+}
+
+/// DES-01: the in-window Help overlay. Native menu bars are unavailable on
+/// Linux (the desktop verification wave blocked DES-01's menubar path), so the
+/// full shortcut map lives here, reachable from the sidebar `?` button,
+/// `Cmd/Ctrl+?`, or plain `?` when no text field owns the keyboard.
+fn help_panel(s: &State, k: &Kit) -> El {
+    let layout = help_layout(s.window_width);
+    let mut sections = el()
+        .key("help-sections")
+        .w_full()
+        .min_w(0.0)
+        .equal_columns(layout.columns)
+        .gap(12.0)
+        .items_stretch();
+    for (index, (title, shortcuts)) in shortcut_groups().into_iter().enumerate() {
+        sections = sections.child(help_section(k, index, title, shortcuts, &layout));
     }
-    list = list
-        .child(divider_h(k))
-        .child(
-            text(format!(
-                "Autosave writes {:.2} s after you stop typing. Version {}.",
-                s.autosave_delay(),
-                env!("CARGO_PKG_VERSION")
-            ))
-            .font(k.ty.caption())
-            .color(k.c.text_faint)
-            .padding(4.0),
-        )
-        .child(help_diagnostics(s, k))
-        .child(divider_h(k))
-        .child(help_trash(s, k));
     col()
         .key("help-panel")
         .w_full()
         .grow(1.0)
+        .min_w(0.0)
         .min_h(0.0)
-        .child(
-            row()
-                .h(58.0)
-                .px(40.0)
-                .gap(10.0)
-                .center_y()
-                .child(
-                    text("Keyboard shortcuts")
-                        .font(k.ty.ui_medium)
-                        .color(k.c.text_base),
-                )
-                .child(spacer())
-                .child(
-                    pressable(k, "help-close".to_owned())
-                        .px(10.0)
-                        .py(4.0)
-                        .border(1.0, k.c.border_muted)
-                        .child(text("Close").font(k.ty.caption()).color(k.c.text_muted))
-                        .on_press(|s: &mut State| s.close_help()),
-                ),
-        )
+        .child(help_header(k))
         .child(divider_h(k))
         .child(
             col()
@@ -1566,67 +1630,264 @@ fn help_panel(s: &State, k: &Kit) -> El {
                 .w_full()
                 .grow(1.0)
                 .min_h(0.0)
-                .items_center()
+                .min_w(0.0)
                 .scroll(ScrollSpec {
                     stick_bottom: false,
                 })
-                .child(list.max_w(720.0)),
+                .child(
+                    col()
+                        .w_full()
+                        .min_w(0.0)
+                        .px(HELP_PAD_X)
+                        .pt(18.0)
+                        .pb(28.0)
+                        .gap(14.0)
+                        .child(sections)
+                        .child(help_about(s, k))
+                        .child(help_diagnostics(s, k))
+                        .child(help_trash(s, k)),
+                ),
+        )
+}
+
+fn help_header(k: &Kit) -> El {
+    row()
+        .h(54.0)
+        .px(HELP_PAD_X)
+        .gap(12.0)
+        .center_y()
+        .child(
+            text("Keyboard shortcuts")
+                .font(TextStyle::new(16.0, 600.0).lh(22.0))
+                .color(k.c.text_base),
+        )
+        .child(spacer())
+        .child(
+            pressable(k, "help-close".to_owned())
+                .px(10.0)
+                .py(5.0)
+                .border(1.0, k.c.border_base)
+                .child(text("Close").font(k.ty.ui_compact).color(k.c.text_base))
+                .on_press(|s: &mut State| s.close_help()),
+        )
+}
+
+fn help_section(
+    k: &Kit,
+    index: usize,
+    title: &str,
+    shortcuts: &[(&str, &str)],
+    layout: &HelpLayout,
+) -> El {
+    let mut rows = col().w_full().min_w(0.0).gap(2.0);
+    for (row_index, (keys, action)) in shortcuts.iter().enumerate() {
+        rows = rows.child(help_row(k, index, row_index, keys, action, layout));
+    }
+    let slug: String = title
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    col()
+        .key(format!("help-section-{slug}"))
+        .w_full()
+        .min_w(0.0)
+        .self_stretch()
+        .gap(10.0)
+        .radius(k.radius.lg)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .px(14.0)
+        .pt(12.0)
+        .pb(10.0)
+        .role("group")
+        .label(title.to_owned())
+        .child(help_section_head(k, title))
+        .child(rows)
+}
+
+fn help_section_head(k: &Kit, title: &str) -> El {
+    col()
+        .w_full()
+        .gap(8.0)
+        .child(
+            row()
+                .w_full()
+                .gap(8.0)
+                .center_y()
+                .child(el().w(3.0).h(14.0).radius(2.0).fill(k.c.text_accent))
+                .child(
+                    text(title.to_owned())
+                        .font(TextStyle::new(14.0, 620.0).lh(18.0))
+                        .color(k.c.text_base),
+                ),
+        )
+        .child(el().w_full().h(1.0).fill(k.c.border_muted))
+}
+
+/// The autosave sentence and the version, in their own card so they are not
+/// a caption glued to the log.
+fn help_about(s: &State, k: &Kit) -> El {
+    let delay = s.autosave_delay();
+    let version = env!("CARGO_PKG_VERSION");
+    help_card(k, "help-about", "Autosave")
+        .child(
+            text(format!(
+                "Autosave writes {delay:.2} s after you stop typing."
+            ))
+            .font(k.ty.ui_compact.lh(18.0))
+            .color(k.c.text_base)
+            .wrap()
+            .w_full(),
+        )
+        .child(
+            text(format!("Version {version}."))
+                .font(k.ty.ui_compact)
+                .color(k.c.text_muted),
         )
 }
 
 /// X-01: a selectable diagnostics block plus "Copy diagnostics".
 ///
 /// `Tx::copy` is available in this Rune revision, so the version, counts and
-/// last five session-log lines are one click from a bug report. If a future
-/// Rune drops it, the block is still visible and selectable.
+/// last five session-log lines are one click from a bug report. Lines wrap
+/// inside the block (a session path is one long token) and the block scrolls
+/// once wrapped lines outgrow it. If a future Rune drops `Tx::copy`, the
+/// block is still visible and selectable.
 fn help_diagnostics(s: &State, k: &Kit) -> El {
-    col()
+    let (summary, logs) = diagnostics_parts(&s.diagnostics());
+    let mono = TextStyle {
+        size: 11.0,
+        line_height: 16.0,
+        ..k.ty.mono
+    };
+    let mut log = col()
+        .key("help-log")
         .w_full()
-        .gap(6.0)
-        .child(
-            col()
-                .key("help-diagnostics")
+        .min_w(0.0)
+        .max_h(148.0)
+        .gap(3.0)
+        .radius(6.0)
+        .padding(10.0)
+        .fill(k.c.bg_base)
+        .border(1.0, k.c.border_base)
+        .scroll(ScrollSpec {
+            stick_bottom: false,
+        });
+    for (index, line) in logs.iter().enumerate() {
+        log = log.child(
+            text(line.clone())
+                .key(format!("help-log-line-{index}"))
+                .font(mono)
+                .color(k.c.text_muted)
+                .wrap_anywhere()
                 .w_full()
-                .gap(2.0)
-                .radius(6.0)
-                .padding(8.0)
-                .fill(k.c.layer_01)
-                .child(text(s.diagnostics()).font(k.ty.mono).color(k.c.text_muted)),
-        )
+                .selectable(true),
+        );
+    }
+    let mut body = help_card(k, "help-diagnostics", "Diagnostics").selection_group(true);
+    for (index, line) in summary.iter().enumerate() {
+        body = body.child(
+            text(line.clone())
+                .key(format!("help-diag-line-{index}"))
+                .font(k.ty.ui_compact.lh(18.0))
+                .color(k.c.text_base)
+                .wrap_anywhere()
+                .w_full()
+                .selectable(true),
+        );
+    }
+    if logs.iter().all(|line| line == "(no log lines yet)") {
+        body = body.child(log);
+    } else {
+        body = body
+            .child(
+                text("last log lines:")
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted),
+            )
+            .child(log);
+    }
+    body.child(
+        row()
+            .w_full()
+            .min_w(0.0)
+            .gap(8.0)
+            .flex_wrap()
+            .child(help_link(
+                k,
+                "help-copy-diagnostics",
+                "Copy diagnostics",
+                true,
+            ))
+            .child(help_link(
+                k,
+                "help-report-issue",
+                "Report an issue on GitHub",
+                false,
+            )),
+    )
+}
+
+/// Summary lines, then the log tail. `(no log lines yet)` is the tail, not a
+/// summary line: `State::diagnostics` prints it in place of the tail header.
+fn diagnostics_parts(text: &str) -> (Vec<String>, Vec<String>) {
+    let mut summary = Vec::new();
+    let mut logs = Vec::new();
+    let mut in_logs = false;
+    for line in text.lines() {
+        if line == "last log lines:" {
+            in_logs = true;
+            continue;
+        }
+        if line == "(no log lines yet)" {
+            logs.push(line.to_owned());
+            continue;
+        }
+        if line.is_empty() {
+            continue;
+        }
+        if in_logs {
+            logs.push(line.to_owned());
+        } else {
+            summary.push(line.to_owned());
+        }
+    }
+    if logs.is_empty() {
+        logs.push("(no log lines yet)".to_owned());
+    }
+    (summary, logs)
+}
+
+fn help_link(k: &Kit, key: &str, label: &str, copies: bool) -> El {
+    let key_owned = key.to_owned();
+    let label_owned = label.to_owned();
+    let mut button = pressable(k, key_owned)
+        .px(10.0)
+        .py(5.0)
+        .border(1.0, k.c.border_base)
         .child(
-            row()
-                .gap(8.0)
-                .child(
-                    pressable(k, "help-copy-diagnostics".to_owned())
-                        .px(8.0)
-                        .py(4.0)
-                        .border(1.0, k.c.border_muted)
-                        .child(
-                            text("Copy diagnostics")
-                                .font(k.ty.caption())
-                                .color(k.c.text_accent),
-                        )
-                        .label("Copy diagnostics")
-                        .on_press_tx(|s: &mut State, tx: &mut Tx| {
-                            tx.copy(s.diagnostics());
-                        }),
-                )
-                .child(
-                    pressable(k, "help-report-issue".to_owned())
-                        .px(8.0)
-                        .py(4.0)
-                        .border(1.0, k.c.border_muted)
-                        .child(
-                            text("Report an issue on GitHub")
-                                .font(k.ty.caption())
-                                .color(k.c.text_accent),
-                        )
-                        .on_press_tx(|_: &mut State, tx: &mut Tx| {
-                            // Best-effort: the platform may have no URL opener.
-                            let _ = tx.open_url(ISSUES_URL);
-                        }),
-                ),
+            text(label_owned.clone())
+                .font(k.ty.ui_compact)
+                .color(k.c.text_accent),
         )
+        .label(label_owned);
+    if copies {
+        button = button.on_press_tx(|s: &mut State, tx: &mut Tx| {
+            tx.copy(s.diagnostics());
+        });
+    } else {
+        button = button.on_press_tx(|_: &mut State, tx: &mut Tx| {
+            // Best-effort: the platform may have no URL opener.
+            let _ = tx.open_url(ISSUES_URL);
+        });
+    }
+    button
 }
 
 /// Trash readout plus the permanent-empty action. The budget is a fixed
@@ -1640,27 +1901,27 @@ fn help_trash(s: &State, k: &Kit) -> El {
         _ => format!("Trash · {files} notes · {}", trash_bytes(bytes)),
     };
     let empty = files == 0;
-    col()
-        .key("help-trash")
-        .w_full()
-        .gap(6.0)
+    help_card(k, "help-trash", "Trash")
         .child(
             row()
                 .w_full()
-                .gap(8.0)
+                .min_w(0.0)
+                .gap(10.0)
                 .center_y()
                 .child(
                     text(summary)
-                        .font(k.ty.caption())
-                        .color(k.c.text_muted)
-                        .grow(1.0),
+                        .font(k.ty.ui_compact.lh(18.0))
+                        .color(k.c.text_base)
+                        .wrap()
+                        .grow(1.0)
+                        .min_w(0.0),
                 )
                 .child(
                     pressable(k, "help-empty-trash".to_owned())
-                        .px(8.0)
-                        .py(4.0)
-                        .border(1.0, k.c.border_muted)
-                        .child(text("Empty trash").font(k.ty.caption()).color(if empty {
+                        .px(10.0)
+                        .py(5.0)
+                        .border(1.0, k.c.border_base)
+                        .child(text("Empty trash").font(k.ty.ui_compact).color(if empty {
                             k.c.text_faint
                         } else {
                             k.c.text_accent
@@ -1676,9 +1937,28 @@ fn help_trash(s: &State, k: &Kit) -> El {
                 "Deleted notes stay here until undo or permanent removal. At most 500 files \
                  or 100 MB are kept; the oldest timestamp folder is pruned first.",
             )
-            .font(k.ty.caption())
-            .color(k.c.text_faint)
-            .padding(4.0),
+            .font(k.ty.ui_compact.lh(18.0))
+            .color(k.c.text_muted)
+            .wrap()
+            .w_full(),
+        )
+}
+
+/// Shared chrome for the autosave, diagnostics and trash blocks.
+fn help_card(k: &Kit, key: &str, title: &str) -> El {
+    col()
+        .key(key.to_owned())
+        .w_full()
+        .min_w(0.0)
+        .gap(8.0)
+        .radius(k.radius.lg)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .padding(14.0)
+        .child(
+            text(title.to_owned())
+                .font(TextStyle::new(12.0, 650.0).tracking(0.4).lh(16.0))
+                .color(k.c.text_muted),
         )
 }
 
@@ -1696,24 +1976,106 @@ fn trash_bytes(bytes: u64) -> String {
     }
 }
 
-fn help_row(k: &Kit, keys: &str, action: &str) -> El {
+fn help_row(
+    k: &Kit,
+    section: usize,
+    row_index: usize,
+    keys: &str,
+    action: &str,
+    layout: &HelpLayout,
+) -> El {
+    let keys_el = shortcut_keys(
+        k,
+        section,
+        row_index,
+        keys,
+        if layout.stacked {
+            None
+        } else {
+            Some(layout.key_width)
+        },
+    );
+    let action_el = text(action.to_owned())
+        .key(format!("help-action-{section}-{row_index}"))
+        .font(k.ty.ui_compact.lh(18.0))
+        .color(k.c.text_base)
+        .wrap()
+        .min_w(0.0);
+    if layout.stacked {
+        col()
+            .w_full()
+            .min_w(0.0)
+            .gap(4.0)
+            .py(6.0)
+            .child(keys_el)
+            .child(action_el.w_full())
+    } else {
+        row()
+            .w_full()
+            .min_w(0.0)
+            .min_h(32.0)
+            .gap(12.0)
+            .py(4.0)
+            .center_y()
+            .child(keys_el)
+            .child(action_el.grow(1.0))
+    }
+}
+
+fn shortcut_keys(k: &Kit, section: usize, row_index: usize, raw: &str, width: Option<f32>) -> El {
+    let label = shortcut_label(raw);
+    let mut keys = row().gap(6.0).center_y().flex_wrap().min_w(0.0);
+    keys = match width {
+        Some(width) => keys.w(width),
+        None => keys.w_full(),
+    };
+    let mut nth = 0;
+    for (chord_index, chord) in label.chords.iter().enumerate() {
+        if chord_index > 0 {
+            keys = keys.child(text("/").font(k.ty.caption()).color(k.c.text_faint));
+        }
+        let mut group = row().gap(3.0).center_y();
+        for key in chord {
+            group = group.child(keycap(
+                k,
+                &format!("help-key-{section}-{row_index}-{nth}"),
+                key,
+            ));
+            nth += 1;
+        }
+        keys = keys.child(group);
+    }
+    if let Some(note) = label.note {
+        keys = keys.child(
+            text(format!("({note})"))
+                .key(format!("help-note-{section}-{row_index}"))
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        );
+    }
+    keys
+}
+
+fn keycap(k: &Kit, key: &str, label: &str) -> El {
     row()
-        .w_full()
-        .min_h(26.0)
-        .px(4.0)
-        .gap(12.0)
-        .center_y()
-        .child(
-            text(keys.to_owned())
-                .font(TextStyle::new(11.0, 600.0))
-                .color(k.c.text_base)
-                .w(170.0),
+        .key(key.to_owned())
+        .h(22.0)
+        .min_w(22.0)
+        .px(6.0)
+        .center()
+        .radius(5.0)
+        .fill(k.c.layer_03)
+        .border(1.0, k.c.border_strong)
+        .shadow(
+            1.0,
+            0.0,
+            k.alpha(k.c.black, if k.dark { 0.45 } else { 0.16 }),
         )
         .child(
-            text(action.to_owned())
-                .font(k.ty.caption())
-                .color(k.c.text_muted)
-                .grow(1.0),
+            text(keycap_text(label))
+                .key(format!("{key}-label"))
+                .font(TextStyle::new(12.0, 560.0).mono().lh(14.0))
+                .color(k.c.text_base),
         )
 }
 
@@ -2948,4 +3310,79 @@ fn divider(k: &Kit) -> El {
 
 fn divider_h(k: &Kit) -> El {
     el().w_full().h(1.0).fill(k.c.border_muted)
+}
+
+#[cfg(test)]
+mod help_layout_tests {
+    use super::{diagnostics_parts, help_layout, shortcut_label};
+
+    #[test]
+    fn shortcut_labels_keep_every_chord_and_context() {
+        let search = shortcut_label("⌘K / Ctrl+K");
+        assert_eq!(
+            search.chords,
+            vec![
+                vec!["⌘".to_owned(), "K".to_owned()],
+                vec!["Ctrl".to_owned(), "K".to_owned()]
+            ]
+        );
+        assert!(search.note.is_none());
+
+        let noted = shortcut_label("↑ / ↓ (search)");
+        assert_eq!(noted.note.as_deref(), Some("search"));
+        assert_eq!(
+            noted.chords,
+            vec![vec!["↑".to_owned()], vec!["↓".to_owned()]]
+        );
+
+        assert_eq!(shortcut_label("[[").chords, vec![vec!["[[".to_owned()]]);
+        assert_eq!(shortcut_label("⌘1 / ⌘2 / ⌘3").chords.len(), 3);
+        assert_eq!(
+            shortcut_label("Tab / Shift+Tab").chords,
+            vec![
+                vec!["Tab".to_owned()],
+                vec!["Shift".to_owned(), "Tab".to_owned()]
+            ]
+        );
+        assert_eq!(
+            shortcut_label("+ / -").chords,
+            vec![vec!["+".to_owned()], vec!["-".to_owned()]]
+        );
+        assert_eq!(
+            shortcut_label("Right-click").chords,
+            vec![vec!["Right-click".to_owned()]]
+        );
+        assert_eq!(
+            shortcut_label("Vault chip").chords,
+            vec![vec!["Vault chip".to_owned()]]
+        );
+        assert_eq!(
+            shortcut_label("⌘?").chords,
+            vec![vec!["⌘".to_owned(), "?".to_owned()]]
+        );
+    }
+
+    #[test]
+    fn column_count_follows_the_main_column() {
+        assert_eq!(help_layout(840.0).columns, 1, "narrow window");
+        assert!(!help_layout(840.0).stacked);
+        assert_eq!(help_layout(1180.0).columns, 2, "default window");
+        assert!(!help_layout(1180.0).stacked);
+        assert_eq!(help_layout(1600.0).columns, 4, "wide window");
+        assert!(help_layout(1600.0).stacked);
+        assert_eq!(help_layout(1920.0).columns, 4);
+    }
+
+    #[test]
+    fn diagnostics_split_keeps_the_log_tail_separate() {
+        let (summary, logs) = diagnostics_parts(
+            "Muninn 0.3.0 · rune abc\nvault /tmp/notes · 1 notes\nlast log lines:\nline-one\nline-two\n",
+        );
+        assert_eq!(summary.len(), 2);
+        assert_eq!(logs, vec!["line-one".to_owned(), "line-two".to_owned()]);
+
+        let (summary, logs) = diagnostics_parts("Muninn 0.3.0\n(no log lines yet)");
+        assert_eq!(summary, vec!["Muninn 0.3.0".to_owned()]);
+        assert_eq!(logs, vec!["(no log lines yet)".to_owned()]);
+    }
 }
