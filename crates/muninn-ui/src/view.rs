@@ -3685,8 +3685,8 @@ mod help_layout_tests {
             vec![vec!["Right-click".to_owned()]]
         );
         assert_eq!(
-            shortcut_label("Vault chip").chords,
-            vec![vec!["Vault chip".to_owned()]]
+            shortcut_label("Plain label").chords,
+            vec![vec!["Plain label".to_owned()]]
         );
         assert_eq!(
             shortcut_label("⌘?").chords,
