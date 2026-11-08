@@ -1,0 +1,7 @@
+[
+  {"t":0.6,"type":"tap","key":"graph-node-3"},
+  {"t":1.6,"type":"tap","key":"graph-node-7"},
+  {"t":2.6,"type":"tap","key":"graph-node-5"},
+  {"t":3.6,"type":"key","name":"Escape"},
+  {"t":4.2,"type":"mark","name":"end"}
+]
