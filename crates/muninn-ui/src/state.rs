@@ -14,7 +14,7 @@ use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::Camera;
 use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
-use crate::settings::{Settings, ThemeMode, config_home};
+use crate::settings::{AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY, Settings, ThemeMode, config_home};
 use crate::watch::{self, VaultSnapshot};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -468,6 +468,13 @@ pub struct State {
     pub welcome: bool,
     /// DES-01: in-window keyboard-shortcuts overlay.
     pub help: bool,
+    /// v0.5: in-window settings modal. It sits above every other layer and
+    /// owns the keyboard while open.
+    pub settings_modal: bool,
+    /// Where focus was when the settings modal opened, so closing it returns
+    /// typing to the same field.
+    settings_return_editor: bool,
+    settings_return_search: bool,
     /// The sidebar vault chip is expanded.
     pub vault_menu: bool,
     /// The vault path field is open (Open… / New vault).
@@ -664,6 +671,9 @@ impl State {
             },
             welcome,
             help: false,
+            settings_modal: false,
+            settings_return_editor: false,
+            settings_return_search: false,
             vault_menu: false,
             vault_prompt: false,
             vault_field: TextEdit::new(""),
@@ -1068,6 +1078,68 @@ impl State {
         } else {
             self.open_help();
         }
+    }
+
+    /// v0.5: open the in-window settings modal.
+    ///
+    /// The modal is a Rune dialog on the overlay layer, so it sits above the
+    /// sidebar and the help page. It records which text field was typing
+    /// before taking the keyboard and gives it back on [`Self::close_settings`].
+    pub fn open_settings(&mut self) {
+        if self.settings_modal {
+            return;
+        }
+        self.settings_return_editor = self.editor.focused;
+        self.settings_return_search = self.search.focused;
+        self.settings_modal = true;
+        // Settings is the top layer; a help page or sidebar menu cannot stay
+        // live underneath it.
+        self.help = false;
+        self.menu = None;
+        self.vault_menu = false;
+        self.vault_prompt = false;
+        self.vault_field.focused = false;
+        self.set_text_focus(false, false);
+    }
+
+    /// Close the settings modal and return typing to the field that opened it.
+    pub fn close_settings(&mut self) {
+        if !self.settings_modal {
+            return;
+        }
+        self.settings_modal = false;
+        if self.settings_return_search {
+            self.focus_search();
+        } else if self.settings_return_editor {
+            self.focus_editor();
+        }
+        self.settings_return_editor = false;
+        self.settings_return_search = false;
+    }
+
+    pub fn toggle_settings(&mut self) {
+        if self.settings_modal {
+            self.close_settings();
+        } else {
+            self.open_settings();
+        }
+    }
+
+    /// Persist a new autosave idle window, clamped to the documented range.
+    /// The segmented theme choices and the stepper both write immediately.
+    pub fn set_autosave_delay(&mut self, seconds: f64) {
+        if !seconds.is_finite() {
+            return;
+        }
+        self.settings.autosave_delay = seconds.clamp(AUTOSAVE_MIN_DELAY, AUTOSAVE_MAX_DELAY);
+        self.save_settings();
+    }
+
+    /// Nudge the autosave delay by `delta` seconds, rounded to the stepper's
+    /// 0.05 s grid so repeated clicks do not accumulate float noise.
+    pub fn nudge_autosave_delay(&mut self, delta: f64) {
+        let next = (self.autosave_delay() + delta) * 20.0;
+        self.set_autosave_delay(next.round() / 20.0);
     }
 
     /// Dismiss the first-run welcome banner without creating a note.
