@@ -236,8 +236,8 @@ fn palette_runs_actions_and_closes_itself() {
     assert!(rt.state.vault_prompt);
     assert!(rt.state.vault_field.focused);
 
-    // Opening the palette dismisses the vault prompt; settings has no pane yet
-    // and falls back to Help.
+    // Opening the palette dismisses the vault prompt; Open settings opens the
+    // v0.5 settings modal.
     rt.key(palette_chord());
     frame(&mut rt);
     assert!(!rt.state.vault_prompt);
@@ -249,10 +249,13 @@ fn palette_runs_actions_and_closes_itself() {
     rt.key(key(Key::Enter));
     frame(&mut rt);
     assert!(!rt.state.palette_open());
-    assert!(rt.state.help, "Open settings falls back to Help");
+    assert!(
+        rt.state.settings_modal,
+        "Open settings opens the settings modal"
+    );
 
     // New note opens the inline name field.
-    rt.state.close_help();
+    rt.state.close_settings();
     rt.key(palette_chord());
     frame(&mut rt);
     type_text(&mut rt, "new note");
