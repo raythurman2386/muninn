@@ -261,7 +261,7 @@ impl PaletteAction {
     pub fn hint(self) -> &'static str {
         match self {
             PaletteAction::OpenLocalGraph => "Graph · Local",
-            PaletteAction::SwitchVault => "Vault chip",
+            PaletteAction::SwitchVault => "Vaults",
             PaletteAction::OpenSettings => "Help",
             PaletteAction::NewNote => "⌘N",
             PaletteAction::TogglePreview => "⌘E",
@@ -602,9 +602,7 @@ pub struct State {
     pub palette_field: TextEdit,
     /// Editor/search focus at the moment the palette opened, restored on Esc.
     palette_focus: (bool, bool),
-    /// The sidebar vault chip is expanded.
-    pub vault_menu: bool,
-    /// The vault path field is open (Open… / New vault).
+    /// The Settings Vaults path field currently owns typing.
     pub vault_prompt: bool,
     pub vault_field: TextEdit,
     /// X-01: append-only session log (`$XDG_STATE_HOME/muninn/session.log`).
@@ -806,7 +804,6 @@ impl State {
             palette: None,
             palette_field: TextEdit::new(""),
             palette_focus: (false, false),
-            vault_menu: false,
             vault_prompt: false,
             vault_field: TextEdit::new(""),
             log_path,
@@ -1033,25 +1030,9 @@ impl State {
         self.load_ms
     }
 
-    /// DES-01: the vault chip's menu.
-    pub fn toggle_vault_menu(&mut self) {
-        self.vault_menu = !self.vault_menu;
-        if self.vault_menu {
-            self.begin_inline_prompt();
-            self.vault_prompt = false;
-        }
-    }
-
-    pub fn close_vault_menu(&mut self) {
-        self.vault_menu = false;
-        self.vault_prompt = false;
-        self.vault_field.focused = false;
-    }
-
-    /// Open the vault-path field used by both Open… and New vault.
+    /// Focus the vault-path field in the Settings modal's Vaults section.
     pub fn begin_vault_prompt(&mut self) {
         self.begin_inline_prompt();
-        self.vault_menu = false;
         self.vault_prompt = true;
         self.vault_field.replace_text("");
         self.vault_field.focused = true;
@@ -1066,7 +1047,8 @@ impl State {
     pub fn submit_vault_path(&mut self) {
         let raw = self.vault_field.text.clone();
         if self.open_vault(&raw) {
-            self.close_vault_menu();
+            self.cancel_vault_prompt();
+            self.close_settings();
         }
     }
 
@@ -1076,7 +1058,8 @@ impl State {
     pub fn submit_new_vault(&mut self) {
         let raw = self.vault_field.text.clone();
         if self.create_vault(&raw) {
-            self.close_vault_menu();
+            self.cancel_vault_prompt();
+            self.close_settings();
         }
     }
 
@@ -1179,7 +1162,7 @@ impl State {
         &self.settings.recent_vaults
     }
 
-    /// Open the recent vault at `index` (as shown by the vault menu).
+    /// Open the recent vault at `index` (as shown in Settings).
     pub fn open_recent_vault(&mut self, index: usize) -> bool {
         let Some(path) = self.settings.recent_vaults.get(index).cloned() else {
             return false;
@@ -1192,7 +1175,6 @@ impl State {
         self.help = true;
         self.dismiss_palette();
         self.menu = None;
-        self.vault_menu = false;
         self.vault_prompt = false;
         self.vault_field.focused = false;
         // The overlay owns the keyboard while it is up; typing must not edit the
@@ -1229,18 +1211,20 @@ impl State {
         // live underneath it.
         self.help = false;
         self.menu = None;
-        self.vault_menu = false;
         self.vault_prompt = false;
         self.vault_field.focused = false;
         self.set_text_focus(false, false);
     }
 
     /// Close the settings modal and return typing to the field that opened it.
+    /// The vault-path field never keeps focus while hidden.
     pub fn close_settings(&mut self) {
         if !self.settings_modal {
             return;
         }
         self.settings_modal = false;
+        self.vault_prompt = false;
+        self.vault_field.focused = false;
         if self.settings_return_search {
             self.focus_search();
         } else if self.settings_return_editor {
@@ -1294,7 +1278,6 @@ impl State {
         // sit above it.
         self.help = false;
         self.menu = None;
-        self.vault_menu = false;
         self.vault_prompt = false;
         self.vault_field.focused = false;
         self.complete = None;
@@ -1468,7 +1451,10 @@ impl State {
     fn palette_run_action(&mut self, action: PaletteAction) {
         match action {
             PaletteAction::OpenLocalGraph => self.open_local_graph(),
-            PaletteAction::SwitchVault => self.begin_vault_prompt(),
+            PaletteAction::SwitchVault => {
+                self.open_settings();
+                self.begin_vault_prompt();
+            }
             PaletteAction::OpenSettings => self.open_settings(),
             PaletteAction::NewNote => self.new_note(),
             PaletteAction::TogglePreview => self.toggle_preview(),

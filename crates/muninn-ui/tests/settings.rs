@@ -154,7 +154,7 @@ fn corrupt_settings_fall_back_to_defaults_without_failing_startup() {
 }
 
 #[test]
-fn vault_chip_switches_by_path_and_recent_vaults_stay_mru() {
+fn vaults_switch_by_path_and_recent_vaults_stay_mru() {
     let first = vault_fixture();
     let second = unique_dir("second-vault");
     fs::write(second.join("Second.md"), "second vault").expect("note");
@@ -183,7 +183,7 @@ fn vault_chip_switches_by_path_and_recent_vaults_stay_mru() {
         1
     );
 
-    // The path field's Open action is the same path the chip uses.
+    // The Settings path field's Open action uses the same switch path.
     state.begin_vault_prompt();
     state
         .vault_field
@@ -226,7 +226,7 @@ fn a_missing_vault_is_created_and_shows_the_first_run_welcome() {
 }
 
 #[test]
-fn vault_chip_opens_the_menu_and_path_prompt() {
+fn settings_vaults_section_opens_and_creates_vaults() {
     let vault = vault_fixture();
     let config = unique_dir("chip-config");
     let state_home = unique_dir("chip-state");
@@ -249,31 +249,103 @@ fn vault_chip_opens_the_menu_and_path_prompt() {
     rt.on_key = Some(on_key);
     rt.frame(0.0);
 
-    let (x, y) = rt.find("vault-chip").expect("vault chip");
-    rt.pointer_down(x, y);
-    rt.pointer_up(x, y);
-    rt.frame(1.0 / 60.0);
-    assert!(rt.state.vault_menu, "chip expands the menu");
-    assert!(rt.find("vault-menu").is_some());
+    // The sidebar no longer carries a vault chip: Settings is the vault surface.
     assert!(
-        rt.find("vault-recent-0").is_some(),
-        "the current vault is the first recent row"
+        rt.find("vault-chip").is_none(),
+        "the sidebar vault chip row is gone"
     );
 
+    rt.key(command(','));
     for _ in 0..8 {
         rt.frame(1.0 / 60.0);
     }
-    let (x, y) = rt.find("vault-open-prompt").expect("Open vault…");
+    assert!(rt.state.settings_modal);
+    assert!(
+        rt.find("settings-dialog").is_some(),
+        "the dialog is mounted"
+    );
+    assert!(
+        rt.find("vault-prompt").is_some(),
+        "the typed-path card lives in the Vaults section"
+    );
+    assert!(rt.find("vault-path").is_some());
+    for key in ["vault-open", "vault-create", "vault-cancel"] {
+        assert!(rt.find(key).is_some(), "{key} lives in Settings");
+    }
+    assert!(
+        rt.find("settings-recents").is_some(),
+        "Settings is the single place to manage recent vaults"
+    );
+
+    // Open vault by typed path: submit closes Settings and switches vaults.
+    let opened = unique_dir("settings-open-vault");
+    rt.update(|s, _| {
+        s.vault_field
+            .replace_text(opened.to_string_lossy().as_ref())
+    });
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    let (x, y) = rt.find("vault-open").expect("Open vault");
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);
     for _ in 0..4 {
         rt.frame(1.0 / 60.0);
     }
-    assert!(rt.state.vault_prompt);
-    assert!(rt.find("vault-path").is_some());
+    assert!(
+        !rt.state.settings_modal,
+        "a successful open closes Settings"
+    );
+    assert_eq!(rt.state.vault.root, opened);
+
+    // New vault creates a missing folder and closes Settings the same way.
+    rt.key(command(','));
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    let created = state_home.join("settings-new-vault");
+    rt.update(|s, _| {
+        s.vault_field
+            .replace_text(created.to_string_lossy().as_ref())
+    });
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    let (x, y) = rt.find("vault-create").expect("New vault");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(!rt.state.settings_modal);
+    assert!(created.is_dir(), "New vault creates the missing folder");
+    assert_eq!(rt.state.vault.root, created);
+
+    // Esc from the focused path field closes Settings instead of only blurring.
+    rt.key(command(','));
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    let (x, y) = rt.find("vault-path").expect("vault path field");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.state.vault_field.focused, "the path field owns typing");
+    rt.key(escape());
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(!rt.state.settings_modal, "Escape closes Settings");
+    assert!(
+        !rt.state.vault_field.focused,
+        "the hidden field drops focus"
+    );
 
     let _ = fs::remove_dir_all(&config);
     let _ = fs::remove_dir_all(&state_home);
+    let _ = fs::remove_dir_all(&opened);
 }
 
 #[test]
@@ -392,9 +464,9 @@ fn settings_modal_opens_by_shortcut_changes_persist_and_returns_focus() {
 }
 
 #[test]
-fn vault_prompt_text_stays_inside_the_card() {
-    // The hint (and any vault error) lives in the 258pt sidebar card, so a
-    // single unwrapped line overflows the card border and the window.
+fn vault_prompt_text_stays_inside_the_dialog() {
+    // The hint (and any vault error) now lives in the Settings Vaults card, so
+    // an unwrapped line would paint past the card border and the dialog.
     for (width, height) in [(1180.0, 780.0), (840.0, 640.0)] {
         let vault = vault_fixture();
         let config = unique_dir("prompt-config");
@@ -417,11 +489,11 @@ fn vault_prompt_text_stays_inside_the_card() {
         rt.poll = Some(poll);
         rt.on_key = Some(on_key);
         rt.frame(0.0);
-        rt.update(|s, _| s.begin_vault_prompt());
+        rt.update(|s, _| s.open_settings());
         for _ in 0..4 {
             rt.frame(1.0 / 60.0);
         }
-        assert!(rt.state.vault_prompt);
+        assert!(rt.state.settings_modal);
 
         let card = rt.presented("vault-prompt").expect("prompt card").0;
         let card_right = card[0] + card[2];
@@ -439,14 +511,6 @@ fn vault_prompt_text_stays_inside_the_card() {
         assert!(
             hint_right <= card_right + 1.0,
             "hint overflows the card at {width}pt window: card {card:?} hint {:?}",
-            hint.rect
-        );
-        // An unwrapped single line paints its glyphs past the card (the
-        // reported rect is clamped, so the height is the observable). The
-        // hint must wrap onto at least two lines inside the card.
-        assert!(
-            hint.rect[3] > 24.0,
-            "hint is one unwrapped line at {width}pt window: hint {:?}",
             hint.rect
         );
         for key in ["vault-open", "vault-create", "vault-cancel"] {
@@ -471,12 +535,7 @@ fn vault_prompt_text_stays_inside_the_card() {
         let elements = rt.elements();
         let error = elements
             .iter()
-            .find(|element| {
-                element
-                    .text
-                    .as_deref()
-                    .is_some_and(|text| text.starts_with("Could not create the vault"))
-            })
+            .find(|element| element.key.as_deref() == Some("vault-prompt-error"))
             .expect("error line");
         assert!(
             error.rect[0] + error.rect[2] <= card_right + 1.0,

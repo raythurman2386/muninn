@@ -6,6 +6,15 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- The sidebar vault chip row is gone; the sidebar is now just the top bar, search,
+  New note and the note list. Vault management lives entirely in the Settings modal
+  (`Cmd/Ctrl+,` or the gear): the **Vaults** section gained the typed-path field with
+  **Open vault**, **New vault** and **Cancel** buttons, which close Settings on a
+  successful switch, and the recent-vault list. The separate chip menu (RECENT section,
+  recent rows and Cancel) and its `vault_menu` state were removed.
+
 ## [0.5.0] - 2026-11-08
 
 ### Added

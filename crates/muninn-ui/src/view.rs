@@ -203,8 +203,6 @@ fn sidebar(s: &State, k: &Kit) -> El {
         brand = brand.child(theme_button(k, s.theme));
     }
 
-    let vault = vault_chip_area(s, k);
-
     let search = row()
         .key("search-box")
         .h(34.0)
@@ -296,7 +294,6 @@ fn sidebar(s: &State, k: &Kit) -> El {
         .h_full()
         .fill(k.c.bg_deep)
         .child(brand)
-        .child(vault)
         .child(search)
         .child(new_note)
         .child(divider_h(k).mt(8.0))
@@ -738,11 +735,13 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
             col()
                 .w_full()
                 .gap(6.0)
+                .child(text("Vaults").font(k.ty.ui_medium).color(k.c.text_base))
                 .child(
-                    text("Recent vaults")
-                        .font(k.ty.ui_medium)
-                        .color(k.c.text_base),
+                    text("Open a folder by path, or create a new vault.")
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted),
                 )
+                .child(vault_prompt_row(s, k))
                 .child(recents),
         )
         .child(
@@ -762,156 +761,6 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
         .open(true)
         .on_close(|s: &mut State| s.close_settings())
         .child(body)
-}
-
-/// DES-01/LIF-01: the current-vault chip and its in-window menu.
-///
-/// There is no native menu bar on Linux, so the chip is the vault surface:
-/// Open vault… (typed path), the recent-vault MRU, and New vault (creates a
-/// missing folder through `Vault::load`'s auto-create).
-fn vault_chip_area(s: &State, k: &Kit) -> El {
-    let label = s
-        .vault
-        .root
-        .file_name()
-        .and_then(|name| name.to_str())
-        .filter(|name| !name.is_empty())
-        .map_or_else(|| display_path(&s.vault.root), |name| name.to_owned());
-    let mut area = col().w_full().px(12.0).pb(2.0).gap(4.0);
-    area = area.child(
-        row()
-            .key("vault-chip")
-            .w_full()
-            .h(28.0)
-            .px(8.0)
-            .gap(6.0)
-            .radius(7.0)
-            .center_y()
-            .fill(if s.vault_menu {
-                k.c.layer_02
-            } else {
-                Color::TRANSPARENT
-            })
-            .hover(k.c.hover)
-            .press(k.c.pressed)
-            .cursor(Cursor::Pointer)
-            .child(
-                text("▤")
-                    .font(TextStyle::new(12.0, 600.0))
-                    .color(k.c.text_accent),
-            )
-            .child(
-                text(label)
-                    .font(k.ty.caption())
-                    .color(k.c.text_muted)
-                    .grow(1.0)
-                    .truncate(),
-            )
-            .child(
-                text(if s.vault_menu { "▴" } else { "▾" })
-                    .font(k.ty.caption())
-                    .color(k.c.text_faint),
-            )
-            .on_press(|s: &mut State| s.toggle_vault_menu()),
-    );
-    if s.vault_menu {
-        area = area.child(vault_menu(s, k));
-    }
-    if s.vault_prompt {
-        area = area.child(vault_prompt_row(s, k));
-    }
-    area
-}
-
-fn vault_menu(s: &State, k: &Kit) -> El {
-    let mut menu = col()
-        .key("vault-menu")
-        .w_full()
-        .px(8.0)
-        .py(5.0)
-        .gap(2.0)
-        .radius(8.0)
-        .fill(k.c.layer_02)
-        .border(1.0, k.c.border_base)
-        .child(
-            row()
-                .key("vault-open-prompt")
-                .w_full()
-                .h(28.0)
-                .px(7.0)
-                .radius(5.0)
-                .center_y()
-                .cursor(Cursor::Pointer)
-                .hover(k.c.hover)
-                .child(
-                    text("Open vault…")
-                        .font(k.ty.ui_compact)
-                        .color(k.c.text_base),
-                )
-                .on_press(|s: &mut State| s.begin_vault_prompt()),
-        )
-        .child(
-            row()
-                .key("vault-new-prompt")
-                .w_full()
-                .h(28.0)
-                .px(7.0)
-                .radius(5.0)
-                .center_y()
-                .cursor(Cursor::Pointer)
-                .hover(k.c.hover)
-                .child(
-                    text("New vault…")
-                        .font(k.ty.ui_compact)
-                        .color(k.c.text_base),
-                )
-                .on_press(|s: &mut State| s.begin_vault_prompt()),
-        );
-    if !s.recent_vaults().is_empty() {
-        menu = menu.child(
-            text("RECENT")
-                .font(TextStyle::new(9.0, 650.0).tracking(0.8))
-                .color(k.c.text_faint)
-                .padding(7.0),
-        );
-        for (index, path) in s.recent_vaults().iter().enumerate() {
-            let label = display_path(path);
-            menu = menu.child(
-                row()
-                    .key(format!("vault-recent-{index}"))
-                    .w_full()
-                    .h(26.0)
-                    .px(7.0)
-                    .radius(5.0)
-                    .center_y()
-                    .cursor(Cursor::Pointer)
-                    .hover(k.c.hover)
-                    .child(
-                        text(label)
-                            .font(k.ty.caption())
-                            .color(k.c.text_muted)
-                            .grow(1.0)
-                            .truncate(),
-                    )
-                    .on_press(move |s: &mut State| {
-                        s.open_recent_vault(index);
-                    }),
-            );
-        }
-    }
-    menu.child(
-        row()
-            .key("vault-menu-cancel")
-            .w_full()
-            .h(26.0)
-            .px(7.0)
-            .radius(5.0)
-            .center_y()
-            .cursor(Cursor::Pointer)
-            .hover(k.c.hover)
-            .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
-            .on_press(|s: &mut State| s.close_vault_menu()),
-    )
 }
 
 fn vault_prompt_row(s: &State, k: &Kit) -> El {
@@ -935,7 +784,9 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
                 .on_edit(|s: &mut State| &mut s.vault_field)
                 .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                     if e.key == Key::Escape {
-                        s.cancel_vault_prompt();
+                        // Esc closes the Settings modal even while the field
+                        // owns typing.
+                        s.close_settings();
                         tx.blur();
                         return true;
                     }
@@ -973,7 +824,7 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
                         .px(8.0)
                         .py(3.0)
                         .fill(k.c.layer_03)
-                        .child(text("Open").font(k.ty.caption()).color(k.c.text_base))
+                        .child(text("Open vault").font(k.ty.caption()).color(k.c.text_base))
                         .on_press(|s: &mut State| s.submit_vault_path()),
                 )
                 .child(
@@ -1809,8 +1660,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("↑ / ↓ (list)", "Move through a list"),
                 ("Enter / Space", "Open the focused row"),
                 ("Right-click", "Note and folder actions"),
-                ("Vault chip", "Open / recent / new vault"),
-                ("⌘, / Ctrl+,", "Open Settings"),
+                ("⌘, / Ctrl+,", "Settings (vaults, theme, autosave)"),
             ],
         ),
     ]
@@ -2583,9 +2433,9 @@ fn vault_error_page(s: &State, k: &Kit) -> El {
         "Could not open the vault"
     };
     let hint = if cancelled {
-        "Retry scans the vault again, or pick another folder from the vault chip."
+        "Retry scans the vault again, or pick another folder in Settings (⌘,)."
     } else {
-        "Pick another folder from the sidebar vault chip, or pass --vault / set MUNINN_VAULT."
+        "Pick another folder in Settings (⌘,), or pass --vault / set MUNINN_VAULT."
     };
     col()
         .key("vault-error")
@@ -3835,8 +3685,8 @@ mod help_layout_tests {
             vec![vec!["Right-click".to_owned()]]
         );
         assert_eq!(
-            shortcut_label("Vault chip").chords,
-            vec![vec!["Vault chip".to_owned()]]
+            shortcut_label("Plain label").chords,
+            vec![vec!["Plain label".to_owned()]]
         );
         assert_eq!(
             shortcut_label("⌘?").chords,

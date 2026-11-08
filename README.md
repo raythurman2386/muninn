@@ -65,7 +65,8 @@ missing file starts from defaults instead of blocking startup. It remembers the 
 collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
 autosave delay (0.55 s by default) and up to five recent vaults. `Cmd/Ctrl+,`
 opens the in-window Settings modal: pick Omarchy / System / Dark / Light, step the
-autosave delay (0.05–10 s), or reopen a recent vault. Choices persist immediately,
+autosave delay (0.05–10 s), open or create a vault from the Vaults section, or reopen a
+recent one. Choices persist immediately,
 and `Esc` returns to the editor or search field that opened it. While Omarchy is
 followed the modal says so instead of offering a theme choice, matching the
 hidden sidebar theme toggle.
@@ -89,11 +90,13 @@ and is a no-op on Linux. `settings.json` therefore has no window field instead o
 could never be read back; the reasoning is recorded in
 [ARCHITECTURE.md](ARCHITECTURE.md) (step 10).
 
-The **vault chip** at the top of the sidebar opens an in-window menu — there is no native
-menu bar on Linux. **Open vault…** takes a typed path (`~` expands to your home folder) and
-**New vault…** creates a missing folder and opens it empty. Recent vaults are listed newest
-first, and opening one promotes it to the top. `Cmd/Ctrl+?` (or the sidebar `?` button, or plain
-`?` when no text field has focus) opens the full shortcut map; `Esc` closes it.
+There is no native menu bar on Linux and the sidebar has no vault control; vault management
+lives in the in-window Settings modal (`Cmd/Ctrl+,` or the gear). Its **Vaults** section has
+a typed-path field (`~` expands to your home folder) with **Open vault**, **New vault** and
+**Cancel**: a successful open or create closes the modal and switches vaults. Recent vaults
+are managed there too — listed newest first, with a click promoting one to the top.
+`Cmd/Ctrl+?` (or the sidebar `?` button, or plain `?` when no text field has focus) opens the
+full shortcut map; `Esc` closes it.
 
 ### Session log and diagnostics
 
@@ -201,9 +204,8 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |
-| `⌘,` / `Ctrl+,` | Open Settings (theme, autosave delay, recent vaults) |
+| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, autosave delay, recent vaults) |
 | `?` (when not typing) | Open Help; `Esc` closes it |
-| Vault chip | Open / recent / new vault, typed path support |
 
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
 full vault-relative stem, so a link keeps working when two notes share a title.

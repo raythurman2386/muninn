@@ -79,7 +79,7 @@ const ACTIONS: &[&str] = &[
     "Move through a list",
     "Open the focused row",
     "Note and folder actions",
-    "Open / recent / new vault",
+    "Settings (vaults, theme, autosave)",
 ];
 
 #[test]
