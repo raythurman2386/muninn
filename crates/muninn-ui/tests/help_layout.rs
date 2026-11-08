@@ -55,6 +55,7 @@ const ACTIONS: &[&str] = &[
     "Forward in note history",
     "Write / Read / Graph",
     "Close the outermost layer",
+    "Open the command palette",
     "Find in the open note",
     "Insert a wikilink",
     "New note",

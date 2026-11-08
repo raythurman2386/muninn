@@ -2,14 +2,14 @@
 
 use rune::{
     Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, ScrollSpec, Shape, Span, TextStyle,
-    Tx, canvas, col, el, icon, row, spacer, text, text_input,
+    Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
 use rune_kit::{Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl};
 use rune_theme_opencode::icons as ic;
 
 use muninn_core::{Vault, headings};
 
-use crate::{DeleteConfirm, LinkComplete, MenuTarget, Mode, State, ThemeMode};
+use crate::{DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, State, ThemeMode};
 
 const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
@@ -21,7 +21,7 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
     let reduced = cx.system_reduced_motion() || s.reduced_motion;
     cx.reduced_motion(reduced);
     let k = crate::omarchy::resolve_kit(s, cx.system_dark());
-    let base = row()
+    let mut base = row()
         .key("root")
         .w_full()
         .h_full()
@@ -48,6 +48,9 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
         .child(sidebar(s, &k))
         .child(divider(&k))
         .child(main_column(s, &k));
+    if s.palette.is_some() {
+        base = base.child(palette_layer(s, &k));
+    }
     if !s.settings_modal {
         return base;
     }
@@ -1743,6 +1746,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("⌘] / Ctrl+]", "Forward in note history"),
                 ("⌘1 / ⌘2 / ⌘3", "Write / Read / Graph"),
                 ("Esc", "Close the outermost layer"),
+                ("⌘+⇧+P / Ctrl+Shift+P", "Open the command palette"),
             ],
         ),
         (
@@ -1786,6 +1790,214 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
             ],
         ),
     ]
+}
+
+/// v0.5: the command palette, mounted above the whole window. One input
+/// searches notes (title-first) and the fixed action list; the card animates in
+/// with the same offset + fade pair as the kit-gallery's stagger list.
+fn palette_layer(s: &State, k: &Kit) -> El {
+    if s.palette.is_none() {
+        return el();
+    }
+    let items = s.palette_items();
+    let selected = s.palette_selected();
+    let mut rows = col()
+        .key("palette-items")
+        .w_full()
+        .min_w(0.0)
+        .gap(1.0)
+        .pb(6.0);
+    let mut section = "";
+    for (index, item) in items.iter().enumerate() {
+        if item.section() != section {
+            section = item.section();
+            rows = rows.child(palette_section(k, section));
+        }
+        rows = rows.child(palette_row(s, k, index, item, index == selected));
+    }
+    if items.is_empty() {
+        rows = rows.child(
+            row().key("palette-empty").w_full().h(64.0).center().child(
+                text("No notes or actions match")
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint),
+            ),
+        );
+    }
+    let card = col()
+        .key("palette")
+        .w(560.0)
+        .max_w(560.0)
+        .radius(k.radius.lg)
+        .fill(k.c.layer_01)
+        .border(1.0, k.c.border_base)
+        .shadow(10.0, 32.0, k.alpha(k.c.black, 0.35))
+        .transition(Transition::offset(0.0, 12.0).combined(Transition::opacity()))
+        .role("dialog")
+        .label("Command palette")
+        .child(
+            row()
+                .key("palette-search")
+                .w_full()
+                .h(52.0)
+                .px(16.0)
+                .gap(10.0)
+                .center_y()
+                .child(icon(&ic::MAGNIFYING_GLASS, 15.0).color(k.c.icon_muted))
+                .child(
+                    text_input(&s.palette_field, k.ty.ui_compact)
+                        .key("palette-input")
+                        .single_line()
+                        .grow(1.0)
+                        .color(k.c.text_base)
+                        .caret(k.c.text_accent, k.selection())
+                        .placeholder("Search notes and actions", k.c.text_faint)
+                        .on_edit(|s: &mut State| &mut s.palette_field)
+                        .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                            match e.key {
+                                Key::Escape => {
+                                    s.close_palette();
+                                    return true;
+                                }
+                                Key::Down => {
+                                    s.palette_step(1);
+                                    return true;
+                                }
+                                Key::Up => {
+                                    s.palette_step(-1);
+                                    return true;
+                                }
+                                _ => {}
+                            }
+                            crate::shortcut(s, e, tx)
+                        })
+                        .on_submit(|s: &mut State, _| s.palette_run()),
+                ),
+        )
+        .child(divider_h(k))
+        .child(
+            col()
+                .key("palette-scroll")
+                .w_full()
+                .min_w(0.0)
+                .min_h(0.0)
+                .max_h(360.0)
+                .scroll(ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(rows),
+        )
+        .child(
+            row()
+                .key("palette-footer")
+                .w_full()
+                .h(34.0)
+                .px(14.0)
+                .gap(10.0)
+                .center_y()
+                .fill(k.c.layer_02)
+                .child(
+                    text(plural(items.len(), "result", "results"))
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                )
+                .child(spacer())
+                .child(
+                    text("↑↓ move · Enter open · Esc close")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
+        );
+    el().key("palette-layer")
+        .absolute(0.0, 0.0)
+        .w_full()
+        .h_full()
+        .fill(k.c.scrim)
+        .center()
+        .child(card)
+}
+
+fn palette_section(k: &Kit, title: &str) -> El {
+    row()
+        .key(format!("palette-section-{}", title.to_lowercase()))
+        .w_full()
+        .px(14.0)
+        .pt(8.0)
+        .pb(3.0)
+        .child(
+            text(title.to_uppercase())
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        )
+}
+
+fn palette_row(s: &State, k: &Kit, index: usize, item: &PaletteItem, selected: bool) -> El {
+    let (title, subtitle, hint, dot) = match item {
+        PaletteItem::Recent(id) | PaletteItem::Note(id) => {
+            let note = s.vault.notes.get(*id);
+            let title = note.map_or_else(|| "Missing note".to_owned(), |n| n.title.clone());
+            let folder = note.map(|n| n.folder()).unwrap_or_default();
+            let subtitle = if folder.is_empty() {
+                "Vault root".to_owned()
+            } else {
+                folder.to_owned()
+            };
+            (title, subtitle, String::new(), k.c.text_accent)
+        }
+        PaletteItem::Action(action) => (
+            action.label().to_owned(),
+            String::new(),
+            action.hint().to_owned(),
+            k.c.text_muted,
+        ),
+    };
+    let mut text_column = col().grow(1.0).min_w(0.0).gap(1.0).child(
+        text(title.clone())
+            .font(k.ty.ui_medium)
+            .color(if selected {
+                k.c.text_accent
+            } else {
+                k.c.text_base
+            })
+            .truncate(),
+    );
+    if !subtitle.is_empty() {
+        text_column = text_column.child(
+            text(subtitle)
+                .font(k.ty.caption())
+                .color(k.c.text_faint)
+                .truncate(),
+        );
+    }
+    let mut row = row()
+        .key(format!("palette-item-{index}"))
+        .w_full()
+        .min_h(42.0)
+        .px(14.0)
+        .py(6.0)
+        .gap(10.0)
+        .radius(6.0)
+        .center_y()
+        .fill(if selected {
+            k.alpha(k.c.text_accent, 0.12)
+        } else {
+            Color::TRANSPARENT
+        })
+        .hover(k.c.hover)
+        .cursor(Cursor::Pointer)
+        .role("button")
+        .label(title.clone())
+        .on_press(move |s: &mut State| s.palette_run_index(index))
+        .child(
+            el().size(6.0, 6.0)
+                .radius(3.0)
+                .fill(if selected { k.c.text_accent } else { dot }),
+        )
+        .child(text_column);
+    if !hint.is_empty() {
+        row = row.child(text(hint).font(k.ty.caption()).color(k.c.text_faint));
+    }
+    row
 }
 
 /// DES-01: the in-window Help overlay. Native menu bars are unavailable on

@@ -163,6 +163,10 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | Shortcut | Action |
 | --- | --- |
 | `⌘K` / `Ctrl+K` | Focus search |
+| `⌘⇧P` / `Ctrl+Shift+P` | Open the command palette (one input searches notes and actions) |
+| `↑` / `↓` (palette) | Move the highlighted result or action, wrapping at both ends |
+| `Enter` (palette) | Open the highlighted note or run the highlighted action |
+| `Esc` (palette) | Close the palette and return focus to where it was |
 | `↑` / `↓` (search) | Move the highlighted search result |
 | `Enter` (search) | Open the highlighted result (first when none is highlighted) |
 | `Esc`, then `Tab` | Release the editor and start keyboard traversal at the links rail |

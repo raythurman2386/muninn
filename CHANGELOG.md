@@ -24,6 +24,13 @@ All notable changes to Muninn are documented here. The format is based on
   glide when they bring an off-screen note into view.
   `MUNINN_REDUCED_MOTION=1` keeps the camera instant and starts no glide, so it
   never wakes the window for one.
+- Command palette (`⌘⇧P` / `Ctrl+Shift+P`): one input searches notes
+  (title-first, using the same ranking as the sidebar search) and actions
+  together. Actions: Open local graph, Switch vault, Open settings, New note,
+  Toggle Write / Read and Toggle Graph. With an empty input it lists the
+  actions and recently opened notes only. Up/Down wrap the highlight, Enter
+  opens or runs the highlighted row, and Esc closes the palette and restores
+  the focus that had it.
 
 ## [0.4.1] - 2026-11-08
 

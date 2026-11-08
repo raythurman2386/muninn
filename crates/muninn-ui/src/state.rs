@@ -215,6 +215,121 @@ pub struct LinkComplete {
     pub index: usize,
 }
 
+/// v0.5: one action the command palette can run.
+///
+/// Actions are a fixed list: the palette searches them with the same input as
+/// notes, but they never move with the vault. Every action is a thin call into
+/// an existing state method so the palette stays a view over the app, not a
+/// second command layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PaletteAction {
+    OpenLocalGraph,
+    SwitchVault,
+    /// Opens the settings modal (v0.5).
+    OpenSettings,
+    NewNote,
+    TogglePreview,
+    ToggleGraph,
+}
+
+impl PaletteAction {
+    /// Every action, in the order shown before a query is typed.
+    pub const ALL: [PaletteAction; 6] = [
+        PaletteAction::OpenLocalGraph,
+        PaletteAction::SwitchVault,
+        PaletteAction::OpenSettings,
+        PaletteAction::NewNote,
+        PaletteAction::TogglePreview,
+        PaletteAction::ToggleGraph,
+    ];
+
+    /// The row's main label.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            PaletteAction::OpenLocalGraph => "Open local graph",
+            PaletteAction::SwitchVault => "Switch vault",
+            PaletteAction::OpenSettings => "Open settings",
+            PaletteAction::NewNote => "New note",
+            PaletteAction::TogglePreview => "Toggle Write / Read",
+            PaletteAction::ToggleGraph => "Toggle Graph",
+        }
+    }
+
+    /// The shortcut or affordance the action mirrors, drawn on the right.
+    #[must_use]
+    pub fn hint(self) -> &'static str {
+        match self {
+            PaletteAction::OpenLocalGraph => "Graph · Local",
+            PaletteAction::SwitchVault => "Vault chip",
+            PaletteAction::OpenSettings => "Help",
+            PaletteAction::NewNote => "⌘N",
+            PaletteAction::TogglePreview => "⌘E",
+            PaletteAction::ToggleGraph => "⌘G",
+        }
+    }
+
+    /// Extra words that should find the action even when they are not in its
+    /// label (`prefs`, `create`, `editor`, …).
+    fn keywords(self) -> &'static str {
+        match self {
+            PaletteAction::OpenLocalGraph => "graph local focus neighbours scope",
+            PaletteAction::SwitchVault => "vault open recent folder switch",
+            PaletteAction::OpenSettings => "settings preferences options config help",
+            PaletteAction::NewNote => "new note create add",
+            PaletteAction::TogglePreview => "write read preview editor mode",
+            PaletteAction::ToggleGraph => "graph global local mode",
+        }
+    }
+
+    fn matches(self, query: &str) -> bool {
+        self.label().to_lowercase().contains(query)
+            || self.hint().to_lowercase().contains(query)
+            || self.keywords().contains(query)
+    }
+}
+
+/// One row in the command palette. Notes keep their vault id; the view looks
+/// up the title, folder and link counts from the live vault.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PaletteItem {
+    /// A note already opened this session, shown while the input is empty.
+    Recent(usize),
+    /// A note matching the typed query (title-first, via `Vault::search`).
+    Note(usize),
+    Action(PaletteAction),
+}
+
+impl PaletteItem {
+    /// The group header this item belongs under.
+    #[must_use]
+    pub fn section(&self) -> &'static str {
+        match self {
+            PaletteItem::Recent(_) => "Recent",
+            PaletteItem::Note(_) => "Notes",
+            PaletteItem::Action(_) => "Actions",
+        }
+    }
+}
+
+/// v0.5: the command palette's own state. The input text lives on
+/// [`State::palette_field`] so the text field's `on_edit` callback can always
+/// hand Rune a valid field, even in the frame after Escape unmounts the card.
+/// `selected` indexes [`State::palette_items`]; `query` is the snapshot the
+/// highlight belongs to, so typing resets it to the first row.
+#[derive(Clone, Debug)]
+pub struct PaletteState {
+    /// Highlighted row, an index into the current item list.
+    pub selected: usize,
+    /// Query the highlight belongs to; a change resets it to row zero.
+    query: String,
+    /// Ask `poll` to scroll the highlighted row into view next frame.
+    pub reveal: bool,
+}
+
+/// How many recently opened notes the empty palette shows.
+pub(crate) const PALETTE_RECENT_MAX: usize = 6;
+
 /// M2 SAF-06: rename confirmation with the inbound-link choice.
 #[derive(Clone, Debug)]
 pub struct RenameConfirm {
@@ -481,6 +596,12 @@ pub struct State {
     /// typing to the same field.
     settings_return_editor: bool,
     settings_return_search: bool,
+    /// v0.5: command palette (notes and actions in one input).
+    pub palette: Option<PaletteState>,
+    /// The palette's persistent input field; focused while it is open.
+    pub palette_field: TextEdit,
+    /// Editor/search focus at the moment the palette opened, restored on Esc.
+    palette_focus: (bool, bool),
     /// The sidebar vault chip is expanded.
     pub vault_menu: bool,
     /// The vault path field is open (Open… / New vault).
@@ -682,6 +803,9 @@ impl State {
             settings_modal: false,
             settings_return_editor: false,
             settings_return_search: false,
+            palette: None,
+            palette_field: TextEdit::new(""),
+            palette_focus: (false, false),
             vault_menu: false,
             vault_prompt: false,
             vault_field: TextEdit::new(""),
@@ -1066,6 +1190,7 @@ impl State {
     /// DES-01: help overlay.
     pub fn open_help(&mut self) {
         self.help = true;
+        self.dismiss_palette();
         self.menu = None;
         self.vault_menu = false;
         self.vault_prompt = false;
@@ -1148,6 +1273,207 @@ impl State {
     pub fn nudge_autosave_delay(&mut self, delta: f64) {
         let next = (self.autosave_delay() + delta) * 20.0;
         self.set_autosave_delay(next.round() / 20.0);
+    }
+
+    // ---- v0.5: command palette ---------------------------------------------
+
+    /// Cmd/Ctrl+Shift+P: open the palette, or close it when it is already up.
+    pub fn toggle_palette(&mut self) {
+        if self.palette.is_some() {
+            self.close_palette();
+        } else {
+            self.open_palette();
+        }
+    }
+
+    /// Show the palette over whatever is open. The field owns typing until the
+    /// palette closes; the focus that was active is remembered for Escape.
+    pub fn open_palette(&mut self) {
+        self.palette_focus = (self.editor.focused, self.search.focused);
+        // The palette is a modal layer: nothing else may keep the keyboard or
+        // sit above it.
+        self.help = false;
+        self.menu = None;
+        self.vault_menu = false;
+        self.vault_prompt = false;
+        self.vault_field.focused = false;
+        self.complete = None;
+        self.complete_dismissed = None;
+        if let Some(find) = self.find.as_mut() {
+            find.field.focused = false;
+        }
+        self.palette_field.replace_text("");
+        self.palette_field.focused = true;
+        self.set_text_focus(false, false);
+        self.palette = Some(PaletteState {
+            selected: 0,
+            query: String::new(),
+            reveal: false,
+        });
+    }
+
+    /// Escape: drop the palette and hand the keyboard back to the field that
+    /// had it (the editor or search box). Opening a prompt first clears both
+    /// flags, so a prompt that replaces the palette keeps its own focus.
+    pub fn close_palette(&mut self) {
+        if self.palette.take().is_none() {
+            return;
+        }
+        self.palette_field.focused = false;
+        let (editor, search) = self.palette_focus;
+        self.set_text_focus(editor, search);
+    }
+
+    /// Drop the palette without restoring focus, for a layer that is taking the
+    /// keyboard instead (Help, an inline prompt, or a focus command).
+    fn dismiss_palette(&mut self) {
+        self.palette = None;
+        self.palette_field.focused = false;
+    }
+
+    /// Is the palette open? (The field itself is `palette.is_some()`.)
+    #[must_use]
+    pub fn palette_open(&self) -> bool {
+        self.palette.is_some()
+    }
+
+    /// The highlighted row, clamped to the current list.
+    #[must_use]
+    pub fn palette_selected(&self) -> usize {
+        self.palette.as_ref().map_or(0, |palette| palette.selected)
+    }
+
+    /// The palette's current rows: actions and notes, searched by one query.
+    ///
+    /// An empty query deliberately shows only the fixed action list and notes
+    /// opened this session (the history's newest entries), never the whole
+    /// vault. Typing searches notes through [`State::search_results_for`], so
+    /// titles rank above body-only matches, then the matching actions.
+    #[must_use]
+    pub fn palette_items(&self) -> Vec<PaletteItem> {
+        if self.palette.is_none() {
+            return Vec::new();
+        }
+        let query = self.palette_field.text.trim().to_lowercase();
+        let mut items = Vec::new();
+        if query.is_empty() {
+            items.extend(PaletteAction::ALL.into_iter().map(PaletteItem::Action));
+            items.extend(self.recent_note_ids().into_iter().map(PaletteItem::Recent));
+        } else {
+            items.extend(
+                self.search_results_for(&query)
+                    .into_iter()
+                    .map(PaletteItem::Note),
+            );
+            items.extend(
+                PaletteAction::ALL
+                    .into_iter()
+                    .filter(|action| action.matches(&query))
+                    .map(PaletteItem::Action),
+            );
+        }
+        items
+    }
+
+    /// Newest-first notes from this session's history, de-duplicated.
+    fn recent_note_ids(&self) -> Vec<usize> {
+        let Some(last) = self.history.len().checked_sub(1) else {
+            return Vec::new();
+        };
+        let mut seen = HashSet::new();
+        let mut ids = Vec::new();
+        for entry in self.history[..=self.history_index.min(last)].iter().rev() {
+            let Some(id) = self.note_at_path(&entry.path) else {
+                continue;
+            };
+            if seen.insert(id) {
+                ids.push(id);
+                if ids.len() == PALETTE_RECENT_MAX {
+                    break;
+                }
+            }
+        }
+        ids
+    }
+
+    /// Keep the highlight inside the current list and reset it when the query
+    /// changes. `poll` calls this after the field has committed a character.
+    pub fn palette_tick(&mut self) -> bool {
+        if self.palette.is_none() {
+            return false;
+        }
+        let mut changed = false;
+        {
+            let palette = self.palette.as_mut().expect("palette checked above");
+            if palette.query != self.palette_field.text {
+                palette.query.clone_from(&self.palette_field.text);
+                palette.selected = 0;
+                palette.reveal = true;
+                changed = true;
+            }
+        }
+        let len = self.palette_items().len();
+        let palette = self.palette.as_mut().expect("palette checked above");
+        if len == 0 {
+            if palette.selected != 0 {
+                palette.selected = 0;
+                changed = true;
+            }
+        } else if palette.selected >= len {
+            palette.selected = len - 1;
+            changed = true;
+        }
+        changed
+    }
+
+    /// Up/Down: move the highlight by `delta`, wrapping at both ends.
+    pub fn palette_step(&mut self, delta: isize) {
+        self.palette_tick();
+        let len = self.palette_items().len();
+        if len == 0 {
+            return;
+        }
+        let palette = self.palette.as_mut().expect("palette is open");
+        palette.selected = (palette.selected as isize + delta).rem_euclid(len as isize) as usize;
+        palette.reveal = true;
+    }
+
+    /// Offer the highlighted row to `poll` so it can scroll it into view.
+    pub(crate) fn palette_take_reveal(&mut self) -> Option<String> {
+        let palette = self.palette.as_mut()?;
+        if !std::mem::take(&mut palette.reveal) {
+            return None;
+        }
+        Some(format!("palette-item-{}", palette.selected))
+    }
+
+    /// Enter in the palette: run the highlighted row.
+    pub fn palette_run(&mut self) {
+        self.palette_tick();
+        self.palette_run_index(self.palette_selected());
+    }
+
+    /// Run the row at `index` (also used by pointer presses on a row).
+    pub fn palette_run_index(&mut self, index: usize) {
+        let Some(item) = self.palette_items().get(index).cloned() else {
+            return;
+        };
+        self.close_palette();
+        match item {
+            PaletteItem::Recent(id) | PaletteItem::Note(id) => self.open_note(id),
+            PaletteItem::Action(action) => self.palette_run_action(action),
+        }
+    }
+
+    fn palette_run_action(&mut self, action: PaletteAction) {
+        match action {
+            PaletteAction::OpenLocalGraph => self.open_local_graph(),
+            PaletteAction::SwitchVault => self.begin_vault_prompt(),
+            PaletteAction::OpenSettings => self.open_settings(),
+            PaletteAction::NewNote => self.new_note(),
+            PaletteAction::TogglePreview => self.toggle_preview(),
+            PaletteAction::ToggleGraph => self.toggle_graph(),
+        }
     }
 
     /// Dismiss the first-run welcome banner without creating a note.
@@ -1432,7 +1758,15 @@ impl State {
     /// to make an excerpt worth the extra rebuild work yet.
     #[must_use]
     pub fn search_results(&self) -> Vec<usize> {
-        self.vault.search(&self.search.text)
+        self.search_results_for(&self.search.text)
+    }
+
+    /// Rank notes for an arbitrary query. The sidebar passes its field and the
+    /// command palette passes its own, so both share one title-first order
+    /// without either field borrowing the other's text.
+    #[must_use]
+    pub fn search_results_for(&self, query: &str) -> Vec<usize> {
+        self.vault.search(query)
     }
 
     /// Move the search highlight by `delta`, wrapping at both ends. The first
@@ -1770,12 +2104,14 @@ impl State {
     }
 
     pub fn focus_editor(&mut self) {
+        self.dismiss_palette();
         self.set_text_focus(true, false);
     }
 
     pub fn focus_search(&mut self) {
         self.complete = None;
         self.complete_dismissed = None;
+        self.dismiss_palette();
         self.set_text_focus(false, true);
     }
 
@@ -3132,6 +3468,7 @@ impl State {
     /// Shared start for the sidebar's inline fields: close the pointer menu and
     /// hand the keyboard to a prompt instead of the editor or search box.
     fn begin_inline_prompt(&mut self) {
+        self.dismiss_palette();
         self.menu = None;
         self.vault_field.focused = false;
         self.editor.focused = false;
