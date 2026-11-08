@@ -124,7 +124,7 @@ jobs:
         run: sha256sum *.tar.gz *.zip *.deb > checksums.txt
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.3
 
       - name: Sign checksums
         run: cosign sign-blob --yes dist/checksums.txt --bundle dist/checksums.txt.sigstore.json
