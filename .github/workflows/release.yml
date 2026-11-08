@@ -62,6 +62,8 @@ jobs:
         run: |
           cargo deb -p muninn-app --no-build
           ls -lh target/debian/*.deb
+          mkdir -p dist
+          cp target/debian/*.deb dist/
 
       - name: Package
         shell: bash
@@ -101,7 +103,7 @@ jobs:
           name: muninn-${{ matrix.os }}-${{ matrix.arch }}
           path: |
             dist/*.${{ matrix.archive }}
-            target/debian/*.deb
+            dist/*.deb
           if-no-files-found: error
 
   release:
