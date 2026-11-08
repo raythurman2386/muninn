@@ -303,3 +303,106 @@ fn help_overlay_opens_with_command_question_and_escape_closes() {
 
     let _ = fs::remove_dir_all(&state_home);
 }
+
+#[test]
+fn vault_prompt_text_stays_inside_the_card() {
+    // The hint (and any vault error) lives in the 258pt sidebar card, so a
+    // single unwrapped line overflows the card border and the window.
+    for (width, height) in [(1180.0, 780.0), (840.0, 640.0)] {
+        let vault = vault_fixture();
+        let config = unique_dir("prompt-config");
+        let state_home = unique_dir("prompt-state");
+        let settings = Settings {
+            last_vault: Some(vault.path().to_path_buf()),
+            ..Settings::default()
+        };
+        let mut rt = Runtime::new(
+            State::with_settings(
+                vault.path().to_path_buf(),
+                state_home.clone(),
+                config.clone(),
+                settings,
+            ),
+            view,
+            (width, height),
+            Env::new(true, 2.0),
+        );
+        rt.poll = Some(poll);
+        rt.on_key = Some(on_key);
+        rt.frame(0.0);
+        rt.update(|s, _| s.begin_vault_prompt());
+        for _ in 0..4 {
+            rt.frame(1.0 / 60.0);
+        }
+        assert!(rt.state.vault_prompt);
+
+        let card = rt.presented("vault-prompt").expect("prompt card").0;
+        let card_right = card[0] + card[2];
+        let elements = rt.elements();
+        let hint = elements
+            .iter()
+            .find(|element| {
+                element
+                    .text
+                    .as_deref()
+                    .is_some_and(|text| text.starts_with("Paste a folder path"))
+            })
+            .expect("hint line");
+        let hint_right = hint.rect[0] + hint.rect[2];
+        assert!(
+            hint_right <= card_right + 1.0,
+            "hint overflows the card at {width}pt window: card {card:?} hint {:?}",
+            hint.rect
+        );
+        // An unwrapped single line paints its glyphs past the card (the
+        // reported rect is clamped, so the height is the observable). The
+        // hint must wrap onto at least two lines inside the card.
+        assert!(
+            hint.rect[3] > 24.0,
+            "hint is one unwrapped line at {width}pt window: hint {:?}",
+            hint.rect
+        );
+        for key in ["vault-open", "vault-create", "vault-cancel"] {
+            let rect = rt.presented(key).expect(key).0;
+            assert!(
+                rect[0] + rect[2] <= card_right + 1.0,
+                "{key} overflows the card at {width}pt window: card {card:?} rect {rect:?}"
+            );
+        }
+
+        // Vault errors (path plus OS reason) are longer than the card, so the
+        // error line must wrap too instead of painting past the border.
+        rt.update(|s, _| {
+            s.error = Some(
+                "Could not create the vault: /very/long/path/without/spaces/notes denied (os error 13)"
+                    .to_owned(),
+            );
+        });
+        for _ in 0..4 {
+            rt.frame(1.0 / 60.0);
+        }
+        let elements = rt.elements();
+        let error = elements
+            .iter()
+            .find(|element| {
+                element
+                    .text
+                    .as_deref()
+                    .is_some_and(|text| text.starts_with("Could not create the vault"))
+            })
+            .expect("error line");
+        assert!(
+            error.rect[0] + error.rect[2] <= card_right + 1.0,
+            "error overflows the card at {width}pt window: card {card:?} error {:?}",
+            error.rect
+        );
+        assert!(
+            error.rect[3] > 24.0,
+            "error is one unwrapped line at {width}pt window: error {:?}",
+            error.rect
+        );
+
+        let _ = fs::remove_dir_all(&config);
+        let _ = fs::remove_dir_all(&state_home);
+    }
+}
