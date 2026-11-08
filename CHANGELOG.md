@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-08
+
 ### Fixed
 
 - The vault-open prompt text no longer overflows the sidebar card: the

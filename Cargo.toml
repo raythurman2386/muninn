@@ -10,7 +10,7 @@ members = [
 default-members = ["crates/muninn-app"]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
@@ -18,9 +18,9 @@ repository = "https://github.com/raythurman2386/muninn"
 authors = ["Muninn contributors"]
 
 [workspace.dependencies]
-muninn-core = { path = "crates/muninn-core", version = "0.4.0" }
-muninn-graph = { path = "crates/muninn-graph", version = "0.4.0" }
-muninn-ui = { path = "crates/muninn-ui", version = "0.4.0" }
+muninn-core = { path = "crates/muninn-core", version = "0.4.1" }
+muninn-graph = { path = "crates/muninn-graph", version = "0.4.1" }
+muninn-ui = { path = "crates/muninn-ui", version = "0.4.1" }
 
 # Rune is a young framework and is not published to crates.io. Pin the exact revision the app
 # was built and tested against. For local Rune development, run `./scripts/use-local-rune.sh`.
