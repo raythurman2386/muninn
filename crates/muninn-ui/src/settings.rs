@@ -8,9 +8,8 @@
 //! ```
 //!
 //! It stores the theme choice, collapsed sidebar folders, the last vault, the
-//! last note and mode/scope, the recent-vault MRU list and the autosave delay
-//! (kept at 0.55 s today; the field exists so a future settings screen can tune
-//! it without another schema change). Decoding is intentionally forgiving: a
+//! last note and mode/scope, the recent-vault MRU list, the autosave delay and
+//! the default body inserted into new notes. Decoding is intentionally forgiving: a
 //! corrupt or partially-written file falls back to defaults instead of failing
 //! startup. Writes use the same temp-file-then-rename pattern as note saves, so
 //! a crash leaves either the old complete file or the new one.
@@ -37,6 +36,21 @@ pub const AUTOSAVE_MAX_DELAY: f64 = 10.0;
 
 /// How many recently opened vaults are remembered (MRU, newest first).
 pub const RECENT_VAULTS_MAX: usize = 5;
+
+/// Longest default note template kept, in characters. The settings modal and
+/// the loader both clamp to this so a runaway paste cannot bloat
+/// `settings.json` or every note created from it.
+pub const NOTE_TEMPLATE_MAX_CHARS: usize = 4096;
+
+/// Truncate `template` to [`NOTE_TEMPLATE_MAX_CHARS`] without splitting a
+/// multi-byte character.
+#[must_use]
+pub fn clamp_note_template(template: &str) -> String {
+    if template.len() <= NOTE_TEMPLATE_MAX_CHARS {
+        return template.to_owned();
+    }
+    template.chars().take(NOTE_TEMPLATE_MAX_CHARS).collect()
+}
 
 /// Distinguishes temp files written by the same process.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -150,6 +164,11 @@ pub struct Settings {
     /// Recent vaults, most recently opened first, capped at
     /// [`RECENT_VAULTS_MAX`].
     pub recent_vaults: Vec<PathBuf>,
+    /// Markdown inserted at the top of each new note, exactly as typed (a
+    /// missing trailing newline is added when the note is created). Empty —
+    /// the default — keeps the original heading-only note body. Clamped to
+    /// [`NOTE_TEMPLATE_MAX_CHARS`].
+    pub note_template: String,
 }
 
 impl Default for Settings {
@@ -163,6 +182,7 @@ impl Default for Settings {
             scope: Scope::Global,
             autosave_delay: DEFAULT_AUTOSAVE_DELAY,
             recent_vaults: Vec::new(),
+            note_template: String::new(),
         }
     }
 }
@@ -215,6 +235,7 @@ impl Settings {
                 .iter()
                 .map(|path| path.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
+            "note_template": clamp_note_template(&self.note_template),
         });
         let bytes = serde_json::to_vec_pretty(&value)?;
         atomic_write(&path, &bytes)
@@ -277,6 +298,10 @@ impl Settings {
             }
             settings.recent_vaults.truncate(RECENT_VAULTS_MAX);
         }
+        settings.note_template = value
+            .get("note_template")
+            .and_then(Value::as_str)
+            .map_or_else(String::new, clamp_note_template);
         settings
     }
 }
@@ -367,6 +392,7 @@ mod tests {
             scope: Scope::Local,
             autosave_delay: 0.8,
             recent_vaults: vec![PathBuf::from("/tmp/notes"), PathBuf::from("/tmp/other")],
+            note_template: "---\ntags: []\n---".to_owned(),
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -381,6 +407,18 @@ mod tests {
         fs::write(&path, "{this is not json").expect("garbage");
         assert_eq!(Settings::load_from(&home), Settings::default());
         let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn note_template_is_empty_by_default_and_clamped() {
+        assert!(Settings::default().note_template.is_empty());
+
+        let long = "x".repeat(NOTE_TEMPLATE_MAX_CHARS + 10);
+        let settings = Settings::from_value(&serde_json::json!({ "note_template": long }));
+        assert_eq!(
+            settings.note_template.chars().count(),
+            NOTE_TEMPLATE_MAX_CHARS
+        );
     }
 
     #[test]
