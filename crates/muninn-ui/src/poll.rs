@@ -40,6 +40,15 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.complete_tick() {
         changed = true;
     }
+    // v0.5: the palette highlights a row from its current list; keep the
+    // selection valid after typing and scroll it into view.
+    if s.palette_tick() {
+        changed = true;
+    }
+    if let Some(key) = s.palette_take_reveal() {
+        tx.scroll_into_view(key);
+        changed = true;
+    }
 
     // Watch first: an external edit to the dirty note must raise its conflict
     // before autosave gets a chance to report something less specific. The

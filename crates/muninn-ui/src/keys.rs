@@ -12,7 +12,12 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     // Escape dismisses inline prompts/menus before falling through to the
     // graph escape below. Text fields handle Escape first and never reach here.
     if e.key == Key::Escape {
-        // v0.5: the settings modal is the topmost layer.
+        // v0.5: the command palette is the outermost modal layer, then
+        // the settings modal; both dismiss before the help overlay.
+        if s.palette.is_some() {
+            s.close_palette();
+            return true;
+        }
         if s.settings_modal {
             s.close_settings();
             return true;
@@ -99,14 +104,27 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         return true;
     }
     // M3 GRP-02: arrows, Enter and the zoom/fit/isolate keys are graph-only;
-    // State owns them so the canvas can be tested without a window.
-    if s.mode == Mode::Graph && s.graph_key(e) {
+    // State owns them so the canvas can be tested without a window. The
+    // palette takes precedence while it is open (its input owns arrows).
+    if s.palette.is_none() && s.mode == Mode::Graph && s.graph_key(e) {
         return true;
+    }
+    // v0.5: Cmd/Ctrl+Shift+P opens the command palette from anywhere,
+    // including the editor. Cmd/Ctrl+P stays the insert-link picker below.
+    if e.is_command('p') && e.mods.shift {
+        s.toggle_palette();
+        return true;
+    }
+    // The palette owns typing, but a different command chord means the user is
+    // done searching: close it before that command runs.
+    if s.palette.is_some() && e.mods.cmd {
+        s.close_palette();
     }
     // F2 renames the selected note, Delete asks to delete it. When a text
     // field is focused, Delete edits text instead, so skip both then.
     let typing = s.editor.focused
         || s.search.focused
+        || s.palette.is_some()
         || s.find.is_some()
         || s.complete.is_some()
         || s.broken_panel

@@ -21,7 +21,7 @@ pub use settings::{DEFAULT_AUTOSAVE_DELAY, RECENT_VAULTS_MAX, Settings, ThemeMod
 pub use state::{
     ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction, FindState,
     FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport, LinkComplete,
-    MenuTarget, Mode, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, Scope, State,
-    TrashUndo, file_action_command,
+    MenuTarget, Mode, MoveConfirm, NamePrompt, PaletteAction, PaletteItem, PaletteState,
+    RenameConfirm, RenamePrompt, Scope, State, TrashUndo, file_action_command,
 };
 pub use view::view;
