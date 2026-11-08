@@ -40,12 +40,12 @@ pub const RECENT_VAULTS_MAX: usize = 5;
 /// Longest default note template kept, in characters. The settings modal and
 /// the loader both clamp to this so a runaway paste cannot bloat
 /// `settings.json` or every note created from it.
-pub const NOTE_TEMPLATE_MAX_CHARS: usize = 4096;
+pub(crate) const NOTE_TEMPLATE_MAX_CHARS: usize = 4096;
 
 /// Truncate `template` to [`NOTE_TEMPLATE_MAX_CHARS`] without splitting a
 /// multi-byte character.
 #[must_use]
-pub fn clamp_note_template(template: &str) -> String {
+pub(crate) fn clamp_note_template(template: &str) -> String {
     if template.len() <= NOTE_TEMPLATE_MAX_CHARS {
         return template.to_owned();
     }

@@ -18,8 +18,7 @@ pub use keys::{on_key, shortcut};
 pub use poll::poll;
 pub use recovery::RecoveryEntry;
 pub use settings::{
-    DEFAULT_AUTOSAVE_DELAY, NOTE_TEMPLATE_MAX_CHARS, RECENT_VAULTS_MAX, Settings, ThemeMode,
-    clamp_note_template, config_home,
+    DEFAULT_AUTOSAVE_DELAY, RECENT_VAULTS_MAX, Settings, ThemeMode, config_home,
 };
 pub use state::{
     ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction, FindState,
