@@ -5,7 +5,8 @@
 //! changed, so this returns true **only** when something the user can see
 //! changed since the last frame: a save that reached disk (or surfaced a new
 //! error), an external edit that raised a conflict, a vault reload, a graph
-//! node that actually moved, or a camera fit that actually moved the view.
+//! node that actually moved, a camera glide that moved the view, or a camera
+//! fit that actually moved the view.
 //! Merely being dirty, writing a recovery copy, or having layout heat left is
 //! not a visible change and must not wake the window.
 
@@ -80,6 +81,15 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     s.recovery_tick(t);
 
     if s.mode == Mode::Graph {
+        // A node click or scope switch eases the camera over a few frames.
+        // Ask for the next frame only while that glide is in flight, so
+        // reduced motion (which lands the camera at once) never wakes for it.
+        if s.advance_camera_glide() {
+            changed = true;
+        }
+        if s.camera_gliding() {
+            tx.wake_after(std::time::Duration::ZERO);
+        }
         // DES-03: `graph_step` honours MUNINN_REDUCED_MOTION (heat pinned to
         // zero, no movement); pan, zoom and the initial fit still work.
         let moved = s.graph_step();
@@ -87,9 +97,18 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
             changed = true;
         }
         // Refit only when the layout moved or a fit is pending. Heat alone
-        // (positions static) must not recompute bounds or wake the view.
-        if s.auto_fit && (moved || s.needs_fit) && s.refit() {
-            changed = true;
+        // (positions static) must not recompute bounds or wake the view. A
+        // scope switch eases; entering the graph still fits at once so the
+        // first frame (and snapshots) lands on the settled framing.
+        if s.auto_fit && (moved || s.needs_fit) {
+            let fit_changed = if s.smooth_fit {
+                s.refit_glide()
+            } else {
+                s.refit()
+            };
+            if fit_changed {
+                changed = true;
+            }
         }
     }
     if changed {

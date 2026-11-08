@@ -9,10 +9,10 @@ use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime};
 
 use muninn_core::{ScanJob, Vault, atomic_copy, heading_offset, unclosed_link};
-use muninn_graph::{Graph, WORLD, world_centre};
+use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
-use crate::camera::Camera;
+use crate::camera::{Camera, CameraGlide};
 use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
 use crate::settings::{AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY, Settings, ThemeMode, config_home};
 use crate::watch::{self, VaultSnapshot};
@@ -355,6 +355,12 @@ pub struct State {
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
+    /// An in-flight camera glide. Kept in `State` (not an `El`) so `poll` can step it
+    /// and a headless test can watch it move; `None` in reduced motion.
+    camera_glide: Option<CameraGlide>,
+    /// A scope switch follows the settling layout by retargeting its glide.
+    /// Entering the graph and Reset still fit at once (snapshot-stable first frame).
+    pub(crate) smooth_fit: bool,
     /// Keyboard focus in the graph, deliberately separate from `selected`:
     /// arrows move the focus ring, Enter opens the focused note.
     pub graph_focus: Option<usize>,
@@ -611,6 +617,8 @@ impl State {
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
+            camera_glide: None,
+            smooth_fit: false,
             graph_focus: None,
             graph_query: TextEdit::new(""),
             graph_isolate: false,
@@ -1288,6 +1296,7 @@ impl State {
     pub fn open_from_list(&mut self, id: usize) {
         if self.mode == Mode::Graph {
             self.mode = Mode::Editor;
+            self.camera_glide = None;
         }
         self.load_note(id, true);
     }
@@ -1298,13 +1307,16 @@ impl State {
 
     pub fn open_note(&mut self, id: usize) {
         self.mode = Mode::Editor;
+        self.camera_glide = None;
         self.load_note(id, true);
     }
 
     pub fn select_graph_node(&mut self, id: usize) {
-        // A pointer selection is also where the keyboard focus ring sits.
+        // A pointer selection is also where the keyboard focus ring sits, and
+        // the camera glides to the note instead of jumping there.
         self.graph_focus = Some(id);
         self.load_note(id, false);
+        self.center_graph_on(id);
     }
 
     // ---- M2 NAV-03: Back / Forward note history -----------------------------
@@ -1861,6 +1873,7 @@ impl State {
         if mode == Mode::Graph {
             self.needs_fit = true;
             self.auto_fit = true;
+            self.smooth_fit = false;
             self.graph.reheat();
             if self
                 .graph_focus
@@ -1870,6 +1883,10 @@ impl State {
                     .selected
                     .or_else(|| self.vault.notes.first().map(|note| note.id));
             }
+        } else {
+            // A glide belongs to the visible graph; leaving it must not resume
+            // mid-flight when the user comes back.
+            self.camera_glide = None;
         }
         if mode == Mode::Editor {
             self.focus_editor();
@@ -1910,10 +1927,23 @@ impl State {
         if self.scope == scope {
             return;
         }
+        let was_graph = self.mode == Mode::Graph;
         self.scope = scope;
-        self.needs_fit = true;
-        self.auto_fit = true;
         self.graph.reheat();
+        if was_graph {
+            // Ease to the new scope's fit instead of swapping the whole
+            // canvas in one frame, and keep following the settling layout so
+            // the glide lands on the final framing. The nodes that leave or
+            // dim fade through Rune's transitions on the same press commit.
+            self.needs_fit = true;
+            self.auto_fit = true;
+            self.smooth_fit = true;
+            self.glide_graph_fit();
+        } else {
+            self.needs_fit = true;
+            self.auto_fit = true;
+            self.smooth_fit = false;
+        }
         // LIF-01: restore Global/Local with the rest of the session.
         self.save_settings();
     }
@@ -1994,10 +2024,26 @@ impl State {
     /// The threshold absorbs the layout's invisible spring-vs-separation
     /// creep (a few thousandths of a point per step).
     pub fn refit(&mut self) -> bool {
+        self.refit_with(false)
+    }
+
+    /// The auto-fit path: retarget a running glide instead of snapping, so a
+    /// scope switch eases into its final framing as the layout settles.
+    pub(crate) fn refit_glide(&mut self) -> bool {
+        self.refit_with(true)
+    }
+
+    fn refit_with(&mut self, smooth: bool) -> bool {
         let before = (self.cam.pan(), self.cam.zoom());
         let visible = self.visible_notes();
-        if let Some(bounds) = self.graph.bounds(&visible) {
-            self.cam.fit(bounds, self.canvas);
+        if let Some(bounds) = self.graph.bounds(&visible)
+            && let Some(target) = GraphCamera::fitted_to(bounds, self.canvas)
+        {
+            if smooth {
+                self.ease_camera_to(target);
+            } else {
+                self.cam.fit(bounds, self.canvas);
+            }
         }
         self.needs_fit = false;
         let after = (self.cam.pan(), self.cam.zoom());
@@ -2015,6 +2061,7 @@ impl State {
         self.graph.reset();
         self.needs_fit = true;
         self.auto_fit = true;
+        self.smooth_fit = false;
     }
 
     /// M3 GRP-02: graph-only keyboard commands. Kept on `State` so the window
@@ -2033,7 +2080,14 @@ impl State {
                 let Some(id) = self.graph_focus else {
                     return false;
                 };
-                self.open_note(id);
+                if self.selected == Some(id) {
+                    // The focused note is already open: Enter brings it back
+                    // to the centre with a glide instead of reloading it and
+                    // leaving the graph.
+                    self.center_graph_on(id);
+                } else {
+                    self.open_note(id);
+                }
             }
             Key::Text(t) => match t.as_str() {
                 "+" | "=" => self.zoom_graph(1.25),
@@ -2113,21 +2167,94 @@ impl State {
         self.keep_graph_focus_visible();
     }
 
-    /// Pan (and minimally zoom in) so `id` is comfortably on screen.
+    /// Glide the camera so `id` is comfortably on screen (zooming in to at
+    /// least 0.9, never out). Reduced motion snaps at once.
     pub fn center_graph_on(&mut self, id: usize) {
         let Some(pos) = self.graph.node(id).map(|node| node.pos) else {
             return;
         };
-        let centre = world_centre();
-        let zoom = self.cam.zoom().max(0.9);
-        self.cam.set(
-            [
-                self.canvas[0] / 2.0 - centre[0] - (pos[0] - centre[0]) * zoom,
-                self.canvas[1] / 2.0 - centre[1] - (pos[1] - centre[1]) * zoom,
-            ],
-            zoom,
-        );
+        let target = self.cam.inner().focused_on(pos, self.canvas, 0.9);
+        self.glide_camera_to(target);
+    }
+
+    /// Ease the camera toward a fit of the visible notes, used when the scope
+    /// or the visible set changes without a layout reset.
+    fn glide_graph_fit(&mut self) {
+        let visible = self.visible_notes();
+        let Some(bounds) = self.graph.bounds(&visible) else {
+            return;
+        };
+        let Some(target) = GraphCamera::fitted_to(bounds, self.canvas) else {
+            return;
+        };
+        self.ease_camera_to(target);
+    }
+
+    /// Start a camera glide to `target`, or land it at once when motion is
+    /// reduced, the graph is not on screen, or there is nowhere to go. Explicit
+    /// navigation (a click, search reveal or scope button) stops auto-fit.
+    fn glide_camera_to(&mut self, target: GraphCamera) {
         self.auto_fit = false;
+        self.smooth_fit = false;
+        self.ease_camera_to(target);
+    }
+
+    /// Move the camera to `target`: a spring glide in normal motion, or an
+    /// immediate set under reduced motion. An in-flight glide is retargeted,
+    /// which lets `refit` follow a settling layout without restarting.
+    fn ease_camera_to(&mut self, target: GraphCamera) {
+        let current = self.cam.inner();
+        let still = (current.pan[0] - target.pan[0]).abs() < 0.5
+            && (current.pan[1] - target.pan[1]).abs() < 0.5
+            && (current.zoom - target.zoom).abs() < 0.005;
+        if self.reduced_motion || self.mode != Mode::Graph || still {
+            self.camera_glide = None;
+            self.cam.set(target.pan, target.zoom);
+        } else if let Some(glide) = &mut self.camera_glide {
+            glide.retarget(target);
+        } else {
+            self.camera_glide = Some(CameraGlide::new(current, target, self.now));
+        }
+    }
+
+    /// Step an in-flight camera glide at `now`. Returns true when the visible
+    /// camera moved, so `poll` only reports a frame the user can see.
+    pub(crate) fn advance_camera_glide(&mut self) -> bool {
+        let Some(mut glide) = self.camera_glide else {
+            return false;
+        };
+        // A wheel, drag or direct camera set wins over a glide in flight.
+        if !same_camera(self.cam.inner(), glide.pose()) {
+            self.camera_glide = None;
+            return false;
+        }
+        // A reduced-motion switch mid-flight must not keep waking the window.
+        if self.reduced_motion {
+            let target = glide.target();
+            self.camera_glide = None;
+            let before = (self.cam.pan(), self.cam.zoom());
+            self.cam.set(target.pan, target.zoom);
+            let after = (self.cam.pan(), self.cam.zoom());
+            return camera_moved(before, after);
+        }
+        let (next, done) = glide.advance(self.now);
+        let before = (self.cam.pan(), self.cam.zoom());
+        self.cam.set(next.pan, next.zoom);
+        if done {
+            self.camera_glide = None;
+        } else {
+            self.camera_glide = Some(glide);
+        }
+        let after = (self.cam.pan(), self.cam.zoom());
+        camera_moved(before, after)
+    }
+
+    /// Whether a camera glide still has frames left to draw. `poll` asks Rune
+    /// for the next frame only while this is true, so reduced motion (which
+    /// never starts a glide) leaves the window asleep.
+    #[must_use]
+    pub fn camera_gliding(&self) -> bool {
+        self.camera_glide.is_some()
     }
 
     fn keep_graph_focus_visible(&mut self) {
@@ -4172,6 +4299,20 @@ fn safe_rel(rel: &str) -> bool {
         && !rel
             .split('/')
             .any(|part| part.is_empty() || part == "." || part == "..")
+}
+
+/// Whether a camera pose change is big enough to count as visible motion.
+fn camera_moved(before: ([f32; 2], f32), after: ([f32; 2], f32)) -> bool {
+    (before.0[0] - after.0[0]).abs() > 0.05
+        || (before.0[1] - after.0[1]).abs() > 0.05
+        || (before.1 - after.1).abs() > 0.0005
+}
+
+/// Whether two poses are the same within sub-pixel travel tolerance.
+fn same_camera(a: GraphCamera, b: GraphCamera) -> bool {
+    (a.pan[0] - b.pan[0]).abs() < 0.01
+        && (a.pan[1] - b.pan[1]).abs() < 0.01
+        && (a.zoom - b.zoom).abs() < 0.0001
 }
 
 /// DES-03: whether `MUNINN_REDUCED_MOTION` asks for the reduced-motion mode.

@@ -1,8 +1,8 @@
 //! The graph canvas: world, edges, keyed nodes, camera gestures and floating controls.
 
 use rune::{
-    Color, Cursor, Drag, El, LineCap, MagnifyEvent, PointerButton, Shape, Tx, WheelEvent, canvas,
-    col, el, icon, row, text, text_input,
+    Color, Cursor, Drag, El, LineCap, MagnifyEvent, PointerButton, Shape, Spring, Tx, WheelEvent,
+    canvas, col, el, icon, row, text, text_input,
 };
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
@@ -10,6 +10,10 @@ use rune_theme_opencode::icons as ic;
 use muninn_graph::{NODE_H, NODE_W, WORLD};
 
 use crate::{Scope, State};
+
+/// Neighbour dimming eases on selection, so a click reads as a change of
+/// emphasis rather than a repaint. Reduced motion lands it at once.
+const HIGHLIGHT_SPRING: Spring = Spring::new(0.24, 0.0);
 
 /// Below this zoom (Global scope only) nodes render as dots instead of
 /// labelled chips: at fit-zoom for hundreds of notes full cards are dense,
@@ -330,7 +334,10 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
         .hover(k.c.hover)
         .press(k.c.pressed)
         .cursor(Cursor::Pointer)
-        .on_press(move |s: &mut State| s.select_graph_node(id))
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            s.select_graph_node(id);
+            graph_press_motion(s, tx);
+        })
         .on_double_press(move |s: &mut State| s.open_note(id))
         .on_drag(move |s: &mut State, d: &mut Drag, _: &mut Tx| s.drag_node(id, d))
         .child(el().size(marker, marker).radius(marker / 2.0).fill(dot))
@@ -385,9 +392,21 @@ fn node_dot(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
         .hover(k.c.hover)
         .press(k.c.pressed)
         .cursor(Cursor::Pointer)
-        .on_press(move |s: &mut State| s.select_graph_node(id))
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            s.select_graph_node(id);
+            graph_press_motion(s, tx);
+        })
         .on_double_press(move |s: &mut State| s.open_note(id))
         .on_drag(move |s: &mut State, d: &mut Drag, _: &mut Tx| s.drag_node(id, d))
+}
+
+/// Colour spring for a graph press. Reduced motion lands the dim/selection
+/// change in the same frame, matching the camera's snap.
+fn graph_press_motion(s: &State, tx: &mut Tx) {
+    tx.color_motion(HIGHLIGHT_SPRING);
+    if s.reduced_motion {
+        tx.instant();
+    }
 }
 
 fn controls(s: &State, k: &Kit) -> El {
@@ -459,6 +478,7 @@ fn graph_search(s: &State, k: &Kit) -> El {
                 .on_edit(|s: &mut State| &mut s.graph_query)
                 .on_submit(|s: &mut State, tx: &mut Tx| {
                     s.reveal_graph_search();
+                    graph_press_motion(s, tx);
                     // Return keys to the canvas so arrows/I work immediately.
                     tx.blur();
                 }),
@@ -500,7 +520,10 @@ fn scope_button(k: &Kit, label: &str, scope: Scope, active: Scope, key: &str) ->
         .fill(if on { k.c.layer_03 } else { Color::TRANSPARENT })
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
-        .on_press(move |s: &mut State| s.set_scope(scope))
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            s.set_scope(scope);
+            graph_press_motion(s, tx);
+        })
         .child(text(label).font(k.ty.small_medium).color(if on {
             k.c.text_base
         } else {

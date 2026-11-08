@@ -73,10 +73,12 @@ impl Camera {
         );
     }
 
-    /// Centre `bounds` (min x, min y, max x, max y) in a canvas of `view` points.
-    pub fn fit(&mut self, bounds: [f32; 4], view: [f32; 2]) {
+    /// The camera that centres `bounds` (min x, min y, max x, max y) in a canvas of `view`
+    /// points. Public so the UI can glide toward a fit instead of snapping to it.
+    #[must_use]
+    pub fn fitted_to(bounds: [f32; 4], view: [f32; 2]) -> Option<Camera> {
         if view[0] < 40.0 || view[1] < 40.0 {
-            return;
+            return None;
         }
         let margin = 64.0;
         let span_x = (bounds[2] - bounds[0]).max(NODE_W);
@@ -85,14 +87,33 @@ impl Camera {
             .min((view[1] - margin * 2.0) / span_y)
             .clamp(0.24, 1.8);
         let world = [(bounds[0] + bounds[2]) / 2.0, (bounds[1] + bounds[3]) / 2.0];
+        Some(Camera::centred_on(world, view, zoom))
+    }
+
+    /// Centre `bounds` (min x, min y, max x, max y) in a canvas of `view` points.
+    pub fn fit(&mut self, bounds: [f32; 4], view: [f32; 2]) {
+        if let Some(camera) = Camera::fitted_to(bounds, view) {
+            *self = camera;
+        }
+    }
+
+    /// Centre a world point in `view`, zooming in to at least `min_zoom` but never out.
+    #[must_use]
+    pub fn focused_on(&self, world: [f32; 2], view: [f32; 2], min_zoom: f32) -> Camera {
+        Camera::centred_on(world, view, self.zoom.max(min_zoom))
+    }
+
+    fn centred_on(world: [f32; 2], view: [f32; 2], zoom: f32) -> Camera {
         let c = world_centre();
-        self.set(
+        let mut camera = Camera::new();
+        camera.set(
             [
                 view[0] / 2.0 - c[0] - (world[0] - c[0]) * zoom,
                 view[1] / 2.0 - c[1] - (world[1] - c[1]) * zoom,
             ],
             zoom,
         );
+        camera
     }
 }
 
@@ -125,5 +146,35 @@ mod tests {
         let back = cam.screen(world);
         assert!((back[0] - screen[0]).abs() < 1e-3);
         assert!((back[1] - screen[1]).abs() < 1e-3);
+    }
+
+    #[test]
+    fn fitted_camera_matches_fit_and_centres_the_bounds() {
+        let bounds = [120.0, 80.0, 980.0, 700.0];
+        let view = [900.0, 620.0];
+        let mut fitted = Camera::new();
+        fitted.fit(bounds, view);
+        let target = Camera::fitted_to(bounds, view).expect("a usable viewport");
+        assert_eq!(target.pan, fitted.pan);
+        assert_eq!(target.zoom, fitted.zoom);
+        let centre = [(bounds[0] + bounds[2]) / 2.0, (bounds[1] + bounds[3]) / 2.0];
+        let screen = target.screen(centre);
+        assert!((screen[0] - view[0] / 2.0).abs() < 1e-3);
+        assert!((screen[1] - view[1] / 2.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn focused_camera_centres_the_point_and_never_zooms_out() {
+        let mut cam = Camera::new();
+        cam.set([10.0, 20.0], 0.7);
+        let point = [1200.0, 900.0];
+        let target = cam.focused_on(point, [900.0, 620.0], 0.9);
+        assert_eq!(target.zoom, 0.9, "below the minimum it zooms in");
+        let screen = target.screen(point);
+        assert!((screen[0] - 450.0).abs() < 1e-3);
+        assert!((screen[1] - 310.0).abs() < 1e-3);
+
+        cam.set([0.0, 0.0], 1.4);
+        assert_eq!(cam.focused_on(point, [900.0, 620.0], 0.9).zoom, 1.4);
     }
 }
