@@ -763,21 +763,29 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
         )
         .child(
             text("Paste a folder path; ~ expands to your home folder.")
+                .key("vault-hint")
                 .font(k.ty.caption())
-                .color(k.c.text_faint),
+                .color(k.c.text_faint)
+                .wrap()
+                .w_full(),
         )
         .child(if let Some(error) = &s.error {
             text(error.clone())
+                .key("vault-prompt-error")
                 .font(k.ty.caption())
                 .color(k.c.danger.fg)
+                .wrap_anywhere()
+                .w_full()
         } else {
             el()
         })
         .child(
             row()
                 .w_full()
+                .min_w(0.0)
                 .gap(6.0)
                 .center_y()
+                .flex_wrap()
                 .child(
                     pressable(k, "vault-open".to_owned())
                         .px(8.0)

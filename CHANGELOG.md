@@ -6,6 +6,13 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- The vault-open prompt text no longer overflows the sidebar card: the
+  "Paste a folder path…" hint and vault errors (including a long path in the
+  OS reason) now wrap inside the card, and the Open / New vault / Cancel
+  buttons wrap instead of running past the card edge in a narrow window.
+
 ## [0.4.0] - 2026-11-08
 
 ### Added
