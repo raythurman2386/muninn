@@ -190,7 +190,7 @@ fn vaults_switch_by_path_and_recent_vaults_stay_mru() {
         .replace_text(first.path().to_string_lossy().as_ref());
     state.submit_vault_path();
     assert_eq!(state.vault.root, first.path());
-    assert!(!state.vault_prompt);
+    assert!(!state.vault_field.focused);
 
     let _ = fs::remove_dir_all(&config);
     let _ = fs::remove_dir_all(&state_home);
