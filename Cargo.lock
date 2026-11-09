@@ -1974,6 +1974,7 @@ version = "0.5.2"
 dependencies = [
  "base64 0.22.1",
  "form_urlencoded",
+ "getrandom 0.4.3",
  "hex",
  "keyring",
  "reqwest",

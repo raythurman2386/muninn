@@ -25,8 +25,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
 
 use crate::SCHEMA_VERSION;
@@ -124,12 +122,9 @@ pub fn tailnet_store_dir(state_dir: &Path, binding: &BindingId) -> PathBuf {
 /// Fresh 32-byte shared key, base64url. Store it only in the credential store.
 #[must_use]
 pub fn new_shared_key() -> Secret {
-    let mut raw = Vec::new();
-    while raw.len() < 32 {
-        raw.extend_from_slice(uuid::Uuid::new_v4().as_bytes());
-    }
-    raw.truncate(32);
-    Secret::new(URL_SAFE_NO_PAD.encode(raw))
+    // 256 bits straight from the OS CSPRNG (UUIDv4 spends 6 bits per 16
+    // bytes on version and variant).
+    Secret::new(crate::drive::random_token(32))
 }
 
 /// What a store holds. Commits are complete; there is no pagination.

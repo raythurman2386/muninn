@@ -1133,12 +1133,10 @@ pub struct OAuthRedirect {
     pub picked_file_ids: Vec<String>,
 }
 
-fn random_token(bytes: usize) -> String {
-    let mut raw = Vec::new();
-    while raw.len() < bytes {
-        raw.extend_from_slice(uuid::Uuid::new_v4().as_bytes());
-    }
-    raw.truncate(bytes);
+/// `bytes` from the OS CSPRNG, base64url. Used for PKCE verifiers and state.
+pub(crate) fn random_token(bytes: usize) -> String {
+    let mut raw = vec![0u8; bytes];
+    getrandom::fill(&mut raw).expect("the OS random source is unavailable");
     URL_SAFE_NO_PAD.encode(raw)
 }
 

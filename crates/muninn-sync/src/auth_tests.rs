@@ -324,3 +324,24 @@ fn github_device_code_that_expires_stops_polling() {
         "20 s at 5 s per poll"
     );
 }
+
+#[test]
+fn keys_and_pkce_values_are_fresh_full_length_randomness() {
+    let keys: std::collections::BTreeSet<String> = (0..64)
+        .map(|_| crate::tailnet::new_shared_key().expose().to_owned())
+        .collect();
+    assert_eq!(keys.len(), 64);
+    for key in &keys {
+        // 32 bytes base64url without padding.
+        assert_eq!(key.len(), 43);
+        let raw =
+            base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, key).unwrap();
+        assert_eq!(raw.len(), 32);
+    }
+    let pkce = drive::new_pkce("http://127.0.0.1:1/callback");
+    assert_eq!(pkce.verifier.len(), 43, "RFC 7636 asks for 43-128 chars");
+    assert_ne!(
+        pkce.state,
+        drive::new_pkce("http://127.0.0.1:1/callback").state
+    );
+}
