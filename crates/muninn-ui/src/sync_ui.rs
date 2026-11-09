@@ -570,12 +570,16 @@ impl State {
     }
 }
 
+/// `sync_home` is `<state_home>/sync`. Each binding runs in its own state dir
+/// under it; a Tailscale host's store stays at its existing path.
 fn run_request(
     binding: &VaultSyncBinding,
     root: std::path::PathBuf,
-    state_dir: std::path::PathBuf,
+    sync_home: std::path::PathBuf,
 ) -> Result<RunRequest, String> {
     let binding_id = BindingId::parse(&binding.binding_id).map_err(|error| error.to_string())?;
+    let state_dir = muninn_sync::binding_state_dir(&sync_home, &binding_id)
+        .map_err(|error| error.to_string())?;
     let provider = ProviderKind::parse(&binding.provider).map_err(|error| error.to_string())?;
     let github = (provider == ProviderKind::GitHub).then(|| muninn_sync::GitHubScope {
         owner: binding.github_owner.clone(),
@@ -590,7 +594,7 @@ fn run_request(
     let tailnet = (provider == ProviderKind::Tailscale).then(|| TailnetScope {
         role: if binding.tailnet_role == "host" {
             TailnetRole::Host {
-                store_dir: muninn_sync::tailnet_store_dir(&state_dir, &binding_id),
+                store_dir: muninn_sync::tailnet_store_dir(&sync_home, &binding_id),
             }
         } else {
             TailnetRole::Peer {
@@ -616,6 +620,49 @@ fn run_request(
 mod tests {
     use crate::State;
     use std::fs;
+
+    #[test]
+    fn each_binding_runs_in_its_own_state_dir() {
+        let sync_home = std::env::temp_dir().join(format!(
+            "muninn-sync-ui-dirs-{}-{}",
+            std::process::id(),
+            muninn_sync::BindingId::fresh().as_str()
+        ));
+        let binding = |id: muninn_sync::BindingId, role: &str| crate::settings::VaultSyncBinding {
+            provider: "tailscale".to_owned(),
+            binding_id: id.as_str().to_owned(),
+            tailnet_role: role.to_owned(),
+            tailnet_host: "minis.tail1234.ts.net".to_owned(),
+            ..Default::default()
+        };
+        let host_id = muninn_sync::BindingId::fresh();
+        let host = super::run_request(
+            &binding(host_id.clone(), "host"),
+            sync_home.join("vault-a"),
+            sync_home.clone(),
+        )
+        .unwrap();
+        let peer = super::run_request(
+            &binding(muninn_sync::BindingId::fresh(), "peer"),
+            sync_home.join("vault-b"),
+            sync_home.clone(),
+        )
+        .unwrap();
+        assert_ne!(host.state_dir, peer.state_dir);
+        assert!(host.state_dir.starts_with(sync_home.join("bindings")));
+        // The host's commit store stays where earlier builds put it.
+        let Some(muninn_sync::TailnetScope {
+            role: muninn_sync::TailnetRole::Host { store_dir },
+        }) = host.tailnet
+        else {
+            panic!("expected a host scope");
+        };
+        assert_eq!(
+            store_dir,
+            muninn_sync::tailnet_store_dir(&sync_home, &host_id)
+        );
+        let _ = fs::remove_dir_all(&sync_home);
+    }
 
     #[test]
     fn connect_persists_scope_without_tokens_and_disconnect_keeps_the_note() {

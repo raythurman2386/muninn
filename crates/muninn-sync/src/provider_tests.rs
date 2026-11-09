@@ -1435,3 +1435,94 @@ fn drive_client<'a>(
         request_timeout: timeout,
     }
 }
+
+#[test]
+fn each_binding_gets_its_own_private_state_dir_and_legacy_base_moves_once() {
+    let home = TestVault::new("state-home");
+    let sync_home = home.state.join("sync");
+    std::fs::create_dir_all(&sync_home).unwrap();
+    let first = BindingId::fresh();
+    let second = BindingId::fresh();
+    // An earlier build kept one shared base for whichever binding ran last.
+    std::fs::write(
+        sync_home.join("base.json"),
+        json!({"schema": crate::SCHEMA_VERSION, "binding_id": first.as_str(), "provider": "github", "head": "c1", "entries": {}})
+            .to_string(),
+    )
+    .unwrap();
+    std::fs::write(sync_home.join("github-blob-cache.json"), "{}").unwrap();
+
+    let other = crate::engine::binding_state_dir(&sync_home, &second).unwrap();
+    assert!(
+        sync_home.join("base.json").exists(),
+        "another binding's base must not move"
+    );
+    assert!(!other.join("base.json").exists());
+
+    let mine = crate::engine::binding_state_dir(&sync_home, &first).unwrap();
+    assert_ne!(mine, other);
+    assert!(mine.join("base.json").exists());
+    assert!(mine.join("github-blob-cache.json").exists());
+    assert!(!sync_home.join("base.json").exists());
+    assert!(mine.starts_with(sync_home.join("bindings")));
+
+    // Idempotent: a second call neither moves nor loses anything.
+    assert_eq!(
+        crate::engine::binding_state_dir(&sync_home, &first).unwrap(),
+        mine
+    );
+    assert!(mine.join("base.json").exists());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for dir in [&sync_home, &mine, &other] {
+            let mode = std::fs::metadata(dir).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o700, "{}", dir.display());
+        }
+    }
+}
+
+#[test]
+fn two_bindings_sync_without_sharing_a_base() {
+    let store = Arc::new(Mutex::new(git_store()));
+    let server = git_server(Arc::clone(&store));
+    let (credentials, first) = connected(ProviderKind::GitHub);
+    let second = BindingId::fresh();
+    credentials
+        .put(
+            &CredentialKey {
+                provider: ProviderKind::GitHub,
+                binding: second.clone(),
+            },
+            &credentials
+                .get(&CredentialKey {
+                    provider: ProviderKind::GitHub,
+                    binding: first.clone(),
+                })
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
+    let engine = github_engine(&server, &credentials);
+    let home = TestVault::new("two-bindings");
+    let sync_home = home.state.join("sync");
+    let one = TestVault::new("two-bindings-one");
+    let two = TestVault::new("two-bindings-two");
+    std::fs::write(one.root.join("one.md"), "1").unwrap();
+    std::fs::write(two.root.join("two.md"), "2").unwrap();
+    let mut a = one.request(ProviderKind::GitHub, &first, "abcde00000000061");
+    a.state_dir = crate::engine::binding_state_dir(&sync_home, &first).unwrap();
+    let mut b = two.request(ProviderKind::GitHub, &second, "abcde00000000062");
+    b.github = Some(GitHubScope {
+        branch: "other-vault".to_owned(),
+        ..scope()
+    });
+    b.state_dir = crate::engine::binding_state_dir(&sync_home, &second).unwrap();
+    succeeded(run_sync(&engine, &a).unwrap());
+    succeeded(run_sync(&engine, &b).unwrap());
+    let base_a = std::fs::read_to_string(a.state_dir.join("base.json")).unwrap();
+    let base_b = std::fs::read_to_string(b.state_dir.join("base.json")).unwrap();
+    assert!(base_a.contains(first.as_str()) && base_a.contains("one.md"));
+    assert!(base_b.contains(second.as_str()) && base_b.contains("two.md"));
+}

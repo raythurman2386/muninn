@@ -4,7 +4,7 @@
 //! while reading or writing the vault, not while waiting on a provider.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::SCHEMA_VERSION;
@@ -642,6 +642,61 @@ fn save_base(
 }
 
 const SHA_CACHE: &str = "github-blob-cache.json";
+
+/// Files a run keeps in its state dir. Listed so a legacy shared dir can be
+/// moved into the binding it belongs to.
+const STATE_FILES: [&str; 5] = [
+    "base.json",
+    "journal.json",
+    "prepared.json",
+    "staged",
+    SHA_CACHE,
+];
+
+/// The state dir for one vault binding: `<sync_home>/bindings/<binding>`.
+///
+/// Each binding keeps its own base, journal, staged bytes and caches, so a
+/// second vault or a reconnect never reads another binding's base. A base
+/// left in the old shared `<sync_home>` by an earlier build moves here when
+/// it names this binding; one that names another binding stays put. The
+/// dirs are private to the user on Unix.
+pub fn binding_state_dir(sync_home: &Path, binding: &BindingId) -> Result<PathBuf, SyncError> {
+    let bindings = sync_home.join("bindings");
+    let dir = bindings.join(binding.as_str());
+    std::fs::create_dir_all(&dir).map_err(SyncError::io)?;
+    for path in [sync_home, bindings.as_path(), dir.as_path()] {
+        private_dir(path)?;
+    }
+    let legacy = sync_home.join("base.json");
+    if !dir.join("base.json").exists() && legacy_base_names(&legacy, binding) {
+        for name in STATE_FILES {
+            let from = sync_home.join(name);
+            if from.exists() {
+                std::fs::rename(&from, dir.join(name)).map_err(SyncError::io)?;
+            }
+        }
+    }
+    Ok(dir)
+}
+
+fn legacy_base_names(path: &Path, binding: &BindingId) -> bool {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|json| json.get("binding_id")?.as_str().map(str::to_owned))
+        .is_some_and(|id| id == binding.as_str())
+}
+
+#[cfg(unix)]
+fn private_dir(path: &Path) -> Result<(), SyncError> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).map_err(SyncError::io)
+}
+
+#[cfg(not(unix))]
+fn private_dir(_path: &Path) -> Result<(), SyncError> {
+    Ok(())
+}
 
 /// git blob sha → content hash for blobs this binding has already read or
 /// written. It is a fact about bytes, so a stale or missing cache only costs

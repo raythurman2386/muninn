@@ -58,7 +58,10 @@ pub use drive::{
     DRIVE_SCOPE, DriveClient, DriveCommitDoc, DriveRemote, DriveScope, OAuthRedirect, PkceRequest,
     merge_heads, new_pkce, parse_oauth_redirect,
 };
-pub use engine::{EngineParts, RunRequest, SyncReport, disconnect, production_sleeper, run_sync};
+pub use engine::{
+    EngineParts, RunRequest, SyncReport, binding_state_dir, disconnect, production_sleeper,
+    run_sync,
+};
 pub use error::SyncError;
 pub use github::{
     DeviceChallenge, DevicePoll, GitHubClient, GitHubRemote, GitHubScope, git_blob_sha,

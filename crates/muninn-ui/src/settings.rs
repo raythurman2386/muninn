@@ -155,7 +155,7 @@ pub struct SyncPrefs {
 
 /// One provider binding for one canonical vault. The credential store key is
 /// `provider + binding_id`; the secret itself is not here.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct VaultSyncBinding {
     pub identity: String,
     pub provider: String,
