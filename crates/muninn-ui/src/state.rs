@@ -13,40 +13,10 @@ use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::{Camera, CameraGlide};
+use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
-use crate::settings::{
-    AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY, Settings, ThemeMode, clamp_note_template, config_home,
-};
+use crate::settings::{Settings, ThemeMode, clamp_note_template, config_home};
 use crate::watch::{self, VaultSnapshot};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Mode {
-    Editor,
-    Preview,
-    Graph,
-}
-
-impl Mode {
-    /// Stable settings-file spelling. Array-indexed so serialising the three
-    /// variants does not repeat the same match shape used elsewhere.
-    pub(crate) fn as_key(self) -> &'static str {
-        const KEYS: [&str; 3] = ["editor", "preview", "graph"];
-        KEYS[self as usize]
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Scope {
-    Global,
-    Local,
-}
-
-impl Scope {
-    pub(crate) fn as_key(self) -> &'static str {
-        const KEYS: [&str; 2] = ["global", "local"];
-        KEYS[self as usize]
-    }
-}
 
 /// What a sidebar context menu acts on.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -217,149 +187,12 @@ pub struct LinkComplete {
     pub index: usize,
 }
 
-/// v0.5: one action the command palette can run.
-///
-/// Actions are a fixed list: the palette searches them with the same input as
-/// notes, but they never move with the vault. Every action is a thin call into
-/// an existing state method so the palette stays a view over the app, not a
-/// second command layer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PaletteAction {
-    OpenLocalGraph,
-    SwitchVault,
-    /// Opens the settings modal (v0.5).
-    OpenSettings,
-    NewNote,
-    TogglePreview,
-    ToggleGraph,
-}
-
-impl PaletteAction {
-    /// Every action, in the order shown before a query is typed.
-    pub const ALL: [PaletteAction; 6] = [
-        PaletteAction::OpenLocalGraph,
-        PaletteAction::SwitchVault,
-        PaletteAction::OpenSettings,
-        PaletteAction::NewNote,
-        PaletteAction::TogglePreview,
-        PaletteAction::ToggleGraph,
-    ];
-
-    /// The row's main label.
-    #[must_use]
-    pub fn label(self) -> &'static str {
-        match self {
-            PaletteAction::OpenLocalGraph => "Open local graph",
-            PaletteAction::SwitchVault => "Switch vault",
-            PaletteAction::OpenSettings => "Open settings",
-            PaletteAction::NewNote => "New note",
-            PaletteAction::TogglePreview => "Toggle Write / Read",
-            PaletteAction::ToggleGraph => "Toggle Graph",
-        }
-    }
-
-    /// The shortcut or affordance the action mirrors, drawn on the right.
-    #[must_use]
-    pub fn hint(self) -> &'static str {
-        match self {
-            PaletteAction::OpenLocalGraph => "Graph · Local",
-            PaletteAction::SwitchVault => "Vaults",
-            PaletteAction::OpenSettings => "Help",
-            PaletteAction::NewNote => "⌘N",
-            PaletteAction::TogglePreview => "⌘E",
-            PaletteAction::ToggleGraph => "⌘G",
-        }
-    }
-
-    /// Extra words that should find the action even when they are not in its
-    /// label (`prefs`, `create`, `editor`, …).
-    fn keywords(self) -> &'static str {
-        match self {
-            PaletteAction::OpenLocalGraph => "graph local focus neighbours scope",
-            PaletteAction::SwitchVault => "vault open recent folder switch",
-            PaletteAction::OpenSettings => "settings preferences options config help",
-            PaletteAction::NewNote => "new note create add",
-            PaletteAction::TogglePreview => "write read preview editor mode",
-            PaletteAction::ToggleGraph => "graph global local mode",
-        }
-    }
-
-    fn matches(self, query: &str) -> bool {
-        self.label().to_lowercase().contains(query)
-            || self.hint().to_lowercase().contains(query)
-            || self.keywords().contains(query)
-    }
-}
-
-/// One row in the command palette. Notes keep their vault id; the view looks
-/// up the title, folder and link counts from the live vault.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PaletteItem {
-    /// A note already opened this session, shown while the input is empty.
-    Recent(usize),
-    /// A note matching the typed query (title-first, via `Vault::search`).
-    Note(usize),
-    Action(PaletteAction),
-}
-
-impl PaletteItem {
-    /// The group header this item belongs under.
-    #[must_use]
-    pub fn section(&self) -> &'static str {
-        match self {
-            PaletteItem::Recent(_) => "Recent",
-            PaletteItem::Note(_) => "Notes",
-            PaletteItem::Action(_) => "Actions",
-        }
-    }
-}
-
-/// One dismissible layer of the UI, in Escape-dismissal order.
-///
-/// [`State::topmost_layer`] reports the topmost open layer and
-/// [`State::dismiss_layer`] closes it; `keys.rs` routes a bare Escape through
-/// that pair so the dismissal stack is one exhaustively matched list instead
-/// of a chain of `is_some()` checks. The fields behind each variant stay the
-/// same (prompts are `Option`s, modals are bools); the enum only names the
-/// order so tests can pin it. Graph mode is not a layer: Escape there exits
-/// to the note mode through `Mode` after every layer is gone.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Layer {
-    Palette,
-    Settings,
-    Help,
-    Complete,
-    Find,
-    BrokenPanel,
-    RenameConfirm,
-    MoveConfirm,
-    FolderRenameConfirm,
-    Menu,
-    NewNote,
-    RenameNote,
-    NewFolder,
-    RenameFolder,
-    DeleteConfirm,
-    MovePicker,
-}
-
-/// v0.5: the command palette's own state. The input text lives on
-/// [`State::palette_field`] so the text field's `on_edit` callback can always
-/// hand Rune a valid field, even in the frame after Escape unmounts the card.
-/// `selected` indexes [`State::palette_items`]; `query` is the snapshot the
-/// highlight belongs to, so typing resets it to the first row.
-#[derive(Clone, Debug)]
-pub struct PaletteState {
-    /// Highlighted row, an index into the current item list.
-    pub selected: usize,
-    /// Query the highlight belongs to; a change resets it to row zero.
-    query: String,
-    /// Ask `poll` to scroll the highlighted row into view next frame.
-    pub reveal: bool,
-}
-
 /// How many recently opened notes the empty palette shows.
 pub(crate) const PALETTE_RECENT_MAX: usize = 6;
+
+/// Overlay types live in [`crate::overlay`]; this re-export keeps the
+/// pre-extraction import paths stable for `lib.rs` `pub use` consumers.
+use crate::overlay::{PaletteAction, PaletteItem, PaletteState};
 
 /// M2 SAF-06: rename confirmation with the inbound-link choice.
 #[derive(Clone, Debug)]
@@ -475,7 +308,7 @@ pub struct State {
     pub complete: Option<LinkComplete>,
     /// Inline completion dismissed with Escape at `(open offset, caret)`; it
     /// stays closed until either moves.
-    complete_dismissed: Option<(usize, usize)>,
+    pub(crate) complete_dismissed: Option<(usize, usize)>,
     /// M2 NAV-02: the broken-links dashboard is open.
     pub broken_panel: bool,
     /// M2 EDT-04: heading a Read-mode open should scroll to on the next frame.
@@ -503,7 +336,7 @@ pub struct State {
     pub cam: Camera,
     /// An in-flight camera glide. Kept in `State` (not an `El`) so `poll` can step it
     /// and a headless test can watch it move; `None` in reduced motion.
-    camera_glide: Option<CameraGlide>,
+    pub(crate) camera_glide: Option<CameraGlide>,
     /// A scope switch follows the settling layout by retargeting its glide.
     /// Entering the graph and Reset still fit at once (snapshot-stable first frame).
     pub(crate) smooth_fit: bool,
@@ -600,7 +433,7 @@ pub struct State {
     /// Loaded preferences. Fields mirrored by `State` are refreshed on every
     /// save, so this stays the source for values the UI does not own (recent
     /// vaults, autosave delay).
-    settings: Settings,
+    pub(crate) settings: Settings,
     /// Wall-clock cost of the startup scan, shown in the status bar. The fast
     /// path is synchronous; a large vault is scanned in chunks (see
     /// [`State::scan`]) and records the whole load when the last chunk lands.
@@ -625,8 +458,8 @@ pub struct State {
     pub settings_modal: bool,
     /// Where focus was when the settings modal opened, so closing it returns
     /// typing to the same field.
-    settings_return_editor: bool,
-    settings_return_search: bool,
+    pub(crate) settings_return_editor: bool,
+    pub(crate) settings_return_search: bool,
     /// v0.5: the settings modal's default-note-template textarea buffer. It
     /// mirrors [`Settings::note_template`]; edits persist through
     /// [`State::set_note_template`].
@@ -636,7 +469,7 @@ pub struct State {
     /// The palette's persistent input field; focused while it is open.
     pub palette_field: TextEdit,
     /// Editor/search focus at the moment the palette opened, restored on Esc.
-    palette_focus: (bool, bool),
+    pub(crate) palette_focus: (bool, bool),
     /// The Settings Vaults path field currently owns typing.
     pub vault_prompt: bool,
     pub vault_field: TextEdit,
@@ -1207,95 +1040,6 @@ impl State {
         self.switch_vault(path)
     }
 
-    /// DES-01: help overlay.
-    pub fn open_help(&mut self) {
-        self.help = true;
-        self.dismiss_palette();
-        self.menu = None;
-        self.vault_prompt = false;
-        self.vault_field.focused = false;
-        // The overlay owns the keyboard while it is up; typing must not edit the
-        // hidden note underneath it.
-        self.editor.focused = false;
-        self.search.focused = false;
-    }
-
-    pub fn close_help(&mut self) {
-        self.help = false;
-    }
-
-    pub fn toggle_help(&mut self) {
-        if self.help {
-            self.close_help();
-        } else {
-            self.open_help();
-        }
-    }
-
-    /// v0.5: open the in-window settings modal.
-    ///
-    /// The modal is a Rune dialog on the overlay layer, so it sits above the
-    /// sidebar and the help page. It records which text field was typing
-    /// before taking the keyboard and gives it back on [`Self::close_settings`].
-    pub fn open_settings(&mut self) {
-        if self.settings_modal {
-            return;
-        }
-        self.settings_return_editor = self.editor.focused;
-        self.settings_return_search = self.search.focused;
-        self.settings_modal = true;
-        // Settings is the top layer; a help page or sidebar menu cannot stay
-        // live underneath it.
-        self.help = false;
-        self.menu = None;
-        self.vault_prompt = false;
-        self.vault_field.focused = false;
-        self.set_text_focus(false, false);
-    }
-
-    /// Close the settings modal and return typing to the field that opened it.
-    /// The vault-path field never keeps focus while hidden.
-    pub fn close_settings(&mut self) {
-        if !self.settings_modal {
-            return;
-        }
-        self.settings_modal = false;
-        self.vault_prompt = false;
-        self.vault_field.focused = false;
-        if self.settings_return_search {
-            self.focus_search();
-        } else if self.settings_return_editor {
-            self.focus_editor();
-        }
-        self.settings_return_editor = false;
-        self.settings_return_search = false;
-    }
-
-    pub fn toggle_settings(&mut self) {
-        if self.settings_modal {
-            self.close_settings();
-        } else {
-            self.open_settings();
-        }
-    }
-
-    /// Persist a new autosave idle window, clamped to the documented range.
-    /// The segmented theme choices and the stepper both write immediately.
-    pub fn set_autosave_delay(&mut self, seconds: f64) {
-        if !seconds.is_finite() {
-            return;
-        }
-        self.settings.autosave_delay = seconds.clamp(AUTOSAVE_MIN_DELAY, AUTOSAVE_MAX_DELAY);
-        self.save_settings();
-    }
-
-    /// Nudge the autosave delay by `delta` seconds, rounded to the stepper's
-    /// 0.05 s grid so repeated clicks do not accumulate float noise.
-    pub fn nudge_autosave_delay(&mut self, delta: f64) {
-        let next = (self.autosave_delay() + delta) * 20.0;
-        self.set_autosave_delay(next.round() / 20.0);
-    }
-
     /// The Markdown inserted at the top of every new note. Empty (the
     /// default) keeps the plain `# Title` body.
     #[must_use]
@@ -1317,141 +1061,6 @@ impl State {
     }
 
     // ---- v0.5: command palette ---------------------------------------------
-
-    /// Cmd/Ctrl+Shift+P: open the palette, or close it when it is already up.
-    pub fn toggle_palette(&mut self) {
-        if self.palette.is_some() {
-            self.close_palette();
-        } else {
-            self.open_palette();
-        }
-    }
-
-    /// Show the palette over whatever is open. The field owns typing until the
-    /// palette closes; the focus that was active is remembered for Escape.
-    pub fn open_palette(&mut self) {
-        self.palette_focus = (self.editor.focused, self.search.focused);
-        // The palette is a modal layer: nothing else may keep the keyboard or
-        // sit above it.
-        self.help = false;
-        self.menu = None;
-        self.vault_prompt = false;
-        self.vault_field.focused = false;
-        self.complete = None;
-        self.complete_dismissed = None;
-        if let Some(find) = self.find.as_mut() {
-            find.field.focused = false;
-        }
-        self.palette_field.replace_text("");
-        self.palette_field.focused = true;
-        self.set_text_focus(false, false);
-        self.palette = Some(PaletteState {
-            selected: 0,
-            query: String::new(),
-            reveal: false,
-        });
-    }
-
-    /// Escape: drop the palette and hand the keyboard back to the field that
-    /// had it (the editor or search box). Opening a prompt first clears both
-    /// flags, so a prompt that replaces the palette keeps its own focus.
-    pub fn close_palette(&mut self) {
-        if self.palette.take().is_none() {
-            return;
-        }
-        self.palette_field.focused = false;
-        let (editor, search) = self.palette_focus;
-        self.set_text_focus(editor, search);
-    }
-
-    /// Drop the palette without restoring focus, for a layer that is taking the
-    /// keyboard instead (Help, an inline prompt, or a focus command).
-    fn dismiss_palette(&mut self) {
-        self.palette = None;
-        self.palette_field.focused = false;
-    }
-
-    /// The topmost open [`Layer`], or `None` when nothing is dismissed by
-    /// Escape. This is the single ordering `keys.rs` follows; it mirrors the
-    /// stacking the view draws (modals above pages, pages above inline
-    /// prompts) so Escape always peels exactly one layer.
-    #[must_use]
-    pub fn topmost_layer(&self) -> Option<Layer> {
-        if self.palette.is_some() {
-            return Some(Layer::Palette);
-        }
-        if self.settings_modal {
-            return Some(Layer::Settings);
-        }
-        if self.help {
-            return Some(Layer::Help);
-        }
-        if self.complete.is_some() {
-            return Some(Layer::Complete);
-        }
-        if self.find.is_some() {
-            return Some(Layer::Find);
-        }
-        if self.broken_panel {
-            return Some(Layer::BrokenPanel);
-        }
-        if self.rename_confirm.is_some() {
-            return Some(Layer::RenameConfirm);
-        }
-        if self.move_confirm.is_some() {
-            return Some(Layer::MoveConfirm);
-        }
-        if self.folder_rename_confirm.is_some() {
-            return Some(Layer::FolderRenameConfirm);
-        }
-        if self.menu.is_some() {
-            return Some(Layer::Menu);
-        }
-        if self.new_note_prompt.is_some() {
-            return Some(Layer::NewNote);
-        }
-        if self.rename_prompt.is_some() {
-            return Some(Layer::RenameNote);
-        }
-        if self.new_folder_prompt.is_some() {
-            return Some(Layer::NewFolder);
-        }
-        if self.rename_folder_prompt.is_some() {
-            return Some(Layer::RenameFolder);
-        }
-        if self.delete_confirm.is_some() {
-            return Some(Layer::DeleteConfirm);
-        }
-        if self.move_picker.is_some() {
-            return Some(Layer::MovePicker);
-        }
-        None
-    }
-
-    /// Dismiss the given layer with the same semantics as pressing Escape on
-    /// it (focus returns to the field that opened it where that was the
-    /// behaviour). `Layer` is exhaustive, so a new dismissible layer forces a
-    /// match arm here and a `topmost_layer` branch.
-    pub fn dismiss_layer(&mut self, layer: Layer) {
-        match layer {
-            Layer::Palette => self.close_palette(),
-            Layer::Settings => self.close_settings(),
-            Layer::Help => self.close_help(),
-            Layer::Complete => self.dismiss_complete(),
-            Layer::Find => self.close_find(),
-            Layer::BrokenPanel => self.close_broken_links(),
-            Layer::RenameConfirm => self.cancel_rename_confirm(),
-            Layer::MoveConfirm => self.cancel_move_confirm(),
-            Layer::FolderRenameConfirm => self.cancel_folder_rename_confirm(),
-            Layer::Menu => self.close_menu(),
-            Layer::NewNote => self.cancel_new_note(),
-            Layer::RenameNote => self.cancel_rename_note(),
-            Layer::NewFolder => self.cancel_new_folder(),
-            Layer::RenameFolder => self.cancel_rename_folder(),
-            Layer::DeleteConfirm => self.cancel_delete(),
-            Layer::MovePicker => self.cancel_move(),
-        }
-    }
 
     /// Is the palette open? (The field itself is `palette.is_some()`.)
     #[must_use]
@@ -2250,7 +1859,7 @@ impl State {
     }
 
     /// One owner for the mutually exclusive editor/search focus flags.
-    fn set_text_focus(&mut self, editor: bool, search: bool) {
+    pub(crate) fn set_text_focus(&mut self, editor: bool, search: bool) {
         self.editor.focused = editor;
         self.search.focused = search;
     }
@@ -2319,102 +1928,6 @@ impl State {
         } else {
             self.graph.step()
         }
-    }
-
-    pub fn set_mode(&mut self, mode: Mode) {
-        if mode == self.mode {
-            return;
-        }
-        self.pending_heading = None;
-        self.pending_top = false;
-        self.complete = None;
-        if mode != Mode::Graph && self.mode != Mode::Graph {
-            self.last_note_mode = mode;
-        }
-        if mode == Mode::Graph {
-            self.needs_fit = true;
-            self.auto_fit = true;
-            self.smooth_fit = false;
-            self.graph.reheat();
-            if self
-                .graph_focus
-                .is_none_or(|id| id >= self.vault.notes.len())
-            {
-                self.graph_focus = self
-                    .selected
-                    .or_else(|| self.vault.notes.first().map(|note| note.id));
-            }
-        } else {
-            // A glide belongs to the visible graph; leaving it must not resume
-            // mid-flight when the user comes back.
-            self.camera_glide = None;
-        }
-        if mode == Mode::Editor {
-            self.focus_editor();
-        } else {
-            // Leaving the editor must not leave a stale focused flag behind:
-            // F2/Delete read it, and the field is no longer mounted.
-            self.editor.focused = false;
-        }
-        self.mode = mode;
-        // LIF-01: the last mode is part of the restored session.
-        self.save_settings();
-    }
-
-    pub fn toggle_graph(&mut self) {
-        if self.mode == Mode::Graph {
-            self.set_mode(self.last_note_mode);
-        } else {
-            self.set_mode(Mode::Graph);
-        }
-    }
-
-    pub fn toggle_preview(&mut self) {
-        if self.mode == Mode::Graph {
-            self.set_mode(self.last_note_mode);
-        } else if self.mode == Mode::Editor {
-            self.set_mode(Mode::Preview);
-        } else {
-            self.set_mode(Mode::Editor);
-        }
-    }
-
-    pub fn open_local_graph(&mut self) {
-        self.scope = Scope::Local;
-        self.set_mode(Mode::Graph);
-    }
-
-    pub fn set_scope(&mut self, scope: Scope) {
-        if self.scope == scope {
-            return;
-        }
-        let was_graph = self.mode == Mode::Graph;
-        self.scope = scope;
-        self.graph.reheat();
-        if was_graph {
-            // Ease to the new scope's fit instead of swapping the whole
-            // canvas in one frame, and keep following the settling layout so
-            // the glide lands on the final framing. The nodes that leave or
-            // dim fade through Rune's transitions on the same press commit.
-            self.needs_fit = true;
-            self.auto_fit = true;
-            self.smooth_fit = true;
-            self.glide_graph_fit();
-        } else {
-            self.needs_fit = true;
-            self.auto_fit = true;
-            self.smooth_fit = false;
-        }
-        // LIF-01: restore Global/Local with the rest of the session.
-        self.save_settings();
-    }
-
-    pub fn toggle_scope(&mut self) {
-        self.set_scope(if self.scope == Scope::Global {
-            Scope::Local
-        } else {
-            Scope::Global
-        });
     }
 
     /// Set the palette source and persist the choice. The theme button calls
@@ -2640,7 +2153,7 @@ impl State {
 
     /// Ease the camera toward a fit of the visible notes, used when the scope
     /// or the visible set changes without a layout reset.
-    fn glide_graph_fit(&mut self) {
+    pub(crate) fn glide_graph_fit(&mut self) {
         let visible = self.visible_notes();
         let Some(bounds) = self.graph.bounds(&visible) else {
             return;

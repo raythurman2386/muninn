@@ -10,6 +10,11 @@ pinned by `crates/muninn-ui/tests/state_layers.rs`.
 
 ## The two axes
 
+Overlay types and behaviour now live in `overlay.rs` (palette, Settings,
+Help, layer stack) and mode transitions in `mode.rs` (`Mode`/`Scope`); the
+`State` fields behind them stay in `state.rs` so the struct's invariants are
+still visible in one place.
+
 - **Page** (`Mode`): Editor, Preview, Graph. What the main column draws.
 - **Overlay stack** (`Layer`): what Escape dismisses, one per press, top
   first. This section is the dismissal order.
