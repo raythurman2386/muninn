@@ -27,6 +27,51 @@ struct GitStore {
     refs: BTreeMap<String, String>,
     patch_races: u32,
     protected: bool,
+    tree_reads: u32,
+    blob_reads: u32,
+}
+
+/// What GitHub's `?recursive=1` returns: every entry with its full path.
+/// Trees posted by the client already hold full paths; hand-built ones nest.
+fn flatten_tree(
+    trees: &BTreeMap<String, Vec<Value>>,
+    prefix: &str,
+    entries: &[Value],
+    out: &mut Vec<Value>,
+    truncated: &mut bool,
+) {
+    for entry in entries {
+        let name = entry.get("path").and_then(|v| v.as_str()).unwrap_or("");
+        let full = if prefix.is_empty() {
+            name.to_owned()
+        } else {
+            format!("{prefix}/{name}")
+        };
+        let mut flat = entry.clone();
+        flat["path"] = Value::String(full.clone());
+        out.push(flat);
+        if entry.get("type").and_then(|v| v.as_str()) == Some("tree") {
+            let sha = entry.get("sha").and_then(|v| v.as_str()).unwrap_or("");
+            if sha.ends_with("truncated") {
+                *truncated = true;
+            } else if let Some(children) = trees.get(sha) {
+                flatten_tree(trees, &full, children, out, truncated);
+            }
+        }
+    }
+}
+
+fn git_store() -> GitStore {
+    GitStore {
+        blobs: BTreeMap::new(),
+        trees: BTreeMap::new(),
+        commits: BTreeMap::new(),
+        refs: BTreeMap::new(),
+        patch_races: 0,
+        protected: false,
+        tree_reads: 0,
+        blob_reads: 0,
+    }
 }
 
 fn git_server(store: Arc<Mutex<GitStore>>) -> ScriptedServer {
@@ -112,6 +157,8 @@ fn git_server(store: Arc<Mutex<GitStore>>) -> ScriptedServer {
                 return json_reply(422, json!({"message": "update is not a fast-forward"}));
             }
             if git.patch_races > 0 {
+                // Another device lands a real change on the tip first, so a
+                // publish that ignores it would erase vault/racer.md.
                 git.patch_races -= 1;
                 let current = git.refs.get(&branch).cloned().unwrap_or_default();
                 let tree = git
@@ -121,13 +168,21 @@ fn git_server(store: Arc<Mutex<GitStore>>) -> ScriptedServer {
                     .and_then(|value| value.as_str())
                     .unwrap_or("")
                     .to_owned();
+                let racer = b"from racer".to_vec();
+                let racer_sha = git_blob_sha(&racer);
+                git.blobs.insert(racer_sha.clone(), racer.clone());
+                let mut entries = git.trees.get(&tree).cloned().unwrap_or_default();
+                entries.retain(|entry| entry.get("path").and_then(|v| v.as_str()) != Some("vault/racer.md"));
+                entries.push(json!({"path": "vault/racer.md", "mode": "100644", "type": "blob", "sha": racer_sha, "size": racer.len()}));
+                let racer_tree = format!("tree{}", git.trees.len() + 1);
+                git.trees.insert(racer_tree.clone(), entries);
                 let other = format!("race{}", git.commits.len() + 1);
                 git.commits.insert(
                     other.clone(),
-                    json!({"message": "other writer", "tree": tree, "parents": [current]}),
+                    json!({"message": "other writer", "tree": racer_tree, "parents": [current]}),
                 );
                 git.refs.insert(branch, other);
-                return json_reply(422, json!({"message": "update is not a fast-forward"}));
+                return json_reply(422, json!({"message": "Update is not a fast forward"}));
             }
             git.refs.insert(branch, sha);
             return json_reply(200, json!({"object": {"sha": git.refs.values().next().cloned().unwrap_or_default()}}));
@@ -152,15 +207,23 @@ fn git_server(store: Arc<Mutex<GitStore>>) -> ScriptedServer {
         }
         if request.method == "GET" && path.contains("/git/trees/") {
             let sha = path.rsplit('/').next().unwrap_or("");
+            git.tree_reads += 1;
             if sha.ends_with("truncated") {
                 return json_reply(200, json!({"sha": sha, "truncated": true, "tree": []}));
             }
             let Some(entries) = git.trees.get(sha).cloned() else {
                 return json_reply(404, json!({"message": "not found"}));
             };
-            return json_reply(200, json!({"sha": sha, "truncated": false, "tree": entries}));
+            if !request.path.contains("recursive=1") {
+                return json_reply(200, json!({"sha": sha, "truncated": false, "tree": entries}));
+            }
+            let mut flat = Vec::new();
+            let mut truncated = false;
+            flatten_tree(&git.trees, "", &entries, &mut flat, &mut truncated);
+            return json_reply(200, json!({"sha": sha, "truncated": truncated, "tree": flat}));
         }
         if request.method == "GET" && path.contains("/git/blobs/") {
+            git.blob_reads += 1;
             let sha = path.rsplit('/').next().unwrap_or("");
             let Some(bytes) = git.blobs.get(sha).cloned() else {
                 return json_reply(404, json!({"message": "not found"}));
@@ -230,6 +293,8 @@ fn github_publish_is_force_false_and_round_trips_rename_delete() {
         refs: BTreeMap::new(),
         patch_races: 0,
         protected: false,
+        tree_reads: 0,
+        blob_reads: 0,
     }));
     let server = git_server(Arc::clone(&store));
     let sleeper = RecordingSleeper::default();
@@ -246,6 +311,7 @@ fn github_publish_is_force_false_and_round_trips_rename_delete() {
         tree: None,
         snapshot: Snapshot::default(),
         blobs: BTreeMap::new(),
+        shas: BTreeMap::new(),
     };
     let head = client
         .publish(&scope, &token(), &empty, &first, &bytes, "op-1")
@@ -287,15 +353,8 @@ fn github_publish_is_force_false_and_round_trips_rename_delete() {
 }
 
 #[test]
-fn github_non_fast_forward_is_retried_against_the_new_tip() {
-    let store = Arc::new(Mutex::new(GitStore {
-        blobs: BTreeMap::new(),
-        trees: BTreeMap::new(),
-        commits: BTreeMap::new(),
-        refs: BTreeMap::new(),
-        patch_races: 0,
-        protected: false,
-    }));
+fn github_publish_refuses_a_tip_that_moved_after_the_plan() {
+    let store = Arc::new(Mutex::new(git_store()));
     let server = git_server(Arc::clone(&store));
     let sleeper = RecordingSleeper::default();
     let client = github_client(
@@ -305,25 +364,46 @@ fn github_non_fast_forward_is_retried_against_the_new_tip() {
         Duration::from_secs(2),
     );
     let (snapshot, bytes) = snap_text(&[("a.md", "alpha")]);
-    let empty = GitHubRemote {
-        commit: None,
-        tree: None,
-        snapshot: Snapshot::default(),
-        blobs: BTreeMap::new(),
-    };
-    let head = client
-        .publish(&scope(), &token(), &empty, &snapshot, &bytes, "op-base")
+    client
+        .publish(
+            &scope(),
+            &token(),
+            &GitHubRemote::default(),
+            &snapshot,
+            &bytes,
+            "op-base",
+        )
         .unwrap();
+    let planned = client.fetch(&scope(), &token()).unwrap();
     store.lock().unwrap().patch_races = 1;
     let (changed, bytes) = snap_text(&[("a.md", "beta")]);
-    let fetched = client.fetch(&scope(), &token()).unwrap();
-    assert_eq!(fetched.commit.as_deref(), Some(head.as_str()));
-    let raced = client
-        .publish(&scope(), &token(), &fetched, &changed, &bytes, "op-race")
-        .unwrap();
-    let fetched = client.fetch(&scope(), &token()).unwrap();
-    assert_eq!(fetched.commit.as_deref(), Some(raced.as_str()));
-    assert_eq!(store.lock().unwrap().patch_races, 0);
+    let error = client
+        .publish(&scope(), &token(), &planned, &changed, &bytes, "op-race")
+        .unwrap_err();
+    assert!(matches!(error, SyncError::ConflictRemote { .. }), "{error}");
+
+    // The other device's file is intact and ours was not applied over it.
+    let after = client.fetch(&scope(), &token()).unwrap();
+    assert_eq!(
+        after
+            .snapshot
+            .hash_of(&RelativePath::parse("racer.md").unwrap()),
+        Some(ContentHash::of(b"from racer"))
+    );
+    assert_eq!(
+        after
+            .snapshot
+            .hash_of(&RelativePath::parse("a.md").unwrap()),
+        Some(ContentHash::of(b"alpha"))
+    );
+    // Exactly one ref update was tried: the refusal is not retried with a
+    // tree that was built against the old tip.
+    let patches = server
+        .recorded()
+        .into_iter()
+        .filter(|request| request.method == "PATCH")
+        .count();
+    assert_eq!(patches, 1);
 }
 
 #[test]
@@ -363,6 +443,8 @@ fn github_rejects_symlink_truncation_and_protected_branch() {
         refs: BTreeMap::from([("muninn-sync".to_owned(), "csym".to_owned())]),
         patch_races: 0,
         protected: false,
+        tree_reads: 0,
+        blob_reads: 0,
     }));
     let server = git_server(Arc::clone(&store));
     let sleeper = RecordingSleeper::default();
@@ -415,6 +497,7 @@ fn github_rejects_symlink_truncation_and_protected_branch() {
                 tree: Some("treeplain".to_owned()),
                 snapshot: Snapshot::default(),
                 blobs: BTreeMap::new(),
+                shas: BTreeMap::new(),
             },
             &snapshot,
             &bytes,
@@ -555,6 +638,185 @@ fn drive_pagination_concurrent_heads_and_traversal() {
     assert!(matches!(error, SyncError::Path { .. }), "{error}");
 }
 
+fn drive_engine<'a>(
+    server: &ScriptedServer,
+    credentials: &'a MemoryCredentialStore,
+) -> EngineParts<ReqwestTransport, &'a MemoryCredentialStore> {
+    github_engine(server, credentials)
+}
+
+/// Write `pairs` as another device would: a real commit on top of the
+/// current head, held back so the test decides when it lands.
+fn stage_drive_racer(
+    drive: &Arc<Mutex<DriveStore>>,
+    server: &ScriptedServer,
+    pairs: &[(&str, &str)],
+) {
+    let before: std::collections::BTreeSet<String> = drive
+        .lock()
+        .unwrap()
+        .files
+        .iter()
+        .map(|file| file.id.clone())
+        .collect();
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    let merged = drive::merge_heads(&remote).unwrap();
+    let mut next = merged.snapshot.clone();
+    let (extra, mut bytes) = snap_text(pairs);
+    next.files.extend(extra.files);
+    for (path, record) in &next.files {
+        if !bytes.contains_key(path) {
+            bytes.insert(path.clone(), remote.blobs[&record.hash].clone());
+        }
+    }
+    client
+        .publish(
+            &drive_scope(),
+            &token(),
+            &remote,
+            &next,
+            &merged.parents,
+            &[],
+            &bytes,
+            "op-racer",
+        )
+        .unwrap();
+    let mut store = drive.lock().unwrap();
+    let (landed, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut store.files)
+        .into_iter()
+        .partition(|file| !before.contains(&file.id));
+    store.files = kept;
+    store.pending = landed;
+    store.commit_lists = 0;
+}
+
+#[test]
+fn drive_two_device_race_keeps_both_changes() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    let (credentials, binding) = connected(ProviderKind::GoogleDrive);
+    let engine = drive_engine(&server, &credentials);
+    let device = TestVault::new("drive-race-a");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000041"),
+        )
+        .unwrap(),
+    );
+
+    stage_drive_racer(&drive, &server, &[("racer.md", "from racer")]);
+    std::fs::write(device.root.join("a.md"), "edited").unwrap();
+    // The racer lands after this sync has read the commits folder once.
+    drive.lock().unwrap().race_at_commit_list = Some(2);
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000042"),
+        )
+        .unwrap(),
+    );
+    assert!(
+        drive.lock().unwrap().pending.is_empty(),
+        "the race must have fired"
+    );
+
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    assert_eq!(remote.heads.len(), 1, "{:?}", remote.heads);
+    let merged = drive::merge_heads(&remote).unwrap();
+    assert_eq!(
+        merged
+            .snapshot
+            .hash_of(&RelativePath::parse("racer.md").unwrap()),
+        Some(ContentHash::of(b"from racer")),
+        "the other device's file must survive"
+    );
+    assert_eq!(
+        merged
+            .snapshot
+            .hash_of(&RelativePath::parse("a.md").unwrap()),
+        Some(ContentHash::of(b"edited"))
+    );
+    assert_eq!(device.read("racer.md").as_deref(), Some("from racer"));
+    assert_eq!(device.read("a.md").as_deref(), Some("edited"));
+}
+
+#[test]
+fn drive_conflicting_heads_are_an_error_not_an_empty_snapshot() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let (base, bytes) = snap_text(&[("a.md", "base"), ("keep.md", "keep")]);
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    let root = client
+        .publish(
+            &drive_scope(),
+            &token(),
+            &remote,
+            &base,
+            &[],
+            &[],
+            &bytes,
+            "op-base",
+        )
+        .unwrap();
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    for (op, text) in [("op-left", "left"), ("op-right", "right")] {
+        let (next, bytes) = snap_text(&[("a.md", text), ("keep.md", "keep")]);
+        client
+            .publish(
+                &drive_scope(),
+                &token(),
+                &remote,
+                &next,
+                std::slice::from_ref(&root),
+                &[],
+                &bytes,
+                op,
+            )
+            .unwrap();
+    }
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    assert_eq!(remote.heads.len(), 2);
+    let error = drive::merge_heads(&remote).expect_err("conflicting heads must not merge");
+    assert!(matches!(error, SyncError::ConflictRemote { .. }), "{error}");
+
+    // Through the engine the vault is left alone: nothing is planned as a
+    // remote delete.
+    let (credentials, binding) = connected(ProviderKind::GoogleDrive);
+    let engine = drive_engine(&server, &credentials);
+    let device = TestVault::new("drive-heads");
+    std::fs::write(device.root.join("keep.md"), "keep").unwrap();
+    let error = run_sync(
+        &engine,
+        &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000051"),
+    )
+    .unwrap_err();
+    assert!(matches!(error, SyncError::ConflictRemote { .. }), "{error}");
+    assert_eq!(device.read("keep.md").as_deref(), Some("keep"));
+}
+
 #[test]
 fn drive_oauth_state_and_scope_are_checked() {
     let pkce = drive::new_pkce("http://127.0.0.1:9/callback");
@@ -624,6 +886,8 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         refs: BTreeMap::new(),
         patch_races: 0,
         protected: false,
+        tree_reads: 0,
+        blob_reads: 0,
     }));
     let server = git_server(Arc::clone(&store));
     let credentials = MemoryCredentialStore::default();
@@ -719,14 +983,260 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
     let _ = std::fs::remove_dir_all(&other);
 }
 
+fn github_engine<'a>(
+    server: &ScriptedServer,
+    credentials: &'a MemoryCredentialStore,
+) -> EngineParts<ReqwestTransport, &'a MemoryCredentialStore> {
+    EngineParts {
+        transport: ReqwestTransport::for_tests(&["127.0.0.1"]).unwrap(),
+        credentials,
+        cancel: CancelToken::new(),
+        sleeper: Box::new(RecordingSleeper::default()),
+        github_api: server.base(),
+        github_oauth: server.base(),
+        drive_api: server.base(),
+        drive_upload: server.base(),
+        drive_oauth: server.base(),
+        tailnet_api: None,
+    }
+}
+
+fn connected(provider: ProviderKind) -> (MemoryCredentialStore, BindingId) {
+    let credentials = MemoryCredentialStore::default();
+    let binding = BindingId::fresh();
+    credentials
+        .put(
+            &CredentialKey {
+                provider,
+                binding: binding.clone(),
+            },
+            &TokenSet {
+                access: Secret::new("test-token"),
+                refresh: None,
+                expires_unix_ms: None,
+                account: "octocat".to_owned(),
+            },
+        )
+        .unwrap();
+    (credentials, binding)
+}
+
+/// A vault directory and its sync state directory, removed on drop.
+struct TestVault {
+    root: std::path::PathBuf,
+    state: std::path::PathBuf,
+}
+
+impl TestVault {
+    fn new(name: &str) -> Self {
+        let root = std::env::temp_dir().join(format!("muninn-{name}-{}", std::process::id()));
+        let state = root.with_extension("state");
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&state);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&state).unwrap();
+        Self { root, state }
+    }
+
+    fn request(&self, provider: ProviderKind, binding: &BindingId, op: &str) -> RunRequest {
+        RunRequest {
+            root: self.root.clone(),
+            state_dir: self.state.clone(),
+            binding: binding.clone(),
+            provider,
+            github: (provider == ProviderKind::GitHub).then(scope),
+            drive: (provider == ProviderKind::GoogleDrive).then(drive_scope),
+            tailnet: None,
+            operation: OperationId::parse(op).unwrap(),
+            protected: Default::default(),
+            resolutions: Vec::new(),
+        }
+    }
+
+    fn read(&self, path: &str) -> Option<String> {
+        std::fs::read_to_string(self.root.join(path)).ok()
+    }
+}
+
+impl Drop for TestVault {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.root);
+        let _ = std::fs::remove_dir_all(&self.state);
+    }
+}
+
+fn succeeded(report: crate::engine::SyncReport) {
+    assert!(
+        matches!(report, crate::engine::SyncReport::Succeeded { .. }),
+        "{report:?}"
+    );
+}
+
+#[test]
+fn github_two_device_race_keeps_both_changes() {
+    let store = Arc::new(Mutex::new(git_store()));
+    let server = git_server(Arc::clone(&store));
+    let (credentials, binding) = connected(ProviderKind::GitHub);
+    let engine = github_engine(&server, &credentials);
+    let device = TestVault::new("gh-race-a");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GitHub, &binding, "abcde00000000011"),
+        )
+        .unwrap(),
+    );
+
+    // This device edits a.md; another device lands racer.md on the branch
+    // between our read and our ref update.
+    std::fs::write(device.root.join("a.md"), "edited").unwrap();
+    store.lock().unwrap().patch_races = 1;
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GitHub, &binding, "abcde00000000012"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(
+        store.lock().unwrap().patch_races,
+        0,
+        "the race must have fired"
+    );
+
+    let sleeper = RecordingSleeper::default();
+    let client = github_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let remote = client.fetch(&scope(), &token()).unwrap();
+    assert_eq!(
+        remote
+            .snapshot
+            .hash_of(&RelativePath::parse("racer.md").unwrap()),
+        Some(ContentHash::of(b"from racer")),
+        "the other device's file must survive on the remote"
+    );
+    assert_eq!(
+        remote
+            .snapshot
+            .hash_of(&RelativePath::parse("a.md").unwrap()),
+        Some(ContentHash::of(b"edited"))
+    );
+    assert_eq!(device.read("racer.md").as_deref(), Some("from racer"));
+    assert_eq!(device.read("a.md").as_deref(), Some("edited"));
+}
+
+#[test]
+fn github_race_that_never_settles_fails_without_touching_the_vault() {
+    let store = Arc::new(Mutex::new(git_store()));
+    let server = git_server(Arc::clone(&store));
+    let (credentials, binding) = connected(ProviderKind::GitHub);
+    let engine = github_engine(&server, &credentials);
+    let device = TestVault::new("gh-race-busy");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GitHub, &binding, "abcde00000000021"),
+        )
+        .unwrap(),
+    );
+    std::fs::write(device.root.join("a.md"), "edited").unwrap();
+    store.lock().unwrap().patch_races = 100;
+    let error = run_sync(
+        &engine,
+        &device.request(ProviderKind::GitHub, &binding, "abcde00000000022"),
+    )
+    .unwrap_err();
+    assert!(matches!(error, SyncError::ConflictRemote { .. }), "{error}");
+    assert_eq!(device.read("a.md").as_deref(), Some("edited"));
+    assert_eq!(device.read("racer.md"), None);
+}
+
+#[test]
+fn github_sync_reads_one_recursive_tree_and_reuses_known_blobs() {
+    let store = Arc::new(Mutex::new(git_store()));
+    let server = git_server(Arc::clone(&store));
+    let (credentials, binding) = connected(ProviderKind::GitHub);
+    let engine = github_engine(&server, &credentials);
+    let device = TestVault::new("gh-cache");
+    std::fs::create_dir_all(device.root.join("notes/deep")).unwrap();
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    std::fs::write(device.root.join("notes/deep/b.md"), "nested").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GitHub, &binding, "abcde00000000031"),
+        )
+        .unwrap(),
+    );
+
+    {
+        let mut git = store.lock().unwrap();
+        git.tree_reads = 0;
+        git.blob_reads = 0;
+    }
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GitHub, &binding, "abcde00000000032"),
+        )
+        .unwrap(),
+    );
+    {
+        let git = store.lock().unwrap();
+        assert_eq!(git.tree_reads, 1, "one recursive tree read per sync");
+        assert_eq!(
+            git.blob_reads, 0,
+            "blobs this device wrote are known by sha"
+        );
+    }
+
+    // A second device pulls once, then knows every blob too.
+    let other = TestVault::new("gh-cache-b");
+    succeeded(
+        run_sync(
+            &engine,
+            &other.request(ProviderKind::GitHub, &binding, "abcde00000000033"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(other.read("notes/deep/b.md").as_deref(), Some("nested"));
+    store.lock().unwrap().blob_reads = 0;
+    succeeded(
+        run_sync(
+            &engine,
+            &other.request(ProviderKind::GitHub, &binding, "abcde00000000034"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(store.lock().unwrap().blob_reads, 0);
+    let recursive = server
+        .recorded()
+        .into_iter()
+        .filter(|request| request.path.contains("/git/trees/"))
+        .all(|request| request.path.contains("recursive=1"));
+    assert!(recursive, "tree reads must be recursive");
+}
+
 #[derive(Default)]
 struct DriveStore {
     files: Vec<DriveFile>,
     next_id: u64,
     incomplete: bool,
     sessions: BTreeMap<String, DriveFile>,
+    /// Files another device wrote, landed just before the commits folder is
+    /// listed for the `race_at_commit_list`-th time.
+    pending: Vec<DriveFile>,
+    race_at_commit_list: Option<u32>,
+    commit_lists: u32,
 }
 
+#[derive(Clone)]
 struct DriveFile {
     id: String,
     name: String,
@@ -797,6 +1307,17 @@ fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
                     Some(text[start..end].to_owned())
                 })
                 .unwrap_or_default();
+            let is_commits = drive
+                .files
+                .iter()
+                .any(|file| file.id == parent && file.role.as_deref() == Some("commits"));
+            if is_commits {
+                drive.commit_lists += 1;
+                if drive.race_at_commit_list == Some(drive.commit_lists) {
+                    let landed = std::mem::take(&mut drive.pending);
+                    drive.files.extend(landed);
+                }
+            }
             let files: Vec<_> = drive
                 .files
                 .iter()
@@ -889,6 +1410,13 @@ fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
     .unwrap();
     port.store(server.addr.port(), std::sync::atomic::Ordering::SeqCst);
     server
+}
+
+fn drive_scope() -> DriveScope {
+    DriveScope {
+        folder_id: "folderFolder1".to_owned(),
+        folder_name: "Notes".to_owned(),
+    }
 }
 
 fn drive_client<'a>(

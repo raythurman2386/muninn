@@ -55,6 +55,7 @@ pub struct RunRequest {
     pub resolutions: Vec<(RelPath, Resolution)>,
 }
 
+#[derive(Debug)]
 pub enum SyncReport {
     Succeeded {
         head: String,
@@ -64,6 +65,10 @@ pub enum SyncReport {
         conflicts: Vec<Conflict>,
     },
 }
+
+/// How many fetch → plan → publish rounds one Sync Now may take when the
+/// remote moves underneath it. Each round plans from a fresh read.
+const MAX_PUBLISH_ROUNDS: u32 = 4;
 
 pub fn run_sync<T: HttpTransport, C: CredentialStore>(
     engine: &EngineParts<T, C>,
@@ -92,16 +97,49 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
             detail: "this binding has no credentials; connect the provider first".to_owned(),
         })?;
 
+    let mut round = 0;
+    loop {
+        round += 1;
+        match sync_round(engine, request, &token, &inventory)? {
+            Round::Done(report) => return Ok(report),
+            Round::RemoteMoved(error) if round < MAX_PUBLISH_ROUNDS => {
+                engine.sleeper.sleep(
+                    Duration::from_millis(100 * u64::from(round)),
+                    &engine.cancel,
+                )?;
+                let _ = error;
+            }
+            Round::RemoteMoved(error) => return Err(error),
+        }
+    }
+}
+
+enum Round {
+    Done(SyncReport),
+    /// The remote refused a publish because it moved after the read this
+    /// round planned from. Nothing was applied locally.
+    RemoteMoved(SyncError),
+}
+
+/// One fetch → plan → publish → apply. The publish names exactly the remote
+/// state the plan was made from, so a concurrent writer is never overwritten:
+/// the remote refuses and the next round plans again from a fresh read.
+fn sync_round<T: HttpTransport, C: CredentialStore>(
+    engine: &EngineParts<T, C>,
+    request: &RunRequest,
+    token: &TokenSet,
+    inventory: &Inventory,
+) -> Result<Round, SyncError> {
     let base = load_base(&request.state_dir, &request.binding, request.provider)?;
-    let (remote_snapshot, remote_blobs, publish_head) = fetch(engine, request, &token)?;
-    let planned = plan(base.as_ref(), &inventory.snapshot, &remote_snapshot);
-    if let Some(report) = conflicts_or_desired(&planned, request, &inventory, &remote_snapshot)? {
-        return Ok(report);
+    let fetched = fetch(engine, request, token)?;
+    let planned = plan(base.as_ref(), &inventory.snapshot, &fetched.snapshot);
+    if let Some(report) = conflicts_or_desired(&planned, request, inventory, &fetched.snapshot)? {
+        return Ok(Round::Done(report));
     }
     let desired = if planned.has_conflicts() {
         plan::resolve(
             &inventory.snapshot,
-            &remote_snapshot,
+            &fetched.snapshot,
             &planned.conflicts,
             &request.resolutions,
         )?
@@ -109,20 +147,24 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
         planned.desired.clone()
     };
     let local_bytes = read_local_bytes(&request.root, &desired, &inventory.snapshot)?;
-    let head = publish(
+    let remote_blobs = remote_bytes_for(engine, request, token, &fetched, &desired, inventory)?;
+    let head = match publish(
         engine,
         request,
-        &token,
-        &remote_snapshot,
+        token,
+        &fetched,
         &remote_blobs,
         &desired,
         &planned,
         &local_bytes,
-        &publish_head,
-    )?;
+    ) {
+        Ok(head) => head,
+        Err(error @ SyncError::ConflictRemote { .. }) => return Ok(Round::RemoteMoved(error)),
+        Err(error) => return Err(error),
+    };
     apply_desired(
         request,
-        &inventory,
+        inventory,
         &desired,
         &remote_blobs,
         &local_bytes,
@@ -135,11 +177,64 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
         &head,
         &desired,
     )?;
+    if let Anchor::GitHub { remote, .. } = &fetched.anchor {
+        save_sha_cache(&request.state_dir, remote, &local_bytes)?;
+    }
     Journal::clear(&request.state_dir)?;
-    Ok(SyncReport::Succeeded {
+    Ok(Round::Done(SyncReport::Succeeded {
         head,
-        exclusions: inventory.exclusions,
-    })
+        exclusions: inventory.exclusions.clone(),
+    }))
+}
+
+/// What one fetch read, kept so publish can name exactly that state.
+struct Fetched {
+    snapshot: Snapshot,
+    blobs: BTreeMap<ContentHash, Vec<u8>>,
+    anchor: Anchor,
+}
+
+enum Anchor {
+    GitHub {
+        scope: GitHubScope,
+        remote: crate::github::GitHubRemote,
+    },
+    Drive {
+        scope: DriveScope,
+        remote: drive::DriveRemote,
+        parents: Vec<String>,
+    },
+    Tailscale {
+        scope: TailnetScope,
+        parents: Vec<String>,
+    },
+}
+
+/// Bytes for every file the apply step must write from the remote. GitHub
+/// reads skip blobs whose content is already known, so fetch any of those the
+/// plan now needs.
+fn remote_bytes_for<T: HttpTransport, C: CredentialStore>(
+    engine: &EngineParts<T, C>,
+    _request: &RunRequest,
+    token: &TokenSet,
+    fetched: &Fetched,
+    desired: &Snapshot,
+    inventory: &Inventory,
+) -> Result<BTreeMap<ContentHash, Vec<u8>>, SyncError> {
+    let mut blobs = fetched.blobs.clone();
+    if let Anchor::GitHub { scope, remote } = &fetched.anchor {
+        let client = github_client(engine);
+        for (path, record) in &desired.files {
+            if inventory.snapshot.hash_of(path) == Some(record.hash)
+                || blobs.contains_key(&record.hash)
+            {
+                continue;
+            }
+            let bytes = client.blob_for_hash(scope, &token.access, remote, record.hash)?;
+            blobs.insert(record.hash, bytes);
+        }
+    }
+    Ok(blobs)
 }
 
 fn conflicts_or_desired(
@@ -207,16 +302,20 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
     engine: &EngineParts<T, C>,
     request: &RunRequest,
     token: &TokenSet,
-) -> Result<(Snapshot, BTreeMap<ContentHash, Vec<u8>>, String), SyncError> {
+) -> Result<Fetched, SyncError> {
     match request.provider {
         ProviderKind::GitHub => {
             let scope = request.github.clone().ok_or_else(|| SyncError::Config {
                 detail: "GitHub scope is missing".to_owned(),
             })?;
             let client = github_client(engine);
-            let remote = client.fetch(&scope, &token.access)?;
-            let head = remote.commit.clone().unwrap_or_default();
-            Ok((remote.snapshot, remote.blobs, head))
+            let known = load_sha_cache(&request.state_dir);
+            let remote = client.fetch_cached(&scope, &token.access, &known)?;
+            Ok(Fetched {
+                snapshot: remote.snapshot.clone(),
+                blobs: remote.blobs.clone(),
+                anchor: Anchor::GitHub { scope, remote },
+            })
         }
         ProviderKind::GoogleDrive => {
             let scope = request.drive.clone().ok_or_else(|| SyncError::Config {
@@ -224,14 +323,18 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
             })?;
             let client = drive_client(engine);
             let remote = client.fetch(&scope, &token.access)?;
+            // Disagreeing heads are an error from merge_heads, never an empty
+            // snapshot that would plan every file as a remote delete.
             let merged = drive::merge_heads(&remote)?;
-            if merged.plan.has_conflicts() && request.resolutions.is_empty() {
-                return Err(SyncError::ConflictRemote {
-                    detail: format!("{} concurrent Drive heads disagree", remote.heads.len()),
-                });
-            }
-            let head = merged.parents.first().cloned().unwrap_or_default();
-            Ok((merged.snapshot, remote.blobs, head))
+            Ok(Fetched {
+                snapshot: merged.snapshot,
+                blobs: remote.blobs.clone(),
+                anchor: Anchor::Drive {
+                    scope,
+                    parents: merged.parents,
+                    remote,
+                },
+            })
         }
         ProviderKind::Tailscale => {
             let scope = tailnet_scope(request)?;
@@ -244,7 +347,14 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
             }
             // The heads this run planned against. Publish names exactly these
             // as parents, so the host refuses the commit if it moved.
-            Ok((merged.snapshot, remote.blobs, merged.parents.join(",")))
+            Ok(Fetched {
+                snapshot: merged.snapshot,
+                blobs: remote.blobs,
+                anchor: Anchor::Tailscale {
+                    scope,
+                    parents: merged.parents,
+                },
+            })
         }
     }
 }
@@ -286,87 +396,67 @@ fn publish<T: HttpTransport, C: CredentialStore>(
     engine: &EngineParts<T, C>,
     request: &RunRequest,
     token: &TokenSet,
-    remote_snapshot: &Snapshot,
-    remote_blobs: &BTreeMap<ContentHash, Vec<u8>>,
+    fetched: &Fetched,
+    _remote_blobs: &BTreeMap<ContentHash, Vec<u8>>,
     desired: &Snapshot,
     planned: &Plan,
     local_bytes: &BTreeMap<RelPath, Vec<u8>>,
-    fetched_heads: &str,
 ) -> Result<String, SyncError> {
-    match request.provider {
-        ProviderKind::GitHub => {
-            let scope = request.github.clone().unwrap();
-            let client = github_client(engine);
-            let remote = crate::github::GitHubRemote {
-                commit: load_anchor(&request.state_dir),
-                tree: None,
-                snapshot: remote_snapshot.clone(),
-                blobs: remote_blobs.clone(),
-            };
-            // `commit: None` would create a new root. Use the fetched head from
-            // the anchor file written by fetch via state. The GitHub client
-            // re-reads the ref itself, so a missing commit here is safe.
-            let _ = remote;
-            let fetched = client.fetch(&scope, &token.access)?;
+    let tombstones: Vec<_> = planned
+        .tombstones
+        .iter()
+        .map(|tomb| (tomb.path.clone(), tomb.base_hash))
+        .collect();
+    match &fetched.anchor {
+        Anchor::GitHub { scope, remote } => github_client(engine).publish(
+            scope,
+            &token.access,
+            remote,
+            desired,
+            local_bytes,
+            request.operation.as_str(),
+        ),
+        Anchor::Drive {
+            scope,
+            remote,
+            parents,
+        } => {
+            let client = drive_client(engine);
+            // Drive has no compare-and-swap. Name exactly the heads this plan
+            // merged, and refuse if any commit appeared since the read: the
+            // next round plans with it. A writer that still slips in between
+            // this check and the upload becomes a second head, which the next
+            // read merges; its changes are never named as a parent unseen.
+            let now = client.commit_ids(scope, &token.access)?;
+            let seen: BTreeSet<String> = remote.commits.keys().cloned().collect();
+            if now != seen {
+                return Err(SyncError::ConflictRemote {
+                    detail: "Drive gained a commit after this sync read it".to_owned(),
+                });
+            }
             client.publish(
-                &scope,
+                scope,
                 &token.access,
-                &fetched,
+                remote,
                 desired,
+                parents,
+                &tombstones,
                 local_bytes,
                 request.operation.as_str(),
             )
         }
-        ProviderKind::GoogleDrive => {
-            let scope = request.drive.clone().unwrap();
-            let client = drive_client(engine);
-            let remote = client.fetch(&scope, &token.access)?;
-            let merged = drive::merge_heads(&remote)?;
-            let parents = if remote.heads.is_empty() {
-                Vec::new()
-            } else {
-                merged.parents
-            };
-            client.publish(
-                &scope,
-                &token.access,
+        Anchor::Tailscale { scope, parents } => with_tailnet_store(engine, scope, token, |store| {
+            let remote = tailnet::listing(store)?;
+            tailnet::publish(
+                store,
                 &remote,
                 desired,
-                &parents,
-                &planned
-                    .tombstones
-                    .iter()
-                    .map(|tomb| (tomb.path.clone(), tomb.base_hash))
-                    .collect::<Vec<_>>(),
+                parents,
+                &tombstones,
                 local_bytes,
                 request.operation.as_str(),
             )
-        }
-        ProviderKind::Tailscale => {
-            let scope = tailnet_scope(request)?;
-            let parents: Vec<String> = fetched_heads
-                .split(',')
-                .filter(|id| !id.is_empty())
-                .map(str::to_owned)
-                .collect();
-            let tombstones: Vec<_> = planned
-                .tombstones
-                .iter()
-                .map(|tomb| (tomb.path.clone(), tomb.base_hash))
-                .collect();
-            with_tailnet_store(engine, &scope, token, |store| {
-                let remote = tailnet::listing(store)?;
-                tailnet::publish(
-                    store,
-                    &remote,
-                    desired,
-                    &parents,
-                    &tombstones,
-                    local_bytes,
-                    request.operation.as_str(),
-                )
-            })
-        }
+        }),
     }
 }
 
@@ -487,14 +577,6 @@ fn drive_client<'a, T: HttpTransport, C>(engine: &'a EngineParts<T, C>) -> Drive
     }
 }
 
-/// The engine must use the caller's sleeper, not a fresh one that drops the
-/// recorded delays. Rebuild clients with the shared sleeper by leaking a
-/// reference through the trait object stored on the engine.
-fn load_anchor(state_dir: &Path) -> Option<String> {
-    let _ = state_dir;
-    None
-}
-
 fn load_base(
     state_dir: &Path,
     binding: &BindingId,
@@ -557,6 +639,48 @@ fn save_base(
         "entries": entries,
     });
     crate::fsutil::write_outside(&state_dir.join("base.json"), json.to_string().as_bytes())
+}
+
+const SHA_CACHE: &str = "github-blob-cache.json";
+
+/// git blob sha → content hash for blobs this binding has already read or
+/// written. It is a fact about bytes, so a stale or missing cache only costs
+/// downloads; a corrupt one is ignored.
+fn load_sha_cache(state_dir: &Path) -> BTreeMap<String, ContentHash> {
+    let Ok(text) = std::fs::read_to_string(state_dir.join(SHA_CACHE)) else {
+        return BTreeMap::new();
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return BTreeMap::new();
+    };
+    json.get("entries")
+        .and_then(|value| value.as_object())
+        .into_iter()
+        .flatten()
+        .filter_map(|(sha, hash)| Some((sha.clone(), ContentHash::parse(hash.as_str()?).ok()?)))
+        .collect()
+}
+
+/// Keep only the blobs the branch now names, plus what this run uploaded.
+fn save_sha_cache(
+    state_dir: &Path,
+    remote: &crate::github::GitHubRemote,
+    local_bytes: &BTreeMap<RelPath, Vec<u8>>,
+) -> Result<(), SyncError> {
+    let mut entries = serde_json::Map::new();
+    for (path, sha) in &remote.shas {
+        if let Some(hash) = remote.snapshot.hash_of(path) {
+            entries.insert(sha.clone(), serde_json::Value::String(hash.to_hex()));
+        }
+    }
+    for bytes in local_bytes.values() {
+        entries.insert(
+            crate::github::git_blob_sha(bytes),
+            serde_json::Value::String(ContentHash::of(bytes).to_hex()),
+        );
+    }
+    let json = serde_json::json!({ "schema": SCHEMA_VERSION, "entries": entries });
+    crate::fsutil::write_outside(&state_dir.join(SHA_CACHE), json.to_string().as_bytes())
 }
 
 fn store_prepared(

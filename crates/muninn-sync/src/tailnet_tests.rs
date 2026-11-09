@@ -519,8 +519,7 @@ fn tailnet_host_down_is_offline_and_leaves_the_vault_alone() {
         &peer,
         &request(&vault, &state, &binding, peer_role(), "abcd000000000021"),
     )
-    .err()
-    .expect("host is down");
+    .expect_err("host is down");
     assert!(matches!(error, SyncError::Offline { .. }), "{error:?}");
     assert_eq!(
         std::fs::read_to_string(vault.join("keep.md")).unwrap(),

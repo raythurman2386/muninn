@@ -169,8 +169,10 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         let children = self.list_children(&sync_root.id, token)?;
         let blobs_folder = required_role(&children, "blobs")?;
         let commits_folder = required_role(&children, "commits")?;
-        let blob_files = self.list_children(&blobs_folder.id, token)?;
+        // Commits first: a writer uploads blobs before the manifest naming
+        // them, so every commit seen here has its blobs in the later listing.
         let commit_files = self.list_children(&commits_folder.id, token)?;
+        let blob_files = self.list_children(&blobs_folder.id, token)?;
         let mut blob_ids = BTreeMap::new();
         for file in &blob_files {
             if file.mime == SHORTCUT_MIME || file.mime.starts_with("application/vnd.google-apps.") {
@@ -247,6 +249,34 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
             blobs,
             blob_ids,
         })
+    }
+
+    /// Ids of every commit manifest in the store, without downloading any.
+    pub fn commit_ids(
+        &self,
+        scope: &DriveScope,
+        token: &Secret,
+    ) -> Result<BTreeSet<String>, SyncError> {
+        scope.validate()?;
+        let root_children = self.list_children(&scope.folder_id, token)?;
+        let Some(sync_root) = root_children
+            .iter()
+            .find(|file| file.role.as_deref() == Some("root") && file.mime == FOLDER_MIME)
+        else {
+            return Ok(BTreeSet::new());
+        };
+        let children = self.list_children(&sync_root.id, token)?;
+        let commits_folder = required_role(&children, "commits")?;
+        Ok(self
+            .list_children(&commits_folder.id, token)?
+            .into_iter()
+            .map(|file| {
+                file.name
+                    .strip_suffix(".json")
+                    .unwrap_or(&file.name)
+                    .to_owned()
+            })
+            .collect())
     }
 
     pub fn publish(
@@ -856,10 +886,14 @@ pub fn merge_heads(remote: &DriveRemote) -> Result<DriveMerge, SyncError> {
         };
         let planned = plan::plan(base.as_ref(), &acc, &other);
         if planned.has_conflicts() {
-            return Ok(DriveMerge {
-                snapshot: Snapshot::default(),
-                parents: remote.heads.clone(),
-                plan: planned,
+            // Never return a placeholder snapshot here: planning against an
+            // empty remote would turn every base file into a delete.
+            return Err(SyncError::ConflictRemote {
+                detail: format!(
+                    "{} concurrent remote heads edit the same {} path(s); resolve on one device and sync again",
+                    remote.heads.len(),
+                    planned.conflicts.len()
+                ),
             });
         }
         acc = planned.desired.clone();

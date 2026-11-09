@@ -57,12 +57,15 @@ impl GitHubScope {
     }
 }
 
-#[derive(Clone, Debug)]
+/// One read of the branch. `blobs` holds only the bytes this read had to
+/// download; `shas` names the git blob for every path in `snapshot`.
+#[derive(Clone, Debug, Default)]
 pub struct GitHubRemote {
     pub commit: Option<String>,
     pub tree: Option<String>,
     pub snapshot: Snapshot,
     pub blobs: BTreeMap<ContentHash, Vec<u8>>,
+    pub shas: BTreeMap<RelativePath, String>,
 }
 
 #[derive(Clone, Debug)]
@@ -91,26 +94,33 @@ pub struct GitHubClient<'a, T> {
 }
 
 impl<'a, T: HttpTransport> GitHubClient<'a, T> {
+    /// Read the branch once with an empty sha cache. Every blob is downloaded.
     pub fn fetch(&self, scope: &GitHubScope, token: &Secret) -> Result<GitHubRemote, SyncError> {
+        self.fetch_cached(scope, token, &BTreeMap::new())
+    }
+
+    /// Read the branch tip, its recursive tree, and the blobs whose content
+    /// hash is not already known. `known` maps git blob sha to content hash;
+    /// it is a pure fact about bytes, so any earlier run may have filled it.
+    /// Blobs found through the cache are not downloaded and are absent from
+    /// `blobs`; [`GitHubClient::blob_for_hash`] fetches one on demand.
+    pub fn fetch_cached(
+        &self,
+        scope: &GitHubScope,
+        token: &Secret,
+        known: &BTreeMap<String, ContentHash>,
+    ) -> Result<GitHubRemote, SyncError> {
         scope.validate()?;
-        let reference = self.get_ref(scope, token)?;
-        let Some((commit, tree)) = reference else {
-            return Ok(GitHubRemote {
-                commit: None,
-                tree: None,
-                snapshot: Snapshot::default(),
-                blobs: BTreeMap::new(),
-            });
+        let Some((commit, tree)) = self.get_ref(scope, token)? else {
+            return Ok(GitHubRemote::default());
         };
-        let mut files = Vec::new();
-        self.walk_tree(scope, token, &tree, "", &mut files)?;
         let mut snapshot = Snapshot::default();
         let mut blobs = BTreeMap::new();
+        let mut shas = BTreeMap::new();
         let mut total = 0u64;
-        for (path, sha, bytes) in files {
+        for (path, sha, size) in self.recursive_tree(scope, token, &tree)? {
             let rel = strip_prefix(scope, &path)?;
-            let hash = ContentHash::of(&bytes);
-            total = total.saturating_add(bytes.len() as u64);
+            total = total.saturating_add(size);
             if total > DEFAULT_LIMITS.max_total_bytes {
                 return Err(SyncError::Limit {
                     detail: "remote vault exceeds the sync byte limit".to_owned(),
@@ -121,78 +131,108 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
                     detail: "remote vault exceeds the sync file limit".to_owned(),
                 });
             }
+            let hash = match known.get(&sha) {
+                Some(hash) => *hash,
+                None => {
+                    let bytes = self.read_blob(scope, token, &sha)?;
+                    if git_blob_sha(&bytes) != sha {
+                        return Err(SyncError::Protocol {
+                            detail: format!("blob {sha} did not match its contents"),
+                        });
+                    }
+                    let hash = ContentHash::of(&bytes);
+                    blobs.insert(hash, bytes);
+                    hash
+                }
+            };
             snapshot.files.insert(
-                rel,
+                rel.clone(),
                 FileRecord {
                     hash,
-                    size: bytes.len() as u64,
+                    size,
                     kind: FileKind::of_name(path.rsplit('/').next().unwrap_or(&path)),
                 },
             );
-            blobs.insert(hash, bytes);
-            let _ = sha;
+            shas.insert(rel, sha);
         }
         Ok(GitHubRemote {
             commit: Some(commit),
             tree: Some(tree),
             snapshot,
             blobs,
+            shas,
         })
     }
 
-    /// Publish `desired`. `local_bytes` supplies the bytes for every path whose
-    /// content is not already in `remote.blobs`. Returns the commit that the
-    /// branch ref now names.
-    pub fn publish(
+    /// Bytes for a content hash that `remote` lists but did not download.
+    pub fn blob_for_hash(
         &self,
         scope: &GitHubScope,
         token: &Secret,
         remote: &GitHubRemote,
+        hash: ContentHash,
+    ) -> Result<Vec<u8>, SyncError> {
+        if let Some(bytes) = remote.blobs.get(&hash) {
+            return Ok(bytes.clone());
+        }
+        let sha = remote
+            .snapshot
+            .files
+            .iter()
+            .find(|(_, record)| record.hash == hash)
+            .and_then(|(path, _)| remote.shas.get(path))
+            .ok_or_else(|| SyncError::Protocol {
+                detail: format!("remote does not list content {hash}"),
+            })?;
+        let bytes = self.read_blob(scope, token, sha)?;
+        if git_blob_sha(&bytes) != *sha || ContentHash::of(&bytes) != hash {
+            return Err(SyncError::Protocol {
+                detail: format!("blob {sha} did not match its contents"),
+            });
+        }
+        Ok(bytes)
+    }
+
+    /// Publish `desired` as one commit whose parent is exactly the commit the
+    /// plan was made from (`planned.commit`) and whose base tree is that
+    /// commit's tree. The ref moves with `force: false`. If the branch moved
+    /// since `planned` was read, GitHub refuses the update (422) and this
+    /// returns [`SyncError::ConflictRemote`]; the caller must fetch and plan
+    /// again. `desired` is never re-applied over a tip it was not planned on.
+    pub fn publish(
+        &self,
+        scope: &GitHubScope,
+        token: &Secret,
+        planned: &GitHubRemote,
         desired: &Snapshot,
         local_bytes: &BTreeMap<RelativePath, Vec<u8>>,
         operation_id: &str,
     ) -> Result<String, SyncError> {
         scope.validate()?;
-        for _attempt in 0..3 {
-            match self.publish_once(scope, token, remote, desired, local_bytes, operation_id) {
-                Err(SyncError::ConflictRemote { .. }) => continue,
-                other => return other,
+        if let Some(commit) = &planned.commit {
+            if same_content(&planned.snapshot, desired) {
+                return Ok(commit.clone());
             }
-        }
-        Err(SyncError::ConflictRemote {
-            detail: "the branch moved on every attempt".to_owned(),
-        })
-    }
-
-    fn publish_once(
-        &self,
-        scope: &GitHubScope,
-        token: &Secret,
-        remote: &GitHubRemote,
-        desired: &Snapshot,
-        local_bytes: &BTreeMap<RelativePath, Vec<u8>>,
-        operation_id: &str,
-    ) -> Result<String, SyncError> {
-        if let Some(commit) = &remote.commit
-            && self.commit_is_ours(scope, token, commit, operation_id)?
-        {
-            return Ok(commit.clone());
-        }
-        let fresh = self.fetch(scope, token)?;
-        if let Some(commit) = &fresh.commit
-            && self.commit_is_ours(scope, token, commit, operation_id)?
-        {
-            return Ok(commit.clone());
+            if self.commit_is_ours(scope, token, commit, operation_id)? {
+                return Ok(commit.clone());
+            }
         }
         let mut blob_shas: BTreeMap<ContentHash, String> = BTreeMap::new();
+        for (path, record) in &planned.snapshot.files {
+            if let Some(sha) = planned.shas.get(path) {
+                blob_shas.insert(record.hash, sha.clone());
+            }
+        }
         for (path, record) in &desired.files {
-            if let Some(bytes) = fresh.blobs.get(&record.hash) {
-                blob_shas.insert(record.hash, git_blob_sha(bytes));
+            if blob_shas.contains_key(&record.hash) {
                 continue;
             }
-            let bytes = local_bytes.get(path).ok_or_else(|| SyncError::Protocol {
-                detail: format!("missing bytes for {path}"),
-            })?;
+            let bytes = local_bytes
+                .get(path)
+                .or_else(|| planned.blobs.get(&record.hash))
+                .ok_or_else(|| SyncError::Protocol {
+                    detail: format!("missing bytes for {path}"),
+                })?;
             if ContentHash::of(bytes) != record.hash {
                 return Err(SyncError::Protocol {
                     detail: format!("bytes for {path} do not match the plan"),
@@ -201,13 +241,23 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
             let sha = self.create_blob(scope, token, bytes)?;
             blob_shas.insert(record.hash, sha);
         }
-        let tree_entries = desired_tree(scope, &fresh.snapshot, desired, &blob_shas)?;
-        let tree = self.create_tree(scope, token, fresh.tree.as_deref(), &tree_entries)?;
-        let parents = fresh.commit.clone().into_iter().collect::<Vec<_>>();
+        let tree_entries = desired_tree(scope, &planned.snapshot, desired, &blob_shas)?;
+        let tree = self.create_tree(scope, token, planned.tree.as_deref(), &tree_entries)?;
+        let parents = planned.commit.clone().into_iter().collect::<Vec<_>>();
         let message = format!("{COMMIT_PREFIX}{operation_id}\n\nLogical vault sync.\n");
         let commit = self.create_commit(scope, token, &message, &tree, &parents)?;
-        self.update_ref(scope, token, &commit, fresh.commit.as_deref())?;
-        Ok(commit)
+        match self.update_ref(scope, token, &commit, planned.commit.as_deref()) {
+            Ok(()) => Ok(commit),
+            Err(error) if error.outcome_unknown() => {
+                // The ref may have moved to our commit before the response
+                // was lost. Only an exact match counts as success.
+                match self.get_ref(scope, token)? {
+                    Some((tip, _)) if tip == commit => Ok(commit),
+                    _ => Err(error),
+                }
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub fn device_start(&self, client_id: &str) -> Result<DeviceChallenge, SyncError> {
@@ -280,8 +330,14 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
                 .unwrap_or("");
             return match error {
                 "" if response.status == 200 => Ok(DevicePoll::Approved(token_from_json(&json)?)),
-                "authorization_pending" => Ok(DevicePoll::Pending { interval: 5 }),
-                "slow_down" => Ok(DevicePoll::SlowDown { interval: 5 }),
+                "authorization_pending" => Ok(DevicePoll::Pending {
+                    interval: json.get("interval").and_then(|v| v.as_u64()).unwrap_or(5),
+                }),
+                // RFC 8628 and GitHub: slow_down adds 5 seconds; GitHub also
+                // returns the new interval, which wins when present.
+                "slow_down" => Ok(DevicePoll::SlowDown {
+                    interval: json.get("interval").and_then(|v| v.as_u64()).unwrap_or(10),
+                }),
                 "access_denied" => Err(SyncError::Auth {
                     detail: "the device authorization was denied".to_owned(),
                 }),
@@ -387,22 +443,23 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
         Ok(Some((sha, tree)))
     }
 
-    fn walk_tree(
+    /// One `git/trees/<sha>?recursive=1` call. Returns `(path, blob sha,
+    /// size)` for every regular file inside the prefix. A truncated listing
+    /// is refused instead of being treated as deletions.
+    fn recursive_tree(
         &self,
         scope: &GitHubScope,
         token: &Secret,
         tree: &str,
-        prefix: &str,
-        out: &mut Vec<(String, String, Vec<u8>)>,
-    ) -> Result<(), SyncError> {
+    ) -> Result<Vec<(String, String, u64)>, SyncError> {
         let path = format!(
-            "/repos/{}/{}/git/trees/{tree}",
+            "/repos/{}/{}/git/trees/{tree}?recursive=1",
             encode(&scope.owner),
             encode(&scope.repo)
         );
         let response = self.send(self.api("GET", &path, token, None, false), false)?;
         let json = response.json()?;
-        if json.get("truncated").and_then(|value| value.as_bool()) == Some(true) {
+        if json.get("truncated").and_then(|value| value.as_bool()) != Some(false) {
             return Err(SyncError::ListingIncomplete {
                 detail: format!(
                     "git tree {tree} was truncated; refusing to treat missing entries as deletions"
@@ -415,11 +472,13 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
             .ok_or_else(|| SyncError::Protocol {
                 detail: "git tree response has no entries".to_owned(),
             })?;
+        let mut out = Vec::new();
         for entry in entries {
-            let name = entry
+            let full = entry
                 .get("path")
                 .and_then(|value| value.as_str())
-                .unwrap_or("");
+                .unwrap_or("")
+                .to_owned();
             let mode = entry
                 .get("mode")
                 .and_then(|value| value.as_str())
@@ -428,27 +487,24 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
                 .get("sha")
                 .and_then(|value| value.as_str())
                 .unwrap_or("");
-            let full = if prefix.is_empty() {
-                name.to_owned()
-            } else {
-                format!("{prefix}/{name}")
-            };
-            let inside = inside_prefix(scope, &full);
+            if !inside_prefix(scope, &full) {
+                continue;
+            }
             match mode {
-                "040000" => self.walk_tree(scope, token, sha, &full, out)?,
-                "120000" if inside => {
+                "040000" => {}
+                "120000" => {
                     return Err(SyncError::Unsupported {
                         path: full,
                         detail: "git symlink".to_owned(),
                     });
                 }
-                "160000" if inside => {
+                "160000" => {
                     return Err(SyncError::Unsupported {
                         path: full,
                         detail: "git submodule".to_owned(),
                     });
                 }
-                "100644" | "100755" if inside => {
+                "100644" | "100755" => {
                     let size = entry
                         .get("size")
                         .and_then(|value| value.as_u64())
@@ -458,25 +514,22 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
                             detail: format!("{full} is {size} bytes"),
                         });
                     }
-                    let bytes = self.read_blob(scope, token, sha)?;
-                    if git_blob_sha(&bytes) != sha {
+                    if sha.len() != 40 || !sha.chars().all(|ch| ch.is_ascii_hexdigit()) {
                         return Err(SyncError::Protocol {
-                            detail: format!("blob {sha} did not match its contents"),
+                            detail: format!("{full} has a malformed blob sha"),
                         });
                     }
-                    out.push((full, sha.to_owned(), bytes));
+                    out.push((full, sha.to_owned(), size));
                 }
-                "120000" | "160000" | "100644" | "100755" => {}
-                other if inside => {
+                other => {
                     return Err(SyncError::Unsupported {
                         path: full,
                         detail: format!("git mode {other}"),
                     });
                 }
-                _ => {}
             }
         }
-        Ok(())
+        Ok(out)
     }
 
     fn read_blob(
@@ -726,6 +779,14 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
             Err(error) => Err(error),
         }
     }
+}
+
+fn same_content(left: &Snapshot, right: &Snapshot) -> bool {
+    left.files.len() == right.files.len()
+        && left
+            .files
+            .iter()
+            .all(|(path, record)| right.hash_of(path) == Some(record.hash))
 }
 
 fn desired_tree(
