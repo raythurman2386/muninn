@@ -222,6 +222,26 @@ fn answer(mut stream: TcpStream, expected_state: &str) -> Option<Result<OAuthRed
         let _ = respond(&mut stream, 400, "Missing sign-in answer.");
         return None;
     }
+    // Anything on this machine can reach the loopback port. A request that
+    // does not carry this attempt's state is not the browser's answer: refuse
+    // it and keep waiting, so it cannot cancel the real sign-in.
+    let field = |name: &str| {
+        form_urlencoded::parse(query.as_bytes())
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.into_owned())
+    };
+    if field("state").as_deref() != Some(expected_state) {
+        let _ = respond(
+            &mut stream,
+            400,
+            "This sign-in answer is not for Muninn's current attempt.",
+        );
+        return None;
+    }
+    if field("code").is_none() && field("error").is_none() {
+        let _ = respond(&mut stream, 400, "Missing sign-in answer.");
+        return None;
+    }
     let result = drive::parse_oauth_redirect(query, expected_state);
     let message = if result.is_ok() {
         "Muninn is signed in to Google Drive. You can close this tab."
@@ -233,11 +253,18 @@ fn answer(mut stream: TcpStream, expected_state: &str) -> Option<Result<OAuthRed
 }
 
 fn respond(stream: &mut TcpStream, status: u16, message: &str) -> std::io::Result<()> {
+    let reason = match status {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        _ => "Error",
+    };
     let body =
         format!("<!doctype html><meta charset=\"utf-8\"><title>Muninn</title><p>{message}</p>");
     write!(
         stream,
-        "HTTP/1.1 {status} OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n{body}",
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n{body}",
         body.len()
     )?;
     stream.flush()

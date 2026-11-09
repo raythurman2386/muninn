@@ -1166,15 +1166,16 @@ pub fn parse_oauth_redirect(query: &str, expected_state: &str) -> Result<OAuthRe
             .find(|(key, _)| key == name)
             .map(|(_, value)| value.clone())
     };
-    if let Some(error) = value("error") {
-        return Err(SyncError::Auth {
-            detail: format!("google authorization returned {error}"),
-        });
-    }
+    // State first: an `error` without this attempt's state proves nothing.
     let state = value("state").unwrap_or_default();
     if state != expected_state {
         return Err(SyncError::Auth {
             detail: "oauth state did not match the request".to_owned(),
+        });
+    }
+    if let Some(error) = value("error") {
+        return Err(SyncError::Auth {
+            detail: format!("google authorization returned {error}"),
         });
     }
     let code = value("code").ok_or_else(|| SyncError::Auth {

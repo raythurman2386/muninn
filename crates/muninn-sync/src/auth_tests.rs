@@ -125,18 +125,42 @@ fn loopback_redirect_checks_state_and_ignores_other_paths() {
     assert_eq!(answer.code, "the-code");
     assert!(worker.join().unwrap().contains("You can close this tab"));
 
-    for (query, state) in [
-        ("code=x&state=forged", "s2"),
-        ("error=access_denied&state=s3", "s3"),
-    ] {
-        let redirect = LoopbackRedirect::bind().unwrap();
-        let url = format!("{}?{query}", redirect.redirect_uri());
-        std::thread::spawn(move || http_get(&url));
-        let error = redirect
-            .wait(state, &CancelToken::new(), Duration::from_secs(5))
-            .unwrap_err();
-        assert!(matches!(error, SyncError::Auth { .. }), "{error}");
+    // A request with someone else's state (or none) gets a 400 and the
+    // listener keeps waiting; the real answer that follows still signs in.
+    let redirect = LoopbackRedirect::bind().unwrap();
+    let uri = redirect.redirect_uri();
+    let worker = std::thread::spawn(move || {
+        let mut replies = Vec::new();
+        for query in [
+            "code=x&state=forged",
+            "error=access_denied&state=forged",
+            "error=access_denied",
+            "code=x",
+            "state=s5",
+        ] {
+            replies.push(http_get(&format!("{uri}?{query}")).unwrap());
+        }
+        replies.push(http_get(&format!("{uri}?code=real&state=s5")).unwrap());
+        replies
+    });
+    let answer = redirect
+        .wait("s5", &CancelToken::new(), Duration::from_secs(5))
+        .expect("a forged answer must not abort the sign-in");
+    assert_eq!(answer.code, "real");
+    let replies = worker.join().unwrap();
+    for reply in &replies[..5] {
+        assert!(reply.starts_with("HTTP/1.1 400 Bad Request"), "{reply}");
     }
+    assert!(replies[5].starts_with("HTTP/1.1 200 OK"), "{}", replies[5]);
+
+    // This attempt's own error (the person declined) still ends the wait.
+    let redirect = LoopbackRedirect::bind().unwrap();
+    let url = format!("{}?error=access_denied&state=s3", redirect.redirect_uri());
+    std::thread::spawn(move || http_get(&url));
+    let error = redirect
+        .wait("s3", &CancelToken::new(), Duration::from_secs(5))
+        .unwrap_err();
+    assert!(matches!(error, SyncError::Auth { .. }), "{error}");
 
     let redirect = LoopbackRedirect::bind().unwrap();
     let error = redirect
