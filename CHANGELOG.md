@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-09
+
 ### Changed
 
 - Removed the write-only `State::vault_prompt` flag (`begin_vault_prompt` /
