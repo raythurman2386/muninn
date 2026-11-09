@@ -134,7 +134,7 @@ fn each_tab_mounts_only_its_own_section() {
         // The theme picker, or its "Following Omarchy" note on an Omarchy
         // desktop; checked separately below.
         &[],
-        &["settings-reduced-motion-status"],
+        &["settings-reduce-motion", "settings-reduced-motion-status"],
         &["settings-sync-placeholder"],
     ];
     for (index, tab) in SettingsTab::ALL.iter().enumerate() {
@@ -222,33 +222,4 @@ fn escape_closes_settings_from_any_tab() {
         assert!(!f.rt.state.settings_modal, "Escape closes from tab {index}");
         assert!(f.rt.find("settings-dialog").is_none());
     }
-}
-
-#[test]
-fn graph_tab_reports_reduced_motion_without_changing_it() {
-    let mut f = fixture("motion");
-    let text_of = |rt: &Runtime<State>| {
-        rt.elements()
-            .into_iter()
-            .find(|e| e.key.as_deref() == Some("settings-reduced-motion-status"))
-            .and_then(|e| e.text)
-            .expect("reduced-motion status text")
-    };
-
-    f.rt.update(|s, _| s.reduced_motion = false);
-    open_settings(&mut f.rt);
-    click(&mut f.rt, "settings-tabs/segment3");
-    assert!(text_of(&f.rt).starts_with("Off"), "{}", text_of(&f.rt));
-
-    f.rt.update(|s, _| s.reduced_motion = true);
-    frames(&mut f.rt, 2);
-    assert!(
-        text_of(&f.rt).contains("MUNINN_REDUCED_MOTION"),
-        "{}",
-        text_of(&f.rt)
-    );
-    assert!(
-        f.rt.state.reduced_motion,
-        "viewing the Graph tab never flips the flag"
-    );
 }

@@ -12,7 +12,8 @@ use rune_theme_opencode::icons as ic;
 use muninn_core::{Vault, headings};
 
 use crate::{
-    DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, SettingsTab, State, ThemeMode,
+    DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State,
+    ThemeMode,
 };
 
 const SIDEBAR: f32 = 258.0;
@@ -22,9 +23,10 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
     // DES-03: the app's env flag is an accessibility preference too, so let
     // Rune's transitions (node dimming, panel fades) honour it alongside the
     // host setting.
-    let system_reduced_motion = cx.system_reduced_motion();
-    let reduced = system_reduced_motion || s.reduced_motion;
-    cx.reduced_motion(reduced);
+    // One resolved reduced-motion value (`State::reduced_motion`) drives
+    // Rune's transitions here and the graph layout/camera in `poll`.
+    s.set_system_reduced_motion(cx.system_reduced_motion());
+    cx.reduced_motion(s.reduced_motion());
     let k = crate::omarchy::resolve_kit(s, cx.system_dark());
     let mut base = row()
         .key("root")
@@ -63,7 +65,7 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
     // window, unlike the help page (which replaces the main column). Mount the
     // layer only while open so the ordinary view tree is unchanged otherwise.
     let mut layer = Vec::new();
-    settings_dialog(s, &k, system_reduced_motion).build(&k, &mut layer);
+    settings_dialog(s, &k).build(&k, &mut layer);
     rune_kit::root(base, layer)
 }
 
@@ -633,11 +635,13 @@ fn settings_button(k: &Kit) -> El {
 /// `settings-tabs`; each tab's body is its own function below and is keyed
 /// `settings-tab-<name>`, so a later section (sync, graph effects) lands by
 /// editing one function rather than the dialog shell.
-fn settings_dialog(s: &State, k: &Kit, system_reduced_motion: bool) -> Dialog {
+fn settings_dialog(s: &State, k: &Kit) -> Dialog {
     let labels: Vec<&str> = SettingsTab::ALL.iter().map(|tab| tab.label()).collect();
     let tabs = SegmentedControl::new(&labels, Some(s.settings_tab.index()))
         .label("Settings section")
-        .width(None)
+        // Equal cells with a sliding indicator (the theme picker's style);
+        // the indicator's travel obeys reduced motion like every transition.
+        .fit()
         .on_pick(|s: &mut State, index, _: &mut Tx| {
             if let Some(tab) = SettingsTab::ALL.get(index) {
                 s.set_settings_tab(*tab);
@@ -650,7 +654,7 @@ fn settings_dialog(s: &State, k: &Kit, system_reduced_motion: bool) -> Dialog {
         SettingsTab::Vaults => settings_vaults_tab(s, k),
         SettingsTab::Editor => settings_editor_tab(s, k),
         SettingsTab::Appearance => settings_appearance_tab(s, k),
-        SettingsTab::Graph => settings_graph_tab(s, k, system_reduced_motion),
+        SettingsTab::Graph => settings_graph_tab(s, k),
         SettingsTab::Sync => settings_sync_tab(s, k),
     };
 
@@ -857,18 +861,35 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
 
 /// Graph tab: how the knowledge graph moves.
 ///
+/// **Reduce motion** is a persisted System / On / Off choice. The status line
+/// under it shows the resolved value ([`State::reduced_motion`]), which is what
+/// the layout, camera and transitions obey.
+///
 /// Integration slot: the graph-effects work (draft PR #20) adds its
-/// **Graph effects** picker and the Reduced motion toggle here, as sections
-/// of this column. Until then the tab reports the existing reduced-motion
-/// state read-only; behaviour is unchanged (`MUNINN_REDUCED_MOTION` or the
-/// system setting freezes the layout and skips camera glides).
-fn settings_graph_tab(s: &State, k: &Kit, system_reduced_motion: bool) -> El {
-    let status = if s.reduced_motion {
-        "On: MUNINN_REDUCED_MOTION is set."
-    } else if system_reduced_motion {
-        "On: following the system's reduce-motion setting."
+/// **Graph effects** picker (Classic default, no Off) as a section *below*
+/// Reduce motion in this column. Effects must read `State::reduced_motion()`
+/// so reduced motion overrides any effect style.
+fn settings_graph_tab(s: &State, k: &Kit) -> El {
+    let labels: Vec<&str> = ReduceMotion::ALL.iter().map(|m| m.label()).collect();
+    let picker = SegmentedControl::new(&labels, Some(s.reduce_motion().index()))
+        .label("Reduce motion")
+        .fit()
+        .on_pick(|s: &mut State, index, _: &mut Tx| {
+            if let Some(mode) = ReduceMotion::ALL.get(index) {
+                s.set_reduce_motion(*mode);
+            }
+        })
+        .build(k)
+        .key("settings-reduce-motion");
+    let status = if s.reduced_motion_env {
+        "Currently on: MUNINN_REDUCED_MOTION is set, which overrides this choice."
     } else {
-        "Off: the graph layout settles live and the camera glides between notes."
+        match (s.reduce_motion(), s.reduced_motion()) {
+            (ReduceMotion::System, true) => "Currently on, following the system setting.",
+            (ReduceMotion::System, false) => "Currently off, following the system setting.",
+            (_, true) => "Currently on.",
+            (_, false) => "Currently off.",
+        }
     };
     col()
         .key("settings-tab-graph")
@@ -876,17 +897,20 @@ fn settings_graph_tab(s: &State, k: &Kit, system_reduced_motion: bool) -> El {
         .gap(18.0)
         .child(settings_section(
             k,
-            "Reduced motion",
+            "Reduce motion",
             Some(
-                "Freezes the graph layout and skips camera glides. Turn it on with \
-                 the system reduce-motion setting or MUNINN_REDUCED_MOTION=1.",
+                "Freezes the graph layout, skips camera glides and makes hover and \
+                 selection changes instant. System follows your OS setting.",
             ),
-            text(status)
-                .key("settings-reduced-motion-status")
-                .font(k.ty.ui_compact)
-                .color(k.c.text_base)
-                .wrap(),
+            col().w_full().gap(8.0).child(picker).child(
+                text(status)
+                    .key("settings-reduced-motion-status")
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .wrap(),
+            ),
         ))
+    // #20 slot: `.child(settings_section(k, "Graph effects", …))` goes here.
 }
 
 /// Sync tab.

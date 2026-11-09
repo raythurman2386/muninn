@@ -63,11 +63,11 @@ Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 `~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
 missing file starts from defaults instead of blocking startup. It remembers the theme,
 collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
-autosave delay (0.55 s by default), the default note template and up to five recent vaults. `Cmd/Ctrl+,`
+autosave delay (0.55 s by default), the default note template, the Reduce motion choice and up to five recent vaults. `Cmd/Ctrl+,`
 opens the in-window Settings modal, split into tabs: **Vaults** (open or create a vault,
 or reopen a recent one), **Editor** (step the autosave delay, 0.05–10 s, and the default
-note template), **Appearance** (Omarchy / System / Dark / Light), **Graph** (reports
-whether reduced motion is on) and **Sync** (a placeholder until sync ships). Settings
+note template), **Appearance** (Omarchy / System / Dark / Light), **Graph** (Reduce motion:
+System / On / Off) and **Sync** (a placeholder until sync ships). Settings
 always opens on the Vaults tab; the selected tab is not saved. A non-empty default note template is inserted verbatim at the top of
 every new note (a trailing newline is added when missing); an empty template
 keeps the plain `# Title` body. Choices persist immediately,
@@ -112,7 +112,13 @@ counts, results) and **never note bodies**, so the file is safe to attach to a b
 `--trace` adds every autosave tick. The Help overlay shows the last five lines plus the
 version, Rune revision and vault counts, with a **Copy diagnostics** button.
 
-`MUNINN_REDUCED_MOTION=1` (also `true`, `yes` or `on`) freezes the force layout: nodes
+**Reduce motion** (Settings › Graph) is System by default, which follows the operating
+system's reduce-motion preference; On and Off override the OS. Files saved before the
+setting existed load as System. `MUNINN_REDUCED_MOTION=1` (also `true`, `yes` or `on`)
+forces reduced motion on whatever the setting says (handy for tests, CI and recorded
+demos); it can never turn motion back on. The resolved value is one function,
+`State::reduced_motion()`, read by the graph layout, the camera, graph highlights and
+Rune's own transitions. When it is on, the force layout freezes: nodes
 keep their deterministic seed positions, no auto-settle wakes the window, and pan, zoom
 and fit still work. Graph camera glides and node-highlight tweens become instant, so a
 selection or scope switch cannot wake the window either. Prefer this over replacing the

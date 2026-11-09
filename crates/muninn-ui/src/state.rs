@@ -15,7 +15,7 @@ use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 use crate::camera::{Camera, CameraGlide};
 use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
-use crate::settings::{Settings, ThemeMode, clamp_note_template, config_home};
+use crate::settings::{ReduceMotion, Settings, ThemeMode, clamp_note_template, config_home};
 use crate::watch::{self, VaultSnapshot};
 
 /// What a sidebar context menu acts on.
@@ -479,8 +479,13 @@ pub struct State {
     pub(crate) log_path: PathBuf,
     /// X-01: `--trace` logs every autosave tick as well as the normal events.
     pub trace: bool,
-    /// DES-03: `MUNINN_REDUCED_MOTION=1` freezes the force layout.
-    pub reduced_motion: bool,
+    /// DES-03: `MUNINN_REDUCED_MOTION=1` was set at startup. It forces
+    /// reduced motion on whatever the Settings choice is; read the resolved
+    /// value through [`State::reduced_motion`], never this field.
+    pub reduced_motion_env: bool,
+    /// The OS reduce-motion preference as of the last view, which is the only
+    /// place Rune reports it. `Cell` because `view` borrows `State` shared.
+    pub(crate) system_reduced_motion: std::cell::Cell<bool>,
 }
 
 impl State {
@@ -542,7 +547,7 @@ impl State {
         let collapsed: HashSet<String> = settings.collapsed.iter().cloned().collect();
         let restore_mode = settings.mode;
         let restore_scope = settings.scope;
-        let reduced_motion = reduced_motion_from_env();
+        let reduced_motion_env = reduced_motion_from_env();
         let log_path = state_home.join("muninn").join("session.log");
         let note_template_field = TextEdit::new(&settings.note_template);
         let started = Instant::now();
@@ -680,7 +685,8 @@ impl State {
             vault_field: TextEdit::new(""),
             log_path,
             trace: false,
-            reduced_motion,
+            reduced_motion_env,
+            system_reduced_motion: std::cell::Cell::new(false),
         };
         // X-01: one startup line with the build, the vault path and counts.
         // Keys only: note bodies and titles never reach the log.
@@ -1922,7 +1928,7 @@ impl State {
     /// DES-03: one layout tick. Reduced motion pins heat to zero and never
     /// moves a node; the deterministic seed positions stay where they are.
     pub(crate) fn graph_step(&mut self) -> bool {
-        if self.reduced_motion {
+        if self.reduced_motion() {
             self.graph.heat = 0.0;
             false
         } else {
@@ -1943,6 +1949,38 @@ impl State {
         }
         self.theme = theme;
         self.save_settings();
+    }
+
+    /// The Reduce motion choice from Settings (not the resolved value).
+    #[must_use]
+    pub fn reduce_motion(&self) -> ReduceMotion {
+        self.settings.reduce_motion
+    }
+
+    /// Set the Reduce motion choice and persist it. Takes effect on the next
+    /// frame: the layout stops stepping, a camera glide in flight lands, and
+    /// Rune transitions (hover, selection, presence) stop travelling.
+    pub fn set_reduce_motion(&mut self, mode: ReduceMotion) {
+        self.settings.reduce_motion = mode;
+        self.save_settings();
+    }
+
+    /// Whether motion is reduced right now: the single resolved value that the
+    /// graph layout, the camera, graph press colours, Rune's own transitions
+    /// (and any future graph-effects style) all read. See
+    /// [`ReduceMotion::resolve`] for how `MUNINN_REDUCED_MOTION`, the Settings
+    /// choice and the OS preference combine.
+    #[must_use]
+    pub fn reduced_motion(&self) -> bool {
+        self.settings
+            .reduce_motion
+            .resolve(self.reduced_motion_env, self.system_reduced_motion.get())
+    }
+
+    /// Record the OS reduce-motion preference. `view` calls this every frame
+    /// with what Rune reports; a host without a Rune view may call it too.
+    pub fn set_system_reduced_motion(&self, reduced: bool) {
+        self.system_reduced_motion.set(reduced);
     }
 
     /// Advance the theme button's cycle (Omarchy → System → Dark → Light).
@@ -2181,7 +2219,7 @@ impl State {
         let still = (current.pan[0] - target.pan[0]).abs() < 0.5
             && (current.pan[1] - target.pan[1]).abs() < 0.5
             && (current.zoom - target.zoom).abs() < 0.005;
-        if self.reduced_motion || self.mode != Mode::Graph || still {
+        if self.reduced_motion() || self.mode != Mode::Graph || still {
             self.camera_glide = None;
             self.cam.set(target.pan, target.zoom);
         } else if let Some(glide) = &mut self.camera_glide {
@@ -2203,7 +2241,7 @@ impl State {
             return false;
         }
         // A reduced-motion switch mid-flight must not keep waking the window.
-        if self.reduced_motion {
+        if self.reduced_motion() {
             let target = glide.target();
             self.camera_glide = None;
             let before = (self.cam.pan(), self.cam.zoom());

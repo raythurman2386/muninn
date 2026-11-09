@@ -6,14 +6,24 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Reduce motion** setting on the Settings › Graph tab: System (default; follows
+  the OS reduce-motion preference), On or Off, stored as `reduce_motion` in
+  `settings.json`. Older files without the key load as System. `MUNINN_REDUCED_MOTION`
+  still forces reduced motion on over any choice. When reduced motion is on, the graph
+  layout freezes, camera glides snap, graph highlights land at once and Rune's hover,
+  selection and indicator transitions don't travel. The OS preference now also freezes
+  the graph layout under System; before, it only affected Rune's transitions. One
+  resolved value, `State::reduced_motion()`, feeds all of these.
+
 ### Changed
 
 - Settings is split into tabs — Vaults, Editor, Appearance, Graph and Sync — so the
   modal shows one group at a time. The selected tab is session-only (not written to
   `settings.json`) and resets to Vaults whenever Settings opens; switching away from
-  Vaults drops focus from the path field. The Graph tab reports whether reduced
-  motion is on (`MUNINN_REDUCED_MOTION` or the system setting; behaviour unchanged),
-  and the Sync tab is a placeholder for the sync work. The dialog is 540 pt wide and
+  Vaults drops focus from the path field. The Sync tab is a placeholder for the
+  sync work. The tab bar slides its indicator like the theme picker. The dialog is 540 pt wide and
   the theme picker sizes its segments to their labels, so "Omarchy" and "System" no
   longer truncate. `scripts/settings-tab-snapshots.sh` renders one screenshot per tab
   against a throwaway vault and isolated home.

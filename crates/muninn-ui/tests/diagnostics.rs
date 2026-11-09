@@ -90,7 +90,7 @@ fn reduced_motion_freezes_the_graph_layout() {
         ("Gamma.md", "[[Alpha]]"),
     ]);
     let (mut s, home) = state_at(&tmp);
-    s.reduced_motion = true;
+    s.reduced_motion_env = true;
     s.set_mode(Mode::Graph);
     let before: Vec<[f32; 2]> = s.graph.nodes.iter().map(|node| node.pos).collect();
     let mut tx = Tx::default();
@@ -105,7 +105,7 @@ fn reduced_motion_freezes_the_graph_layout() {
     );
 
     // The same layout does settle when reduced motion is off.
-    s.reduced_motion = false;
+    s.reduced_motion_env = false;
     s.graph.reheat();
     for frame in 0..5 {
         poll(&mut s, 0.1 + f64::from(frame) / 60.0, &mut tx);

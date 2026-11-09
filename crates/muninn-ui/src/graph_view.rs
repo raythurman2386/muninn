@@ -404,7 +404,7 @@ fn node_dot(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
 /// change in the same frame, matching the camera's snap.
 fn graph_press_motion(s: &State, tx: &mut Tx) {
     tx.color_motion(HIGHLIGHT_SPRING);
-    if s.reduced_motion {
+    if s.reduced_motion() {
         tx.instant();
     }
 }
