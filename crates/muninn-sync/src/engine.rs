@@ -20,7 +20,7 @@ use crate::lease::VaultLease;
 use crate::limits::Exclusion;
 use crate::model::{
     BindingId, Conflict, ContentHash, FileKind, FileRecord, OperationId, Plan, ProviderKind,
-    Resolution, Snapshot,
+    Resolution, Snapshot, Tombstone,
 };
 use crate::pathutil::RelativePath as RelPath;
 use crate::plan::{self, plan};
@@ -55,7 +55,14 @@ pub struct RunRequest {
     pub tailnet: Option<TailnetScope>,
     pub operation: OperationId,
     pub protected: BTreeSet<RelPath>,
+    /// Explicit per-path choices for the conflicts the plan finds.
     pub resolutions: Vec<(RelPath, Resolution)>,
+    /// The choice for every conflict `resolutions` does not name. `None`
+    /// stops the run with [`SyncReport::Conflicts`] instead. The app sets
+    /// [`Resolution::KeepBoth`], so a note edited on two devices never stops
+    /// sync: the local version keeps the path and the remote one is written
+    /// beside it as `<stem> (remote)<ext>`.
+    pub default_resolution: Option<Resolution>,
 }
 
 #[derive(Debug)]
@@ -63,8 +70,9 @@ pub enum SyncReport {
     Succeeded {
         head: String,
         exclusions: Vec<Exclusion>,
-        /// Conflict copies this run created while merging remote heads that
-        /// edited the same path ("keep both").
+        /// Conflict copies this run created ("keep both"): from merging
+        /// remote heads that edited the same path, and from local-vs-remote
+        /// conflicts resolved as [`Resolution::KeepBoth`].
         conflict_copies: Vec<RelPath>,
     },
     Conflicts {
@@ -194,15 +202,21 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
     if let Some(report) = conflicts_or_desired(&planned, request, inventory, &fetched.snapshot)? {
         return Ok(Round::Done(report));
     }
-    let desired = if planned.has_conflicts() {
-        plan::resolve(
+    let mut conflict_copies = fetched.conflict_copies.clone();
+    let (desired, tombstones) = if planned.has_conflicts() {
+        let choices = choices_for(&planned.conflicts, request);
+        let (desired, copies) = plan::resolve(
+            base.as_ref(),
             &inventory.snapshot,
             &fetched.snapshot,
             &planned.conflicts,
-            &request.resolutions,
-        )?
+            &choices,
+        )?;
+        conflict_copies.extend(copies);
+        let tombstones = plan::tombstones_for(base.as_ref(), &desired);
+        (desired, tombstones)
     } else {
-        planned.desired.clone()
+        (planned.desired.clone(), planned.tombstones.clone())
     };
     let local_bytes = read_local_bytes(&request.root, &desired, &inventory.snapshot)?;
     let remote_blobs = remote_bytes_for(engine, request, token, &fetched, &desired, inventory)?;
@@ -213,7 +227,7 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
         &fetched,
         &remote_blobs,
         &desired,
-        &planned,
+        &tombstones,
         &local_bytes,
     ) {
         Ok(head) => head,
@@ -242,7 +256,7 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
     Ok(Round::Done(SyncReport::Succeeded {
         head,
         exclusions: inventory.exclusions.clone(),
-        conflict_copies: fetched.conflict_copies.clone(),
+        conflict_copies,
     }))
 }
 
@@ -297,13 +311,33 @@ fn remote_bytes_for<T: HttpTransport, C: CredentialStore>(
     Ok(blobs)
 }
 
+/// One choice per conflict: the explicit one if the request names it, else
+/// the request's default. Conflicts with neither are left out, so `resolve`
+/// refuses rather than guessing.
+fn choices_for(conflicts: &[Conflict], request: &RunRequest) -> Vec<(RelPath, Resolution)> {
+    conflicts
+        .iter()
+        .filter_map(|conflict| {
+            request
+                .resolutions
+                .iter()
+                .find(|(path, _)| path == &conflict.path)
+                .map(|(_, choice)| *choice)
+                .or(request.default_resolution)
+                .map(|choice| (conflict.path.clone(), choice))
+        })
+        .collect()
+}
+
 fn conflicts_or_desired(
     planned: &Plan,
     request: &RunRequest,
     _inventory: &Inventory,
     _remote: &Snapshot,
 ) -> Result<Option<SyncReport>, SyncError> {
-    if planned.has_conflicts() && request.resolutions.is_empty() {
+    if planned.has_conflicts()
+        && choices_for(&planned.conflicts, request).len() < planned.conflicts.len()
+    {
         return Ok(Some(SyncReport::Conflicts {
             conflicts: planned.conflicts.clone(),
         }));
@@ -458,11 +492,10 @@ fn publish<T: HttpTransport, C: CredentialStore>(
     fetched: &Fetched,
     _remote_blobs: &BTreeMap<ContentHash, Vec<u8>>,
     desired: &Snapshot,
-    planned: &Plan,
+    tombstones: &[Tombstone],
     local_bytes: &BTreeMap<RelPath, Vec<u8>>,
 ) -> Result<String, SyncError> {
-    let tombstones: Vec<_> = planned
-        .tombstones
+    let tombstones: Vec<_> = tombstones
         .iter()
         .map(|tomb| (tomb.path.clone(), tomb.base_hash))
         .collect();

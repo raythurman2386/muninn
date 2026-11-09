@@ -14,7 +14,7 @@ use crate::error::SyncError;
 use crate::github::{DevicePoll, GitHubClient, GitHubRemote, GitHubScope, git_blob_sha};
 use crate::http::{CancelToken, RecordingSleeper, ReqwestTransport};
 use crate::model::{
-    BindingId, ContentHash, FileKind, FileRecord, OperationId, ProviderKind, Snapshot,
+    BindingId, ContentHash, FileKind, FileRecord, OperationId, ProviderKind, Resolution, Snapshot,
 };
 use crate::pathutil::RelativePath;
 use crate::secret::{Secret, TokenSet};
@@ -1166,6 +1166,7 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         operation: OperationId::parse("abcde00000000001").unwrap(),
         protected: Default::default(),
         resolutions: Vec::new(),
+        default_resolution: None,
     };
     let report = run_sync(&engine, &request).unwrap();
     assert!(matches!(
@@ -1195,6 +1196,7 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         operation: OperationId::parse("abcde00000000002").unwrap(),
         protected: Default::default(),
         resolutions: Vec::new(),
+        default_resolution: None,
     };
     run_sync(&engine, &pulled).unwrap();
     assert_eq!(
@@ -1278,6 +1280,7 @@ impl TestVault {
             operation: OperationId::parse(op).unwrap(),
             protected: Default::default(),
             resolutions: Vec::new(),
+            default_resolution: None,
         }
     }
 
@@ -2053,5 +2056,129 @@ fn drive_two_devices_creating_the_store_at_once_do_not_split_it() {
         remote.heads.len(),
         1,
         "the merge commit joins both roots' heads"
+    );
+}
+
+/// C1: the same note edited on two devices between syncs. Without a choice
+/// the run stops on the conflict and writes nothing; with the app's default
+/// ("keep both") it continues, keeps this device's text at the path, writes
+/// the other device's text as `<stem> (remote)<ext>`, names the copy, and the
+/// next syncs on both devices are clean.
+fn same_note_edit_on_two_devices_keeps_both(
+    engine: &EngineParts<ReqwestTransport, &MemoryCredentialStore>,
+    provider: ProviderKind,
+    binding: &BindingId,
+    tag: &str,
+    ops: [&str; 8],
+) {
+    let one = TestVault::new(&format!("{tag}-c1-one"));
+    let two = TestVault::new(&format!("{tag}-c1-two"));
+    let keep_both = |vault: &TestVault, op: &str| {
+        let mut request = vault.request(provider, binding, op);
+        request.default_resolution = Some(Resolution::KeepBoth);
+        request
+    };
+    std::fs::write(one.root.join("note.md"), "base").unwrap();
+    std::fs::write(one.root.join("other.md"), "untouched").unwrap();
+    succeeded(run_sync(engine, &keep_both(&one, ops[0])).unwrap());
+    succeeded(run_sync(engine, &keep_both(&two, ops[1])).unwrap());
+    assert_eq!(two.read("note.md").as_deref(), Some("base"));
+
+    // Device one edits and syncs; device two edits the same note offline.
+    std::fs::write(one.root.join("note.md"), "edit from one").unwrap();
+    succeeded(run_sync(engine, &keep_both(&one, ops[2])).unwrap());
+    std::fs::write(two.root.join("note.md"), "edit from two").unwrap();
+
+    // With no choice at all the run still stops and touches nothing.
+    let report = run_sync(engine, &two.request(provider, binding, ops[3])).unwrap();
+    let SyncReport::Conflicts { conflicts } = report else {
+        panic!("expected a conflict, got {report:?}");
+    };
+    assert_eq!(conflicts.len(), 1);
+    assert_eq!(two.read("note.md").as_deref(), Some("edit from two"));
+    assert_eq!(two.read("note (remote).md"), None);
+
+    // The app's request: the empty choice list no longer leaves it stuck.
+    let request = keep_both(&two, ops[4]);
+    assert!(request.resolutions.is_empty());
+    let report = run_sync(engine, &request).unwrap();
+    let SyncReport::Succeeded {
+        conflict_copies, ..
+    } = &report
+    else {
+        panic!("expected success, got {report:?}");
+    };
+    assert_eq!(
+        conflict_copies,
+        &vec![RelativePath::parse("note (remote).md").unwrap()]
+    );
+    assert_eq!(two.read("note.md").as_deref(), Some("edit from two"));
+    assert_eq!(
+        two.read("note (remote).md").as_deref(),
+        Some("edit from one")
+    );
+    assert_eq!(two.read("other.md").as_deref(), Some("untouched"));
+
+    // Device one pulls both versions; then both devices are clean.
+    succeeded(run_sync(engine, &keep_both(&one, ops[5])).unwrap());
+    assert_eq!(one.read("note.md").as_deref(), Some("edit from two"));
+    assert_eq!(
+        one.read("note (remote).md").as_deref(),
+        Some("edit from one")
+    );
+    for (vault, op) in [(&two, ops[6]), (&one, ops[7])] {
+        let report = run_sync(engine, &keep_both(vault, op)).unwrap();
+        assert!(
+            matches!(&report, SyncReport::Succeeded { conflict_copies, .. } if conflict_copies.is_empty()),
+            "{report:?}"
+        );
+    }
+}
+
+#[test]
+fn github_same_note_edit_on_two_devices_keeps_both_and_does_not_stall() {
+    let store = Arc::new(Mutex::new(git_store()));
+    let server = git_server(Arc::clone(&store));
+    let (credentials, binding) = connected(ProviderKind::GitHub);
+    let engine = github_engine(&server, &credentials);
+    same_note_edit_on_two_devices_keeps_both(
+        &engine,
+        ProviderKind::GitHub,
+        &binding,
+        "gh",
+        [
+            "abcde000000000c1",
+            "abcde000000000c2",
+            "abcde000000000c3",
+            "abcde000000000c4",
+            "abcde000000000c5",
+            "abcde000000000c6",
+            "abcde000000000c7",
+            "abcde000000000c8",
+        ],
+    );
+}
+
+#[test]
+fn drive_same_note_edit_on_two_devices_keeps_both_and_does_not_stall() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    let (credentials, binding) = connected(ProviderKind::GoogleDrive);
+    let engine = drive_engine(&server, &credentials);
+    same_note_edit_on_two_devices_keeps_both(
+        &engine,
+        ProviderKind::GoogleDrive,
+        &binding,
+        "drive",
+        [
+            "abcde000000000d1",
+            "abcde000000000d2",
+            "abcde000000000d3",
+            "abcde000000000d4",
+            "abcde000000000d5",
+            "abcde000000000d6",
+            "abcde000000000d7",
+            "abcde000000000d8",
+        ],
     );
 }

@@ -52,6 +52,13 @@ All notable changes to Muninn are documented here. The format is based on
   them. Publish now names exactly the state the plan read and the run replans.
 - Drive heads that edit the same path no longer yield an empty snapshot.
 - Token expiry was stored as a duration; it is now an absolute time.
+- A note edited on two devices between syncs stopped sync for that vault on
+  every provider, with no way to resolve it in the app. Every such conflict now
+  resolves "keep both": this device's text keeps the path, the remote's is
+  written as `<stem> (remote)<ext>`, the status names the copies, and other
+  changes in the same run still apply. The planner also no longer reads an
+  edited path as a rename source, which could drop an edit when a copy held
+  the old bytes.
 - Drive heads that edited the same path wedged the store with a conflict no
   screen could resolve. They now merge "keep both" with a
   `(conflict <id>)` copy and one merge commit, which also unsticks stores left

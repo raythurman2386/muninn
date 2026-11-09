@@ -120,6 +120,7 @@ fn request(
         operation: OperationId::parse(op).unwrap(),
         protected: Default::default(),
         resolutions: Vec::new(),
+        default_resolution: None,
     }
 }
 
@@ -632,4 +633,83 @@ fn tailnet_two_device_race_through_the_engine_keeps_both_changes() {
 
 fn request_for(root: &Path, state: &Path, binding: &BindingId, op: &str) -> RunRequest {
     request(root, state, binding, peer_role(), op)
+}
+
+/// C1 on Tailscale: a note edited on two peers between syncs keeps both
+/// versions under the app's default instead of stopping every later run.
+#[test]
+fn tailnet_same_note_edit_on_two_devices_keeps_both_and_does_not_stall() {
+    let dirs = Dirs::new("c1");
+    let store_dir = dirs.dir("store");
+    let server = host(&store_dir, &[]);
+    let credentials = MemoryCredentialStore::default();
+    let a = bind(&credentials);
+    let b = bind(&credentials);
+    let (a_vault, a_state) = (dirs.dir("a-vault"), dirs.dir("a-state"));
+    let (b_vault, b_state) = (dirs.dir("b-vault"), dirs.dir("b-state"));
+    let peer = engine(&credentials, Some(base(&server)));
+    let keep_both = |vault: &Path, state: &Path, binding: &BindingId, op: &str| {
+        let mut request = request(vault, state, binding, peer_role(), op);
+        request.default_resolution = Some(Resolution::KeepBoth);
+        request
+    };
+    let read = |path: PathBuf| std::fs::read_to_string(path).ok();
+    std::fs::write(a_vault.join("n.md"), "base").unwrap();
+    run_sync(
+        &peer,
+        &keep_both(&a_vault, &a_state, &a, "abcd0000000000c1"),
+    )
+    .unwrap();
+    run_sync(
+        &peer,
+        &keep_both(&b_vault, &b_state, &b, "abcd0000000000c2"),
+    )
+    .unwrap();
+    std::fs::write(a_vault.join("n.md"), "edit from a").unwrap();
+    run_sync(
+        &peer,
+        &keep_both(&a_vault, &a_state, &a, "abcd0000000000c3"),
+    )
+    .unwrap();
+    std::fs::write(b_vault.join("n.md"), "edit from b").unwrap();
+
+    let report = run_sync(
+        &peer,
+        &keep_both(&b_vault, &b_state, &b, "abcd0000000000c4"),
+    )
+    .unwrap();
+    let SyncReport::Succeeded {
+        conflict_copies, ..
+    } = &report
+    else {
+        panic!("expected success, got {report:?}");
+    };
+    assert_eq!(
+        conflict_copies,
+        &vec![RelativePath::parse("n (remote).md").unwrap()]
+    );
+    assert_eq!(read(b_vault.join("n.md")).as_deref(), Some("edit from b"));
+    assert_eq!(
+        read(b_vault.join("n (remote).md")).as_deref(),
+        Some("edit from a")
+    );
+    run_sync(
+        &peer,
+        &keep_both(&a_vault, &a_state, &a, "abcd0000000000c5"),
+    )
+    .unwrap();
+    assert_eq!(read(a_vault.join("n.md")).as_deref(), Some("edit from b"));
+    assert_eq!(
+        read(a_vault.join("n (remote).md")).as_deref(),
+        Some("edit from a")
+    );
+    let again = run_sync(
+        &peer,
+        &keep_both(&b_vault, &b_state, &b, "abcd0000000000c6"),
+    )
+    .unwrap();
+    assert!(
+        matches!(&again, SyncReport::Succeeded { conflict_copies, .. } if conflict_copies.is_empty()),
+        "{again:?}"
+    );
 }

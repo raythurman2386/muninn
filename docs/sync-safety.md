@@ -21,9 +21,11 @@
   the read makes the run replan, and one that lands later becomes a second
   head instead of an overwrite; two Drive heads that changed the same path are
   merged with a conflict copy beside it, never a silent pick, a lost edit, or
-  a stuck store. The Tailscale host is one serialized writer: it accepts a commit
-  only when its parents are exactly the current heads, so a peer that read an
-  older head is refused and replans. Blobs and commits are create-only; the
+  a stuck store. A note edited here and on another device since the last sync
+  is kept twice the same way: this device's text at the path, the remote's as
+  `<stem> (remote)<ext>`, named in the status. The Tailscale host is one
+  serialized writer: it accepts a commit only when its parents are exactly the
+  current heads, so a peer that read an older head is refused and replans. Blobs and commits are create-only; the
   host has no overwrite or delete endpoint.
 - A timeout after a mutation is an unknown outcome. The next attempt looks up
   the operation id (GitHub commit message, or Drive commit manifest) before

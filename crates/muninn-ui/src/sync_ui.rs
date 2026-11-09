@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use muninn_sync::{
     BindingId, CancelToken, CredentialStore, MemoryCredentialStore, NativeCredentialStore,
-    OperationId, ProviderKind, RunRequest, Secret, SyncReport, TAILNET_DEFAULT_PORT, TailnetHost,
-    TailnetHostConfig, TailnetRole, TailnetScope, TokenSet, VaultIdentity,
+    OperationId, ProviderKind, Resolution, RunRequest, Secret, SyncReport, TAILNET_DEFAULT_PORT,
+    TailnetHost, TailnetHostConfig, TailnetRole, TailnetScope, TokenSet, VaultIdentity,
 };
 use rune::TextEdit;
 
@@ -922,7 +922,7 @@ impl State {
                     let names: Vec<&str> =
                         conflict_copies.iter().map(|path| path.as_str()).collect();
                     extra.push_str(&format!(
-                        " Two devices edited the same note; both versions were kept: {}.",
+                        " A note changed on two devices; both versions were kept: {}.",
                         names.join(", ")
                     ));
                 }
@@ -938,9 +938,16 @@ impl State {
                 self.refresh_watch();
             }
             Ok(SyncReport::Conflicts { conflicts }) => {
+                // Not reached from the app (it keeps both by default), but
+                // name the files if a run ever stops on conflicts.
+                let names: Vec<&str> = conflicts
+                    .iter()
+                    .map(|conflict| conflict.path.as_str())
+                    .collect();
                 self.sync_ui.status = format!(
-                    "{} conflict(s). Nothing was overwritten. Resolve them, then Sync Now again.",
-                    conflicts.len()
+                    "{} conflict(s): {}. Nothing was overwritten.",
+                    conflicts.len(),
+                    names.join(", ")
                 );
             }
             Err(error) => self.sync_ui.status = error,
@@ -1051,7 +1058,12 @@ fn run_request(
         tailnet,
         operation: OperationId::fresh(),
         protected: Default::default(),
+        // There are no per-file choices in the app yet. Keep both versions
+        // of a note edited on two devices so sync never stops on it: the
+        // local one keeps the path, the remote one lands beside it as
+        // `<name> (remote).md`, and the status names the copies.
         resolutions: Vec::new(),
+        default_resolution: Some(Resolution::KeepBoth),
     })
 }
 
@@ -1445,6 +1457,41 @@ mod tests {
             store_dir,
             muninn_sync::tailnet_store_dir(&sync_home, &host_id)
         );
+        let _ = fs::remove_dir_all(&sync_home);
+    }
+
+    /// C1: the app has no per-file conflict choices, so every run it starts
+    /// must carry a default that keeps both versions; an empty choice list
+    /// alone would stop sync for the vault on the first same-note edit.
+    #[test]
+    fn every_provider_run_keeps_both_versions_of_a_conflict_by_default() {
+        let sync_home = std::env::temp_dir().join(format!(
+            "muninn-sync-ui-c1-{}-{}",
+            std::process::id(),
+            muninn_sync::BindingId::fresh().as_str()
+        ));
+        for provider in [
+            muninn_sync::ProviderKind::GitHub,
+            muninn_sync::ProviderKind::GoogleDrive,
+            muninn_sync::ProviderKind::Tailscale,
+        ] {
+            let binding = crate::settings::VaultSyncBinding {
+                provider: provider.as_str().to_owned(),
+                binding_id: muninn_sync::BindingId::fresh().as_str().to_owned(),
+                tailnet_role: "peer".to_owned(),
+                tailnet_host: "minis.tail1234.ts.net".to_owned(),
+                ..Default::default()
+            };
+            let request =
+                super::run_request(&binding, sync_home.join("vault"), sync_home.clone()).unwrap();
+            assert_eq!(request.provider, provider);
+            assert!(request.resolutions.is_empty());
+            assert_eq!(
+                request.default_resolution,
+                Some(muninn_sync::Resolution::KeepBoth),
+                "{provider:?}"
+            );
+        }
         let _ = fs::remove_dir_all(&sync_home);
     }
 

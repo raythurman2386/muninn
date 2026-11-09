@@ -399,12 +399,16 @@ fn rewrite(snapshot: &Snapshot, renames: &[Rename], side: Side) -> Snapshot {
 
 /// Pair unique content-hash deletes with unique adds. Ambiguous matches are
 /// left as delete+add so we never guess.
+///
+/// Only a path that is gone can be a rename source. A path that still exists
+/// with new bytes was edited, not moved: treating it as moved would put the
+/// old bytes back at the path and drop the edit (for example when a
+/// keep-both copy holds the old version beside the new one).
 fn unique_renames(base: &Snapshot, side: &Snapshot) -> Vec<Rename> {
     let mut deleted: BTreeMap<ContentHash, Vec<RelativePath>> = BTreeMap::new();
     for (path, record) in &base.files {
-        match side.get(path) {
-            Some(now) if now.hash == record.hash => {}
-            _ => deleted.entry(record.hash).or_default().push(path.clone()),
+        if side.get(path).is_none() {
+            deleted.entry(record.hash).or_default().push(path.clone());
         }
     }
     let mut added: BTreeMap<ContentHash, Vec<RelativePath>> = BTreeMap::new();
@@ -431,25 +435,32 @@ fn unique_renames(base: &Snapshot, side: &Snapshot) -> Vec<Rename> {
     renames
 }
 
-/// Apply explicit choices to a conflicted plan.
+/// Apply choices to a conflicted plan.
 ///
-/// `KeepBoth` writes the remote bytes beside the local file under a
-/// `(remote)` name and keeps the local bytes at the original path. The
-/// returned snapshot is the tree to publish and apply. If either side's hash
-/// no longer matches the conflict, the caller must replan instead.
+/// Paths outside the conflict list take the three-way result against `base`:
+/// a side that kept the base takes the other side, so a delete or rename made
+/// on one side in the same run is kept, not undone. With no base (first bind)
+/// it is the union, as in [`plan`].
+///
+/// `KeepBoth` keeps the local bytes at the original path and writes the
+/// remote bytes beside them as `<stem> (remote)<ext>`. Copy names are picked
+/// after every kept path is placed, so a copy never takes a path another
+/// file needs. Returns the tree to publish and apply, and the copies it
+/// created. If either side's hash no longer matches the conflict, the caller
+/// must replan instead.
 pub fn resolve(
+    base: Option<&Snapshot>,
     local: &Snapshot,
     remote: &Snapshot,
     conflicts: &[Conflict],
     choices: &[(RelativePath, Resolution)],
-) -> Result<Snapshot, SyncError> {
+) -> Result<(Snapshot, Vec<RelativePath>), SyncError> {
     if choices.len() != conflicts.len() {
         return Err(SyncError::Config {
             detail: "every conflict needs a choice before sync can continue".to_owned(),
         });
     }
     let mut desired = Snapshot::default();
-    // Start from the union of non-conflicting paths, preferring local when equal.
     let mut paths = BTreeSet::new();
     paths.extend(local.files.keys().cloned());
     paths.extend(remote.files.keys().cloned());
@@ -457,18 +468,27 @@ pub fn resolve(
         if conflicts.iter().any(|conflict| &conflict.path == path) {
             continue;
         }
-        if let Some(record) = local.get(path).or_else(|| remote.get(path)).cloned() {
-            // If both exist and differ, this path should have been a conflict.
-            if let (Some(left), Some(right)) = (local.get(path), remote.get(path))
-                && left.hash != right.hash
-            {
+        let left = local.get(path);
+        let right = remote.get(path);
+        let kept = match (base.and_then(|base| base.get(path)), left, right) {
+            (_, Some(l), Some(r)) if l.hash == r.hash => Some(l),
+            // One side kept the base: the other side's state wins, including
+            // a delete or the old half of a rename.
+            (Some(b), Some(l), r) if l.hash == b.hash => r,
+            (Some(b), l, Some(r)) if r.hash == b.hash => l,
+            (_, Some(_), Some(_)) => {
                 return Err(SyncError::Protocol {
                     detail: format!("{path} differs but was not in the conflict list"),
                 });
             }
-            desired.files.insert(path.clone(), record);
+            // Only one side has it and it is not a base delete: content wins.
+            (_, l, r) => l.or(r),
+        };
+        if let Some(record) = kept {
+            desired.files.insert(path.clone(), record.clone());
         }
     }
+    let mut chosen = Vec::with_capacity(conflicts.len());
     for conflict in conflicts {
         let choice = choices
             .iter()
@@ -477,29 +497,50 @@ pub fn resolve(
             .ok_or_else(|| SyncError::Config {
                 detail: format!("missing choice for {}", conflict.path),
             })?;
-        match choice {
-            Resolution::KeepLocal => {
-                if let Some(record) = local.get(&conflict.path).cloned() {
-                    desired.files.insert(conflict.path.clone(), record);
-                }
-            }
-            Resolution::UseRemote => {
-                if let Some(record) = remote.get(&conflict.path).cloned() {
-                    desired.files.insert(conflict.path.clone(), record);
-                }
-            }
-            Resolution::KeepBoth => {
-                if let Some(record) = local.get(&conflict.path).cloned() {
-                    desired.files.insert(conflict.path.clone(), record);
-                }
-                if let Some(record) = remote.get(&conflict.path).cloned() {
-                    let copy = conflict_copy_path(&conflict.path, &desired)?;
-                    desired.files.insert(copy, record);
-                }
-            }
+        chosen.push((conflict, choice));
+    }
+    // Place every path a choice keeps first, then name the copies.
+    for (conflict, choice) in &chosen {
+        let record = match choice {
+            Resolution::KeepLocal | Resolution::KeepBoth => local.get(&conflict.path),
+            Resolution::UseRemote => remote.get(&conflict.path),
+        };
+        if let Some(record) = record {
+            desired.files.insert(conflict.path.clone(), record.clone());
         }
     }
-    Ok(desired)
+    let mut copies = Vec::new();
+    for (conflict, choice) in &chosen {
+        if *choice != Resolution::KeepBoth {
+            continue;
+        }
+        let Some(record) = remote.get(&conflict.path) else {
+            continue;
+        };
+        if local.get(&conflict.path).map(|l| l.hash) == Some(record.hash) {
+            continue;
+        }
+        let copy = conflict_copy_path(&conflict.path, &desired)?;
+        desired.files.insert(copy.clone(), record.clone());
+        copies.push(copy);
+    }
+    Ok((desired, copies))
+}
+
+/// Paths in `base` that `desired` no longer has, as tombstones for a publish.
+#[must_use]
+pub fn tombstones_for(base: Option<&Snapshot>, desired: &Snapshot) -> Vec<Tombstone> {
+    base.map(|base| {
+        base.files
+            .iter()
+            .filter(|(path, _)| !desired.files.contains_key(*path))
+            .map(|(path, record)| Tombstone {
+                path: path.clone(),
+                base_hash: record.hash,
+            })
+            .collect()
+    })
+    .unwrap_or_default()
 }
 
 /// A three-way merge that cannot stop on a conflict, for two remote heads
@@ -831,7 +872,8 @@ mod tests {
             remote: remote.hash_of(&path("a.md")),
             other_path: None,
         }];
-        let desired = resolve(
+        let (desired, copies) = resolve(
+            None,
             &local,
             &remote,
             &conflicts,
@@ -839,6 +881,155 @@ mod tests {
         )
         .unwrap();
         assert_eq!(desired.hash_of(&path("a.md")), local.hash_of(&path("a.md")));
-        assert!(desired.get(&path("a (remote).md")).is_some());
+        assert_eq!(
+            desired.hash_of(&path("a (remote).md")),
+            remote.hash_of(&path("a.md"))
+        );
+        assert_eq!(copies, vec![path("a (remote).md")]);
+    }
+
+    /// The device that wrote the old version then reads the keep-both result:
+    /// the path holds the other text and a copy holds its own. That is an
+    /// edit plus an add, not a rename; reading it as a rename put the old
+    /// bytes back at the path and dropped the other device's edit.
+    #[test]
+    fn an_edit_beside_a_copy_of_the_old_bytes_is_not_a_rename() {
+        let base = snap(&[("a.md", "mine")]);
+        let local = base.clone();
+        let remote = snap(&[("a.md", "theirs"), ("a (remote).md", "mine")]);
+        let planned = plan(Some(&base), &local, &remote);
+        assert!(!planned.has_conflicts(), "{:?}", planned.conflicts);
+        assert!(planned.renames.is_empty(), "{:?}", planned.renames);
+        assert_eq!(planned.desired, remote);
+        assert!(planned.local_deletes.is_empty());
+        // Same for a Drive keep-both merge copy.
+        let remote = snap(&[("a.md", "theirs"), ("a (conflict 1234abcd).md", "mine")]);
+        assert_eq!(plan(Some(&base), &local, &remote).desired, remote);
+    }
+
+    /// A same-note edit on both sides resolved "keep both" must not undo the
+    /// other one-sided changes in the same run (deletes, renames, edits).
+    #[test]
+    fn keep_both_keeps_one_sided_deletes_renames_and_edits_beside_a_conflict() {
+        let base = snap(&[
+            ("a.md", "base"),
+            ("b.md", "b"),
+            ("c.md", "moved"),
+            ("d.md", "d"),
+            ("e.md", "e"),
+        ]);
+        // local: edit a, delete b, rename c -> c2. remote: edit a, delete d, edit e.
+        let local = snap(&[
+            ("a.md", "left"),
+            ("c2.md", "moved"),
+            ("d.md", "d"),
+            ("e.md", "e"),
+        ]);
+        let remote = snap(&[
+            ("a.md", "right"),
+            ("b.md", "b"),
+            ("c.md", "moved"),
+            ("e.md", "e2"),
+        ]);
+        let planned = plan(Some(&base), &local, &remote);
+        assert_eq!(planned.conflicts.len(), 1, "{:?}", planned.conflicts);
+        assert_eq!(planned.conflicts[0].kind, ConflictKind::EditEdit);
+        let choices = vec![(path("a.md"), Resolution::KeepBoth)];
+        let (desired, copies) =
+            resolve(Some(&base), &local, &remote, &planned.conflicts, &choices).unwrap();
+        assert_eq!(
+            desired,
+            snap(&[
+                ("a.md", "left"),
+                ("a (remote).md", "right"),
+                ("c2.md", "moved"),
+                ("e.md", "e2"),
+            ])
+        );
+        assert_eq!(copies, vec![path("a (remote).md")]);
+        let mut tombs: Vec<_> = tombstones_for(Some(&base), &desired)
+            .into_iter()
+            .map(|tomb| tomb.path.as_str().to_owned())
+            .collect();
+        tombs.sort();
+        assert_eq!(tombs, vec!["b.md", "c.md", "d.md"]);
+        // Both sides then hold `desired`; the next plan is clean.
+        let next = plan(Some(&desired), &desired, &desired);
+        assert!(next.is_noop());
+    }
+
+    /// Every conflict kind resolves under "keep both" without losing bytes,
+    /// and a copy never takes a path another conflict keeps.
+    #[test]
+    fn keep_both_resolves_every_conflict_kind_without_dropping_content() {
+        let base = snap(&[
+            ("edit.md", "base"),
+            ("edit (remote).md", "base2"),
+            ("ed.md", "ed"),
+            ("de.md", "de"),
+            ("mv.md", "mv"),
+        ]);
+        let local = snap(&[
+            ("edit.md", "L1"),
+            ("edit (remote).md", "L2"),
+            ("ed.md", "ed-local"),
+            ("mv-local.md", "mv"),
+            ("new.md", "add-local"),
+        ]);
+        let remote = snap(&[
+            ("edit.md", "R1"),
+            ("edit (remote).md", "R2"),
+            ("de.md", "de-remote"),
+            ("mv.md", "mv-remote"),
+            ("new.md", "add-remote"),
+        ]);
+        let planned = plan(Some(&base), &local, &remote);
+        let kinds: BTreeSet<_> = planned
+            .conflicts
+            .iter()
+            .map(|c| format!("{:?}", c.kind))
+            .collect();
+        for kind in [
+            "EditEdit",
+            "EditDelete",
+            "DeleteEdit",
+            "AddAdd",
+            "RenameEdit",
+        ] {
+            assert!(kinds.contains(kind), "{kind} missing from {kinds:?}");
+        }
+        let choices: Vec<_> = planned
+            .conflicts
+            .iter()
+            .map(|c| (c.path.clone(), Resolution::KeepBoth))
+            .collect();
+        let (desired, copies) =
+            resolve(Some(&base), &local, &remote, &planned.conflicts, &choices).unwrap();
+        let kept: BTreeSet<_> = desired.files.values().map(|r| r.hash).collect();
+        for text in [
+            "L1",
+            "L2",
+            "R1",
+            "R2",
+            "ed-local",
+            "de-remote",
+            "mv",
+            "mv-remote",
+            "add-local",
+            "add-remote",
+        ] {
+            assert!(
+                kept.contains(&ContentHash::of(text.as_bytes())),
+                "{text} was dropped: {desired:?}"
+            );
+        }
+        assert_eq!(
+            desired.hash_of(&path("edit (remote).md")),
+            Some(ContentHash::of(b"L2")),
+            "a copy must not overwrite a path a conflict keeps"
+        );
+        assert_eq!(copies.len(), 5, "{copies:?}");
+        let next = plan(Some(&desired), &desired, &desired);
+        assert!(next.is_noop());
     }
 }

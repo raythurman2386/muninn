@@ -55,6 +55,17 @@ The first bind has no deletion authority: files that exist on only one side are
 copied, and a same-path disagreement is a conflict. Later deletes are explicit
 tombstones. A missing page, a 403, or a 404 is not a delete.
 
+A conflict between this device and the remote (the same note edited on both
+since the last sync, an edit against a delete, a rename against an edit, or the
+same new path on both) does not stop sync. The app resolves every conflict as
+"keep both" on every provider: this device's version keeps the path, and the
+remote version, if there is one, is written beside it as `<stem> (remote)<ext>`
+(`(remote 2)` and so on if that name is taken). The status line names each copy.
+Changes outside the conflicting paths in the same run (one-sided edits,
+deletes, renames) apply as usual. A path that still exists with new bytes is
+never read as the source of a rename, so a copy holding the old bytes is an add,
+not a move. Per-file Keep local / Use remote choices are not in the app yet.
+
 ## Credentials
 
 Tokens live in the OS credential store (`keyring` v1: macOS Keychain, Windows

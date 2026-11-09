@@ -408,9 +408,9 @@ fn scenes() -> &'static [Scene] {
             s.theme = muninn_ui::ThemeMode::Light;
             s.sync_ui.preview = true;
             s.open_settings();
-            s.sync_ui.status =
-                "2 conflicts. Nothing was overwritten. Resolve them, then Sync Now again."
-                    .to_owned();
+            s.sync_ui.status = "Last successful sync 1a2b3c4d. A note changed on two devices; \
+                 both versions were kept: Daily (remote).md."
+                .to_owned();
         }),
     ]
 }
