@@ -6,6 +6,20 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- Google Drive Connect finishes. Google refuses a Desktop client's token
+  request without its client secret, even with PKCE, so sign-in stopped with
+  "Authentication needed: [redacted]" and stored nothing. Official builds now
+  compile in the Desktop client secret from `MUNINN_GOOGLE_CLIENT_SECRET`
+  (never committed) and send it with the code exchange and refresh. A build
+  without it, or a custom Google client id in Settings, fails closed before
+  the browser opens and sends nothing. The browser tab says "signed in" only
+  after the token is in the OS credential store, and shows a failure page
+  otherwise. Provider reasons such as "client_secret is missing." are no
+  longer hidden, while token and secret values stay redacted. Sync Now keeps
+  a failed sign-in's reason in the status instead of a generic hint.
+
 ### Added
 
 - Manual vault sync for GitHub and Google Drive from Settings. Sync Now,
@@ -31,8 +45,9 @@ All notable changes to Muninn are documented here. The format is based on
   flow, Contents read/write) and the official Google Desktop OAuth client
   (PKCE, `drive.appdata` only). Builds can replace them with
   `MUNINN_GITHUB_CLIENT_ID` / `MUNINN_GOOGLE_CLIENT_ID`; the Settings client id
-  fields are optional overrides, and an empty id fails closed. No client
-  secret or private key ships. The official Google app is published, with
+  fields are optional overrides, and an empty id fails closed. No private
+  key ships; the Google Desktop client secret comes from the build (see
+  Fixed). The official Google app is published, with
   the privacy policy in `PRIVACY.md`.
 - **Reduce motion** setting on the Settings › Graph tab: System (default; follows
   the OS reduce-motion preference), On or Off, stored as `reduce_motion` in

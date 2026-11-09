@@ -21,6 +21,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
 
 use crate::SCHEMA_VERSION;
+use crate::clients::GoogleOAuthClient;
 use crate::error::SyncError;
 use crate::http::{
     CancelToken, HttpRequest, HttpTransport, Sleeper, classify_status, ensure_allowed, with_retry,
@@ -543,14 +544,16 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
 
     pub fn exchange_code(
         &self,
-        client_id: &str,
+        client: &GoogleOAuthClient,
         redirect_uri: &str,
         code: &str,
         verifier: &str,
     ) -> Result<TokenSet, SyncError> {
-        require_client_id(client_id)?;
+        require_client_id(&client.id)?;
+        require_client_secret(client)?;
         let body = form(&[
-            ("client_id", client_id),
+            ("client_id", &client.id),
+            ("client_secret", client.secret.expose()),
             ("code", code),
             ("code_verifier", verifier),
             ("grant_type", "authorization_code"),
@@ -584,10 +587,16 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
     /// Trade the refresh token for a new access token. Google usually omits
     /// a new refresh token; the caller keeps the old one (see
     /// [`TokenSet::refreshed`]). A revoked or expired grant is `Auth`.
-    pub fn refresh(&self, client_id: &str, refresh: &Secret) -> Result<TokenSet, SyncError> {
-        require_client_id(client_id)?;
+    pub fn refresh(
+        &self,
+        client: &GoogleOAuthClient,
+        refresh: &Secret,
+    ) -> Result<TokenSet, SyncError> {
+        require_client_id(&client.id)?;
+        require_client_secret(client)?;
         let body = form(&[
-            ("client_id", client_id),
+            ("client_id", &client.id),
+            ("client_secret", client.secret.expose()),
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh.expose()),
         ]);
@@ -1254,6 +1263,15 @@ fn token_from_oauth(json: &serde_json::Value) -> Result<TokenSet, SyncError> {
             .map(|seconds| crate::secret::expires_at(crate::secret::now_unix_ms(), seconds)),
         account: String::new(),
     })
+}
+
+/// Google refuses a Desktop client's token request without its secret, so
+/// an empty one fails closed here instead of sending a request.
+fn require_client_secret(client: &GoogleOAuthClient) -> Result<(), SyncError> {
+    if client.secret.expose().trim().is_empty() {
+        return Err(crate::clients::missing_google_secret());
+    }
+    Ok(())
 }
 
 fn require_client_id(client_id: &str) -> Result<(), SyncError> {

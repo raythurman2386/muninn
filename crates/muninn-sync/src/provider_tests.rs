@@ -1144,7 +1144,10 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         drive_upload: server.base(),
         drive_oauth: server.base(),
         github_client_id: "Iv1.testclient".to_owned(),
-        google_client_id: "Iv1.testclient".to_owned(),
+        google_client: Some(crate::clients::GoogleOAuthClient {
+            id: "Iv1.testclient".to_owned(),
+            secret: Secret::new("test-only-google-secret"),
+        }),
         tailnet_api: None,
     };
     let root = std::env::temp_dir().join(format!("muninn-engine-{}", std::process::id()));
@@ -1226,7 +1229,10 @@ fn github_engine<'a>(
         drive_upload: server.base(),
         drive_oauth: server.base(),
         github_client_id: "Iv1.testclient".to_owned(),
-        google_client_id: "Iv1.testclient".to_owned(),
+        google_client: Some(crate::clients::GoogleOAuthClient {
+            id: "Iv1.testclient".to_owned(),
+            secret: Secret::new("test-only-google-secret"),
+        }),
         tailnet_api: None,
     }
 }
@@ -1470,6 +1476,8 @@ struct DriveStore {
     /// Status and body for a POST /token refresh.
     token_reply: Option<(u16, Value)>,
     refreshes: u32,
+    /// Form bodies of POST /token requests.
+    token_bodies: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -1490,6 +1498,7 @@ fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
         let bound = port_for_handler.load(std::sync::atomic::Ordering::SeqCst);
         if request.method == "POST" && request.path == "/token" {
             drive.refreshes += 1;
+            drive.token_bodies.push(request.body_str());
             let (status, body) = drive.token_reply.clone().unwrap_or((500, Value::Null));
             return json_reply(status, body);
         }
@@ -1916,6 +1925,17 @@ fn drive_refresh_keeps_the_refresh_token_google_did_not_resend() {
     );
     let stored = credentials.get(&key).unwrap().unwrap();
     assert_eq!(stored.access.expose(), "new-access");
+    let bodies = drive.lock().unwrap().token_bodies.clone();
+    assert_eq!(bodies.len(), 1);
+    let pairs: BTreeMap<String, String> = form_urlencoded::parse(bodies[0].as_bytes())
+        .into_owned()
+        .collect();
+    assert_eq!(pairs["grant_type"], "refresh_token");
+    assert_eq!(
+        pairs.get("client_secret").map(String::as_str),
+        Some("test-only-google-secret"),
+        "Google refuses a Desktop refresh without the client secret"
+    );
     assert_eq!(
         stored.refresh.as_ref().map(Secret::expose),
         Some("refresh-1")
@@ -2448,4 +2468,29 @@ fn drive_losing_head_device_keeps_both_edits_after_a_head_merge() {
         matches!(&again, SyncReport::Succeeded { conflict_copies, .. } if conflict_copies.is_empty()),
         "{again:?}"
     );
+}
+
+#[test]
+fn drive_refresh_without_a_google_client_fails_closed_and_sends_nothing() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    drive.lock().unwrap().token_reply = Some((
+        200,
+        json!({"access_token": "new-access", "expires_in": 3599, "scope": drive::DRIVE_SCOPE}),
+    ));
+    let server = drive_server(Arc::clone(&drive));
+    let (credentials, binding, _key) = expiring_token(ProviderKind::GoogleDrive, 1);
+    // No secret in this build, or the person set their own client id.
+    let engine = EngineParts {
+        google_client: None,
+        ..drive_engine(&server, &credentials)
+    };
+    let device = TestVault::new("drive-refresh-no-secret");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    let error = run_sync(
+        &engine,
+        &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000078"),
+    )
+    .unwrap_err();
+    assert!(matches!(error, SyncError::Config { .. }), "{error}");
+    assert_eq!(drive.lock().unwrap().refreshes, 0, "no token request");
 }

@@ -10,6 +10,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
+use crate::clients::GoogleOAuthClient;
 use crate::drive::{self, DriveClient, OAuthRedirect};
 use crate::error::SyncError;
 use crate::github::{DeviceChallenge, DevicePoll, GitHubClient};
@@ -121,24 +122,81 @@ pub fn github_device_sign_in<T: HttpTransport>(
     }
 }
 
+/// What the browser tab shows once Muninn has the token stored.
+pub const SIGNED_IN_PAGE: &str = "Muninn is signed in to Google Drive. You can close this tab.";
+/// What the browser tab shows when sign-in did not finish.
+pub const NOT_SIGNED_IN_PAGE: &str =
+    "Muninn could not finish signing in. Return to Muninn for details.";
+
 /// Google OAuth for an installed app: PKCE (S256), a random `state`, and a
 /// one-shot listener on `127.0.0.1` for the redirect.
+///
+/// `store` saves the token (the OS credential store in the app). The browser
+/// tab is told "signed in" only after the code exchange and `store` both
+/// succeed; any failure shows a failure page instead.
 pub fn google_sign_in<T: HttpTransport>(
     client: &DriveClient<'_, T>,
-    client_id: &str,
+    oauth: &GoogleOAuthClient,
     browser: &dyn BrowserOpener,
     events: &mut dyn SignInEvents,
     timeout: Duration,
+    store: &mut dyn FnMut(&TokenSet) -> Result<(), SyncError>,
 ) -> Result<TokenSet, SyncError> {
+    // Without a secret Google refuses the exchange: fail before a browser
+    // opens, so no tab ever claims a sign-in that cannot finish.
+    if oauth.secret.expose().trim().is_empty() {
+        return Err(crate::clients::missing_google_secret());
+    }
     let redirect = LoopbackRedirect::bind()?;
     let pkce = drive::new_pkce(&redirect.redirect_uri());
-    let url = client.authorization_url(client_id, &pkce)?;
+    let url = client.authorization_url(&oauth.id, &pkce)?;
     events.waiting_for_browser(&url);
     if let Err(error) = browser.open(&url) {
         events.browser_failed(&url, &error);
     }
-    let answer = redirect.wait(&pkce.state, &client.cancel, timeout)?;
-    client.exchange_code(client_id, &pkce.redirect_uri, &answer.code, &pkce.verifier)
+    let pending = redirect.wait(&pkce.state, &client.cancel, timeout)?;
+    let result = client
+        .exchange_code(
+            oauth,
+            &pkce.redirect_uri,
+            &pending.redirect.code,
+            &pkce.verifier,
+        )
+        .and_then(|token| {
+            store(&token)?;
+            Ok(token)
+        });
+    pending.finish(result.is_ok());
+    result
+}
+
+/// The browser's OAuth answer, with its request still open so Muninn can say
+/// whether sign-in really finished.
+pub struct PendingAnswer {
+    pub redirect: OAuthRedirect,
+    stream: Option<TcpStream>,
+}
+
+impl std::fmt::Debug for PendingAnswer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The code is a short-lived credential: never print it.
+        f.write_str("PendingAnswer { .. }")
+    }
+}
+
+impl PendingAnswer {
+    /// Answer the waiting browser tab: the signed-in page only when
+    /// `signed_in`, else the failure page.
+    pub fn finish(mut self, signed_in: bool) {
+        if let Some(mut stream) = self.stream.take() {
+            let message = if signed_in {
+                SIGNED_IN_PAGE
+            } else {
+                NOT_SIGNED_IN_PAGE
+            };
+            let _ = respond(&mut stream, 200, message);
+        }
+    }
 }
 
 /// A listener on `127.0.0.1:<ephemeral>` that accepts exactly the OAuth
@@ -163,13 +221,15 @@ impl LoopbackRedirect {
 
     /// Serve requests until one to `/` or `/callback` carries an OAuth
     /// answer. Other paths (a favicon) get a 404 and waiting continues. A
-    /// wrong `state` or an `error=` answer ends the wait with `Auth`.
+    /// wrong `state` or an `error=` answer ends the wait with `Auth`. A code
+    /// comes back as a [`PendingAnswer`]; call [`PendingAnswer::finish`]
+    /// once the outcome is known.
     pub fn wait(
         &self,
         expected_state: &str,
         cancel: &CancelToken,
         timeout: Duration,
-    ) -> Result<OAuthRedirect, SyncError> {
+    ) -> Result<PendingAnswer, SyncError> {
         let deadline = Instant::now() + timeout;
         loop {
             cancel.check()?;
@@ -193,7 +253,7 @@ impl LoopbackRedirect {
     }
 }
 
-fn answer(mut stream: TcpStream, expected_state: &str) -> Option<Result<OAuthRedirect, SyncError>> {
+fn answer(mut stream: TcpStream, expected_state: &str) -> Option<Result<PendingAnswer, SyncError>> {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     let mut line = String::new();
@@ -242,14 +302,21 @@ fn answer(mut stream: TcpStream, expected_state: &str) -> Option<Result<OAuthRed
         let _ = respond(&mut stream, 400, "Missing sign-in answer.");
         return None;
     }
-    let result = drive::parse_oauth_redirect(query, expected_state);
-    let message = if result.is_ok() {
-        "Muninn is signed in to Google Drive. You can close this tab."
-    } else {
-        "Muninn could not finish signing in. Return to Muninn for details."
-    };
-    let _ = respond(&mut stream, 200, message);
-    Some(result)
+    // A code is not a sign-in yet: the tab waits until the exchange and the
+    // credential store have both succeeded (`PendingAnswer::finish`).
+    Some(match drive::parse_oauth_redirect(query, expected_state) {
+        Ok(redirect) => {
+            let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
+            Ok(PendingAnswer {
+                redirect,
+                stream: Some(stream),
+            })
+        }
+        Err(error) => {
+            let _ = respond(&mut stream, 200, NOT_SIGNED_IN_PAGE);
+            Err(error)
+        }
+    })
 }
 
 fn respond(stream: &mut TcpStream, status: u16, message: &str) -> std::io::Result<()> {

@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use crate::SCHEMA_VERSION;
 use crate::apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_plan};
+use crate::clients::GoogleOAuthClient;
 use crate::credentials::{CredentialKey, CredentialStore};
 use crate::drive::{self, DriveClient, DriveScope};
 use crate::error::SyncError;
@@ -37,9 +38,12 @@ pub struct EngineParts<T, C> {
     pub drive_api: String,
     pub drive_upload: String,
     pub drive_oauth: String,
-    /// OAuth client ids, used only to refresh an expiring access token.
+    /// OAuth clients, used only to refresh an expiring access token.
     pub github_client_id: String,
-    pub google_client_id: String,
+    /// The Google client id and its secret. `None` when this build has no
+    /// secret or the person set their own client id: a Google refresh then
+    /// fails closed without sending anything.
+    pub google_client: Option<GoogleOAuthClient>,
     /// Test-only override for a Tailscale peer's base URL. Production derives
     /// `https://<host>` from the binding.
     pub tailnet_api: Option<String>,
@@ -171,7 +175,10 @@ fn refresh_token<T: HttpTransport, C: CredentialStore>(
     let next = match provider {
         ProviderKind::GitHub => github_client(engine).refresh(&engine.github_client_id, refresh)?,
         ProviderKind::GoogleDrive => {
-            drive_client(engine).refresh(&engine.google_client_id, refresh)?
+            let client = engine.google_client.as_ref().ok_or_else(|| SyncError::Config {
+                detail: "Google Drive cannot refresh its sign-in: this build has no Google client secret, or a custom Google client id is set under Sync. Nothing was sent.".to_owned(),
+            })?;
+            drive_client(engine).refresh(client, refresh)?
         }
         ProviderKind::Tailscale => unreachable!("can_refresh excludes Tailscale"),
     };
