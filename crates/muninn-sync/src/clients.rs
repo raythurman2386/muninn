@@ -18,10 +18,8 @@
 //!   OAuth App, and never a personal access token).
 //! - Google: a "Desktop app" OAuth client used with PKCE and a loopback
 //!   redirect. Never ship a Google client secret; this code sends none.
-//!   The official consent screen is still in "Testing": only listed test
-//!   users can authorize and refresh tokens expire after 7 days. Publish it
-//!   to production later; `drive.appdata` is a non-sensitive scope, so that
-//!   does not need a security review.
+//!   The official app is published to production; its privacy policy is
+//!   <https://github.com/raythurman2386/muninn/blob/main/PRIVACY.md>.
 
 use crate::error::SyncError;
 use crate::model::ProviderKind;
@@ -44,10 +42,8 @@ pub const BUNDLED_GITHUB_CLIENT_ID: Option<&str> = match option_env!("MUNINN_GIT
 /// (project Muninn, `muninn-514218`; consent app "Muninn"; scope
 /// `drive.appdata` only). Used with PKCE and a loopback redirect; there is
 /// no client secret to ship.
-///
-/// The consent screen is still in **Testing**: only listed test users can
-/// authorize, and Google expires refresh tokens after 7 days. Publishing it
-/// (`drive.appdata` is non-sensitive) lifts both limits.
+/// The app is published to production (External); privacy policy:
+/// <https://github.com/raythurman2386/muninn/blob/main/PRIVACY.md>.
 pub const OFFICIAL_GOOGLE_CLIENT_ID: &str =
     "39034215624-i6ek77i3vc32cueus258ef5ai1q93ars.apps.googleusercontent.com";
 

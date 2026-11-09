@@ -32,8 +32,8 @@ All notable changes to Muninn are documented here. The format is based on
   (PKCE, `drive.appdata` only). Builds can replace them with
   `MUNINN_GITHUB_CLIENT_ID` / `MUNINN_GOOGLE_CLIENT_ID`; the Settings client id
   fields are optional overrides, and an empty id fails closed. No client
-  secret or private key ships. The Google consent screen is still in Testing
-  (one test user; refresh tokens expire after 7 days).
+  secret or private key ships. The official Google app is published, with
+  the privacy policy in `PRIVACY.md`.
 
 ### Changed
 

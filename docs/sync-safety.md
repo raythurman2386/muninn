@@ -48,8 +48,8 @@ These builds and fixture tests do not prove:
 - a real Google Cloud project, OAuth consent screen, or Drive grant
 - a real GitHub App installation or device-flow login (the Muninn Sync app
   exists, but no login with it was run here)
-- Drive sign-in with the bundled Google client (its consent screen is in
-  Testing: one test user, refresh tokens expire after 7 days)
+- Drive sign-in with the bundled Google client (no login with it was run
+  here)
 - a real tailnet: `tailscale serve`, MagicDNS, ts.net certificates, and the
   `Tailscale-User-Login` header are modeled by loopback fixtures only
 - that the system browser opens (`xdg-open`, `open`, `rundll32`); tests use a

@@ -5,14 +5,9 @@ Muninn ships two public client ids: the official **Muninn Sync** GitHub App
 client of the Muninn project (`muninn-514218`). Nothing in the tests logs into
 a real account.
 
-> **Google Drive is limited while the official consent screen is in Testing.**
-> Only the listed test user can authorize the official client today; anyone
-> else gets an "access blocked" page from Google. Google also expires refresh
-> tokens of Testing apps after 7 days, so a Drive connection made with the
-> official client has to sign in again (Connect) about once a week. Publishing
-> the consent screen to production lifts both limits; `drive.appdata` is a
-> non-sensitive scope, so publishing needs no security assessment. Until then,
-> others can use their own Google client (below).
+The official Google OAuth app ("Muninn", External) is published to
+production, with the privacy policy at <https://github.com/raythurman2386/muninn/blob/main/PRIVACY.md>. It
+requests only the non-sensitive `drive.appdata` scope.
 
 Client ids live in `crates/muninn-sync/src/clients.rs` (the insertion point).
 They are public configuration, never secrets: Muninn ships no client secret and
@@ -28,11 +23,8 @@ no client secret. To use your own Google project instead:
 
 1. Create a Google Cloud project.
 2. Enable the Google Drive API. No Picker API is needed.
-3. Configure the OAuth consent screen and **publish it to production**. An
-   External app left in "Testing" needs listed test users and expires refresh
-   tokens after 7 days, so every device would have to sign in again weekly.
-   `drive.appdata` is a non-sensitive scope, so publishing does not need a
-   security assessment.
+3. Configure the OAuth consent screen, with a privacy policy URL, and publish
+   it to production. `drive.appdata` is a non-sensitive scope.
 4. Create a Desktop OAuth client. Use its client id only: never ship or paste
    its client secret. Muninn uses PKCE and sends no secret. Build the official
    id in with `MUNINN_GOOGLE_CLIENT_ID`, or paste your own into Settings → Sync
