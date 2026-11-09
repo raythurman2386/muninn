@@ -152,9 +152,12 @@ h1 .soft { color: var(--text-muted); }
 .downloads { display: flex; gap: 8px; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; justify-content: center; }
 .dl {
   display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px 0 16px;
-  border: 1px dashed var(--border-strong); border-radius: var(--r-lg);
-  color: var(--text-muted); font: 500 15px/1 var(--font-sans); cursor: not-allowed; user-select: none;
+  border: 1px solid var(--border-strong); border-radius: var(--r-lg);
+  color: var(--text-base); font: 500 15px/1 var(--font-sans); text-decoration: none;
+  transition: background var(--t-control) var(--ease);
 }
+.dl:hover { background: var(--hover); }
+.dl:active { transform: translateY(1px); }
 .dl-state { font: 500 11px/1 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); padding: 4px 6px; border-radius: var(--r-sm); background: var(--hover); }
 .btn {
   display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 18px;
@@ -226,6 +229,7 @@ h1 .soft { color: var(--text-muted); }
   .cta, .downloads { justify-content: flex-start; }
   .downloads { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); }
   .dl { width: 100%; height: auto; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; font-size: 15px; }
+  .dl-state { line-height: 1.25; }
   .btn-primary { width: 100%; justify-content: center; }
   .dl-note { margin-left: 0; }
   .lede { margin-left: 0; }
