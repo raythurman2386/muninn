@@ -67,7 +67,7 @@ never read as the source of a rename, so a copy holding the old bytes is an add,
 not a move. A rename on one side onto a name the other side now uses for
 different bytes is not applied as a rename: it becomes a delete of the old name
 and a same-name add on both sides, kept as `<name>` (this device) and
-`<name> (remote)` (the other), so neither note is overwritten. Per-file Keep local / Use remote choices are not in the app yet.
+`<name> (remote)` (the other), so neither note is overwritten. The same holds when both sides renamed one note to different names and either name is taken by different bytes on the other side: both renames are declined. Per-file Keep local / Use remote choices are not in the app yet.
 
 ## Credentials
 

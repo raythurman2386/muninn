@@ -103,6 +103,14 @@ fn with_base(base: &Snapshot, local: &Snapshot, remote: &Snapshot) -> Plan {
                     side: Side::Both,
                 });
             }
+            // Both sides renamed the note to different names, and one of
+            // those names holds different bytes on the side that did not pick
+            // it. A RenameRename would hide that name from the pathwise pass
+            // and `resolve` would refuse it on every run (R3). Decline both
+            // renames instead: the pathwise pass sees a delete of `from`, an
+            // add at the free name, and an AddAdd at the taken one.
+            (Some(left), Some(right))
+                if target_taken(remote, left) || target_taken(local, right) => {}
             (Some(left), Some(right)) => {
                 conflicts.push(Conflict {
                     path: origin,
@@ -373,9 +381,9 @@ fn remote_blocks_rename(base: &Snapshot, remote: &Snapshot, rename: &Rename) -> 
     match (base.get(&rename.from), remote.get(&rename.from)) {
         (Some(base_file), Some(remote_file)) => remote_file.hash != base_file.hash,
         (Some(_), None) => true,
-        _ => remote
-            .get(&rename.to)
-            .is_some_and(|file| file.hash != rename.hash),
+        // A rename's source is always a base path (`unique_renames`), and a
+        // taken target was already declined by `target_taken` in `with_base`.
+        (None, _) => false,
     }
 }
 
@@ -383,9 +391,9 @@ fn local_blocks_rename(base: &Snapshot, local: &Snapshot, rename: &Rename) -> bo
     match (base.get(&rename.from), local.get(&rename.from)) {
         (Some(base_file), Some(local_file)) => local_file.hash != base_file.hash,
         (Some(_), None) => true,
-        _ => local
-            .get(&rename.to)
-            .is_some_and(|file| file.hash != rename.hash),
+        // A rename's source is always a base path (`unique_renames`), and a
+        // taken target was already declined by `target_taken` in `with_base`.
+        (None, _) => false,
     }
 }
 
