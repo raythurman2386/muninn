@@ -83,6 +83,10 @@ mod tests {
             Some((first.note("Alpha.md").unwrap().0, 5))
         );
 
+        // The directory mtime must advance an entry creation can be picked
+        // up by snapshot diff alone. Windows reports it with coarse ticks, so
+        // let it land before creating Beta.
+        std::thread::sleep(std::time::Duration::from_millis(120));
         fs::write(tmp.path().join("Beta.md"), "beta!").expect("create");
         let vault = tmp.load();
         let second = snapshot(&vault);
