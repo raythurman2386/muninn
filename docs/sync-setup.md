@@ -26,9 +26,10 @@ no client secret. To use your own Google project instead:
 3. Configure the OAuth consent screen, with a privacy policy URL, and publish
    it to production. `drive.appdata` is a non-sensitive scope.
 4. Create a Desktop OAuth client. Use its client id only: never ship or paste
-   its client secret. Muninn uses PKCE and sends no secret. Build the official
-   id in with `MUNINN_GOOGLE_CLIENT_ID`, or paste your own into Settings → Sync
-   → Drive → Google client id (optional).
+   its client secret. Muninn uses PKCE and sends no secret. The official id is
+   already bundled. To use your own instead, build it in with
+   `MUNINN_GOOGLE_CLIENT_ID`, or paste it into Settings → Sync → Drive → Google
+   client id (optional).
 5. Muninn requests only `https://www.googleapis.com/auth/drive.appdata`, with
    PKCE S256, a random `state`, and a loopback redirect on
    `http://127.0.0.1:<random port>/callback`. It does not request full Drive,
