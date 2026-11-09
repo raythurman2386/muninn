@@ -372,6 +372,7 @@ fn scenes() -> &'static [Scene] {
             s.set_mode(Mode::Editor);
         }),
         ("settings-sync", |s| {
+            s.sync_ui.preview = true;
             s.open_settings();
             s.sync_ui.github_owner.replace_text("octocat");
             s.sync_ui.github_repo.replace_text("notes-sync");
@@ -381,6 +382,7 @@ fn scenes() -> &'static [Scene] {
                 "Scope saved for this vault. No token is stored in settings.".to_owned();
         }),
         ("settings-sync-drive", |s| {
+            s.sync_ui.preview = true;
             s.open_settings();
             s.set_sync_provider(1);
             s.sync_ui.drive_folder_id.replace_text("appGrantedFolderId");
@@ -391,6 +393,7 @@ fn scenes() -> &'static [Scene] {
         }),
         ("settings-sync-conflict", |s| {
             s.theme = muninn_ui::ThemeMode::Light;
+            s.sync_ui.preview = true;
             s.open_settings();
             s.sync_ui.status =
                 "2 conflicts. Nothing was overwritten. Resolve them, then Sync Now again."

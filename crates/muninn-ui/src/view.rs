@@ -766,6 +766,30 @@ fn sync_field(
 /// `State` setters, so a click or key press is persisted before the next
 /// frame; there is no separate Save button.
 fn settings_dialog(s: &State, k: &Kit) -> Dialog {
+    if s.sync_ui.preview {
+        let body = col()
+            .key("settings-body")
+            .w_full()
+            .padding(16.0)
+            .gap(12.0)
+            .child(sync_section(s, k))
+            .child(
+                row().w_full().justify_end().child(
+                    Button::new("Close")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press(|state: &mut State| state.close_settings())
+                        .build(k)
+                        .key("settings-close"),
+                ),
+            );
+        return Dialog::new("settings", "Settings")
+            .description("Preferences are saved as you change them.")
+            .width(440.0)
+            .fit()
+            .open(true)
+            .on_close(|state: &mut State| state.close_settings())
+            .child(body);
+    }
     let theme = if crate::omarchy::is_following(s) {
         text("Following Omarchy system theme")
             .key("settings-theme-note")
@@ -851,7 +875,6 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
         .w_full()
         .padding(16.0)
         .gap(18.0)
-        .child(sync_section(s, k))
         .child(
             col()
                 .w_full()
@@ -920,6 +943,7 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
                 .child(vault_prompt_row(s, k))
                 .child(recents),
         )
+        .child(sync_section(s, k))
         .child(
             row().w_full().justify_end().child(
                 Button::new("Close")
@@ -930,18 +954,9 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
             ),
         );
 
-    let body = col()
-        .key("settings-scroll")
-        .w_full()
-        .h(480.0)
-        .scroll(ScrollSpec {
-            stick_bottom: false,
-        })
-        .child(body);
-
     Dialog::new("settings", "Settings")
         .description("Preferences are saved as you change them.")
-        .width(520.0)
+        .width(440.0)
         .fit()
         .open(true)
         .on_close(|s: &mut State| s.close_settings())

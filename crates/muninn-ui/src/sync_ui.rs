@@ -31,6 +31,8 @@ pub struct SyncUi {
     pub google_client_id: TextEdit,
     pub applying: bool,
     pub running: bool,
+    /// Headless scenes show only the sync section so the controls fit.
+    pub preview: bool,
     credentials: Arc<dyn CredentialStore>,
     cancel: CancelToken,
     inbox: Option<Receiver<SyncMessage>>,
@@ -64,6 +66,7 @@ impl SyncUi {
             google_client_id: TextEdit::new(""),
             applying: false,
             running: false,
+            preview: false,
             credentials,
             cancel: CancelToken::new(),
             inbox: None,

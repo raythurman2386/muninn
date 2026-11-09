@@ -39,7 +39,7 @@ pub struct RootDir {
     #[cfg(unix)]
     fd: std::os::fd::OwnedFd,
     #[cfg(not(unix))]
-    path: PathBuf,
+    path: std::path::PathBuf,
 }
 
 impl RootDir {
@@ -398,7 +398,7 @@ mod unix {
 
 #[cfg(not(unix))]
 mod windows {
-    use std::fs::{self, File, OpenOptions};
+    use std::fs::{self, OpenOptions};
     use std::io::{Read, Write};
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
     use std::path::{Path, PathBuf};
@@ -421,7 +421,8 @@ mod windows {
             let entry = entry.map_err(|error| SyncError::Inventory {
                 detail: format!("could not read {}: {error}", path.display()),
             })?;
-            let Some(text) = entry.file_name().to_str() else {
+            let name = entry.file_name();
+            let Some(text) = name.to_str() else {
                 return Err(SyncError::Path {
                     detail: format!("non-utf8 name under {}", path.display()),
                 });
@@ -458,7 +459,10 @@ mod windows {
             return Ok(Some(EntryMeta {
                 kind: EntryKind::File {
                     bytes: meta.len(),
-                    hardlinked: meta.number_of_links() > 1,
+                    // `number_of_links` is still behind an unstable Rust feature
+                    // on Windows. Hard links there are rejected only when the
+                    // file is not a normal file. Unix uses `st_nlink`.
+                    hardlinked: false,
                 },
             }));
         }
