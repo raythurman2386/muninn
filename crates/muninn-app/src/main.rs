@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use muninn_core::{Vault, parse_links};
-use muninn_ui::{Mode, Scope, Settings, State, ThemeMode, on_key, poll, view};
+use muninn_ui::{Mode, Scope, Settings, SettingsTab, State, ThemeMode, on_key, poll, view};
 use rune::AppSpec;
 use rune_theme_opencode as theme;
 
@@ -371,7 +371,25 @@ fn scenes() -> &'static [Scene] {
             s.saved.clear();
             s.set_mode(Mode::Editor);
         }),
+        // One scene per Settings tab, for review screenshots
+        // (`scripts/settings-tab-snapshots.sh`).
+        ("settings-vaults", |s| {
+            settings_scene(s, SettingsTab::Vaults)
+        }),
+        ("settings-editor", |s| {
+            settings_scene(s, SettingsTab::Editor)
+        }),
+        ("settings-appearance", |s| {
+            settings_scene(s, SettingsTab::Appearance)
+        }),
+        ("settings-graph", |s| settings_scene(s, SettingsTab::Graph)),
+        ("settings-sync", |s| settings_scene(s, SettingsTab::Sync)),
     ]
+}
+
+fn settings_scene(s: &mut State, tab: SettingsTab) {
+    s.open_settings();
+    s.set_settings_tab(tab);
 }
 
 #[cfg(test)]
@@ -392,7 +410,19 @@ mod tests {
         let names: Vec<&str> = scenes().iter().map(|(name, _)| *name).collect();
         assert_eq!(
             names,
-            ["notes", "preview", "graph", "local", "light", "empty"]
+            [
+                "notes",
+                "preview",
+                "graph",
+                "local",
+                "light",
+                "empty",
+                "settings-vaults",
+                "settings-editor",
+                "settings-appearance",
+                "settings-graph",
+                "settings-sync",
+            ]
         );
     }
 

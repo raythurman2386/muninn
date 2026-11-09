@@ -6,6 +6,18 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- Settings is split into tabs — Vaults, Editor, Appearance, Graph and Sync — so the
+  modal shows one group at a time. The selected tab is session-only (not written to
+  `settings.json`) and resets to Vaults whenever Settings opens; switching away from
+  Vaults drops focus from the path field. The Graph tab reports whether reduced
+  motion is on (`MUNINN_REDUCED_MOTION` or the system setting; behaviour unchanged),
+  and the Sync tab is a placeholder for the sync work. The dialog is 540 pt wide and
+  the theme picker sizes its segments to their labels, so "Omarchy" and "System" no
+  longer truncate. `scripts/settings-tab-snapshots.sh` renders one screenshot per tab
+  against a throwaway vault and isolated home.
+
 ## [0.5.2] - 2026-11-09
 
 ### Changed

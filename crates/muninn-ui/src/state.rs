@@ -456,6 +456,9 @@ pub struct State {
     /// v0.5: in-window settings modal. It sits above every other layer and
     /// owns the keyboard while open.
     pub settings_modal: bool,
+    /// The Settings modal's selected tab. Ephemeral: never persisted, and
+    /// reset to the first tab whenever Settings opens.
+    pub settings_tab: crate::overlay::SettingsTab,
     /// Where focus was when the settings modal opened, so closing it returns
     /// typing to the same field.
     pub(crate) settings_return_editor: bool,
@@ -667,6 +670,7 @@ impl State {
             welcome,
             help: false,
             settings_modal: false,
+            settings_tab: crate::overlay::SettingsTab::Vaults,
             settings_return_editor: false,
             settings_return_search: false,
             note_template_field,

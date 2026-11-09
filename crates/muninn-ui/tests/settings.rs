@@ -427,14 +427,28 @@ fn settings_modal_opens_by_shortcut_changes_persist_and_returns_focus() {
     assert_eq!(rt.state.vault.notes.len(), notes);
     assert!(rt.state.new_note_prompt.is_none());
 
-    // Theme is a segmented control; the fourth segment is Light.
-    let (x, y) = rt.find("segment3").expect("Light segment");
+    // Theme lives on the Appearance tab (the third tab); it is a segmented
+    // control whose fourth segment is Light.
+    let (x, y) = rt.find("settings-tabs/segment2").expect("Appearance tab");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    let (x, y) = rt.find("settings-theme/segment3").expect("Light segment");
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);
     rt.frame(1.0 / 60.0);
     assert_eq!(rt.state.theme, ThemeMode::Light);
 
-    // Autosave steps by 0.05 s and is clamped by the setter.
+    // Autosave steps by 0.05 s and is clamped by the setter. It lives on the
+    // Editor tab (the second tab).
+    let (x, y) = rt.find("settings-tabs/segment1").expect("Editor tab");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
     let (x, y) = rt.find("settings-autosave-plus").expect("autosave +");
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);
@@ -521,11 +535,12 @@ fn vault_prompt_text_stays_inside_the_dialog() {
             );
         }
 
-        // Vault errors (path plus OS reason) are longer than the card, so the
+        // Vault errors (path plus OS reason) can be longer than the card (540 pt
+        // since the tabbed layout), so the
         // error line must wrap too instead of painting past the border.
         rt.update(|s, _| {
             s.error = Some(
-                "Could not create the vault: /very/long/path/without/spaces/notes denied (os error 13)"
+                "Could not create the vault: /very/long/path/without/spaces/to/a/deeply/nested/notes denied (os error 13)"
                     .to_owned(),
             );
         });
