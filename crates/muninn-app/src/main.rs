@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use muninn_core::{Vault, parse_links};
-use muninn_ui::{Mode, Scope, Settings, State, ThemeMode, on_key, poll, view};
+use muninn_ui::{Mode, Scope, Settings, SettingsTab, State, ThemeMode, on_key, poll, view};
 use rune::AppSpec;
 use rune_theme_opencode as theme;
 
@@ -371,9 +371,21 @@ fn scenes() -> &'static [Scene] {
             s.saved.clear();
             s.set_mode(Mode::Editor);
         }),
+        // One scene per Settings tab, for review screenshots
+        // (`scripts/settings-tab-snapshots.sh`).
+        ("settings-vaults", |s| {
+            settings_scene(s, SettingsTab::Vaults)
+        }),
+        ("settings-editor", |s| {
+            settings_scene(s, SettingsTab::Editor)
+        }),
+        ("settings-appearance", |s| {
+            settings_scene(s, SettingsTab::Appearance)
+        }),
+        ("settings-graph", |s| settings_scene(s, SettingsTab::Graph)),
+        // The Sync tab per provider (`scripts/sync-settings-snapshots.sh`).
         ("settings-sync", |s| {
-            s.sync_ui.preview = true;
-            s.open_settings();
+            settings_scene(s, SettingsTab::Sync);
             s.sync_ui.github_owner.replace_text("octocat");
             s.sync_ui.github_repo.replace_text("notes-sync");
             s.sync_ui.github_branch.replace_text("muninn-sync");
@@ -382,8 +394,7 @@ fn scenes() -> &'static [Scene] {
                 "Scope saved for this vault. No token is stored in settings.".to_owned();
         }),
         ("settings-sync-drive", |s| {
-            s.sync_ui.preview = true;
-            s.open_settings();
+            settings_scene(s, SettingsTab::Sync);
             s.set_sync_provider(1);
             s.sync_ui.drive_store.replace_text("Muninn");
             s.sync_ui.status =
@@ -391,8 +402,7 @@ fn scenes() -> &'static [Scene] {
                     .to_owned();
         }),
         ("settings-sync-tailscale", |s| {
-            s.sync_ui.preview = true;
-            s.open_settings();
+            settings_scene(s, SettingsTab::Sync);
             s.set_sync_provider(2);
             s.set_tailnet_role(1);
             s.sync_ui.tailnet_host.replace_text("minis.tail1234.ts.net");
@@ -406,13 +416,17 @@ fn scenes() -> &'static [Scene] {
         }),
         ("settings-sync-conflict", |s| {
             s.theme = muninn_ui::ThemeMode::Light;
-            s.sync_ui.preview = true;
-            s.open_settings();
+            settings_scene(s, SettingsTab::Sync);
             s.sync_ui.status = "Last successful sync 1a2b3c4d. A note changed on two devices; \
                  both versions were kept: Daily (remote).md."
                 .to_owned();
         }),
     ]
+}
+
+fn settings_scene(s: &mut State, tab: SettingsTab) {
+    s.open_settings();
+    s.set_settings_tab(tab);
 }
 
 #[cfg(test)]
@@ -440,10 +454,14 @@ mod tests {
                 "local",
                 "light",
                 "empty",
+                "settings-vaults",
+                "settings-editor",
+                "settings-appearance",
+                "settings-graph",
                 "settings-sync",
                 "settings-sync-drive",
                 "settings-sync-tailscale",
-                "settings-sync-conflict"
+                "settings-sync-conflict",
             ]
         );
     }

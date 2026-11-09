@@ -51,8 +51,6 @@ pub struct SyncUi {
     /// `Running`, and nothing else (autosave, watcher, a second Sync Now) is
     /// allowed to move. `Idle` means the last result has been consumed.
     pub phase: SyncPhase,
-    /// Headless scenes show only the sync section so the controls fit.
-    pub preview: bool,
     credentials: Arc<dyn CredentialStore>,
     cancel: CancelToken,
     inbox: Option<Receiver<SyncMessage>>,
@@ -191,7 +189,6 @@ impl SyncUi {
             tailnet_port: TextEdit::new(TAILNET_DEFAULT_PORT.to_string()),
             tailnet_allowed: TextEdit::new(""),
             phase: SyncPhase::Idle,
-            preview: false,
             credentials,
             cancel: CancelToken::new(),
             inbox: None,

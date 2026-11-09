@@ -32,6 +32,51 @@ pub enum Layer {
     MovePicker,
 }
 
+/// The Settings modal's tabs, in tab-bar order.
+///
+/// The selected tab is ephemeral: it lives on [`State::settings_tab`], is not
+/// written to `settings.json`, and resets to [`SettingsTab::Vaults`] each
+/// time Settings opens.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SettingsTab {
+    /// Open, create and switch vaults.
+    #[default]
+    Vaults,
+    /// Autosave delay and the default note template.
+    Editor,
+    /// Theme.
+    Appearance,
+    /// Graph motion (and, with the graph-effects work, the effects picker).
+    Graph,
+    /// Vault sync. A placeholder until the sync work lands.
+    Sync,
+}
+
+impl SettingsTab {
+    pub const ALL: [SettingsTab; 5] = [
+        SettingsTab::Vaults,
+        SettingsTab::Editor,
+        SettingsTab::Appearance,
+        SettingsTab::Graph,
+        SettingsTab::Sync,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            SettingsTab::Vaults => "Vaults",
+            SettingsTab::Editor => "Editor",
+            SettingsTab::Appearance => "Appearance",
+            SettingsTab::Graph => "Graph",
+            SettingsTab::Sync => "Sync",
+        }
+    }
+
+    /// Position in [`SettingsTab::ALL`], for the tab bar's selected segment.
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|tab| *tab == self).unwrap_or(0)
+    }
+}
+
 /// The command palette's own state. The input text lives on
 /// [`State::palette_field`] so the text field's `on_edit` callback can always
 /// hand Rune a valid field, even in the frame after Escape unmounts the card.
@@ -204,6 +249,7 @@ impl State {
         self.settings_return_editor = self.editor.focused;
         self.settings_return_search = self.search.focused;
         self.settings_modal = true;
+        self.settings_tab = SettingsTab::default();
         // Settings is the top layer; a help page or sidebar menu cannot stay
         // live underneath it.
         self.help = false;
@@ -236,6 +282,15 @@ impl State {
         } else {
             self.open_settings();
         }
+    }
+
+    /// Switch the Settings modal to `tab`. The vault-path field never keeps
+    /// focus once its tab is hidden.
+    pub fn set_settings_tab(&mut self, tab: SettingsTab) {
+        if self.settings_tab != tab {
+            self.vault_field.focused = false;
+        }
+        self.settings_tab = tab;
     }
 
     /// Persist a new autosave idle window, clamped to the documented range.

@@ -11,17 +11,19 @@ use rune_theme_opencode::icons as ic;
 
 use muninn_core::{Vault, headings};
 
-use crate::{DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, State, ThemeMode};
+use crate::{
+    DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State,
+    ThemeMode,
+};
 
 const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
 
 pub fn view(s: &State, cx: &mut Cx<State>) -> El {
-    // DES-03: the app's env flag is an accessibility preference too, so let
-    // Rune's transitions (node dimming, panel fades) honour it alongside the
-    // host setting.
-    let reduced = cx.system_reduced_motion() || s.reduced_motion;
-    cx.reduced_motion(reduced);
+    // One resolved reduced-motion value (`State::reduced_motion`) drives
+    // Rune's transitions here and the graph layout/camera in `poll`.
+    s.set_system_reduced_motion(cx.system_reduced_motion());
+    cx.reduced_motion(s.reduced_motion());
     let k = crate::omarchy::resolve_kit(s, cx.system_dark());
     let mut base = row()
         .key("root")
@@ -870,75 +872,89 @@ fn sync_field(
 /// v0.5: the settings surface. Preferences write through their existing
 /// `State` setters, so a click or key press is persisted before the next
 /// frame; there is no separate Save button.
+///
+/// v0.6: the preferences are split across tabs ([`SettingsTab`]) so the modal
+/// shows one group at a time. The tab bar is a segmented control keyed
+/// `settings-tabs`; each tab's body is its own function below and is keyed
+/// `settings-tab-<name>`, so a later section (sync, graph effects) lands by
+/// editing one function rather than the dialog shell.
 fn settings_dialog(s: &State, k: &Kit) -> Dialog {
-    if s.sync_ui.preview {
-        let body = col()
-            .key("settings-body")
-            .w_full()
-            .padding(16.0)
-            .gap(12.0)
-            .child(sync_section(s, k))
-            .child(
-                row().w_full().justify_end().child(
-                    Button::new("Close")
-                        .variant(ButtonVariant::Ghost)
-                        .on_press(|state: &mut State| state.close_settings())
-                        .build(k)
-                        .key("settings-close"),
-                ),
-            );
-        return Dialog::new("settings", "Settings")
-            .description("Preferences are saved as you change them.")
-            .width(440.0)
-            .fit()
-            .open(true)
-            .on_close(|state: &mut State| state.close_settings())
-            .child(body);
-    }
-    let theme = if crate::omarchy::is_following(s) {
-        text("Following Omarchy system theme")
-            .key("settings-theme-note")
-            .font(k.ty.ui_compact)
-            .color(k.c.text_muted)
-            .wrap()
-    } else {
-        let labels: Vec<&str> = ThemeMode::ALL.iter().map(|mode| mode.label()).collect();
-        SegmentedControl::new(&labels, Some(s.theme.id() as usize))
-            .label("Theme")
-            .on_pick(|s: &mut State, index, _: &mut Tx| {
-                if let Some(mode) = ThemeMode::ALL.get(index) {
-                    s.set_theme(*mode);
-                }
-            })
-            .build(k)
+    let labels: Vec<&str> = SettingsTab::ALL.iter().map(|tab| tab.label()).collect();
+    let tabs = SegmentedControl::new(&labels, Some(s.settings_tab.index()))
+        .label("Settings section")
+        // Equal cells with a sliding indicator (the theme picker's style);
+        // the indicator's travel obeys reduced motion like every transition.
+        .fit()
+        .on_pick(|s: &mut State, index, _: &mut Tx| {
+            if let Some(tab) = SettingsTab::ALL.get(index) {
+                s.set_settings_tab(*tab);
+            }
+        })
+        .build(k)
+        .key("settings-tabs");
+
+    let content = match s.settings_tab {
+        SettingsTab::Vaults => settings_vaults_tab(s, k),
+        SettingsTab::Editor => settings_editor_tab(s, k),
+        SettingsTab::Appearance => settings_appearance_tab(s, k),
+        SettingsTab::Graph => settings_graph_tab(s, k),
+        SettingsTab::Sync => settings_sync_tab(s, k),
     };
 
-    let delay = s.autosave_delay();
-    let stepper = row()
-        .key("settings-autosave")
-        .gap(8.0)
-        .center_y()
+    let body = col()
+        .key("settings-body")
+        .w_full()
+        .padding(16.0)
+        .gap(16.0)
+        .child(tabs)
+        // A floor on the content height keeps the dialog (and its Close
+        // button) from jumping as short tabs swap with tall ones.
         .child(
-            Button::new("−")
-                .variant(ButtonVariant::Ghost)
-                .on_press(|s: &mut State| s.nudge_autosave_delay(-0.05))
-                .build(k)
-                .key("settings-autosave-minus"),
+            col()
+                .key("settings-tab-content")
+                .w_full()
+                .min_h(260.0)
+                .child(content),
         )
         .child(
-            text(format!("{delay:.2} s"))
-                .key("settings-autosave-value")
-                .font(k.ty.ui_medium)
-                .color(k.c.text_base),
-        )
-        .child(
-            Button::new("+")
-                .variant(ButtonVariant::Ghost)
-                .on_press(|s: &mut State| s.nudge_autosave_delay(0.05))
-                .build(k)
-                .key("settings-autosave-plus"),
+            row().w_full().justify_end().child(
+                Button::new("Close")
+                    .variant(ButtonVariant::Ghost)
+                    .on_press(|s: &mut State| s.close_settings())
+                    .build(k)
+                    .key("settings-close"),
+            ),
         );
 
+    Dialog::new("settings", "Settings")
+        .description("Preferences are saved as you change them.")
+        .width(540.0)
+        .fit()
+        .open(true)
+        .on_close(|s: &mut State| s.close_settings())
+        .child(body)
+}
+
+/// One titled group inside a Settings tab: a heading, an optional caption,
+/// then the control.
+fn settings_section(k: &Kit, title: &str, caption: Option<&str>, control: El) -> El {
+    let mut section = col()
+        .w_full()
+        .gap(8.0)
+        .child(text(title).font(k.ty.ui_medium).color(k.c.text_base));
+    if let Some(caption) = caption {
+        section = section.child(
+            text(caption)
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .wrap(),
+        );
+    }
+    section.child(control)
+}
+
+/// Vaults tab: the typed-path card and the recent-vault list.
+fn settings_vaults_tab(s: &State, k: &Kit) -> El {
     let mut recents = col().key("settings-recents").w_full().gap(2.0);
     if s.recent_vaults().is_empty() {
         recents = recents.child(
@@ -975,97 +991,178 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
         }
     }
 
-    let body = col()
-        .key("settings-body")
+    col()
+        .key("settings-tab-vaults")
         .w_full()
-        .padding(16.0)
+        .gap(6.0)
+        .child(text("Vaults").font(k.ty.ui_medium).color(k.c.text_base))
+        .child(
+            text("Open a folder by path, or create a new vault.")
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        )
+        .child(vault_prompt_row(s, k))
+        .child(
+            text("Recent vaults")
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .pt(8.0),
+        )
+        .child(recents)
+}
+
+/// Editor tab: autosave delay and the default note template.
+fn settings_editor_tab(s: &State, k: &Kit) -> El {
+    let delay = s.autosave_delay();
+    let stepper = row()
+        .key("settings-autosave")
+        .gap(8.0)
+        .center_y()
+        .child(
+            Button::new("−")
+                .variant(ButtonVariant::Ghost)
+                .on_press(|s: &mut State| s.nudge_autosave_delay(-0.05))
+                .build(k)
+                .key("settings-autosave-minus"),
+        )
+        .child(
+            text(format!("{delay:.2} s"))
+                .key("settings-autosave-value")
+                .font(k.ty.ui_medium)
+                .color(k.c.text_base),
+        )
+        .child(
+            Button::new("+")
+                .variant(ButtonVariant::Ghost)
+                .on_press(|s: &mut State| s.nudge_autosave_delay(0.05))
+                .build(k)
+                .key("settings-autosave-plus"),
+        );
+
+    let template = TextArea::new(&s.note_template_field)
+        .label("Default note template")
+        .placeholder("Markdown inserted at the top of each new note")
+        .width(None)
+        .rows(3)
+        .on_edit(|s: &mut State| &mut s.note_template_field)
+        .on_change(|s: &mut State, _: &mut Tx| {
+            let template = s.note_template_field.text.clone();
+            s.set_note_template(&template);
+        })
+        .build(k);
+
+    col()
+        .key("settings-tab-editor")
+        .w_full()
         .gap(18.0)
-        .child(
-            col()
-                .w_full()
-                .gap(8.0)
-                .child(text("Theme").font(k.ty.ui_medium).color(k.c.text_base))
-                .child(theme),
-        )
-        .child(
-            col()
-                .w_full()
-                .gap(8.0)
-                .child(
-                    text("Autosave delay")
-                        .font(k.ty.ui_medium)
-                        .color(k.c.text_base),
-                )
-                .child(
-                    text("Idle seconds before the open note is written.")
-                        .font(k.ty.caption())
-                        .color(k.c.text_muted),
-                )
-                .child(stepper),
-        )
-        .child(
-            col()
-                .w_full()
-                .gap(8.0)
-                .child(
-                    text("Default note template")
-                        .font(k.ty.ui_medium)
-                        .color(k.c.text_base),
-                )
-                .child(
-                    text(
-                        "Markdown inserted at the top of every new note. \
-                         Leave empty for a plain heading.",
-                    )
+        .child(settings_section(
+            k,
+            "Autosave delay",
+            Some("Idle seconds before the open note is written."),
+            stepper,
+        ))
+        .child(settings_section(
+            k,
+            "Default note template",
+            Some(
+                "Markdown inserted at the top of every new note. \
+                 Leave empty for a plain heading.",
+            ),
+            template,
+        ))
+}
+
+/// Appearance tab: theme.
+fn settings_appearance_tab(s: &State, k: &Kit) -> El {
+    let theme = if crate::omarchy::is_following(s) {
+        text("Following Omarchy system theme")
+            .key("settings-theme-note")
+            .font(k.ty.ui_compact)
+            .color(k.c.text_muted)
+            .wrap()
+    } else {
+        let labels: Vec<&str> = ThemeMode::ALL.iter().map(|mode| mode.label()).collect();
+        SegmentedControl::new(&labels, Some(s.theme.id() as usize))
+            .label("Theme")
+            // Each segment as wide as its widest label, so "Omarchy" and
+            // "System" no longer truncate at the default 232 pt width.
+            .fit()
+            .on_pick(|s: &mut State, index, _: &mut Tx| {
+                if let Some(mode) = ThemeMode::ALL.get(index) {
+                    s.set_theme(*mode);
+                }
+            })
+            .build(k)
+            .key("settings-theme")
+    };
+    col()
+        .key("settings-tab-appearance")
+        .w_full()
+        .gap(18.0)
+        .child(settings_section(k, "Theme", None, theme))
+}
+
+/// Graph tab: how the knowledge graph moves.
+///
+/// **Reduce motion** is a persisted System / On / Off choice. The status line
+/// under it shows the resolved value ([`State::reduced_motion`]), which is what
+/// the layout, camera and transitions obey.
+///
+/// Integration slot: the graph-effects work (draft PR #20) adds its
+/// **Graph effects** picker (Classic default, no Off) as a section *below*
+/// Reduce motion in this column. Effects must read `State::reduced_motion()`
+/// so reduced motion overrides any effect style.
+fn settings_graph_tab(s: &State, k: &Kit) -> El {
+    let labels: Vec<&str> = ReduceMotion::ALL.iter().map(|m| m.label()).collect();
+    let picker = SegmentedControl::new(&labels, Some(s.reduce_motion().index()))
+        .label("Reduce motion")
+        .fit()
+        .on_pick(|s: &mut State, index, _: &mut Tx| {
+            if let Some(mode) = ReduceMotion::ALL.get(index) {
+                s.set_reduce_motion(*mode);
+            }
+        })
+        .build(k)
+        .key("settings-reduce-motion");
+    let status = if s.reduced_motion_env {
+        "Currently on: MUNINN_REDUCED_MOTION is set, which overrides this choice."
+    } else {
+        match (s.reduce_motion(), s.reduced_motion()) {
+            (ReduceMotion::System, true) => "Currently on, following the system setting.",
+            (ReduceMotion::System, false) => "Currently off, following the system setting.",
+            (_, true) => "Currently on.",
+            (_, false) => "Currently off.",
+        }
+    };
+    col()
+        .key("settings-tab-graph")
+        .w_full()
+        .gap(18.0)
+        .child(settings_section(
+            k,
+            "Reduce motion",
+            Some(
+                "Freezes the graph layout, skips camera glides and makes hover and \
+                 selection changes instant. System follows your OS setting.",
+            ),
+            col().w_full().gap(8.0).child(picker).child(
+                text(status)
+                    .key("settings-reduced-motion-status")
                     .font(k.ty.caption())
                     .color(k.c.text_muted)
                     .wrap(),
-                )
-                .child(
-                    TextArea::new(&s.note_template_field)
-                        .label("Default note template")
-                        .placeholder("Markdown inserted at the top of each new note")
-                        .width(None)
-                        .rows(3)
-                        .on_edit(|s: &mut State| &mut s.note_template_field)
-                        .on_change(|s: &mut State, _: &mut Tx| {
-                            let template = s.note_template_field.text.clone();
-                            s.set_note_template(&template);
-                        })
-                        .build(k),
-                ),
-        )
-        .child(
-            col()
-                .w_full()
-                .gap(6.0)
-                .child(text("Vaults").font(k.ty.ui_medium).color(k.c.text_base))
-                .child(
-                    text("Open a folder by path, or create a new vault.")
-                        .font(k.ty.caption())
-                        .color(k.c.text_muted),
-                )
-                .child(vault_prompt_row(s, k))
-                .child(recents),
-        )
-        .child(sync_section(s, k))
-        .child(
-            row().w_full().justify_end().child(
-                Button::new("Close")
-                    .variant(ButtonVariant::Ghost)
-                    .on_press(|s: &mut State| s.close_settings())
-                    .build(k)
-                    .key("settings-close"),
             ),
-        );
+        ))
+    // #20 slot: `.child(settings_section(k, "Graph effects", …))` goes here.
+}
 
-    Dialog::new("settings", "Settings")
-        .description("Preferences are saved as you change them.")
-        .width(440.0)
-        .fit()
-        .open(true)
-        .on_close(|s: &mut State| s.close_settings())
-        .child(body)
+/// Sync tab: the vault's sync provider, its fields, the status line, and
+/// Connect / Sync now / Cancel / Disconnect ([`sync_section`]).
+fn settings_sync_tab(s: &State, k: &Kit) -> El {
+    col()
+        .key("settings-tab-sync")
+        .w_full()
+        .child(sync_section(s, k))
 }
 
 fn vault_prompt_row(s: &State, k: &Kit) -> El {

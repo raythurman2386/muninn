@@ -9,10 +9,10 @@
 //! ```
 //!
 //! It stores the theme choice, collapsed sidebar folders, the last vault, the
-//! last note and mode/scope, the recent-vault MRU list, the autosave delay and
-//! the default body inserted into new notes. Decoding is intentionally forgiving: a
-//! corrupt or partially-written file falls back to defaults instead of failing
-//! startup. Writes use the same temp-file-then-rename pattern as note saves, so
+//! last note and mode/scope, the recent-vault MRU list, the autosave delay,
+//! the default body inserted into new notes and the Reduce motion choice.
+//! Decoding is intentionally forgiving: a corrupt or partially-written file
+//! falls back to defaults instead of failing startup. Writes use the same temp-file-then-rename pattern as note saves, so
 //! a crash leaves either the old complete file or the new one.
 
 use std::env;
@@ -339,6 +339,75 @@ impl VaultSyncBinding {
     }
 }
 
+/// The Reduce motion preference (Settings › Graph).
+///
+/// Serialized as `"system"` / `"on"` / `"off"`. A missing or unknown value,
+/// including every file written before this setting existed, loads as
+/// [`ReduceMotion::System`].
+///
+/// [`ReduceMotion::resolve`] is the one rule for whether motion is reduced:
+/// `MUNINN_REDUCED_MOTION` forces it on (for tests, CI and scripted demos)
+/// whatever is chosen here; otherwise `On` and `Off` pin it and `System`
+/// follows the operating system's reduce-motion preference.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ReduceMotion {
+    #[default]
+    System,
+    On,
+    Off,
+}
+
+impl ReduceMotion {
+    /// Every choice in the order the settings segmented control shows them.
+    pub const ALL: [ReduceMotion; 3] = [ReduceMotion::System, ReduceMotion::On, ReduceMotion::Off];
+
+    #[must_use]
+    pub fn as_key(self) -> &'static str {
+        match self {
+            ReduceMotion::System => "system",
+            ReduceMotion::On => "on",
+            ReduceMotion::Off => "off",
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            ReduceMotion::System => "System",
+            ReduceMotion::On => "On",
+            ReduceMotion::Off => "Off",
+        }
+    }
+
+    /// Position in [`ReduceMotion::ALL`].
+    #[must_use]
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|mode| *mode == self).unwrap_or(0)
+    }
+
+    #[must_use]
+    pub fn from_key(value: Option<&str>) -> ReduceMotion {
+        match value {
+            Some("on") => ReduceMotion::On,
+            Some("off") => ReduceMotion::Off,
+            _ => ReduceMotion::System,
+        }
+    }
+
+    /// Whether motion is reduced, given `env_forced` (`MUNINN_REDUCED_MOTION`
+    /// is set) and `system` (the OS preference). The environment flag can
+    /// only force reduced motion on; it never turns motion back on.
+    #[must_use]
+    pub fn resolve(self, env_forced: bool, system: bool) -> bool {
+        env_forced
+            || match self {
+                ReduceMotion::System => system,
+                ReduceMotion::On => true,
+                ReduceMotion::Off => false,
+            }
+    }
+}
+
 /// Preferences shared by every vault.
 ///
 /// `theme` picks the palette source (see [`ThemeMode`]). `collapsed` and the
@@ -368,6 +437,8 @@ pub struct Settings {
     pub note_template: String,
     /// Per-vault sync bindings. Tokens are not stored here.
     pub sync: SyncPrefs,
+    /// Settings › Graph › Reduce motion. Defaults to [`ReduceMotion::System`].
+    pub reduce_motion: ReduceMotion,
 }
 
 impl Default for Settings {
@@ -383,6 +454,7 @@ impl Default for Settings {
             recent_vaults: Vec::new(),
             note_template: String::new(),
             sync: SyncPrefs::default(),
+            reduce_motion: ReduceMotion::System,
         }
     }
 }
@@ -437,6 +509,7 @@ impl Settings {
                 .collect::<Vec<_>>(),
             "note_template": clamp_note_template(&self.note_template),
             "sync": self.sync.to_json(),
+            "reduce_motion": self.reduce_motion.as_key(),
         });
         let bytes = serde_json::to_vec_pretty(&value)?;
         atomic_write(&path, &bytes)
@@ -504,6 +577,8 @@ impl Settings {
             .and_then(Value::as_str)
             .map_or_else(String::new, clamp_note_template);
         settings.sync = SyncPrefs::from_value(value.get("sync"));
+        settings.reduce_motion =
+            ReduceMotion::from_key(value.get("reduce_motion").and_then(Value::as_str));
         settings
     }
 }
@@ -596,6 +671,7 @@ mod tests {
             recent_vaults: vec![PathBuf::from("/tmp/notes"), PathBuf::from("/tmp/other")],
             note_template: "---\ntags: []\n---".to_owned(),
             sync: SyncPrefs::default(),
+            reduce_motion: ReduceMotion::On,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);

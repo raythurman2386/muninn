@@ -102,7 +102,7 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         if s.camera_gliding() {
             tx.wake_after(std::time::Duration::ZERO);
         }
-        // DES-03: `graph_step` honours MUNINN_REDUCED_MOTION (heat pinned to
+        // DES-03: `graph_step` honours `State::reduced_motion` (heat pinned to
         // zero, no movement); pan, zoom and the initial fit still work.
         let moved = s.graph_step();
         if moved {
