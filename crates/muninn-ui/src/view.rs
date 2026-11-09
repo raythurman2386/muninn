@@ -5,7 +5,7 @@ use rune::{
     Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
 use rune_kit::{
-    Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl, TextArea,
+    Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl, Switch, TextArea,
 };
 use rune_theme_opencode::icons as ic;
 
@@ -1072,7 +1072,7 @@ fn settings_editor_tab(s: &State, k: &Kit) -> El {
         ))
 }
 
-/// Appearance tab: theme.
+/// Appearance tab: theme and the optional tray icon.
 fn settings_appearance_tab(s: &State, k: &Kit) -> El {
     let theme = if crate::omarchy::is_following(s) {
         text("Following Omarchy system theme")
@@ -1100,6 +1100,47 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
         .w_full()
         .gap(18.0)
         .child(settings_section(k, "Theme", None, theme))
+        .child(settings_tray_section(s, k))
+}
+
+/// Appearance › Tray icon: an off-by-default switch and one status line.
+/// Disabled where Rune has no tray (macOS at the pinned revision).
+fn settings_tray_section(s: &State, k: &Kit) -> El {
+    let supported = crate::tray_supported();
+    let switch = Switch::new(s.tray_icon() && supported)
+        .label("Show tray icon")
+        .disabled(!supported)
+        .on_toggle(|s: &mut State| {
+            let on = !s.tray_icon();
+            s.set_tray_icon(on);
+        })
+        .build(k)
+        .key("settings-tray-icon");
+    let status = if !supported {
+        "Not available on macOS yet.".to_owned()
+    } else if let Some(error) = s.tray_error() {
+        format!("The tray icon could not be added: {error}")
+    } else if s.tray_icon() {
+        "On. Linux shows it where a tray host runs; GNOME needs an AppIndicator extension."
+            .to_owned()
+    } else {
+        "Off.".to_owned()
+    };
+    settings_section(
+        k,
+        "Tray icon",
+        Some(
+            "A tray icon with Show Muninn, New note, the sync status and Quit. \
+             Closing the window still quits Muninn.",
+        ),
+        col().w_full().gap(8.0).child(switch).child(
+            text(status)
+                .key("settings-tray-status")
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .wrap(),
+        ),
+    )
 }
 
 /// Graph tab: how the knowledge graph moves.

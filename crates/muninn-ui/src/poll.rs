@@ -40,6 +40,9 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.poll_sync() {
         changed = true;
     }
+    // The tray's status row follows the sync status line. It is not drawn in
+    // the window, so it never sets `changed`.
+    s.sync_tray();
     if s.complete_tick() {
         changed = true;
     }

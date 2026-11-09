@@ -63,11 +63,17 @@ Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 `~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
 missing file starts from defaults instead of blocking startup. It remembers the theme,
 collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
-autosave delay (0.55 s by default), the default note template, the Reduce motion choice and up to five recent vaults. `Cmd/Ctrl+,`
+autosave delay (0.55 s by default), the default note template, the Reduce motion choice, whether the tray icon is shown and up to five recent vaults. `Cmd/Ctrl+,`
 opens the in-window Settings modal, split into tabs: **Vaults** (open or create a vault,
 or reopen a recent one), **Editor** (step the autosave delay, 0.05–10 s, and the default
-note template), **Appearance** (Omarchy / System / Dark / Light), **Graph** (Reduce motion:
-System / On / Off) and **Sync** (a placeholder until sync ships). Settings
+note template), **Appearance** (Omarchy / System / Dark / Light, and **Show tray icon**),
+**Graph** (Reduce motion: System / On / Off) and **Sync** (provider, remote, Connect, Sync Now
+and Disconnect; see [Sync](#sync)). **Show tray icon** is off by default and saved as
+`tray_icon`. When on, Linux and Windows show a tray icon with Show Muninn, New note, the
+current sync status (a disabled row) and Quit Muninn; clicking the icon shows and focuses
+the window. On Linux it appears where a StatusNotifierItem tray host runs (KDE, waybar and
+most bars; GNOME needs an AppIndicator extension). Closing the window still quits Muninn.
+The switch is disabled on macOS, which Rune's tray does not support yet. Settings
 always opens on the Vaults tab; the selected tab is not saved. A non-empty default note template is inserted verbatim at the top of
 every new note (a trailing newline is added when missing); an empty template
 keeps the plain `# Title` body. Choices persist immediately,
