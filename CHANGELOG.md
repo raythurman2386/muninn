@@ -8,10 +8,11 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Changed
 
+- Overlaid UI state machine is one module now: `overlay.rs` (command palette, Settings modal, Help, and the `Layer` Escape stack) and `mode.rs` (Mode/Scope enums and their transitions) moved out of `state.rs`; lib re-exports keep old import paths stable. `keys.rs`'s thirteen-field `typing` short-circuit is now one call, `State::is_typing()`. (Escape order pinned by `state_layers.rs`; a typing-ownership test added.)
 - Dismissal layers are now an explicit enum: `Layer`, `State::topmost_layer`
   and `State::dismiss_layer` name the Escape stack (command palette, Settings
   modal, Help, completion, find, broken-links dashboard, three
-  rename/move confirmations, the context menu, the five inline sidebar
+  rename/move confirmations, the context menu, the four inline sidebar
   prompts, delete-confirm and the move picker) so one Escape press peels
   exactly one layer. Behaviour is unchanged; the order is pinned by
   `crates/muninn-ui/tests/state_layers.rs`. The full machine inventory now

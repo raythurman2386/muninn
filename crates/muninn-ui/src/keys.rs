@@ -49,19 +49,7 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     }
     // F2 renames the selected note, Delete asks to delete it. When a text
     // field is focused, Delete edits text instead, so skip both then.
-    let typing = s.editor.focused
-        || s.search.focused
-        || s.palette.is_some()
-        || s.find.is_some()
-        || s.complete.is_some()
-        || s.broken_panel
-        || s.rename_confirm.is_some()
-        || s.move_confirm.is_some()
-        || s.folder_rename_confirm.is_some()
-        || s.new_note_prompt.is_some()
-        || s.rename_prompt.is_some()
-        || s.new_folder_prompt.is_some()
-        || s.rename_folder_prompt.is_some();
+    let typing = s.is_typing();
     // DES-01: Cmd/Ctrl+? opens Help from anywhere, including the editor (it is
     // a command chord, not typed text). Plain `?` also works when no text field
     // owns the keyboard; inside the editor `?` stays a literal question mark.

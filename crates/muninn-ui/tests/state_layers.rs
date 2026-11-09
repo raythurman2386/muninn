@@ -195,3 +195,27 @@ fn dismissing_a_layer_does_not_close_others() {
     state.dismiss_layer(Layer::Find);
     assert_eq!(state.topmost_layer(), None);
 }
+
+#[test]
+fn typing_ownership_is_one_name() {
+    let (_vault, mut state) = state();
+    // Construction focuses the editor (the note is loaded and typing lands
+    // in it), so the idle baseline here includes the editor.
+    assert!(state.is_typing(), "fresh state focuses the editor");
+    state.blur_text();
+    assert!(!state.is_typing());
+
+    state.editor.focused = true;
+    assert!(state.is_typing(), "editor owns the keyboard");
+    state.editor.focused = false;
+    assert!(!state.is_typing());
+
+    state.search.focused = true;
+    assert!(state.is_typing(), "search owns the keyboard");
+    state.search.focused = false;
+
+    set_layer(&mut state, Layer::Palette, true);
+    assert!(state.is_typing(), "palette owns the keyboard");
+    set_layer(&mut state, Layer::Palette, false);
+    assert!(!state.is_typing());
+}
