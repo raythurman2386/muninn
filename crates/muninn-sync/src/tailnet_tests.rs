@@ -78,7 +78,7 @@ fn engine(
         drive_upload: String::new(),
         drive_oauth: String::new(),
         github_client_id: String::new(),
-        google_client_id: String::new(),
+        google_client: None,
         tailnet_api: api,
     }
 }

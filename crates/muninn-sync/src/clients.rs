@@ -23,6 +23,7 @@
 
 use crate::error::SyncError;
 use crate::model::ProviderKind;
+use crate::secret::Secret;
 
 /// The public client id of the official "Muninn Sync" GitHub App
 /// (<https://github.com/apps/muninn-sync>, app id 5685382): device flow on,
@@ -53,6 +54,65 @@ pub const BUNDLED_GOOGLE_CLIENT_ID: Option<&str> = match option_env!("MUNINN_GOO
     Some(id) => Some(id),
     None => Some(OFFICIAL_GOOGLE_CLIENT_ID),
 };
+
+/// The official Google Desktop client's secret, compiled in from
+/// `MUNINN_GOOGLE_CLIENT_SECRET` at build time. It is never written in this
+/// repository. Google's token endpoint refuses a Desktop client's code
+/// exchange and refresh without it (`client_secret is missing.`), even with
+/// PKCE. Google documents that an installed app's secret is embedded in the
+/// app and is not confidential the way a web server's secret is.
+///
+/// Private on purpose: callers get it through
+/// [`bundled_google_client_secret`] as a [`Secret`], whose `Debug` and
+/// `Display` never show the value.
+const BUNDLED_GOOGLE_CLIENT_SECRET: Option<&str> = option_env!("MUNINN_GOOGLE_CLIENT_SECRET");
+
+/// The Google client secret compiled into this build, if any.
+#[must_use]
+pub fn bundled_google_client_secret() -> Option<Secret> {
+    BUNDLED_GOOGLE_CLIENT_SECRET
+        .map(str::trim)
+        .filter(|secret| !secret.is_empty())
+        .map(Secret::new)
+}
+
+/// The Google OAuth client a sign-in or refresh uses: the bundled public id
+/// and the secret that belongs to it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GoogleOAuthClient {
+    pub id: String,
+    pub secret: Secret,
+}
+
+/// The Google client to sign in and refresh with. `bundled_secret` is
+/// normally [`bundled_google_client_secret`]; tests pass a fake one.
+///
+/// Fails closed, before anything is sent, when the person entered a
+/// different client id under Settings (the bundled secret belongs to the
+/// bundled client only), when this build has no bundled id, or when it has
+/// no secret.
+pub fn google_client_for(
+    user_override: &str,
+    bundled_secret: Option<Secret>,
+) -> Result<GoogleOAuthClient, SyncError> {
+    pick_google_client(
+        user_override,
+        bundled_client_id(ProviderKind::GoogleDrive),
+        bundled_secret,
+    )
+}
+
+pub(crate) fn pick_google_client(
+    user_override: &str,
+    bundled_id: Option<&str>,
+    bundled_secret: Option<Secret>,
+) -> Result<GoogleOAuthClient, SyncError> {
+    let id = pick_client_id(ProviderKind::GoogleDrive, user_override, bundled_id)?;
+    Ok(GoogleOAuthClient {
+        id,
+        secret: bundled_secret.unwrap_or_else(|| Secret::new("")),
+    })
+}
 
 /// The bundled client id for `provider`, if this build has one.
 #[must_use]
@@ -145,5 +205,51 @@ mod tests {
             error.to_string().contains("no bundled Google client id"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn google_sends_the_bundled_secret_only_with_the_bundled_id() {
+        let official = Some(OFFICIAL_GOOGLE_CLIENT_ID);
+        let secret = || Some(Secret::new("test-only-google-secret"));
+
+        let client = pick_google_client("", official, secret()).unwrap();
+        assert_eq!(client.id, OFFICIAL_GOOGLE_CLIENT_ID);
+        assert_eq!(client.secret.expose(), "test-only-google-secret");
+        // Typing the official id into Settings is still the official client.
+        let client =
+            pick_google_client(&format!(" {OFFICIAL_GOOGLE_CLIENT_ID} "), official, secret())
+                .unwrap();
+        assert_eq!(client.secret.expose(), "test-only-google-secret");
+
+        // Someone else's client id must never get the official secret.
+        let error = pick_google_client("mine.apps.googleusercontent.com", official, secret())
+            .unwrap_err();
+        assert!(matches!(error, SyncError::Config { .. }), "{error}");
+        let text = error.to_string();
+        assert!(text.contains("custom Google client id"), "{text}");
+        assert!(text.contains("Nothing was sent"), "{text}");
+        assert!(!text.contains("test-only-google-secret"), "{text}");
+
+        // A build without a secret fails closed instead of asking Google
+        // for a token it will refuse.
+        for missing in [None, Some(Secret::new("")), Some(Secret::new("  "))] {
+            let error = pick_google_client("", official, missing).unwrap_err();
+            assert!(matches!(error, SyncError::Config { .. }), "{error}");
+            let text = error.to_string();
+            assert!(text.contains("MUNINN_GOOGLE_CLIENT_SECRET"), "{text}");
+            assert!(text.contains("Nothing was sent"), "{text}");
+        }
+
+        let error = pick_google_client("", None, secret()).unwrap_err();
+        assert!(error.to_string().contains("no bundled Google client id"), "{error}");
+    }
+
+    #[test]
+    fn the_google_client_never_prints_its_secret() {
+        let client = GoogleOAuthClient {
+            id: "id".to_owned(),
+            secret: Secret::new("test-only-google-secret"),
+        };
+        assert!(!format!("{client:?}").contains("test-only-google-secret"));
     }
 }

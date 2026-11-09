@@ -252,3 +252,53 @@ pub fn provider_message(body: &str) -> String {
         .or_else(|| value.pointer("/error/message").and_then(|v| v.as_str()));
     sanitize_provider_text(message.unwrap_or("unrecognized error"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_reasons_that_name_a_field_stay_readable() {
+        // Google's answer to a token request without a secret. Hiding it
+        // behind "[redacted]" is what kept the live Drive bug invisible.
+        let body =
+            r#"{"error":"invalid_request","error_description":"client_secret is missing."}"#;
+        assert_eq!(provider_message(body), "client_secret is missing.");
+        for reason in [
+            "client_secret is missing.",
+            "Invalid client_secret provided",
+            "The refresh_token has expired",
+            "device_code expired",
+        ] {
+            assert_eq!(sanitize_provider_text(reason), reason);
+        }
+    }
+
+    #[test]
+    fn secret_and_token_values_are_still_redacted() {
+        for (text, leaked) in [
+            ("client_secret=test-only-value", "test-only-value"),
+            (r#""client_secret": "test-only-value""#, "test-only-value"),
+            ("access_token=abc123", "abc123"),
+            (r#"{"access_token":"ya29.leak","expires_in":3599}"#, "ya29.leak"),
+            ("refresh_token: 1//leak", "1//leak"),
+            ("id_token=eyJleak", "eyJleak"),
+            ("device_code=dev-leak", "dev-leak"),
+            ("code_verifier=verifier-leak", "verifier-leak"),
+            ("Authorization: Bearer leak-token", "leak-token"),
+            ("token ya29.leak was rejected", "ya29.leak"),
+            ("bad refresh 1//leak given", "1//leak"),
+            ("github said ghu_leak", "ghu_leak"),
+            ("secret GOCSPX-leak", "GOCSPX-leak"),
+        ] {
+            let out = sanitize_provider_text(text);
+            assert!(!out.contains(leaked), "{text:?} -> {out:?}");
+            assert!(out.contains("[redacted]"), "{text:?} -> {out:?}");
+        }
+        // Words around a token value survive.
+        assert_eq!(
+            sanitize_provider_text("token ya29.leak was rejected"),
+            "token [redacted] was rejected"
+        );
+    }
+}

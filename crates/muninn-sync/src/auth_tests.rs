@@ -8,9 +8,11 @@ use std::time::Duration;
 use serde_json::json;
 
 use crate::auth::{
-    BrowserOpener, LoopbackRedirect, SignInEvents, browser_command, github_device_sign_in,
-    google_sign_in,
+    BrowserOpener, LoopbackRedirect, NOT_SIGNED_IN_PAGE, SIGNED_IN_PAGE, SignInEvents,
+    browser_command, github_device_sign_in, google_sign_in,
 };
+use crate::clients::GoogleOAuthClient;
+use crate::secret::{Secret, TokenSet};
 use crate::drive::{self, DriveClient};
 use crate::error::SyncError;
 use crate::github::GitHubClient;
@@ -44,6 +46,35 @@ impl SignInEvents for Arc<Mutex<Events>> {
 struct FakeBrowser {
     opened: Mutex<Vec<String>>,
     redirect: Option<fn(&str, &str) -> String>,
+    /// The page each redirect got back, once the listener answers it.
+    pages: Mutex<Vec<std::thread::JoinHandle<String>>>,
+}
+
+impl FakeBrowser {
+    fn google(redirect: fn(&str, &str) -> String) -> Self {
+        Self {
+            opened: Mutex::new(Vec::new()),
+            redirect: Some(redirect),
+            pages: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Pages the browser has fully received so far.
+    fn finished_pages(&self) -> usize {
+        self.pages
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|page| page.is_finished())
+            .count()
+    }
+
+    fn pages(&self) -> Vec<String> {
+        std::mem::take(&mut *self.pages.lock().unwrap())
+            .into_iter()
+            .map(|page| page.join().unwrap())
+            .collect()
+    }
 }
 
 impl BrowserOpener for FakeBrowser {
@@ -59,9 +90,8 @@ impl BrowserOpener for FakeBrowser {
                     .unwrap()
             };
             let target = answer(&get("redirect_uri"), &get("state"));
-            std::thread::spawn(move || {
-                let _ = http_get(&target);
-            });
+            let page = std::thread::spawn(move || http_get(&target).unwrap_or_default());
+            self.pages.lock().unwrap().push(page);
         }
         Ok(())
     }
@@ -122,7 +152,8 @@ fn loopback_redirect_checks_state_and_ignores_other_paths() {
     let answer = redirect
         .wait("s1", &CancelToken::new(), Duration::from_secs(5))
         .unwrap();
-    assert_eq!(answer.code, "the-code");
+    assert_eq!(answer.redirect.code, "the-code");
+    answer.finish(true);
     assert!(worker.join().unwrap().contains("You can close this tab"));
 
     // A request with someone else's state (or none) gets a 400 and the
@@ -146,7 +177,8 @@ fn loopback_redirect_checks_state_and_ignores_other_paths() {
     let answer = redirect
         .wait("s5", &CancelToken::new(), Duration::from_secs(5))
         .expect("a forged answer must not abort the sign-in");
-    assert_eq!(answer.code, "real");
+    assert_eq!(answer.redirect.code, "real");
+    answer.finish(true);
     let replies = worker.join().unwrap();
     for reply in &replies[..5] {
         assert!(reply.starts_with("HTTP/1.1 400 Bad Request"), "{reply}");
@@ -182,6 +214,12 @@ fn google_sign_in_uses_pkce_the_consent_host_and_a_loopback_redirect() {
             let body = request.body_str();
             let pairs: std::collections::BTreeMap<String, String> =
                 form_urlencoded::parse(body.as_bytes()).into_owned().collect();
+            if pairs.get("client_secret").map(String::as_str) != Some(TEST_SECRET) {
+                return json_reply(
+                    400,
+                    json!({"error": "invalid_request", "error_description": "client_secret is missing."}),
+                );
+            }
             if pairs.get("grant_type").map(String::as_str) != Some("authorization_code")
                 || pairs.get("code").map(String::as_str) != Some("consented")
                 || pairs.get("code_verifier").is_none_or(|v| v.len() < 43)
@@ -210,25 +248,32 @@ fn google_sign_in_uses_pkce_the_consent_host_and_a_loopback_redirect() {
         sleeper: &sleeper,
         request_timeout: Duration::from_secs(5),
     };
-    let browser = FakeBrowser {
-        opened: Mutex::new(Vec::new()),
-        redirect: Some(|redirect_uri, state| {
-            format!(
-                "{redirect_uri}?state={state}&code=consented&scope={}",
-                drive::DRIVE_SCOPE
-            )
-        }),
-    };
+    let browser = FakeBrowser::google(consent);
     let events = Arc::new(Mutex::new(Events::default()));
     let mut sink = Arc::clone(&events);
+    let mut stored = Vec::new();
     let token = google_sign_in(
         &client,
-        "client.apps.googleusercontent.com",
+        &test_client(),
         &browser,
         &mut sink,
         Duration::from_secs(10),
+        &mut |token: &TokenSet| {
+            // The tab must still be waiting while the token is stored.
+            std::thread::sleep(Duration::from_millis(200));
+            stored.push((token.access.expose().to_owned(), browser.finished_pages()));
+            Ok(())
+        },
     )
     .unwrap();
+    assert_eq!(
+        stored,
+        vec![("ya29.test".to_owned(), 0)],
+        "stored once, before the browser was told anything"
+    );
+    let pages = browser.pages();
+    assert_eq!(pages.len(), 1);
+    assert!(pages[0].contains(SIGNED_IN_PAGE), "{}", pages[0]);
     assert_eq!(token.access.expose(), "ya29.test");
     assert_eq!(token.refresh.as_ref().unwrap().expose(), "1//refresh");
     assert!(token.expires_unix_ms.unwrap() > crate::secret::now_unix_ms());
@@ -286,6 +331,7 @@ fn github_device_sign_in_polls_at_the_server_interval_and_records_the_login() {
     let browser = FakeBrowser {
         opened: Mutex::new(Vec::new()),
         redirect: None,
+        pages: Mutex::new(Vec::new()),
     };
     let events = Arc::new(Mutex::new(Events::default()));
     let mut sink = Arc::clone(&events);
@@ -338,6 +384,7 @@ fn github_device_code_that_expires_stops_polling() {
     let browser = FakeBrowser {
         opened: Mutex::new(Vec::new()),
         redirect: None,
+        pages: Mutex::new(Vec::new()),
     };
     let mut sink = Arc::new(Mutex::new(Events::default()));
     let error = github_device_sign_in(&client, "Iv1.client", &browser, &mut sink).unwrap_err();
@@ -368,4 +415,160 @@ fn keys_and_pkce_values_are_fresh_full_length_randomness() {
         pkce.state,
         drive::new_pkce("http://127.0.0.1:1/callback").state
     );
+}
+
+const TEST_SECRET: &str = "test-only-google-secret";
+
+fn test_client() -> GoogleOAuthClient {
+    GoogleOAuthClient {
+        id: "client.apps.googleusercontent.com".to_owned(),
+        secret: Secret::new(TEST_SECRET),
+    }
+}
+
+fn consent(redirect_uri: &str, state: &str) -> String {
+    format!(
+        "{redirect_uri}?state={state}&code=consented&scope={}",
+        drive::DRIVE_SCOPE
+    )
+}
+
+/// A token endpoint that always answers `status` with `body`, counting calls.
+fn fixed_token_server(
+    status: u16,
+    body: serde_json::Value,
+) -> (crate::testkit::ScriptedServer, Arc<Mutex<u32>>) {
+    let calls = Arc::new(Mutex::new(0u32));
+    let seen = Arc::clone(&calls);
+    let server = ScriptedServer::spawn(move |request| {
+        if request.method == "POST" && request.path == "/token" {
+            *seen.lock().unwrap() += 1;
+            return json_reply(status, body.clone());
+        }
+        json_reply(404, json!({}))
+    })
+    .unwrap();
+    (server, calls)
+}
+
+fn drive_client_for<'a>(
+    server: &crate::testkit::ScriptedServer,
+    sleeper: &'a RecordingSleeper,
+) -> DriveClient<'a, ReqwestTransport> {
+    DriveClient {
+        api_base: server.base(),
+        upload_base: server.base(),
+        oauth_base: server.base(),
+        auth_base: "https://accounts.google.com".to_owned(),
+        transport: ReqwestTransport::for_tests(&["127.0.0.1"]).unwrap(),
+        cancel: CancelToken::new(),
+        sleeper,
+        request_timeout: Duration::from_secs(5),
+    }
+}
+
+#[test]
+fn google_exchange_failure_shows_a_failure_page_and_stores_nothing() {
+    // Google's real answer when the token request carries no secret.
+    let (server, calls) = fixed_token_server(
+        400,
+        json!({"error": "invalid_request", "error_description": "client_secret is missing."}),
+    );
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client_for(&server, &sleeper);
+    let browser = FakeBrowser::google(consent);
+    let mut sink = Arc::new(Mutex::new(Events::default()));
+    let mut stores = 0;
+    let error = google_sign_in(
+        &client,
+        &test_client(),
+        &browser,
+        &mut sink,
+        Duration::from_secs(10),
+        &mut |_: &TokenSet| {
+            stores += 1;
+            Ok(())
+        },
+    )
+    .unwrap_err();
+    assert_eq!(*calls.lock().unwrap(), 1);
+    assert_eq!(stores, 0, "nothing is stored when the exchange fails");
+    assert!(matches!(error, SyncError::Auth { .. }), "{error}");
+    assert_eq!(
+        error.to_string(),
+        "Authentication needed: client_secret is missing.",
+        "Google's reason stays readable"
+    );
+    let pages = browser.pages();
+    assert_eq!(pages.len(), 1);
+    assert!(pages[0].contains(NOT_SIGNED_IN_PAGE), "{}", pages[0]);
+    assert!(!pages[0].contains(SIGNED_IN_PAGE), "{}", pages[0]);
+}
+
+#[test]
+fn google_store_failure_shows_a_failure_page() {
+    let (server, _calls) = fixed_token_server(
+        200,
+        json!({"access_token": "ya29.test", "refresh_token": "1//refresh", "expires_in": 3599, "scope": drive::DRIVE_SCOPE}),
+    );
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client_for(&server, &sleeper);
+    let browser = FakeBrowser::google(consent);
+    let mut sink = Arc::new(Mutex::new(Events::default()));
+    let error = google_sign_in(
+        &client,
+        &test_client(),
+        &browser,
+        &mut sink,
+        Duration::from_secs(10),
+        &mut |_: &TokenSet| {
+            Err(SyncError::Credentials {
+                detail: "the keyring is locked".to_owned(),
+            })
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(error, SyncError::Credentials { .. }), "{error}");
+    let pages = browser.pages();
+    assert_eq!(pages.len(), 1);
+    assert!(pages[0].contains(NOT_SIGNED_IN_PAGE), "{}", pages[0]);
+    assert!(!pages[0].contains(SIGNED_IN_PAGE), "{}", pages[0]);
+}
+
+#[test]
+fn google_sign_in_without_a_secret_fails_closed_before_the_browser() {
+    let (server, calls) = fixed_token_server(200, json!({}));
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client_for(&server, &sleeper);
+    let browser = FakeBrowser::google(consent);
+    let mut sink = Arc::new(Mutex::new(Events::default()));
+    let no_secret = GoogleOAuthClient {
+        id: "client.apps.googleusercontent.com".to_owned(),
+        secret: Secret::new(""),
+    };
+    let mut stores = 0;
+    let error = google_sign_in(
+        &client,
+        &no_secret,
+        &browser,
+        &mut sink,
+        Duration::from_secs(2),
+        &mut |_: &TokenSet| {
+            stores += 1;
+            Ok(())
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(error, SyncError::Config { .. }), "{error}");
+    assert!(browser.opened.lock().unwrap().is_empty(), "no browser opened");
+    assert!(browser.pages().is_empty(), "no page served");
+    assert_eq!(*calls.lock().unwrap(), 0, "no token request");
+    assert_eq!(stores, 0);
+
+    // The exchange itself refuses to send a request without a secret.
+    let error = client
+        .exchange_code(&no_secret, "http://127.0.0.1:9/callback", "code", "verifier")
+        .unwrap_err();
+    assert!(matches!(error, SyncError::Config { .. }), "{error}");
+    assert_eq!(*calls.lock().unwrap(), 0);
 }

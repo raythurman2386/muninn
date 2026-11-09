@@ -22,6 +22,7 @@ use crate::model::{
     BindingId, Conflict, ContentHash, FileKind, FileRecord, OperationId, Plan, ProviderKind,
     Resolution, Snapshot, Tombstone,
 };
+use crate::clients::GoogleOAuthClient;
 use crate::pathutil::RelativePath as RelPath;
 use crate::plan::{self, plan};
 use crate::secret::TokenSet;
@@ -37,9 +38,12 @@ pub struct EngineParts<T, C> {
     pub drive_api: String,
     pub drive_upload: String,
     pub drive_oauth: String,
-    /// OAuth client ids, used only to refresh an expiring access token.
+    /// OAuth clients, used only to refresh an expiring access token.
     pub github_client_id: String,
-    pub google_client_id: String,
+    /// The Google client id and its secret. `None` when this build has no
+    /// secret or the person set their own client id: a Google refresh then
+    /// fails closed without sending anything.
+    pub google_client: Option<GoogleOAuthClient>,
     /// Test-only override for a Tailscale peer's base URL. Production derives
     /// `https://<host>` from the binding.
     pub tailnet_api: Option<String>,
@@ -171,7 +175,11 @@ fn refresh_token<T: HttpTransport, C: CredentialStore>(
     let next = match provider {
         ProviderKind::GitHub => github_client(engine).refresh(&engine.github_client_id, refresh)?,
         ProviderKind::GoogleDrive => {
-            drive_client(engine).refresh(&engine.google_client_id, refresh)?
+            let client = engine.google_client.clone().unwrap_or(GoogleOAuthClient {
+                id: String::new(),
+                secret: crate::secret::Secret::new(""),
+            });
+            drive_client(engine).refresh(&client, refresh)?
         }
         ProviderKind::Tailscale => unreachable!("can_refresh excludes Tailscale"),
     };
