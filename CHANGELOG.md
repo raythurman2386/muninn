@@ -14,6 +14,12 @@ All notable changes to Muninn are documented here. The format is based on
   folder; it is not an editable Markdown mirror. GitHub publishes Git objects
   and updates the selected branch with `force` false. Tokens stay in the OS
   credential store. Disconnect does not delete notes.
+- Tailscale as a third sync provider. One device hosts an immutable commit
+  store on `127.0.0.1`, published to the tailnet with `tailscale serve`; other
+  devices join by MagicDNS name. A shared key in the OS credential store is
+  required, and an optional `Tailscale-User-Login` allow-list can narrow it. The
+  host only accepts fast-forward commits, so conflicts go through the same
+  planner as the other providers.
 
 ## [0.5.2] - 2026-11-09
 

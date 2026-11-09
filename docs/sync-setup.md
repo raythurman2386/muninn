@@ -39,6 +39,33 @@ before Connect can succeed. Muninn does not do them.
    read and write can be stored in the OS credential store as a manual
    alternative. It must not be pasted into a note or into `settings.json`.
 
+## Tailscale
+
+Tailscale has no file sync of its own, so one Muninn device hosts a commit
+store and the others join it over the tailnet. Nothing in the tests talks to a
+real tailnet or `tailscaled`.
+
+1. Turn on MagicDNS and HTTPS certificates for the tailnet in the Tailscale
+   admin console. HTTPS certificates put the device's `*.ts.net` name in public
+   Certificate Transparency logs.
+2. On the host: Settings → Sync → Tailscale → "This device hosts" → Connect.
+   Muninn generates a shared key, stores it in the OS credential store, shows it
+   once, and starts serving on `127.0.0.1:<port>` (default 47821) while Muninn
+   is open. Run the command it shows once on that device:
+   `tailscale serve --bg --https=443 http://127.0.0.1:47821`.
+3. On each other device: "Join a host", enter the host's full MagicDNS name
+   (`device.tailnet.ts.net`, not the short name), paste the shared key, then
+   Connect. The key goes to that device's credential store and the field is
+   cleared.
+4. Optional: list allowed Tailscale logins on the host. Serve sets
+   `Tailscale-User-Login` from its own WhoIs lookup. Tagged devices get no
+   identity header, so leave the list empty if a tagged device must sync.
+
+The server binds loopback only, so the identity header cannot be forged from
+the LAN or tailnet. The host's store is under
+`$XDG_STATE_HOME/muninn/sync/tailnet-store/<binding>`. It is not the vault, and
+it is not editable Markdown.
+
 ## Linux credentials
 
 The credential store is Secret Service over the session D-Bus. The collection

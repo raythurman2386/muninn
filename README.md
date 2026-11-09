@@ -270,11 +270,12 @@ pinned revision.
 
 ### Sync
 
-Settings can bind the open vault to GitHub or Google Drive. Sync Now is manual.
+Settings can bind the open vault to GitHub, Google Drive, or Tailscale. Sync Now is manual.
 GitHub publishes the vault as Git files on a branch you choose and refuses
 force updates. Drive stores immutable commits created by Muninn inside a folder
 you select; it does not turn that folder into a normal set of editable Markdown
-files. Setup for the OAuth client and the OS credential store is described in
+files. Tailscale has one Muninn device host a commit store that the others
+reach by MagicDNS name through `tailscale serve`. Setup for the OAuth client and the OS credential store is described in
 [docs/sync-setup.md](docs/sync-setup.md). Tokens are not written to
 `settings.json`.
 

@@ -10,6 +10,7 @@ They are bookkeeping, not a second copy of the user's notes as the canonical sto
 | Provider | What is stored remotely | Concurrency |
 | --- | --- | --- |
 | GitHub | Ordinary file bytes inside an explicit repository, branch, and prefix. Other paths in the repository are preserved with `base_tree`. | One commit whose parent is the commit just read, then `git/refs` update with `force: false`. A rejected update is re-read and replanned. |
+| Tailscale | Immutable blobs and commit manifests (the Drive commit format) in a store directory on the host device, served on `127.0.0.1` and published to the tailnet by `tailscale serve`. | The host accepts a commit only when its parents equal the current heads. A stale peer gets 409, re-reads, and replans. Auth is a shared key from the credential store plus an optional `Tailscale-User-Login` allow-list. |
 | Google Drive | Immutable blobs and immutable commit manifests in an app-created folder inside the folder the user selected. | No mutable head file. Two writers create two commits with the same parent. The next sync merges those heads or stops on a conflict. |
 
 Drive is not a mirror of an editable Markdown folder. Drive v3 uploads are not

@@ -16,10 +16,14 @@
   tree fails the run.
 - Remote concurrency: GitHub ref updates send `force: false`. Drive commits are
   immutable, so a concurrent writer becomes a second head instead of an
-  overwrite.
+  overwrite. The Tailscale host is one serialized writer: it accepts a commit
+  only when its parents are exactly the current heads, so a peer that read an
+  older head is refused and replans. Blobs and commits are create-only; the
+  host has no overwrite or delete endpoint.
 - A timeout after a mutation is an unknown outcome. The next attempt looks up
   the operation id (GitHub commit message, or Drive commit manifest) before
-  creating another one.
+  creating another one. Tailscale PUTs are idempotent (same bytes, same answer),
+  so they are retried a bounded number of times.
 - Retries are bounded and apply to rate limits and transport failures. Auth,
   permission, and protected-branch errors stop the run.
 - Cancel stops between requests. It does not roll back a commit the provider
@@ -33,6 +37,8 @@ These builds and fixture tests do not prove:
 - a real OS keychain prompt, unlock, or access-control dialog
 - a real Google Cloud project, OAuth consent screen, or Drive grant
 - a real GitHub App installation or device-flow login
+- a real tailnet: `tailscale serve`, MagicDNS, ts.net certificates, and the
+  `Tailscale-User-Login` header are modeled by loopback fixtures only
 - that Google or GitHub will keep the HTTP behavior these fixtures model
 
 The native credential backends are compiled. Tests use an in-memory store.
