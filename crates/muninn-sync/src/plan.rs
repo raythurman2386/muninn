@@ -502,7 +502,71 @@ pub fn resolve(
     Ok(desired)
 }
 
+/// A three-way merge that cannot stop on a conflict, for two remote heads
+/// no person is around to choose between. Paths where one side kept the base
+/// take the other side. Where both sides changed a path differently, content
+/// wins over a delete, and when both have content `left` keeps the path while
+/// `right` is written beside it as `<stem> (conflict <label>)<ext>`. Rename
+/// detection is not needed: a rename is a delete plus an add, and neither side
+/// loses bytes. Returns the merged tree and the conflict copies it created.
+///
+/// The result depends only on its inputs, so two devices that merge the same
+/// heads at once produce the same tree, and the next merge is clean.
+pub fn merge_keep_both(
+    base: Option<&Snapshot>,
+    left: &Snapshot,
+    right: &Snapshot,
+    label: &str,
+) -> Result<(Snapshot, Vec<RelativePath>), SyncError> {
+    let empty = Snapshot::default();
+    let base = base.unwrap_or(&empty);
+    let mut paths = BTreeSet::new();
+    paths.extend(base.files.keys().cloned());
+    paths.extend(left.files.keys().cloned());
+    paths.extend(right.files.keys().cloned());
+    let mut merged = Snapshot::default();
+    let mut clashes = Vec::new();
+    for path in paths {
+        let b = base.get(&path).map(|record| record.hash);
+        let l = left.get(&path);
+        let r = right.get(&path);
+        let (lh, rh) = (l.map(|record| record.hash), r.map(|record| record.hash));
+        let pick = if lh == rh || rh == b {
+            l
+        } else if lh == b {
+            r
+        } else {
+            match (l, r) {
+                (Some(l), Some(r)) => {
+                    clashes.push((path.clone(), r.clone()));
+                    Some(l)
+                }
+                (Some(only), None) | (None, Some(only)) => Some(only),
+                (None, None) => None,
+            }
+        };
+        if let Some(record) = pick {
+            merged.files.insert(path, record.clone());
+        }
+    }
+    let mut copies = Vec::new();
+    for (path, record) in clashes {
+        let copy = named_copy_path(&path, &merged, &format!("conflict {label}"))?;
+        merged.files.insert(copy.clone(), record);
+        copies.push(copy);
+    }
+    Ok((merged, copies))
+}
+
 fn conflict_copy_path(path: &RelativePath, desired: &Snapshot) -> Result<RelativePath, SyncError> {
+    named_copy_path(path, desired, "remote")
+}
+
+fn named_copy_path(
+    path: &RelativePath,
+    desired: &Snapshot,
+    tag: &str,
+) -> Result<RelativePath, SyncError> {
     let name = path.file_name();
     let (stem, ext) = name
         .rsplit_once('.')
@@ -511,9 +575,9 @@ fn conflict_copy_path(path: &RelativePath, desired: &Snapshot) -> Result<Relativ
     let parent = path.parent();
     for index in 0..50 {
         let file = if index == 0 {
-            format!("{stem} (remote){ext}")
+            format!("{stem} ({tag}){ext}")
         } else {
-            format!("{stem} (remote {}){ext}", index + 1)
+            format!("{stem} ({tag} {}){ext}", index + 1)
         };
         let candidate = match &parent {
             Some(parent) => format!("{parent}/{file}"),
@@ -535,6 +599,34 @@ fn conflict_copy_path(path: &RelativePath, desired: &Snapshot) -> Result<Relativ
 mod tests {
     use super::*;
     use crate::model::{ContentHash, FileKind, FileRecord};
+
+    #[test]
+    fn keep_both_merge_never_drops_content() {
+        let base = snap(&[
+            ("a.md", "base"),
+            ("b.md", "b"),
+            ("c.md", "c"),
+            ("d.md", "d"),
+        ]);
+        // left edits a, deletes b, edits c; right edits a, edits b, deletes d.
+        let left = snap(&[("a.md", "left"), ("c.md", "c2"), ("d.md", "d")]);
+        let right = snap(&[("a.md", "right"), ("b.md", "b2"), ("c.md", "c")]);
+        let (merged, copies) = merge_keep_both(Some(&base), &left, &right, "id").unwrap();
+        let copy = RelativePath::parse("a (conflict id).md").unwrap();
+        assert_eq!(copies, vec![copy.clone()]);
+        let expect = snap(&[
+            ("a.md", "left"),
+            ("a (conflict id).md", "right"),
+            ("b.md", "b2"),
+            ("c.md", "c2"),
+        ]);
+        assert_eq!(merged, expect);
+        // Same inputs, same tree: concurrent mergers converge.
+        assert_eq!(
+            merge_keep_both(Some(&base), &left, &right, "id").unwrap().0,
+            merged
+        );
+    }
 
     fn snap(pairs: &[(&str, &str)]) -> Snapshot {
         let mut snapshot = Snapshot::default();

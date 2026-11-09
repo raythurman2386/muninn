@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use crate::credentials::{CredentialKey, CredentialStore, MemoryCredentialStore};
 use crate::drive::{self, DriveClient, DriveCommitDoc, DriveScope};
-use crate::engine::{EngineParts, RunRequest, run_sync};
+use crate::engine::{EngineParts, RunRequest, SyncReport, run_sync};
 use crate::error::SyncError;
 use crate::github::{DevicePoll, GitHubClient, GitHubRemote, GitHubScope, git_blob_sha};
 use crate::http::{CancelToken, RecordingSleeper, ReqwestTransport};
@@ -776,18 +776,10 @@ fn drive_two_device_race_keeps_both_changes() {
     assert_eq!(device.read("a.md").as_deref(), Some("edited"));
 }
 
-#[test]
-fn drive_conflicting_heads_are_an_error_not_an_empty_snapshot() {
-    let drive = Arc::new(Mutex::new(DriveStore::default()));
-    let server = drive_server(Arc::clone(&drive));
-    let sleeper = RecordingSleeper::default();
-    let client = drive_client(
-        &server.base(),
-        &sleeper,
-        CancelToken::new(),
-        Duration::from_secs(2),
-    );
-    let (base, bytes) = snap_text(&[("a.md", "base"), ("keep.md", "keep")]);
+/// Two heads that both edited `a.md`, as an older build (or a writer that
+/// slipped past the last check) leaves a store.
+fn stuck_drive_store(client: &DriveClient<'_, ReqwestTransport>) -> String {
+    let (base, bytes) = snap_text(&[("a.md", "base"), ("keep.md", "keep"), ("gone.md", "x")]);
     let remote = client.fetch(&drive_scope(), &token()).unwrap();
     let root = client
         .publish(
@@ -803,7 +795,13 @@ fn drive_conflicting_heads_are_an_error_not_an_empty_snapshot() {
         .unwrap();
     let remote = client.fetch(&drive_scope(), &token()).unwrap();
     for (op, text) in [("op-left", "left"), ("op-right", "right")] {
-        let (next, bytes) = snap_text(&[("a.md", text), ("keep.md", "keep")]);
+        // The left head also deletes gone.md; that must merge cleanly.
+        let pairs: Vec<(&str, &str)> = if op == "op-left" {
+            vec![("a.md", text), ("keep.md", "keep")]
+        } else {
+            vec![("a.md", text), ("keep.md", "keep"), ("gone.md", "x")]
+        };
+        let (next, bytes) = snap_text(&pairs);
         client
             .publish(
                 &drive_scope(),
@@ -819,22 +817,225 @@ fn drive_conflicting_heads_are_an_error_not_an_empty_snapshot() {
     }
     let remote = client.fetch(&drive_scope(), &token()).unwrap();
     assert_eq!(remote.heads.len(), 2);
-    let error = drive::merge_heads(&remote).expect_err("conflicting heads must not merge");
-    assert!(matches!(error, SyncError::ConflictRemote { .. }), "{error}");
+    remote.heads[1].clone()
+}
 
-    // Through the engine the vault is left alone: nothing is planned as a
-    // remote delete.
+fn path(text: &str) -> RelativePath {
+    RelativePath::parse(text).unwrap()
+}
+
+#[test]
+fn drive_conflicting_heads_keep_both_versions_and_unstick_the_store() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let second = stuck_drive_store(&client);
+    let copy = path(&format!("a (conflict {}).md", &second[second.len() - 8..]));
+
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    let merged = drive::merge_heads(&remote).expect("conflicting heads still merge");
+    assert_eq!(merged.parents, remote.heads, "the merge names every head");
+    assert_eq!(merged.conflict_copies, vec![copy.clone()]);
+    assert_eq!(
+        merged.snapshot.hash_of(&path("a.md")),
+        Some(ContentHash::of(b"left"))
+    );
+    assert_eq!(
+        merged.snapshot.hash_of(&copy),
+        Some(ContentHash::of(b"right"))
+    );
+    assert_eq!(
+        merged.snapshot.hash_of(&path("gone.md")),
+        None,
+        "a clean delete merges"
+    );
+    assert_eq!(
+        merged.snapshot.hash_of(&path("keep.md")),
+        Some(ContentHash::of(b"keep"))
+    );
+
+    // The next sync of any device merges, keeps both, and publishes one head.
     let (credentials, binding) = connected(ProviderKind::GoogleDrive);
     let engine = drive_engine(&server, &credentials);
     let device = TestVault::new("drive-heads");
     std::fs::write(device.root.join("keep.md"), "keep").unwrap();
-    let error = run_sync(
+    let report = run_sync(
         &engine,
         &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000051"),
     )
-    .unwrap_err();
-    assert!(matches!(error, SyncError::ConflictRemote { .. }), "{error}");
+    .unwrap();
+    match &report {
+        SyncReport::Succeeded {
+            conflict_copies, ..
+        } => {
+            assert_eq!(conflict_copies, &vec![copy.clone()]);
+        }
+        other => panic!("expected success, got {other:?}"),
+    }
+    assert_eq!(device.read("a.md").as_deref(), Some("left"));
+    assert_eq!(device.read(copy.as_str()).as_deref(), Some("right"));
     assert_eq!(device.read("keep.md").as_deref(), Some("keep"));
+
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    assert_eq!(
+        remote.heads.len(),
+        1,
+        "the store is unstuck: {:?}",
+        remote.heads
+    );
+    let merged = drive::merge_heads(&remote).unwrap();
+    assert!(merged.conflict_copies.is_empty());
+    assert_eq!(
+        merged.snapshot.hash_of(&copy),
+        Some(ContentHash::of(b"right"))
+    );
+
+    // A second sync is clean and makes no new copies.
+    let report = run_sync(
+        &engine,
+        &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000052"),
+    )
+    .unwrap();
+    assert!(
+        matches!(&report, SyncReport::Succeeded { conflict_copies, .. } if conflict_copies.is_empty()),
+        "{report:?}"
+    );
+}
+
+#[test]
+fn drive_devices_that_merge_a_stuck_store_at_once_converge() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    stuck_drive_store(&client);
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    let merged = drive::merge_heads(&remote).unwrap();
+    // Two devices publish the same keep-both merge without seeing each other.
+    for op in ["op-merge-a", "op-merge-b"] {
+        client
+            .publish(
+                &drive_scope(),
+                &token(),
+                &remote,
+                &merged.snapshot,
+                &merged.parents,
+                &[],
+                &BTreeMap::new(),
+                op,
+            )
+            .unwrap();
+    }
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    assert_eq!(remote.heads.len(), 2);
+    let again = drive::merge_heads(&remote).unwrap();
+    assert!(
+        again.conflict_copies.is_empty(),
+        "{:?}",
+        again.conflict_copies
+    );
+    assert_eq!(again.snapshot, merged.snapshot);
+
+    // Had they merged to different trees (one also edited keep.md), the
+    // criss-cross still merges, keeping both versions of what differs.
+    let mut edited = merged.snapshot.clone();
+    let (extra, bytes) = snap_text(&[("keep.md", "kept differently")]);
+    edited.files.extend(extra.files);
+    client
+        .publish(
+            &drive_scope(),
+            &token(),
+            &remote,
+            &edited,
+            &remote.heads[..1],
+            &[],
+            &bytes,
+            "op-merge-c",
+        )
+        .unwrap();
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    let third = drive::merge_heads(&remote).expect("a criss-cross must not wedge");
+    assert_eq!(third.parents.len(), remote.heads.len());
+    let kept: std::collections::BTreeSet<_> = third
+        .snapshot
+        .files
+        .iter()
+        .filter(|(path, _)| path.as_str().starts_with("keep"))
+        .map(|(_, record)| record.hash)
+        .collect();
+    assert!(kept.contains(&ContentHash::of(b"keep")), "{kept:?}");
+    assert!(
+        kept.contains(&ContentHash::of(b"kept differently")),
+        "{kept:?}"
+    );
+}
+
+#[test]
+fn drive_writer_that_lands_during_blob_upload_is_merged_not_forked() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    let (credentials, binding) = connected(ProviderKind::GoogleDrive);
+    let engine = drive_engine(&server, &credentials);
+    let device = TestVault::new("drive-blob-race");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000061"),
+        )
+        .unwrap(),
+    );
+    stage_drive_racer(&drive, &server, &[("racer.md", "from racer")]);
+    std::fs::write(device.root.join("a.md"), "edited").unwrap();
+    // The racer lands while this sync uploads its first blob: after any
+    // check made before the blobs, before the manifest.
+    drive.lock().unwrap().race_at_blob_upload = true;
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000062"),
+        )
+        .unwrap(),
+    );
+    assert!(
+        drive.lock().unwrap().pending.is_empty(),
+        "the race must have fired"
+    );
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    assert_eq!(
+        remote.heads.len(),
+        1,
+        "publish must re-check before the manifest: {:?}",
+        remote.heads
+    );
+    let merged = drive::merge_heads(&remote).unwrap();
+    assert_eq!(
+        merged.snapshot.hash_of(&path("racer.md")),
+        Some(ContentHash::of(b"from racer"))
+    );
+    assert_eq!(
+        merged.snapshot.hash_of(&path("a.md")),
+        Some(ContentHash::of(b"edited"))
+    );
+    assert_eq!(device.read("racer.md").as_deref(), Some("from racer"));
 }
 
 #[test]
@@ -1260,6 +1461,8 @@ struct DriveStore {
     /// listed for the `race_at_commit_list`-th time.
     pending: Vec<DriveFile>,
     race_at_commit_list: Option<u32>,
+    /// Land `pending` while the next blob upload completes.
+    race_at_blob_upload: bool,
     commit_lists: u32,
     /// Status and body for a POST /token refresh.
     token_reply: Option<(u16, Value)>,
@@ -1399,6 +1602,11 @@ fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
             };
             file.bytes = request.body.clone();
             let created = file.id.clone();
+            if drive.race_at_blob_upload && file.role.as_deref() == Some("blob") {
+                drive.race_at_blob_upload = false;
+                let landed = std::mem::take(&mut drive.pending);
+                drive.files.extend(landed);
+            }
             drive.files.push(file);
             return json_reply(200, json!({"id": created}));
         }

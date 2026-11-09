@@ -830,7 +830,11 @@ impl State {
 
     fn finish_sync(&mut self, result: Result<SyncReport, String>) {
         match result {
-            Ok(SyncReport::Succeeded { head, exclusions }) => {
+            Ok(SyncReport::Succeeded {
+                head,
+                exclusions,
+                conflict_copies,
+            }) => {
                 if let Some(binding) = self.current_binding_mut() {
                     binding.last_head = head.clone();
                     binding.last_success_unix_ms = Some(
@@ -849,6 +853,15 @@ impl State {
                         exclusions.len()
                     )
                 };
+                let mut extra = extra;
+                if !conflict_copies.is_empty() {
+                    let names: Vec<&str> =
+                        conflict_copies.iter().map(|path| path.as_str()).collect();
+                    extra.push_str(&format!(
+                        " Two devices edited the same note; both versions were kept: {}.",
+                        names.join(", ")
+                    ));
+                }
                 self.sync_ui.status = format!("Last successful sync {head}.{extra}");
                 if self.dirty() {
                     self.sync_ui.status.push_str(

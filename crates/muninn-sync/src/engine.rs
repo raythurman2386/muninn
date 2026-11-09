@@ -63,6 +63,9 @@ pub enum SyncReport {
     Succeeded {
         head: String,
         exclusions: Vec<Exclusion>,
+        /// Conflict copies this run created while merging remote heads that
+        /// edited the same path ("keep both").
+        conflict_copies: Vec<RelPath>,
     },
     Conflicts {
         conflicts: Vec<Conflict>,
@@ -239,12 +242,14 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
     Ok(Round::Done(SyncReport::Succeeded {
         head,
         exclusions: inventory.exclusions.clone(),
+        conflict_copies: fetched.conflict_copies.clone(),
     }))
 }
 
 /// What one fetch read, kept so publish can name exactly that state.
 struct Fetched {
     snapshot: Snapshot,
+    conflict_copies: Vec<RelPath>,
     blobs: BTreeMap<ContentHash, Vec<u8>>,
     anchor: Anchor,
 }
@@ -342,6 +347,7 @@ fn resume_local<T: HttpTransport, C: CredentialStore>(
     Ok(SyncReport::Succeeded {
         head: prepared.head,
         exclusions: Vec::new(),
+        conflict_copies: Vec::new(),
     })
 }
 
@@ -367,6 +373,7 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
             let known = load_sha_cache(&request.state_dir);
             let remote = client.fetch_cached(&scope, &token.access, &known)?;
             Ok(Fetched {
+                conflict_copies: Vec::new(),
                 snapshot: remote.snapshot.clone(),
                 blobs: remote.blobs.clone(),
                 anchor: Anchor::GitHub { scope, remote },
@@ -378,10 +385,11 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
             })?;
             let client = drive_client(engine);
             let remote = client.fetch(&scope, &token.access)?;
-            // Disagreeing heads are an error from merge_heads, never an empty
-            // snapshot that would plan every file as a remote delete.
+            // Heads that disagree merge with conflict copies, so the store
+            // never stays stuck on them.
             let merged = drive::merge_heads(&remote)?;
             Ok(Fetched {
+                conflict_copies: merged.conflict_copies,
                 snapshot: merged.snapshot,
                 blobs: remote.blobs.clone(),
                 anchor: Anchor::Drive {
@@ -395,14 +403,10 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
             let scope = tailnet_scope(request)?;
             let remote = with_tailnet_store(engine, &scope, token, tailnet::fetch)?;
             let merged = drive::merge_heads(&remote)?;
-            if merged.plan.has_conflicts() {
-                return Err(SyncError::ConflictRemote {
-                    detail: format!("{} Tailscale heads disagree", remote.heads.len()),
-                });
-            }
             // The heads this run planned against. Publish names exactly these
             // as parents, so the host refuses the commit if it moved.
             Ok(Fetched {
+                conflict_copies: merged.conflict_copies,
                 snapshot: merged.snapshot,
                 blobs: remote.blobs,
                 anchor: Anchor::Tailscale {
@@ -478,18 +482,14 @@ fn publish<T: HttpTransport, C: CredentialStore>(
         } => {
             let client = drive_client(engine);
             // Drive has no compare-and-swap. Name exactly the heads this plan
-            // merged, and refuse if any commit appeared since the read: the
-            // next round plans with it. A writer that still slips in between
-            // this check and the upload becomes a second head, which the next
-            // read merges; its changes are never named as a parent unseen.
-            let now = client.commit_ids(scope, &token.access)?;
+            // merged; publish re-lists the commits after uploading blobs and
+            // just before the manifest, and refuses if any appeared since the
+            // read, so the next round plans with it. A writer that still slips
+            // in after that last check becomes a second head, which the next
+            // read merges (with conflict copies if it must).
             let seen: BTreeSet<String> = remote.commits.keys().cloned().collect();
-            if now != seen {
-                return Err(SyncError::ConflictRemote {
-                    detail: "Drive gained a commit after this sync read it".to_owned(),
-                });
-            }
-            client.publish(
+            client.publish_if_unchanged(
+                &seen,
                 scope,
                 &token.access,
                 remote,

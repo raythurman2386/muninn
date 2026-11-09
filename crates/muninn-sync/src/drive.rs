@@ -152,6 +152,9 @@ pub struct DriveMerge {
     pub snapshot: Snapshot,
     pub parents: Vec<String>,
     pub plan: Plan,
+    /// Files written beside a path two heads edited differently ("keep
+    /// both"). Empty when the heads merged cleanly.
+    pub conflict_copies: Vec<RelativePath>,
 }
 
 #[derive(Clone, Debug)]
@@ -342,8 +345,65 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         Ok(roots)
     }
 
+    /// Publish without checking that the store is unchanged since `remote`
+    /// was read. Tests use it to play a second writer; runs use
+    /// [`Self::publish_if_unchanged`].
     pub fn publish(
         &self,
+        scope: &DriveScope,
+        token: &Secret,
+        remote: &DriveRemote,
+        desired: &Snapshot,
+        parents: &[String],
+        tombstones: &[(RelativePath, ContentHash)],
+        local_bytes: &BTreeMap<RelativePath, Vec<u8>>,
+        operation_id: &str,
+    ) -> Result<String, SyncError> {
+        self.publish_inner(
+            None,
+            scope,
+            token,
+            remote,
+            desired,
+            parents,
+            tombstones,
+            local_bytes,
+            operation_id,
+        )
+    }
+
+    /// Publish, but after the blobs are uploaded and right before the
+    /// manifest, re-list the commit ids and return `ConflictRemote` if they
+    /// are not exactly `seen`. Uploaded blobs are content-addressed and
+    /// harmless if the manifest never follows.
+    pub fn publish_if_unchanged(
+        &self,
+        seen: &BTreeSet<String>,
+        scope: &DriveScope,
+        token: &Secret,
+        remote: &DriveRemote,
+        desired: &Snapshot,
+        parents: &[String],
+        tombstones: &[(RelativePath, ContentHash)],
+        local_bytes: &BTreeMap<RelativePath, Vec<u8>>,
+        operation_id: &str,
+    ) -> Result<String, SyncError> {
+        self.publish_inner(
+            Some(seen),
+            scope,
+            token,
+            remote,
+            desired,
+            parents,
+            tombstones,
+            local_bytes,
+            operation_id,
+        )
+    }
+
+    fn publish_inner(
+        &self,
+        seen: Option<&BTreeSet<String>>,
         scope: &DriveScope,
         token: &Secret,
         remote: &DriveRemote,
@@ -439,6 +499,13 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
             "tombstones": tombstones_json,
         });
         let body = manifest.to_string().into_bytes();
+        if let Some(seen) = seen
+            && &self.commit_ids(scope, token)? != seen
+        {
+            return Err(SyncError::ConflictRemote {
+                detail: "Drive gained a commit after this sync read it".to_owned(),
+            });
+        }
         self.upload_bytes(
             token,
             &commit_id,
@@ -882,58 +949,62 @@ struct DriveFile {
     role: Option<String>,
 }
 
+/// Merge every head into one tree to plan against. Heads that edited the
+/// same path differently never stop the store: the first head (by id) keeps
+/// the path and the other's version is kept beside it as a conflict copy
+/// (see `plan::merge_keep_both`). Publishing that tree names every head as
+/// a parent, so the next read sees one head again, including on a store that
+/// an earlier build left with conflicting heads.
 pub fn merge_heads(remote: &DriveRemote) -> Result<DriveMerge, SyncError> {
+    let clean = || plan::plan(None, &Snapshot::default(), &Snapshot::default());
     if remote.heads.is_empty() {
         return Ok(DriveMerge {
             snapshot: Snapshot::default(),
             parents: Vec::new(),
-            plan: plan::plan(None, &Snapshot::default(), &Snapshot::default()),
+            plan: clean(),
+            conflict_copies: Vec::new(),
         });
     }
-    if remote.heads.len() == 1 {
-        let commit = remote
-            .commits
-            .get(&remote.heads[0])
-            .ok_or_else(|| SyncError::Protocol {
-                detail: "head commit is missing".to_owned(),
-            })?;
-        let snapshot = commit.snapshot()?;
-        return Ok(DriveMerge {
-            snapshot: snapshot.clone(),
-            parents: vec![commit.id.clone()],
-            plan: plan::plan(Some(&snapshot), &snapshot, &snapshot),
-        });
-    }
+    let commit = |id: &str| {
+        remote.commits.get(id).ok_or_else(|| SyncError::Protocol {
+            detail: format!("head commit {id} is missing"),
+        })
+    };
     let mut acc_id = remote.heads[0].clone();
-    let mut acc = remote.commits[&acc_id].snapshot()?;
+    let mut acc = commit(&acc_id)?.snapshot()?;
     let mut parents = vec![acc_id.clone()];
+    let mut copies = Vec::new();
     for head in remote.heads.iter().skip(1) {
-        let other = remote.commits[head].snapshot()?;
-        let lca = lowest_common_ancestor(&remote.commits, &acc_id, head)?;
-        let base = match &lca {
-            Some(id) => Some(remote.commits[id].snapshot()?),
-            None => None,
+        let other = commit(head)?.snapshot()?;
+        parents.push(head.clone());
+        // A criss-cross history (two merges of the same heads) has no single
+        // common ancestor. Merge it without a base: nothing is deleted and
+        // every differing path keeps both versions.
+        let (base, criss_cross) = match lowest_common_ancestor(&remote.commits, &acc_id, head) {
+            Ok(Some(id)) => (Some(commit(&id)?.snapshot()?), false),
+            Ok(None) => (None, false),
+            Err(SyncError::ConflictRemote { .. }) => (None, true),
+            Err(other) => return Err(other),
         };
         let planned = plan::plan(base.as_ref(), &acc, &other);
-        if planned.has_conflicts() {
-            // Never return a placeholder snapshot here: planning against an
-            // empty remote would turn every base file into a delete.
-            return Err(SyncError::ConflictRemote {
-                detail: format!(
-                    "{} concurrent remote heads edit the same {} path(s); resolve on one device and sync again",
-                    remote.heads.len(),
-                    planned.conflicts.len()
-                ),
-            });
-        }
-        acc = planned.desired.clone();
-        parents.push(head.clone());
+        acc = if criss_cross || planned.has_conflicts() {
+            // The tail of the id: Drive ids are random throughout, and the
+            // tail keeps fixture ids (which share a prefix) distinct.
+            let tail = head.len().saturating_sub(8);
+            let label = head.get(tail..).unwrap_or(head);
+            let (merged, made) = plan::merge_keep_both(base.as_ref(), &acc, &other, label)?;
+            copies.extend(made);
+            merged
+        } else {
+            planned.desired.clone()
+        };
         acc_id = head.clone();
     }
     Ok(DriveMerge {
         snapshot: acc,
         parents,
-        plan: plan::plan(None, &Snapshot::default(), &Snapshot::default()),
+        plan: clean(),
+        conflict_copies: copies,
     })
 }
 
