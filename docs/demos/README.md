@@ -45,7 +45,7 @@ MUNINN_OMARCHY_COLORS= target/debug/muninn --vault vault --scene notes \
 ## Clips
 
 - `graph-glide.mp4` — clicking graph nodes glides the camera between notes.
-- `graph-effects.mp4` — Settings Graph effects cycles Classic → Electric → Off on a selected node.
+- `graph-effects.mp4` — Settings Graph effects cycles Classic → Electric → Off (and reduced motion in companion stills).
 - `palette.mp4` — `⌘⇧P` opens the command palette, Enter jumps to the
   local graph.
 - `theme.mp4` — changing the theme live in Settings (Omarchy → Dark → Light).

@@ -29,7 +29,8 @@ const EDGE_FX_BUDGET: usize = 48;
 /// Effect marks: cold edges, hot (selection-touching) edges, selection glow.
 pub const FX_EDGE_COLD: u32 = 0x4d45_0000;
 pub const FX_EDGE_HOT: u32 = 0x4d46_0000;
-pub const FX_GLOW: u32 = 0x4d47_0000;
+pub const FX_NODE_SEL: u32 = 0x4d47_0000;
+pub const FX_NODE_NEAR: u32 = 0x4d48_0000;
 /// World size of a low-zoom dot marker (screen size is `DOT * zoom`, so
 /// about 12px at typical Global fit zoom).
 const DOT: f32 = 28.0;
@@ -158,8 +159,12 @@ fn nodes_world(
         if focused {
             world = world.child(focus_ring(k, node.pos, w, h));
         }
-        if s.selected == Some(id) && s.graph_effects == GraphEffects::Electric {
-            world = world.child(selection_glow(id, node.pos, w, h));
+        if s.graph_effects == GraphEffects::Electric {
+            if s.selected == Some(id) {
+                world = world.child(node_electric(id, node.pos, w, h, true));
+            } else if s.selected.is_some() && is_neighbour(s, id) {
+                world = world.child(node_electric(id, node.pos, w, h, false));
+            }
         }
         world = world.child(if as_dot {
             node_dot(s, k, id, node.pos)
@@ -307,12 +312,13 @@ fn dot_size(degree: usize) -> f32 {
     DOT * (1.0 + (degree.min(12) as f32) * 0.05)
 }
 
-/// Soft selection bloom for the Electric preset. The compositor paints it.
-fn selection_glow(id: usize, pos: [f32; 2], w: f32, h: f32) -> El {
-    let pad = 14.0;
-    effect(FX_GLOW | (id as u32 & 0xffff))
-        .effect_data([1.0, 0.0, 0.0, 0.0]) // placeholder; compositor uses State accent
-        .effect_bleed(18.0)
+/// Electric border around a node. `hot` marks the selection; neighbours are calmer.
+fn node_electric(id: usize, pos: [f32; 2], w: f32, h: f32, hot: bool) -> El {
+    let pad = if hot { 10.0 } else { 6.0 };
+    let mark = if hot { FX_NODE_SEL } else { FX_NODE_NEAR } | (id as u32 & 0xffff);
+    effect(mark)
+        .effect_data([if hot { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0])
+        .effect_bleed(if hot { 14.0 } else { 10.0 })
         .pin(
             Some(pos[0] - w / 2.0 - pad),
             Some(pos[1] - h / 2.0 - pad),

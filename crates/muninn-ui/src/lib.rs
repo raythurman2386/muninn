@@ -30,5 +30,5 @@ pub use view::view;
 
 /// Effect-slot mark prefixes used by the graph FX compositor.
 pub mod fx_marks {
-    pub use crate::graph_view::{FX_EDGE_COLD, FX_EDGE_HOT, FX_GLOW};
+    pub use crate::graph_view::{FX_EDGE_COLD, FX_EDGE_HOT, FX_NODE_NEAR, FX_NODE_SEL};
 }

@@ -148,24 +148,25 @@ fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
 /// mode/scope/last-note fields are written whenever the user changes them, so
 /// a restart restores the session without a separate "save workspace" step.
 ///
-/// `graph_effects` defaults to [`GraphEffects::Electric`] for brand-new configs
-/// and when the key is absent on load (intentional upgrade default — existing
-/// installs pick up Electric until the user chooses Classic/Off). Unknown
-/// string values fall back to [`GraphEffects::Classic`].
+/// `graph_effects` defaults to [`GraphEffects::Classic`] for brand-new configs
+/// and when the key is absent on load, so upgrades keep today's graph look
+/// until the user opts into Electric/Off. Unknown string values also fall
+/// back to [`GraphEffects::Classic`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GraphEffects {
-    /// Theme-colored Rune electric edges and a glow on the selection.
+    /// Composed Muninn treatment: electric arcs on edges, electric border on
+    /// the selection, and a calmer charged border on direct neighbours.
     Electric,
-    /// Current solid lines and accent card / focus ring.
+    /// Current solid lines and accent card / focus ring (product default).
     Classic,
-    /// Plain lines with no glow (also accepts persisted key `minimal`).
+    /// Plain lines with no electric FX (also accepts persisted key `minimal`).
     Off,
 }
 
 impl GraphEffects {
     pub const ALL: [GraphEffects; 3] = [
-        GraphEffects::Electric,
         GraphEffects::Classic,
+        GraphEffects::Electric,
         GraphEffects::Off,
     ];
 
@@ -190,8 +191,8 @@ impl GraphEffects {
     #[must_use]
     pub fn id(self) -> usize {
         match self {
-            GraphEffects::Electric => 0,
-            GraphEffects::Classic => 1,
+            GraphEffects::Classic => 0,
+            GraphEffects::Electric => 1,
             GraphEffects::Off => 2,
         }
     }
@@ -199,7 +200,7 @@ impl GraphEffects {
 
 fn parse_graph_effects(value: Option<&str>) -> GraphEffects {
     match value {
-        None => GraphEffects::Electric,
+        None => GraphEffects::Classic,
         Some("electric") => GraphEffects::Electric,
         Some("classic") => GraphEffects::Classic,
         Some("off") | Some("minimal") => GraphEffects::Off,
@@ -247,7 +248,7 @@ impl Default for Settings {
             autosave_delay: DEFAULT_AUTOSAVE_DELAY,
             recent_vaults: Vec::new(),
             note_template: String::new(),
-            graph_effects: GraphEffects::Electric,
+            graph_effects: GraphEffects::Classic,
             reduced_motion: false,
         }
     }
@@ -522,15 +523,15 @@ mod tests {
     }
 
     #[test]
-    fn graph_effects_default_is_electric() {
-        assert_eq!(Settings::default().graph_effects, GraphEffects::Electric);
+    fn graph_effects_default_is_classic() {
+        assert_eq!(Settings::default().graph_effects, GraphEffects::Classic);
         assert!(!Settings::default().reduced_motion);
     }
 
     #[test]
-    fn missing_graph_effects_key_loads_electric() {
+    fn missing_graph_effects_key_loads_classic() {
         let settings = Settings::from_value(&serde_json::json!({ "theme": "dark" }));
-        assert_eq!(settings.graph_effects, GraphEffects::Electric);
+        assert_eq!(settings.graph_effects, GraphEffects::Classic);
         assert!(!settings.reduced_motion);
     }
 

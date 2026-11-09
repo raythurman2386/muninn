@@ -8,11 +8,13 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
-- Graph effects preset in Settings: **Electric** (theme-colored Rune electric
-  edges + selection glow), **Classic** (solid lines and accent card), and
-  **Off / Minimal** (plain lines, no glow). Persisted as `graph_effects` in
-  `settings.json`. Brand-new configs and upgrades that lack the key default to
-  **Electric**; unknown values fall back to **Classic**.
+- Graph effects preset in Settings: **Classic** (current solid lines — product
+  default), **Electric** (Muninn-composed electric arcs on edges, electric
+  border on the selection, charged border on direct neighbours), and
+  **Off / Minimal** (plain lines, no electric FX). Persisted as `graph_effects`
+  in `settings.json`. Brand-new configs and upgrades that lack the key keep
+  **Classic** so the graph looks unchanged until the user opts in; unknown
+  values also fall back to **Classic**.
 - Reduced motion Settings toggle. Combined with `MUNINN_REDUCED_MOTION` and the
   system preference (OR), it freezes graph layout, camera glides, and animated
   graph FX into a static pose.

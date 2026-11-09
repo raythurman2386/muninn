@@ -732,7 +732,7 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
                         .color(k.c.text_base),
                 )
                 .child(
-                    text("Edge and selection look on the knowledge graph.")
+                    text("Matched edge, selection, and neighbour look on the knowledge graph.")
                         .font(k.ty.caption())
                         .color(k.c.text_muted)
                         .wrap(),

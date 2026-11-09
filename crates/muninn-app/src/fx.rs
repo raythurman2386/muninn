@@ -2,13 +2,16 @@
 //!
 //! Marks are minted by `muninn-ui` graph view (`fx_marks`). Classic and Off
 //! presets emit no slots, so this compositor is a no-op then.
+//!
+//! Electric is a **Muninn-composed** treatment (edge arcs + selection /
+//! neighbour borders), not a Rune packaged paired preset.
 
 use muninn_ui::{GraphEffects, State, fx_marks};
 use rune::compose::{Compositor, Frame};
 use rune::render::{EffectPhase, EffectSite, KIND_EFFECT};
 use rune_fx::{
-    ElectricParams, ElectricStyle, Fx, FxFrame, FxLayer, FxOptions, FxRenderer, FxSlot, GlowParams,
-    GlowStyle, Place, Shape, rgb,
+    ElectricParams, ElectricStyle, Fx, FxFrame, FxLayer, FxOptions, FxRenderer, FxSlot, Place,
+    Shape, rgb,
 };
 
 #[derive(Default)]
@@ -50,26 +53,45 @@ impl Compositor<State> for GraphFx {
                 }
                 let [x, y, w, h] = i.rect.map(|v| v / k);
                 let r = i.radii.iter().fold(0.0f32, |a, v| a.max(v.abs())) / k;
-                let shape = Shape::rounded(x, y, w.max(1.0), h.max(1.0), r);
+                let shape = Shape::rounded(x, y, w.max(1.0), h.max(1.0), r.max(8.0));
                 let data = i.uv;
-                let layer = if mark & 0xffff_0000 == fx_marks::FX_GLOW {
+                let kind = mark & 0xffff_0000;
+                let layer = if kind == fx_marks::FX_NODE_SEL {
                     any_anim |= !reduced;
-                    Fx::glow(GlowParams {
-                        style: GlowStyle::Soft,
+                    Fx::electric(ElectricParams {
+                        style: ElectricStyle::Border,
                         color: accent_rgb,
                         core: accent_rgb,
-                        radius: 16.0,
-                        intensity: if reduced { 0.7 } else { 1.0 },
-                        hot: 0.35,
-                        ..GlowParams::default()
+                        amplitude: if reduced { 1.2 } else { 3.2 },
+                        glow: 5.5,
+                        forks: if reduced { 0.0 } else { 0.35 },
+                        flicker: if reduced { 0.0 } else { 0.2 },
+                        speed: if reduced { 0.0 } else { 2.2 },
+                        strands: 1,
+                        intensity: 1.05,
+                        ..ElectricParams::default()
                     })
                     .on(shape)
                     .over()
-                } else if mark & 0xffff_0000 == fx_marks::FX_EDGE_HOT
-                    || mark & 0xffff_0000 == fx_marks::FX_EDGE_COLD
-                {
+                } else if kind == fx_marks::FX_NODE_NEAR {
                     any_anim |= !reduced;
-                    let hot = mark & 0xffff_0000 == fx_marks::FX_EDGE_HOT;
+                    Fx::electric(ElectricParams {
+                        style: ElectricStyle::Charged,
+                        color: muted_rgb,
+                        core: accent_rgb,
+                        amplitude: if reduced { 0.6 } else { 1.0 },
+                        glow: 3.2,
+                        forks: if reduced { 0.0 } else { 0.15 },
+                        flicker: 0.0,
+                        speed: if reduced { 0.0 } else { 1.4 },
+                        strands: 1,
+                        intensity: 0.75,
+                        ..ElectricParams::charged()
+                    })
+                    .on(shape)
+                } else if kind == fx_marks::FX_EDGE_HOT || kind == fx_marks::FX_EDGE_COLD {
+                    any_anim |= !reduced;
+                    let hot = kind == fx_marks::FX_EDGE_HOT;
                     let a = [x + data[0] * w, y + data[1] * h];
                     let b = [x + data[2] * w, y + data[3] * h];
                     let color = if hot { accent_rgb } else { muted_rgb };
@@ -104,8 +126,8 @@ impl Compositor<State> for GraphFx {
                 };
                 let mut layer = layer.at(t).seed((mark & 0xffff) + 1);
                 layer.reduced_motion = reduced;
-                if matches!(&layer.fx, Fx::Glow(_)) {
-                    layer.place = Place::Under;
+                if kind == fx_marks::FX_NODE_SEL || kind == fx_marks::FX_NODE_NEAR {
+                    layer.place = Place::Over;
                 }
                 at.push(n as u32);
                 layers.push(layer);
@@ -161,7 +183,6 @@ impl Compositor<State> for GraphFx {
 fn pack_hex(rgb: [f32; 3]) -> u32 {
     let enc = |c: f32| -> u32 {
         let x = c.clamp(0.0, 1.0);
-        // Colors from the kit are already display-ish; treat as sRGB channel.
         (x * 255.0).round() as u32
     };
     (enc(rgb[0]) << 16) | (enc(rgb[1]) << 8) | enc(rgb[2])

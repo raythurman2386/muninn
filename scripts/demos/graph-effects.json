@@ -2,9 +2,10 @@
   {"t": 0.8, "type": "tap", "key": "graph-node-3"},
   {"t": 1.8, "type": "key", "name": ",", "cmd": true},
   {"t": 2.8, "type": "tap", "key": "settings-graph-effects/segment1"},
-  {"t": 3.8, "type": "tap", "key": "settings-graph-effects/segment0"},
-  {"t": 4.8, "type": "tap", "key": "settings-graph-effects/segment2"},
-  {"t": 5.8, "type": "tap", "key": "settings-graph-effects/segment0"},
-  {"t": 6.6, "type": "key", "name": "Escape"},
-  {"t": 7.4, "type": "mark", "name": "end"}
+  {"t": 4.0, "type": "tap", "key": "settings-reduced-motion"},
+  {"t": 5.2, "type": "tap", "key": "settings-reduced-motion"},
+  {"t": 6.2, "type": "tap", "key": "settings-graph-effects/segment2"},
+  {"t": 7.2, "type": "tap", "key": "settings-graph-effects/segment0"},
+  {"t": 8.0, "type": "key", "name": "Escape"},
+  {"t": 8.8, "type": "mark", "name": "end"}
 ]

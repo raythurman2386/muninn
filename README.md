@@ -119,13 +119,13 @@ over replacing the theme when motion is a problem.
 
 **Graph effects** (Settings → Graph effects, persisted as `graph_effects`):
 
-- **Electric** (default for new installs and upgrades that lack the key) — theme-colored
-  Rune electric edges plus a soft glow on the selection. Below the graph LOD zoom or past
-  an edge budget, edges fall back to Classic lines.
-- **Classic** — the previous solid muted/accent lines and accent card selection.
-- **Off / Minimal** — plain lines with no glow.
-
-Unknown `graph_effects` values load as Classic.
+- **Classic** (default for new installs and upgrades that lack the key) — the current
+  solid muted/accent lines and accent card selection. Missing/unknown keys keep this look.
+- **Electric** — a Muninn-composed treatment using Rune electric: theme-colored arcs on
+  edges, an electric border around the selected node, and a calmer charged border on
+  direct neighbours. Below the graph LOD zoom or past an edge budget, edges fall back to
+  Classic lines. This is not a Rune packaged paired preset.
+- **Off / Minimal** — plain lines with no electric FX.
 
 ## What it does
 

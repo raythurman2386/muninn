@@ -563,7 +563,7 @@ fn graph_effects_control_persists_and_reduced_motion_toggles() {
     let settings = Settings {
         theme: ThemeMode::Dark,
         last_vault: Some(vault.path().to_path_buf()),
-        graph_effects: GraphEffects::Electric,
+        graph_effects: GraphEffects::Classic,
         reduced_motion: false,
         ..Settings::default()
     };
@@ -588,14 +588,16 @@ fn graph_effects_control_persists_and_reduced_motion_toggles() {
     assert!(rt.find("settings-graph-effects").is_some());
     assert!(rt.find("settings-reduced-motion").is_some());
 
-    // Classic is the middle segment under the Graph effects control.
+    assert_eq!(rt.state.graph_effects, GraphEffects::Classic);
+
+    // Electric is the first segment under the Graph effects control.
     let (x, y) = rt
         .find("settings-graph-effects/segment1")
-        .expect("Classic segment");
+        .expect("Electric segment");
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);
     rt.frame(1.0 / 60.0);
-    assert_eq!(rt.state.graph_effects, GraphEffects::Classic);
+    assert_eq!(rt.state.graph_effects, GraphEffects::Electric);
 
     let (x, y) = rt
         .find("settings-reduced-motion")
@@ -607,7 +609,7 @@ fn graph_effects_control_persists_and_reduced_motion_toggles() {
     assert!(rt.state.reduced_motion);
 
     let saved = Settings::load_from(&config);
-    assert_eq!(saved.graph_effects, GraphEffects::Classic);
+    assert_eq!(saved.graph_effects, GraphEffects::Electric);
     assert!(saved.reduced_motion);
 
     // Off / Minimal
@@ -628,7 +630,7 @@ fn graph_effects_control_persists_and_reduced_motion_toggles() {
 }
 
 #[test]
-fn missing_graph_effects_key_defaults_to_electric_on_upgrade() {
+fn missing_graph_effects_key_defaults_to_classic_on_upgrade() {
     let config = unique_dir("fx-missing-key");
     let path = config.join("muninn").join("settings.json");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -647,7 +649,7 @@ fn missing_graph_effects_key_defaults_to_electric_on_upgrade() {
     )
     .unwrap();
     let loaded = Settings::load_from(&config);
-    assert_eq!(loaded.graph_effects, GraphEffects::Electric);
+    assert_eq!(loaded.graph_effects, GraphEffects::Classic);
     assert!(!loaded.reduced_motion);
     let _ = fs::remove_dir_all(&config);
 }
