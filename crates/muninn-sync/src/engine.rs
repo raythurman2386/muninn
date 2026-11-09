@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use crate::SCHEMA_VERSION;
 use crate::apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_plan};
+use crate::clients::GoogleOAuthClient;
 use crate::credentials::{CredentialKey, CredentialStore};
 use crate::drive::{self, DriveClient, DriveScope};
 use crate::error::SyncError;
@@ -22,7 +23,6 @@ use crate::model::{
     BindingId, Conflict, ContentHash, FileKind, FileRecord, OperationId, Plan, ProviderKind,
     Resolution, Snapshot, Tombstone,
 };
-use crate::clients::GoogleOAuthClient;
 use crate::pathutil::RelativePath as RelPath;
 use crate::plan::{self, plan};
 use crate::secret::TokenSet;
@@ -175,11 +175,10 @@ fn refresh_token<T: HttpTransport, C: CredentialStore>(
     let next = match provider {
         ProviderKind::GitHub => github_client(engine).refresh(&engine.github_client_id, refresh)?,
         ProviderKind::GoogleDrive => {
-            let client = engine.google_client.clone().unwrap_or(GoogleOAuthClient {
-                id: String::new(),
-                secret: crate::secret::Secret::new(""),
-            });
-            drive_client(engine).refresh(&client, refresh)?
+            let client = engine.google_client.as_ref().ok_or_else(|| SyncError::Config {
+                detail: "Google Drive cannot refresh its sign-in: this build has no Google client secret, or a custom Google client id is set under Sync. Nothing was sent.".to_owned(),
+            })?;
+            drive_client(engine).refresh(client, refresh)?
         }
         ProviderKind::Tailscale => unreachable!("can_refresh excludes Tailscale"),
     };

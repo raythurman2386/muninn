@@ -142,6 +142,11 @@ pub fn google_sign_in<T: HttpTransport>(
     timeout: Duration,
     store: &mut dyn FnMut(&TokenSet) -> Result<(), SyncError>,
 ) -> Result<TokenSet, SyncError> {
+    // Without a secret Google refuses the exchange: fail before a browser
+    // opens, so no tab ever claims a sign-in that cannot finish.
+    if oauth.secret.expose().trim().is_empty() {
+        return Err(crate::clients::missing_google_secret());
+    }
     let redirect = LoopbackRedirect::bind()?;
     let pkce = drive::new_pkce(&redirect.redirect_uri());
     let url = client.authorization_url(&oauth.id, &pkce)?;
@@ -151,7 +156,12 @@ pub fn google_sign_in<T: HttpTransport>(
     }
     let pending = redirect.wait(&pkce.state, &client.cancel, timeout)?;
     let result = client
-        .exchange_code(oauth, &pkce.redirect_uri, &pending.redirect.code, &pkce.verifier)
+        .exchange_code(
+            oauth,
+            &pkce.redirect_uri,
+            &pending.redirect.code,
+            &pkce.verifier,
+        )
         .and_then(|token| {
             store(&token)?;
             Ok(token)
@@ -175,8 +185,8 @@ impl std::fmt::Debug for PendingAnswer {
 }
 
 impl PendingAnswer {
-    /// Answer the waiting browser tab: [`SIGNED_IN_PAGE`] only when
-    /// `signed_in`, else [`NOT_SIGNED_IN_PAGE`].
+    /// Answer the waiting browser tab: the signed-in page only when
+    /// `signed_in`, else the failure page.
     pub fn finish(mut self, signed_in: bool) {
         if let Some(mut stream) = self.stream.take() {
             let message = if signed_in {
@@ -292,17 +302,21 @@ fn answer(mut stream: TcpStream, expected_state: &str) -> Option<Result<PendingA
         let _ = respond(&mut stream, 400, "Missing sign-in answer.");
         return None;
     }
-    let result = drive::parse_oauth_redirect(query, expected_state);
-    let message = if result.is_ok() {
-        SIGNED_IN_PAGE
-    } else {
-        NOT_SIGNED_IN_PAGE
-    };
-    let _ = respond(&mut stream, 200, message);
-    Some(result.map(|redirect| PendingAnswer {
-        redirect,
-        stream: None,
-    }))
+    // A code is not a sign-in yet: the tab waits until the exchange and the
+    // credential store have both succeeded (`PendingAnswer::finish`).
+    Some(match drive::parse_oauth_redirect(query, expected_state) {
+        Ok(redirect) => {
+            let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
+            Ok(PendingAnswer {
+                redirect,
+                stream: Some(stream),
+            })
+        }
+        Err(error) => {
+            let _ = respond(&mut stream, 200, NOT_SIGNED_IN_PAGE);
+            Err(error)
+        }
+    })
 }
 
 fn respond(stream: &mut TcpStream, status: u16, message: &str) -> std::io::Result<()> {

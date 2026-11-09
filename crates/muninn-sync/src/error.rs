@@ -205,8 +205,59 @@ impl fmt::Display for SyncError {
 
 impl std::error::Error for SyncError {}
 
-/// Keep a provider error message, dropping anything that looks like a token
-/// or an OAuth code. Bodies are capped so a hostile response cannot flood the UI.
+/// Field names whose *values* are credentials.
+const SECRET_FIELDS: [&str; 7] = [
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "client_secret",
+    "device_code",
+    "code_verifier",
+    "password",
+];
+
+/// Prefixes of token and secret values that providers might echo back.
+const SECRET_VALUE_PREFIXES: [&str; 9] = [
+    "ya29.",
+    "1//",
+    "gocspx-",
+    "ghu_",
+    "ghr_",
+    "gho_",
+    "ghp_",
+    "ghs_",
+    "github_pat_",
+];
+
+/// True when `lower` assigns a value to a secret field (`name=`, `name:`,
+/// `"name": ...`) or carries an authorization header. A reason that only
+/// names a field, such as Google's `client_secret is missing.`, is kept.
+fn assigns_secret(lower: &str) -> bool {
+    if lower.contains("authorization:") || lower.contains("bearer ") {
+        return true;
+    }
+    SECRET_FIELDS.iter().any(|field| {
+        lower.match_indices(field).any(|(at, _)| {
+            let after = lower[at + field.len()..].trim_start_matches(['"', '\'']);
+            after.trim_start().starts_with(['=', ':'])
+        })
+    })
+}
+
+/// `word` without surrounding quotes or punctuation looks like a token value.
+fn looks_like_secret_value(word: &str) -> bool {
+    let bare = word
+        .trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '/' && c != '_' && c != '.')
+        .to_ascii_lowercase();
+    SECRET_VALUE_PREFIXES
+        .iter()
+        .any(|prefix| bare.starts_with(prefix) && bare.len() > prefix.len())
+}
+
+/// Keep a provider error message, dropping anything that looks like a token,
+/// a secret, or an OAuth code. A line that assigns a secret field is replaced
+/// whole; a lone token-looking word is replaced in place. Bodies are capped
+/// so a hostile response cannot flood the UI.
 #[must_use]
 pub fn sanitize_provider_text(text: &str) -> String {
     let mut out = String::new();
@@ -214,16 +265,21 @@ pub fn sanitize_provider_text(text: &str) -> String {
         if index > 0 {
             out.push(' ');
         }
-        let lower = line.to_ascii_lowercase();
-        if lower.contains("access_token")
-            || lower.contains("refresh_token")
-            || lower.contains("client_secret")
-            || lower.contains("authorization:")
-            || lower.contains("device_code")
-        {
+        if assigns_secret(&line.to_ascii_lowercase()) {
             out.push_str("[redacted]");
             continue;
         }
+        let words: Vec<&str> = line
+            .split_whitespace()
+            .map(|word| {
+                if looks_like_secret_value(word) {
+                    "[redacted]"
+                } else {
+                    word
+                }
+            })
+            .collect();
+        let line = words.join(" ");
         let trimmed = line.trim();
         if out.len() + trimmed.len() > 280 {
             out.push('…');
@@ -261,8 +317,7 @@ mod tests {
     fn provider_reasons_that_name_a_field_stay_readable() {
         // Google's answer to a token request without a secret. Hiding it
         // behind "[redacted]" is what kept the live Drive bug invisible.
-        let body =
-            r#"{"error":"invalid_request","error_description":"client_secret is missing."}"#;
+        let body = r#"{"error":"invalid_request","error_description":"client_secret is missing."}"#;
         assert_eq!(provider_message(body), "client_secret is missing.");
         for reason in [
             "client_secret is missing.",
@@ -280,7 +335,10 @@ mod tests {
             ("client_secret=test-only-value", "test-only-value"),
             (r#""client_secret": "test-only-value""#, "test-only-value"),
             ("access_token=abc123", "abc123"),
-            (r#"{"access_token":"ya29.leak","expires_in":3599}"#, "ya29.leak"),
+            (
+                r#"{"access_token":"ya29.leak","expires_in":3599}"#,
+                "ya29.leak",
+            ),
             ("refresh_token: 1//leak", "1//leak"),
             ("id_token=eyJleak", "eyJleak"),
             ("device_code=dev-leak", "dev-leak"),

@@ -12,11 +12,11 @@ use crate::auth::{
     browser_command, github_device_sign_in, google_sign_in,
 };
 use crate::clients::GoogleOAuthClient;
-use crate::secret::{Secret, TokenSet};
 use crate::drive::{self, DriveClient};
 use crate::error::SyncError;
 use crate::github::GitHubClient;
 use crate::http::{CancelToken, RecordingSleeper, ReqwestTransport};
+use crate::secret::{Secret, TokenSet};
 use crate::testkit::{ScriptedServer, json_reply};
 
 #[derive(Default)]
@@ -560,14 +560,22 @@ fn google_sign_in_without_a_secret_fails_closed_before_the_browser() {
     )
     .unwrap_err();
     assert!(matches!(error, SyncError::Config { .. }), "{error}");
-    assert!(browser.opened.lock().unwrap().is_empty(), "no browser opened");
+    assert!(
+        browser.opened.lock().unwrap().is_empty(),
+        "no browser opened"
+    );
     assert!(browser.pages().is_empty(), "no page served");
     assert_eq!(*calls.lock().unwrap(), 0, "no token request");
     assert_eq!(stores, 0);
 
     // The exchange itself refuses to send a request without a secret.
     let error = client
-        .exchange_code(&no_secret, "http://127.0.0.1:9/callback", "code", "verifier")
+        .exchange_code(
+            &no_secret,
+            "http://127.0.0.1:9/callback",
+            "code",
+            "verifier",
+        )
         .unwrap_err();
     assert!(matches!(error, SyncError::Config { .. }), "{error}");
     assert_eq!(*calls.lock().unwrap(), 0);

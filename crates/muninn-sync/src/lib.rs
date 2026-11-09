@@ -61,9 +61,9 @@ pub use auth::{
     github_device_sign_in, google_sign_in,
 };
 pub use clients::{
-    BUNDLED_GITHUB_CLIENT_ID, BUNDLED_GOOGLE_CLIENT_ID, OFFICIAL_GITHUB_CLIENT_ID,
-    GoogleOAuthClient, OFFICIAL_GOOGLE_CLIENT_ID, bundled_client_id, bundled_google_client_secret,
-    client_id_for, google_client_for,
+    BUNDLED_GITHUB_CLIENT_ID, BUNDLED_GOOGLE_CLIENT_ID, GoogleOAuthClient,
+    OFFICIAL_GITHUB_CLIENT_ID, OFFICIAL_GOOGLE_CLIENT_ID, bundled_client_id,
+    bundled_google_client_secret, client_id_for, google_client_for,
 };
 pub use credentials::{
     CredentialKey, CredentialStore, MemoryCredentialStore, NativeCredentialStore,

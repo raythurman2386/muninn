@@ -550,8 +550,10 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         verifier: &str,
     ) -> Result<TokenSet, SyncError> {
         require_client_id(&client.id)?;
+        require_client_secret(client)?;
         let body = form(&[
             ("client_id", &client.id),
+            ("client_secret", client.secret.expose()),
             ("code", code),
             ("code_verifier", verifier),
             ("grant_type", "authorization_code"),
@@ -591,8 +593,10 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         refresh: &Secret,
     ) -> Result<TokenSet, SyncError> {
         require_client_id(&client.id)?;
+        require_client_secret(client)?;
         let body = form(&[
             ("client_id", &client.id),
+            ("client_secret", client.secret.expose()),
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh.expose()),
         ]);
@@ -1259,6 +1263,15 @@ fn token_from_oauth(json: &serde_json::Value) -> Result<TokenSet, SyncError> {
             .map(|seconds| crate::secret::expires_at(crate::secret::now_unix_ms(), seconds)),
         account: String::new(),
     })
+}
+
+/// Google refuses a Desktop client's token request without its secret, so
+/// an empty one fails closed here instead of sending a request.
+fn require_client_secret(client: &GoogleOAuthClient) -> Result<(), SyncError> {
+    if client.secret.expose().trim().is_empty() {
+        return Err(crate::clients::missing_google_secret());
+    }
+    Ok(())
 }
 
 fn require_client_id(client_id: &str) -> Result<(), SyncError> {

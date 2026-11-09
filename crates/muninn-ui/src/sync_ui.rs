@@ -481,8 +481,8 @@ impl State {
             // The token goes to the credential store inside the sign-in, so
             // Google's browser tab says "signed in" only once it is stored.
             let mut store = |token: &TokenSet| credentials.put(&key, token);
-            let result = sign_in(&client, &env, cancel, &mut events, &mut store)
-                .map(|token| token.account);
+            let result =
+                sign_in(&client, &env, cancel, &mut events, &mut store).map(|token| token.account);
             let _ = tx.send(SyncMessage::SignIn(SignInUpdate::Connected {
                 binding_id,
                 result: result.map_err(|error| error.to_string()),
@@ -540,6 +540,7 @@ impl State {
                                     .to_owned();
                             return;
                         };
+                        self.sync_ui.sign_in_error = None;
                         binding.account.clone_from(&account);
                         if binding.provider == "github" {
                             self.settings.sync.github_client_id =
@@ -763,6 +764,7 @@ impl State {
         // A sign-in still in the browser is abandoned; its token is deleted
         // when it arrives.
         self.sync_ui.pending = None;
+        self.sync_ui.sign_in_error = None;
         self.sync_ui.host = None;
         self.sync_ui.revealed_key = None;
         let Some(binding) = self.current_binding().cloned() else {
@@ -808,7 +810,11 @@ impl State {
             return;
         }
         let Some(binding) = self.current_binding().cloned() else {
-            self.sync_ui.status = "Connect a provider for this vault before Sync Now.".to_owned();
+            // Keep why the last Connect failed; a generic hint would hide it.
+            self.sync_ui.status = match &self.sync_ui.sign_in_error {
+                Some(error) => format!("{error} Connect again before Sync Now."),
+                None => "Connect a provider for this vault before Sync Now.".to_owned(),
+            };
             return;
         };
         if let Some(reason) = &self.settings.sync.disabled_reason {
@@ -1202,7 +1208,11 @@ mod tests {
         };
         state.set_sync_provider(1);
         state.connect_sync();
-        assert_eq!(state.sync_ui.phase, super::SyncPhase::Idle, "no sign-in starts");
+        assert_eq!(
+            state.sync_ui.phase,
+            super::SyncPhase::Idle,
+            "no sign-in starts"
+        );
         assert!(
             state.sync_ui.status.contains("MUNINN_GOOGLE_CLIENT_SECRET")
                 && state.sync_ui.status.contains("Nothing was sent"),
@@ -1230,7 +1240,11 @@ mod tests {
             .google_client_id
             .replace_text("mine.apps.googleusercontent.com");
         state.connect_sync();
-        assert_eq!(state.sync_ui.phase, super::SyncPhase::Idle, "no sign-in starts");
+        assert_eq!(
+            state.sync_ui.phase,
+            super::SyncPhase::Idle,
+            "no sign-in starts"
+        );
         assert!(
             state.sync_ui.status.contains("custom Google client id"),
             "{}",
@@ -1398,8 +1412,8 @@ mod tests {
                 assert!(body.contains("code_verifier="));
                 let reply = if body.contains(&format!("client_secret={TEST_GOOGLE_SECRET}")) {
                     format!(
-                    "{{\"access_token\":\"ya29.ui\",\"refresh_token\":\"1//ui\",\"expires_in\":3599,\"scope\":\"{}\"}}",
-                    muninn_sync::DRIVE_SCOPE
+                        "{{\"access_token\":\"ya29.ui\",\"refresh_token\":\"1//ui\",\"expires_in\":3599,\"scope\":\"{}\"}}",
+                        muninn_sync::DRIVE_SCOPE
                     )
                 } else {
                     "{\"error\":\"invalid_request\",\"error_description\":\"client_secret is missing.\"}".to_owned()
