@@ -21,11 +21,12 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use muninn_core::{Vault, parse_links};
 use muninn_ui::{
-    Mode, Scope, Settings, SettingsTab, State, ThemeMode, TrayAction, TrayFactory, TrayPort,
-    on_key, poll, tray_action, tray_spec, view,
+    Mode, NativeAutostart, SHOW_SHORTCUT, Scope, Settings, SettingsTab, ShortcutPort, State,
+    ThemeMode, TrayAction, TrayFactory, TrayPort, on_key, poll, tray_action, tray_spec, view,
 };
 use rune::AppSpec;
 use rune_theme_opencode as theme;
@@ -80,7 +81,7 @@ fn main() {
         on_key: Some(on_key),
         ..AppSpec::new("Muninn", (1180.0, 780.0), init, view)
     };
-    let app = rune::App::new(spec).on_close(|s, _tx| {
+    let app = rune::App::new(spec).on_close(|s, tx| {
         // Best-effort: flush the open note on the normal close path. Autosave is
         // the crash net for SIGTERM/SIGKILL, which never run this hook; Rune's
         // `AppHandle::quit` / `Tx::quit` also bypass it.
@@ -93,19 +94,91 @@ fn main() {
         // hook captures the final note/mode if the window is closed right after
         // a change that did not reach a mutator.
         s.flush_before_quit();
+        // The app keeps running after a close (below) only so Close to tray
+        // can hide the window. Without a live tray icon, closing quits as it
+        // always has.
+        if !s.closes_to_tray() {
+            tx.quit();
+        }
     });
-    // The optional tray icon (Settings › Appearance). The state gets a way to
-    // make one; it creates the icon only while the setting is on. Headless
-    // runs (`--snap`, `--tree`, scripts) never get one.
+    let headless = rune::is_headless();
+    // Close to tray: `keep_running` makes a close hide the window and run
+    // `on_close`, whose `tx.quit()` above ends the app unless the tray takes
+    // over. Headless runs keep Rune's default close.
+    let app = if headless { app } else { app.keep_running() };
+    // The optional tray icon, login item and global shortcut (Settings ›
+    // Appearance). The state gets a way to make each; it acts only while
+    // its setting is on. Headless runs (`--snap`, `--tree`, scripts) get none.
     let handle = app.handle();
     app.init(move || {
         let mut state = init();
-        if !rune::is_headless() {
-            state.install_tray(tray_factory(handle));
+        if !headless {
+            state.install_tray(tray_factory(handle.clone()));
+            state.install_autostart(Box::new(NativeAutostart::new()));
+            state.install_shortcut(Box::new(RuneShortcut::new(handle)));
         }
         state
     })
     .run();
+}
+
+/// The global show-Muninn shortcut on Rune's `register_shortcut`. Binding
+/// runs on a worker thread because a Wayland portal may ask for consent; the
+/// result comes back on the UI thread through the app handle.
+struct RuneShortcut {
+    handle: rune::AppHandle<State>,
+    id: Arc<Mutex<Option<rune::ShortcutId>>>,
+}
+
+impl RuneShortcut {
+    fn new(handle: rune::AppHandle<State>) -> Self {
+        Self {
+            handle,
+            id: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
+impl ShortcutPort for RuneShortcut {
+    fn bind(&self) {
+        let handle = self.handle.clone();
+        let slot = Arc::clone(&self.id);
+        // Rune refuses a registration before its host runs (`NotRunning`),
+        // and `install_shortcut` runs inside `init`. A queued update runs
+        // once the host is up; the worker then registers off the UI thread.
+        self.handle.update(move |_, _| {
+            std::thread::spawn(move || register_show_shortcut(&handle, &slot));
+        });
+    }
+
+    fn unbind(&self) {
+        let Some(id) = self.id.lock().expect("shortcut slot").take() else {
+            return;
+        };
+        let handle = self.handle.clone();
+        std::thread::spawn(move || {
+            let _ = handle.unregister_shortcut(id);
+        });
+    }
+}
+
+/// Register [`SHOW_SHORTCUT`] (a worker thread: a Wayland portal may wait
+/// on consent) and hand the outcome to the UI thread.
+fn register_show_shortcut(handle: &rune::AppHandle<State>, slot: &Mutex<Option<rune::ShortcutId>>) {
+    let shown = handle.clone();
+    let result = SHOW_SHORTCUT
+        .parse::<rune::Shortcut>()
+        .and_then(|shortcut| {
+            handle.register_shortcut(shortcut, move |_, tx| match tx.activation_token() {
+                Some(token) => shown.activate(token),
+                None => shown.open(),
+            })
+        })
+        .map(|id| {
+            *slot.lock().expect("shortcut slot") = Some(id);
+        })
+        .map_err(|error| error.to_string());
+    handle.update(move |s, _| s.shortcut_result(result));
 }
 
 /// Builds Muninn's tray on [`rune::Tray`]. The tray calls back on its own
@@ -124,7 +197,8 @@ fn tray_factory(handle: rune::AppHandle<State>) -> TrayFactory {
 }
 
 /// One tray pick, on the existing paths: Rune's `open`/`activate` show and
-/// focus the window, New note is Cmd/Ctrl+N's field, and Quit runs the close
+/// focus the window, New note is Cmd/Ctrl+N's field, Sync now is the Sync
+/// tab's Sync Now (without showing the window), and Quit runs the close
 /// flush first because `Tx::quit` skips `on_close`.
 fn run_tray_action(handle: &rune::AppHandle<State>, action: TrayAction) {
     match action {
@@ -134,6 +208,7 @@ fn run_tray_action(handle: &rune::AppHandle<State>, action: TrayAction) {
             handle.update(|s, _| s.tray_new_note());
             handle.open();
         }
+        TrayAction::SyncNow => handle.update(|s, _| s.tray_sync_now()),
         TrayAction::Quit => handle.update(|s, tx| {
             s.flush_before_quit();
             tx.quit();

@@ -198,7 +198,7 @@ fn the_menu_follows_the_sync_status() {
     f.rt.state.install_tray(fake_factory(&log));
     frames(&mut f.rt, 2);
     let first = log.borrow().menus.last().cloned().expect("first menu");
-    assert_eq!(first, tray_menu(f.rt.state.sync_status()));
+    assert_eq!(first, tray_menu(f.rt.state.sync_status(), false));
 
     f.rt.state.sync_ui.status = "Last successful sync 1a2b3c4d. Nothing changed.".to_owned();
     frames(&mut f.rt, 2);

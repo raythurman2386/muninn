@@ -492,6 +492,10 @@ pub struct State {
     pub sync_ui: crate::sync_ui::SyncUi,
     /// The optional tray icon ([`crate::tray`]).
     pub(crate) tray: crate::tray::TrayLink,
+    /// Start Muninn at login ([`crate::autostart`]).
+    pub(crate) autostart: crate::autostart::AutostartLink,
+    /// The global show-Muninn shortcut ([`crate::global_shortcut`]).
+    pub(crate) shortcut: crate::global_shortcut::ShortcutLink,
 }
 
 impl State {
@@ -703,6 +707,8 @@ impl State {
             graph_was_reduced: false,
             sync_ui: crate::sync_ui::SyncUi::memory(),
             tray: crate::tray::TrayLink::default(),
+            autostart: crate::autostart::AutostartLink::default(),
+            shortcut: crate::global_shortcut::ShortcutLink::default(),
         };
         // X-01: one startup line with the build, the vault path and counts.
         // Keys only: note bodies and titles never reach the log.

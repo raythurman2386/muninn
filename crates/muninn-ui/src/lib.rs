@@ -3,7 +3,9 @@
 //! The binary in `muninn-app` only wires these into `rune::run`; everything that can be
 //! tested headlessly lives here.
 
+mod autostart;
 mod camera;
+mod global_shortcut;
 mod graph_view;
 mod keys;
 mod mode;
@@ -18,6 +20,12 @@ mod tray;
 mod view;
 mod watch;
 
+pub use autostart::{
+    AUTOSTART_NAME, AutostartPort, NativeAutostart, WINDOWS_RUN_KEY, autostart_dir,
+    autostart_supported, desktop_entry, desktop_entry_path, remove_desktop_entry,
+    windows_disable_args, windows_enable_args, write_desktop_entry,
+};
+pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use keys::{on_key, shortcut};
 pub use mode::{Mode, Scope};
 pub use overlay::{Layer, PaletteAction, PaletteItem, PaletteState, SettingsTab};
@@ -33,7 +41,7 @@ pub use state::{
     file_action_command,
 };
 pub use tray::{
-    TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory, TrayPort,
-    tray_action, tray_icon, tray_menu, tray_spec, tray_status_label, tray_supported,
+    TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,
+    TrayPort, tray_action, tray_icon, tray_menu, tray_spec, tray_status_label, tray_supported,
 };
 pub use view::view;

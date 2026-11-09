@@ -14,6 +14,9 @@ use rune::Tx;
 
 use crate::{Mode, State};
 
+/// How often `poll` wakes while a sync is in flight.
+pub(crate) const SYNC_WAKE: std::time::Duration = std::time::Duration::from_millis(250);
+
 pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     s.now = t;
     // A large vault is still scanning: advance one bounded chunk and keep the
@@ -39,6 +42,12 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     }
     if s.poll_sync() {
         changed = true;
+    }
+    // A hidden window (closed to the tray) only polls on a timer, so keep
+    // checking while a run or sign-in is in flight; otherwise its result and
+    // the tray's status row would wait for the window to show again.
+    if s.sync_busy() {
+        tx.wake_after(SYNC_WAKE);
     }
     // The tray's status row follows the sync status line. It is not drawn in
     // the window, so it never sets `changed`.
