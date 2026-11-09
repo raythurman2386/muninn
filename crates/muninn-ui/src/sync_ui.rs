@@ -231,6 +231,23 @@ impl State {
         &self.sync_ui.status
     }
 
+    /// Whether Sync Now can start a run for this vault right now: a provider
+    /// is connected for it, sync is not disabled, and no run or sign-in is in
+    /// progress. The tray greys its Sync now item otherwise. A dirty note is
+    /// left to [`State::sync_now`], which refuses and says why.
+    #[must_use]
+    pub fn sync_ready(&self) -> bool {
+        self.sync_ui.phase.is_idle()
+            && self.settings.sync.disabled_reason.is_none()
+            && self.current_binding().is_some()
+    }
+
+    /// Whether a sync run or a sign-in is in flight.
+    #[must_use]
+    pub fn sync_busy(&self) -> bool {
+        !self.sync_ui.phase.is_idle()
+    }
+
     pub fn set_sync_provider(&mut self, index: usize) {
         self.sync_ui.provider_index = index.min(2);
         self.sync_ui.status = match self.sync_ui.provider_index {
@@ -1657,6 +1674,68 @@ mod tests {
             "the old host stopped"
         );
         state.disconnect_sync();
+        remove_temp(&root);
+    }
+
+    /// The tray's Sync now is enabled only when Sync Now could start a run.
+    #[test]
+    fn sync_ready_needs_a_binding_and_an_idle_unblocked_sync() {
+        let (mut state, root) = temp_state("ready");
+        assert!(!state.sync_ready(), "nothing connected");
+        assert!(!state.sync_busy());
+        let identity = super::VaultIdentity::of_canonical(&state.vault.root).unwrap();
+        state
+            .settings
+            .sync
+            .vaults
+            .push(crate::settings::VaultSyncBinding {
+                identity: identity.as_str().to_owned(),
+                provider: "github".to_owned(),
+                binding_id: muninn_sync::BindingId::fresh().as_str().to_owned(),
+                ..Default::default()
+            });
+        assert!(state.sync_ready(), "connected and idle");
+        state.sync_ui.phase = super::SyncPhase::Running;
+        assert!(
+            !state.sync_ready() && state.sync_busy(),
+            "a run is in flight"
+        );
+        state.sync_ui.phase = super::SyncPhase::Connecting;
+        assert!(!state.sync_ready() && state.sync_busy(), "signing in");
+        state.sync_ui.phase = super::SyncPhase::Idle;
+        state.settings.sync.disabled_reason = Some("Sync settings are unreadable.".to_owned());
+        assert!(!state.sync_ready(), "sync is disabled");
+        drop(state);
+        remove_temp(&root);
+    }
+
+    /// A window closed to the tray polls only on timers, so a running sync
+    /// keeps `poll` awake until its result lands.
+    #[test]
+    fn poll_keeps_waking_while_a_sync_is_in_flight() {
+        let (state, root) = temp_state("wake");
+        let mut rt = rune::Runtime::new(
+            state,
+            crate::view,
+            (1180.0, 780.0),
+            rune::Env::new(true, 2.0),
+        );
+        rt.poll = Some(crate::poll);
+        for _ in 0..4 {
+            rt.frame(1.0 / 60.0);
+        }
+        let idle = rt.wake_deadline();
+        rt.state.sync_ui.phase = super::SyncPhase::Running;
+        rt.frame(1.0 / 60.0);
+        let busy = rt
+            .wake_deadline()
+            .expect("a wake is armed while a sync runs");
+        assert!(
+            idle.is_none_or(|idle| busy <= idle),
+            "the sync wake is the soonest: {busy} vs {idle:?}"
+        );
+        rt.state.sync_ui.phase = super::SyncPhase::Idle;
+        drop(rt);
         remove_temp(&root);
     }
 

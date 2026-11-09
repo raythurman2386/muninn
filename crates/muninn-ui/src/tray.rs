@@ -3,8 +3,14 @@
 //! Rune owns the native icon ([`rune::Tray`]: StatusNotifierItem on Linux,
 //! `Shell_NotifyIcon` on Windows, not available on macOS at the pinned
 //! revision). Muninn owns the menu and what each pick does. The menu is flat
-//! and small: show the window, start a new note, the current sync status as a
-//! disabled row, and quit.
+//! and small (Rune's tray has no submenus or checkmarks at the pinned
+//! revision): show the window, start a new note, Sync now, the current sync
+//! status as a disabled row, and quit.
+//!
+//! With Settings › Appearance › Close to tray on, closing the window hides it
+//! instead of quitting, but only while a tray icon was actually created
+//! ([`State::closes_to_tray`]). Rune cannot tell whether a tray host shows
+//! the icon (stock GNOME has none), so this is opt-in.
 //!
 //! [`State`] holds the live tray behind [`TrayPort`] and creates it through a
 //! [`TrayFactory`] the binary installs, so tests drive the whole on/off and
@@ -19,6 +25,8 @@ use crate::State;
 pub const TRAY_SHOW: &str = "show";
 /// Menu id: show the window with the new-note field open.
 pub const TRAY_NEW_NOTE: &str = "new-note";
+/// Menu id: run Sync Now for this vault.
+pub const TRAY_SYNC_NOW: &str = "sync-now";
 /// Menu id of the disabled sync status row.
 pub const TRAY_SYNC_STATUS: &str = "sync-status";
 /// Menu id: save and quit.
@@ -40,6 +48,8 @@ pub enum TrayAction {
     Show(Option<String>),
     /// Show the window and open the new-note field ([`State::tray_new_note`]).
     NewNote,
+    /// Run the Sync tab's Sync Now ([`State::tray_sync_now`]).
+    SyncNow,
     /// Flush the open note and settings, then quit ([`State::flush_before_quit`]).
     Quit,
 }
@@ -53,6 +63,7 @@ pub fn tray_action(event: &TrayEvent) -> Option<TrayAction> {
         TrayEvent::Menu(id) => match id.as_str() {
             TRAY_SHOW => Some(TrayAction::Show(None)),
             TRAY_NEW_NOTE => Some(TrayAction::NewNote),
+            TRAY_SYNC_NOW => Some(TrayAction::SyncNow),
             TRAY_QUIT => Some(TrayAction::Quit),
             _ => None,
         },
@@ -60,12 +71,14 @@ pub fn tray_action(event: &TrayEvent) -> Option<TrayAction> {
     }
 }
 
-/// The tray menu for the given sync status line.
+/// The tray menu for the given sync status line. `sync_ready` enables Sync
+/// now ([`State::sync_ready`]).
 #[must_use]
-pub fn tray_menu(sync_status: &str) -> Vec<TrayItem> {
+pub fn tray_menu(sync_status: &str, sync_ready: bool) -> Vec<TrayItem> {
     vec![
         TrayItem::action(TRAY_SHOW, "Show Muninn"),
         TrayItem::action(TRAY_NEW_NOTE, "New note"),
+        TrayItem::action(TRAY_SYNC_NOW, "Sync now").enabled(sync_ready),
         TrayItem::Separator,
         TrayItem::action(TRAY_SYNC_STATUS, tray_status_label(sync_status)).enabled(false),
         TrayItem::Separator,
@@ -188,7 +201,7 @@ impl State {
             self.tray.menu.clear();
             return;
         }
-        let menu = tray_menu(self.sync_status());
+        let menu = tray_menu(self.sync_status(), self.sync_ready());
         if let Some(live) = self.tray.live.as_ref() {
             if self.tray.menu != menu {
                 live.set_menu(menu.clone());
@@ -222,6 +235,36 @@ impl State {
         self.new_note();
     }
 
+    /// The tray's Sync now: the Sync tab's Sync Now when a provider is
+    /// connected and idle, then refresh the menu at once (the window may be
+    /// hidden, so the next poll can be a while).
+    pub fn tray_sync_now(&mut self) {
+        if self.sync_ready() {
+            self.sync_now();
+        }
+        self.sync_tray();
+    }
+
+    /// Settings › Appearance › Close to tray (the saved choice).
+    #[must_use]
+    pub fn close_to_tray(&self) -> bool {
+        self.settings.close_to_tray
+    }
+
+    /// Turn Close to tray on or off and persist the choice.
+    pub fn set_close_to_tray(&mut self, on: bool) {
+        self.settings.close_to_tray = on;
+        self.save_settings();
+    }
+
+    /// Whether closing the window should hide it instead of quitting: Close
+    /// to tray is on, the tray icon is on, and a tray was actually created.
+    /// With the tray off, unsupported or failed, closing quits as before.
+    #[must_use]
+    pub fn closes_to_tray(&self) -> bool {
+        self.settings.close_to_tray && self.settings.tray_icon && self.tray_shown()
+    }
+
     /// The tray's Quit: the same flush as closing the window (the open note
     /// and settings), which Rune's quit skips.
     pub fn flush_before_quit(&mut self) {
@@ -252,6 +295,7 @@ mod tests {
         let menu = |id: &str| tray_action(&TrayEvent::Menu(id.to_owned()));
         assert_eq!(menu(TRAY_SHOW), Some(TrayAction::Show(None)));
         assert_eq!(menu(TRAY_NEW_NOTE), Some(TrayAction::NewNote));
+        assert_eq!(menu(TRAY_SYNC_NOW), Some(TrayAction::SyncNow));
         assert_eq!(menu(TRAY_QUIT), Some(TrayAction::Quit));
         assert_eq!(menu(TRAY_SYNC_STATUS), None);
         assert_eq!(menu("other"), None);
@@ -265,18 +309,28 @@ mod tests {
 
     #[test]
     fn the_menu_is_small_and_the_status_row_is_disabled() {
-        let menu = tray_menu("Last successful sync 1a2b3c4d. Two notes changed.");
+        let menu = tray_menu("Last successful sync 1a2b3c4d. Two notes changed.", true);
         assert_eq!(
             menu,
             vec![
                 TrayItem::action(TRAY_SHOW, "Show Muninn"),
                 TrayItem::action(TRAY_NEW_NOTE, "New note"),
+                TrayItem::action(TRAY_SYNC_NOW, "Sync now"),
                 TrayItem::Separator,
                 TrayItem::action(TRAY_SYNC_STATUS, "Sync: Last successful sync 1a2b3c4d.")
                     .enabled(false),
                 TrayItem::Separator,
                 TrayItem::action(TRAY_QUIT, "Quit Muninn"),
             ]
+        );
+    }
+
+    #[test]
+    fn sync_now_is_greyed_when_not_ready() {
+        let menu = tray_menu("Not connected.", false);
+        assert!(menu.contains(&TrayItem::action(TRAY_SYNC_NOW, "Sync now").enabled(false)));
+        assert!(
+            menu.iter().all(|item| !matches!(item, TrayItem::Action { id, enabled: true, .. } if id == TRAY_SYNC_NOW))
         );
     }
 

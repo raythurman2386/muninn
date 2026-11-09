@@ -63,17 +63,30 @@ Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 `~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
 missing file starts from defaults instead of blocking startup. It remembers the theme,
 collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
-autosave delay (0.55 s by default), the default note template, the Reduce motion choice, whether the tray icon is shown and up to five recent vaults. `Cmd/Ctrl+,`
+autosave delay (0.55 s by default), the default note template, the Reduce motion choice, the tray, start-at-login and shortcut switches and up to five recent vaults. `Cmd/Ctrl+,`
 opens the in-window Settings modal, split into tabs: **Vaults** (open or create a vault,
 or reopen a recent one), **Editor** (step the autosave delay, 0.05–10 s, and the default
-note template), **Appearance** (Omarchy / System / Dark / Light, and **Show tray icon**),
+note template), **Appearance** (Omarchy / System / Dark / Light, **Show tray icon**, **Close to tray**,
+**Start Muninn at login** and **Show Muninn with Ctrl+Alt+M**),
 **Graph** (Reduce motion: System / On / Off) and **Sync** (provider, remote, Connect, Sync Now
 and Disconnect; see [Sync](#sync)). **Show tray icon** is off by default and saved as
-`tray_icon`. When on, Linux and Windows show a tray icon with Show Muninn, New note, the
+`tray_icon`. When on, Linux and Windows show a tray icon with Show Muninn, New note, Sync
+now (greyed until a provider is connected for this vault, and while a sync runs), the
 current sync status (a disabled row) and Quit Muninn; clicking the icon shows and focuses
 the window. On Linux it appears where a StatusNotifierItem tray host runs (KDE, waybar and
-most bars; GNOME needs an AppIndicator extension). Closing the window still quits Muninn.
-The switch is disabled on macOS, which Rune's tray does not support yet. Settings
+most bars; GNOME needs an AppIndicator extension). The menu is flat: Rune's tray has no
+submenus. **Close to tray** (off by default, `close_to_tray`) makes closing the window hide
+it while a tray icon is up; Quit Muninn in the tray saves and quits. Without a tray icon
+(switch off, icon failed, macOS) closing quits as before. Muninn cannot tell whether a tray
+host actually shows the icon, so leave Close to tray off on a desktop without one. Both
+switches are disabled on macOS, which Rune's tray does not support yet. **Start Muninn at
+login** (off, `auto_start`) writes `$XDG_CONFIG_HOME/autostart/muninn.desktop` on Linux and
+a `Muninn` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows,
+and removes it when turned off; it is disabled on macOS. **Show Muninn with Ctrl+Alt+M**
+(off, `show_shortcut`; ⌃⌥M on macOS) registers a system-wide shortcut that shows and
+focuses the window. On Wayland it goes through the desktop portal, which may ask first or
+let you pick another key; if the chord is taken or unsupported, the reason shows under the
+switch. Settings
 always opens on the Vaults tab; the selected tab is not saved. A non-empty default note template is inserted verbatim at the top of
 every new note (a trailing newline is added when missing); an empty template
 keeps the plain `# Title` body. Choices persist immediately,

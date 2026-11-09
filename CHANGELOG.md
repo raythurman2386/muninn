@@ -22,14 +22,31 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- Tray slice two, on Settings › Appearance, each off by default and saved in
+  `settings.json` (older files load as off):
+  - **Close to tray** (`close_to_tray`): closing the window hides it while a
+    tray icon is up; Show Muninn or a click on the icon brings it back, and
+    Quit Muninn saves and quits. With the tray off, failed or unsupported,
+    closing quits and saves as before. Muninn cannot tell whether a tray host
+    shows the icon (stock GNOME has none), so this stays opt-in.
+  - **Start Muninn at login** (`auto_start`): an XDG autostart entry on Linux,
+    a `HKCU\…\Run` value on Windows (through `reg.exe`). Re-pointed at the
+    running executable on startup while on. Disabled on macOS.
+  - **Show Muninn with Ctrl+Alt+M** (`show_shortcut`, ⌃⌥M on macOS): a
+    system-wide shortcut through Rune's global shortcuts (X11, the Wayland
+    portal, Windows, macOS) that shows and focuses the window. A refused
+    chord shows why under the switch and is not retried until it changes.
+  - The tray menu gains **Sync now**, the Sync tab's Sync Now. It is greyed
+    while no provider is connected for this vault, sync is disabled, or a
+    sync or sign-in is running. The menu stays flat: Rune's tray has no
+    submenus or checkmarks yet.
 - Optional tray icon: Settings › Appearance › **Show tray icon**, off by
   default and saved as `tray_icon` in `settings.json` (older files load as
   off). On Linux (StatusNotifierItem) and Windows the icon offers Show Muninn,
   New note, the current sync status as a disabled row, and Quit Muninn, which
   saves the open note first. Clicking the icon shows and focuses the window.
   If the icon cannot be added, the reason shows under the switch and it is not
-  retried until the switch changes. Closing the window still quits; there is
-  no close-to-tray, auto-start or global hotkey. Not available on macOS yet:
+  retried until the switch changes. Not available on macOS yet:
   the switch is shown disabled. Headless runs (`--snap`) never add an icon.
 - Manual vault sync for GitHub and Google Drive from Settings. Sync Now,
   Cancel, status, last success, and Disconnect are explicit. There is no

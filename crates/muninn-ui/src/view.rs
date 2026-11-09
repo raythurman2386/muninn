@@ -1072,7 +1072,8 @@ fn settings_editor_tab(s: &State, k: &Kit) -> El {
         ))
 }
 
-/// Appearance tab: theme and the optional tray icon.
+/// Appearance tab: theme, the optional tray icon, start at login and the
+/// global shortcut.
 fn settings_appearance_tab(s: &State, k: &Kit) -> El {
     let theme = if crate::omarchy::is_following(s) {
         text("Following Omarchy system theme")
@@ -1101,10 +1102,12 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
         .gap(18.0)
         .child(settings_section(k, "Theme", None, theme))
         .child(settings_tray_section(s, k))
+        .child(settings_startup_section(s, k))
 }
 
-/// Appearance › Tray icon: an off-by-default switch and one status line.
-/// Disabled where Rune has no tray (macOS at the pinned revision).
+/// Appearance › Tray icon: Show tray icon and Close to tray, each with a
+/// status line. Disabled where Rune has no tray (macOS at the pinned
+/// revision); Close to tray also needs the tray icon on.
 fn settings_tray_section(s: &State, k: &Kit) -> El {
     let supported = crate::tray_supported();
     let switch = Switch::new(s.tray_icon() && supported)
@@ -1126,21 +1129,116 @@ fn settings_tray_section(s: &State, k: &Kit) -> El {
     } else {
         "Off.".to_owned()
     };
+    let close_enabled = supported && s.tray_icon();
+    let close = Switch::new(s.close_to_tray() && close_enabled)
+        .label("Close to tray")
+        .disabled(!close_enabled)
+        .on_toggle(|s: &mut State| {
+            let on = !s.close_to_tray();
+            s.set_close_to_tray(on);
+        })
+        .build(k)
+        .key("settings-close-to-tray");
+    let close_status = if !supported {
+        "Not available on macOS yet."
+    } else if !s.tray_icon() {
+        "Needs the tray icon. Closing the window quits Muninn."
+    } else if !s.close_to_tray() {
+        "Off. Closing the window quits Muninn."
+    } else if s.closes_to_tray() {
+        "On. Closing the window keeps Muninn in the tray; Quit Muninn there quits. \
+         If no tray host shows the icon, leave this off."
+    } else {
+        "On, but there is no tray icon right now, so closing the window quits Muninn."
+    };
     settings_section(
         k,
         "Tray icon",
-        Some(
-            "A tray icon with Show Muninn, New note, the sync status and Quit. \
-             Closing the window still quits Muninn.",
-        ),
-        col().w_full().gap(8.0).child(switch).child(
-            text(status)
-                .key("settings-tray-status")
-                .font(k.ty.caption())
-                .color(k.c.text_muted)
-                .wrap(),
-        ),
+        Some("A tray icon with Show Muninn, New note, Sync now, the sync status and Quit."),
+        col()
+            .w_full()
+            .gap(8.0)
+            .child(switch)
+            .child(settings_caption(k, "settings-tray-status", &status))
+            .child(close)
+            .child(settings_caption(
+                k,
+                "settings-close-to-tray-status",
+                close_status,
+            )),
     )
+}
+
+/// Appearance › Startup: Start Muninn at login and the global shortcut.
+fn settings_startup_section(s: &State, k: &Kit) -> El {
+    let autostart = crate::autostart_supported();
+    let login = Switch::new(s.auto_start() && autostart)
+        .label("Start Muninn at login")
+        .disabled(!autostart)
+        .on_toggle(|s: &mut State| {
+            let on = !s.auto_start();
+            s.set_auto_start(on);
+        })
+        .build(k)
+        .key("settings-auto-start");
+    let login_status = if !autostart {
+        "Not available on macOS yet.".to_owned()
+    } else if let Some(error) = s.auto_start_error() {
+        format!("The login item could not be changed: {error}")
+    } else if s.auto_start() {
+        "On. Muninn opens when you log in.".to_owned()
+    } else {
+        "Off.".to_owned()
+    };
+    let chord = crate::show_shortcut_label();
+    let shortcut = Switch::new(s.show_shortcut())
+        .label(format!("Show Muninn with {chord}"))
+        .on_toggle(|s: &mut State| {
+            let on = !s.show_shortcut();
+            s.set_show_shortcut(on);
+        })
+        .build(k)
+        .key("settings-show-shortcut");
+    let shortcut_status = match (s.show_shortcut(), s.shortcut_phase()) {
+        (_, crate::ShortcutPhase::Failed(error)) => {
+            format!("{chord} could not be registered: {error}")
+        }
+        (true, crate::ShortcutPhase::Bound) => {
+            format!("On. {chord} shows Muninn from any app.")
+        }
+        (true, crate::ShortcutPhase::Pending) => "Registering…".to_owned(),
+        (true, _) => "On.".to_owned(),
+        (false, _) => "Off.".to_owned(),
+    };
+    settings_section(
+        k,
+        "Startup and shortcut",
+        None,
+        col()
+            .w_full()
+            .gap(8.0)
+            .child(login)
+            .child(settings_caption(
+                k,
+                "settings-auto-start-status",
+                &login_status,
+            ))
+            .child(shortcut)
+            .child(settings_caption(
+                k,
+                "settings-show-shortcut-status",
+                &shortcut_status,
+            )),
+    )
+}
+
+/// A muted caption under a switch.
+fn settings_caption(k: &Kit, key: &'static str, line: &str) -> El {
+    text(line.to_owned())
+        .key(key)
+        .font(k.ty.caption())
+        .color(k.c.text_muted)
+        .wrap()
 }
 
 /// Graph tab: how the knowledge graph moves.

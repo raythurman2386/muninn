@@ -442,6 +442,13 @@ pub struct Settings {
     /// Settings › Appearance › Show tray icon. Off by default; files saved
     /// before the setting existed load as off.
     pub tray_icon: bool,
+    /// Settings › Appearance › Close to tray. Off by default. Closing the
+    /// window hides it only while this is on and a tray icon was created.
+    pub close_to_tray: bool,
+    /// Settings › Appearance › Start Muninn at login. Off by default.
+    pub auto_start: bool,
+    /// Settings › Appearance › the global show-Muninn shortcut. Off by default.
+    pub show_shortcut: bool,
 }
 
 impl Default for Settings {
@@ -459,6 +466,9 @@ impl Default for Settings {
             sync: SyncPrefs::default(),
             reduce_motion: ReduceMotion::System,
             tray_icon: false,
+            close_to_tray: false,
+            auto_start: false,
+            show_shortcut: false,
         }
     }
 }
@@ -515,6 +525,9 @@ impl Settings {
             "sync": self.sync.to_json(),
             "reduce_motion": self.reduce_motion.as_key(),
             "tray_icon": self.tray_icon,
+            "close_to_tray": self.close_to_tray,
+            "auto_start": self.auto_start,
+            "show_shortcut": self.show_shortcut,
         });
         let bytes = serde_json::to_vec_pretty(&value)?;
         atomic_write(&path, &bytes)
@@ -584,10 +597,11 @@ impl Settings {
         settings.sync = SyncPrefs::from_value(value.get("sync"));
         settings.reduce_motion =
             ReduceMotion::from_key(value.get("reduce_motion").and_then(Value::as_str));
-        settings.tray_icon = value
-            .get("tray_icon")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
+        let flag = |key: &str| value.get(key).and_then(Value::as_bool).unwrap_or(false);
+        settings.tray_icon = flag("tray_icon");
+        settings.close_to_tray = flag("close_to_tray");
+        settings.auto_start = flag("auto_start");
+        settings.show_shortcut = flag("show_shortcut");
         settings
     }
 }
@@ -682,10 +696,24 @@ mod tests {
             sync: SyncPrefs::default(),
             reduce_motion: ReduceMotion::On,
             tray_icon: true,
+            close_to_tray: true,
+            auto_start: true,
+            show_shortcut: true,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
         let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn tray_slice_two_switches_are_off_by_default_and_in_old_files() {
+        let defaults = Settings::default();
+        assert!(!defaults.close_to_tray && !defaults.auto_start && !defaults.show_shortcut);
+        let old = Settings::from_value(&serde_json::json!({ "theme": "dark", "tray_icon": true }));
+        assert!(old.tray_icon);
+        assert!(!old.close_to_tray && !old.auto_start && !old.show_shortcut);
+        let each = Settings::from_value(&serde_json::json!({ "auto_start": true }));
+        assert!(each.auto_start && !each.close_to_tray && !each.show_shortcut);
     }
 
     #[test]
