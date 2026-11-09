@@ -295,3 +295,5 @@ GitHub release. Tags containing a hyphen (`v0.2.0-rc.1`) are marked as prereleas
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Privacy: see [PRIVACY.md](PRIVACY.md) for what optional sync can access and where credentials are stored.
