@@ -167,6 +167,14 @@ pub struct VaultSyncBinding {
     pub github_prefix: String,
     pub drive_folder_id: String,
     pub drive_folder_name: String,
+    /// `host` or `peer`. Empty for other providers.
+    pub tailnet_role: String,
+    /// Peer: the host's full MagicDNS name, for example `minis.tail1234.ts.net`.
+    pub tailnet_host: String,
+    /// Host: loopback port that `tailscale serve` proxies to.
+    pub tailnet_port: u16,
+    /// Host: optional comma-separated `Tailscale-User-Login` allow-list.
+    pub tailnet_allowed: String,
     pub last_success_unix_ms: Option<u64>,
     pub last_head: String,
 }
@@ -250,6 +258,10 @@ impl VaultSyncBinding {
             "github_prefix": self.github_prefix,
             "drive_folder_id": self.drive_folder_id,
             "drive_folder_name": self.drive_folder_name,
+            "tailnet_role": self.tailnet_role,
+            "tailnet_host": self.tailnet_host,
+            "tailnet_port": self.tailnet_port,
+            "tailnet_allowed": self.tailnet_allowed,
             "last_success_unix_ms": self.last_success_unix_ms,
             "last_head": self.last_head,
         })
@@ -257,7 +269,18 @@ impl VaultSyncBinding {
 
     fn from_value(value: &Value) -> Option<Self> {
         let provider = value.get("provider").and_then(Value::as_str)?;
-        if provider != "github" && provider != "google_drive" {
+        if provider != "github" && provider != "google_drive" && provider != "tailscale" {
+            return None;
+        }
+        let text = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned()
+        };
+        let tailnet_role = text("tailnet_role");
+        if provider == "tailscale" && tailnet_role != "host" && tailnet_role != "peer" {
             return None;
         }
         let binding_id = value.get("binding_id").and_then(Value::as_str)?;
@@ -303,6 +326,14 @@ impl VaultSyncBinding {
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_owned(),
+            tailnet_role,
+            tailnet_host: text("tailnet_host"),
+            tailnet_port: value
+                .get("tailnet_port")
+                .and_then(Value::as_u64)
+                .and_then(|port| u16::try_from(port).ok())
+                .unwrap_or(0),
+            tailnet_allowed: text("tailnet_allowed"),
             last_success_unix_ms: value.get("last_success_unix_ms").and_then(Value::as_u64),
             last_head: value
                 .get("last_head")

@@ -391,6 +391,16 @@ fn scenes() -> &'static [Scene] {
                 "Google Drive uses an app-managed commit history in this folder, not editable Markdown mirrors."
                     .to_owned();
         }),
+        ("settings-sync-tailscale", |s| {
+            s.sync_ui.preview = true;
+            s.open_settings();
+            s.set_sync_provider(2);
+            s.set_tailnet_role(1);
+            s.sync_ui.tailnet_host.replace_text("minis.tail1234.ts.net");
+            s.sync_ui.status =
+                "Join a host. Enter the host's full MagicDNS name and the shared key shown on the host."
+                    .to_owned();
+        }),
         ("settings-sync-conflict", |s| {
             s.theme = muninn_ui::ThemeMode::Light;
             s.sync_ui.preview = true;
@@ -429,6 +439,7 @@ mod tests {
                 "empty",
                 "settings-sync",
                 "settings-sync-drive",
+                "settings-sync-tailscale",
                 "settings-sync-conflict"
             ]
         );

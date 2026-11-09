@@ -11,7 +11,8 @@ use std::thread;
 
 use muninn_sync::{
     BindingId, CancelToken, CredentialStore, MemoryCredentialStore, NativeCredentialStore,
-    OperationId, ProviderKind, RunRequest, SyncReport, VaultIdentity,
+    OperationId, ProviderKind, RunRequest, Secret, SyncReport, TAILNET_DEFAULT_PORT, TailnetHost,
+    TailnetHostConfig, TailnetRole, TailnetScope, TokenSet, VaultIdentity,
 };
 use rune::TextEdit;
 
@@ -29,6 +30,13 @@ pub struct SyncUi {
     pub drive_folder_name: TextEdit,
     pub github_client_id: TextEdit,
     pub google_client_id: TextEdit,
+    /// Tailscale: 0 = this device hosts, 1 = join a host.
+    pub tailnet_role_index: usize,
+    pub tailnet_host: TextEdit,
+    /// Peer only. Cleared as soon as the key is in the OS credential store.
+    pub tailnet_key: TextEdit,
+    pub tailnet_port: TextEdit,
+    pub tailnet_allowed: TextEdit,
     /// Sheet-sync machinery state. While a run is in flight `phase` is
     /// `Running`, and nothing else (autosave, watcher, a second Sync Now) is
     /// allowed to move. `Idle` means the last result has been consumed.
@@ -38,6 +46,8 @@ pub struct SyncUi {
     credentials: Arc<dyn CredentialStore>,
     cancel: CancelToken,
     inbox: Option<Receiver<SyncMessage>>,
+    /// Running commit-store server while this device hosts a Tailscale binding.
+    host: Option<TailnetHost>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -87,11 +97,17 @@ impl SyncUi {
             drive_folder_name: TextEdit::new(""),
             github_client_id: TextEdit::new(""),
             google_client_id: TextEdit::new(""),
+            tailnet_role_index: 0,
+            tailnet_host: TextEdit::new(""),
+            tailnet_key: TextEdit::new(""),
+            tailnet_port: TextEdit::new(TAILNET_DEFAULT_PORT.to_string()),
+            tailnet_allowed: TextEdit::new(""),
             phase: SyncPhase::Idle,
             preview: false,
             credentials,
             cancel: CancelToken::new(),
             inbox: None,
+            host: None,
         }
     }
 
@@ -105,6 +121,10 @@ impl SyncUi {
             &mut self.drive_folder_name,
             &mut self.github_client_id,
             &mut self.google_client_id,
+            &mut self.tailnet_host,
+            &mut self.tailnet_key,
+            &mut self.tailnet_port,
+            &mut self.tailnet_allowed,
         ] {
             field.focused = false;
         }
@@ -117,14 +137,81 @@ impl State {
     }
 
     pub fn set_sync_provider(&mut self, index: usize) {
-        self.sync_ui.provider_index = usize::from(index == 1);
-        self.sync_ui.status = if self.sync_ui.provider_index == 0 {
-            "GitHub selected. Use a dedicated repository and branch, not the Muninn source repository."
+        self.sync_ui.provider_index = index.min(2);
+        self.sync_ui.status = match self.sync_ui.provider_index {
+            0 => "GitHub selected. Use a dedicated repository and branch, not the Muninn source repository."
+                .to_owned(),
+            1 => "Google Drive selected. Sync stores an app-managed commit history in the chosen folder, not editable Markdown files."
+                .to_owned(),
+            _ => "Tailscale selected. One device hosts a commit store; the others join it by MagicDNS name over your tailnet."
+                .to_owned(),
+        };
+    }
+
+    pub fn set_tailnet_role(&mut self, index: usize) {
+        self.sync_ui.tailnet_role_index = usize::from(index == 1);
+        self.sync_ui.status = if self.sync_ui.tailnet_role_index == 0 {
+            "This device hosts. Muninn serves the commit store on 127.0.0.1 while it is open; tailscale serve publishes it to your tailnet."
                 .to_owned()
         } else {
-            "Google Drive selected. Sync stores an app-managed commit history in the chosen folder, not editable Markdown files."
+            "Join a host. Enter the host's full MagicDNS name and the shared key shown on the host."
                 .to_owned()
         };
+    }
+
+    /// Starts the Tailscale commit-store server if this vault's binding hosts
+    /// one. Called at startup and after Connect; a no-op otherwise.
+    pub fn resume_tailnet_host(&mut self) {
+        let Some(binding) = self.current_binding().cloned() else {
+            return;
+        };
+        if binding.provider != "tailscale" || binding.tailnet_role != "host" {
+            return;
+        }
+        if self.sync_ui.host.is_some() {
+            return;
+        }
+        match self.start_tailnet_host(&binding) {
+            Ok(host) => {
+                self.sync_ui.status = format!(
+                    "Hosting on 127.0.0.1:{}. On this device run: {}",
+                    host.addr().port(),
+                    host.serve_command()
+                );
+                self.sync_ui.host = Some(host);
+            }
+            Err(error) => self.sync_ui.status = error,
+        }
+    }
+
+    fn start_tailnet_host(&self, binding: &VaultSyncBinding) -> Result<TailnetHost, String> {
+        let id = BindingId::parse(&binding.binding_id).map_err(|error| error.to_string())?;
+        let key = muninn_sync::CredentialKey {
+            provider: ProviderKind::Tailscale,
+            binding: id.clone(),
+        };
+        let token = self
+            .sync_ui
+            .credentials
+            .get(&key)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| {
+                "The Tailscale shared key is missing from the credential store. Disconnect and connect again."
+                    .to_owned()
+            })?;
+        TailnetHost::start(TailnetHostConfig {
+            port: binding.tailnet_port,
+            store_dir: muninn_sync::tailnet_store_dir(&self.state_home.join("sync"), &id),
+            key: token.access,
+            allowed_logins: binding
+                .tailnet_allowed
+                .split(',')
+                .map(str::trim)
+                .filter(|login| !login.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        })
+        .map_err(|error| error.to_string())
     }
 
     pub fn connect_sync(&mut self) {
@@ -137,11 +224,15 @@ impl State {
                 "This vault folder cannot be canonicalized, so it cannot be bound.".to_owned();
             return;
         };
-        let provider = if self.sync_ui.provider_index == 0 {
-            "github"
-        } else {
-            "google_drive"
+        let provider = match self.sync_ui.provider_index {
+            0 => "github",
+            1 => "google_drive",
+            _ => "tailscale",
         };
+        if provider == "tailscale" {
+            self.connect_tailnet(identity.as_str().to_owned());
+            return;
+        }
         if provider == "github"
             && (self.sync_ui.github_owner.text.trim().is_empty()
                 || self.sync_ui.github_repo.text.trim().is_empty())
@@ -179,6 +270,10 @@ impl State {
             github_prefix: self.sync_ui.github_prefix.text.trim().to_owned(),
             drive_folder_id: self.sync_ui.drive_folder_id.text.trim().to_owned(),
             drive_folder_name: self.sync_ui.drive_folder_name.text.trim().to_owned(),
+            tailnet_role: String::new(),
+            tailnet_host: String::new(),
+            tailnet_port: 0,
+            tailnet_allowed: String::new(),
             last_success_unix_ms: None,
             last_head: String::new(),
         };
@@ -202,18 +297,108 @@ impl State {
         };
     }
 
+    fn connect_tailnet(&mut self, identity: String) {
+        let hosting = self.sync_ui.tailnet_role_index == 0;
+        let host_name = self.sync_ui.tailnet_host.text.trim().to_ascii_lowercase();
+        let port = if hosting {
+            match self.sync_ui.tailnet_port.text.trim().parse::<u16>() {
+                Ok(port) if port >= 1024 => port,
+                _ => {
+                    self.sync_ui.status =
+                        "Enter a loopback port between 1024 and 65535 for the host.".to_owned();
+                    return;
+                }
+            }
+        } else {
+            0
+        };
+        if !hosting {
+            if let Err(error) = muninn_sync::validate_tailnet_host(&host_name) {
+                self.sync_ui.status = error.to_string();
+                return;
+            }
+            if self.sync_ui.tailnet_key.text.trim().len() < 32 {
+                self.sync_ui.status =
+                    "Paste the shared key shown on the host. It is stored in the OS credential store, not in settings."
+                        .to_owned();
+                return;
+            }
+        }
+        let binding_id = BindingId::fresh();
+        let key = if hosting {
+            muninn_sync::new_shared_key()
+        } else {
+            Secret::new(self.sync_ui.tailnet_key.text.trim())
+        };
+        let credential = muninn_sync::CredentialKey {
+            provider: ProviderKind::Tailscale,
+            binding: binding_id.clone(),
+        };
+        let token = TokenSet {
+            access: key.clone(),
+            refresh: None,
+            expires_unix_ms: None,
+            account: String::new(),
+        };
+        if let Err(error) = self.sync_ui.credentials.put(&credential, &token) {
+            self.sync_ui.status = format!("{error} Nothing was saved.");
+            return;
+        }
+        self.sync_ui.tailnet_key.replace_text("");
+        self.sync_ui.host = None;
+        let binding = VaultSyncBinding {
+            identity,
+            provider: "tailscale".to_owned(),
+            binding_id: binding_id.as_str().to_owned(),
+            account: String::new(),
+            github_owner: String::new(),
+            github_repo: String::new(),
+            github_branch: String::new(),
+            github_prefix: String::new(),
+            drive_folder_id: String::new(),
+            drive_folder_name: String::new(),
+            tailnet_role: if hosting { "host" } else { "peer" }.to_owned(),
+            tailnet_host: if hosting { String::new() } else { host_name },
+            tailnet_port: port,
+            tailnet_allowed: if hosting {
+                self.sync_ui.tailnet_allowed.text.trim().to_owned()
+            } else {
+                String::new()
+            },
+            last_success_unix_ms: None,
+            last_head: String::new(),
+        };
+        self.settings
+            .sync
+            .vaults
+            .retain(|known| known.identity != binding.identity);
+        self.settings.sync.vaults.push(binding);
+        self.save_settings();
+        if hosting {
+            self.resume_tailnet_host();
+            if self.sync_ui.host.is_some() {
+                self.sync_ui.status = format!(
+                    "Hosting. Run once on this device: {}. Shared key for your other devices (shown once): {}",
+                    muninn_sync::serve_command(port),
+                    key.expose()
+                );
+            }
+        } else {
+            self.sync_ui.status =
+                "Joined. The shared key is in the OS credential store. Sync Now reaches the host over your tailnet."
+                    .to_owned();
+        }
+    }
+
     pub fn disconnect_sync(&mut self) {
         self.sync_ui.cancel.cancel();
+        self.sync_ui.host = None;
         let Some(binding) = self.current_binding().cloned() else {
             self.sync_ui.status = "Nothing is connected. Local notes were not changed.".to_owned();
             return;
         };
         if let Ok(id) = BindingId::parse(&binding.binding_id) {
-            let provider = if binding.provider == "google_drive" {
-                ProviderKind::GoogleDrive
-            } else {
-                ProviderKind::GitHub
-            };
+            let provider = ProviderKind::parse(&binding.provider).unwrap_or(ProviderKind::GitHub);
             let key = muninn_sync::CredentialKey {
                 provider,
                 binding: id,
@@ -283,6 +468,7 @@ impl State {
                     drive_api: "https://www.googleapis.com".to_owned(),
                     drive_upload: "https://www.googleapis.com/upload".to_owned(),
                     drive_oauth: "https://oauth2.googleapis.com".to_owned(),
+                    tailnet_api: None,
                 },
                 Err(error) => {
                     let _ = tx.send(SyncMessage::Finished(Err(error.to_string())));
@@ -401,6 +587,17 @@ fn run_request(
         folder_id: binding.drive_folder_id.clone(),
         folder_name: binding.drive_folder_name.clone(),
     });
+    let tailnet = (provider == ProviderKind::Tailscale).then(|| TailnetScope {
+        role: if binding.tailnet_role == "host" {
+            TailnetRole::Host {
+                store_dir: muninn_sync::tailnet_store_dir(&state_dir, &binding_id),
+            }
+        } else {
+            TailnetRole::Peer {
+                host: binding.tailnet_host.clone(),
+            }
+        },
+    });
     Ok(RunRequest {
         root,
         state_dir,
@@ -408,6 +605,7 @@ fn run_request(
         provider,
         github,
         drive,
+        tailnet,
         operation: OperationId::fresh(),
         protected: Default::default(),
         resolutions: Vec::new(),
@@ -454,6 +652,84 @@ mod tests {
         assert!(state.settings.sync.vaults.is_empty());
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(root.with_extension("state"));
+        let _ = fs::remove_dir_all(&config_home);
+    }
+
+    #[test]
+    fn tailscale_host_and_peer_keep_the_key_out_of_settings() {
+        let root = std::env::temp_dir().join(format!(
+            "muninn-sync-ui-ts-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("Note.md"), "keep me").unwrap();
+        let state_home = root.with_extension("state");
+        let config_home = root.with_extension("config");
+        fs::create_dir_all(&state_home).unwrap();
+        fs::create_dir_all(&config_home).unwrap();
+        let mut state = State::with_settings(
+            root.clone(),
+            state_home.clone(),
+            config_home.clone(),
+            crate::settings::Settings::default(),
+        );
+        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = free.local_addr().unwrap().port();
+        drop(free);
+        state.set_sync_provider(2);
+        state.set_tailnet_role(0);
+        state.sync_ui.tailnet_port.replace_text(port.to_string());
+        state.connect_sync();
+        assert!(
+            state
+                .sync_status()
+                .contains("tailscale serve --bg --https=443"),
+            "{}",
+            state.sync_status()
+        );
+        assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_ok());
+        let saved = fs::read_to_string(config_home.join("muninn/settings.json")).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&saved).unwrap();
+        assert_eq!(json["sync"]["vaults"][0]["tailnet_role"], "host");
+        let shown = state.sync_status().rsplit(' ').next().unwrap().to_owned();
+        assert!(shown.len() >= 32);
+        assert!(
+            !saved.contains(&shown),
+            "the shared key must not reach settings"
+        );
+        state.disconnect_sync();
+        assert!(state.settings.sync.vaults.is_empty());
+        assert_eq!(fs::read_to_string(root.join("Note.md")).unwrap(), "keep me");
+
+        state.set_sync_provider(2);
+        state.set_tailnet_role(1);
+        state.sync_ui.tailnet_host.replace_text("minis");
+        state.sync_ui.tailnet_key.replace_text("k".repeat(40));
+        state.connect_sync();
+        assert!(
+            state.settings.sync.vaults.is_empty(),
+            "a short name is refused"
+        );
+        state
+            .sync_ui
+            .tailnet_host
+            .replace_text("minis.tail1234.ts.net");
+        state.connect_sync();
+        assert_eq!(state.settings.sync.vaults.len(), 1);
+        assert!(state.sync_ui.tailnet_key.text.is_empty());
+        let saved = fs::read_to_string(config_home.join("muninn/settings.json")).unwrap();
+        assert!(saved.contains("minis.tail1234.ts.net"));
+        assert!(!saved.contains(&"k".repeat(40)));
+        let reloaded = crate::settings::Settings::load_from(&config_home);
+        assert_eq!(reloaded.sync.vaults, state.settings.sync.vaults);
+        state.disconnect_sync();
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&state_home);
         let _ = fs::remove_dir_all(&config_home);
     }
 }

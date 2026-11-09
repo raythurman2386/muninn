@@ -19,7 +19,7 @@ out="${1:-$root/target/sync-settings-snapshots}"
 mkdir -p "$out"
 cargo build -p muninn-app --manifest-path "$root/Cargo.toml"
 bin="$root/target/debug/muninn"
-for scene in settings-sync settings-sync-drive settings-sync-conflict; do
+for scene in settings-sync settings-sync-drive settings-sync-tailscale settings-sync-conflict; do
   "$bin" --vault "$vault" --snap "$out/$scene.png" --scene "$scene"
   echo "wrote $out/$scene.png"
 done

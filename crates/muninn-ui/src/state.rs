@@ -490,6 +490,7 @@ impl State {
         state.sync_ui = crate::sync_ui::SyncUi::native();
         state.sync_ui.github_client_id.replace_text(&github);
         state.sync_ui.google_client_id.replace_text(&google);
+        state.resume_tailnet_host();
         state
     }
 

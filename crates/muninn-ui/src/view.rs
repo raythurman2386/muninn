@@ -623,12 +623,14 @@ fn settings_button(k: &Kit) -> El {
 
 /// Manual sync. One provider per vault. Nothing here starts a background sync.
 fn sync_section(s: &State, k: &Kit) -> El {
-    let provider = if s.sync_ui.provider_index == 0 {
-        "GitHub"
-    } else {
-        "Google Drive"
+    let provider = match s.sync_ui.provider_index {
+        0 => "GitHub",
+        1 => "Google Drive",
+        _ => "Tailscale",
     };
-    let fields = if s.sync_ui.provider_index == 0 {
+    let fields = if s.sync_ui.provider_index == 2 {
+        tailnet_fields(s, k)
+    } else if s.sync_ui.provider_index == 0 {
         col()
             .w_full()
             .gap(4.0)
@@ -693,7 +695,10 @@ fn sync_section(s: &State, k: &Kit) -> El {
             .wrap(),
         )
         .child(
-            SegmentedControl::new(&["GitHub", "Google Drive"], Some(s.sync_ui.provider_index))
+            SegmentedControl::new(
+                &["GitHub", "Drive", "Tailscale"],
+                Some(s.sync_ui.provider_index),
+            )
                 .label("Sync provider")
                 .on_pick(|state: &mut State, index, _: &mut Tx| state.set_sync_provider(index))
                 .build(k),
@@ -740,6 +745,46 @@ fn sync_section(s: &State, k: &Kit) -> El {
                         .key("settings-sync-disconnect"),
                 ),
         )
+}
+
+fn tailnet_fields(s: &State, k: &Kit) -> El {
+    let role = SegmentedControl::new(
+        &["Host here", "Join host"],
+        Some(s.sync_ui.tailnet_role_index),
+    )
+    .label("Tailscale role")
+    .on_pick(|state: &mut State, index, _: &mut Tx| state.set_tailnet_role(index))
+    .build(k);
+    let fields = col().w_full().gap(4.0).child(role);
+    if s.sync_ui.tailnet_role_index == 0 {
+        fields
+            .child(sync_field(
+                k,
+                "Loopback port",
+                &s.sync_ui.tailnet_port,
+                |state| &mut state.sync_ui.tailnet_port,
+            ))
+            .child(sync_field(
+                k,
+                "Allowed Tailscale logins (optional, comma-separated)",
+                &s.sync_ui.tailnet_allowed,
+                |state| &mut state.sync_ui.tailnet_allowed,
+            ))
+    } else {
+        fields
+            .child(sync_field(
+                k,
+                "Host MagicDNS name (device.tailnet.ts.net)",
+                &s.sync_ui.tailnet_host,
+                |state| &mut state.sync_ui.tailnet_host,
+            ))
+            .child(sync_field(
+                k,
+                "Shared key from the host",
+                &s.sync_ui.tailnet_key,
+                |state| &mut state.sync_ui.tailnet_key,
+            ))
+    }
 }
 
 fn sync_field(
