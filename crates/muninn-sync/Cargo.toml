@@ -1,6 +1,6 @@
 [package]
 name = "muninn-sync"
-description = "Manual, provider-neutral vault sync for Muninn (GitHub and Google Drive)."
+description = "Manual, provider-neutral vault sync for Muninn (GitHub, Google Drive, and Tailscale)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -211,7 +211,7 @@ pub fn ensure_allowed(raw: &str, extra_hosts: &[String]) -> Result<(), SyncError
         "accounts.google.com",
         "upload.googleapis.com",
     ];
-    if HOSTS.contains(&host) {
+    if HOSTS.contains(&host) || crate::tailnet::validate_tailnet_host(host).is_ok() {
         Ok(())
     } else {
         Err(SyncError::Protocol {

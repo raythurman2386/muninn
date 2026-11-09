@@ -655,6 +655,7 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         drive_api: server.base(),
         drive_upload: server.base(),
         drive_oauth: server.base(),
+        tailnet_api: None,
     };
     let root = std::env::temp_dir().join(format!("muninn-engine-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
@@ -671,6 +672,7 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         provider: ProviderKind::GitHub,
         github: Some(scope()),
         drive: None,
+        tailnet: None,
         operation: OperationId::parse("abcde00000000001").unwrap(),
         protected: Default::default(),
         resolutions: Vec::new(),
@@ -699,6 +701,7 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         provider: ProviderKind::GitHub,
         github: Some(scope()),
         drive: None,
+        tailnet: None,
         operation: OperationId::parse("abcde00000000002").unwrap(),
         protected: Default::default(),
         resolutions: Vec::new(),

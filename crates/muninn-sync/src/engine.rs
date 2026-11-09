@@ -25,6 +25,7 @@ use crate::model::{
 use crate::pathutil::RelativePath as RelPath;
 use crate::plan::{self, plan};
 use crate::secret::TokenSet;
+use crate::tailnet::{self, DirStore, HttpStore, TailnetRole, TailnetScope};
 
 pub struct EngineParts<T, C> {
     pub transport: T,
@@ -36,6 +37,9 @@ pub struct EngineParts<T, C> {
     pub drive_api: String,
     pub drive_upload: String,
     pub drive_oauth: String,
+    /// Test-only override for a Tailscale peer's base URL. Production derives
+    /// `https://<host>` from the binding.
+    pub tailnet_api: Option<String>,
 }
 
 pub struct RunRequest {
@@ -45,6 +49,7 @@ pub struct RunRequest {
     pub provider: ProviderKind,
     pub github: Option<GitHubScope>,
     pub drive: Option<DriveScope>,
+    pub tailnet: Option<TailnetScope>,
     pub operation: OperationId,
     pub protected: BTreeSet<RelPath>,
     pub resolutions: Vec<(RelPath, Resolution)>,
@@ -113,8 +118,8 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
         &desired,
         &planned,
         &local_bytes,
+        &publish_head,
     )?;
-    let _ = publish_head;
     apply_desired(
         request,
         &inventory,
@@ -228,6 +233,52 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
             let head = merged.parents.first().cloned().unwrap_or_default();
             Ok((merged.snapshot, remote.blobs, head))
         }
+        ProviderKind::Tailscale => {
+            let scope = tailnet_scope(request)?;
+            let remote = with_tailnet_store(engine, &scope, token, tailnet::fetch)?;
+            let merged = drive::merge_heads(&remote)?;
+            if merged.plan.has_conflicts() {
+                return Err(SyncError::ConflictRemote {
+                    detail: format!("{} Tailscale heads disagree", remote.heads.len()),
+                });
+            }
+            // The heads this run planned against. Publish names exactly these
+            // as parents, so the host refuses the commit if it moved.
+            Ok((merged.snapshot, remote.blobs, merged.parents.join(",")))
+        }
+    }
+}
+
+fn tailnet_scope(request: &RunRequest) -> Result<TailnetScope, SyncError> {
+    let scope = request.tailnet.clone().ok_or_else(|| SyncError::Config {
+        detail: "Tailscale host is missing".to_owned(),
+    })?;
+    scope.validate()?;
+    Ok(scope)
+}
+
+fn with_tailnet_store<T: HttpTransport, C, R>(
+    engine: &EngineParts<T, C>,
+    scope: &TailnetScope,
+    token: &TokenSet,
+    run: impl FnOnce(&dyn tailnet::CommitStore) -> Result<R, SyncError>,
+) -> Result<R, SyncError> {
+    match &scope.role {
+        TailnetRole::Host { store_dir } => run(&DirStore::new(store_dir.clone())),
+        TailnetRole::Peer { host } => {
+            let store = HttpStore {
+                base: engine
+                    .tailnet_api
+                    .clone()
+                    .unwrap_or_else(|| format!("https://{host}")),
+                transport: &engine.transport,
+                key: &token.access,
+                cancel: engine.cancel.clone(),
+                sleeper: engine.sleeper.as_ref(),
+                request_timeout: Duration::from_secs(60),
+            };
+            run(&store)
+        }
     }
 }
 
@@ -240,6 +291,7 @@ fn publish<T: HttpTransport, C: CredentialStore>(
     desired: &Snapshot,
     planned: &Plan,
     local_bytes: &BTreeMap<RelPath, Vec<u8>>,
+    fetched_heads: &str,
 ) -> Result<String, SyncError> {
     match request.provider {
         ProviderKind::GitHub => {
@@ -289,6 +341,31 @@ fn publish<T: HttpTransport, C: CredentialStore>(
                 local_bytes,
                 request.operation.as_str(),
             )
+        }
+        ProviderKind::Tailscale => {
+            let scope = tailnet_scope(request)?;
+            let parents: Vec<String> = fetched_heads
+                .split(',')
+                .filter(|id| !id.is_empty())
+                .map(str::to_owned)
+                .collect();
+            let tombstones: Vec<_> = planned
+                .tombstones
+                .iter()
+                .map(|tomb| (tomb.path.clone(), tomb.base_hash))
+                .collect();
+            with_tailnet_store(engine, &scope, token, |store| {
+                let remote = tailnet::listing(store)?;
+                tailnet::publish(
+                    store,
+                    &remote,
+                    desired,
+                    &parents,
+                    &tombstones,
+                    local_bytes,
+                    request.operation.as_str(),
+                )
+            })
         }
     }
 }

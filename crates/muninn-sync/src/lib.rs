@@ -1,8 +1,9 @@
 //! Manual vault sync for Muninn.
 //!
 //! The vault's ordinary files stay the source of truth. This crate plans a
-//! three-way merge, publishes it through GitHub or an app-managed Google Drive
-//! commit graph, and applies the result locally with a crash-safe journal.
+//! three-way merge, publishes it through GitHub, an app-managed Google Drive
+//! commit graph, or a commit store hosted by one Muninn device on a Tailscale
+//! tailnet, and applies the result locally with a crash-safe journal.
 //! It does not talk to the UI, start work by itself, or store tokens in the
 //! vault or in settings.
 //!
@@ -40,9 +41,12 @@ mod model;
 mod pathutil;
 mod plan;
 mod secret;
+mod tailnet;
 
 #[cfg(test)]
 mod provider_tests;
+#[cfg(test)]
+mod tailnet_tests;
 #[cfg(test)]
 mod testkit;
 
@@ -73,6 +77,11 @@ pub use model::{
 };
 pub use pathutil::RelativePath;
 pub use secret::{Secret, TokenSet};
+pub use tailnet::{
+    DirStore, HttpStore, TAILNET_API_PREFIX, TAILNET_DEFAULT_PORT, TailnetHost, TailnetHostConfig,
+    TailnetRole, TailnetScope, new_shared_key, serve_command, tailnet_store_dir,
+    validate_tailnet_host,
+};
 
 /// Service name passed to the OS credential store. Not a secret.
 pub const CREDENTIAL_SERVICE: &str = "app.muninn.sync";

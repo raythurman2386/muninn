@@ -919,7 +919,7 @@ fn ancestors(commits: &BTreeMap<String, DriveCommitDoc>, id: &str) -> BTreeSet<S
     out
 }
 
-fn heads_of(commits: &BTreeMap<String, DriveCommitDoc>) -> Vec<String> {
+pub(crate) fn heads_of(commits: &BTreeMap<String, DriveCommitDoc>) -> Vec<String> {
     let mut referenced = BTreeSet::new();
     for commit in commits.values() {
         for parent in &commit.parents {
@@ -948,7 +948,7 @@ fn required_role<'a>(files: &'a [DriveFile], role: &str) -> Result<&'a DriveFile
     Ok(matches[0])
 }
 
-fn parse_commit(bytes: &[u8]) -> Result<DriveCommitDoc, SyncError> {
+pub(crate) fn parse_commit(bytes: &[u8]) -> Result<DriveCommitDoc, SyncError> {
     let json: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|_| SyncError::Protocol {
             detail: "drive commit is not json".to_owned(),

@@ -74,6 +74,7 @@ impl FileKind {
 pub enum ProviderKind {
     GitHub,
     GoogleDrive,
+    Tailscale,
 }
 
 impl ProviderKind {
@@ -82,6 +83,7 @@ impl ProviderKind {
         match self {
             ProviderKind::GitHub => "github",
             ProviderKind::GoogleDrive => "google_drive",
+            ProviderKind::Tailscale => "tailscale",
         }
     }
 
@@ -89,6 +91,7 @@ impl ProviderKind {
         match text {
             "github" => Ok(ProviderKind::GitHub),
             "google_drive" => Ok(ProviderKind::GoogleDrive),
+            "tailscale" => Ok(ProviderKind::Tailscale),
             _ => Err(SyncError::Config {
                 detail: format!("unknown sync provider {text}"),
             }),
