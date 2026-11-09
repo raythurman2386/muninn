@@ -24,6 +24,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use muninn_core::{Vault, parse_links};
 use muninn_ui::{Mode, Scope, Settings, State, ThemeMode, on_key, poll, view};
+
+mod fx;
 use rune::AppSpec;
 use rune_theme_opencode as theme;
 
@@ -78,6 +80,7 @@ fn main() {
         ..AppSpec::new("Muninn", (1180.0, 780.0), init, view)
     };
     rune::App::new(spec)
+        .compositor(fx::GraphFx::default())
         .on_close(|s, _tx| {
             // Best-effort: flush the open note on the normal close path. Autosave is
             // the crash net for SIGTERM/SIGKILL, which never run this hook; Rune's

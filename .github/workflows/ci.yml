@@ -70,3 +70,37 @@ jobs:
 
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
+
+  # PR-facing build/test on the three desktop targets Raymond asked for.
+  # Intentionally not the release/tag publish path — no packaging, no tags.
+  platform-check:
+    name: build+test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux window dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libwayland-dev libgl1-mesa-dev
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --locked --workspace --all-targets
+
+      - name: Test
+        run: cargo test --locked --workspace --all-targets
+

@@ -147,6 +147,66 @@ fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
 /// `theme` picks the palette source (see [`ThemeMode`]). `collapsed` and the
 /// mode/scope/last-note fields are written whenever the user changes them, so
 /// a restart restores the session without a separate "save workspace" step.
+///
+/// `graph_effects` defaults to [`GraphEffects::Electric`] for brand-new configs
+/// and when the key is absent on load (intentional upgrade default — existing
+/// installs pick up Electric until the user chooses Classic/Off). Unknown
+/// string values fall back to [`GraphEffects::Classic`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GraphEffects {
+    /// Theme-colored Rune electric edges and a glow on the selection.
+    Electric,
+    /// Current solid lines and accent card / focus ring.
+    Classic,
+    /// Plain lines with no glow (also accepts persisted key `minimal`).
+    Off,
+}
+
+impl GraphEffects {
+    pub const ALL: [GraphEffects; 3] = [
+        GraphEffects::Electric,
+        GraphEffects::Classic,
+        GraphEffects::Off,
+    ];
+
+    #[must_use]
+    pub fn as_key(self) -> &'static str {
+        match self {
+            GraphEffects::Electric => "electric",
+            GraphEffects::Classic => "classic",
+            GraphEffects::Off => "off",
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            GraphEffects::Electric => "Electric",
+            GraphEffects::Classic => "Classic",
+            GraphEffects::Off => "Off / Minimal",
+        }
+    }
+
+    #[must_use]
+    pub fn id(self) -> usize {
+        match self {
+            GraphEffects::Electric => 0,
+            GraphEffects::Classic => 1,
+            GraphEffects::Off => 2,
+        }
+    }
+}
+
+fn parse_graph_effects(value: Option<&str>) -> GraphEffects {
+    match value {
+        None => GraphEffects::Electric,
+        Some("electric") => GraphEffects::Electric,
+        Some("classic") => GraphEffects::Classic,
+        Some("off") | Some("minimal") => GraphEffects::Off,
+        Some(_) => GraphEffects::Classic,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Settings {
     /// Which palette the window follows; restored by [`State`](crate::State).
@@ -169,6 +229,10 @@ pub struct Settings {
     /// the default — keeps the original heading-only note body. Clamped to
     /// 4096 characters.
     pub note_template: String,
+    /// Graph edge/selection preset. See [`GraphEffects`].
+    pub graph_effects: GraphEffects,
+    /// Prefer reduced motion for graph FX and camera glides.
+    pub reduced_motion: bool,
 }
 
 impl Default for Settings {
@@ -183,6 +247,8 @@ impl Default for Settings {
             autosave_delay: DEFAULT_AUTOSAVE_DELAY,
             recent_vaults: Vec::new(),
             note_template: String::new(),
+            graph_effects: GraphEffects::Electric,
+            reduced_motion: false,
         }
     }
 }
@@ -236,6 +302,8 @@ impl Settings {
                 .map(|path| path.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
             "note_template": clamp_note_template(&self.note_template),
+            "graph_effects": self.graph_effects.as_key(),
+            "reduced_motion": self.reduced_motion,
         });
         let bytes = serde_json::to_vec_pretty(&value)?;
         atomic_write(&path, &bytes)
@@ -302,6 +370,13 @@ impl Settings {
             .get("note_template")
             .and_then(Value::as_str)
             .map_or_else(String::new, clamp_note_template);
+        // Missing key => Electric (product default). Unknown => Classic.
+        settings.graph_effects =
+            parse_graph_effects(value.get("graph_effects").and_then(Value::as_str));
+        settings.reduced_motion = value
+            .get("reduced_motion")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         settings
     }
 }
@@ -393,6 +468,8 @@ mod tests {
             autosave_delay: 0.8,
             recent_vaults: vec![PathBuf::from("/tmp/notes"), PathBuf::from("/tmp/other")],
             note_template: "---\ntags: []\n---".to_owned(),
+            graph_effects: GraphEffects::Classic,
+            reduced_motion: true,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -442,5 +519,60 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn graph_effects_default_is_electric() {
+        assert_eq!(Settings::default().graph_effects, GraphEffects::Electric);
+        assert!(!Settings::default().reduced_motion);
+    }
+
+    #[test]
+    fn missing_graph_effects_key_loads_electric() {
+        let settings = Settings::from_value(&serde_json::json!({ "theme": "dark" }));
+        assert_eq!(settings.graph_effects, GraphEffects::Electric);
+        assert!(!settings.reduced_motion);
+    }
+
+    #[test]
+    fn unknown_graph_effects_falls_back_to_classic() {
+        let settings = Settings::from_value(&serde_json::json!({
+            "graph_effects": "neon-soup"
+        }));
+        assert_eq!(settings.graph_effects, GraphEffects::Classic);
+    }
+
+    #[test]
+    fn graph_effects_keys_round_trip_including_minimal_alias() {
+        for (key, expect) in [
+            ("electric", GraphEffects::Electric),
+            ("classic", GraphEffects::Classic),
+            ("off", GraphEffects::Off),
+            ("minimal", GraphEffects::Off),
+        ] {
+            let settings = Settings::from_value(&serde_json::json!({
+                "graph_effects": key,
+                "reduced_motion": true,
+            }));
+            assert_eq!(settings.graph_effects, expect, "key {key}");
+            assert!(settings.reduced_motion);
+            let home = temp_config(&format!("fx-{key}"));
+            settings.save_to(&home).expect("save");
+            let loaded = Settings::load_from(&home);
+            // `minimal` persists as canonical `off`
+            let expect_persisted = if expect == GraphEffects::Off {
+                GraphEffects::Off
+            } else {
+                expect
+            };
+            assert_eq!(loaded.graph_effects, expect_persisted);
+            assert!(loaded.reduced_motion);
+            let text = fs::read_to_string(settings_path(&home)).expect("read");
+            assert!(text.contains(&format!(
+                "\"graph_effects\": \"{}\"",
+                expect_persisted.as_key()
+            )));
+            let _ = fs::remove_dir_all(&home);
+        }
     }
 }

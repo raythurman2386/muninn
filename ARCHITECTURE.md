@@ -57,7 +57,10 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    publishes pan/zoom through `Live` values so a drag redraws without rebuilding the tree.
    Selecting a node or changing scope starts a spring camera glide held in `State` (never in
    `muninn-graph`, which stays Rune-free); `poll` steps it and asks for the next frame only
-   while it is in flight, so reduced motion snaps and sleeps. `poll` reports true only when
+   while it is in flight, so reduced motion (Settings toggle, `MUNINN_REDUCED_MOTION`, or
+   system preference) snaps and sleeps. Graph effects presets (`electric` / `classic` /
+   `off`) live in Settings and paint through a `muninn-app` compositor over `rune-fx`.
+   `poll` reports true only when
    visible state changed (a save completed, a node moved, a glide moved the camera, or the
    camera fit moved the view), never just because the editor is dirty or heat remains.
 5. **Save.** `muninn_ui::poll` notices an edited buffer, waits 0.55 s of idle, and writes the

@@ -2,13 +2,14 @@
 
 use rune::{
     Color, Cursor, Drag, El, LineCap, MagnifyEvent, PointerButton, Shape, Spring, Tx, WheelEvent,
-    canvas, col, el, icon, row, text, text_input,
+    canvas, col, effect, el, icon, row, text, text_input,
 };
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
 use muninn_graph::{NODE_H, NODE_W, WORLD};
 
+use crate::settings::GraphEffects;
 use crate::{Scope, State};
 
 /// Neighbour dimming eases on selection, so a click reads as a change of
@@ -23,6 +24,12 @@ const LOD_ZOOM: f32 = 0.6;
 /// Local has only one hop around the selection, so labels stay useful a
 /// little longer; below this only the selection keeps its card.
 const LOCAL_LOD_ZOOM: f32 = 0.55;
+/// Cap animated electric edge slots on dense graphs.
+const EDGE_FX_BUDGET: usize = 48;
+/// Effect marks: cold edges, hot (selection-touching) edges, selection glow.
+pub const FX_EDGE_COLD: u32 = 0x4d45_0000;
+pub const FX_EDGE_HOT: u32 = 0x4d46_0000;
+pub const FX_GLOW: u32 = 0x4d47_0000;
 /// World size of a low-zoom dot marker (screen size is `DOT * zoom`, so
 /// about 12px at typical Global fit zoom).
 const DOT: f32 = 28.0;
@@ -142,14 +149,17 @@ fn nodes_world(
             || (s.scope == Scope::Global && is_neighbour(s, id));
         let isolated = s.graph_isolate && s.selected.is_some() && !is_neighbour(s, id) && !focused;
         let as_dot = !labelled || isolated;
+        let (w, h) = if as_dot {
+            let side = dot_size(degree(s, id));
+            (side, side)
+        } else {
+            card_size(degree(s, id))
+        };
         if focused {
-            let (w, h) = if as_dot {
-                let side = dot_size(degree(s, id));
-                (side, side)
-            } else {
-                card_size(degree(s, id))
-            };
             world = world.child(focus_ring(k, node.pos, w, h));
+        }
+        if s.selected == Some(id) && s.graph_effects == GraphEffects::Electric {
+            world = world.child(selection_glow(id, node.pos, w, h));
         }
         world = world.child(if as_dot {
             node_dot(s, k, id, node.pos)
@@ -182,27 +192,69 @@ fn grid(s: &State, k: &Kit) -> El {
 fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)], viewport: [f32; 4]) -> El {
     let base = k.alpha(k.c.text_muted, 0.55);
     let hot = k.alpha(k.c.text_accent, 0.72);
+    let electric = s.graph_effects == GraphEffects::Electric && s.cam.zoom() >= LOD_ZOOM;
     let mut shape = Shape::new();
-    for &(a, b) in edges {
+    let mut fx_slots = Vec::new();
+    // Prefer edges that touch the selection when budgeting FX layers.
+    let mut ranked: Vec<(bool, usize, usize)> = edges
+        .iter()
+        .copied()
+        .map(|(a, b)| {
+            let touches = s.selected == Some(a) || s.selected == Some(b);
+            (touches, a, b)
+        })
+        .collect();
+    ranked.sort_by_key(|a| std::cmp::Reverse(a.0));
+
+    let mut fx_used = 0usize;
+    for (touches, a, b) in ranked {
         let (Some(from), Some(to)) = (s.graph.node(a), s.graph.node(b)) else {
             continue;
         };
-        // Skip segments with both ends off-screen; Rune clips the rest.
         if is_culled(from.pos, 1.0, 1.0, viewport) && is_culled(to.pos, 1.0, 1.0, viewport) {
             continue;
         }
-        let touches = s.selected == Some(a) || s.selected == Some(b);
-        shape = shape.line(
-            from.pos,
-            to.pos,
-            if touches { 1.7 } else { 1.15 },
-            LineCap::Round,
-            if touches { hot } else { base },
-        );
+        let width = if touches { 1.7 } else { 1.15 };
+        let color = if touches { hot } else { base };
+        // Always keep a classic stroke as the structural / fallback line.
+        shape = shape.line(from.pos, to.pos, width, LineCap::Round, color);
+
+        let use_fx = electric && fx_used < EDGE_FX_BUDGET;
+        if use_fx {
+            let minx = from.pos[0].min(to.pos[0]);
+            let miny = from.pos[1].min(to.pos[1]);
+            let w = (from.pos[0] - to.pos[0]).abs().max(2.0);
+            let h = (from.pos[1] - to.pos[1]).abs().max(2.0);
+            let data = [
+                (from.pos[0] - minx) / w,
+                (from.pos[1] - miny) / h,
+                (to.pos[0] - minx) / w,
+                (to.pos[1] - miny) / h,
+            ];
+            let mark = if touches {
+                FX_EDGE_HOT | (fx_used as u32 & 0xffff)
+            } else {
+                FX_EDGE_COLD | (fx_used as u32 & 0xffff)
+            };
+            fx_slots.push(
+                effect(mark)
+                    .effect_data(data)
+                    .effect_bleed(10.0)
+                    .pin(Some(minx), Some(miny), None, None)
+                    .size(w, h),
+            );
+            fx_used += 1;
+        }
     }
-    canvas(shape)
-        .size(WORLD[0], WORLD[1])
-        .pin(Some(0.0), Some(0.0), None, None)
+
+    let mut canvas_el =
+        canvas(shape)
+            .size(WORLD[0], WORLD[1])
+            .pin(Some(0.0), Some(0.0), None, None);
+    for slot in fx_slots {
+        canvas_el = canvas_el.child(slot);
+    }
+    canvas_el
 }
 
 /// World-space rectangle currently on screen, expanded so cards straddling
@@ -253,6 +305,21 @@ fn card_size(degree: usize) -> (f32, f32) {
 
 fn dot_size(degree: usize) -> f32 {
     DOT * (1.0 + (degree.min(12) as f32) * 0.05)
+}
+
+/// Soft selection bloom for the Electric preset. The compositor paints it.
+fn selection_glow(id: usize, pos: [f32; 2], w: f32, h: f32) -> El {
+    let pad = 14.0;
+    effect(FX_GLOW | (id as u32 & 0xffff))
+        .effect_data([1.0, 0.0, 0.0, 0.0]) // placeholder; compositor uses State accent
+        .effect_bleed(18.0)
+        .pin(
+            Some(pos[0] - w / 2.0 - pad),
+            Some(pos[1] - h / 2.0 - pad),
+            None,
+            None,
+        )
+        .size(w + pad * 2.0, h + pad * 2.0)
 }
 
 /// GRP-02: an outline outside the card, distinct from the selection's filled
