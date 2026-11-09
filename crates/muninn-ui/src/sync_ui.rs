@@ -63,6 +63,9 @@ pub struct SyncUi {
     /// current binding only once sign-in succeeds; until then the old one
     /// keeps working and stays in settings.
     pending: Option<VaultSyncBinding>,
+    /// Why the last Connect did not finish, while no binding replaced it.
+    /// Sync Now keeps this in the status instead of a generic hint.
+    sign_in_error: Option<String>,
 }
 
 /// Endpoints and browser for interactive sign-in.
@@ -78,6 +81,9 @@ pub(crate) struct SignInEnv {
     pub loopback: bool,
     /// How long to wait for the Google consent redirect.
     pub google_timeout: Duration,
+    /// The Google client secret compiled into this build. Tests use a fake
+    /// one. Never shown and never saved in settings.
+    pub google_secret: Option<Secret>,
 }
 
 impl SignInEnv {
@@ -91,6 +97,7 @@ impl SignInEnv {
             sleeper: Arc::new(muninn_sync::RealSleeper),
             loopback: false,
             google_timeout: Duration::from_secs(300),
+            google_secret: muninn_sync::bundled_google_client_secret(),
         }
     }
 }
@@ -195,6 +202,7 @@ impl SyncUi {
             host: None,
             sign_in: SignInEnv::production(),
             pending: None,
+            sign_in_error: None,
         }
     }
 
@@ -345,16 +353,18 @@ impl State {
         }
         // The person's own client id when they entered one, else the id
         // bundled into this build; with neither, fail closed.
-        let client_id = if provider == "github" {
+        let client = if provider == "github" {
             muninn_sync::client_id_for(ProviderKind::GitHub, &self.sync_ui.github_client_id.text)
+                .map(SignInClient::GitHub)
         } else {
-            muninn_sync::client_id_for(
-                ProviderKind::GoogleDrive,
+            muninn_sync::google_client_for(
                 &self.sync_ui.google_client_id.text,
+                self.sync_ui.sign_in.google_secret.clone(),
             )
+            .map(SignInClient::Google)
         };
-        let client_id = match client_id {
-            Ok(id) => id,
+        let client = match client {
+            Ok(client) => client,
             Err(error) => {
                 self.sync_ui.status = error.to_string();
                 return;
@@ -392,12 +402,7 @@ impl State {
         // failed Connect leaves the current binding and its token working.
         let binding_id = binding.binding_id.clone();
         self.sync_ui.pending = Some(binding);
-        let provider = if provider == "github" {
-            ProviderKind::GitHub
-        } else {
-            ProviderKind::GoogleDrive
-        };
-        self.start_sign_in(provider, binding_id, client_id);
+        self.start_sign_in(binding_id, client);
     }
 
     /// The binding this vault is connected with now, in settings.
@@ -446,10 +451,15 @@ impl State {
     /// Sign in on a worker thread: GitHub device flow or Google OAuth with
     /// PKCE and a loopback redirect, both in the system browser. The token
     /// goes straight to the OS credential store; settings never see it.
-    fn start_sign_in(&mut self, provider: ProviderKind, binding_id: String, client_id: String) {
+    fn start_sign_in(&mut self, binding_id: String, client: SignInClient) {
         let Ok(id) = BindingId::parse(&binding_id) else {
             return;
         };
+        let provider = match client {
+            SignInClient::GitHub(_) => ProviderKind::GitHub,
+            SignInClient::Google(_) => ProviderKind::GoogleDrive,
+        };
+        self.sync_ui.sign_in_error = None;
         let (tx, rx) = mpsc::channel();
         self.sync_ui.inbox = Some(rx);
         self.sync_ui.phase = SyncPhase::Connecting;
@@ -464,15 +474,15 @@ impl State {
         let env = self.sync_ui.sign_in.clone();
         thread::spawn(move || {
             let mut events = ChannelEvents(tx.clone());
+            let key = muninn_sync::CredentialKey {
+                provider,
+                binding: id,
+            };
+            // The token goes to the credential store inside the sign-in, so
+            // Google's browser tab says "signed in" only once it is stored.
+            let mut store = |token: &TokenSet| credentials.put(&key, token);
             let result =
-                sign_in(provider, &client_id, &env, cancel, &mut events).and_then(|token| {
-                    let key = muninn_sync::CredentialKey {
-                        provider,
-                        binding: id,
-                    };
-                    credentials.put(&key, &token)?;
-                    Ok(token.account)
-                });
+                sign_in(&client, &env, cancel, &mut events, &mut store).map(|token| token.account);
             let _ = tx.send(SyncMessage::SignIn(SignInUpdate::Connected {
                 binding_id,
                 result: result.map_err(|error| error.to_string()),
@@ -530,6 +540,7 @@ impl State {
                                     .to_owned();
                             return;
                         };
+                        self.sync_ui.sign_in_error = None;
                         binding.account.clone_from(&account);
                         if binding.provider == "github" {
                             self.settings.sync.github_client_id =
@@ -558,6 +569,7 @@ impl State {
                         };
                         self.sync_ui.status =
                             format!("Sign-in did not finish: {error} No token was stored.{kept}");
+                        self.sync_ui.sign_in_error = Some(self.sync_ui.status.clone());
                     }
                 }
             }
@@ -752,6 +764,7 @@ impl State {
         // A sign-in still in the browser is abandoned; its token is deleted
         // when it arrives.
         self.sync_ui.pending = None;
+        self.sync_ui.sign_in_error = None;
         self.sync_ui.host = None;
         self.sync_ui.revealed_key = None;
         let Some(binding) = self.current_binding().cloned() else {
@@ -797,7 +810,11 @@ impl State {
             return;
         }
         let Some(binding) = self.current_binding().cloned() else {
-            self.sync_ui.status = "Connect a provider for this vault before Sync Now.".to_owned();
+            // Keep why the last Connect failed; a generic hint would hide it.
+            self.sync_ui.status = match &self.sync_ui.sign_in_error {
+                Some(error) => format!("{error} Connect again before Sync Now."),
+                None => "Connect a provider for this vault before Sync Now.".to_owned(),
+            };
             return;
         };
         if let Some(reason) = &self.settings.sync.disabled_reason {
@@ -826,11 +843,13 @@ impl State {
         let github_client_id =
             muninn_sync::client_id_for(ProviderKind::GitHub, &self.settings.sync.github_client_id)
                 .unwrap_or_default();
-        let google_client_id = muninn_sync::client_id_for(
-            ProviderKind::GoogleDrive,
+        // Google needs the bundled client and its secret; with a custom id or
+        // no secret, a refresh fails closed without sending anything.
+        let google_client = muninn_sync::google_client_for(
             &self.settings.sync.google_client_id,
+            self.sync_ui.sign_in.google_secret.clone(),
         )
-        .unwrap_or_default();
+        .ok();
         thread::spawn(move || {
             let engine = match muninn_sync::ReqwestTransport::production() {
                 Ok(transport) => muninn_sync::EngineParts {
@@ -844,7 +863,7 @@ impl State {
                     drive_upload: "https://www.googleapis.com/upload".to_owned(),
                     drive_oauth: "https://oauth2.googleapis.com".to_owned(),
                     github_client_id,
-                    google_client_id,
+                    google_client,
                     tailnet_api: None,
                 },
                 Err(error) => {
@@ -973,47 +992,63 @@ impl State {
 
 /// `sync_home` is `<state_home>/sync`. Each binding runs in its own state dir
 /// under it; a Tailscale host's store stays at its existing path.
+/// Which client a Connect signs in with.
+enum SignInClient {
+    GitHub(String),
+    Google(muninn_sync::GoogleOAuthClient),
+}
+
 fn sign_in(
-    provider: ProviderKind,
-    client_id: &str,
+    client: &SignInClient,
     env: &SignInEnv,
     cancel: CancelToken,
     events: &mut ChannelEvents,
+    store: &mut dyn FnMut(&TokenSet) -> Result<(), muninn_sync::SyncError>,
 ) -> Result<TokenSet, muninn_sync::SyncError> {
     let transport = if env.loopback {
         muninn_sync::ReqwestTransport::for_tests(&["127.0.0.1"])?
     } else {
         muninn_sync::ReqwestTransport::production()?
     };
-    if provider == ProviderKind::GitHub {
-        let client = muninn_sync::GitHubClient {
-            api_base: env.github_api.clone(),
-            oauth_base: env.github_oauth.clone(),
-            transport,
-            cancel,
-            sleeper: env.sleeper.as_ref(),
-            request_timeout: Duration::from_secs(20),
-        };
-        muninn_sync::github_device_sign_in(&client, client_id, env.browser.as_ref(), events)
-    } else {
-        let client = muninn_sync::DriveClient {
-            api_base: String::new(),
-            upload_base: String::new(),
-            oauth_base: env.google_token.clone(),
-            auth_base: env.google_auth.clone(),
-            transport,
-            cancel,
-            sleeper: env.sleeper.as_ref(),
-            request_timeout: Duration::from_secs(20),
-        };
-        muninn_sync::google_sign_in(
-            &client,
-            client_id,
-            env.browser.as_ref(),
-            events,
-            env.google_timeout,
-        )
-    }
+    let oauth = match client {
+        SignInClient::GitHub(client_id) => {
+            let client = muninn_sync::GitHubClient {
+                api_base: env.github_api.clone(),
+                oauth_base: env.github_oauth.clone(),
+                transport,
+                cancel,
+                sleeper: env.sleeper.as_ref(),
+                request_timeout: Duration::from_secs(20),
+            };
+            let token = muninn_sync::github_device_sign_in(
+                &client,
+                client_id,
+                env.browser.as_ref(),
+                events,
+            )?;
+            store(&token)?;
+            return Ok(token);
+        }
+        SignInClient::Google(oauth) => oauth,
+    };
+    let client = muninn_sync::DriveClient {
+        api_base: String::new(),
+        upload_base: String::new(),
+        oauth_base: env.google_token.clone(),
+        auth_base: env.google_auth.clone(),
+        transport,
+        cancel,
+        sleeper: env.sleeper.as_ref(),
+        request_timeout: Duration::from_secs(20),
+    };
+    muninn_sync::google_sign_in(
+        &client,
+        oauth,
+        env.browser.as_ref(),
+        events,
+        env.google_timeout,
+        store,
+    )
 }
 
 fn run_request(
@@ -1123,6 +1158,159 @@ mod tests {
         let _ = fs::remove_dir_all(&config_home);
     }
 
+    /// A stand-in for the bundled Google client secret. Never the real one.
+    const TEST_GOOGLE_SECRET: &str = "test-only-google-secret";
+
+    /// Counts opens and refuses to answer: Connect must fail before it.
+    #[derive(Default)]
+    struct UnusedBrowser(std::sync::atomic::AtomicUsize);
+
+    impl muninn_sync::BrowserOpener for UnusedBrowser {
+        fn open(&self, _url: &str) -> Result<(), muninn_sync::SyncError> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    /// A credential store whose writes fail, like a locked keyring.
+    struct LockedStore;
+
+    impl muninn_sync::CredentialStore for LockedStore {
+        fn get(
+            &self,
+            _key: &muninn_sync::CredentialKey,
+        ) -> Result<Option<muninn_sync::TokenSet>, muninn_sync::SyncError> {
+            Ok(None)
+        }
+        fn put(
+            &self,
+            _key: &muninn_sync::CredentialKey,
+            _token: &muninn_sync::TokenSet,
+        ) -> Result<(), muninn_sync::SyncError> {
+            Err(muninn_sync::SyncError::Credentials {
+                detail: "the keyring is locked".to_owned(),
+            })
+        }
+        fn delete(&self, _key: &muninn_sync::CredentialKey) -> Result<(), muninn_sync::SyncError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn drive_connect_without_a_built_in_secret_fails_closed() {
+        let (mut state, root) = temp_state("no-secret");
+        let browser = std::sync::Arc::new(UnusedBrowser::default());
+        state.sync_ui.sign_in = super::SignInEnv {
+            browser: browser.clone(),
+            loopback: true,
+            google_secret: None,
+            ..super::SignInEnv::production()
+        };
+        state.set_sync_provider(1);
+        state.connect_sync();
+        assert_eq!(
+            state.sync_ui.phase,
+            super::SyncPhase::Idle,
+            "no sign-in starts"
+        );
+        assert!(
+            state.sync_ui.status.contains("MUNINN_GOOGLE_CLIENT_SECRET")
+                && state.sync_ui.status.contains("Nothing was sent"),
+            "{}",
+            state.sync_ui.status
+        );
+        assert_eq!(browser.0.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert!(state.settings.sync.vaults.is_empty(), "no binding saved");
+        remove_temp(&root);
+    }
+
+    #[test]
+    fn drive_connect_with_a_custom_client_id_never_sends_the_official_secret() {
+        let (mut state, root) = temp_state("custom-id");
+        let browser = std::sync::Arc::new(UnusedBrowser::default());
+        state.sync_ui.sign_in = super::SignInEnv {
+            browser: browser.clone(),
+            loopback: true,
+            google_secret: Some(muninn_sync::Secret::new(TEST_GOOGLE_SECRET)),
+            ..super::SignInEnv::production()
+        };
+        state.set_sync_provider(1);
+        state
+            .sync_ui
+            .google_client_id
+            .replace_text("mine.apps.googleusercontent.com");
+        state.connect_sync();
+        assert_eq!(
+            state.sync_ui.phase,
+            super::SyncPhase::Idle,
+            "no sign-in starts"
+        );
+        assert!(
+            state.sync_ui.status.contains("custom Google client id"),
+            "{}",
+            state.sync_ui.status
+        );
+        assert!(!state.sync_ui.status.contains(TEST_GOOGLE_SECRET));
+        assert_eq!(browser.0.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert!(state.settings.sync.vaults.is_empty(), "no binding saved");
+        remove_temp(&root);
+    }
+
+    #[test]
+    fn drive_connect_is_not_connected_when_the_token_cannot_be_stored() {
+        let (mut state, root) = temp_state("locked");
+        state.sync_ui.credentials = std::sync::Arc::new(LockedStore);
+        let token = token_server();
+        state.sync_ui.sign_in = super::SignInEnv {
+            google_token: format!("http://{token}"),
+            browser: std::sync::Arc::new(ConsentingBrowser(true)),
+            loopback: true,
+            google_timeout: std::time::Duration::from_secs(10),
+            google_secret: Some(muninn_sync::Secret::new(TEST_GOOGLE_SECRET)),
+            ..super::SignInEnv::production()
+        };
+        state.set_sync_provider(1);
+        state.connect_sync();
+        wait_idle(&mut state);
+        assert!(
+            state.sync_ui.status.starts_with("Sign-in did not finish")
+                && state.sync_ui.status.contains("keyring is locked"),
+            "{}",
+            state.sync_ui.status
+        );
+        assert!(state.settings.sync.vaults.is_empty(), "no binding saved");
+        remove_temp(&root);
+    }
+
+    #[test]
+    fn sync_now_keeps_the_sign_in_error_in_the_status() {
+        let (mut state, root) = temp_state("keep-error");
+        state.sync_ui.sign_in = super::SignInEnv {
+            browser: std::sync::Arc::new(ConsentingBrowser(false)),
+            loopback: true,
+            google_timeout: std::time::Duration::from_secs(10),
+            google_secret: Some(muninn_sync::Secret::new(TEST_GOOGLE_SECRET)),
+            ..super::SignInEnv::production()
+        };
+        state.set_sync_provider(1);
+        state.connect_sync();
+        wait_idle(&mut state);
+        let error = state.sync_ui.status.clone();
+        assert!(error.starts_with("Sign-in did not finish"), "{error}");
+        state.sync_now();
+        assert!(
+            state.sync_ui.status.starts_with(&error),
+            "Sync Now replaced the sign-in error with: {}",
+            state.sync_ui.status
+        );
+        assert!(
+            !state.sync_ui.status.starts_with("Connect a provider"),
+            "{}",
+            state.sync_ui.status
+        );
+        remove_temp(&root);
+    }
+
     /// Answers Google's consent page on the loopback redirect: with a code
     /// when `true`, as a person who declined when `false`.
     struct ConsentingBrowser(bool);
@@ -1222,13 +1410,22 @@ mod tests {
                 assert!(body.contains("grant_type=authorization_code"));
                 assert!(body.contains("code=consented"));
                 assert!(body.contains("code_verifier="));
-                let reply = format!(
-                    "{{\"access_token\":\"ya29.ui\",\"refresh_token\":\"1//ui\",\"expires_in\":3599,\"scope\":\"{}\"}}",
-                    muninn_sync::DRIVE_SCOPE
-                );
+                let reply = if body.contains(&format!("client_secret={TEST_GOOGLE_SECRET}")) {
+                    format!(
+                        "{{\"access_token\":\"ya29.ui\",\"refresh_token\":\"1//ui\",\"expires_in\":3599,\"scope\":\"{}\"}}",
+                        muninn_sync::DRIVE_SCOPE
+                    )
+                } else {
+                    "{\"error\":\"invalid_request\",\"error_description\":\"client_secret is missing.\"}".to_owned()
+                };
+                let status = if reply.contains("access_token") {
+                    "200 OK"
+                } else {
+                    "400 Bad Request"
+                };
                 write!(
                     stream,
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}",
+                    "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}",
                     reply.len()
                 )
                 .unwrap();
@@ -1261,13 +1458,10 @@ mod tests {
             browser: std::sync::Arc::new(ConsentingBrowser(true)),
             loopback: true,
             google_timeout: std::time::Duration::from_secs(10),
+            google_secret: Some(muninn_sync::Secret::new(TEST_GOOGLE_SECRET)),
             ..super::SignInEnv::production()
         };
         state.set_sync_provider(1);
-        state
-            .sync_ui
-            .google_client_id
-            .replace_text("client.apps.googleusercontent.com");
         state.connect_sync();
         assert_eq!(state.sync_ui.phase, super::SyncPhase::Connecting);
         // Autosave is not held while waiting on the browser.
@@ -1381,13 +1575,10 @@ mod tests {
             browser: std::sync::Arc::new(ConsentingBrowser(false)),
             loopback: true,
             google_timeout: std::time::Duration::from_secs(10),
+            google_secret: Some(muninn_sync::Secret::new(TEST_GOOGLE_SECRET)),
             ..super::SignInEnv::production()
         };
         state.set_sync_provider(1);
-        state
-            .sync_ui
-            .google_client_id
-            .replace_text("client.apps.googleusercontent.com");
         state.connect_sync();
         assert_eq!(
             state.settings.sync.vaults,
@@ -1413,6 +1604,7 @@ mod tests {
             browser: std::sync::Arc::new(ConsentingBrowser(true)),
             loopback: true,
             google_timeout: std::time::Duration::from_secs(10),
+            google_secret: Some(muninn_sync::Secret::new(TEST_GOOGLE_SECRET)),
             ..super::SignInEnv::production()
         };
         state.connect_sync();

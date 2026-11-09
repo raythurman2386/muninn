@@ -49,6 +49,10 @@ jobs:
             dpkg-dev liblzma-dev
 
       - name: Build release binary
+        env:
+          # The official Google Desktop client secret. Google refuses the
+          # Drive token exchange without it; never commit or echo it.
+          MUNINN_GOOGLE_CLIENT_SECRET: ${{ secrets.MUNINN_GOOGLE_CLIENT_SECRET }}
         run: cargo build --locked --release -p muninn-app
 
       - name: Install cargo-deb
