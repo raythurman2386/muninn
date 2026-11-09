@@ -486,6 +486,9 @@ pub struct State {
     /// The OS reduce-motion preference as of the last view, which is the only
     /// place Rune reports it. `Cell` because `view` borrows `State` shared.
     pub(crate) system_reduced_motion: std::cell::Cell<bool>,
+    /// Whether the last layout tick ran with reduced motion, so
+    /// [`State::graph_step`] can reheat once when it turns off.
+    graph_was_reduced: bool,
 }
 
 impl State {
@@ -687,6 +690,7 @@ impl State {
             trace: false,
             reduced_motion_env,
             system_reduced_motion: std::cell::Cell::new(false),
+            graph_was_reduced: false,
         };
         // X-01: one startup line with the build, the vault path and counts.
         // Keys only: note bodies and titles never reach the log.
@@ -1927,11 +1931,22 @@ impl State {
 
     /// DES-03: one layout tick. Reduced motion pins heat to zero and never
     /// moves a node; the deterministic seed positions stay where they are.
+    ///
+    /// When the resolved value turns off (the Settings choice, or the OS
+    /// preference under System), the layout is reheated once. Without that, a
+    /// vault over the dense-layout limit would stay dormant on its seed
+    /// positions, because pinned heat and zero velocity read as "settled".
     pub(crate) fn graph_step(&mut self) -> bool {
-        if self.reduced_motion() {
+        let reduced = self.reduced_motion();
+        let resumed = self.graph_was_reduced && !reduced;
+        self.graph_was_reduced = reduced;
+        if reduced {
             self.graph.heat = 0.0;
             false
         } else {
+            if resumed {
+                self.graph.reheat();
+            }
             self.graph.step()
         }
     }

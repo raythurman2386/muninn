@@ -1,10 +1,16 @@
 #!/bin/sh
 # Render one screenshot per Settings tab against a throwaway copy of the
 # sample vault and an isolated home, so nothing reads or writes the user's
-# real vault or settings.json.
+# real vault or settings.json. The temp dir is removed on exit.
 set -eu
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+out="${1:-$root/target/settings-tab-snapshots}"
+mkdir -p "$out"
+# Build before isolating HOME so cargo keeps using the real ~/.cargo cache.
+cargo build --locked -p muninn-app --manifest-path "$root/Cargo.toml"
+bin="$root/target/debug/muninn"
 work="$(mktemp -d "${TMPDIR:-/tmp}/muninn-settings-shots.XXXXXX")"
+trap 'rm -rf "$work"' EXIT INT TERM
 vault="$work/vault"
 cp -R "$root/vault" "$vault"
 export HOME="$work/home"
@@ -14,10 +20,6 @@ export XDG_CACHE_HOME="$work/cache"
 export XDG_DATA_HOME="$work/data"
 unset MUNINN_VAULT MUNINN_REDUCED_MOTION || true
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME"
-out="${1:-$root/target/settings-tab-snapshots}"
-mkdir -p "$out"
-cargo build -p muninn-app --manifest-path "$root/Cargo.toml"
-bin="$root/target/debug/muninn"
 for scene in settings-vaults settings-editor settings-appearance settings-graph settings-sync; do
   "$bin" --vault "$vault" --snap "$out/$scene.png" --scene "$scene"
   echo "wrote $out/$scene.png"

@@ -9,7 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use muninn_core::testing::TempVault;
+use muninn_core::testing::{TempVault, big_vault};
 use muninn_ui::{Mode, ReduceMotion, Scope, Settings, State, on_key, poll, view};
 use rune::{Env, Runtime};
 
@@ -379,6 +379,76 @@ fn reduced_motion_makes_ui_transitions_land_at_once() {
             (ReduceMotion::System, true, false),
         ],
         "the selection indicator slides only when motion is not reduced"
+    );
+    let _ = fs::remove_dir_all(&config);
+}
+
+/// More notes than the dense-layout limit (200), where a layout with zero
+/// heat and zero velocity is treated as settled and stops stepping.
+const DENSE_NOTES: usize = 240;
+
+/// Finish the (chunked) startup scan, enter the global graph and run a few
+/// frames under whatever motion setting is active. No manual reheat.
+fn dense_graph(rt: &mut Runtime<State>) {
+    for _ in 0..400 {
+        if !rt.state.loading() {
+            break;
+        }
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(!rt.state.loading(), "the dense vault finished scanning");
+    assert!(rt.state.vault.notes.len() > 200, "the fixture is dense");
+    rt.update(|s, _| {
+        s.scope = Scope::Global;
+        s.set_mode(Mode::Graph);
+    });
+    frames(rt, 30);
+}
+
+#[test]
+fn turning_reduce_motion_off_resumes_a_dense_layout() {
+    let tmp = big_vault(DENSE_NOTES);
+    let config = unique_dir("dense-toggle");
+    let mut rt = runtime(&tmp, &config, ReduceMotion::On, false);
+    dense_graph(&mut rt);
+    let frozen = positions(&rt);
+    frames(&mut rt, 30);
+    assert_eq!(
+        positions(&rt),
+        frozen,
+        "On: the dense layout stays on its seeds"
+    );
+
+    rt.update(|s, _| s.set_reduce_motion(ReduceMotion::Off));
+    frames(&mut rt, 30);
+    assert_ne!(
+        positions(&rt),
+        frozen,
+        "Off: the dense layout starts settling without a manual reheat"
+    );
+    let _ = fs::remove_dir_all(&config);
+}
+
+#[test]
+fn an_os_flip_under_system_resumes_a_dense_layout() {
+    let tmp = big_vault(DENSE_NOTES);
+    let config = unique_dir("dense-os");
+    let mut rt = runtime(&tmp, &config, ReduceMotion::System, true);
+    dense_graph(&mut rt);
+    let frozen = positions(&rt);
+    frames(&mut rt, 30);
+    assert_eq!(
+        positions(&rt),
+        frozen,
+        "OS reduce on: the dense layout is frozen"
+    );
+
+    rt.set_system_reduced_motion(false);
+    frames(&mut rt, 30);
+    assert_ne!(
+        positions(&rt),
+        frozen,
+        "OS reduce off: the dense layout starts settling without a manual reheat"
     );
     let _ = fs::remove_dir_all(&config);
 }

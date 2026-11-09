@@ -8,10 +8,10 @@
 //! ```
 //!
 //! It stores the theme choice, collapsed sidebar folders, the last vault, the
-//! last note and mode/scope, the recent-vault MRU list, the autosave delay and
-//! the default body inserted into new notes, and the Reduce motion choice. Decoding is intentionally forgiving: a
-//! corrupt or partially-written file falls back to defaults instead of failing
-//! startup. Writes use the same temp-file-then-rename pattern as note saves, so
+//! last note and mode/scope, the recent-vault MRU list, the autosave delay,
+//! the default body inserted into new notes and the Reduce motion choice.
+//! Decoding is intentionally forgiving: a corrupt or partially-written file
+//! falls back to defaults instead of failing startup. Writes use the same temp-file-then-rename pattern as note saves, so
 //! a crash leaves either the old complete file or the new one.
 
 use std::env;
@@ -142,11 +142,6 @@ fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
     }
 }
 
-/// Preferences shared by every vault.
-///
-/// `theme` picks the palette source (see [`ThemeMode`]). `collapsed` and the
-/// mode/scope/last-note fields are written whenever the user changes them, so
-/// a restart restores the session without a separate "save workspace" step.
 /// The Reduce motion preference (Settings › Graph).
 ///
 /// Serialized as `"system"` / `"on"` / `"off"`. A missing or unknown value,
@@ -216,6 +211,11 @@ impl ReduceMotion {
     }
 }
 
+/// Preferences shared by every vault.
+///
+/// `theme` picks the palette source (see [`ThemeMode`]). `collapsed` and the
+/// mode/scope/last-note fields are written whenever the user changes them, so
+/// a restart restores the session without a separate "save workspace" step.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Settings {
     /// Which palette the window follows; restored by [`State`](crate::State).
@@ -238,6 +238,7 @@ pub struct Settings {
     /// the default — keeps the original heading-only note body. Clamped to
     /// 4096 characters.
     pub note_template: String,
+    /// Settings › Graph › Reduce motion. Defaults to [`ReduceMotion::System`].
     pub reduce_motion: ReduceMotion,
 }
 

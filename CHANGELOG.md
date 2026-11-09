@@ -16,6 +16,9 @@ All notable changes to Muninn are documented here. The format is based on
   selection and indicator transitions don't travel. The OS preference now also freezes
   the graph layout under System; before, it only affected Rune's transitions. One
   resolved value, `State::reduced_motion()`, feeds all of these.
+  When the resolved value turns off mid-session (Settings toggle, or the OS
+  preference clearing under System), the graph layout reheats once, so vaults over
+  200 notes resume settling instead of staying on their seed positions.
 
 ### Changed
 
@@ -26,7 +29,8 @@ All notable changes to Muninn are documented here. The format is based on
   sync work. The tab bar slides its indicator like the theme picker. The dialog is 540 pt wide and
   the theme picker sizes its segments to their labels, so "Omarchy" and "System" no
   longer truncate. `scripts/settings-tab-snapshots.sh` renders one screenshot per tab
-  against a throwaway vault and isolated home.
+  against a throwaway vault and isolated home (it builds with `--locked` before
+  isolating HOME and removes its temp dir on exit).
 
 ## [0.5.2] - 2026-11-09
 

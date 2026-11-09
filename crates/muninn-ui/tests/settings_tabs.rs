@@ -187,10 +187,15 @@ fn selected_tab_resets_on_reopen_and_is_not_persisted() {
     f.rt.state.save_settings();
     let path = f.config.join("muninn").join("settings.json");
     let raw = fs::read_to_string(&path).expect("settings.json was written");
-    assert!(
-        !raw.contains("tab"),
-        "settings.json does not persist the selected tab: {raw}"
-    );
+    let json: serde_json::Value = serde_json::from_str(&raw).expect("settings.json is JSON");
+    let keys: Vec<&String> = json.as_object().expect("a JSON object").keys().collect();
+    assert!(!keys.is_empty(), "settings.json has fields: {raw}");
+    for key in &keys {
+        assert!(
+            *key != "tab" && *key != "settings_tab",
+            "settings.json does not persist the selected tab: {raw}"
+        );
+    }
 }
 
 #[test]

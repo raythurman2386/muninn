@@ -20,9 +20,6 @@ const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
 
 pub fn view(s: &State, cx: &mut Cx<State>) -> El {
-    // DES-03: the app's env flag is an accessibility preference too, so let
-    // Rune's transitions (node dimming, panel fades) honour it alongside the
-    // host setting.
     // One resolved reduced-motion value (`State::reduced_motion`) drives
     // Rune's transitions here and the graph layout/camera in `poll`.
     s.set_system_reduced_motion(cx.system_reduced_motion());
