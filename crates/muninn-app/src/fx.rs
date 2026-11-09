@@ -62,13 +62,13 @@ impl Compositor<State> for GraphFx {
                         style: ElectricStyle::Border,
                         color: accent_rgb,
                         core: accent_rgb,
-                        amplitude: if reduced { 1.2 } else { 3.2 },
-                        glow: 5.5,
-                        forks: if reduced { 0.0 } else { 0.35 },
-                        flicker: if reduced { 0.0 } else { 0.2 },
-                        speed: if reduced { 0.0 } else { 2.2 },
+                        amplitude: if reduced { 0.7 } else { 1.8 },
+                        glow: 3.5,
+                        forks: if reduced { 0.0 } else { 0.18 },
+                        flicker: if reduced { 0.0 } else { 0.08 },
+                        speed: if reduced { 0.0 } else { 1.4 },
                         strands: 1,
-                        intensity: 1.05,
+                        intensity: 0.85,
                         ..ElectricParams::default()
                     })
                     .on(shape)
@@ -79,13 +79,13 @@ impl Compositor<State> for GraphFx {
                         style: ElectricStyle::Charged,
                         color: muted_rgb,
                         core: accent_rgb,
-                        amplitude: if reduced { 0.6 } else { 1.0 },
-                        glow: 3.2,
-                        forks: if reduced { 0.0 } else { 0.15 },
+                        amplitude: if reduced { 0.4 } else { 0.7 },
+                        glow: 2.4,
+                        forks: if reduced { 0.0 } else { 0.08 },
                         flicker: 0.0,
-                        speed: if reduced { 0.0 } else { 1.4 },
+                        speed: if reduced { 0.0 } else { 1.0 },
                         strands: 1,
-                        intensity: 0.75,
+                        intensity: 0.55,
                         ..ElectricParams::charged()
                     })
                     .on(shape)
@@ -100,24 +100,24 @@ impl Compositor<State> for GraphFx {
                         color,
                         core: accent_rgb,
                         amplitude: if reduced {
-                            0.8
+                            0.5
                         } else if hot {
-                            4.5
+                            2.4
                         } else {
-                            2.8
+                            1.5
                         },
-                        glow: if hot { 5.0 } else { 3.5 },
+                        glow: if hot { 3.2 } else { 2.2 },
                         forks: if reduced {
                             0.0
                         } else if hot {
-                            0.45
+                            0.22
                         } else {
-                            0.25
+                            0.12
                         },
-                        flicker: if reduced { 0.0 } else { 0.25 },
+                        flicker: if reduced { 0.0 } else { 0.1 },
                         strands: 1,
-                        intensity: if hot { 1.0 } else { 0.7 },
-                        speed: if reduced { 0.0 } else { 2.4 },
+                        intensity: if hot { 0.85 } else { 0.55 },
+                        speed: if reduced { 0.0 } else { 1.6 },
                         ..ElectricParams::default()
                     })
                     .on(shape)
