@@ -22,6 +22,15 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- Optional tray icon: Settings › Appearance › **Show tray icon**, off by
+  default and saved as `tray_icon` in `settings.json` (older files load as
+  off). On Linux (StatusNotifierItem) and Windows the icon offers Show Muninn,
+  New note, the current sync status as a disabled row, and Quit Muninn, which
+  saves the open note first. Clicking the icon shows and focuses the window.
+  If the icon cannot be added, the reason shows under the switch and it is not
+  retried until the switch changes. Closing the window still quits; there is
+  no close-to-tray, auto-start or global hotkey. Not available on macOS yet:
+  the switch is shown disabled. Headless runs (`--snap`) never add an icon.
 - Manual vault sync for GitHub and Google Drive from Settings. Sync Now,
   Cancel, status, last success, and Disconnect are explicit. There is no
   background sync. Drive stores an app-managed commit history in Muninn's
