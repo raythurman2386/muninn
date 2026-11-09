@@ -314,6 +314,35 @@ impl PaletteItem {
     }
 }
 
+/// One dismissible layer of the UI, in Escape-dismissal order.
+///
+/// [`State::topmost_layer`] reports the topmost open layer and
+/// [`State::dismiss_layer`] closes it; `keys.rs` routes a bare Escape through
+/// that pair so the dismissal stack is one exhaustively matched list instead
+/// of a chain of `is_some()` checks. The fields behind each variant stay the
+/// same (prompts are `Option`s, modals are bools); the enum only names the
+/// order so tests can pin it. Graph mode is not a layer: Escape there exits
+/// to the note mode through `Mode` after every layer is gone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layer {
+    Palette,
+    Settings,
+    Help,
+    Complete,
+    Find,
+    BrokenPanel,
+    RenameConfirm,
+    MoveConfirm,
+    FolderRenameConfirm,
+    Menu,
+    NewNote,
+    RenameNote,
+    NewFolder,
+    RenameFolder,
+    DeleteConfirm,
+    MovePicker,
+}
+
 /// v0.5: the command palette's own state. The input text lives on
 /// [`State::palette_field`] so the text field's `on_edit` callback can always
 /// hand Rune a valid field, even in the frame after Escape unmounts the card.
@@ -1340,6 +1369,88 @@ impl State {
     fn dismiss_palette(&mut self) {
         self.palette = None;
         self.palette_field.focused = false;
+    }
+
+    /// The topmost open [`Layer`], or `None` when nothing is dismissed by
+    /// Escape. This is the single ordering `keys.rs` follows; it mirrors the
+    /// stacking the view draws (modals above pages, pages above inline
+    /// prompts) so Escape always peels exactly one layer.
+    #[must_use]
+    pub fn topmost_layer(&self) -> Option<Layer> {
+        if self.palette.is_some() {
+            return Some(Layer::Palette);
+        }
+        if self.settings_modal {
+            return Some(Layer::Settings);
+        }
+        if self.help {
+            return Some(Layer::Help);
+        }
+        if self.complete.is_some() {
+            return Some(Layer::Complete);
+        }
+        if self.find.is_some() {
+            return Some(Layer::Find);
+        }
+        if self.broken_panel {
+            return Some(Layer::BrokenPanel);
+        }
+        if self.rename_confirm.is_some() {
+            return Some(Layer::RenameConfirm);
+        }
+        if self.move_confirm.is_some() {
+            return Some(Layer::MoveConfirm);
+        }
+        if self.folder_rename_confirm.is_some() {
+            return Some(Layer::FolderRenameConfirm);
+        }
+        if self.menu.is_some() {
+            return Some(Layer::Menu);
+        }
+        if self.new_note_prompt.is_some() {
+            return Some(Layer::NewNote);
+        }
+        if self.rename_prompt.is_some() {
+            return Some(Layer::RenameNote);
+        }
+        if self.new_folder_prompt.is_some() {
+            return Some(Layer::NewFolder);
+        }
+        if self.rename_folder_prompt.is_some() {
+            return Some(Layer::RenameFolder);
+        }
+        if self.delete_confirm.is_some() {
+            return Some(Layer::DeleteConfirm);
+        }
+        if self.move_picker.is_some() {
+            return Some(Layer::MovePicker);
+        }
+        None
+    }
+
+    /// Dismiss the given layer with the same semantics as pressing Escape on
+    /// it (focus returns to the field that opened it where that was the
+    /// behaviour). `Layer` is exhaustive, so a new dismissible layer forces a
+    /// match arm here and a `topmost_layer` branch.
+    pub fn dismiss_layer(&mut self, layer: Layer) {
+        match layer {
+            Layer::Palette => self.close_palette(),
+            Layer::Settings => self.close_settings(),
+            Layer::Help => self.close_help(),
+            Layer::Complete => self.dismiss_complete(),
+            Layer::Find => self.close_find(),
+            Layer::BrokenPanel => self.close_broken_links(),
+            Layer::RenameConfirm => self.cancel_rename_confirm(),
+            Layer::MoveConfirm => self.cancel_move_confirm(),
+            Layer::FolderRenameConfirm => self.cancel_folder_rename_confirm(),
+            Layer::Menu => self.close_menu(),
+            Layer::NewNote => self.cancel_new_note(),
+            Layer::RenameNote => self.cancel_rename_note(),
+            Layer::NewFolder => self.cancel_new_folder(),
+            Layer::RenameFolder => self.cancel_rename_folder(),
+            Layer::DeleteConfirm => self.cancel_delete(),
+            Layer::MovePicker => self.cancel_move(),
+        }
     }
 
     /// Is the palette open? (The field itself is `palette.is_some()`.)
