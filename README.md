@@ -318,6 +318,17 @@ target/debug/muninn --vault vault --snap graph.png --scene graph
 Scenes are `notes`, `preview`, `graph`, `local`, `light` and `empty`. `cargo run -p xtask --
 snapshots` writes all of them to `target/snapshots/`.
 
+### Marketing site
+
+`site/` holds the static landing page (intended for muninn.ravenwoodsoftware.dev; not
+deployed yet). `Dockerfile.marketing` serves it with nginx on port 80:
+
+```sh
+docker build -f Dockerfile.marketing -t muninn-site .
+```
+
+For GoForge, set Dockerfile Path to `Dockerfile.marketing` and Build Context to `.`.
+
 ## Releasing
 
 Releases are cut from tags:

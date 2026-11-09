@@ -1,0 +1,5 @@
+# Build context for Dockerfile.marketing: only site/ is needed.
+# Ignore everything, then re-include the static site.
+*
+!site/
+!Dockerfile.marketing

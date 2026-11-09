@@ -6,3 +6,8 @@
 *.ico binary
 *.icns binary
 *.rgba binary
+*.mp4 binary
+*.webp binary
+*.woff2 binary
+# Upstream font licences are kept byte-for-byte (CRLF).
+site/assets/fonts/*-LICENSE.txt -text
