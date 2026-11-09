@@ -68,7 +68,7 @@ pub struct TokenSet {
     pub refresh: Option<Secret>,
     /// Absolute Unix milliseconds when the access token expires, if the
     /// provider said. Never a duration: providers send `expires_in` seconds,
-    /// which [`expires_at`] turns into this.
+    /// which `secret::expires_at` turns into this.
     pub expires_unix_ms: Option<u64>,
     /// Provider account label (GitHub login). Not a secret.
     pub account: String,
