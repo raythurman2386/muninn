@@ -173,7 +173,6 @@ impl State {
         self.help = true;
         self.dismiss_palette();
         self.menu = None;
-        self.vault_prompt = false;
         self.vault_field.focused = false;
         // The overlay owns the keyboard while it is up; typing must not edit the
         // hidden note underneath it.
@@ -209,7 +208,6 @@ impl State {
         // live underneath it.
         self.help = false;
         self.menu = None;
-        self.vault_prompt = false;
         self.vault_field.focused = false;
         self.set_text_focus(false, false);
     }
@@ -221,7 +219,6 @@ impl State {
             return;
         }
         self.settings_modal = false;
-        self.vault_prompt = false;
         self.vault_field.focused = false;
         if self.settings_return_search {
             self.focus_search();
@@ -274,7 +271,6 @@ impl State {
         // sit above it.
         self.help = false;
         self.menu = None;
-        self.vault_prompt = false;
         self.vault_field.focused = false;
         self.complete = None;
         self.complete_dismissed = None;

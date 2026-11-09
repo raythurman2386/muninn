@@ -8,6 +8,9 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Changed
 
+- Removed the write-only `State::vault_prompt` flag (`begin_vault_prompt` /
+  `cancel_vault_prompt` now just mark focus on the Vaults path field).
+
 - Overlaid UI state machine is one module now: `overlay.rs` (command palette, Settings modal, Help, and the `Layer` Escape stack) and `mode.rs` (Mode/Scope enums and their transitions) moved out of `state.rs`; lib re-exports keep old import paths stable. `keys.rs`'s thirteen-field `typing` short-circuit is now one call, `State::is_typing()`. (Escape order pinned by `state_layers.rs`; a typing-ownership test added.)
 - Dismissal layers are now an explicit enum: `Layer`, `State::topmost_layer`
   and `State::dismiss_layer` name the Escape stack (command palette, Settings

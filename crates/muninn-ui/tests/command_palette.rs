@@ -234,17 +234,17 @@ fn palette_runs_actions_and_closes_itself() {
     frame(&mut rt);
     assert!(!rt.state.palette_open());
     assert!(rt.state.settings_modal);
-    assert!(rt.state.vault_prompt);
+    assert!(rt.state.vault_field.focused);
     assert!(rt.state.vault_field.focused);
 
     // Escape closes Settings; the palette still runs the Open settings action.
     rt.key(key(Key::Escape));
     frame(&mut rt);
     assert!(!rt.state.settings_modal);
-    assert!(!rt.state.vault_prompt);
+    assert!(!rt.state.vault_field.focused);
     rt.key(palette_chord());
     frame(&mut rt);
-    assert!(!rt.state.vault_prompt);
+    assert!(!rt.state.vault_field.focused);
     type_text(&mut rt, "settings");
     assert_eq!(
         rt.state.palette_items(),

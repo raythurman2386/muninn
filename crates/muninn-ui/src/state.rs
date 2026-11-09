@@ -470,8 +470,7 @@ pub struct State {
     pub palette_field: TextEdit,
     /// Editor/search focus at the moment the palette opened, restored on Esc.
     pub(crate) palette_focus: (bool, bool),
-    /// The Settings Vaults path field currently owns typing.
-    pub vault_prompt: bool,
+    /// The Settings Vaults path field.
     pub vault_field: TextEdit,
     /// X-01: append-only session log (`$XDG_STATE_HOME/muninn/session.log`).
     pub(crate) log_path: PathBuf,
@@ -674,7 +673,6 @@ impl State {
             palette: None,
             palette_field: TextEdit::new(""),
             palette_focus: (false, false),
-            vault_prompt: false,
             vault_field: TextEdit::new(""),
             log_path,
             trace: false,
@@ -903,13 +901,11 @@ impl State {
     /// Focus the vault-path field in the Settings modal's Vaults section.
     pub fn begin_vault_prompt(&mut self) {
         self.begin_inline_prompt();
-        self.vault_prompt = true;
         self.vault_field.replace_text("");
         self.vault_field.focused = true;
     }
 
     pub fn cancel_vault_prompt(&mut self) {
-        self.vault_prompt = false;
         self.vault_field.focused = false;
     }
 
