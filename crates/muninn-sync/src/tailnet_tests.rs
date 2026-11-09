@@ -527,3 +527,107 @@ fn tailnet_host_down_is_offline_and_leaves_the_vault_alone() {
     );
     assert_eq!(std::fs::read_dir(&vault).unwrap().count(), 1);
 }
+
+/// Two devices race through the engine: B lands a commit on the host after
+/// A has read the heads and before A's commit arrives. The host refuses A's
+/// commit (its parents are no longer the heads); A replans and keeps both.
+#[test]
+fn tailnet_two_device_race_through_the_engine_keeps_both_changes() {
+    let dirs = Dirs::new("race");
+    let store_dir = dirs.dir("store");
+    let server = host(&store_dir, &[]);
+    let host_base = base(&server);
+    let b_vault = dirs.dir("b-vault");
+    let b_state = dirs.dir("b-state");
+    std::fs::write(b_vault.join("racer.md"), "from racer").unwrap();
+    let fired = std::sync::Arc::new(std::sync::Mutex::new(false));
+    let fired_in_proxy = std::sync::Arc::clone(&fired);
+    let forward_to = host_base.clone();
+    let proxy = crate::testkit::ScriptedServer::spawn(move |request| {
+        if request.method == "PUT" && request.path.contains("/commits/") {
+            let mut fired = fired_in_proxy.lock().unwrap();
+            if !*fired {
+                *fired = true;
+                let credentials = MemoryCredentialStore::default();
+                let b = bind(&credentials);
+                let racer = engine(&credentials, Some(forward_to.clone()));
+                let report = run_sync(
+                    &racer,
+                    &request_for(&b_vault, &b_state, &b, "abcd000000000092"),
+                )
+                .unwrap();
+                assert!(matches!(report, SyncReport::Succeeded { .. }));
+            }
+        }
+        let transport = ReqwestTransport::for_tests(&["127.0.0.1"]).unwrap();
+        let response = transport
+            .execute(&HttpRequest {
+                method: request.method.clone(),
+                url: format!("{forward_to}{}", request.path),
+                headers: request
+                    .headers
+                    .iter()
+                    .filter(|(name, _)| {
+                        !matches!(
+                            name.to_ascii_lowercase().as_str(),
+                            "host" | "content-length"
+                        )
+                    })
+                    .cloned()
+                    .collect(),
+                body: request.body.clone(),
+                mutation: request.method != "GET",
+                timeout: Duration::from_secs(10),
+            })
+            .unwrap();
+        crate::testkit::ScriptedReply::Response {
+            status: response.status,
+            headers: response
+                .headers
+                .into_iter()
+                .filter(|(name, _)| {
+                    !matches!(
+                        name.to_ascii_lowercase().as_str(),
+                        "content-length" | "transfer-encoding" | "connection"
+                    )
+                })
+                .collect(),
+            body: response.body,
+        }
+    })
+    .unwrap();
+
+    let credentials = MemoryCredentialStore::default();
+    let a = bind(&credentials);
+    let (a_vault, a_state) = (dirs.dir("a-vault"), dirs.dir("a-state"));
+    std::fs::write(a_vault.join("a.md"), "from a").unwrap();
+    let peer = engine(&credentials, Some(format!("http://{}", proxy.addr)));
+    let report = run_sync(
+        &peer,
+        &request_for(&a_vault, &a_state, &a, "abcd000000000091"),
+    )
+    .unwrap();
+    assert!(matches!(report, SyncReport::Succeeded { .. }));
+    assert!(*fired.lock().unwrap(), "the race must have fired");
+    assert_eq!(
+        std::fs::read_to_string(a_vault.join("racer.md")).unwrap(),
+        "from racer"
+    );
+
+    // The host holds one head with both files.
+    let key = Secret::new(KEY);
+    let sleeper = RecordingSleeper::default();
+    let store = http_store(&host_base, &key, &sleeper);
+    let remote = tailnet::listing(&store).unwrap();
+    assert_eq!(remote.heads.len(), 1, "{:?}", remote.heads);
+    let head = remote.commits[&remote.heads[0]].snapshot().unwrap();
+    assert!(head.get(&RelativePath::parse("a.md").unwrap()).is_some());
+    assert!(
+        head.get(&RelativePath::parse("racer.md").unwrap())
+            .is_some()
+    );
+}
+
+fn request_for(root: &Path, state: &Path, binding: &BindingId, op: &str) -> RunRequest {
+    request(root, state, binding, peer_role(), op)
+}
