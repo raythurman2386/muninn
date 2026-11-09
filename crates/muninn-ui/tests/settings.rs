@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{Mode, Scope, Settings, State, ThemeMode, on_key, poll, view};
+use muninn_ui::{GraphEffects, Mode, Scope, Settings, State, ThemeMode, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -551,4 +551,105 @@ fn vault_prompt_text_stays_inside_the_dialog() {
         let _ = fs::remove_dir_all(&config);
         let _ = fs::remove_dir_all(&state_home);
     }
+}
+
+#[test]
+fn graph_effects_control_persists_and_reduced_motion_toggles() {
+    let vault = vault_fixture();
+    let config = unique_dir("fx-config");
+    let state_home = unique_dir("fx-state");
+    // Force the Theme segmented control so segment keys exist for the theme row;
+    // Graph effects is keyed under settings-graph-effects/*.
+    let settings = Settings {
+        theme: ThemeMode::Dark,
+        last_vault: Some(vault.path().to_path_buf()),
+        graph_effects: GraphEffects::Classic,
+        reduced_motion: false,
+        ..Settings::default()
+    };
+    let mut rt = Runtime::new(
+        State::with_settings(
+            vault.path().to_path_buf(),
+            state_home.clone(),
+            config.clone(),
+            settings,
+        ),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+    rt.key(command(','));
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.find("settings-graph-effects").is_some());
+    assert!(rt.find("settings-reduced-motion").is_some());
+
+    assert_eq!(rt.state.graph_effects, GraphEffects::Classic);
+
+    // Electric is the first segment under the Graph effects control.
+    let (x, y) = rt
+        .find("settings-graph-effects/segment1")
+        .expect("Electric segment");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.graph_effects, GraphEffects::Electric);
+
+    let (x, y) = rt
+        .find("settings-reduced-motion")
+        .expect("reduced motion toggle");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.reduced_motion_pref());
+    assert!(rt.state.reduced_motion);
+
+    let saved = Settings::load_from(&config);
+    assert_eq!(saved.graph_effects, GraphEffects::Electric);
+    assert!(saved.reduced_motion);
+
+    // Off / Minimal
+    let (x, y) = rt
+        .find("settings-graph-effects/segment2")
+        .expect("Off segment");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.graph_effects, GraphEffects::Off);
+    assert_eq!(
+        Settings::load_from(&config).graph_effects,
+        GraphEffects::Off
+    );
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn missing_graph_effects_key_defaults_to_classic_on_upgrade() {
+    let config = unique_dir("fx-missing-key");
+    let path = config.join("muninn").join("settings.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    // Pre-feature settings file: no graph_effects / reduced_motion keys.
+    fs::write(
+        &path,
+        r#"{
+  "theme": "dark",
+  "collapsed": [],
+  "mode": "editor",
+  "scope": "global",
+  "autosave_delay": 0.55,
+  "recent_vaults": [],
+  "note_template": ""
+}"#,
+    )
+    .unwrap();
+    let loaded = Settings::load_from(&config);
+    assert_eq!(loaded.graph_effects, GraphEffects::Classic);
+    assert!(!loaded.reduced_motion);
+    let _ = fs::remove_dir_all(&config);
 }

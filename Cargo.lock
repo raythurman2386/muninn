@@ -156,7 +156,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
  "wl-clipboard-rs",
  "x11rb",
 ]
@@ -787,7 +787,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -854,9 +854,9 @@ checksum = "1c66915cc5391097de7a2b0b972e8505aa33c0df401fd3a6811dbdb32881ba48"
 
 [[package]]
 name = "fixedbitset"
-version = "0.5.7"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+checksum = "5905ec755cc8386d7928353e4d356d2be3e89e81e5ca01fe630a1ca4d08dc175"
 
 [[package]]
 name = "flate2"
@@ -905,9 +905,17 @@ dependencies = [
  "hashbrown 0.17.1",
  "linebender_resource_handle",
  "memmap2",
+ "objc2 0.6.5",
+ "objc2-core-foundation",
+ "objc2-core-text",
+ "objc2-foundation 0.3.2",
  "parlance",
  "read-fonts",
+ "roxmltree 0.21.2",
  "smallvec",
+ "windows",
+ "windows-core",
+ "yeslogic-fontconfig-sys",
 ]
 
 [[package]]
@@ -1524,7 +1532,9 @@ dependencies = [
  "muninn-core",
  "muninn-ui",
  "rune",
+ "rune-fx",
  "rune-theme-opencode",
+ "wgpu",
 ]
 
 [[package]]
@@ -1851,6 +1861,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-core-text"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cde0dfb48d25d2b4862161a4d5fcc0e3c24367869ad306b0c9ec0073bfed92d"
+dependencies = [
+ "bitflags 2.13.2",
+ "objc2-core-foundation",
+]
+
+[[package]]
 name = "objc2-core-video"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2076,7 +2096,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2532,9 +2552,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
+name = "roxmltree"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9da7f59328b09405b181fee1018925fad50f157afb43c0c0f5c522c256dd5907"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "rune"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune.git?rev=b39c24f7fb588defba035113f3cc8431fae15935#b39c24f7fb588defba035113f3cc8431fae15935"
+source = "git+https://github.com/anomalyco/rune.git?rev=3ff3cc6152b9034a1d996e3a5575c51fab3b56b8#3ff3cc6152b9034a1d996e3a5575c51fab3b56b8"
 dependencies = [
  "accesskit",
  "accesskit_macos",
@@ -2546,6 +2575,7 @@ dependencies = [
  "block2 0.6.2",
  "bytemuck",
  "console_error_panic_hook",
+ "fontique",
  "futures-util",
  "half",
  "image",
@@ -2608,9 +2638,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rune-fx"
+version = "0.0.1"
+source = "git+https://github.com/anomalyco/rune.git?rev=3ff3cc6152b9034a1d996e3a5575c51fab3b56b8#3ff3cc6152b9034a1d996e3a5575c51fab3b56b8"
+dependencies = [
+ "bytemuck",
+ "rune-motion",
+ "rune-staging",
+ "wgpu",
+]
+
+[[package]]
 name = "rune-kit"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune.git?rev=b39c24f7fb588defba035113f3cc8431fae15935#b39c24f7fb588defba035113f3cc8431fae15935"
+source = "git+https://github.com/anomalyco/rune.git?rev=3ff3cc6152b9034a1d996e3a5575c51fab3b56b8#3ff3cc6152b9034a1d996e3a5575c51fab3b56b8"
 dependencies = [
  "pulldown-cmark",
  "rune",
@@ -2621,12 +2662,12 @@ dependencies = [
 [[package]]
 name = "rune-motion"
 version = "0.1.0"
-source = "git+https://github.com/anomalyco/rune.git?rev=b39c24f7fb588defba035113f3cc8431fae15935#b39c24f7fb588defba035113f3cc8431fae15935"
+source = "git+https://github.com/anomalyco/rune.git?rev=3ff3cc6152b9034a1d996e3a5575c51fab3b56b8#3ff3cc6152b9034a1d996e3a5575c51fab3b56b8"
 
 [[package]]
 name = "rune-staging"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune.git?rev=b39c24f7fb588defba035113f3cc8431fae15935#b39c24f7fb588defba035113f3cc8431fae15935"
+source = "git+https://github.com/anomalyco/rune.git?rev=3ff3cc6152b9034a1d996e3a5575c51fab3b56b8#3ff3cc6152b9034a1d996e3a5575c51fab3b56b8"
 dependencies = [
  "wgpu",
 ]
@@ -2634,7 +2675,7 @@ dependencies = [
 [[package]]
 name = "rune-taffy"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune.git?rev=b39c24f7fb588defba035113f3cc8431fae15935#b39c24f7fb588defba035113f3cc8431fae15935"
+source = "git+https://github.com/anomalyco/rune.git?rev=3ff3cc6152b9034a1d996e3a5575c51fab3b56b8#3ff3cc6152b9034a1d996e3a5575c51fab3b56b8"
 dependencies = [
  "taffy",
 ]
@@ -2642,7 +2683,7 @@ dependencies = [
 [[package]]
 name = "rune-theme-opencode"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune.git?rev=b39c24f7fb588defba035113f3cc8431fae15935#b39c24f7fb588defba035113f3cc8431fae15935"
+source = "git+https://github.com/anomalyco/rune.git?rev=3ff3cc6152b9034a1d996e3a5575c51fab3b56b8#3ff3cc6152b9034a1d996e3a5575c51fab3b56b8"
 dependencies = [
  "rune",
  "rune-kit",
@@ -2699,7 +2740,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3118,7 +3159,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.6",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3368,7 +3409,7 @@ dependencies = [
  "kurbo",
  "log",
  "pico-args",
- "roxmltree",
+ "roxmltree 0.20.0",
  "simplecss",
  "siphasher",
  "strict-num",
@@ -3394,9 +3435,9 @@ checksum = "3a3b425286980a367278453f3b6d28cdcb134b574e5a35824a6ff5eebad50bb6"
 
 [[package]]
 name = "uuid"
-version = "1.29.1"
+version = "1.29.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a06f08a856b009bc7bbaf7d3e79808595d032dd19074c0c2ef26e49e03e6bdc"
+checksum = "bed99139f7dac9b5cfe5f17be4d66dc7079a34dee1d74bcc77217119240e267c"
 dependencies = [
  "js-sys",
  "serde_core",
@@ -3784,7 +3825,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4165,6 +4206,17 @@ name = "yazi"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac366ea532fa8ee6a992cec9dea525b1dc284e69702f36c2ab5fbebadc81ec86"
+
+[[package]]
+name = "yeslogic-fontconfig-sys"
+version = "6.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d8b8abf912b9a29ff112e1671c97c33636903d13a69712037190e6805af4f76"
+dependencies = [
+ "dlib",
+ "once_cell",
+ "pkg-config",
+]
 
 [[package]]
 name = "yoke"

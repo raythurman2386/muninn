@@ -260,3 +260,28 @@ fn switching_scope_glides_to_the_new_fit() {
     );
     assert!(!rt.state.camera_gliding());
 }
+
+#[test]
+fn reduced_motion_settings_pref_snaps_like_env() {
+    let tmp = temp_vault();
+    let mut rt = graph_runtime(&tmp);
+    rt.state.set_reduced_motion_pref(true);
+    assert!(rt.state.reduced_motion);
+    let target = off_centre_node(&rt);
+    let pos = rt.state.graph.node(target).expect("node").pos;
+    assert!(screen_gap(&rt, pos) > 8.0);
+
+    click(&mut rt, &format!("graph-node-{target}"));
+    rt.frame(1.0 / 60.0);
+
+    assert_eq!(rt.state.selected, Some(target));
+    assert!(
+        !rt.state.camera_gliding(),
+        "settings reduced motion must not start a glide"
+    );
+    let snapped = screen_gap(&rt, pos);
+    assert!(
+        snapped < 0.75,
+        "settings reduced motion centres the note in the click frame: {snapped} pt off"
+    );
+}

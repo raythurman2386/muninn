@@ -1,5 +1,6 @@
 //! Application state: the open vault, note, editor, graph and camera.
 
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -15,7 +16,8 @@ use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 use crate::camera::{Camera, CameraGlide};
 use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
 use crate::settings::{
-    AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY, Settings, ThemeMode, clamp_note_template, config_home,
+    AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY, GraphEffects, Settings, ThemeMode, clamp_note_template,
+    config_home,
 };
 use crate::watch::{self, VaultSnapshot};
 
@@ -615,8 +617,14 @@ pub struct State {
     pub(crate) log_path: PathBuf,
     /// X-01: `--trace` logs every autosave tick as well as the normal events.
     pub trace: bool,
-    /// DES-03: `MUNINN_REDUCED_MOTION=1` freezes the force layout.
+    /// DES-03: settings toggle and/or `MUNINN_REDUCED_MOTION` freeze layout/FX.
     pub reduced_motion: bool,
+    /// Graph edge/selection preset from Settings.
+    pub graph_effects: GraphEffects,
+    /// Theme accent RGB (linear 0..1) for the FX compositor.
+    pub fx_accent: Cell<[f32; 3]>,
+    /// Theme muted RGB for cold electric edges.
+    pub fx_muted: Cell<[f32; 3]>,
 }
 
 impl State {
@@ -678,7 +686,8 @@ impl State {
         let collapsed: HashSet<String> = settings.collapsed.iter().cloned().collect();
         let restore_mode = settings.mode;
         let restore_scope = settings.scope;
-        let reduced_motion = reduced_motion_from_env();
+        let reduced_motion = settings.reduced_motion || reduced_motion_from_env();
+        let graph_effects = settings.graph_effects;
         let log_path = state_home.join("muninn").join("session.log");
         let note_template_field = TextEdit::new(&settings.note_template);
         let started = Instant::now();
@@ -817,6 +826,9 @@ impl State {
             log_path,
             trace: false,
             reduced_motion,
+            graph_effects,
+            fx_accent: Cell::new([0.35, 0.55, 0.95]),
+            fx_muted: Cell::new([0.45, 0.48, 0.55]),
         };
         // X-01: one startup line with the build, the vault path and counts.
         // Keys only: note bodies and titles never reach the log.
@@ -902,6 +914,8 @@ impl State {
             .or_else(|| self.restore_after_scan.clone());
         settings.mode = self.mode;
         settings.scope = self.scope;
+        settings.graph_effects = self.graph_effects;
+        settings.reduced_motion = self.settings.reduced_motion;
         match settings.save_to(config_home) {
             Ok(()) => true,
             Err(e) => {
@@ -2304,6 +2318,32 @@ impl State {
         } else {
             Scope::Global
         });
+    }
+
+    #[must_use]
+    pub fn reduced_motion_pref(&self) -> bool {
+        self.settings.reduced_motion
+    }
+
+    /// Persist the graph effects preset and refresh dependent chrome next frame.
+    pub fn set_graph_effects(&mut self, effects: GraphEffects) {
+        if self.graph_effects == effects && self.settings.graph_effects == effects {
+            return;
+        }
+        self.graph_effects = effects;
+        self.settings.graph_effects = effects;
+        self.save_settings();
+    }
+
+    /// Persist the reduced-motion preference. The env flag still forces motion
+    /// off for the process when set.
+    pub fn set_reduced_motion_pref(&mut self, on: bool) {
+        self.settings.reduced_motion = on;
+        self.reduced_motion = on || reduced_motion_from_env();
+        if self.reduced_motion {
+            self.camera_glide = None;
+        }
+        self.save_settings();
     }
 
     /// Set the palette source and persist the choice. The theme button calls

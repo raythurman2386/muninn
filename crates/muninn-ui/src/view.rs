@@ -11,6 +11,7 @@ use rune_theme_opencode::icons as ic;
 
 use muninn_core::{Vault, headings};
 
+use crate::settings::GraphEffects;
 use crate::{DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, State, ThemeMode};
 
 const SIDEBAR: f32 = 258.0;
@@ -23,6 +24,10 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
     let reduced = cx.system_reduced_motion() || s.reduced_motion;
     cx.reduced_motion(reduced);
     let k = crate::omarchy::resolve_kit(s, cx.system_dark());
+    s.fx_accent
+        .set([k.c.text_accent.r, k.c.text_accent.g, k.c.text_accent.b]);
+    s.fx_muted
+        .set([k.c.text_muted.r, k.c.text_muted.g, k.c.text_muted.b]);
     let mut base = row()
         .key("root")
         .w_full()
@@ -716,6 +721,65 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
                 .gap(8.0)
                 .child(text("Theme").font(k.ty.ui_medium).color(k.c.text_base))
                 .child(theme),
+        )
+        .child(
+            col()
+                .w_full()
+                .gap(8.0)
+                .child(
+                    text("Graph effects")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(
+                    text("Matched edge, selection, and neighbour look on the knowledge graph.")
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted)
+                        .wrap(),
+                )
+                .child({
+                    let labels: Vec<&str> =
+                        GraphEffects::ALL.iter().map(|mode| mode.label()).collect();
+                    SegmentedControl::new(&labels, Some(s.graph_effects.id()))
+                        .label("Graph effects")
+                        .on_pick(|s: &mut State, index, _: &mut Tx| {
+                            if let Some(mode) = GraphEffects::ALL.get(index) {
+                                s.set_graph_effects(*mode);
+                            }
+                        })
+                        .build(k)
+                        .key("settings-graph-effects")
+                }),
+        )
+        .child(
+            col()
+                .w_full()
+                .gap(8.0)
+                .child(
+                    text("Reduced motion")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base),
+                )
+                .child(
+                    text(
+                        "Freeze graph layout, camera glides, and animated graph effects. The MUNINN_REDUCED_MOTION environment variable still forces this on.",
+                    )
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .wrap(),
+                )
+                .child({
+                    let on = s.reduced_motion_pref();
+                    let label = if on { "On" } else { "Off" };
+                    Button::new(label)
+                        .variant(ButtonVariant::Ghost)
+                        .on_press(move |s: &mut State| {
+                            let next = !s.reduced_motion_pref();
+                            s.set_reduced_motion_pref(next);
+                        })
+                        .build(k)
+                        .key("settings-reduced-motion")
+                }),
         )
         .child(
             col()
@@ -1694,7 +1758,10 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("↑ / ↓ (list)", "Move through a list"),
                 ("Enter / Space", "Open the focused row"),
                 ("Right-click", "Note and folder actions"),
-                ("⌘, / Ctrl+,", "Settings (vaults, theme, autosave)"),
+                (
+                    "⌘, / Ctrl+,",
+                    "Settings (vaults, theme, graph effects, reduced motion)",
+                ),
             ],
         ),
     ]

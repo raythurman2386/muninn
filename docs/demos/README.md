@@ -13,6 +13,10 @@ target/debug/muninn --vault vault --scene graph \
   --script scripts/demos/graph-glide.json \
   --video docs/demos/graph-glide.mp4 --keys --pointer
 
+target/debug/muninn --vault vault --scene graph \
+  --script scripts/demos/graph-effects.json \
+  --video docs/demos/graph-effects.mp4 --keys --pointer
+
 target/debug/muninn --vault vault --scene notes \
   --script scripts/demos/palette.json \
   --video docs/demos/palette.mp4 --keys --pointer
@@ -41,6 +45,7 @@ MUNINN_OMARCHY_COLORS= target/debug/muninn --vault vault --scene notes \
 ## Clips
 
 - `graph-glide.mp4` — clicking graph nodes glides the camera between notes.
+- `graph-effects.mp4` — Settings Graph effects cycles Classic → Electric → Off (and reduced motion in companion stills).
 - `palette.mp4` — `⌘⇧P` opens the command palette, Enter jumps to the
   local graph.
 - `theme.mp4` — changing the theme live in Settings (Omarchy → Dark → Light).

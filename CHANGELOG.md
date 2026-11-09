@@ -6,6 +6,24 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Graph effects preset in Settings: **Classic** (current solid lines — product
+  default), **Electric** (Muninn-composed electric arcs on edges, electric
+  border on the selection, charged border on direct neighbours), and
+  **Off / Minimal** (plain lines, no electric FX). Persisted as `graph_effects`
+  in `settings.json`. Brand-new configs and upgrades that lack the key keep
+  **Classic** so the graph looks unchanged until the user opts in; unknown
+  values also fall back to **Classic**.
+- Reduced motion Settings toggle. Combined with `MUNINN_REDUCED_MOTION` and the
+  system preference (OR), it freezes graph layout, camera glides, and animated
+  graph FX into a static pose.
+
+### Changed
+
+- Rune pin bumped to `3ff3cc6152b9034a1d996e3a5575c51fab3b56b8` and `rune-fx`
+  is now a direct dependency of `muninn-app` for the graph compositor.
+
 ## [0.5.1] - 2026-11-08
 
 ### Added

@@ -16,6 +16,8 @@ path = "src/main.rs"
 muninn-core.workspace = true
 muninn-ui.workspace = true
 rune.workspace = true
+rune-fx.workspace = true
+wgpu.workspace = true
 rune-theme-opencode.workspace = true
 
 [dev-dependencies]

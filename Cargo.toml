@@ -24,11 +24,13 @@ muninn-ui = { path = "crates/muninn-ui", version = "0.5.1" }
 
 # Rune is a young framework and is not published to crates.io. Pin the exact revision the app
 # was built and tested against. For local Rune development, run `./scripts/use-local-rune.sh`.
-rune = { git = "https://github.com/anomalyco/rune.git", rev = "b39c24f7fb588defba035113f3cc8431fae15935" }
-rune-kit = { git = "https://github.com/anomalyco/rune.git", rev = "b39c24f7fb588defba035113f3cc8431fae15935", features = ["markdown"] }
-rune-theme-opencode = { git = "https://github.com/anomalyco/rune.git", rev = "b39c24f7fb588defba035113f3cc8431fae15935" }
+rune = { git = "https://github.com/anomalyco/rune.git", rev = "3ff3cc6152b9034a1d996e3a5575c51fab3b56b8" }
+rune-kit = { git = "https://github.com/anomalyco/rune.git", rev = "3ff3cc6152b9034a1d996e3a5575c51fab3b56b8", features = ["markdown"] }
+rune-theme-opencode = { git = "https://github.com/anomalyco/rune.git", rev = "3ff3cc6152b9034a1d996e3a5575c51fab3b56b8" }
+rune-fx = { git = "https://github.com/anomalyco/rune.git", rev = "3ff3cc6152b9034a1d996e3a5575c51fab3b56b8" }
 
 serde_json = "1"
+wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

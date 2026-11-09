@@ -61,10 +61,11 @@ prefixed `missing:`. `muninn --help` prints this usage without starting Rune.
 
 Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 `~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
-missing file starts from defaults instead of blocking startup. It remembers the theme,
+missing file starts from defaults instead of blocking startup. It remembers the theme, graph effects preset, reduced-motion preference,
 collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
 autosave delay (0.55 s by default), the default note template and up to five recent vaults. `Cmd/Ctrl+,`
-opens the in-window Settings modal: pick Omarchy / System / Dark / Light, step the
+opens the in-window Settings modal: pick Omarchy / System / Dark / Light, choose a
+**Graph effects** preset (Electric / Classic / Off), toggle **Reduced motion**, step the
 autosave delay (0.05–10 s), open or create a vault from the Vaults section, or reopen a
 recent one. A non-empty default note template is inserted verbatim at the top of
 every new note (a trailing newline is added when missing); an empty template
@@ -80,7 +81,7 @@ theme, not a switcher stop). Off Omarchy it falls back to the system appearance;
 session's toggle cycles System → Dark → Light, and `muninn --theme omarchy|system|dark|light`
 overrides that for one session. `MUNINN_OMARCHY_COLORS` can point at a palette file.
 
-Window size and position are deliberately **not** persisted. Rune (rev `b39c24f`) can *set*
+Window size and position are deliberately **not** persisted. Rune (rev `3ff3cc61`) can *set*
 an initial and runtime size or position — `AppSpec::size`
 (`crates/rune/src/tooling.rs:19`, applied as the inner size at
 `crates/rune/src/windows.rs:148`), `Tx::resize_window`
@@ -110,11 +111,21 @@ counts, results) and **never note bodies**, so the file is safe to attach to a b
 `--trace` adds every autosave tick. The Help overlay shows the last five lines plus the
 version, Rune revision and vault counts, with a **Copy diagnostics** button.
 
-`MUNINN_REDUCED_MOTION=1` (also `true`, `yes` or `on`) freezes the force layout: nodes
-keep their deterministic seed positions, no auto-settle wakes the window, and pan, zoom
-and fit still work. Graph camera glides and node-highlight tweens become instant, so a
-selection or scope switch cannot wake the window either. Prefer this over replacing the
-theme when motion is a problem.
+Reduced motion freezes the force layout, camera glides, node-highlight tweens, and
+animated graph effects (Electric falls back to a calm static pose). Turn it on in
+Settings, set `MUNINN_REDUCED_MOTION=1` (also `true`, `yes` or `on`), or use the system
+reduced-motion preference — any one is enough. Pan, zoom and fit still work. Prefer this
+over replacing the theme when motion is a problem.
+
+**Graph effects** (Settings → Graph effects, persisted as `graph_effects`):
+
+- **Classic** (default for new installs and upgrades that lack the key) — the current
+  solid muted/accent lines and accent card selection. Missing/unknown keys keep this look.
+- **Electric** — a Muninn-composed treatment using Rune electric: theme-colored arcs on
+  edges, an electric border around the selected node, and a calmer charged border on
+  direct neighbours. Below the graph LOD zoom or past an edge budget, edges fall back to
+  Classic lines. This is not a Rune packaged paired preset.
+- **Off / Minimal** — plain lines with no electric FX.
 
 ## What it does
 
@@ -206,7 +217,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |
-| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, autosave delay, note template, recent vaults) |
+| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, graph effects, reduced motion, autosave, note template) |
 | `?` (when not typing) | Open Help; `Esc` closes it |
 
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
