@@ -1,18 +1,30 @@
 # Sync setup
 
-No Google project and no GitHub App were registered for this work. Nothing in
-the tests logs into a real account. The steps below are what a person has to do
-before Connect can succeed. Muninn does not do them.
+Muninn ships the public client id of the official **Muninn Sync** GitHub App
+(<https://github.com/apps/muninn-sync>). The official Google OAuth client id is
+not set yet; until it is, a build has no bundled Google id and Drive Connect
+fails closed unless you enter your own. Nothing in the tests logs into a real
+account.
+
+Client ids live in `crates/muninn-sync/src/clients.rs` (the insertion point).
+They are public configuration, never secrets: Muninn ships no client secret and
+no private key for either provider. A build can set them at compile time with
+`MUNINN_GITHUB_CLIENT_ID` and `MUNINN_GOOGLE_CLIENT_ID`. The optional client id
+fields in Settings → Sync override the bundled id, for a fork's own app.
 
 ## Google Drive
 
 1. Create a Google Cloud project.
 2. Enable the Google Drive API. No Picker API is needed.
-3. Configure the OAuth consent screen. External testing needs test users until
-   the app is published.
-4. Create a Desktop OAuth client. Desktop clients do not have a client secret
-   Muninn can safely embed. The client id is public configuration; paste it
-   into Settings → Sync → Drive → Google client id.
+3. Configure the OAuth consent screen and **publish it to production**. An
+   External app left in "Testing" needs listed test users and expires refresh
+   tokens after 7 days, so every device would have to sign in again weekly.
+   `drive.appdata` is a non-sensitive scope, so publishing does not need a
+   security assessment.
+4. Create a Desktop OAuth client. Use its client id only: never ship or paste
+   its client secret. Muninn uses PKCE and sends no secret. Build the official
+   id in with `MUNINN_GOOGLE_CLIENT_ID`, or paste your own into Settings → Sync
+   → Drive → Google client id (optional).
 5. Muninn requests only `https://www.googleapis.com/auth/drive.appdata`, with
    PKCE S256, a random `state`, and a loopback redirect on
    `http://127.0.0.1:<random port>/callback`. It does not request full Drive,
@@ -41,12 +53,21 @@ way; do not expect to edit notes in Drive.
 
 ## GitHub
 
-1. Create a GitHub App. Enable device flow. Do not embed a client secret or a
-   private key in Muninn. Paste the app's client id into Settings → Sync →
-   GitHub client id.
+Muninn signs in through a **GitHub App with device flow**, not a personal
+access token. The official app is Muninn Sync
+(<https://github.com/apps/muninn-sync>; it is named that because "Muninn" was
+taken): device flow on, repository permission Contents read and write only,
+expiring user tokens on, no webhook, installable on any account. Its public
+client id is bundled; there is no client secret or private key in Muninn, and
+device-flow tokens refresh without one.
+
+1. Install Muninn Sync on the one repository that will hold the notes
+   (<https://github.com/apps/muninn-sync>, Install). A fork that wants its own
+   app creates a GitHub App the same way and enters its client id under
+   Settings → Sync → GitHub client id (optional).
 2. Repository permission: Contents read and write. Metadata read comes with
    that. Do not grant Actions, Administration, or Workflows.
-3. The user installs the app on one repository. The app's permissions are
+3. The app is installed on one repository. The app's permissions are
    intersected with the user's. A private repository is appropriate because a
    public repository makes the notes public.
 4. Choose the account, repository, branch, and path prefix in Settings. The
@@ -57,9 +78,10 @@ way; do not expect to edit notes in Drive.
    stores the token, refresh token and absolute expiry in the OS credential
    store. Expiring user tokens are refreshed before they expire and once after
    a 401; GitHub rotates the refresh token and Muninn stores the new one.
-6. A fine-grained personal access token limited to one repository's Contents
-   read and write can be stored in the OS credential store as a manual
-   alternative. It must not be pasted into a note or into `settings.json`.
+
+Connect replaces a vault's existing binding only after sign-in succeeds. A
+declined, failed or cancelled sign-in leaves the current connection and its
+token in place; a successful one deletes the old binding's credential.
 
 ## Tailscale
 

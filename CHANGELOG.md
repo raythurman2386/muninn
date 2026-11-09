@@ -27,6 +27,11 @@ All notable changes to Muninn are documented here. The format is based on
 - Tailscale host: the shared key is masked in Settings, with Copy key (secret
   clipboard, cleared after 60 seconds), Show key and Rotate key. The join
   field is masked.
+- Bundled public client ids: GitHub uses the official Muninn Sync GitHub App
+  (device flow, Contents read/write) by default. The Google id is a marked
+  insertion point (`MUNINN_GOOGLE_CLIENT_ID`); without it Drive Connect fails
+  closed. The Settings client id fields are optional overrides. No client
+  secret or private key ships.
 
 ### Changed
 
@@ -45,6 +50,17 @@ All notable changes to Muninn are documented here. The format is based on
   them. Publish now names exactly the state the plan read and the run replans.
 - Drive heads that edit the same path no longer yield an empty snapshot.
 - Token expiry was stored as a duration; it is now an absolute time.
+- Drive heads that edited the same path wedged the store with a conflict no
+  screen could resolve. They now merge "keep both" with a
+  `(conflict <id>)` copy and one merge commit, which also unsticks stores left
+  that way. The "no new commits" check moved from before the blob uploads to
+  just before the manifest.
+- A request to the sign-in loopback with the wrong `state` ended the Google
+  sign-in; it now gets 400 and the listener keeps waiting.
+- Connect replaced and saved the vault's binding before sign-in, so a failed
+  or cancelled sign-in lost a working connection. The swap now happens after
+  the new credential is stored, and the old credential is deleted (Tailscale
+  too).
 
 ## [0.5.2] - 2026-11-09
 

@@ -19,7 +19,9 @@
   422 is replanned from a fresh read, never re-parented. Drive commits are
   immutable and name the heads the plan merged; a commit that appears after
   the read makes the run replan, and one that lands later becomes a second
-  head instead of an overwrite. The Tailscale host is one serialized writer: it accepts a commit
+  head instead of an overwrite; two Drive heads that changed the same path are
+  merged with a conflict copy beside it, never a silent pick, a lost edit, or
+  a stuck store. The Tailscale host is one serialized writer: it accepts a commit
   only when its parents are exactly the current heads, so a peer that read an
   older head is refused and replans. Blobs and commits are create-only; the
   host has no overwrite or delete endpoint.
@@ -32,6 +34,11 @@
 - Cancel stops between requests. It does not roll back a commit the provider
   already accepted.
 - Disconnect changes the binding and credentials only.
+- Connect does not touch settings until the new credential is stored; only
+  then is the old binding replaced and its credential deleted.
+- The Google sign-in listener on `127.0.0.1` answers a request without this
+  attempt's `state` with 400 and keeps waiting, so another local process
+  cannot end the sign-in.
 
 ## Unverified at runtime
 
@@ -39,7 +46,10 @@ These builds and fixture tests do not prove:
 
 - a real OS keychain prompt, unlock, or access-control dialog
 - a real Google Cloud project, OAuth consent screen, or Drive grant
-- a real GitHub App installation or device-flow login
+- a real GitHub App installation or device-flow login (the Muninn Sync app
+  exists, but no login with it was run here)
+- a published Google OAuth client (no official Google client id is bundled
+  yet)
 - a real tailnet: `tailscale serve`, MagicDNS, ts.net certificates, and the
   `Tailscale-User-Login` header are modeled by loopback fixtures only
 - that the system browser opens (`xdg-open`, `open`, `rundll32`); tests use a
