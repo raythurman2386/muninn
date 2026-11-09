@@ -20,6 +20,9 @@ use rune::TextEdit;
 use crate::State;
 use crate::settings::VaultSyncBinding;
 
+/// How long a copied Tailscale key stays on the clipboard.
+pub const TAILNET_KEY_CLIPBOARD: Duration = Duration::from_secs(60);
+
 /// Default Drive store name. Two vaults on one Google account need two names.
 pub const DEFAULT_DRIVE_STORE: &str = "Muninn";
 
@@ -36,8 +39,12 @@ pub struct SyncUi {
     /// Tailscale: 0 = this device hosts, 1 = join a host.
     pub tailnet_role_index: usize,
     pub tailnet_host: TextEdit,
-    /// Peer only. Cleared as soon as the key is in the OS credential store.
+    /// Peer only. Masked; cleared as soon as the key is in the OS credential
+    /// store.
     pub tailnet_key: TextEdit,
+    /// Host only: the shared key while "Show key" is on. Read from the
+    /// credential store on demand and dropped on Hide, blur or Disconnect.
+    pub(crate) revealed_key: Option<Secret>,
     pub tailnet_port: TextEdit,
     pub tailnet_allowed: TextEdit,
     /// Sheet-sync machinery state. While a run is in flight `phase` is
@@ -175,7 +182,8 @@ impl SyncUi {
             google_client_id: TextEdit::new(""),
             tailnet_role_index: 0,
             tailnet_host: TextEdit::new(""),
-            tailnet_key: TextEdit::new(""),
+            tailnet_key: TextEdit::new("").secure(),
+            revealed_key: None,
             tailnet_port: TextEdit::new(TAILNET_DEFAULT_PORT.to_string()),
             tailnet_allowed: TextEdit::new(""),
             phase: SyncPhase::Idle,
@@ -204,6 +212,7 @@ impl SyncUi {
         ] {
             field.focused = false;
         }
+        self.revealed_key = None;
     }
 }
 
@@ -230,7 +239,7 @@ impl State {
             "This device hosts. Muninn serves the commit store on 127.0.0.1 while it is open; tailscale serve publishes it to your tailnet."
                 .to_owned()
         } else {
-            "Join a host. Enter the host's full MagicDNS name and the shared key shown on the host."
+            "Join a host. Enter the host's full MagicDNS name and paste the key from Copy key on the host."
                 .to_owned()
         };
     }
@@ -582,9 +591,8 @@ impl State {
             self.resume_tailnet_host();
             if self.sync_ui.host.is_some() {
                 self.sync_ui.status = format!(
-                    "Hosting. Run once on this device: {}. Shared key for your other devices (shown once): {}",
-                    muninn_sync::serve_command(port),
-                    key.expose()
+                    "Hosting. Run once on this device: {}. Use Copy key to give the shared key to your other devices.",
+                    muninn_sync::serve_command(port)
                 );
             }
         } else {
@@ -594,9 +602,105 @@ impl State {
         }
     }
 
+    /// True when this vault's binding hosts a Tailscale commit store.
+    #[must_use]
+    pub fn hosting_tailnet(&self) -> bool {
+        self.current_binding().is_some_and(|binding| {
+            binding.provider == "tailscale" && binding.tailnet_role == "host"
+        })
+    }
+
+    fn host_key_credential(&self) -> Result<muninn_sync::CredentialKey, String> {
+        let binding = self
+            .current_binding()
+            .filter(|binding| binding.provider == "tailscale" && binding.tailnet_role == "host")
+            .ok_or_else(|| "This vault does not host a Tailscale store.".to_owned())?;
+        let id = BindingId::parse(&binding.binding_id).map_err(|error| error.to_string())?;
+        Ok(muninn_sync::CredentialKey {
+            provider: ProviderKind::Tailscale,
+            binding: id,
+        })
+    }
+
+    fn read_host_key(&self) -> Result<Secret, String> {
+        let key = self.host_key_credential()?;
+        self.sync_ui
+            .credentials
+            .get(&key)
+            .map_err(|error| error.to_string())?
+            .map(|token| token.access)
+            .ok_or_else(|| "The shared key is missing from the credential store.".to_owned())
+    }
+
+    /// The host's shared key for a secret clipboard copy, or `None` with the
+    /// reason in the status line.
+    pub fn tailnet_key_for_copy(&mut self) -> Option<Secret> {
+        match self.read_host_key() {
+            Ok(key) => {
+                self.sync_ui.status = format!(
+                    "Shared key copied. The clipboard clears in {} seconds; paste it on the joining device.",
+                    TAILNET_KEY_CLIPBOARD.as_secs()
+                );
+                Some(key)
+            }
+            Err(error) => {
+                self.sync_ui.status = error;
+                None
+            }
+        }
+    }
+
+    /// Show or hide the host's shared key in Settings.
+    pub fn toggle_tailnet_key(&mut self) {
+        if self.sync_ui.revealed_key.take().is_some() {
+            return;
+        }
+        match self.read_host_key() {
+            Ok(key) => self.sync_ui.revealed_key = Some(key),
+            Err(error) => self.sync_ui.status = error,
+        }
+    }
+
+    /// Replace the host's shared key and restart its server with the new
+    /// one. Joined devices keep working only after they join again with it.
+    pub fn rotate_tailnet_key(&mut self) {
+        if !self.sync_ui.phase.is_idle() {
+            self.sync_ui.status =
+                "Wait for the running sync to finish before rotating the key.".to_owned();
+            return;
+        }
+        let credential = match self.host_key_credential() {
+            Ok(credential) => credential,
+            Err(error) => {
+                self.sync_ui.status = error;
+                return;
+            }
+        };
+        let token = TokenSet {
+            access: muninn_sync::new_shared_key(),
+            refresh: None,
+            expires_unix_ms: None,
+            account: String::new(),
+        };
+        if let Err(error) = self.sync_ui.credentials.put(&credential, &token) {
+            self.sync_ui.status = format!("{error} The old key still works.");
+            return;
+        }
+        self.sync_ui.revealed_key = None;
+        // Dropping the server stops it; resume starts it with the new key.
+        self.sync_ui.host = None;
+        self.resume_tailnet_host();
+        if self.sync_ui.host.is_some() {
+            self.sync_ui.status =
+                "Key rotated; the old key no longer works. On each joined device, Disconnect and join again with the new key (Copy key)."
+                    .to_owned();
+        }
+    }
+
     pub fn disconnect_sync(&mut self) {
         self.sync_ui.cancel.cancel();
         self.sync_ui.host = None;
+        self.sync_ui.revealed_key = None;
         let Some(binding) = self.current_binding().cloned() else {
             self.sync_ui.status = "Nothing is connected. Local notes were not changed.".to_owned();
             return;
@@ -914,6 +1018,25 @@ mod tests {
         }
     }
 
+    /// Status of an authenticated state read against the local host server.
+    fn host_status(port: u16, key: &str) -> u16 {
+        use std::io::{Read, Write};
+        let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+        write!(
+            stream,
+            "GET {}state HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer {key}\r\nConnection: close\r\n\r\n",
+            muninn_sync::TAILNET_API_PREFIX
+        )
+        .unwrap();
+        let mut reply = String::new();
+        let _ = stream.read_to_string(&mut reply);
+        reply
+            .split_whitespace()
+            .nth(1)
+            .and_then(|code| code.parse().ok())
+            .unwrap_or(0)
+    }
+
     fn percent_decode(text: &str) -> String {
         let bytes = text.as_bytes();
         let mut out = Vec::new();
@@ -1159,18 +1282,48 @@ mod tests {
         let saved = fs::read_to_string(config_home.join("muninn/settings.json")).unwrap();
         let json: serde_json::Value = serde_json::from_str(&saved).unwrap();
         assert_eq!(json["sync"]["vaults"][0]["tailnet_role"], "host");
-        let shown = state.sync_status().rsplit(' ').next().unwrap().to_owned();
-        assert!(shown.len() >= 32);
+        let key = state.read_host_key().unwrap().expose().to_owned();
+        assert!(key.len() >= 32);
         assert!(
-            !saved.contains(&shown),
+            !saved.contains(&key),
             "the shared key must not reach settings"
         );
+        assert!(
+            !state.sync_status().contains(&key),
+            "the shared key must not be in the status line"
+        );
+        assert!(state.hosting_tailnet());
+
+        // Show reads the key on demand; Hide drops it.
+        assert!(state.sync_ui.revealed_key.is_none());
+        state.toggle_tailnet_key();
+        assert_eq!(state.sync_ui.revealed_key.as_ref().unwrap().expose(), key);
+        state.toggle_tailnet_key();
+        assert!(state.sync_ui.revealed_key.is_none());
+        assert_eq!(state.tailnet_key_for_copy().unwrap().expose(), key);
+        assert!(!state.sync_status().contains(&key));
+        assert_eq!(host_status(port, &key), 200);
+
+        // Rotate: a new key, the server restarted with it, the old one dead.
+        state.toggle_tailnet_key();
+        state.rotate_tailnet_key();
+        assert!(state.sync_ui.revealed_key.is_none());
+        let rotated = state.read_host_key().unwrap().expose().to_owned();
+        assert_ne!(rotated, key);
+        assert!(!state.sync_status().contains(&rotated));
+        assert_eq!(host_status(port, &key), 401);
+        assert_eq!(host_status(port, &rotated), 200);
         state.disconnect_sync();
+        assert!(state.sync_ui.revealed_key.is_none());
         assert!(state.settings.sync.vaults.is_empty());
         assert_eq!(fs::read_to_string(root.join("Note.md")).unwrap(), "keep me");
 
         state.set_sync_provider(2);
         state.set_tailnet_role(1);
+        assert!(
+            state.sync_ui.tailnet_key.is_secure(),
+            "the join field is masked"
+        );
         state.sync_ui.tailnet_host.replace_text("minis");
         state.sync_ui.tailnet_key.replace_text("k".repeat(40));
         state.connect_sync();
@@ -1185,6 +1338,7 @@ mod tests {
         state.connect_sync();
         assert_eq!(state.settings.sync.vaults.len(), 1);
         assert!(state.sync_ui.tailnet_key.text.is_empty());
+        assert!(state.sync_ui.tailnet_key.is_secure());
         let saved = fs::read_to_string(config_home.join("muninn/settings.json")).unwrap();
         assert!(saved.contains("minis.tail1234.ts.net"));
         assert!(!saved.contains(&"k".repeat(40)));

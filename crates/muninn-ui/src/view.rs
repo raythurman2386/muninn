@@ -753,7 +753,7 @@ fn tailnet_fields(s: &State, k: &Kit) -> El {
     .build(k);
     let fields = col().w_full().gap(4.0).child(role);
     if s.sync_ui.tailnet_role_index == 0 {
-        fields
+        let fields = fields
             .child(sync_field(
                 k,
                 "Loopback port",
@@ -765,7 +765,12 @@ fn tailnet_fields(s: &State, k: &Kit) -> El {
                 "Allowed Tailscale logins (optional, comma-separated)",
                 &s.sync_ui.tailnet_allowed,
                 |state| &mut state.sync_ui.tailnet_allowed,
-            ))
+            ));
+        if s.hosting_tailnet() {
+            fields.child(tailnet_key_row(s, k))
+        } else {
+            fields
+        }
     } else {
         fields
             .child(sync_field(
@@ -781,6 +786,64 @@ fn tailnet_fields(s: &State, k: &Kit) -> El {
                 |state| &mut state.sync_ui.tailnet_key,
             ))
     }
+}
+
+/// Host: the shared key stays masked unless Show key is on. Copy puts it on
+/// the clipboard as a secret (kept out of clipboard history, cleared after a
+/// minute); Rotate replaces it.
+fn tailnet_key_row(s: &State, k: &Kit) -> El {
+    let shown = s.sync_ui.revealed_key.as_ref();
+    let value = match shown {
+        Some(key) => text(key.expose().to_owned()).key("settings-sync-key-value"),
+        None => text("••••••••••••").key("settings-sync-key-value"),
+    };
+    col()
+        .w_full()
+        .gap(2.0)
+        .child(
+            text("Shared key")
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        )
+        .child(value.font(k.ty.ui_compact).color(k.c.text_base))
+        .child(
+            row()
+                .w_full()
+                .gap(6.0)
+                .flex_wrap()
+                .child(
+                    Button::new("Copy key")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press_tx(|state: &mut State, tx: &mut Tx| {
+                            if let Some(key) = state.tailnet_key_for_copy() {
+                                tx.copy_secret(
+                                    key.expose().to_owned(),
+                                    crate::sync_ui::TAILNET_KEY_CLIPBOARD,
+                                );
+                            }
+                        })
+                        .build(k)
+                        .key("settings-sync-key-copy"),
+                )
+                .child(
+                    Button::new(if shown.is_some() {
+                        "Hide key"
+                    } else {
+                        "Show key"
+                    })
+                    .variant(ButtonVariant::Ghost)
+                    .on_press(|state: &mut State| state.toggle_tailnet_key())
+                    .build(k)
+                    .key("settings-sync-key-show"),
+                )
+                .child(
+                    Button::new("Rotate key")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press(|state: &mut State| state.rotate_tailnet_key())
+                        .build(k)
+                        .key("settings-sync-key-rotate"),
+                ),
+        )
 }
 
 fn sync_field(

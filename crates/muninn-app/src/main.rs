@@ -396,8 +396,12 @@ fn scenes() -> &'static [Scene] {
             s.set_sync_provider(2);
             s.set_tailnet_role(1);
             s.sync_ui.tailnet_host.replace_text("minis.tail1234.ts.net");
+            // A synthetic value; the field is masked, so the scene shows bullets.
+            s.sync_ui
+                .tailnet_key
+                .replace_text("synthetic-key-for-the-snapshot-0123456789");
             s.sync_ui.status =
-                "Join a host. Enter the host's full MagicDNS name and the shared key shown on the host."
+                "Join a host. Enter the host's full MagicDNS name and paste the key from Copy key on the host."
                     .to_owned();
         }),
         ("settings-sync-conflict", |s| {
