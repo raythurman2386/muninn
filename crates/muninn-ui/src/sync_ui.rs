@@ -1,9 +1,9 @@
 //! Settings-owned sync session.
 //!
-//! Sync Now is manual. Network work runs on a worker thread. `applying` stays
-//! set for that whole run so autosave and the metadata watcher do not write or
-//! reload across the batch. Disconnect removes the binding and its credential
-//! only.
+//! Sync Now is manual. Network work runs on a worker thread. While a run is
+//! in flight (`phase == Running`), autosave and the metadata watcher do not
+//! write or reload across the batch. Disconnect removes the binding and its
+//! credential only.
 
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver};
@@ -29,13 +29,36 @@ pub struct SyncUi {
     pub drive_folder_name: TextEdit,
     pub github_client_id: TextEdit,
     pub google_client_id: TextEdit,
-    pub applying: bool,
-    pub running: bool,
+    /// Sheet-sync machinery state. While a run is in flight `phase` is
+    /// `Running`, and nothing else (autosave, watcher, a second Sync Now) is
+    /// allowed to move. `Idle` means the last result has been consumed.
+    pub phase: SyncPhase,
     /// Headless scenes show only the sync section so the controls fit.
     pub preview: bool,
     credentials: Arc<dyn CredentialStore>,
     cancel: CancelToken,
     inbox: Option<Receiver<SyncMessage>>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SyncPhase {
+    /// No run in flight.
+    #[default]
+    Idle,
+    /// A worker thread owns the run until `poll_sync` consumes its result.
+    Running,
+}
+
+impl SyncPhase {
+    #[must_use]
+    pub fn is_running(self) -> bool {
+        matches!(self, SyncPhase::Running)
+    }
+
+    #[must_use]
+    pub fn is_idle(self) -> bool {
+        matches!(self, SyncPhase::Idle)
+    }
 }
 
 enum SyncMessage {
@@ -64,8 +87,7 @@ impl SyncUi {
             drive_folder_name: TextEdit::new(""),
             github_client_id: TextEdit::new(""),
             google_client_id: TextEdit::new(""),
-            applying: false,
-            running: false,
+            phase: SyncPhase::Idle,
             preview: false,
             credentials,
             cancel: CancelToken::new(),
@@ -207,8 +229,7 @@ impl State {
             .vaults
             .retain(|known| known.identity != identity);
         self.save_settings();
-        self.sync_ui.running = false;
-        self.sync_ui.applying = false;
+        self.sync_ui.phase = SyncPhase::Idle;
         self.sync_ui.status =
             "Disconnected. Credentials for this binding were removed. Local and remote notes were not deleted."
                 .to_owned();
@@ -221,7 +242,7 @@ impl State {
                     .to_owned();
             return;
         }
-        if self.sync_ui.running {
+        if self.sync_ui.phase.is_running() {
             self.sync_ui.status = "A sync is already running.".to_owned();
             return;
         }
@@ -246,8 +267,7 @@ impl State {
         };
         let (tx, rx) = mpsc::channel();
         self.sync_ui.inbox = Some(rx);
-        self.sync_ui.running = true;
-        self.sync_ui.applying = true;
+        self.sync_ui.phase = SyncPhase::Running;
         self.sync_ui.cancel = CancelToken::new();
         let cancel = self.sync_ui.cancel.clone();
         let credentials = Arc::clone(&self.sync_ui.credentials);
@@ -296,8 +316,7 @@ impl State {
         }
         for message in pending {
             let SyncMessage::Finished(result) = message;
-            self.sync_ui.running = false;
-            self.sync_ui.applying = false;
+            self.sync_ui.phase = SyncPhase::Idle;
             self.finish_sync(result);
         }
         true

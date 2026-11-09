@@ -32,7 +32,10 @@ Excluded and reported, not silently treated as success:
 
 Hard errors, and the run does not report success:
 
-- symlinks, reparse points, special files, and hard links
+- symlinks, reparse points, and special files
+- hard links (on Unix, where the count is cheap to read from the metadata;
+  on Windows the count API is unavailable, so a hard link is only rejected
+  when the entry is not a regular file — see `fsutil`)
 - paths that escape the vault, including `..`, absolute paths, and Windows device names
 - a file or vault over the size limits
 - a remote listing that is truncated, incomplete, or missing a parent commit

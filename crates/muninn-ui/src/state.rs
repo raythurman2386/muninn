@@ -2359,7 +2359,7 @@ impl State {
     /// nothing is overwritten: autosave pauses and [`State::conflict`] holds a
     /// typed, user-resolvable conflict instead of a generic error.
     pub fn save_now(&mut self) -> bool {
-        if self.sync_ui.applying {
+        if self.sync_ui.phase.is_running() {
             return false;
         }
         let Some(id) = self.selected else {
@@ -2669,7 +2669,7 @@ impl State {
             return false;
         }
         self.last_watch = t;
-        if self.sync_ui.applying {
+        if self.sync_ui.phase.is_running() {
             return false;
         }
         let snapshot = watch::snapshot(&self.vault);
