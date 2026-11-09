@@ -27,11 +27,13 @@ All notable changes to Muninn are documented here. The format is based on
 - Tailscale host: the shared key is masked in Settings, with Copy key (secret
   clipboard, cleared after 60 seconds), Show key and Rotate key. The join
   field is masked.
-- Bundled public client ids: GitHub uses the official Muninn Sync GitHub App
-  (device flow, Contents read/write) by default. The Google id is a marked
-  insertion point (`MUNINN_GOOGLE_CLIENT_ID`); without it Drive Connect fails
-  closed. The Settings client id fields are optional overrides. No client
-  secret or private key ships.
+- Bundled public client ids: the official Muninn Sync GitHub App (device
+  flow, Contents read/write) and the official Google Desktop OAuth client
+  (PKCE, `drive.appdata` only). Builds can replace them with
+  `MUNINN_GITHUB_CLIENT_ID` / `MUNINN_GOOGLE_CLIENT_ID`; the Settings client id
+  fields are optional overrides, and an empty id fails closed. No client
+  secret or private key ships. The Google consent screen is still in Testing
+  (one test user; refresh tokens expire after 7 days).
 
 ### Changed
 

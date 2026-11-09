@@ -1,30 +1,27 @@
 //! Public OAuth client ids that a Muninn build ships with.
 //!
-//! # INSERTION POINT for the official client ids
+//! # INSERTION POINT: the official client ids
 //!
 //! - GitHub: the official "Muninn Sync" GitHub App's public client id is
-//!   [`OFFICIAL_GITHUB_CLIENT_ID`]. A build may replace it by setting
+//!   [`OFFICIAL_GITHUB_CLIENT_ID`]; a build may replace it with
 //!   `MUNINN_GITHUB_CLIENT_ID`.
-//! - Google: **not set yet.** The official Desktop OAuth client id goes in
-//!   [`BUNDLED_GOOGLE_CLIENT_ID`], today only through the build environment:
+//! - Google: the official Desktop OAuth client's public id is
+//!   [`OFFICIAL_GOOGLE_CLIENT_ID`]; a build may replace it with
+//!   `MUNINN_GOOGLE_CLIENT_ID`.
 //!
-//! ```text
-//! MUNINN_GOOGLE_CLIENT_ID=<Google "Desktop app" OAuth client id> \
-//!   cargo build --release -p muninn-app
-//! ```
-//!
-//! Without a Google id, Drive Connect fails closed: it reports that no client
-//! id is bundled and sends nothing, unless the person enters their own id
-//! under Settings → Sync. A person's own id always wins over a bundled one.
+//! A person's own id under Settings → Sync always wins over a bundled one.
+//! If a build ends up with an empty id and no override, Connect fails closed:
+//! it reports that no client id is bundled and sends nothing.
 //!
 //! Both are *public* client ids, safe to ship in a binary:
 //! - GitHub: the client id of a GitHub App with device flow enabled (not an
 //!   OAuth App, and never a personal access token).
 //! - Google: a "Desktop app" OAuth client used with PKCE and a loopback
 //!   redirect. Never ship a Google client secret; this code sends none.
-//!   Publish the consent screen to production: an app left in "Testing"
-//!   expires refresh tokens after 7 days. `drive.appdata` is a
-//!   non-sensitive scope, so publishing does not need a security review.
+//!   The official consent screen is still in "Testing": only listed test
+//!   users can authorize and refresh tokens expire after 7 days. Publish it
+//!   to production later; `drive.appdata` is a non-sensitive scope, so that
+//!   does not need a security review.
 
 use crate::error::SyncError;
 use crate::model::ProviderKind;
@@ -43,10 +40,23 @@ pub const BUNDLED_GITHUB_CLIENT_ID: Option<&str> = match option_env!("MUNINN_GIT
     None => Some(OFFICIAL_GITHUB_CLIENT_ID),
 };
 
-/// INSERTION POINT (Google): the Google Desktop OAuth client id compiled
-/// into this build, if any. Unset until the official id is ready; Drive
-/// Connect fails closed without it or a person's own id.
-pub const BUNDLED_GOOGLE_CLIENT_ID: Option<&str> = option_env!("MUNINN_GOOGLE_CLIENT_ID");
+/// The public client id of the official Google "Desktop app" OAuth client
+/// (project Muninn, `muninn-514218`; consent app "Muninn"; scope
+/// `drive.appdata` only). Used with PKCE and a loopback redirect; there is
+/// no client secret to ship.
+///
+/// The consent screen is still in **Testing**: only listed test users can
+/// authorize, and Google expires refresh tokens after 7 days. Publishing it
+/// (`drive.appdata` is non-sensitive) lifts both limits.
+pub const OFFICIAL_GOOGLE_CLIENT_ID: &str =
+    "39034215624-i6ek77i3vc32cueus258ef5ai1q93ars.apps.googleusercontent.com";
+
+/// The Google Desktop OAuth client id compiled into this build: the official
+/// client's id, or `MUNINN_GOOGLE_CLIENT_ID` when a build sets it.
+pub const BUNDLED_GOOGLE_CLIENT_ID: Option<&str> = match option_env!("MUNINN_GOOGLE_CLIENT_ID") {
+    Some(id) => Some(id),
+    None => Some(OFFICIAL_GOOGLE_CLIENT_ID),
+};
 
 /// The bundled client id for `provider`, if this build has one.
 #[must_use]
@@ -125,7 +135,16 @@ mod tests {
             );
             assert_eq!(client_id_for(github, "fork-app").unwrap(), "fork-app");
         }
-        let error = pick_client_id(ProviderKind::GoogleDrive, "", None).unwrap_err();
+        let google = ProviderKind::GoogleDrive;
+        if option_env!("MUNINN_GOOGLE_CLIENT_ID").is_none() {
+            assert_eq!(bundled_client_id(google), Some(OFFICIAL_GOOGLE_CLIENT_ID));
+            assert_eq!(
+                client_id_for(google, "").unwrap(),
+                OFFICIAL_GOOGLE_CLIENT_ID
+            );
+            assert_eq!(client_id_for(google, "mine.apps").unwrap(), "mine.apps");
+        }
+        let error = pick_client_id(google, "", None).unwrap_err();
         assert!(
             error.to_string().contains("no bundled Google client id"),
             "{error}"

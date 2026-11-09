@@ -1,10 +1,18 @@
 # Sync setup
 
-Muninn ships the public client id of the official **Muninn Sync** GitHub App
-(<https://github.com/apps/muninn-sync>). The official Google OAuth client id is
-not set yet; until it is, a build has no bundled Google id and Drive Connect
-fails closed unless you enter your own. Nothing in the tests logs into a real
-account.
+Muninn ships two public client ids: the official **Muninn Sync** GitHub App
+(<https://github.com/apps/muninn-sync>) and the official Google Desktop OAuth
+client of the Muninn project (`muninn-514218`). Nothing in the tests logs into
+a real account.
+
+> **Google Drive is limited while the official consent screen is in Testing.**
+> Only the listed test user can authorize the official client today; anyone
+> else gets an "access blocked" page from Google. Google also expires refresh
+> tokens of Testing apps after 7 days, so a Drive connection made with the
+> official client has to sign in again (Connect) about once a week. Publishing
+> the consent screen to production lifts both limits; `drive.appdata` is a
+> non-sensitive scope, so publishing needs no security assessment. Until then,
+> others can use their own Google client (below).
 
 Client ids live in `crates/muninn-sync/src/clients.rs` (the insertion point).
 They are public configuration, never secrets: Muninn ships no client secret and
@@ -13,6 +21,10 @@ no private key for either provider. A build can set them at compile time with
 fields in Settings → Sync override the bundled id, for a fork's own app.
 
 ## Google Drive
+
+The bundled client is a Desktop app client in project Muninn
+(`muninn-514218`), consent app "Muninn", scope `drive.appdata` only, PKCE and
+no client secret. To use your own Google project instead:
 
 1. Create a Google Cloud project.
 2. Enable the Google Drive API. No Picker API is needed.

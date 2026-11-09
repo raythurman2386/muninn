@@ -62,7 +62,7 @@ pub use auth::{
 };
 pub use clients::{
     BUNDLED_GITHUB_CLIENT_ID, BUNDLED_GOOGLE_CLIENT_ID, OFFICIAL_GITHUB_CLIENT_ID,
-    bundled_client_id, client_id_for,
+    OFFICIAL_GOOGLE_CLIENT_ID, bundled_client_id, client_id_for,
 };
 pub use credentials::{
     CredentialKey, CredentialStore, MemoryCredentialStore, NativeCredentialStore,

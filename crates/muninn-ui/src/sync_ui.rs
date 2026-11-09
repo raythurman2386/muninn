@@ -1449,31 +1449,6 @@ mod tests {
     }
 
     #[test]
-    fn connect_without_a_client_id_saves_nothing_and_sends_nothing() {
-        if muninn_sync::bundled_client_id(muninn_sync::ProviderKind::GoogleDrive).is_some() {
-            // A build with a bundled Google id would really sign in; not here.
-            return;
-        }
-        let (mut state, root) = temp_state("noclient");
-        state.set_sync_provider(1);
-        state.sync_ui.drive_store.replace_text("Private Notes");
-        state.connect_sync();
-        assert!(state.sync_ui.phase.is_idle());
-        assert!(
-            state.sync_ui.status.contains("no bundled Google client id"),
-            "{}",
-            state.sync_ui.status
-        );
-        assert!(state.settings.sync.vaults.is_empty());
-        let saved = fs::read_to_string(root.with_extension("config").join("muninn/settings.json"))
-            .unwrap_or_default();
-        assert!(!saved.contains("Private Notes"));
-        state.disconnect_sync();
-        assert_eq!(fs::read_to_string(root.join("Note.md")).unwrap(), "keep me");
-        remove_temp(&root);
-    }
-
-    #[test]
     fn tailscale_host_and_peer_keep_the_key_out_of_settings() {
         let root = std::env::temp_dir().join(format!(
             "muninn-sync-ui-ts-{}-{}",
