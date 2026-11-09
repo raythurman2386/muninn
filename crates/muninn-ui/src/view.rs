@@ -623,6 +623,252 @@ fn settings_button(k: &Kit) -> El {
         .on_press(|s: &mut State| s.open_settings())
 }
 
+/// Manual sync. One provider per vault. Nothing here starts a background sync.
+fn sync_section(s: &State, k: &Kit) -> El {
+    let provider = match s.sync_ui.provider_index {
+        0 => "GitHub",
+        1 => "Google Drive",
+        _ => "Tailscale",
+    };
+    let fields = if s.sync_ui.provider_index == 2 {
+        tailnet_fields(s, k)
+    } else if s.sync_ui.provider_index == 0 {
+        col()
+            .w_full()
+            .gap(4.0)
+            .child(sync_field(
+                k,
+                "GitHub owner",
+                &s.sync_ui.github_owner,
+                |state| &mut state.sync_ui.github_owner,
+            ))
+            .child(sync_field(
+                k,
+                "Repository",
+                &s.sync_ui.github_repo,
+                |state| &mut state.sync_ui.github_repo,
+            ))
+            .child(sync_field(k, "Branch", &s.sync_ui.github_branch, |state| {
+                &mut state.sync_ui.github_branch
+            }))
+            .child(sync_field(k, "Prefix", &s.sync_ui.github_prefix, |state| {
+                &mut state.sync_ui.github_prefix
+            }))
+            .child(sync_field(
+                k,
+                "GitHub client id (optional)",
+                &s.sync_ui.github_client_id,
+                |state| &mut state.sync_ui.github_client_id,
+            ))
+    } else {
+        col()
+            .w_full()
+            .gap(4.0)
+            .child(sync_field(k, "Store name", &s.sync_ui.drive_store, |state| {
+                &mut state.sync_ui.drive_store
+            }))
+            .child(
+                text("Kept in Muninn's private app data in your Drive, not in a visible folder. Use the same store name on each device.")
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint)
+                    .wrap(),
+            )
+            .child(sync_field(
+                k,
+                "Google client id (optional)",
+                &s.sync_ui.google_client_id,
+                |state| &mut state.sync_ui.google_client_id,
+            ))
+    };
+    col()
+        .key("settings-sync")
+        .w_full()
+        .gap(8.0)
+        .child(text("Sync").font(k.ty.ui_medium).color(k.c.text_base))
+        .child(
+            text(
+                "Manual Sync Now only. One provider for this vault. Disconnect removes credentials, not notes.",
+            )
+            .font(k.ty.caption())
+            .color(k.c.text_muted)
+            .wrap(),
+        )
+        .child(
+            SegmentedControl::new(
+                &["GitHub", "Drive", "Tailscale"],
+                Some(s.sync_ui.provider_index),
+            )
+                .label("Sync provider")
+                .on_pick(|state: &mut State, index, _: &mut Tx| state.set_sync_provider(index))
+                .build(k),
+        )
+        .child(fields)
+        .child(
+            text(format!("{provider}. {}", s.sync_status()))
+                .key("settings-sync-status")
+                .font(k.ty.caption())
+                .color(k.c.text_base)
+                .wrap(),
+        )
+        .child(
+            row()
+                .w_full()
+                .gap(6.0)
+                .flex_wrap()
+                .child(
+                    Button::new("Connect")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press(|state: &mut State| state.connect_sync())
+                        .build(k)
+                        .key("settings-sync-connect"),
+                )
+                .child(
+                    Button::new("Sync now")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press(|state: &mut State| state.sync_now())
+                        .build(k)
+                        .key("settings-sync-now"),
+                )
+                .child(
+                    Button::new("Cancel")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press(|state: &mut State| state.cancel_sync())
+                        .build(k)
+                        .key("settings-sync-cancel"),
+                )
+                .child(
+                    Button::new("Disconnect")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press(|state: &mut State| state.disconnect_sync())
+                        .build(k)
+                        .key("settings-sync-disconnect"),
+                ),
+        )
+}
+
+fn tailnet_fields(s: &State, k: &Kit) -> El {
+    let role = SegmentedControl::new(
+        &["Host here", "Join host"],
+        Some(s.sync_ui.tailnet_role_index),
+    )
+    .label("Tailscale role")
+    .on_pick(|state: &mut State, index, _: &mut Tx| state.set_tailnet_role(index))
+    .build(k);
+    let fields = col().w_full().gap(4.0).child(role);
+    if s.sync_ui.tailnet_role_index == 0 {
+        let fields = fields
+            .child(sync_field(
+                k,
+                "Loopback port",
+                &s.sync_ui.tailnet_port,
+                |state| &mut state.sync_ui.tailnet_port,
+            ))
+            .child(sync_field(
+                k,
+                "Allowed Tailscale logins (optional, comma-separated)",
+                &s.sync_ui.tailnet_allowed,
+                |state| &mut state.sync_ui.tailnet_allowed,
+            ));
+        if s.hosting_tailnet() {
+            fields.child(tailnet_key_row(s, k))
+        } else {
+            fields
+        }
+    } else {
+        fields
+            .child(sync_field(
+                k,
+                "Host MagicDNS name (device.tailnet.ts.net)",
+                &s.sync_ui.tailnet_host,
+                |state| &mut state.sync_ui.tailnet_host,
+            ))
+            .child(sync_field(
+                k,
+                "Shared key from the host",
+                &s.sync_ui.tailnet_key,
+                |state| &mut state.sync_ui.tailnet_key,
+            ))
+    }
+}
+
+/// Host: the shared key stays masked unless Show key is on. Copy puts it on
+/// the clipboard as a secret (kept out of clipboard history, cleared after a
+/// minute); Rotate replaces it.
+fn tailnet_key_row(s: &State, k: &Kit) -> El {
+    let shown = s.sync_ui.revealed_key.as_ref();
+    let value = match shown {
+        Some(key) => text(key.expose().to_owned()).key("settings-sync-key-value"),
+        None => text("••••••••••••").key("settings-sync-key-value"),
+    };
+    col()
+        .w_full()
+        .gap(2.0)
+        .child(
+            text("Shared key")
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        )
+        .child(value.font(k.ty.ui_compact).color(k.c.text_base))
+        .child(
+            row()
+                .w_full()
+                .gap(6.0)
+                .flex_wrap()
+                .child(
+                    Button::new("Copy key")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press_tx(|state: &mut State, tx: &mut Tx| {
+                            if let Some(key) = state.tailnet_key_for_copy() {
+                                tx.copy_secret(
+                                    key.expose().to_owned(),
+                                    crate::sync_ui::TAILNET_KEY_CLIPBOARD,
+                                );
+                            }
+                        })
+                        .build(k)
+                        .key("settings-sync-key-copy"),
+                )
+                .child(
+                    Button::new(if shown.is_some() {
+                        "Hide key"
+                    } else {
+                        "Show key"
+                    })
+                    .variant(ButtonVariant::Ghost)
+                    .on_press(|state: &mut State| state.toggle_tailnet_key())
+                    .build(k)
+                    .key("settings-sync-key-show"),
+                )
+                .child(
+                    Button::new("Rotate key")
+                        .variant(ButtonVariant::Ghost)
+                        .on_press(|state: &mut State| state.rotate_tailnet_key())
+                        .build(k)
+                        .key("settings-sync-key-rotate"),
+                ),
+        )
+}
+
+fn sync_field(
+    k: &Kit,
+    label: &str,
+    field: &rune::TextEdit,
+    edit: impl Fn(&mut State) -> &mut rune::TextEdit + 'static,
+) -> El {
+    col()
+        .w_full()
+        .gap(2.0)
+        .child(text(label).font(k.ty.caption()).color(k.c.text_muted))
+        .child(
+            text_input(field, k.ty.ui_compact)
+                .single_line()
+                .w_full()
+                .color(k.c.text_base)
+                .caret(k.c.text_accent, k.selection())
+                .on_edit(edit),
+        )
+}
+
 /// v0.5: the settings surface. Preferences write through their existing
 /// `State` setters, so a click or key press is persisted before the next
 /// frame; there is no separate Save button.
@@ -910,27 +1156,13 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
     // #20 slot: `.child(settings_section(k, "Graph effects", …))` goes here.
 }
 
-/// Sync tab.
-///
-/// Integration slot: the sync work (draft PR #24) replaces this placeholder
-/// with its provider picker, fields and Sync now / Disconnect buttons. Keep
-/// the `settings-tab-sync` key on the returned column.
-fn settings_sync_tab(_s: &State, k: &Kit) -> El {
+/// Sync tab: the vault's sync provider, its fields, the status line, and
+/// Connect / Sync now / Cancel / Disconnect ([`sync_section`]).
+fn settings_sync_tab(s: &State, k: &Kit) -> El {
     col()
         .key("settings-tab-sync")
         .w_full()
-        .gap(8.0)
-        .child(text("Sync").font(k.ty.ui_medium).color(k.c.text_base))
-        .child(
-            text(
-                "Sync isn't available yet. Your vault is a plain folder of Markdown files, \
-                 so it stays on this device until sync ships.",
-            )
-            .key("settings-sync-placeholder")
-            .font(k.ty.caption())
-            .color(k.c.text_muted)
-            .wrap(),
-        )
+        .child(sync_section(s, k))
 }
 
 fn vault_prompt_row(s: &State, k: &Kit) -> El {

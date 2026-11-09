@@ -13,6 +13,7 @@ mod poll;
 mod recovery;
 mod settings;
 mod state;
+mod sync_ui;
 mod view;
 mod watch;
 

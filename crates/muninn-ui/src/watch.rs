@@ -83,9 +83,21 @@ mod tests {
             Some((first.note("Alpha.md").unwrap().0, 5))
         );
 
-        fs::write(tmp.path().join("Beta.md"), "beta!").expect("create");
-        let vault = tmp.load();
-        let second = snapshot(&vault);
+        // The directory mtime must advance an entry creation can be picked
+        // up by snapshot diff alone. Windows reports directory mtimes with
+        // coarse ticks, so poll (bounded) until it actually moves.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut after = None;
+        while std::time::Instant::now() < deadline {
+            let vault = tmp.load();
+            let snap = snapshot(&vault);
+            if snap.dirs != first.dirs {
+                after = Some(snap);
+                break;
+            }
+            fs::write(tmp.path().join("Beta.md"), "beta!").expect("create");
+        }
+        let second = after.expect("directory mtime should move after creating a file");
         assert!(second.note("Beta.md").is_some());
         assert_ne!(first.dirs, second.dirs, "the root mtime moved");
     }

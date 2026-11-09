@@ -427,7 +427,7 @@ pub struct State {
     watched: Option<VaultSnapshot>,
     last_watch: f64,
     /// XDG state root, kept so a vault switch can re-key crash recovery.
-    state_home: PathBuf,
+    pub(crate) state_home: PathBuf,
     /// XDG config root; `None` in tests means settings are never read or written.
     settings_home: Option<PathBuf>,
     /// Loaded preferences. Fields mirrored by `State` are refreshed on every
@@ -489,12 +489,20 @@ pub struct State {
     /// Whether the last layout tick ran with reduced motion, so
     /// [`State::graph_step`] can reheat once when it turns off.
     graph_was_reduced: bool,
+    pub sync_ui: crate::sync_ui::SyncUi,
 }
 
 impl State {
     pub fn new(root: PathBuf) -> State {
         let settings = Settings::load();
-        Self::with_settings(root, state_home(), config_home(), settings)
+        let mut state = Self::with_settings(root, state_home(), config_home(), settings);
+        let github = state.settings.sync.github_client_id.clone();
+        let google = state.settings.sync.google_client_id.clone();
+        state.sync_ui = crate::sync_ui::SyncUi::native();
+        state.sync_ui.github_client_id.replace_text(&github);
+        state.sync_ui.google_client_id.replace_text(&google);
+        state.resume_tailnet_host();
+        state
     }
 
     /// Turn verbose session logging on or off.
@@ -691,6 +699,7 @@ impl State {
             reduced_motion_env,
             system_reduced_motion: std::cell::Cell::new(false),
             graph_was_reduced: false,
+            sync_ui: crate::sync_ui::SyncUi::memory(),
         };
         // X-01: one startup line with the build, the vault path and counts.
         // Keys only: note bodies and titles never reach the log.
@@ -2408,6 +2417,9 @@ impl State {
     /// nothing is overwritten: autosave pauses and [`State::conflict`] holds a
     /// typed, user-resolvable conflict instead of a generic error.
     pub fn save_now(&mut self) -> bool {
+        if self.sync_ui.phase.is_running() {
+            return false;
+        }
         let Some(id) = self.selected else {
             return false;
         };
@@ -2692,7 +2704,7 @@ impl State {
 
     /// Re-baseline the watcher after this process writes to the vault, so our
     /// own atomic writes are not mistaken for somebody else's edits.
-    fn refresh_watch(&mut self) {
+    pub(crate) fn refresh_watch(&mut self) {
         self.watched = Some(watch::snapshot(&self.vault));
     }
 
@@ -2715,6 +2727,9 @@ impl State {
             return false;
         }
         self.last_watch = t;
+        if self.sync_ui.phase.is_running() {
+            return false;
+        }
         let snapshot = watch::snapshot(&self.vault);
         let Some(previous) = self.watched.take() else {
             self.watched = Some(snapshot);
@@ -2959,7 +2974,7 @@ impl State {
         self.save_now();
     }
 
-    fn reload(&mut self, select: Option<PathBuf>) {
+    pub(crate) fn reload(&mut self, select: Option<PathBuf>) {
         let root = self.vault.root.clone();
         let path = select.or_else(|| self.selected_path.clone());
         // EDT-02: park the editor before the selection resets below; a same-note

@@ -266,6 +266,7 @@ impl State {
         }
         self.settings_modal = false;
         self.vault_field.focused = false;
+        self.sync_ui.blur();
         if self.settings_return_search {
             self.focus_search();
         } else if self.settings_return_editor {
@@ -288,6 +289,11 @@ impl State {
     pub fn set_settings_tab(&mut self, tab: SettingsTab) {
         if self.settings_tab != tab {
             self.vault_field.focused = false;
+            if self.settings_tab == SettingsTab::Sync {
+                // Same rule for the Sync tab: no hidden field keeps focus,
+                // and a revealed host key is hidden again.
+                self.sync_ui.blur();
+            }
         }
         self.settings_tab = tab;
     }

@@ -1,7 +1,8 @@
 //! Small, human-readable preferences persisted outside the vault.
 //!
-//! Muninn deliberately has no database. The only cross-session state besides the
-//! crash-recovery copies is this JSON file:
+//! Muninn keeps notes as files. The only cross-session UI state besides the
+//! crash-recovery copies and the sync journal (also outside the vault) is this
+//! JSON file:
 //!
 //! ```text
 //! $XDG_CONFIG_HOME/muninn/settings.json      (fallback: ~/.config/muninn/)
@@ -142,6 +143,202 @@ fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
     }
 }
 
+/// Non-secret sync preferences. Access tokens never belong in this struct.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SyncPrefs {
+    /// Set when the stored object cannot be trusted. Sync stays off.
+    pub disabled_reason: Option<String>,
+    pub github_client_id: String,
+    pub google_client_id: String,
+    pub vaults: Vec<VaultSyncBinding>,
+}
+
+/// One provider binding for one canonical vault. The credential store key is
+/// `provider + binding_id`; the secret itself is not here.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct VaultSyncBinding {
+    pub identity: String,
+    pub provider: String,
+    pub binding_id: String,
+    pub account: String,
+    pub github_owner: String,
+    pub github_repo: String,
+    pub github_branch: String,
+    pub github_prefix: String,
+    /// Store name inside the app's Drive data folder. Devices that share a
+    /// vault use the same name.
+    pub drive_store: String,
+    /// `host` or `peer`. Empty for other providers.
+    pub tailnet_role: String,
+    /// Peer: the host's full MagicDNS name, for example `minis.tail1234.ts.net`.
+    pub tailnet_host: String,
+    /// Host: loopback port that `tailscale serve` proxies to.
+    pub tailnet_port: u16,
+    /// Host: optional comma-separated `Tailscale-User-Login` allow-list.
+    pub tailnet_allowed: String,
+    pub last_success_unix_ms: Option<u64>,
+    pub last_head: String,
+}
+
+impl SyncPrefs {
+    fn to_json(&self) -> Value {
+        json!({
+            "version": 1,
+            "disabled_reason": self.disabled_reason,
+            "github_client_id": self.github_client_id,
+            "google_client_id": self.google_client_id,
+            "vaults": self.vaults.iter().map(VaultSyncBinding::to_json).collect::<Vec<_>>(),
+        })
+    }
+
+    fn from_value(value: Option<&Value>) -> Self {
+        let Some(value) = value else {
+            return Self::default();
+        };
+        if !value.is_object() {
+            return Self::invalid("Sync settings were not an object, so sync is off.");
+        }
+        if value.get("version").and_then(Value::as_u64) != Some(1) {
+            return Self::invalid("Sync settings version is not supported, so sync is off.");
+        }
+        let mut prefs = Self {
+            disabled_reason: value
+                .get("disabled_reason")
+                .and_then(Value::as_str)
+                .filter(|text| !text.is_empty())
+                .map(str::to_owned),
+            github_client_id: value
+                .get("github_client_id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+            google_client_id: value
+                .get("google_client_id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+            vaults: Vec::new(),
+        };
+        let Some(vaults) = value.get("vaults").and_then(Value::as_array) else {
+            return Self::invalid("Sync vault list was missing, so sync is off.");
+        };
+        for item in vaults {
+            match VaultSyncBinding::from_value(item) {
+                Some(binding) => prefs.vaults.push(binding),
+                None => {
+                    prefs.disabled_reason = Some(
+                        "A sync binding was invalid and was not loaded. Sync is off until it is replaced."
+                            .to_owned(),
+                    );
+                    prefs.vaults.clear();
+                    return prefs;
+                }
+            }
+        }
+        prefs
+    }
+
+    fn invalid(reason: &str) -> Self {
+        Self {
+            disabled_reason: Some(reason.to_owned()),
+            ..Self::default()
+        }
+    }
+}
+
+impl VaultSyncBinding {
+    fn to_json(&self) -> Value {
+        json!({
+            "identity": self.identity,
+            "provider": self.provider,
+            "binding_id": self.binding_id,
+            "account": self.account,
+            "github_owner": self.github_owner,
+            "github_repo": self.github_repo,
+            "github_branch": self.github_branch,
+            "github_prefix": self.github_prefix,
+            "drive_store": self.drive_store,
+            "tailnet_role": self.tailnet_role,
+            "tailnet_host": self.tailnet_host,
+            "tailnet_port": self.tailnet_port,
+            "tailnet_allowed": self.tailnet_allowed,
+            "last_success_unix_ms": self.last_success_unix_ms,
+            "last_head": self.last_head,
+        })
+    }
+
+    fn from_value(value: &Value) -> Option<Self> {
+        let provider = value.get("provider").and_then(Value::as_str)?;
+        if provider != "github" && provider != "google_drive" && provider != "tailscale" {
+            return None;
+        }
+        let text = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned()
+        };
+        let tailnet_role = text("tailnet_role");
+        if provider == "tailscale" && tailnet_role != "host" && tailnet_role != "peer" {
+            return None;
+        }
+        let binding_id = value.get("binding_id").and_then(Value::as_str)?;
+        if binding_id.len() < 8 {
+            return None;
+        }
+        Some(Self {
+            identity: value.get("identity").and_then(Value::as_str)?.to_owned(),
+            provider: provider.to_owned(),
+            binding_id: binding_id.to_owned(),
+            account: value
+                .get("account")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+            github_owner: value
+                .get("github_owner")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+            github_repo: value
+                .get("github_repo")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+            github_branch: value
+                .get("github_branch")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+            github_prefix: value
+                .get("github_prefix")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+            drive_store: value
+                .get("drive_store")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+            tailnet_role,
+            tailnet_host: text("tailnet_host"),
+            tailnet_port: value
+                .get("tailnet_port")
+                .and_then(Value::as_u64)
+                .and_then(|port| u16::try_from(port).ok())
+                .unwrap_or(0),
+            tailnet_allowed: text("tailnet_allowed"),
+            last_success_unix_ms: value.get("last_success_unix_ms").and_then(Value::as_u64),
+            last_head: value
+                .get("last_head")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
+        })
+    }
+}
+
 /// The Reduce motion preference (Settings › Graph).
 ///
 /// Serialized as `"system"` / `"on"` / `"off"`. A missing or unknown value,
@@ -238,6 +435,8 @@ pub struct Settings {
     /// the default — keeps the original heading-only note body. Clamped to
     /// 4096 characters.
     pub note_template: String,
+    /// Per-vault sync bindings. Tokens are not stored here.
+    pub sync: SyncPrefs,
     /// Settings › Graph › Reduce motion. Defaults to [`ReduceMotion::System`].
     pub reduce_motion: ReduceMotion,
 }
@@ -254,6 +453,7 @@ impl Default for Settings {
             autosave_delay: DEFAULT_AUTOSAVE_DELAY,
             recent_vaults: Vec::new(),
             note_template: String::new(),
+            sync: SyncPrefs::default(),
             reduce_motion: ReduceMotion::System,
         }
     }
@@ -308,6 +508,7 @@ impl Settings {
                 .map(|path| path.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
             "note_template": clamp_note_template(&self.note_template),
+            "sync": self.sync.to_json(),
             "reduce_motion": self.reduce_motion.as_key(),
         });
         let bytes = serde_json::to_vec_pretty(&value)?;
@@ -375,6 +576,7 @@ impl Settings {
             .get("note_template")
             .and_then(Value::as_str)
             .map_or_else(String::new, clamp_note_template);
+        settings.sync = SyncPrefs::from_value(value.get("sync"));
         settings.reduce_motion =
             ReduceMotion::from_key(value.get("reduce_motion").and_then(Value::as_str));
         settings
@@ -468,6 +670,7 @@ mod tests {
             autosave_delay: 0.8,
             recent_vaults: vec![PathBuf::from("/tmp/notes"), PathBuf::from("/tmp/other")],
             note_template: "---\ntags: []\n---".to_owned(),
+            sync: SyncPrefs::default(),
             reduce_motion: ReduceMotion::On,
         };
         settings.save_to(&home).expect("save");
@@ -518,5 +721,22 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn malformed_sync_disables_sync_and_settings_never_store_tokens() {
+        let home = temp_config("sync-bad");
+        fs::create_dir_all(home.join("muninn")).unwrap();
+        let raw = r#"{"sync":{"version":1,"vaults":[{"provider":"icloud"}]}}"#;
+        fs::write(home.join("muninn/settings.json"), raw).unwrap();
+        let loaded = Settings::load_from(&home);
+        assert!(loaded.sync.disabled_reason.is_some());
+        assert!(loaded.sync.vaults.is_empty());
+        loaded.save_to(&home).unwrap();
+        let text = fs::read_to_string(home.join("muninn/settings.json")).unwrap();
+        assert!(!text.contains("access_token"));
+        assert!(!text.contains("refresh_token"));
+        assert!(!text.contains("icloud"));
+        let _ = fs::remove_dir_all(&home);
     }
 }

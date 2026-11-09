@@ -8,6 +8,32 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- Manual vault sync for GitHub and Google Drive from Settings. Sync Now,
+  Cancel, status, last success, and Disconnect are explicit. There is no
+  background sync. Drive stores an app-managed commit history in Muninn's
+  private Drive app data; it is not an editable Markdown mirror. GitHub publishes Git objects
+  and updates the selected branch with `force` false. Tokens stay in the OS
+  credential store. Disconnect does not delete notes.
+- Tailscale as a third sync provider. One device hosts an immutable commit
+  store on `127.0.0.1`, published to the tailnet with `tailscale serve`; other
+  devices join by MagicDNS name. A shared key in the OS credential store is
+  required, and an optional `Tailscale-User-Login` allow-list can narrow it. The
+  host only accepts fast-forward commits, so conflicts go through the same
+  planner as the other providers.
+- Connect signs in for real: GitHub device flow, and Google OAuth with PKCE
+  and a `127.0.0.1` loopback redirect, both in the system browser. Tokens go
+  straight to the OS credential store and are refreshed before they expire
+  and once after a 401.
+- Tailscale host: the shared key is masked in Settings, with Copy key (secret
+  clipboard, cleared after 60 seconds), Show key and Rotate key. The join
+  field is masked.
+- Bundled public client ids: the official Muninn Sync GitHub App (device
+  flow, Contents read/write) and the official Google Desktop OAuth client
+  (PKCE, `drive.appdata` only). Builds can replace them with
+  `MUNINN_GITHUB_CLIENT_ID` / `MUNINN_GOOGLE_CLIENT_ID`; the Settings client id
+  fields are optional overrides, and an empty id fails closed. No client
+  secret or private key ships. The official Google app is published, with
+  the privacy policy in `PRIVACY.md`.
 - **Reduce motion** setting on the Settings › Graph tab: System (default; follows
   the OS reduce-motion preference), On or Off, stored as `reduce_motion` in
   `settings.json`. Older files without the key load as System. `MUNINN_REDUCED_MOTION`
@@ -22,15 +48,56 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Changed
 
+- Google Drive sync keeps its store in the app's hidden `appDataFolder` with
+  the `drive.appdata` scope, named by a store name, instead of a pasted folder
+  id that `drive.file` could not reach.
+- Each vault binding has its own sync state directory
+  (`sync/bindings/<binding id>`, 0700 on Unix).
+- GitHub reads one recursive tree per sync and caches blobs by sha.
 - Settings is split into tabs — Vaults, Editor, Appearance, Graph and Sync — so the
   modal shows one group at a time. The selected tab is session-only (not written to
   `settings.json`) and resets to Vaults whenever Settings opens; switching away from
-  Vaults drops focus from the path field. The Sync tab is a placeholder for the
-  sync work. The tab bar slides its indicator like the theme picker. The dialog is 540 pt wide and
+  Vaults drops focus from the path field. The Sync tab holds the sync
+  provider, fields, status and buttons. The tab bar slides its indicator like the theme picker. The dialog is 540 pt wide and
   the theme picker sizes its segments to their labels, so "Omarchy" and "System" no
   longer truncate. `scripts/settings-tab-snapshots.sh` renders one screenshot per tab
   against a throwaway vault and isolated home (it builds with `--locked` before
   isolating HOME and removes its temp dir on exit).
+
+### Fixed
+
+- GitHub and Drive could lose another device's change when both synced at
+  once: a rejected GitHub ref update was re-parented onto the new tip with the
+  old tree, and Drive re-listed heads at publish time without planning against
+  them. Publish now names exactly the state the plan read and the run replans.
+- Drive heads that edit the same path no longer yield an empty snapshot.
+- Token expiry was stored as a duration; it is now an absolute time.
+- A note edited on two devices between syncs stopped sync for that vault on
+  every provider, with no way to resolve it in the app. Every such conflict now
+  resolves "keep both": this device's text keeps the path, the remote's is
+  written as `<stem> (remote)<ext>`, the status names the copies, and other
+  changes in the same run still apply. The planner also no longer reads an
+  edited path as a rename source, which could drop an edit when a copy held
+  the old bytes.
+- Renaming a note on one device to a name another device had just used for a
+  new note overwrote one of the two notes on the next sync, reported as a
+  success. The rename is now declined in that case and both notes are kept,
+  the other device's as `<stem> (remote)<ext>`.
+- The same note renamed to two different names on two devices, where one of
+  those names already held a different note, made every Sync Now fail with
+  "differs but was not in the conflict list" until that note was moved. Both
+  renames are now declined in that case and every note is kept.
+- Drive heads that edited the same path wedged the store with a conflict no
+  screen could resolve. They now merge "keep both" with a
+  `(conflict <id>)` copy and one merge commit, which also unsticks stores left
+  that way. The "no new commits" check moved from before the blob uploads to
+  just before the manifest.
+- A request to the sign-in loopback with the wrong `state` ended the Google
+  sign-in; it now gets 400 and the listener keeps waiting.
+- Connect replaced and saved the vault's binding before sign-in, so a failed
+  or cancelled sign-in lost a working connection. The swap now happens after
+  the new credential is stored, and the old credential is deleted (Tailscale
+  too).
 
 ## [0.5.2] - 2026-11-09
 

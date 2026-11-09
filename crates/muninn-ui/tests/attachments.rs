@@ -5,12 +5,15 @@
 //! directly (no Rune drag simulation); the open tests check the command shape
 //! and path validation without ever launching a program.
 
+#[cfg(all(unix, not(target_os = "macos")))]
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{FileAction, Mode, State, file_action_command, poll, view};
+#[cfg(all(unix, not(target_os = "macos")))]
+use muninn_ui::{FileAction, file_action_command};
+use muninn_ui::{Mode, State, poll, view};
 use rune::{Env, Runtime};
 
 /// A uniquely named sibling folder for files dropped "from outside" the vault.

@@ -1,7 +1,8 @@
 # Security
 
-Muninn reads and writes Markdown files in a folder you choose. It does not run note content,
-load remote resources, or send your vault anywhere.
+Muninn reads and writes Markdown files in a folder you choose. Sync, when you
+explicitly run it, sends the included vault bytes to the provider you connected.
+It does not run note content as a program. Tokens stay in the OS credential store.
 
 ## Reporting a vulnerability
 

@@ -383,7 +383,44 @@ fn scenes() -> &'static [Scene] {
             settings_scene(s, SettingsTab::Appearance)
         }),
         ("settings-graph", |s| settings_scene(s, SettingsTab::Graph)),
-        ("settings-sync", |s| settings_scene(s, SettingsTab::Sync)),
+        // The Sync tab per provider (`scripts/sync-settings-snapshots.sh`).
+        ("settings-sync", |s| {
+            settings_scene(s, SettingsTab::Sync);
+            s.sync_ui.github_owner.replace_text("octocat");
+            s.sync_ui.github_repo.replace_text("notes-sync");
+            s.sync_ui.github_branch.replace_text("muninn-sync");
+            s.sync_ui.github_prefix.replace_text("vault");
+            s.sync_ui.status =
+                "Scope saved for this vault. No token is stored in settings.".to_owned();
+        }),
+        ("settings-sync-drive", |s| {
+            settings_scene(s, SettingsTab::Sync);
+            s.set_sync_provider(1);
+            s.sync_ui.drive_store.replace_text("Muninn");
+            s.sync_ui.status =
+                "Google Drive keeps an app-managed commit history in Muninn's private app data, not editable Markdown mirrors."
+                    .to_owned();
+        }),
+        ("settings-sync-tailscale", |s| {
+            settings_scene(s, SettingsTab::Sync);
+            s.set_sync_provider(2);
+            s.set_tailnet_role(1);
+            s.sync_ui.tailnet_host.replace_text("minis.tail1234.ts.net");
+            // A synthetic value; the field is masked, so the scene shows bullets.
+            s.sync_ui
+                .tailnet_key
+                .replace_text("synthetic-key-for-the-snapshot-0123456789");
+            s.sync_ui.status =
+                "Join a host. Enter the host's full MagicDNS name and paste the key from Copy key on the host."
+                    .to_owned();
+        }),
+        ("settings-sync-conflict", |s| {
+            s.theme = muninn_ui::ThemeMode::Light;
+            settings_scene(s, SettingsTab::Sync);
+            s.sync_ui.status = "Last successful sync 1a2b3c4d. A note changed on two devices; \
+                 both versions were kept: Daily (remote).md."
+                .to_owned();
+        }),
     ]
 }
 
@@ -422,6 +459,9 @@ mod tests {
                 "settings-appearance",
                 "settings-graph",
                 "settings-sync",
+                "settings-sync-drive",
+                "settings-sync-tailscale",
+                "settings-sync-conflict",
             ]
         );
     }

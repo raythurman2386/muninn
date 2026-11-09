@@ -135,7 +135,13 @@ fn each_tab_mounts_only_its_own_section() {
         // desktop; checked separately below.
         &[],
         &["settings-reduce-motion", "settings-reduced-motion-status"],
-        &["settings-sync-placeholder"],
+        &[
+            "settings-sync",
+            "settings-sync-status",
+            "settings-sync-connect",
+            "settings-sync-now",
+            "settings-sync-disconnect",
+        ],
     ];
     for (index, tab) in SettingsTab::ALL.iter().enumerate() {
         click(&mut f.rt, &format!("settings-tabs/segment{index}"));

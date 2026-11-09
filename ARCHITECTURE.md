@@ -10,6 +10,7 @@ derived from that scan.
 ```text
 muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
      │              │
+     │              └──► muninn-sync
      └──────────────┴──► rune, rune-kit, rune-theme-opencode
 ```
 
@@ -17,8 +18,9 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
 | --- | --- | --- |
 | `muninn-core` | nothing in the workspace | Pure domain model; fast unit tests. |
 | `muninn-graph` | `muninn-core` | Needs note ids and links, nothing else. |
-| `muninn-ui` | `muninn-core`, `muninn-graph`, Rune | Owns state, rendering and input. |
-| `muninn-app` | `muninn-ui`, Rune | Entry point only. |
+| `muninn-sync` | nothing in the workspace | Plans and transfers vault bytes. It does not read the UI or the link index. |
+| `muninn-ui` | `muninn-core`, `muninn-graph`, `muninn-sync`, Rune | Owns state, rendering, input, and the manual sync session. |
+| `muninn-app` | `muninn-ui`, Rune | Entry point only. It may also depend on `muninn-sync` for credential wiring. |
 | `xtask` | tooling crates | Never linked into the app. |
 
 `cargo run -p xtask -- layers` reads `cargo metadata` and rejects any new `muninn-*` edge that
@@ -139,7 +141,11 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
 - **Determinism.** The initial graph layout depends only on note order and path hash, and the
   large-vault grid visits cells in a fixed order (never hash iteration). Tests compare settled
   positions exactly.
-- **No side database.** Only `.md` files are written, plus the hidden trash folder: a note
+- **No side database for notes.** Note bodies stay files. Sync keeps a journal,
+  checkpoints, and the last converged manifest under the XDG state directory,
+  outside the vault. That journal is recovery bookkeeping for sync, not a
+  second source of truth. Settings and tokens are not part of the synced
+  content. Only `.md` files are notes. A note
   delete moves it to `.muninn-trash/<timestamp>/<original path>` (skipped by the scan) and
   Undo renames it back, never overwriting. The trash is budgeted, not a database: after each
   successful move it is pruned oldest-timestamp-first to at most 500 files or 100 MiB

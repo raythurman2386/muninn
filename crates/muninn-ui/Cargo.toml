@@ -11,6 +11,7 @@ authors.workspace = true
 [dependencies]
 muninn-core.workspace = true
 muninn-graph.workspace = true
+muninn-sync.workspace = true
 rune.workspace = true
 rune-kit.workspace = true
 rune-theme-opencode.workspace = true
