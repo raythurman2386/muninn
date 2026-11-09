@@ -9,9 +9,9 @@ They are bookkeeping, not a second copy of the user's notes as the canonical sto
 
 | Provider | What is stored remotely | Concurrency |
 | --- | --- | --- |
-| GitHub | Ordinary file bytes inside an explicit repository, branch, and prefix. Other paths in the repository are preserved with `base_tree`. | One commit whose parent is the commit just read, then `git/refs` update with `force: false`. A rejected update is re-read and replanned. |
-| Tailscale | Immutable blobs and commit manifests (the Drive commit format) in a store directory on the host device, served on `127.0.0.1` and published to the tailnet by `tailscale serve`. | The host accepts a commit only when its parents equal the current heads. A stale peer gets 409, re-reads, and replans. Auth is a shared key from the credential store plus an optional `Tailscale-User-Login` allow-list. |
-| Google Drive | Immutable blobs and immutable commit manifests in an app-created folder inside the folder the user selected. | No mutable head file. Two writers create two commits with the same parent. The next sync merges those heads or stops on a conflict. |
+| GitHub | Ordinary file bytes inside an explicit repository, branch, and prefix. Other paths in the repository are preserved with `base_tree`. | One recursive tree read per round; blobs already known by sha are not downloaded again. The new commit's parent is exactly the commit the plan read and its tree builds on that commit's tree; `git/refs` is updated with `force: false`. A 422 non-fast-forward is never re-parented: the engine re-reads and replans (up to four rounds). |
+| Tailscale | Immutable blobs and commit manifests (the Drive commit format) in a store directory on the host device, served on `127.0.0.1` and published to the tailnet by `tailscale serve`. | The host accepts a commit only when its parents equal the current heads, and publish names exactly the heads the plan read. A stale peer gets 409 and the engine replans. Auth is a shared key from the credential store plus an optional `Tailscale-User-Login` allow-list. |
+| Google Drive | Immutable blobs and immutable commit manifests in the app's hidden `appDataFolder` (`drive.appdata` scope), under `muninn-sync-<store name>`. | No mutable head file and no compare-and-swap. Publish names exactly the heads the plan merged and refuses if any commit appeared since the read, so the engine replans. A writer that slips in after that check becomes a second head; the next read merges it. Heads that edit the same path are an error, never an empty snapshot. Two roots created at once are read as one store. |
 
 Drive is not a mirror of an editable Markdown folder. Drive v3 uploads are not
 a compare-and-swap. This crate does not call `files.update` to overwrite note
@@ -61,6 +61,12 @@ Tokens live in the OS credential store (`keyring` v1: macOS Keychain, Windows
 Credential Manager, Linux Secret Service). If that store is missing, locked, or
 refuses the request, sync stops. There is no plaintext file fallback. Settings
 store the public client id, the binding id, and the remote scope only.
+
+Access tokens carry an absolute expiry. A run refreshes a token within five
+minutes of expiry, and refreshes once after a 401; the new pair is stored
+before it is used. Sign-in runs on a worker thread: GitHub device flow, or
+Google OAuth with PKCE and a `127.0.0.1` loopback redirect, both in the system
+browser (fixed program, URL as one argument, `https` only).
 
 Disconnect deletes that binding's credential and the settings entry. It does
 not delete local notes, remote notes, or checkpoints.

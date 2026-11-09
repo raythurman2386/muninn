@@ -10,8 +10,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 - Manual vault sync for GitHub and Google Drive from Settings. Sync Now,
   Cancel, status, last success, and Disconnect are explicit. There is no
-  background sync. Drive stores an app-managed commit history in the selected
-  folder; it is not an editable Markdown mirror. GitHub publishes Git objects
+  background sync. Drive stores an app-managed commit history in Muninn's
+  private Drive app data; it is not an editable Markdown mirror. GitHub publishes Git objects
   and updates the selected branch with `force` false. Tokens stay in the OS
   credential store. Disconnect does not delete notes.
 - Tailscale as a third sync provider. One device hosts an immutable commit
@@ -20,6 +20,31 @@ All notable changes to Muninn are documented here. The format is based on
   required, and an optional `Tailscale-User-Login` allow-list can narrow it. The
   host only accepts fast-forward commits, so conflicts go through the same
   planner as the other providers.
+- Connect signs in for real: GitHub device flow, and Google OAuth with PKCE
+  and a `127.0.0.1` loopback redirect, both in the system browser. Tokens go
+  straight to the OS credential store and are refreshed before they expire
+  and once after a 401.
+- Tailscale host: the shared key is masked in Settings, with Copy key (secret
+  clipboard, cleared after 60 seconds), Show key and Rotate key. The join
+  field is masked.
+
+### Changed
+
+- Google Drive sync keeps its store in the app's hidden `appDataFolder` with
+  the `drive.appdata` scope, named by a store name, instead of a pasted folder
+  id that `drive.file` could not reach.
+- Each vault binding has its own sync state directory
+  (`sync/bindings/<binding id>`, 0700 on Unix).
+- GitHub reads one recursive tree per sync and caches blobs by sha.
+
+### Fixed
+
+- GitHub and Drive could lose another device's change when both synced at
+  once: a rejected GitHub ref update was re-parented onto the new tip with the
+  old tree, and Drive re-listed heads at publish time without planning against
+  them. Publish now names exactly the state the plan read and the run replans.
+- Drive heads that edit the same path no longer yield an empty snapshot.
+- Token expiry was stored as a duration; it is now an absolute time.
 
 ## [0.5.2] - 2026-11-09
 

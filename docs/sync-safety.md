@@ -14,9 +14,12 @@
   not run while a sync is applying, so they do not observe half a batch.
 - Paths are opened without following symlinks. A symlink inside the synced
   tree fails the run.
-- Remote concurrency: GitHub ref updates send `force: false`. Drive commits are
-  immutable, so a concurrent writer becomes a second head instead of an
-  overwrite. The Tailscale host is one serialized writer: it accepts a commit
+- Remote concurrency: every publish names exactly the remote state its plan
+  read. GitHub ref updates send `force: false` with that commit as parent; a
+  422 is replanned from a fresh read, never re-parented. Drive commits are
+  immutable and name the heads the plan merged; a commit that appears after
+  the read makes the run replan, and one that lands later becomes a second
+  head instead of an overwrite. The Tailscale host is one serialized writer: it accepts a commit
   only when its parents are exactly the current heads, so a peer that read an
   older head is refused and replans. Blobs and commits are create-only; the
   host has no overwrite or delete endpoint.
@@ -39,6 +42,9 @@ These builds and fixture tests do not prove:
 - a real GitHub App installation or device-flow login
 - a real tailnet: `tailscale serve`, MagicDNS, ts.net certificates, and the
   `Tailscale-User-Login` header are modeled by loopback fixtures only
+- that the system browser opens (`xdg-open`, `open`, `rundll32`); tests use a
+  fake opener that follows the redirect
+- Google's real `appDataFolder` behavior and `drive.appdata` consent
 - that Google or GitHub will keep the HTTP behavior these fixtures model
 
 The native credential backends are compiled. Tests use an in-memory store.
