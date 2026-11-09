@@ -165,7 +165,10 @@ pub struct PkceRequest {
 pub struct DriveClient<'a, T> {
     pub api_base: String,
     pub upload_base: String,
+    /// Token endpoint host: `https://oauth2.googleapis.com`.
     pub oauth_base: String,
+    /// Consent page host: `https://accounts.google.com`.
+    pub auth_base: String,
     pub transport: T,
     pub cancel: CancelToken,
     pub sleeper: &'a dyn Sleeper,
@@ -467,7 +470,7 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
             .finish();
         Ok(format!(
             "{}/o/oauth2/v2/auth?{query}",
-            self.oauth_base.trim_end_matches('/')
+            self.auth_base.trim_end_matches('/')
         ))
     }
 
@@ -1109,7 +1112,7 @@ pub fn parse_oauth_redirect(query: &str, expected_state: &str) -> Result<OAuthRe
     let scope = value("scope").unwrap_or_default();
     if !scope.is_empty() && !scope.split_whitespace().any(|item| item == DRIVE_SCOPE) {
         return Err(SyncError::Scope {
-            detail: "google did not grant drive.file".to_owned(),
+            detail: "google did not grant drive.appdata".to_owned(),
         });
     }
     let picked = value("picked_file_ids")

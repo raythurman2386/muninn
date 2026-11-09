@@ -625,12 +625,16 @@ fn drive_client<'a, T: HttpTransport, C>(engine: &'a EngineParts<T, C>) -> Drive
         api_base: engine.drive_api.clone(),
         upload_base: engine.drive_upload.clone(),
         oauth_base: engine.drive_oauth.clone(),
+        auth_base: GOOGLE_AUTH_BASE.to_owned(),
         transport: &engine.transport,
         cancel: engine.cancel.clone(),
         sleeper: engine.sleeper.as_ref(),
         request_timeout: Duration::from_secs(20),
     }
 }
+
+/// Google's consent page. Runs never open it; only sign-in does.
+pub const GOOGLE_AUTH_BASE: &str = "https://accounts.google.com";
 
 fn load_base(
     state_dir: &Path,

@@ -6,8 +6,9 @@
 //! credential only.
 
 use std::sync::Arc;
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
+use std::time::Duration;
 
 use muninn_sync::{
     BindingId, CancelToken, CredentialStore, MemoryCredentialStore, NativeCredentialStore,
@@ -50,6 +51,39 @@ pub struct SyncUi {
     inbox: Option<Receiver<SyncMessage>>,
     /// Running commit-store server while this device hosts a Tailscale binding.
     host: Option<TailnetHost>,
+    /// Where sign-in sends people and requests. Production endpoints and the
+    /// system browser; tests swap in loopback fixtures and a fake browser.
+    pub(crate) sign_in: SignInEnv,
+}
+
+/// Endpoints and browser for interactive sign-in.
+#[derive(Clone)]
+pub(crate) struct SignInEnv {
+    pub github_api: String,
+    pub github_oauth: String,
+    pub google_token: String,
+    pub google_auth: String,
+    pub browser: Arc<dyn muninn_sync::BrowserOpener>,
+    pub sleeper: Arc<dyn muninn_sync::Sleeper>,
+    /// Tests only: allow `http://127.0.0.1` endpoints.
+    pub loopback: bool,
+    /// How long to wait for the Google consent redirect.
+    pub google_timeout: Duration,
+}
+
+impl SignInEnv {
+    fn production() -> Self {
+        Self {
+            github_api: "https://api.github.com".to_owned(),
+            github_oauth: "https://github.com".to_owned(),
+            google_token: "https://oauth2.googleapis.com".to_owned(),
+            google_auth: muninn_sync::GOOGLE_AUTH_BASE.to_owned(),
+            browser: Arc::new(muninn_sync::SystemBrowser),
+            sleeper: Arc::new(muninn_sync::RealSleeper),
+            loopback: false,
+            google_timeout: Duration::from_secs(300),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -59,6 +93,9 @@ pub enum SyncPhase {
     Idle,
     /// A worker thread owns the run until `poll_sync` consumes its result.
     Running,
+    /// A sign-in worker is waiting on the browser. Notes stay editable and
+    /// autosave keeps running; only Sync Now and a second Connect wait.
+    Connecting,
 }
 
 impl SyncPhase {
@@ -75,6 +112,44 @@ impl SyncPhase {
 
 enum SyncMessage {
     Finished(Result<SyncReport, String>),
+    SignIn(SignInUpdate),
+}
+
+enum SignInUpdate {
+    DeviceCode {
+        user_code: String,
+        uri: String,
+    },
+    Waiting,
+    BrowserFailed {
+        url: String,
+    },
+    /// The token is already in the credential store when this arrives.
+    Connected {
+        binding_id: String,
+        result: Result<String, String>,
+    },
+}
+
+struct ChannelEvents(Sender<SyncMessage>);
+
+impl muninn_sync::SignInEvents for ChannelEvents {
+    fn device_code(&mut self, user_code: &str, verification_uri: &str) {
+        let _ = self.0.send(SyncMessage::SignIn(SignInUpdate::DeviceCode {
+            user_code: user_code.to_owned(),
+            uri: verification_uri.to_owned(),
+        }));
+    }
+    fn waiting_for_browser(&mut self, _url: &str) {
+        let _ = self.0.send(SyncMessage::SignIn(SignInUpdate::Waiting));
+    }
+    fn browser_failed(&mut self, url: &str, _error: &muninn_sync::SyncError) {
+        let _ = self
+            .0
+            .send(SyncMessage::SignIn(SignInUpdate::BrowserFailed {
+                url: url.to_owned(),
+            }));
+    }
 }
 
 impl SyncUi {
@@ -109,6 +184,7 @@ impl SyncUi {
             cancel: CancelToken::new(),
             inbox: None,
             host: None,
+            sign_in: SignInEnv::production(),
         }
     }
 
@@ -141,7 +217,7 @@ impl State {
         self.sync_ui.status = match self.sync_ui.provider_index {
             0 => "GitHub selected. Use a dedicated repository and branch, not the Muninn source repository."
                 .to_owned(),
-            1 => "Google Drive selected. Sync stores an app-managed commit history in the chosen folder, not editable Markdown files."
+            1 => "Google Drive selected. Sync keeps an app-managed commit history in Muninn's private app data in your Drive, not editable Markdown files."
                 .to_owned(),
             _ => "Tailscale selected. One device hosts a commit store; the others join it by MagicDNS name over your tailnet."
                 .to_owned(),
@@ -215,6 +291,12 @@ impl State {
     }
 
     pub fn connect_sync(&mut self) {
+        if !self.sync_ui.phase.is_idle() {
+            self.sync_ui.status =
+                "Wait for the running sync or sign-in to finish, or Disconnect to cancel it."
+                    .to_owned();
+            return;
+        }
         if let Some(reason) = &self.settings.sync.disabled_reason {
             self.sync_ui.status = reason.clone();
             return;
@@ -289,18 +371,135 @@ impl State {
             .sync
             .vaults
             .retain(|known| known.identity != binding.identity);
+        let binding_id = binding.binding_id.clone();
         self.settings.sync.vaults.push(binding);
         self.save_settings();
-        self.sync_ui.status = if client_missing {
-            "Scope saved. Add the public OAuth client id before Connect can reach the provider. No request was sent."
-                .to_owned()
-        } else if provider == "github" {
-            "Scope saved. GitHub device flow runs when a token is requested. No browser was opened and no token was stored."
-                .to_owned()
+        if client_missing {
+            self.sync_ui.status =
+                "Scope saved. Add the public OAuth client id before Connect can reach the provider. No request was sent."
+                    .to_owned();
+            return;
+        }
+        let provider = if provider == "github" {
+            ProviderKind::GitHub
         } else {
-            "Scope saved. Drive sync uses an app-managed commit folder. No browser was opened and no token was stored."
-                .to_owned()
+            ProviderKind::GoogleDrive
         };
+        self.start_sign_in(provider, binding_id);
+    }
+
+    /// Sign in on a worker thread: GitHub device flow or Google OAuth with
+    /// PKCE and a loopback redirect, both in the system browser. The token
+    /// goes straight to the OS credential store; settings never see it.
+    fn start_sign_in(&mut self, provider: ProviderKind, binding_id: String) {
+        let Ok(id) = BindingId::parse(&binding_id) else {
+            return;
+        };
+        let client_id = if provider == ProviderKind::GitHub {
+            self.settings.sync.github_client_id.clone()
+        } else {
+            self.settings.sync.google_client_id.clone()
+        };
+        let (tx, rx) = mpsc::channel();
+        self.sync_ui.inbox = Some(rx);
+        self.sync_ui.phase = SyncPhase::Connecting;
+        self.sync_ui.cancel = CancelToken::new();
+        self.sync_ui.status = if provider == ProviderKind::GitHub {
+            "Asking GitHub for a sign-in code…".to_owned()
+        } else {
+            "Opening Google sign-in in your browser…".to_owned()
+        };
+        let cancel = self.sync_ui.cancel.clone();
+        let credentials = Arc::clone(&self.sync_ui.credentials);
+        let env = self.sync_ui.sign_in.clone();
+        thread::spawn(move || {
+            let mut events = ChannelEvents(tx.clone());
+            let result =
+                sign_in(provider, &client_id, &env, cancel, &mut events).and_then(|token| {
+                    let key = muninn_sync::CredentialKey {
+                        provider,
+                        binding: id,
+                    };
+                    credentials.put(&key, &token)?;
+                    Ok(token.account)
+                });
+            let _ = tx.send(SyncMessage::SignIn(SignInUpdate::Connected {
+                binding_id,
+                result: result.map_err(|error| error.to_string()),
+            }));
+        });
+    }
+
+    fn forget_credential(&mut self, binding_id: &str) {
+        let Ok(binding) = BindingId::parse(binding_id) else {
+            return;
+        };
+        for provider in [ProviderKind::GitHub, ProviderKind::GoogleDrive] {
+            let _ = self
+                .sync_ui
+                .credentials
+                .delete(&muninn_sync::CredentialKey {
+                    provider,
+                    binding: binding.clone(),
+                });
+        }
+    }
+
+    fn sign_in_update(&mut self, update: SignInUpdate) {
+        match update {
+            SignInUpdate::DeviceCode { user_code, uri } => {
+                self.sync_ui.status = format!(
+                    "Enter code {user_code} at {uri}. Your browser is opening it; Muninn finishes when GitHub approves."
+                );
+            }
+            SignInUpdate::Waiting => {
+                self.sync_ui.status =
+                    "Finish signing in to Google in your browser. Muninn is waiting on 127.0.0.1 for the answer."
+                        .to_owned();
+            }
+            SignInUpdate::BrowserFailed { url } => {
+                self.sync_ui.status = format!(
+                    "Could not open a browser. Open this address yourself to continue: {url}"
+                );
+            }
+            SignInUpdate::Connected { binding_id, result } => {
+                self.sync_ui.phase = SyncPhase::Idle;
+                match result {
+                    Ok(account) => {
+                        let mut known = false;
+                        for binding in &mut self.settings.sync.vaults {
+                            if binding.binding_id == binding_id {
+                                binding.account.clone_from(&account);
+                                known = true;
+                            }
+                        }
+                        if known {
+                            self.save_settings();
+                        } else {
+                            // Disconnected while the browser was open: do not
+                            // keep a token for a binding that no longer exists.
+                            self.forget_credential(&binding_id);
+                            self.sync_ui.status =
+                                "Sign-in finished after Disconnect; its token was removed."
+                                    .to_owned();
+                            return;
+                        }
+                        self.sync_ui.status = if account.is_empty() {
+                            "Connected. The token is in the OS credential store. Sync Now when ready."
+                                .to_owned()
+                        } else {
+                            format!(
+                                "Connected as {account}. The token is in the OS credential store. Sync Now when ready."
+                            )
+                        };
+                    }
+                    Err(error) => {
+                        self.sync_ui.status =
+                            format!("Sign-in did not finish: {error} No token was stored.");
+                    }
+                }
+            }
+        }
     }
 
     fn connect_tailnet(&mut self, identity: String) {
@@ -436,6 +635,10 @@ impl State {
             self.sync_ui.status = "A sync is already running.".to_owned();
             return;
         }
+        if self.sync_ui.phase == SyncPhase::Connecting {
+            self.sync_ui.status = "Finish signing in first, or Disconnect to cancel.".to_owned();
+            return;
+        }
         let Some(binding) = self.current_binding().cloned() else {
             self.sync_ui.status = "Connect a provider for this vault before Sync Now.".to_owned();
             return;
@@ -510,9 +713,13 @@ impl State {
             return false;
         }
         for message in pending {
-            let SyncMessage::Finished(result) = message;
-            self.sync_ui.phase = SyncPhase::Idle;
-            self.finish_sync(result);
+            match message {
+                SyncMessage::Finished(result) => {
+                    self.sync_ui.phase = SyncPhase::Idle;
+                    self.finish_sync(result);
+                }
+                SyncMessage::SignIn(update) => self.sign_in_update(update),
+            }
         }
         true
     }
@@ -581,6 +788,49 @@ impl State {
 
 /// `sync_home` is `<state_home>/sync`. Each binding runs in its own state dir
 /// under it; a Tailscale host's store stays at its existing path.
+fn sign_in(
+    provider: ProviderKind,
+    client_id: &str,
+    env: &SignInEnv,
+    cancel: CancelToken,
+    events: &mut ChannelEvents,
+) -> Result<TokenSet, muninn_sync::SyncError> {
+    let transport = if env.loopback {
+        muninn_sync::ReqwestTransport::for_tests(&["127.0.0.1"])?
+    } else {
+        muninn_sync::ReqwestTransport::production()?
+    };
+    if provider == ProviderKind::GitHub {
+        let client = muninn_sync::GitHubClient {
+            api_base: env.github_api.clone(),
+            oauth_base: env.github_oauth.clone(),
+            transport,
+            cancel,
+            sleeper: env.sleeper.as_ref(),
+            request_timeout: Duration::from_secs(20),
+        };
+        muninn_sync::github_device_sign_in(&client, client_id, env.browser.as_ref(), events)
+    } else {
+        let client = muninn_sync::DriveClient {
+            api_base: String::new(),
+            upload_base: String::new(),
+            oauth_base: env.google_token.clone(),
+            auth_base: env.google_auth.clone(),
+            transport,
+            cancel,
+            sleeper: env.sleeper.as_ref(),
+            request_timeout: Duration::from_secs(20),
+        };
+        muninn_sync::google_sign_in(
+            &client,
+            client_id,
+            env.browser.as_ref(),
+            events,
+            env.google_timeout,
+        )
+    }
+}
+
 fn run_request(
     binding: &VaultSyncBinding,
     root: std::path::PathBuf,
@@ -628,6 +878,164 @@ fn run_request(
 mod tests {
     use crate::State;
     use std::fs;
+
+    struct ConsentingBrowser;
+
+    impl muninn_sync::BrowserOpener for ConsentingBrowser {
+        fn open(&self, url: &str) -> Result<(), muninn_sync::SyncError> {
+            // Tests avoid a URL crate: the query values here are plain or
+            // percent-encoded ASCII.
+            let (host_and_path, query) = url.split_once('?').unwrap();
+            assert!(host_and_path.starts_with("https://accounts.google.com/"));
+            let value = |name: &str| {
+                query
+                    .split('&')
+                    .find_map(|pair| pair.strip_prefix(&format!("{name}=")))
+                    .map(percent_decode)
+                    .unwrap()
+            };
+            let redirect = value("redirect_uri");
+            let rest = redirect.strip_prefix("http://127.0.0.1:").unwrap();
+            let (port, path) = rest.split_once('/').unwrap();
+            let port: u16 = port.parse().unwrap();
+            let target = format!(
+                "/{path}?state={}&code=consented&scope={}",
+                value("state"),
+                muninn_sync::DRIVE_SCOPE
+            );
+            std::thread::spawn(move || {
+                use std::io::{Read, Write};
+                let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+                write!(stream, "GET {target} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").unwrap();
+                let mut sink = String::new();
+                let _ = stream.read_to_string(&mut sink);
+            });
+            Ok(())
+        }
+    }
+
+    fn percent_decode(text: &str) -> String {
+        let bytes = text.as_bytes();
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == b'%' && i + 3 <= bytes.len() {
+                out.push(u8::from_str_radix(&text[i + 1..i + 3], 16).unwrap());
+                i += 3;
+            } else {
+                out.push(if bytes[i] == b'+' { b' ' } else { bytes[i] });
+                i += 1;
+            }
+        }
+        String::from_utf8(out).unwrap()
+    }
+
+    /// One-route token endpoint on loopback for the code exchange.
+    fn token_server() -> std::net::SocketAddr {
+        use std::io::{BufRead, BufReader, Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().take(1) {
+                let mut stream = stream.unwrap();
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut length = 0usize;
+                let mut line = String::new();
+                while reader.read_line(&mut line).unwrap() > 2 {
+                    if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                        length = value.trim().parse().unwrap();
+                    }
+                    line.clear();
+                }
+                let mut body = vec![0; length];
+                reader.read_exact(&mut body).unwrap();
+                let body = String::from_utf8(body).unwrap();
+                assert!(body.contains("grant_type=authorization_code"));
+                assert!(body.contains("code=consented"));
+                assert!(body.contains("code_verifier="));
+                let reply = format!(
+                    "{{\"access_token\":\"ya29.ui\",\"refresh_token\":\"1//ui\",\"expires_in\":3599,\"scope\":\"{}\"}}",
+                    muninn_sync::DRIVE_SCOPE
+                );
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}",
+                    reply.len()
+                )
+                .unwrap();
+            }
+        });
+        addr
+    }
+
+    #[test]
+    fn connect_drive_signs_in_through_the_browser_and_stores_the_token() {
+        let root = std::env::temp_dir().join(format!(
+            "muninn-sync-ui-signin-{}-{}",
+            std::process::id(),
+            muninn_sync::BindingId::fresh().as_str()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let state_home = root.with_extension("state");
+        let config_home = root.with_extension("config");
+        fs::create_dir_all(&state_home).unwrap();
+        fs::create_dir_all(&config_home).unwrap();
+        let mut state = State::with_settings(
+            root.clone(),
+            state_home.clone(),
+            config_home.clone(),
+            crate::settings::Settings::default(),
+        );
+        let token = token_server();
+        state.sync_ui.sign_in = super::SignInEnv {
+            google_token: format!("http://{token}"),
+            browser: std::sync::Arc::new(ConsentingBrowser),
+            loopback: true,
+            google_timeout: std::time::Duration::from_secs(10),
+            ..super::SignInEnv::production()
+        };
+        state.set_sync_provider(1);
+        state
+            .sync_ui
+            .google_client_id
+            .replace_text("client.apps.googleusercontent.com");
+        state.connect_sync();
+        assert_eq!(state.sync_ui.phase, super::SyncPhase::Connecting);
+        // Autosave is not held while waiting on the browser.
+        assert!(!state.sync_ui.phase.is_running());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while state.sync_ui.phase != super::SyncPhase::Idle {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{}",
+                state.sync_ui.status
+            );
+            state.poll_sync();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert!(
+            state.sync_ui.status.starts_with("Connected"),
+            "{}",
+            state.sync_ui.status
+        );
+        let binding = state.settings.sync.vaults[0].clone();
+        assert_eq!(binding.drive_store, "Muninn");
+        let stored = state
+            .sync_ui
+            .credentials
+            .get(&muninn_sync::CredentialKey {
+                provider: muninn_sync::ProviderKind::GoogleDrive,
+                binding: muninn_sync::BindingId::parse(&binding.binding_id).unwrap(),
+            })
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.access.expose(), "ya29.ui");
+        let saved = fs::read_to_string(config_home.join("muninn/settings.json")).unwrap();
+        assert!(!saved.contains("ya29.ui") && !saved.contains("1//ui"));
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&state_home);
+        let _ = fs::remove_dir_all(&config_home);
+    }
 
     #[test]
     fn each_binding_runs_in_its_own_state_dir() {

@@ -1447,6 +1447,7 @@ fn drive_client<'a>(
         api_base: base.to_owned(),
         upload_base: base.to_owned(),
         oauth_base: base.to_owned(),
+        auth_base: "https://accounts.google.com".to_owned(),
         transport: ReqwestTransport::for_tests(&["127.0.0.1"]).unwrap(),
         cancel,
         sleeper,

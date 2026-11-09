@@ -18,7 +18,8 @@
 //! # Drive is not a Markdown folder
 //!
 //! Google Drive v3 uploads are not a compare-and-swap. Drive sync stores
-//! immutable blobs and immutable commit manifests inside the selected folder.
+//! immutable blobs and immutable commit manifests in the app's hidden
+//! `appDataFolder`.
 //! Concurrent writers become two heads. Nothing in this crate overwrites a
 //! Drive file in place.
 
@@ -26,6 +27,7 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 mod apply;
+mod auth;
 mod credentials;
 mod drive;
 mod engine;
@@ -44,6 +46,8 @@ mod secret;
 mod tailnet;
 
 #[cfg(test)]
+mod auth_tests;
+#[cfg(test)]
 mod provider_tests;
 #[cfg(test)]
 mod tailnet_tests;
@@ -51,6 +55,10 @@ mod tailnet_tests;
 mod testkit;
 
 pub use apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_plan, resume_apply};
+pub use auth::{
+    BrowserOpener, LoopbackRedirect, SignInEvents, SystemBrowser, browser_command,
+    github_device_sign_in, google_sign_in,
+};
 pub use credentials::{
     CredentialKey, CredentialStore, MemoryCredentialStore, NativeCredentialStore,
 };
@@ -59,8 +67,8 @@ pub use drive::{
     merge_heads, new_pkce, parse_oauth_redirect,
 };
 pub use engine::{
-    EngineParts, RunRequest, SyncReport, binding_state_dir, disconnect, production_sleeper,
-    run_sync,
+    EngineParts, GOOGLE_AUTH_BASE, RunRequest, SyncReport, binding_state_dir, disconnect,
+    production_sleeper, run_sync,
 };
 pub use error::SyncError;
 pub use github::{
@@ -68,7 +76,7 @@ pub use github::{
 };
 pub use http::{
     CancelToken, HttpRequest, HttpResponse, HttpTransport, RealSleeper, RecordingSleeper,
-    ReqwestTransport,
+    ReqwestTransport, Sleeper,
 };
 pub use inventory::{Inventory, exclusion_summary, inventory, inventory_default};
 pub use journal::{Journal, JournalPhase};
