@@ -346,17 +346,23 @@ impl State {
                 return;
             }
         }
+        // The person's own client id when they entered one, else the id
+        // bundled into this build; with neither, fail closed.
         let client_id = if provider == "github" {
-            self.sync_ui.github_client_id.text.trim().to_owned()
+            muninn_sync::client_id_for(ProviderKind::GitHub, &self.sync_ui.github_client_id.text)
         } else {
-            self.sync_ui.google_client_id.text.trim().to_owned()
+            muninn_sync::client_id_for(
+                ProviderKind::GoogleDrive,
+                &self.sync_ui.google_client_id.text,
+            )
         };
-        if client_id.is_empty() {
-            self.sync_ui.status =
-                "Add the public OAuth client id before Connect can reach the provider. Nothing was saved and no request was sent."
-                    .to_owned();
-            return;
-        }
+        let client_id = match client_id {
+            Ok(id) => id,
+            Err(error) => {
+                self.sync_ui.status = error.to_string();
+                return;
+            }
+        };
         let binding = VaultSyncBinding {
             identity: identity.as_str().to_owned(),
             provider: provider.to_owned(),
@@ -818,8 +824,16 @@ impl State {
         self.sync_ui.cancel = CancelToken::new();
         let cancel = self.sync_ui.cancel.clone();
         let credentials = Arc::clone(&self.sync_ui.credentials);
-        let github_client_id = self.settings.sync.github_client_id.clone();
-        let google_client_id = self.settings.sync.google_client_id.clone();
+        // Refresh with the id that signed in: the saved override, else the
+        // bundled id. An empty id makes refresh fail as an auth error.
+        let github_client_id =
+            muninn_sync::client_id_for(ProviderKind::GitHub, &self.settings.sync.github_client_id)
+                .unwrap_or_default();
+        let google_client_id = muninn_sync::client_id_for(
+            ProviderKind::GoogleDrive,
+            &self.settings.sync.google_client_id,
+        )
+        .unwrap_or_default();
         thread::spawn(move || {
             let engine = match muninn_sync::ReqwestTransport::production() {
                 Ok(transport) => muninn_sync::EngineParts {
@@ -1436,20 +1450,24 @@ mod tests {
 
     #[test]
     fn connect_without_a_client_id_saves_nothing_and_sends_nothing() {
+        if muninn_sync::bundled_client_id(muninn_sync::ProviderKind::GoogleDrive).is_some() {
+            // A build with a bundled Google id would really sign in; not here.
+            return;
+        }
         let (mut state, root) = temp_state("noclient");
-        state.sync_ui.github_owner.replace_text("octocat");
-        state.sync_ui.github_repo.replace_text("notes");
+        state.set_sync_provider(1);
+        state.sync_ui.drive_store.replace_text("Private Notes");
         state.connect_sync();
         assert!(state.sync_ui.phase.is_idle());
         assert!(
-            state.sync_ui.status.contains("client id"),
+            state.sync_ui.status.contains("no bundled Google client id"),
             "{}",
             state.sync_ui.status
         );
         assert!(state.settings.sync.vaults.is_empty());
         let saved = fs::read_to_string(root.with_extension("config").join("muninn/settings.json"))
             .unwrap_or_default();
-        assert!(!saved.contains("octocat"));
+        assert!(!saved.contains("Private Notes"));
         state.disconnect_sync();
         assert_eq!(fs::read_to_string(root.join("Note.md")).unwrap(), "keep me");
         remove_temp(&root);

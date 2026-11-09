@@ -28,6 +28,7 @@
 
 mod apply;
 mod auth;
+mod clients;
 mod credentials;
 mod drive;
 mod engine;
@@ -58,6 +59,10 @@ pub use apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_plan,
 pub use auth::{
     BrowserOpener, LoopbackRedirect, SignInEvents, SystemBrowser, browser_command,
     github_device_sign_in, google_sign_in,
+};
+pub use clients::{
+    BUNDLED_GITHUB_CLIENT_ID, BUNDLED_GOOGLE_CLIENT_ID, OFFICIAL_GITHUB_CLIENT_ID,
+    bundled_client_id, client_id_for,
 };
 pub use credentials::{
     CredentialKey, CredentialStore, MemoryCredentialStore, NativeCredentialStore,

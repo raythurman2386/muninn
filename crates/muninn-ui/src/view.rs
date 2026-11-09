@@ -654,7 +654,7 @@ fn sync_section(s: &State, k: &Kit) -> El {
             }))
             .child(sync_field(
                 k,
-                "GitHub client id",
+                "GitHub client id (optional)",
                 &s.sync_ui.github_client_id,
                 |state| &mut state.sync_ui.github_client_id,
             ))
@@ -673,7 +673,7 @@ fn sync_section(s: &State, k: &Kit) -> El {
             )
             .child(sync_field(
                 k,
-                "Google client id",
+                "Google client id (optional)",
                 &s.sync_ui.google_client_id,
                 |state| &mut state.sync_ui.google_client_id,
             ))
