@@ -1069,6 +1069,60 @@ mod tests {
     use crate::State;
     use std::fs;
 
+    /// Leaving the Sync tab drops typing focus from every sync field and
+    /// hides a revealed host key, as leaving the Vaults tab does for the
+    /// path field: a hidden field must not keep focus or show a secret.
+    #[test]
+    fn leaving_the_sync_tab_drops_field_focus_and_hides_the_key() {
+        let root = std::env::temp_dir().join(format!(
+            "muninn-sync-tab-blur-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let state_home = root.with_extension("state");
+        let config_home = root.with_extension("config");
+        fs::create_dir_all(&state_home).unwrap();
+        fs::create_dir_all(&config_home).unwrap();
+        let mut state = State::with_settings(
+            root.clone(),
+            state_home.clone(),
+            config_home.clone(),
+            crate::settings::Settings::default(),
+        );
+        state.set_settings_tab(crate::SettingsTab::Sync);
+        state.sync_ui.github_owner.focused = true;
+        state.sync_ui.tailnet_host.focused = true;
+        state.sync_ui.tailnet_key.focused = true;
+        state.sync_ui.revealed_key = Some(muninn_sync::Secret::new("shown-key"));
+
+        // Re-selecting the Sync tab is not leaving it.
+        state.set_settings_tab(crate::SettingsTab::Sync);
+        assert!(state.sync_ui.github_owner.focused);
+        assert!(state.sync_ui.revealed_key.is_some());
+
+        state.set_settings_tab(crate::SettingsTab::Editor);
+        assert_eq!(state.settings_tab, crate::SettingsTab::Editor);
+        assert!(
+            !state.sync_ui.github_owner.focused
+                && !state.sync_ui.tailnet_host.focused
+                && !state.sync_ui.tailnet_key.focused,
+            "a hidden sync field must not keep typing focus"
+        );
+        assert!(
+            state.sync_ui.revealed_key.is_none(),
+            "a hidden host key must not stay revealed"
+        );
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&state_home);
+        let _ = fs::remove_dir_all(&config_home);
+    }
+
     /// Answers Google's consent page on the loopback redirect: with a code
     /// when `true`, as a person who declined when `false`.
     struct ConsentingBrowser(bool);

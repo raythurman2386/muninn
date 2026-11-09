@@ -999,6 +999,50 @@ mod tests {
         }
     }
 
+    /// R3: both devices renamed the same note, to different names, and this
+    /// side already has a different note at the name the other side picked.
+    /// It used to be a RenameRename whose `other_path` hid that name from the
+    /// pathwise pass, so `resolve` refused it on every run. Both renames are
+    /// now declined: a delete of the old name, an add of this side's new
+    /// name, and an AddAdd at the taken name, with every text kept.
+    #[test]
+    fn rename_rename_onto_a_name_this_side_just_created_keeps_both() {
+        let base = snap(&[("c.md", "M")]);
+        let local = snap(&[("d.md", "M"), ("e.md", "N")]);
+        let remote = snap(&[("e.md", "M")]);
+        let planned = plan(Some(&base), &local, &remote);
+        assert!(planned.renames.is_empty(), "{:?}", planned.renames);
+        assert_eq!(planned.conflicts.len(), 1, "{:?}", planned.conflicts);
+        assert_eq!(planned.conflicts[0].kind, ConflictKind::AddAdd);
+        assert_eq!(planned.conflicts[0].path, path("e.md"));
+        let desired = keep_both(&base, &local, &remote);
+        assert_eq!(
+            desired,
+            snap(&[("d.md", "M"), ("e.md", "N"), ("e (remote).md", "M")])
+        );
+        assert!(plan(Some(&desired), &desired, &desired).is_noop());
+    }
+
+    /// R3 mirror: the other side renamed c -> e, this side renamed c -> d,
+    /// and the other side already has a different note at d.
+    #[test]
+    fn rename_rename_onto_a_name_the_remote_just_created_keeps_both() {
+        let base = snap(&[("c.md", "M")]);
+        let local = snap(&[("d.md", "M")]);
+        let remote = snap(&[("e.md", "M"), ("d.md", "N")]);
+        let planned = plan(Some(&base), &local, &remote);
+        assert!(planned.renames.is_empty(), "{:?}", planned.renames);
+        assert_eq!(planned.conflicts.len(), 1, "{:?}", planned.conflicts);
+        assert_eq!(planned.conflicts[0].kind, ConflictKind::AddAdd);
+        assert_eq!(planned.conflicts[0].path, path("d.md"));
+        let desired = keep_both(&base, &local, &remote);
+        assert_eq!(
+            desired,
+            snap(&[("d.md", "M"), ("d (remote).md", "N"), ("e.md", "M")])
+        );
+        assert!(plan(Some(&desired), &desired, &desired).is_noop());
+    }
+
     /// A real rename onto a free name, or onto the same bytes, still applies.
     #[test]
     fn a_rename_onto_a_free_or_identical_target_is_still_a_rename() {
