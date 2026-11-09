@@ -61,6 +61,10 @@ pub struct SyncUi {
     /// Where sign-in sends people and requests. Production endpoints and the
     /// system browser; tests swap in loopback fixtures and a fake browser.
     pub(crate) sign_in: SignInEnv,
+    /// The binding a Connect is signing in for. It replaces the vault's
+    /// current binding only once sign-in succeeds; until then the old one
+    /// keeps working and stays in settings.
+    pending: Option<VaultSyncBinding>,
 }
 
 /// Endpoints and browser for interactive sign-in.
@@ -193,6 +197,7 @@ impl SyncUi {
             inbox: None,
             host: None,
             sign_in: SignInEnv::production(),
+            pending: None,
         }
     }
 
@@ -341,11 +346,17 @@ impl State {
                 return;
             }
         }
-        let client_missing = if provider == "github" {
-            self.sync_ui.github_client_id.text.trim().is_empty()
+        let client_id = if provider == "github" {
+            self.sync_ui.github_client_id.text.trim().to_owned()
         } else {
-            self.sync_ui.google_client_id.text.trim().is_empty()
+            self.sync_ui.google_client_id.text.trim().to_owned()
         };
+        if client_id.is_empty() {
+            self.sync_ui.status =
+                "Add the public OAuth client id before Connect can reach the provider. Nothing was saved and no request was sent."
+                    .to_owned();
+            return;
+        }
         let binding = VaultSyncBinding {
             identity: identity.as_str().to_owned(),
             provider: provider.to_owned(),
@@ -374,40 +385,67 @@ impl State {
             last_success_unix_ms: None,
             last_head: String::new(),
         };
-        self.settings.sync.github_client_id = self.sync_ui.github_client_id.text.trim().to_owned();
-        self.settings.sync.google_client_id = self.sync_ui.google_client_id.text.trim().to_owned();
-        self.settings
-            .sync
-            .vaults
-            .retain(|known| known.identity != binding.identity);
+        // Settings are not touched until sign-in succeeds: a cancelled or
+        // failed Connect leaves the current binding and its token working.
         let binding_id = binding.binding_id.clone();
-        self.settings.sync.vaults.push(binding);
-        self.save_settings();
-        if client_missing {
-            self.sync_ui.status =
-                "Scope saved. Add the public OAuth client id before Connect can reach the provider. No request was sent."
-                    .to_owned();
-            return;
-        }
+        self.sync_ui.pending = Some(binding);
         let provider = if provider == "github" {
             ProviderKind::GitHub
         } else {
             ProviderKind::GoogleDrive
         };
-        self.start_sign_in(provider, binding_id);
+        self.start_sign_in(provider, binding_id, client_id);
+    }
+
+    /// The binding this vault is connected with now, in settings.
+    fn binding_for(&self, identity: &str) -> Option<VaultSyncBinding> {
+        self.settings
+            .sync
+            .vaults
+            .iter()
+            .find(|known| known.identity == identity)
+            .cloned()
+    }
+
+    /// Make `binding` this vault's binding and save, then delete the
+    /// credential of the binding it replaced (and stop its host). Called
+    /// only once the new credential is stored.
+    fn swap_binding(&mut self, binding: VaultSyncBinding) -> Result<(), String> {
+        let old = self.binding_for(&binding.identity);
+        self.settings
+            .sync
+            .vaults
+            .retain(|known| known.identity != binding.identity);
+        self.settings.sync.vaults.push(binding.clone());
+        self.save_settings();
+        let Some(old) = old.filter(|old| old.binding_id != binding.binding_id) else {
+            return Ok(());
+        };
+        if old.provider == "tailscale" && old.tailnet_role == "host" {
+            self.sync_ui.host = None;
+            self.sync_ui.revealed_key = None;
+        }
+        let Ok(id) = BindingId::parse(&old.binding_id) else {
+            return Ok(());
+        };
+        let provider = ProviderKind::parse(&old.provider).unwrap_or(ProviderKind::GitHub);
+        self.sync_ui
+            .credentials
+            .delete(&muninn_sync::CredentialKey {
+                provider,
+                binding: id,
+            })
+            .map_err(|error| {
+                format!(" The previous connection's credential could not be removed: {error}")
+            })
     }
 
     /// Sign in on a worker thread: GitHub device flow or Google OAuth with
     /// PKCE and a loopback redirect, both in the system browser. The token
     /// goes straight to the OS credential store; settings never see it.
-    fn start_sign_in(&mut self, provider: ProviderKind, binding_id: String) {
+    fn start_sign_in(&mut self, provider: ProviderKind, binding_id: String, client_id: String) {
         let Ok(id) = BindingId::parse(&binding_id) else {
             return;
-        };
-        let client_id = if provider == ProviderKind::GitHub {
-            self.settings.sync.github_client_id.clone()
-        } else {
-            self.settings.sync.google_client_id.clone()
         };
         let (tx, rx) = mpsc::channel();
         self.sync_ui.inbox = Some(rx);
@@ -475,16 +513,12 @@ impl State {
                 self.sync_ui.phase = SyncPhase::Idle;
                 match result {
                     Ok(account) => {
-                        let mut known = false;
-                        for binding in &mut self.settings.sync.vaults {
-                            if binding.binding_id == binding_id {
-                                binding.account.clone_from(&account);
-                                known = true;
-                            }
-                        }
-                        if known {
-                            self.save_settings();
-                        } else {
+                        let pending = self
+                            .sync_ui
+                            .pending
+                            .take()
+                            .filter(|pending| pending.binding_id == binding_id);
+                        let Some(mut binding) = pending else {
                             // Disconnected while the browser was open: do not
                             // keep a token for a binding that no longer exists.
                             self.forget_credential(&binding_id);
@@ -492,19 +526,35 @@ impl State {
                                 "Sign-in finished after Disconnect; its token was removed."
                                     .to_owned();
                             return;
+                        };
+                        binding.account.clone_from(&account);
+                        if binding.provider == "github" {
+                            self.settings.sync.github_client_id =
+                                self.sync_ui.github_client_id.text.trim().to_owned();
+                        } else {
+                            self.settings.sync.google_client_id =
+                                self.sync_ui.google_client_id.text.trim().to_owned();
                         }
+                        let leftover = self.swap_binding(binding).err().unwrap_or_default();
                         self.sync_ui.status = if account.is_empty() {
-                            "Connected. The token is in the OS credential store. Sync Now when ready."
-                                .to_owned()
+                            format!(
+                                "Connected. The token is in the OS credential store. Sync Now when ready.{leftover}"
+                            )
                         } else {
                             format!(
-                                "Connected as {account}. The token is in the OS credential store. Sync Now when ready."
+                                "Connected as {account}. The token is in the OS credential store. Sync Now when ready.{leftover}"
                             )
                         };
                     }
                     Err(error) => {
+                        self.sync_ui.pending = None;
+                        let kept = if self.current_binding().is_some() {
+                            " The current connection was not changed."
+                        } else {
+                            ""
+                        };
                         self.sync_ui.status =
-                            format!("Sign-in did not finish: {error} No token was stored.");
+                            format!("Sign-in did not finish: {error} No token was stored.{kept}");
                     }
                 }
             }
@@ -559,7 +609,6 @@ impl State {
             return;
         }
         self.sync_ui.tailnet_key.replace_text("");
-        self.sync_ui.host = None;
         let binding = VaultSyncBinding {
             identity,
             provider: "tailscale".to_owned(),
@@ -581,24 +630,22 @@ impl State {
             last_success_unix_ms: None,
             last_head: String::new(),
         };
-        self.settings
-            .sync
-            .vaults
-            .retain(|known| known.identity != binding.identity);
-        self.settings.sync.vaults.push(binding);
-        self.save_settings();
+        // The new key is stored; only now replace the old binding, then
+        // delete the old key and stop the old host.
+        let leftover = self.swap_binding(binding).err().unwrap_or_default();
+        self.sync_ui.host = None;
         if hosting {
             self.resume_tailnet_host();
             if self.sync_ui.host.is_some() {
                 self.sync_ui.status = format!(
-                    "Hosting. Run once on this device: {}. Use Copy key to give the shared key to your other devices.",
+                    "Hosting. Run once on this device: {}. Use Copy key to give the shared key to your other devices.{leftover}",
                     muninn_sync::serve_command(port)
                 );
             }
         } else {
-            self.sync_ui.status =
-                "Joined. The shared key is in the OS credential store. Sync Now reaches the host over your tailnet."
-                    .to_owned();
+            self.sync_ui.status = format!(
+                "Joined. The shared key is in the OS credential store. Sync Now reaches the host over your tailnet.{leftover}"
+            );
         }
     }
 
@@ -699,6 +746,9 @@ impl State {
 
     pub fn disconnect_sync(&mut self) {
         self.sync_ui.cancel.cancel();
+        // A sign-in still in the browser is abandoned; its token is deleted
+        // when it arrives.
+        self.sync_ui.pending = None;
         self.sync_ui.host = None;
         self.sync_ui.revealed_key = None;
         let Some(binding) = self.current_binding().cloned() else {
@@ -996,7 +1046,9 @@ mod tests {
     use crate::State;
     use std::fs;
 
-    struct ConsentingBrowser;
+    /// Answers Google's consent page on the loopback redirect: with a code
+    /// when `true`, as a person who declined when `false`.
+    struct ConsentingBrowser(bool);
 
     impl muninn_sync::BrowserOpener for ConsentingBrowser {
         fn open(&self, url: &str) -> Result<(), muninn_sync::SyncError> {
@@ -1015,11 +1067,15 @@ mod tests {
             let rest = redirect.strip_prefix("http://127.0.0.1:").unwrap();
             let (port, path) = rest.split_once('/').unwrap();
             let port: u16 = port.parse().unwrap();
-            let target = format!(
-                "/{path}?state={}&code=consented&scope={}",
-                value("state"),
-                muninn_sync::DRIVE_SCOPE
-            );
+            let target = if self.0 {
+                format!(
+                    "/{path}?state={}&code=consented&scope={}",
+                    value("state"),
+                    muninn_sync::DRIVE_SCOPE
+                )
+            } else {
+                format!("/{path}?state={}&error=access_denied", value("state"))
+            };
             std::thread::spawn(move || {
                 use std::io::{Read, Write};
                 let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
@@ -1125,7 +1181,7 @@ mod tests {
         let token = token_server();
         state.sync_ui.sign_in = super::SignInEnv {
             google_token: format!("http://{token}"),
-            browser: std::sync::Arc::new(ConsentingBrowser),
+            browser: std::sync::Arc::new(ConsentingBrowser(true)),
             loopback: true,
             google_timeout: std::time::Duration::from_secs(10),
             ..super::SignInEnv::production()
@@ -1173,6 +1229,168 @@ mod tests {
         let _ = fs::remove_dir_all(&config_home);
     }
 
+    fn temp_state(tag: &str) -> (State, std::path::PathBuf) {
+        let root = std::env::temp_dir().join(format!(
+            "muninn-sync-ui-{tag}-{}-{}",
+            std::process::id(),
+            muninn_sync::BindingId::fresh().as_str()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("Note.md"), "keep me").unwrap();
+        for ext in ["state", "config"] {
+            fs::create_dir_all(root.with_extension(ext)).unwrap();
+        }
+        let state = State::with_settings(
+            root.clone(),
+            root.with_extension("state"),
+            root.with_extension("config"),
+            crate::settings::Settings::default(),
+        );
+        (state, root)
+    }
+
+    fn remove_temp(root: &std::path::Path) {
+        for path in [
+            root.to_path_buf(),
+            root.with_extension("state"),
+            root.with_extension("config"),
+        ] {
+            let _ = fs::remove_dir_all(path);
+        }
+    }
+
+    fn wait_idle(state: &mut State) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while state.sync_ui.phase != super::SyncPhase::Idle {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{}",
+                state.sync_ui.status
+            );
+            state.poll_sync();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
+    fn stored(state: &State, binding: &crate::settings::VaultSyncBinding) -> Option<String> {
+        state
+            .sync_ui
+            .credentials
+            .get(&muninn_sync::CredentialKey {
+                provider: muninn_sync::ProviderKind::parse(&binding.provider).unwrap(),
+                binding: muninn_sync::BindingId::parse(&binding.binding_id).unwrap(),
+            })
+            .unwrap()
+            .map(|token| token.access.expose().to_owned())
+    }
+
+    #[test]
+    fn connect_replaces_the_old_binding_only_after_sign_in_succeeds() {
+        let (mut state, root) = temp_state("swap");
+        // The vault is already joined to a Tailscale host.
+        state.set_sync_provider(2);
+        state.set_tailnet_role(1);
+        state
+            .sync_ui
+            .tailnet_host
+            .replace_text("minis.tail1234.ts.net");
+        state.sync_ui.tailnet_key.replace_text("k".repeat(40));
+        state.connect_sync();
+        let old = state.settings.sync.vaults[0].clone();
+        assert_eq!(stored(&state, &old), Some("k".repeat(40)));
+
+        // Switching to Drive, but the person declines in the browser.
+        state.sync_ui.sign_in = super::SignInEnv {
+            browser: std::sync::Arc::new(ConsentingBrowser(false)),
+            loopback: true,
+            google_timeout: std::time::Duration::from_secs(10),
+            ..super::SignInEnv::production()
+        };
+        state.set_sync_provider(1);
+        state
+            .sync_ui
+            .google_client_id
+            .replace_text("client.apps.googleusercontent.com");
+        state.connect_sync();
+        assert_eq!(
+            state.settings.sync.vaults,
+            vec![old.clone()],
+            "nothing is replaced while signing in"
+        );
+        wait_idle(&mut state);
+        assert!(
+            state.sync_ui.status.contains("not changed"),
+            "{}",
+            state.sync_ui.status
+        );
+        assert_eq!(state.settings.sync.vaults, vec![old.clone()]);
+        let reloaded = crate::settings::Settings::load_from(&root.with_extension("config"));
+        assert_eq!(reloaded.sync.vaults, vec![old.clone()]);
+        assert_eq!(stored(&state, &old), Some("k".repeat(40)));
+
+        // This time sign-in succeeds: the Drive binding replaces the old one
+        // and the old key is deleted.
+        let token = token_server();
+        state.sync_ui.sign_in = super::SignInEnv {
+            google_token: format!("http://{token}"),
+            browser: std::sync::Arc::new(ConsentingBrowser(true)),
+            loopback: true,
+            google_timeout: std::time::Duration::from_secs(10),
+            ..super::SignInEnv::production()
+        };
+        state.connect_sync();
+        wait_idle(&mut state);
+        assert!(
+            state.sync_ui.status.starts_with("Connected"),
+            "{}",
+            state.sync_ui.status
+        );
+        assert_eq!(state.settings.sync.vaults.len(), 1);
+        let new = state.settings.sync.vaults[0].clone();
+        assert_eq!(new.provider, "google_drive");
+        assert_ne!(new.binding_id, old.binding_id);
+        assert_eq!(stored(&state, &new).as_deref(), Some("ya29.ui"));
+        assert_eq!(stored(&state, &old), None, "the old key is deleted");
+        let reloaded = crate::settings::Settings::load_from(&root.with_extension("config"));
+        assert_eq!(reloaded.sync.vaults, vec![new]);
+        remove_temp(&root);
+    }
+
+    #[test]
+    fn tailscale_reconnect_deletes_the_old_key_and_stops_the_old_host() {
+        let (mut state, root) = temp_state("ts-swap");
+        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = free.local_addr().unwrap().port();
+        drop(free);
+        state.set_sync_provider(2);
+        state.set_tailnet_role(0);
+        state.sync_ui.tailnet_port.replace_text(port.to_string());
+        state.connect_sync();
+        let old = state.settings.sync.vaults[0].clone();
+        let key = stored(&state, &old).unwrap();
+        assert_eq!(host_status(port, &key), 200);
+
+        state.set_tailnet_role(1);
+        state
+            .sync_ui
+            .tailnet_host
+            .replace_text("minis.tail1234.ts.net");
+        state.sync_ui.tailnet_key.replace_text("p".repeat(40));
+        state.connect_sync();
+        assert_eq!(state.settings.sync.vaults.len(), 1);
+        let new = state.settings.sync.vaults[0].clone();
+        assert_eq!(new.tailnet_role, "peer");
+        assert_eq!(stored(&state, &new), Some("p".repeat(40)));
+        assert_eq!(stored(&state, &old), None, "the old host key is deleted");
+        assert!(!state.hosting_tailnet());
+        assert!(
+            std::net::TcpStream::connect(("127.0.0.1", port)).is_err(),
+            "the old host stopped"
+        );
+        state.disconnect_sync();
+        remove_temp(&root);
+    }
+
     #[test]
     fn each_binding_runs_in_its_own_state_dir() {
         let sync_home = std::env::temp_dir().join(format!(
@@ -1217,41 +1435,24 @@ mod tests {
     }
 
     #[test]
-    fn connect_persists_scope_without_tokens_and_disconnect_keeps_the_note() {
-        let root = std::env::temp_dir().join(format!(
-            "muninn-sync-ui-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
-        fs::write(root.join("Note.md"), "keep me").unwrap();
-        let state_home = root.with_extension("state");
-        let config_home = root.with_extension("config");
-        fs::create_dir_all(&state_home).unwrap();
-        fs::create_dir_all(&config_home).unwrap();
-        let mut state = State::with_settings(
-            root.clone(),
-            state_home,
-            config_home.clone(),
-            crate::settings::Settings::default(),
-        );
+    fn connect_without_a_client_id_saves_nothing_and_sends_nothing() {
+        let (mut state, root) = temp_state("noclient");
         state.sync_ui.github_owner.replace_text("octocat");
         state.sync_ui.github_repo.replace_text("notes");
         state.connect_sync();
-        let saved = fs::read_to_string(config_home.join("muninn/settings.json")).unwrap();
-        assert!(saved.contains("octocat"));
-        assert!(!saved.contains("access_token"));
-        assert!(!saved.contains("refresh_token"));
+        assert!(state.sync_ui.phase.is_idle());
+        assert!(
+            state.sync_ui.status.contains("client id"),
+            "{}",
+            state.sync_ui.status
+        );
+        assert!(state.settings.sync.vaults.is_empty());
+        let saved = fs::read_to_string(root.with_extension("config").join("muninn/settings.json"))
+            .unwrap_or_default();
+        assert!(!saved.contains("octocat"));
         state.disconnect_sync();
         assert_eq!(fs::read_to_string(root.join("Note.md")).unwrap(), "keep me");
-        assert!(state.settings.sync.vaults.is_empty());
-        let _ = fs::remove_dir_all(&root);
-        let _ = fs::remove_dir_all(root.with_extension("state"));
-        let _ = fs::remove_dir_all(&config_home);
+        remove_temp(&root);
     }
 
     #[test]
