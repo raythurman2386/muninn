@@ -147,7 +147,14 @@ fn external_create_is_visible_on_the_next_watch_tick() {
     assert!(!poll(&mut s, 1.0, &mut tx), "nothing changed yet");
 
     fs::write(env.vault.path().join("New.md"), "# New\n").expect("external create");
-    assert!(poll(&mut s, 2.7, &mut tx), "the watcher reports a reload");
+    // Directory mtimes tick coarsely (Windows), so keep polling through the
+    // interval boundary until the snapshot sees the new entry.
+    let mut t = 2.7;
+    while !(poll(&mut s, t, &mut tx) || s.vault.resolve("New").is_some()) {
+        std::thread::sleep(std::time::Duration::from_millis(60));
+        t += 0.6;
+        assert!(t < 8.0, "the watcher never reported the new note");
+    }
     assert_eq!(s.vault.notes.len(), 2);
     assert!(s.vault.resolve("New").is_some(), "sidebar data rescanned");
 }
@@ -164,7 +171,14 @@ fn external_create_while_dirty_saves_then_reloads_without_losing_text() {
 
     s.editor.insert("typed before the external create\n");
     fs::write(env.vault.path().join("New.md"), "# New\n").expect("external create");
-    assert!(poll(&mut s, 2.7, &mut tx));
+    // Keep watching through the interval boundary until the reload lands;
+    // directory mtimes tick coarsely on Windows, so this is a bounded burst.
+    let mut t = 2.7;
+    while !poll(&mut s, t, &mut tx) {
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        t += 0.8;
+        assert!(t < 8.0, "the watcher never reported the new note");
+    }
 
     assert!(s.vault.resolve("New").is_some(), "the new note is indexed");
     assert!(!s.dirty(), "the dirty buffer was saved before reloading");
@@ -190,7 +204,12 @@ fn external_delete_of_a_clean_note_reloads_the_vault() {
     assert!(!poll(&mut s, 1.0, &mut tx));
 
     fs::remove_file(env.vault.path().join("Beta.md")).expect("external delete");
-    assert!(poll(&mut s, 2.7, &mut tx));
+    let mut t = 2.7;
+    while !poll(&mut s, t, &mut tx) {
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        t += 0.8;
+        assert!(t < 8.0, "the watcher never reported the delete");
+    }
     assert_eq!(s.vault.notes.len(), 1);
     assert!(s.vault.resolve("Beta").is_none());
     assert!(
