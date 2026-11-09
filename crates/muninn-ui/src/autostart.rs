@@ -132,12 +132,13 @@ impl AutostartPort for NativeAutostart {
     }
 }
 
-/// What the login item launches: the AppImage when running from one (its
-/// mount point changes every run), else this executable.
+/// What the login item launches: always this executable
+/// ([`std::env::current_exe`]).
+///
+/// `$APPIMAGE` is ignored on purpose. Muninn ships no AppImage, so a set
+/// `$APPIMAGE` was inherited from some other AppImage that started Muninn,
+/// and pointing the login item there would launch that program at login.
 fn launch_path() -> io::Result<PathBuf> {
-    if let Some(image) = std::env::var_os("APPIMAGE").filter(|v| !v.is_empty()) {
-        return Ok(PathBuf::from(image));
-    }
     std::env::current_exe()
 }
 
@@ -324,6 +325,49 @@ mod tests {
             "\"/back\\\\\\\\slash\""
         );
         assert!(desktop_exec(Path::new("/line\nbreak")).is_err());
+    }
+
+    /// Set in the child run of [`an_inherited_appimage_is_ignored`].
+    const APPIMAGE_CHILD: &str = "MUNINN_TEST_APPIMAGE_CHILD";
+
+    /// Tests cannot set environment variables (`unsafe_code` is forbidden),
+    /// so this test runs itself again in a child with `$APPIMAGE` set.
+    #[test]
+    fn an_inherited_appimage_is_ignored() {
+        let other = "/opt/Other.AppImage";
+        if std::env::var_os(APPIMAGE_CHILD).is_some() {
+            assert_eq!(std::env::var("APPIMAGE").as_deref(), Ok(other));
+            let exe = launch_path().expect("launch path");
+            assert_eq!(exe, std::env::current_exe().expect("current exe"));
+            let entry = desktop_entry(&exe).expect("entry");
+            assert!(!entry.contains("Other.AppImage"), "{entry}");
+            assert!(
+                !windows_enable_args(&exe)
+                    .iter()
+                    .any(|a| a.contains("Other.AppImage"))
+            );
+            return;
+        }
+        let output = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "autostart::tests::an_inherited_appimage_is_ignored",
+            ])
+            .args(["--test-threads", "1"])
+            .env(APPIMAGE_CHILD, "1")
+            .env("APPIMAGE", other)
+            .output()
+            .expect("run the child test");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success(),
+            "{stdout}{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains("1 passed"),
+            "the child ran no test: {stdout}"
+        );
     }
 
     #[test]
