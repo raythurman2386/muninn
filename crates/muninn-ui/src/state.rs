@@ -490,6 +490,8 @@ pub struct State {
     /// [`State::graph_step`] can reheat once when it turns off.
     graph_was_reduced: bool,
     pub sync_ui: crate::sync_ui::SyncUi,
+    /// The optional tray icon ([`crate::tray`]).
+    pub(crate) tray: crate::tray::TrayLink,
 }
 
 impl State {
@@ -700,6 +702,7 @@ impl State {
             system_reduced_motion: std::cell::Cell::new(false),
             graph_was_reduced: false,
             sync_ui: crate::sync_ui::SyncUi::memory(),
+            tray: crate::tray::TrayLink::default(),
         };
         // X-01: one startup line with the build, the vault path and counts.
         // Keys only: note bodies and titles never reach the log.
@@ -809,7 +812,7 @@ impl State {
     ///
     /// Callers pass keys (vault-relative names, counts, results), never note
     /// bodies, so the log is safe to attach to a bug report.
-    fn log_event(&self, event: &str, detail: &str) {
+    pub(crate) fn log_event(&self, event: &str, detail: &str) {
         let line = if detail.is_empty() {
             format!("{} {event}", conflict_stamp())
         } else {

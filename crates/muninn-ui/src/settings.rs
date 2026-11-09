@@ -439,6 +439,9 @@ pub struct Settings {
     pub sync: SyncPrefs,
     /// Settings › Graph › Reduce motion. Defaults to [`ReduceMotion::System`].
     pub reduce_motion: ReduceMotion,
+    /// Settings › Appearance › Show tray icon. Off by default; files saved
+    /// before the setting existed load as off.
+    pub tray_icon: bool,
 }
 
 impl Default for Settings {
@@ -455,6 +458,7 @@ impl Default for Settings {
             note_template: String::new(),
             sync: SyncPrefs::default(),
             reduce_motion: ReduceMotion::System,
+            tray_icon: false,
         }
     }
 }
@@ -510,6 +514,7 @@ impl Settings {
             "note_template": clamp_note_template(&self.note_template),
             "sync": self.sync.to_json(),
             "reduce_motion": self.reduce_motion.as_key(),
+            "tray_icon": self.tray_icon,
         });
         let bytes = serde_json::to_vec_pretty(&value)?;
         atomic_write(&path, &bytes)
@@ -579,6 +584,10 @@ impl Settings {
         settings.sync = SyncPrefs::from_value(value.get("sync"));
         settings.reduce_motion =
             ReduceMotion::from_key(value.get("reduce_motion").and_then(Value::as_str));
+        settings.tray_icon = value
+            .get("tray_icon")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         settings
     }
 }
@@ -672,6 +681,7 @@ mod tests {
             note_template: "---\ntags: []\n---".to_owned(),
             sync: SyncPrefs::default(),
             reduce_motion: ReduceMotion::On,
+            tray_icon: true,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);

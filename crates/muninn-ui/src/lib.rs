@@ -14,6 +14,7 @@ mod recovery;
 mod settings;
 mod state;
 mod sync_ui;
+mod tray;
 mod view;
 mod watch;
 
@@ -30,5 +31,9 @@ pub use state::{
     FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport, LinkComplete,
     MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TrashUndo,
     file_action_command,
+};
+pub use tray::{
+    TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory, TrayPort,
+    tray_action, tray_icon, tray_menu, tray_spec, tray_status_label, tray_supported,
 };
 pub use view::view;
