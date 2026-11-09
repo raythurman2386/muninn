@@ -371,6 +371,31 @@ fn scenes() -> &'static [Scene] {
             s.saved.clear();
             s.set_mode(Mode::Editor);
         }),
+        ("settings-sync", |s| {
+            s.open_settings();
+            s.sync_ui.github_owner.replace_text("octocat");
+            s.sync_ui.github_repo.replace_text("notes-sync");
+            s.sync_ui.github_branch.replace_text("muninn-sync");
+            s.sync_ui.github_prefix.replace_text("vault");
+            s.sync_ui.status =
+                "Scope saved for this vault. No token is stored in settings.".to_owned();
+        }),
+        ("settings-sync-drive", |s| {
+            s.open_settings();
+            s.set_sync_provider(1);
+            s.sync_ui.drive_folder_id.replace_text("appGrantedFolderId");
+            s.sync_ui.drive_folder_name.replace_text("Muninn");
+            s.sync_ui.status =
+                "Google Drive uses an app-managed commit history in this folder, not editable Markdown mirrors."
+                    .to_owned();
+        }),
+        ("settings-sync-conflict", |s| {
+            s.theme = muninn_ui::ThemeMode::Light;
+            s.open_settings();
+            s.sync_ui.status =
+                "2 conflicts. Nothing was overwritten. Resolve them, then Sync Now again."
+                    .to_owned();
+        }),
     ]
 }
 
@@ -392,7 +417,17 @@ mod tests {
         let names: Vec<&str> = scenes().iter().map(|(name, _)| *name).collect();
         assert_eq!(
             names,
-            ["notes", "preview", "graph", "local", "light", "empty"]
+            [
+                "notes",
+                "preview",
+                "graph",
+                "local",
+                "light",
+                "empty",
+                "settings-sync",
+                "settings-sync-drive",
+                "settings-sync-conflict"
+            ]
         );
     }
 

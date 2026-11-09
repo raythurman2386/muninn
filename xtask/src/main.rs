@@ -154,10 +154,16 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
     let mut allowed: BTreeMap<&'static str, BTreeSet<&'static str>> = BTreeMap::new();
     allowed.insert("muninn-core", BTreeSet::new());
     allowed.insert("muninn-graph", BTreeSet::from(["muninn-core"]));
-    allowed.insert("muninn-ui", BTreeSet::from(["muninn-core", "muninn-graph"]));
+    // Sync is UI-free. It does not depend on the vault index: the file bytes
+    // are the source of truth, and the UI coordinates editor/watcher state.
+    allowed.insert("muninn-sync", BTreeSet::new());
+    allowed.insert(
+        "muninn-ui",
+        BTreeSet::from(["muninn-core", "muninn-graph", "muninn-sync"]),
+    );
     allowed.insert(
         "muninn-app",
-        BTreeSet::from(["muninn-core", "muninn-graph", "muninn-ui"]),
+        BTreeSet::from(["muninn-core", "muninn-graph", "muninn-ui", "muninn-sync"]),
     );
     allowed.insert("xtask", BTreeSet::new());
     allowed

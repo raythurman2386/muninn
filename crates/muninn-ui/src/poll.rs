@@ -37,6 +37,9 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.find_tick() {
         changed = true;
     }
+    if s.poll_sync() {
+        changed = true;
+    }
     if s.complete_tick() {
         changed = true;
     }

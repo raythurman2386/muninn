@@ -220,6 +220,7 @@ impl State {
         }
         self.settings_modal = false;
         self.vault_field.focused = false;
+        self.sync_ui.blur();
         if self.settings_return_search {
             self.focus_search();
         } else if self.settings_return_editor {

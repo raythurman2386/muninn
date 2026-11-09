@@ -268,6 +268,16 @@ RUNE_DIR=/path/to/rune ./scripts/use-local-rune.sh
 The script writes a gitignored `.cargo/config.toml` patch. Remove that file to return to the
 pinned revision.
 
+### Sync
+
+Settings can bind the open vault to GitHub or Google Drive. Sync Now is manual.
+GitHub publishes the vault as Git files on a branch you choose and refuses
+force updates. Drive stores immutable commits created by Muninn inside a folder
+you select; it does not turn that folder into a normal set of editable Markdown
+files. Setup for the OAuth client and the OS credential store is described in
+[docs/sync-setup.md](docs/sync-setup.md). Tokens are not written to
+`settings.json`.
+
 ### Headless snapshots
 
 The Rune runtime can render scenes without a window:

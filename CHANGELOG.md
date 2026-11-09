@@ -6,6 +6,15 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Manual vault sync for GitHub and Google Drive from Settings. Sync Now,
+  Cancel, status, last success, and Disconnect are explicit. There is no
+  background sync. Drive stores an app-managed commit history in the selected
+  folder; it is not an editable Markdown mirror. GitHub publishes Git objects
+  and updates the selected branch with `force` false. Tokens stay in the OS
+  credential store. Disconnect does not delete notes.
+
 ## [0.5.2] - 2026-11-09
 
 ### Changed
