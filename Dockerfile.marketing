@@ -1,0 +1,11 @@
+# Static image of the Muninn marketing landing page (site/).
+# Build from the repo root:  docker build -f Dockerfile.marketing -t muninn-site .
+# Served by nginx on port 80; GET / returns index.html (2xx for the GoForge health check).
+# GoForge: Dockerfile Path = Dockerfile.marketing, Build Context = . (repo root).
+# The desktop app is built with Cargo and is not affected by this file.
+
+FROM nginx:1.29-alpine
+COPY site/ /usr/share/nginx/html/
+EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1

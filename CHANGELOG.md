@@ -22,6 +22,11 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- Marketing landing page in `site/` (static HTML, CSS and JS using
+  Muninn's Dark and Light themes), and `Dockerfile.marketing`, a static
+  nginx image that serves it on port 80 for a later GoForge deploy. The
+  site is not deployed yet, and its download buttons wait for v0.6.0.
+
 - Tray slice two, on Settings › Appearance, each off by default and saved in
   `settings.json` (older files load as off):
   - **Close to tray** (`close_to_tray`): closing the window hides it while a
