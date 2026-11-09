@@ -382,7 +382,15 @@ impl<'a, T: HttpTransport> GitHubClient<'a, T> {
             },
             true,
         )?;
-        token_from_json(&response.json()?)
+        let json = response.json()?;
+        // GitHub answers a bad or expired refresh token with 200 and an
+        // `error` field, not a 4xx.
+        if let Some(error) = json.get("error").and_then(|value| value.as_str()) {
+            return Err(SyncError::Auth {
+                detail: format!("GitHub refused the refresh token ({error}); connect again"),
+            });
+        }
+        token_from_json(&json)
     }
 
     pub fn current_login(&self, token: &Secret) -> Result<String, SyncError> {
@@ -946,7 +954,8 @@ fn token_from_json(json: &serde_json::Value) -> Result<TokenSet, SyncError> {
     Ok(TokenSet {
         access: Secret::new(access),
         refresh,
-        expires_unix_ms: expires.map(|seconds| seconds.saturating_mul(1000)),
+        expires_unix_ms: expires
+            .map(|seconds| crate::secret::expires_at(crate::secret::now_unix_ms(), seconds)),
         account: String::new(),
     })
 }

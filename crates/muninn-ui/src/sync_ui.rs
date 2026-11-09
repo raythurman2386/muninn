@@ -456,6 +456,8 @@ impl State {
         self.sync_ui.cancel = CancelToken::new();
         let cancel = self.sync_ui.cancel.clone();
         let credentials = Arc::clone(&self.sync_ui.credentials);
+        let github_client_id = self.settings.sync.github_client_id.clone();
+        let google_client_id = self.settings.sync.google_client_id.clone();
         thread::spawn(move || {
             let engine = match muninn_sync::ReqwestTransport::production() {
                 Ok(transport) => muninn_sync::EngineParts {
@@ -468,6 +470,8 @@ impl State {
                     drive_api: "https://www.googleapis.com".to_owned(),
                     drive_upload: "https://www.googleapis.com/upload".to_owned(),
                     drive_oauth: "https://oauth2.googleapis.com".to_owned(),
+                    github_client_id,
+                    google_client_id,
                     tailnet_api: None,
                 },
                 Err(error) => {

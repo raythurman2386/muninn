@@ -453,6 +453,9 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         token_from_oauth(&response.json()?)
     }
 
+    /// Trade the refresh token for a new access token. Google usually omits
+    /// a new refresh token; the caller keeps the old one (see
+    /// [`TokenSet::refreshed`]). A revoked or expired grant is `Auth`.
     pub fn refresh(&self, client_id: &str, refresh: &Secret) -> Result<TokenSet, SyncError> {
         require_client_id(client_id)?;
         let body = form(&[
@@ -460,7 +463,7 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh.expose()),
         ]);
-        let response = self.send(HttpRequest {
+        let response = self.transport.execute(&HttpRequest {
             method: "POST".to_owned(),
             url: format!("{}/token", self.oauth_base.trim_end_matches('/')),
             headers: vec![
@@ -471,9 +474,16 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
                 ("Accept".to_owned(), "application/json".to_owned()),
             ],
             body: body.into_bytes(),
-            mutation: true,
+            mutation: false,
             timeout: self.request_timeout,
         })?;
+        if response.status == 400 || response.status == 401 {
+            let detail = crate::error::provider_message(response.text().unwrap_or(""));
+            return Err(SyncError::Auth {
+                detail: format!("Google refused the refresh token ({detail}); connect again"),
+            });
+        }
+        classify_status(&response, false)?;
         token_from_oauth(&response.json()?)
     }
 
@@ -1166,7 +1176,8 @@ fn token_from_oauth(json: &serde_json::Value) -> Result<TokenSet, SyncError> {
     Ok(TokenSet {
         access: Secret::new(access),
         refresh,
-        expires_unix_ms: expires.map(|seconds| seconds.saturating_mul(1000)),
+        expires_unix_ms: expires
+            .map(|seconds| crate::secret::expires_at(crate::secret::now_unix_ms(), seconds)),
         account: String::new(),
     })
 }

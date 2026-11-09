@@ -37,6 +37,9 @@ pub struct EngineParts<T, C> {
     pub drive_api: String,
     pub drive_upload: String,
     pub drive_oauth: String,
+    /// OAuth client ids, used only to refresh an expiring access token.
+    pub github_client_id: String,
+    pub google_client_id: String,
     /// Test-only override for a Tailscale peer's base URL. Production derives
     /// `https://<host>` from the binding.
     pub tailnet_api: Option<String>,
@@ -90,17 +93,32 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
         provider: request.provider,
         binding: request.binding.clone(),
     };
-    let token = engine
+    let mut token = engine
         .credentials
         .get(&key)?
         .ok_or_else(|| SyncError::Auth {
             detail: "this binding has no credentials; connect the provider first".to_owned(),
         })?;
+    let mut refreshed = false;
+    if token.expires_within(crate::secret::now_unix_ms(), REFRESH_MARGIN_MS) {
+        token = refresh_token(engine, request.provider, &key, &token)?;
+        refreshed = true;
+    }
 
     let mut round = 0;
     loop {
         round += 1;
-        match sync_round(engine, request, &token, &inventory)? {
+        let outcome = match sync_round(engine, request, &token, &inventory) {
+            // A 401 with a refresh token on hand: refresh once and retry.
+            Err(SyncError::Auth { .. }) if !refreshed && can_refresh(request.provider, &token) => {
+                token = refresh_token(engine, request.provider, &key, &token)?;
+                refreshed = true;
+                round -= 1;
+                continue;
+            }
+            other => other?,
+        };
+        match outcome {
             Round::Done(report) => return Ok(report),
             Round::RemoteMoved(error) if round < MAX_PUBLISH_ROUNDS => {
                 engine.sleeper.sleep(
@@ -112,6 +130,43 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
             Round::RemoteMoved(error) => return Err(error),
         }
     }
+}
+
+/// Refresh an access token this close to its expiry before using it.
+const REFRESH_MARGIN_MS: u64 = 5 * 60 * 1000;
+
+fn can_refresh(provider: ProviderKind, token: &TokenSet) -> bool {
+    provider != ProviderKind::Tailscale && token.refresh.is_some()
+}
+
+/// Trade the refresh token for a new pair and store it before it is used,
+/// so a rotated refresh token (GitHub rotates them) is never lost.
+fn refresh_token<T: HttpTransport, C: CredentialStore>(
+    engine: &EngineParts<T, C>,
+    provider: ProviderKind,
+    key: &CredentialKey,
+    token: &TokenSet,
+) -> Result<TokenSet, SyncError> {
+    let Some(refresh) = token
+        .refresh
+        .as_ref()
+        .filter(|_| can_refresh(provider, token))
+    else {
+        return Err(SyncError::Auth {
+            detail: "the access token expired and there is no refresh token; connect again"
+                .to_owned(),
+        });
+    };
+    let next = match provider {
+        ProviderKind::GitHub => github_client(engine).refresh(&engine.github_client_id, refresh)?,
+        ProviderKind::GoogleDrive => {
+            drive_client(engine).refresh(&engine.google_client_id, refresh)?
+        }
+        ProviderKind::Tailscale => unreachable!("can_refresh excludes Tailscale"),
+    };
+    let next = token.refreshed(next);
+    engine.credentials.put(key, &next)?;
+    Ok(next)
 }
 
 enum Round {

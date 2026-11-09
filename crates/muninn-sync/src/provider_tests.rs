@@ -29,6 +29,11 @@ struct GitStore {
     protected: bool,
     tree_reads: u32,
     blob_reads: u32,
+    /// When set, API calls with any other bearer token get a 401.
+    require_token: Option<String>,
+    /// Body for a refresh-token grant on /login/oauth/access_token.
+    refresh_reply: Value,
+    refreshes: u32,
 }
 
 /// What GitHub's `?recursive=1` returns: every entry with its full path.
@@ -71,6 +76,9 @@ fn git_store() -> GitStore {
         protected: false,
         tree_reads: 0,
         blob_reads: 0,
+        require_token: None,
+        refresh_reply: Value::Null,
+        refreshes: 0,
     }
 }
 
@@ -78,6 +86,15 @@ fn git_server(store: Arc<Mutex<GitStore>>) -> ScriptedServer {
     ScriptedServer::spawn(move |request| {
         let path = request.path.split('?').next().unwrap_or(&request.path).to_owned();
         let mut git = store.lock().expect("git");
+        if request.method == "POST" && path.ends_with("/login/oauth/access_token") {
+            git.refreshes += 1;
+            return json_reply(200, git.refresh_reply.clone());
+        }
+        if let Some(required) = &git.require_token
+            && request.header("authorization") != Some(format!("Bearer {required}").as_str())
+        {
+            return json_reply(401, json!({"message": "Bad credentials"}));
+        }
         if request.method == "POST" && path.ends_with("/git/blobs") {
             let body: Value = serde_json::from_slice(&request.body).unwrap_or(Value::Null);
             let content = body.get("content").and_then(|v| v.as_str()).unwrap_or("");
@@ -295,6 +312,9 @@ fn github_publish_is_force_false_and_round_trips_rename_delete() {
         protected: false,
         tree_reads: 0,
         blob_reads: 0,
+        require_token: None,
+        refresh_reply: Value::Null,
+        refreshes: 0,
     }));
     let server = git_server(Arc::clone(&store));
     let sleeper = RecordingSleeper::default();
@@ -445,6 +465,9 @@ fn github_rejects_symlink_truncation_and_protected_branch() {
         protected: false,
         tree_reads: 0,
         blob_reads: 0,
+        require_token: None,
+        refresh_reply: Value::Null,
+        refreshes: 0,
     }));
     let server = git_server(Arc::clone(&store));
     let sleeper = RecordingSleeper::default();
@@ -888,6 +911,9 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         protected: false,
         tree_reads: 0,
         blob_reads: 0,
+        require_token: None,
+        refresh_reply: Value::Null,
+        refreshes: 0,
     }));
     let server = git_server(Arc::clone(&store));
     let credentials = MemoryCredentialStore::default();
@@ -919,6 +945,8 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
         drive_api: server.base(),
         drive_upload: server.base(),
         drive_oauth: server.base(),
+        github_client_id: "Iv1.testclient".to_owned(),
+        google_client_id: "Iv1.testclient".to_owned(),
         tailnet_api: None,
     };
     let root = std::env::temp_dir().join(format!("muninn-engine-{}", std::process::id()));
@@ -997,6 +1025,8 @@ fn github_engine<'a>(
         drive_api: server.base(),
         drive_upload: server.base(),
         drive_oauth: server.base(),
+        github_client_id: "Iv1.testclient".to_owned(),
+        google_client_id: "Iv1.testclient".to_owned(),
         tailnet_api: None,
     }
 }
@@ -1234,6 +1264,9 @@ struct DriveStore {
     pending: Vec<DriveFile>,
     race_at_commit_list: Option<u32>,
     commit_lists: u32,
+    /// Status and body for a POST /token refresh.
+    token_reply: Option<(u16, Value)>,
+    refreshes: u32,
 }
 
 #[derive(Clone)]
@@ -1263,6 +1296,11 @@ fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
     let server = ScriptedServer::spawn(move |request| {
         let mut drive = store.lock().expect("drive");
         let bound = port_for_handler.load(std::sync::atomic::Ordering::SeqCst);
+        if request.method == "POST" && request.path == "/token" {
+            drive.refreshes += 1;
+            let (status, body) = drive.token_reply.clone().unwrap_or((500, Value::Null));
+            return json_reply(status, body);
+        }
         if drive.incomplete && request.path.contains("/drive/v3/files?") {
             return json_reply(200, json!({"incompleteSearch": true, "files": []}));
         }
@@ -1525,4 +1563,187 @@ fn two_bindings_sync_without_sharing_a_base() {
     let base_b = std::fs::read_to_string(b.state_dir.join("base.json")).unwrap();
     assert!(base_a.contains(first.as_str()) && base_a.contains("one.md"));
     assert!(base_b.contains(second.as_str()) && base_b.contains("two.md"));
+}
+
+fn expiring_token(
+    provider: ProviderKind,
+    expires_unix_ms: u64,
+) -> (MemoryCredentialStore, BindingId, CredentialKey) {
+    let (credentials, binding) = connected(provider);
+    let key = CredentialKey {
+        provider,
+        binding: binding.clone(),
+    };
+    credentials
+        .put(
+            &key,
+            &TokenSet {
+                access: Secret::new("old-access"),
+                refresh: Some(Secret::new("refresh-1")),
+                expires_unix_ms: Some(expires_unix_ms),
+                account: "octocat".to_owned(),
+            },
+        )
+        .unwrap();
+    (credentials, binding, key)
+}
+
+#[test]
+fn github_token_near_expiry_is_refreshed_and_the_rotated_pair_is_stored() {
+    let mut git = git_store();
+    git.require_token = Some("new-access".to_owned());
+    git.refresh_reply = json!({"access_token": "new-access", "refresh_token": "refresh-2", "expires_in": 28800, "refresh_token_expires_in": 15_897_600});
+    let store = Arc::new(Mutex::new(git));
+    let server = git_server(Arc::clone(&store));
+    let now = crate::secret::now_unix_ms();
+    // Expires in one minute: inside the five-minute margin.
+    let (credentials, binding, key) = expiring_token(ProviderKind::GitHub, now + 60_000);
+    let engine = github_engine(&server, &credentials);
+    let device = TestVault::new("gh-refresh");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GitHub, &binding, "abcde00000000071"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(store.lock().unwrap().refreshes, 1);
+    let stored = credentials.get(&key).unwrap().unwrap();
+    assert_eq!(stored.access.expose(), "new-access");
+    assert_eq!(
+        stored.refresh.as_ref().map(Secret::expose),
+        Some("refresh-2")
+    );
+    assert_eq!(stored.account, "octocat");
+    let at = stored.expires_unix_ms.unwrap();
+    assert!(
+        at >= now + 28_800_000 && at < now + 28_800_000 + 60_000,
+        "expiry must be absolute: {at} vs now {now}"
+    );
+    let body = server
+        .recorded()
+        .into_iter()
+        .find(|request| request.path.ends_with("/login/oauth/access_token"))
+        .unwrap()
+        .body_str();
+    assert!(body.contains("grant_type=refresh_token") && body.contains("refresh_token=refresh-1"));
+    assert!(body.contains("client_id=Iv1.testclient"));
+
+    // A fresh token is used as is.
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GitHub, &binding, "abcde00000000072"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(store.lock().unwrap().refreshes, 1);
+}
+
+#[test]
+fn github_401_refreshes_once_then_retries() {
+    let mut git = git_store();
+    git.require_token = Some("new-access".to_owned());
+    git.refresh_reply =
+        json!({"access_token": "new-access", "refresh_token": "refresh-2", "expires_in": 28800});
+    let store = Arc::new(Mutex::new(git));
+    let server = git_server(Arc::clone(&store));
+    // The stored expiry says hours left, but the server revoked the token.
+    let (credentials, binding, key) = expiring_token(
+        ProviderKind::GitHub,
+        crate::secret::now_unix_ms() + 3_600_000,
+    );
+    let engine = github_engine(&server, &credentials);
+    let device = TestVault::new("gh-401");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GitHub, &binding, "abcde00000000073"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(store.lock().unwrap().refreshes, 1);
+    assert_eq!(
+        credentials.get(&key).unwrap().unwrap().access.expose(),
+        "new-access"
+    );
+
+    // A refresh that does not help is reported, not looped.
+    store.lock().unwrap().require_token = Some("never".to_owned());
+    let error = run_sync(
+        &engine,
+        &device.request(ProviderKind::GitHub, &binding, "abcde00000000074"),
+    )
+    .unwrap_err();
+    assert!(matches!(error, SyncError::Auth { .. }), "{error}");
+    assert_eq!(store.lock().unwrap().refreshes, 2);
+}
+
+#[test]
+fn github_bad_refresh_token_is_auth_and_keeps_the_stored_pair() {
+    let mut git = git_store();
+    git.refresh_reply = json!({"error": "bad_refresh_token", "error_description": "The refresh token passed is incorrect or expired."});
+    let store = Arc::new(Mutex::new(git));
+    let server = git_server(Arc::clone(&store));
+    let (credentials, binding, key) = expiring_token(ProviderKind::GitHub, 1);
+    let engine = github_engine(&server, &credentials);
+    let device = TestVault::new("gh-bad-refresh");
+    let error = run_sync(
+        &engine,
+        &device.request(ProviderKind::GitHub, &binding, "abcde00000000075"),
+    )
+    .unwrap_err();
+    assert!(matches!(error, SyncError::Auth { .. }), "{error}");
+    let stored = credentials.get(&key).unwrap().unwrap();
+    assert_eq!(
+        stored.refresh.as_ref().map(Secret::expose),
+        Some("refresh-1")
+    );
+}
+
+#[test]
+fn drive_refresh_keeps_the_refresh_token_google_did_not_resend() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    drive.lock().unwrap().token_reply = Some((
+        200,
+        json!({"access_token": "new-access", "expires_in": 3599, "scope": drive::DRIVE_SCOPE, "token_type": "Bearer"}),
+    ));
+    let server = drive_server(Arc::clone(&drive));
+    let (credentials, binding, key) = expiring_token(ProviderKind::GoogleDrive, 1);
+    let engine = drive_engine(&server, &credentials);
+    let device = TestVault::new("drive-refresh");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000076"),
+        )
+        .unwrap(),
+    );
+    let stored = credentials.get(&key).unwrap().unwrap();
+    assert_eq!(stored.access.expose(), "new-access");
+    assert_eq!(
+        stored.refresh.as_ref().map(Secret::expose),
+        Some("refresh-1")
+    );
+    assert!(stored.expires_unix_ms.unwrap() > crate::secret::now_unix_ms() + 3_000_000);
+
+    drive.lock().unwrap().token_reply = Some((400, json!({"error": "invalid_grant"})));
+    credentials
+        .put(
+            &key,
+            &TokenSet {
+                expires_unix_ms: Some(1),
+                ..stored
+            },
+        )
+        .unwrap();
+    let error = run_sync(
+        &engine,
+        &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000077"),
+    )
+    .unwrap_err();
+    assert!(matches!(error, SyncError::Auth { .. }), "{error}");
 }

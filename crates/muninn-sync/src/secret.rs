@@ -66,7 +66,9 @@ impl Eq for Secret {}
 pub struct TokenSet {
     pub access: Secret,
     pub refresh: Option<Secret>,
-    /// Unix milliseconds when the access token expires, if the provider said.
+    /// Absolute Unix milliseconds when the access token expires, if the
+    /// provider said. Never a duration: providers send `expires_in` seconds,
+    /// which [`expires_at`] turns into this.
     pub expires_unix_ms: Option<u64>,
     /// Provider account label (GitHub login). Not a secret.
     pub account: String,
@@ -130,6 +132,45 @@ impl TokenSet {
             expires_unix_ms,
             account,
         })
+    }
+}
+
+/// Wall-clock Unix milliseconds.
+#[must_use]
+pub fn now_unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
+/// The absolute expiry for an `expires_in` of `seconds` received at `now_ms`.
+#[must_use]
+pub fn expires_at(now_ms: u64, seconds: u64) -> u64 {
+    now_ms.saturating_add(seconds.saturating_mul(1000))
+}
+
+impl TokenSet {
+    /// True when the access token is past, or within `margin_ms` of, its
+    /// expiry. A token with no known expiry never counts as expiring.
+    #[must_use]
+    pub fn expires_within(&self, now_ms: u64, margin_ms: u64) -> bool {
+        self.expires_unix_ms
+            .is_some_and(|at| at <= now_ms.saturating_add(margin_ms))
+    }
+
+    /// The pair to store after a refresh. Providers that do not rotate the
+    /// refresh token omit it; keep the one we had. The account label stays.
+    #[must_use]
+    pub fn refreshed(&self, mut next: TokenSet) -> TokenSet {
+        if next.refresh.is_none() {
+            next.refresh = self.refresh.clone();
+        }
+        if next.account.is_empty() {
+            next.account = self.account.clone();
+        }
+        next
     }
 }
 
