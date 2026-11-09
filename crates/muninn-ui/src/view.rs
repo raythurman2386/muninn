@@ -668,7 +668,8 @@ fn sync_section(s: &State, k: &Kit) -> El {
             .child(
                 text("Kept in Muninn's private app data in your Drive, not in a visible folder. Use the same store name on each device.")
                     .font(k.ty.caption())
-                    .color(k.c.text_faint),
+                    .color(k.c.text_faint)
+                    .wrap(),
             )
             .child(sync_field(
                 k,
