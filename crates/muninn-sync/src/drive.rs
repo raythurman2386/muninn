@@ -2,9 +2,16 @@
 //!
 //! Drive v3 `files.update` is not a compare-and-swap. This adapter never
 //! overwrites a file. It writes immutable blobs and immutable commit manifests
-//! into an app-created folder inside the folder the user selected. Two writers
-//! produce two heads. A later sync merges those heads, or stops on a conflict.
-//! This is not a mirror of an editable Markdown folder.
+//! into the app's hidden `appDataFolder`, one store folder per store name.
+//! Two writers produce two heads. A later sync merges those heads, or stops on
+//! a conflict. This is not a mirror of an editable Markdown folder.
+//!
+//! Why `appDataFolder` with `drive.appdata`: the store is app-private data,
+//! not files a person browses, so no Picker or folder grant is needed, every
+//! device signed in to the same Google account and OAuth client sees the
+//! same store, and the scope reaches nothing else in the user's Drive. The
+//! cost: the store is invisible in the Drive UI and counts against the user's
+//! quota; removing the app's access in Google Account settings deletes it.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -24,36 +31,51 @@ use crate::pathutil::RelativePath;
 use crate::plan;
 use crate::secret::{Secret, TokenSet};
 
-pub const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
+pub const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.appdata";
+/// The alias Drive v3 uses for the app's hidden data folder.
+pub const APP_DATA: &str = "appDataFolder";
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
 const SHORTCUT_MIME: &str = "application/vnd.google-apps.shortcut";
 
+/// Which store in the app's data folder a vault syncs with. Devices that
+/// should share a vault use the same store name; another vault on the same
+/// Google account uses another name.
 #[derive(Clone, Debug)]
 pub struct DriveScope {
-    pub folder_id: String,
-    pub folder_name: String,
+    pub store: String,
 }
 
 impl DriveScope {
     pub fn validate(&self) -> Result<(), SyncError> {
-        if self.folder_id.len() < 10
-            || self.folder_id.len() > 128
+        if self.store.is_empty()
+            || self.store.len() > 64
             || !self
-                .folder_id
+                .store
                 .chars()
-                .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | ' ' | '.'))
+            || self.store.trim() != self.store
         {
             return Err(SyncError::Config {
-                detail: "Drive folder id is not a Drive file id".to_owned(),
-            });
-        }
-        if self.folder_name.is_empty() || self.folder_name.len() > 200 {
-            return Err(SyncError::Config {
-                detail: "Drive folder name is missing".to_owned(),
+                detail: "Drive store name must be 1-64 letters, digits, spaces, '.', '-' or '_'"
+                    .to_owned(),
             });
         }
         Ok(())
     }
+
+    /// Name of this store's root folder inside `appDataFolder`.
+    #[must_use]
+    pub fn root_name(&self) -> String {
+        format!("muninn-sync-{}", self.store)
+    }
+}
+
+/// The folders holding one store. Two devices binding at the same moment
+/// can each create a folder; every listing reads all of them, and writers
+/// pick the lowest id, so the store never splits.
+struct StoreFolders {
+    blobs: Vec<String>,
+    commits: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -153,12 +175,7 @@ pub struct DriveClient<'a, T> {
 impl<'a, T: HttpTransport> DriveClient<'a, T> {
     pub fn fetch(&self, scope: &DriveScope, token: &Secret) -> Result<DriveRemote, SyncError> {
         scope.validate()?;
-        self.verify_folder(scope, token)?;
-        let root_children = self.list_children(&scope.folder_id, token)?;
-        let sync_root = root_children
-            .iter()
-            .find(|file| file.role.as_deref() == Some("root") && file.mime == FOLDER_MIME);
-        let Some(sync_root) = sync_root else {
+        let Some(folders) = self.store_folders(scope, token)? else {
             return Ok(DriveRemote {
                 commits: BTreeMap::new(),
                 heads: Vec::new(),
@@ -166,13 +183,16 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
                 blob_ids: BTreeMap::new(),
             });
         };
-        let children = self.list_children(&sync_root.id, token)?;
-        let blobs_folder = required_role(&children, "blobs")?;
-        let commits_folder = required_role(&children, "commits")?;
         // Commits first: a writer uploads blobs before the manifest naming
         // them, so every commit seen here has its blobs in the later listing.
-        let commit_files = self.list_children(&commits_folder.id, token)?;
-        let blob_files = self.list_children(&blobs_folder.id, token)?;
+        let mut commit_files = Vec::new();
+        for folder in &folders.commits {
+            commit_files.extend(self.list_children(folder, token)?);
+        }
+        let mut blob_files = Vec::new();
+        for folder in &folders.blobs {
+            blob_files.extend(self.list_children(folder, token)?);
+        }
         let mut blob_ids = BTreeMap::new();
         for file in &blob_files {
             if file.mime == SHORTCUT_MIME || file.mime.starts_with("application/vnd.google-apps.") {
@@ -258,25 +278,65 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         token: &Secret,
     ) -> Result<BTreeSet<String>, SyncError> {
         scope.validate()?;
-        let root_children = self.list_children(&scope.folder_id, token)?;
-        let Some(sync_root) = root_children
-            .iter()
-            .find(|file| file.role.as_deref() == Some("root") && file.mime == FOLDER_MIME)
-        else {
+        let Some(folders) = self.store_folders(scope, token)? else {
             return Ok(BTreeSet::new());
         };
-        let children = self.list_children(&sync_root.id, token)?;
-        let commits_folder = required_role(&children, "commits")?;
-        Ok(self
-            .list_children(&commits_folder.id, token)?
+        let mut ids = BTreeSet::new();
+        for folder in &folders.commits {
+            for file in self.list_children(folder, token)? {
+                ids.insert(
+                    file.name
+                        .strip_suffix(".json")
+                        .unwrap_or(&file.name)
+                        .to_owned(),
+                );
+            }
+        }
+        Ok(ids)
+    }
+
+    /// Every root, blobs and commits folder of this store, or `None` before
+    /// the first publish.
+    fn store_folders(
+        &self,
+        scope: &DriveScope,
+        token: &Secret,
+    ) -> Result<Option<StoreFolders>, SyncError> {
+        let roots = self.roots(scope, token)?;
+        if roots.is_empty() {
+            return Ok(None);
+        }
+        let mut folders = StoreFolders {
+            blobs: Vec::new(),
+            commits: Vec::new(),
+        };
+        for root in &roots {
+            let children = self.list_children(root, token)?;
+            folders.blobs.extend(role_folders(&children, "blobs"));
+            folders.commits.extend(role_folders(&children, "commits"));
+        }
+        if folders.blobs.is_empty() || folders.commits.is_empty() {
+            return Err(SyncError::ListingIncomplete {
+                detail: "the Drive store is missing its blobs or commits folder".to_owned(),
+            });
+        }
+        Ok(Some(folders))
+    }
+
+    fn roots(&self, scope: &DriveScope, token: &Secret) -> Result<Vec<String>, SyncError> {
+        let name = scope.root_name();
+        let mut roots: Vec<String> = self
+            .list_children(APP_DATA, token)?
             .into_iter()
-            .map(|file| {
-                file.name
-                    .strip_suffix(".json")
-                    .unwrap_or(&file.name)
-                    .to_owned()
+            .filter(|file| {
+                file.role.as_deref() == Some("root")
+                    && file.mime == FOLDER_MIME
+                    && file.name == name
             })
-            .collect())
+            .map(|file| file.id)
+            .collect();
+        roots.sort();
+        Ok(roots)
     }
 
     pub fn publish(
@@ -304,15 +364,13 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
             return Ok(existing.id.clone());
         }
         let commit_id = self.generate_id(token)?;
-        let root_children = self.list_children(&scope.folder_id, token)?;
-        let sync_root = self.ensure_folder(
-            scope,
-            token,
-            &scope.folder_id,
-            &root_children,
-            "root",
-            "muninn-sync",
-        )?;
+        let root_children = self.list_children(APP_DATA, token)?;
+        let root_name = scope.root_name();
+        let named: Vec<DriveFile> = root_children
+            .into_iter()
+            .filter(|file| file.name == root_name)
+            .collect();
+        let sync_root = self.ensure_folder(scope, token, APP_DATA, &named, "root", &root_name)?;
         let inner = self.list_children(&sync_root, token)?;
         let blobs_folder =
             self.ensure_folder(scope, token, &sync_root, &inner, "blobs", "blobs")?;
@@ -487,40 +545,6 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         token_from_oauth(&response.json()?)
     }
 
-    fn verify_folder(&self, scope: &DriveScope, token: &Secret) -> Result<(), SyncError> {
-        let response = self.send(self.api(
-            "GET",
-            &format!(
-                "/drive/v3/files/{}?fields=id,name,mimeType,trashed,capabilities/canAddChildren",
-                encode(&scope.folder_id)
-            ),
-            token,
-            None,
-            false,
-        ))?;
-        let json = response.json()?;
-        if json.get("trashed").and_then(|value| value.as_bool()) == Some(true) {
-            return Err(SyncError::Permission {
-                detail: "the selected Drive folder is in the trash".to_owned(),
-            });
-        }
-        if json.get("mimeType").and_then(|value| value.as_str()) != Some(FOLDER_MIME) {
-            return Err(SyncError::Config {
-                detail: "the selected Drive id is not a folder".to_owned(),
-            });
-        }
-        if json
-            .pointer("/capabilities/canAddChildren")
-            .and_then(|value| value.as_bool())
-            == Some(false)
-        {
-            return Err(SyncError::Permission {
-                detail: "the selected Drive folder does not allow this app to add files".to_owned(),
-            });
-        }
-        Ok(())
-    }
-
     fn list_children(&self, parent: &str, token: &Secret) -> Result<Vec<DriveFile>, SyncError> {
         let mut page_token = String::new();
         let mut seen_tokens = BTreeSet::new();
@@ -535,7 +559,7 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
                 "fields",
                 "nextPageToken,incompleteSearch,files(id,name,mimeType,size,appProperties,shortcutDetails)",
             );
-            serializer.append_pair("spaces", "drive");
+            serializer.append_pair("spaces", APP_DATA);
             if !page_token.is_empty() {
                 serializer.append_pair("pageToken", &page_token);
             }
@@ -604,17 +628,10 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         role: &str,
         name: &str,
     ) -> Result<String, SyncError> {
-        let matches: Vec<_> = children
-            .iter()
-            .filter(|file| file.role.as_deref() == Some(role) && file.mime == FOLDER_MIME)
-            .collect();
-        if matches.len() > 1 {
-            return Err(SyncError::Protocol {
-                detail: format!("more than one Drive {role} folder"),
-            });
-        }
-        if let Some(existing) = matches.first() {
-            return Ok(existing.id.clone());
+        // Two devices may each have created one; readers union them all and
+        // writers agree on the lowest id.
+        if let Some(existing) = role_folders(children, role).into_iter().min() {
+            return Ok(existing);
         }
         let id = self.generate_id(token)?;
         let body = serde_json::json!({
@@ -646,7 +663,7 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
     fn generate_id(&self, token: &Secret) -> Result<String, SyncError> {
         let response = self.send(self.api(
             "GET",
-            "/drive/v3/files/generateIds?count=1&space=drive",
+            "/drive/v3/files/generateIds?count=1&space=appDataFolder",
             token,
             None,
             false,
@@ -979,17 +996,12 @@ pub(crate) fn heads_of(commits: &BTreeMap<String, DriveCommitDoc>) -> Vec<String
     heads
 }
 
-fn required_role<'a>(files: &'a [DriveFile], role: &str) -> Result<&'a DriveFile, SyncError> {
-    let matches: Vec<_> = files
+fn role_folders(files: &[DriveFile], role: &str) -> Vec<String> {
+    files
         .iter()
-        .filter(|file| file.role.as_deref() == Some(role))
-        .collect();
-    if matches.len() != 1 {
-        return Err(SyncError::Protocol {
-            detail: format!("expected one Drive {role} folder, found {}", matches.len()),
-        });
-    }
-    Ok(matches[0])
+        .filter(|file| file.role.as_deref() == Some(role) && file.mime == FOLDER_MIME)
+        .map(|file| file.id.clone())
+        .collect()
 }
 
 pub(crate) fn parse_commit(bytes: &[u8]) -> Result<DriveCommitDoc, SyncError> {
@@ -1127,17 +1139,6 @@ fn random_token(bytes: usize) -> String {
     URL_SAFE_NO_PAD.encode(raw)
 }
 
-fn encode(text: &str) -> String {
-    let mut out = String::new();
-    for byte in text.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' => out.push(byte as char),
-            _ => out.push_str(&format!("%{byte:02X}")),
-        }
-    }
-    out
-}
-
 fn form(pairs: &[(&str, &str)]) -> String {
     let mut serializer = form_urlencoded::Serializer::new(String::new());
     for (key, value) in pairs {
@@ -1163,7 +1164,7 @@ fn token_from_oauth(json: &serde_json::Value) -> Result<TokenSet, SyncError> {
         .unwrap_or("");
     if !scope.is_empty() && !scope.split_whitespace().any(|item| item == DRIVE_SCOPE) {
         return Err(SyncError::Scope {
-            detail: "token is missing the drive.file scope".to_owned(),
+            detail: "token is missing the drive.appdata scope".to_owned(),
         });
     }
     let access = json_str(json, "access_token")?;

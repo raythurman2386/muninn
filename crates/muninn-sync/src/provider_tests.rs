@@ -596,10 +596,7 @@ fn drive_pagination_concurrent_heads_and_traversal() {
         CancelToken::new(),
         Duration::from_secs(2),
     );
-    let scope = DriveScope {
-        folder_id: "folderFolder1".to_owned(),
-        folder_name: "Notes".to_owned(),
-    };
+    let scope = drive_scope();
     let (left, bytes) = snap_text(&[("a.md", "from-a")]);
     let remote = client.fetch(&scope, &token()).unwrap();
     assert!(remote.heads.is_empty());
@@ -1280,17 +1277,6 @@ struct DriveFile {
 }
 
 fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
-    {
-        let mut drive = store.lock().unwrap();
-        drive.files.push(DriveFile {
-            id: "folderFolder1".to_owned(),
-            name: "Notes".to_owned(),
-            mime: "application/vnd.google-apps.folder".to_owned(),
-            parent: "root".to_owned(),
-            role: None,
-            bytes: Vec::new(),
-        });
-    }
     let port = Arc::new(std::sync::atomic::AtomicU16::new(0));
     let port_for_handler = Arc::clone(&port);
     let server = ScriptedServer::spawn(move |request| {
@@ -1304,10 +1290,19 @@ fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
         if drive.incomplete && request.path.contains("/drive/v3/files?") {
             return json_reply(200, json!({"incompleteSearch": true, "files": []}));
         }
+        // Everything lives in the app's hidden data folder.
+        if request.path.contains("/drive/v3/files")
+            && request.method == "GET"
+            && !request.path.contains("alt=media")
+            && !request.path.contains("spaces=appDataFolder")
+            && !request.path.contains("space=appDataFolder")
+        {
+            return json_reply(400, json!({"error": {"message": "expected the appDataFolder space"}}));
+        }
         if request.path.starts_with("/drive/v3/files/generateIds") {
             drive.next_id += 1;
             let id = format!("generated{:08}", drive.next_id);
-            return json_reply(200, json!({"ids": [id], "space": "drive"}));
+            return json_reply(200, json!({"ids": [id], "space": "appDataFolder"}));
         }
         if request.method == "GET" && request.path.contains("alt=media") {
             let id = request.path.split('/').nth(4).unwrap_or("").split('?').next().unwrap_or("");
@@ -1319,20 +1314,6 @@ fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
                 headers: vec![("content-type".to_owned(), "application/octet-stream".to_owned())],
                 body: file.bytes.clone(),
             };
-        }
-        if request.method == "GET"
-            && (request.path.contains("fields=id,name,mimeType") || request.path.contains("/drive/v3/files/folderFolder1"))
-        {
-            return json_reply(
-                200,
-                json!({
-                    "id": "folderFolder1",
-                    "name": "Notes",
-                    "mimeType": "application/vnd.google-apps.folder",
-                    "trashed": false,
-                    "capabilities": {"canAddChildren": true}
-                }),
-            );
         }
         if request.method == "GET" && request.path.contains("/drive/v3/files?") {
             let query = request.path.split_once('?').map(|(_, query)| query).unwrap_or("");
@@ -1452,8 +1433,7 @@ fn drive_server(store: Arc<Mutex<DriveStore>>) -> ScriptedServer {
 
 fn drive_scope() -> DriveScope {
     DriveScope {
-        folder_id: "folderFolder1".to_owned(),
-        folder_name: "Notes".to_owned(),
+        store: "Notes".to_owned(),
     }
 }
 
@@ -1746,4 +1726,123 @@ fn drive_refresh_keeps_the_refresh_token_google_did_not_resend() {
     )
     .unwrap_err();
     assert!(matches!(error, SyncError::Auth { .. }), "{error}");
+}
+
+#[test]
+fn drive_store_lives_in_app_data_and_store_names_do_not_mix() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let notes = drive_scope();
+    let work = DriveScope {
+        store: "Work".to_owned(),
+    };
+    for (scope, text) in [(&notes, "notes"), (&work, "work")] {
+        let (snapshot, bytes) = snap_text(&[("a.md", text)]);
+        let remote = client.fetch(scope, &token()).unwrap();
+        client
+            .publish(scope, &token(), &remote, &snapshot, &[], &[], &bytes, text)
+            .unwrap();
+    }
+    for (scope, text) in [(&notes, "notes"), (&work, "work")] {
+        let remote = client.fetch(scope, &token()).unwrap();
+        let merged = drive::merge_heads(&remote).unwrap();
+        assert_eq!(merged.snapshot.files.len(), 1);
+        assert_eq!(
+            merged
+                .snapshot
+                .hash_of(&RelativePath::parse("a.md").unwrap()),
+            Some(ContentHash::of(text.as_bytes()))
+        );
+    }
+    let store = drive.lock().unwrap();
+    let roots: Vec<_> = store
+        .files
+        .iter()
+        .filter(|file| file.role.as_deref() == Some("root"))
+        .collect();
+    assert_eq!(roots.len(), 2);
+    assert!(roots.iter().all(|root| root.parent == drive::APP_DATA));
+    assert!(roots.iter().any(|root| root.name == "muninn-sync-Notes"));
+    drop(store);
+
+    let pkce = drive::new_pkce("http://127.0.0.1:9/callback");
+    let url = client
+        .authorization_url("client.apps.googleusercontent.com", &pkce)
+        .unwrap();
+    assert!(url.contains("drive.appdata"), "{url}");
+    assert!(!url.contains("drive.file"), "{url}");
+    assert!(
+        DriveScope {
+            store: "../x".to_owned()
+        }
+        .validate()
+        .is_err()
+    );
+    assert!(
+        DriveScope {
+            store: String::new()
+        }
+        .validate()
+        .is_err()
+    );
+}
+
+#[test]
+fn drive_two_devices_creating_the_store_at_once_do_not_split_it() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    // The other device creates the store and its first commit; it lands
+    // after this device has also created its own root.
+    stage_drive_racer(&drive, &server, &[("racer.md", "from racer")]);
+    let (credentials, binding) = connected(ProviderKind::GoogleDrive);
+    let engine = drive_engine(&server, &credentials);
+    let device = TestVault::new("drive-split");
+    std::fs::write(device.root.join("a.md"), "hello").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000081"),
+        )
+        .unwrap(),
+    );
+    {
+        let mut store = drive.lock().unwrap();
+        let landed = std::mem::take(&mut store.pending);
+        store.files.extend(landed);
+        let roots = store
+            .files
+            .iter()
+            .filter(|file| file.role.as_deref() == Some("root"))
+            .count();
+        assert_eq!(roots, 2, "both devices created a root");
+    }
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000082"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(device.read("racer.md").as_deref(), Some("from racer"));
+    assert_eq!(device.read("a.md").as_deref(), Some("hello"));
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    assert_eq!(
+        remote.heads.len(),
+        1,
+        "the merge commit joins both roots' heads"
+    );
 }

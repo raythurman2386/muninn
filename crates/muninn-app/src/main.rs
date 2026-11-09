@@ -385,10 +385,9 @@ fn scenes() -> &'static [Scene] {
             s.sync_ui.preview = true;
             s.open_settings();
             s.set_sync_provider(1);
-            s.sync_ui.drive_folder_id.replace_text("appGrantedFolderId");
-            s.sync_ui.drive_folder_name.replace_text("Muninn");
+            s.sync_ui.drive_store.replace_text("Muninn");
             s.sync_ui.status =
-                "Google Drive uses an app-managed commit history in this folder, not editable Markdown mirrors."
+                "Google Drive keeps an app-managed commit history in Muninn's private app data, not editable Markdown mirrors."
                     .to_owned();
         }),
         ("settings-sync-tailscale", |s| {

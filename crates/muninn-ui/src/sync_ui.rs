@@ -19,6 +19,9 @@ use rune::TextEdit;
 use crate::State;
 use crate::settings::VaultSyncBinding;
 
+/// Default Drive store name. Two vaults on one Google account need two names.
+pub const DEFAULT_DRIVE_STORE: &str = "Muninn";
+
 pub struct SyncUi {
     pub provider_index: usize,
     pub status: String,
@@ -26,8 +29,7 @@ pub struct SyncUi {
     pub github_repo: TextEdit,
     pub github_branch: TextEdit,
     pub github_prefix: TextEdit,
-    pub drive_folder_id: TextEdit,
-    pub drive_folder_name: TextEdit,
+    pub drive_store: TextEdit,
     pub github_client_id: TextEdit,
     pub google_client_id: TextEdit,
     /// Tailscale: 0 = this device hosts, 1 = join a host.
@@ -93,8 +95,7 @@ impl SyncUi {
             github_repo: TextEdit::new(""),
             github_branch: TextEdit::new("muninn-sync"),
             github_prefix: TextEdit::new("vault"),
-            drive_folder_id: TextEdit::new(""),
-            drive_folder_name: TextEdit::new(""),
+            drive_store: TextEdit::new(DEFAULT_DRIVE_STORE),
             github_client_id: TextEdit::new(""),
             google_client_id: TextEdit::new(""),
             tailnet_role_index: 0,
@@ -117,8 +118,7 @@ impl SyncUi {
             &mut self.github_repo,
             &mut self.github_branch,
             &mut self.github_prefix,
-            &mut self.drive_folder_id,
-            &mut self.drive_folder_name,
+            &mut self.drive_store,
             &mut self.github_client_id,
             &mut self.google_client_id,
             &mut self.tailnet_host,
@@ -241,11 +241,14 @@ impl State {
                 "Enter the GitHub owner and repository before connecting.".to_owned();
             return;
         }
-        if provider == "google_drive" && self.sync_ui.drive_folder_id.text.trim().is_empty() {
-            self.sync_ui.status =
-                "Enter the Drive folder id granted to this app. Pasting an id does not grant access."
-                    .to_owned();
-            return;
+        if provider == "google_drive" {
+            let scope = muninn_sync::DriveScope {
+                store: self.sync_ui.drive_store.text.trim().to_owned(),
+            };
+            if let Err(error) = scope.validate() {
+                self.sync_ui.status = error.to_string();
+                return;
+            }
         }
         let client_missing = if provider == "github" {
             self.sync_ui.github_client_id.text.trim().is_empty()
@@ -268,8 +271,11 @@ impl State {
                 }
             },
             github_prefix: self.sync_ui.github_prefix.text.trim().to_owned(),
-            drive_folder_id: self.sync_ui.drive_folder_id.text.trim().to_owned(),
-            drive_folder_name: self.sync_ui.drive_folder_name.text.trim().to_owned(),
+            drive_store: if provider == "google_drive" {
+                self.sync_ui.drive_store.text.trim().to_owned()
+            } else {
+                String::new()
+            },
             tailnet_role: String::new(),
             tailnet_host: String::new(),
             tailnet_port: 0,
@@ -355,8 +361,7 @@ impl State {
             github_repo: String::new(),
             github_branch: String::new(),
             github_prefix: String::new(),
-            drive_folder_id: String::new(),
-            drive_folder_name: String::new(),
+            drive_store: String::new(),
             tailnet_role: if hosting { "host" } else { "peer" }.to_owned(),
             tailnet_host: if hosting { String::new() } else { host_name },
             tailnet_port: port,
@@ -592,8 +597,7 @@ fn run_request(
         prefix: binding.github_prefix.clone(),
     });
     let drive = (provider == ProviderKind::GoogleDrive).then(|| muninn_sync::DriveScope {
-        folder_id: binding.drive_folder_id.clone(),
-        folder_name: binding.drive_folder_name.clone(),
+        store: binding.drive_store.clone(),
     });
     let tailnet = (provider == ProviderKind::Tailscale).then(|| TailnetScope {
         role: if binding.tailnet_role == "host" {

@@ -662,18 +662,14 @@ fn sync_section(s: &State, k: &Kit) -> El {
         col()
             .w_full()
             .gap(4.0)
-            .child(sync_field(
-                k,
-                "Drive folder id",
-                &s.sync_ui.drive_folder_id,
-                |state| &mut state.sync_ui.drive_folder_id,
-            ))
-            .child(sync_field(
-                k,
-                "Folder name",
-                &s.sync_ui.drive_folder_name,
-                |state| &mut state.sync_ui.drive_folder_name,
-            ))
+            .child(sync_field(k, "Store name", &s.sync_ui.drive_store, |state| {
+                &mut state.sync_ui.drive_store
+            }))
+            .child(
+                text("Kept in Muninn's private app data in your Drive, not in a visible folder. Use the same store name on each device.")
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint),
+            )
             .child(sync_field(
                 k,
                 "Google client id",

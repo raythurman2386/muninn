@@ -165,8 +165,9 @@ pub struct VaultSyncBinding {
     pub github_repo: String,
     pub github_branch: String,
     pub github_prefix: String,
-    pub drive_folder_id: String,
-    pub drive_folder_name: String,
+    /// Store name inside the app's Drive data folder. Devices that share a
+    /// vault use the same name.
+    pub drive_store: String,
     /// `host` or `peer`. Empty for other providers.
     pub tailnet_role: String,
     /// Peer: the host's full MagicDNS name, for example `minis.tail1234.ts.net`.
@@ -256,8 +257,7 @@ impl VaultSyncBinding {
             "github_repo": self.github_repo,
             "github_branch": self.github_branch,
             "github_prefix": self.github_prefix,
-            "drive_folder_id": self.drive_folder_id,
-            "drive_folder_name": self.drive_folder_name,
+            "drive_store": self.drive_store,
             "tailnet_role": self.tailnet_role,
             "tailnet_host": self.tailnet_host,
             "tailnet_port": self.tailnet_port,
@@ -316,13 +316,8 @@ impl VaultSyncBinding {
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_owned(),
-            drive_folder_id: value
-                .get("drive_folder_id")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_owned(),
-            drive_folder_name: value
-                .get("drive_folder_name")
+            drive_store: value
+                .get("drive_store")
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_owned(),
