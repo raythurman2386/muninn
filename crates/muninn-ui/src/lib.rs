@@ -20,8 +20,8 @@ pub use recovery::RecoveryEntry;
 pub use settings::{DEFAULT_AUTOSAVE_DELAY, RECENT_VAULTS_MAX, Settings, ThemeMode, config_home};
 pub use state::{
     ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction, FindState,
-    FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport, LinkComplete,
-    MenuTarget, Mode, MoveConfirm, NamePrompt, PaletteAction, PaletteItem, PaletteState,
-    RenameConfirm, RenamePrompt, Scope, State, TrashUndo, file_action_command,
+    FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport, Layer,
+    LinkComplete, MenuTarget, Mode, MoveConfirm, NamePrompt, PaletteAction, PaletteItem,
+    PaletteState, RenameConfirm, RenamePrompt, Scope, State, TrashUndo, file_action_command,
 };
 pub use view::view;

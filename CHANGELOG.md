@@ -6,6 +6,17 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- Dismissal layers are now an explicit enum: `Layer`, `State::topmost_layer`
+  and `State::dismiss_layer` name the Escape stack (command palette, Settings
+  modal, Help, completion, find, broken-links dashboard, three
+  rename/move confirmations, the context menu, the five inline sidebar
+  prompts, delete-confirm and the move picker) so one Escape press peels
+  exactly one layer. Behaviour is unchanged; the order is pinned by
+  `crates/muninn-ui/tests/state_layers.rs`. The full machine inventory now
+  lives in `docs/state-machines.md`.
+
 ## [0.5.1] - 2026-11-08
 
 ### Added
