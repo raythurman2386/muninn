@@ -172,7 +172,7 @@ fn enter_on_the_focused_open_note_glides_instead_of_jumping() {
 fn reduced_motion_snaps_the_camera_and_does_not_animate() {
     let tmp = temp_vault();
     let mut rt = graph_runtime(&tmp);
-    rt.state.reduced_motion = true;
+    rt.state.reduced_motion_env = true;
     let target = off_centre_node(&rt);
     let pos = rt.state.graph.node(target).expect("node").pos;
     assert!(screen_gap(&rt, pos) > 8.0);
