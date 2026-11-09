@@ -1,7 +1,7 @@
 //! Loopback tests for the production GitHub and Drive adapters.
 //! The HTTP client is reqwest. Only the provider is scripted.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -2180,5 +2180,272 @@ fn drive_same_note_edit_on_two_devices_keeps_both_and_does_not_stall() {
             "abcde000000000d7",
             "abcde000000000d8",
         ],
+    );
+}
+
+/// The texts of every note in a vault, by file name.
+fn notes(vault: &TestVault) -> BTreeMap<String, String> {
+    std::fs::read_dir(&vault.root)
+        .unwrap()
+        .map(|entry| entry.unwrap())
+        .filter(|entry| entry.file_type().unwrap().is_file())
+        .map(|entry| {
+            (
+                entry.file_name().to_string_lossy().into_owned(),
+                std::fs::read_to_string(entry.path()).unwrap(),
+            )
+        })
+        .collect()
+}
+
+/// R1: device one renames c.md -> c2.md while device two creates its own new
+/// c2.md. Whichever syncs first, neither note may be overwritten: both
+/// devices end with `c2.md` and `c2 (remote).md` holding both texts, the
+/// status names the copy, and the next syncs are clean.
+fn rename_onto_a_new_note_keeps_both(
+    engine: &EngineParts<ReqwestTransport, &MemoryCredentialStore>,
+    provider: ProviderKind,
+    binding: &BindingId,
+    tag: &str,
+    renamer_syncs_first: bool,
+    ops: [&str; 7],
+) {
+    let one = TestVault::new(&format!("{tag}-r1-one"));
+    let two = TestVault::new(&format!("{tag}-r1-two"));
+    let run = |vault: &TestVault, op: &str| {
+        let mut request = vault.request(provider, binding, op);
+        request.default_resolution = Some(Resolution::KeepBoth);
+        run_sync(engine, &request).unwrap()
+    };
+    std::fs::write(one.root.join("c.md"), "renamed note").unwrap();
+    succeeded(run(&one, ops[0]));
+    succeeded(run(&two, ops[1]));
+    std::fs::rename(one.root.join("c.md"), one.root.join("c2.md")).unwrap();
+    std::fs::write(two.root.join("c2.md"), "new note on two").unwrap();
+
+    let (first, second) = if renamer_syncs_first {
+        (&one, &two)
+    } else {
+        (&two, &one)
+    };
+    succeeded(run(first, ops[2]));
+    let report = run(second, ops[3]);
+    let SyncReport::Succeeded {
+        conflict_copies, ..
+    } = &report
+    else {
+        panic!("expected success, got {report:?}");
+    };
+    assert_eq!(
+        conflict_copies,
+        &vec![RelativePath::parse("c2 (remote).md").unwrap()],
+        "the copy must be named in the status"
+    );
+    // The device that synced second keeps its own text at c2.md.
+    let own = if renamer_syncs_first {
+        "new note on two"
+    } else {
+        "renamed note"
+    };
+    assert_eq!(second.read("c2.md").as_deref(), Some(own));
+    succeeded(run(first, ops[4]));
+    let expect: BTreeSet<&str> = ["renamed note", "new note on two"].into();
+    for vault in [&one, &two] {
+        let found = notes(vault);
+        assert_eq!(
+            found.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+            ["c2 (remote).md", "c2.md"].into(),
+            "{found:?}"
+        );
+        assert_eq!(
+            found.values().map(String::as_str).collect::<BTreeSet<_>>(),
+            expect,
+            "{found:?}"
+        );
+    }
+    assert_eq!(notes(&one), notes(&two));
+    for (vault, op) in [(&one, ops[5]), (&two, ops[6])] {
+        let report = run(vault, op);
+        assert!(
+            matches!(&report, SyncReport::Succeeded { conflict_copies, .. } if conflict_copies.is_empty()),
+            "{report:?}"
+        );
+    }
+}
+
+#[test]
+fn github_rename_onto_a_note_the_other_device_created_keeps_both() {
+    for (renamer_first, ops) in [
+        (
+            false,
+            [
+                "abcde000000000e1",
+                "abcde000000000e2",
+                "abcde000000000e3",
+                "abcde000000000e4",
+                "abcde000000000e5",
+                "abcde000000000e6",
+                "abcde000000000e7",
+            ],
+        ),
+        (
+            true,
+            [
+                "abcde000000000f1",
+                "abcde000000000f2",
+                "abcde000000000f3",
+                "abcde000000000f4",
+                "abcde000000000f5",
+                "abcde000000000f6",
+                "abcde000000000f7",
+            ],
+        ),
+    ] {
+        let store = Arc::new(Mutex::new(git_store()));
+        let server = git_server(Arc::clone(&store));
+        let (credentials, binding) = connected(ProviderKind::GitHub);
+        let engine = github_engine(&server, &credentials);
+        rename_onto_a_new_note_keeps_both(
+            &engine,
+            ProviderKind::GitHub,
+            &binding,
+            if renamer_first { "gh-a" } else { "gh-b" },
+            renamer_first,
+            ops,
+        );
+    }
+}
+
+#[test]
+fn drive_rename_onto_a_note_the_other_device_created_keeps_both() {
+    for (renamer_first, ops) in [
+        (
+            false,
+            [
+                "abcde000000001e1",
+                "abcde000000001e2",
+                "abcde000000001e3",
+                "abcde000000001e4",
+                "abcde000000001e5",
+                "abcde000000001e6",
+                "abcde000000001e7",
+            ],
+        ),
+        (
+            true,
+            [
+                "abcde000000001f1",
+                "abcde000000001f2",
+                "abcde000000001f3",
+                "abcde000000001f4",
+                "abcde000000001f5",
+                "abcde000000001f6",
+                "abcde000000001f7",
+            ],
+        ),
+    ] {
+        let drive = Arc::new(Mutex::new(DriveStore::default()));
+        let server = drive_server(Arc::clone(&drive));
+        let (credentials, binding) = connected(ProviderKind::GoogleDrive);
+        let engine = drive_engine(&server, &credentials);
+        rename_onto_a_new_note_keeps_both(
+            &engine,
+            ProviderKind::GoogleDrive,
+            &binding,
+            if renamer_first { "drive-a" } else { "drive-b" },
+            renamer_first,
+            ops,
+        );
+    }
+}
+
+/// After an S1 merge, the device whose head lost the path (its edit became
+/// the `(conflict <id>)` copy) syncs with its own base. Both edits must
+/// survive on its disk and on the remote, and the store ends on one head.
+#[test]
+fn drive_losing_head_device_keeps_both_edits_after_a_head_merge() {
+    let drive = Arc::new(Mutex::new(DriveStore::default()));
+    let server = drive_server(Arc::clone(&drive));
+    let (credentials, binding) = connected(ProviderKind::GoogleDrive);
+    let engine = drive_engine(&server, &credentials);
+    let device = TestVault::new("drive-loser");
+    std::fs::write(device.root.join("a.md"), "base").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000a01"),
+        )
+        .unwrap(),
+    );
+    // Another device's edit is written first (so its head id sorts first and
+    // wins the path) but held back until this device has published its own.
+    stage_drive_racer(&drive, &server, &[("a.md", "from other")]);
+    std::fs::write(device.root.join("a.md"), "from this device").unwrap();
+    succeeded(
+        run_sync(
+            &engine,
+            &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000a02"),
+        )
+        .unwrap(),
+    );
+    {
+        let mut store = drive.lock().unwrap();
+        let landed = std::mem::take(&mut store.pending);
+        store.files.extend(landed);
+    }
+    let sleeper = RecordingSleeper::default();
+    let client = drive_client(
+        &server.base(),
+        &sleeper,
+        CancelToken::new(),
+        Duration::from_secs(2),
+    );
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    assert_eq!(remote.heads.len(), 2, "{:?}", remote.heads);
+    let merged = drive::merge_heads(&remote).unwrap();
+    assert_eq!(
+        merged.snapshot.hash_of(&path("a.md")),
+        Some(ContentHash::of(b"from other")),
+        "this device's head must be the one that loses the path"
+    );
+
+    // This device still has base {a.md: from this device}.
+    let report = run_sync(
+        &engine,
+        &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000a03"),
+    )
+    .unwrap();
+    let SyncReport::Succeeded {
+        conflict_copies, ..
+    } = &report
+    else {
+        panic!("expected success, got {report:?}");
+    };
+    assert_eq!(conflict_copies.len(), 1, "{conflict_copies:?}");
+    let copy = conflict_copies[0].clone();
+    assert_eq!(device.read("a.md").as_deref(), Some("from other"));
+    assert_eq!(
+        device.read(copy.as_str()).as_deref(),
+        Some("from this device")
+    );
+    let remote = client.fetch(&drive_scope(), &token()).unwrap();
+    assert_eq!(remote.heads.len(), 1, "{:?}", remote.heads);
+    let tip = drive::merge_heads(&remote).unwrap().snapshot;
+    assert_eq!(
+        tip.hash_of(&path("a.md")),
+        Some(ContentHash::of(b"from other"))
+    );
+    assert_eq!(
+        tip.hash_of(&copy),
+        Some(ContentHash::of(b"from this device"))
+    );
+    let again = run_sync(
+        &engine,
+        &device.request(ProviderKind::GoogleDrive, &binding, "abcde00000000a04"),
+    )
+    .unwrap();
+    assert!(
+        matches!(&again, SyncReport::Succeeded { conflict_copies, .. } if conflict_copies.is_empty()),
+        "{again:?}"
     );
 }

@@ -59,6 +59,10 @@ All notable changes to Muninn are documented here. The format is based on
   changes in the same run still apply. The planner also no longer reads an
   edited path as a rename source, which could drop an edit when a copy held
   the old bytes.
+- Renaming a note on one device to a name another device had just used for a
+  new note overwrote one of the two notes on the next sync, reported as a
+  success. The rename is now declined in that case and both notes are kept,
+  the other device's as `<stem> (remote)<ext>`.
 - Drive heads that edited the same path wedged the store with a conflict no
   screen could resolve. They now merge "keep both" with a
   `(conflict <id>)` copy and one merge commit, which also unsticks stores left

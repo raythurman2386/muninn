@@ -117,6 +117,12 @@ fn with_base(base: &Snapshot, local: &Snapshot, remote: &Snapshot) -> Plan {
                     }),
                 });
             }
+            // A one-sided rename onto a name the other side now uses for
+            // different bytes is declined: no rename and no conflict. The
+            // pathwise pass then sees a clean delete of `from` and an AddAdd
+            // at `to`, so neither file is overwritten.
+            (Some(left), None) if target_taken(remote, left) => {}
+            (None, Some(right)) if target_taken(local, right) => {}
             (Some(left), None) => {
                 if remote_blocks_rename(base, remote, left) {
                     conflicts.push(Conflict {
@@ -353,6 +359,14 @@ fn classify(
         (None, None, None) => {}
     }
     conflicts
+}
+
+/// True when `other` holds different bytes at the rename's target, which a
+/// rename on this side would otherwise overwrite.
+fn target_taken(other: &Snapshot, rename: &Rename) -> bool {
+    other
+        .get(&rename.to)
+        .is_some_and(|file| file.hash != rename.hash)
 }
 
 fn remote_blocks_rename(base: &Snapshot, remote: &Snapshot, rename: &Rename) -> bool {
@@ -905,6 +919,111 @@ mod tests {
         // Same for a Drive keep-both merge copy.
         let remote = snap(&[("a.md", "theirs"), ("a (conflict 1234abcd).md", "mine")]);
         assert_eq!(plan(Some(&base), &local, &remote).desired, remote);
+    }
+
+    /// Resolve every conflict "keep both", as the app does.
+    fn keep_both(base: &Snapshot, local: &Snapshot, remote: &Snapshot) -> Snapshot {
+        let planned = plan(Some(base), local, remote);
+        if !planned.has_conflicts() {
+            return planned.desired;
+        }
+        let choices: Vec<_> = planned
+            .conflicts
+            .iter()
+            .map(|c| (c.path.clone(), Resolution::KeepBoth))
+            .collect();
+        resolve(Some(base), local, remote, &planned.conflicts, &choices)
+            .unwrap()
+            .0
+    }
+
+    /// R1 case A: this side renames c -> c2 while the other side creates a
+    /// new c2. The rename must not land on the other side's new note.
+    #[test]
+    fn local_rename_onto_a_name_the_remote_just_created_keeps_both() {
+        let base = snap(&[("c.md", "M")]);
+        let local = snap(&[("c2.md", "M")]);
+        let remote = snap(&[("c.md", "M"), ("c2.md", "N")]);
+        let planned = plan(Some(&base), &local, &remote);
+        assert!(planned.renames.is_empty(), "{:?}", planned.renames);
+        assert_eq!(planned.conflicts.len(), 1, "{:?}", planned.conflicts);
+        assert_eq!(planned.conflicts[0].kind, ConflictKind::AddAdd);
+        assert_eq!(planned.conflicts[0].path, path("c2.md"));
+        let desired = keep_both(&base, &local, &remote);
+        assert_eq!(desired, snap(&[("c2.md", "M"), ("c2 (remote).md", "N")]));
+        assert!(plan(Some(&desired), &desired, &desired).is_noop());
+    }
+
+    /// R1 case B: the other side renamed c -> c2 while this side created a
+    /// new, never-synced c2. This side's note must not be overwritten.
+    #[test]
+    fn remote_rename_onto_a_name_this_side_just_created_keeps_both() {
+        let base = snap(&[("c.md", "M")]);
+        let local = snap(&[("c.md", "M"), ("c2.md", "N")]);
+        let remote = snap(&[("c2.md", "M")]);
+        let planned = plan(Some(&base), &local, &remote);
+        assert!(planned.renames.is_empty(), "{:?}", planned.renames);
+        assert_eq!(planned.conflicts.len(), 1, "{:?}", planned.conflicts);
+        assert_eq!(planned.conflicts[0].kind, ConflictKind::AddAdd);
+        let desired = keep_both(&base, &local, &remote);
+        assert_eq!(desired, snap(&[("c2.md", "N"), ("c2 (remote).md", "M")]));
+        assert!(plan(Some(&desired), &desired, &desired).is_noop());
+    }
+
+    /// R2: a rename whose source the other side edited and whose target the
+    /// other side created. It used to be a RenameEdit whose target `resolve`
+    /// then refused on every run; now it is a delete-edit plus an add-add,
+    /// and every version is kept.
+    #[test]
+    fn rename_against_an_edit_and_a_new_note_at_the_target_does_not_stick() {
+        let base = snap(&[("c.md", "M")]);
+        let local = snap(&[("c2.md", "M")]);
+        let remote = snap(&[("c.md", "M2"), ("c2.md", "N")]);
+        let desired = keep_both(&base, &local, &remote);
+        assert_eq!(
+            desired,
+            snap(&[
+                ("c (remote).md", "M2"),
+                ("c2.md", "M"),
+                ("c2 (remote).md", "N")
+            ])
+        );
+        // The mirror: the other side renamed, this side edited and created.
+        let desired = keep_both(&base, &remote, &local);
+        let kept: BTreeSet<_> = desired.files.values().map(|r| r.hash).collect();
+        for text in ["M", "M2", "N"] {
+            assert!(
+                kept.contains(&ContentHash::of(text.as_bytes())),
+                "{desired:?}"
+            );
+        }
+    }
+
+    /// A real rename onto a free name, or onto the same bytes, still applies.
+    #[test]
+    fn a_rename_onto_a_free_or_identical_target_is_still_a_rename() {
+        let base = snap(&[("c.md", "M")]);
+        let planned = plan(Some(&base), &snap(&[("c2.md", "M")]), &base);
+        assert_eq!(planned.renames.len(), 1);
+        assert_eq!(planned.desired, snap(&[("c2.md", "M")]));
+        let planned = plan(
+            Some(&base),
+            &snap(&[("c2.md", "M")]),
+            &snap(&[("c.md", "M"), ("c2.md", "M")]),
+        );
+        assert!(!planned.has_conflicts(), "{:?}", planned.conflicts);
+        assert_eq!(planned.desired, snap(&[("c2.md", "M")]));
+    }
+
+    /// Duplicate a note, then edit the original, on one device: an edit and
+    /// an add, never a rename that drops the edit.
+    #[test]
+    fn duplicate_then_edit_the_original_keeps_both() {
+        let base = snap(&[("a.md", "X")]);
+        let local = snap(&[("a.md", "Y"), ("b.md", "X")]);
+        let planned = plan(Some(&base), &local, &base);
+        assert!(planned.renames.is_empty());
+        assert_eq!(planned.desired, local);
     }
 
     /// A same-note edit on both sides resolved "keep both" must not undo the

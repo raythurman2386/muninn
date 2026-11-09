@@ -64,7 +64,10 @@ remote version, if there is one, is written beside it as `<stem> (remote)<ext>`
 Changes outside the conflicting paths in the same run (one-sided edits,
 deletes, renames) apply as usual. A path that still exists with new bytes is
 never read as the source of a rename, so a copy holding the old bytes is an add,
-not a move. Per-file Keep local / Use remote choices are not in the app yet.
+not a move. A rename on one side onto a name the other side now uses for
+different bytes is not applied as a rename: it becomes a delete of the old name
+and a same-name add on both sides, kept as `<name>` (this device) and
+`<name> (remote)` (the other), so neither note is overwritten. Per-file Keep local / Use remote choices are not in the app yet.
 
 ## Credentials
 
