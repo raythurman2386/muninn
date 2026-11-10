@@ -171,10 +171,15 @@ fn external_create_while_dirty_saves_then_reloads_without_losing_text() {
 
     s.editor.insert("typed before the external create\n");
     fs::write(env.vault.path().join("New.md"), "# New\n").expect("external create");
-    // Keep watching through the interval boundary until the reload lands;
+    // Keep polling until New is indexed. poll() also returns true when
+    // autosave writes the dirty buffer, so a true poll is not enough —
     // directory mtimes tick coarsely on Windows, so this is a bounded burst.
     let mut t = 2.7;
-    while !poll(&mut s, t, &mut tx) {
+    loop {
+        let _ = poll(&mut s, t, &mut tx);
+        if s.vault.resolve("New").is_some() {
+            break;
+        }
         std::thread::sleep(std::time::Duration::from_millis(120));
         t += 0.8;
         assert!(t < 8.0, "the watcher never reported the new note");

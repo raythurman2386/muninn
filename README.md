@@ -320,8 +320,7 @@ snapshots` writes all of them to `target/snapshots/`.
 
 ### Marketing site
 
-`site/` holds the static landing page (intended for muninn.ravenwoodsoftware.dev; not
-deployed yet). `Dockerfile.marketing` serves it with nginx on port 80:
+`site/` holds the static landing page, live at https://muninn.ravenwoodsoftware.dev (deployed with GoForge). `Dockerfile.marketing` serves it with nginx on port 80:
 
 ```sh
 docker build -f Dockerfile.marketing -t muninn-site .

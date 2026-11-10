@@ -2,7 +2,7 @@
 
 Effective date: November 9, 2026
 
-Muninn is a local-first notes app made by Raymond Thurman, doing business as Ravenwood Software. This policy describes what happens when you use optional sync.
+Muninn is a local-first notes app made by Raymond Thurman, doing business as Ravenwood Software. This policy describes what happens when you use optional sync and when you visit the Muninn website.
 
 ## Notes stay on your device
 
@@ -31,6 +31,10 @@ Sign-in tokens and the Tailscale key are stored in your operating system's crede
 ## What we do not collect
 
 Muninn does not create a Muninn account, and the app does not send your notes or usage data to us. Google, GitHub, and Tailscale may keep their own records of sign-in and API use under their policies.
+
+## Website
+
+The Muninn website at https://muninn.ravenwoodsoftware.dev uses Umami, an analytics tool we host ourselves at https://umami-app.ravenwoodsoftware.dev, to count visits to the site. This is only on the website. It is not part of the desktop app, and the app still does not send your notes or usage data to us.
 
 ## Contact
 

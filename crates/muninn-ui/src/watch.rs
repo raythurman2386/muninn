@@ -83,11 +83,13 @@ mod tests {
             Some((first.note("Alpha.md").unwrap().0, 5))
         );
 
-        // The directory mtime must advance an entry creation can be picked
+        // The directory mtime must advance so an entry creation can be picked
         // up by snapshot diff alone. Windows reports directory mtimes with
-        // coarse ticks, so poll (bounded) until it actually moves.
+        // coarse ticks, and rewriting the same file often does not move the
+        // folder mtime, so create a new unique file each wait (bounded).
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         let mut after = None;
+        let mut n = 0u32;
         while std::time::Instant::now() < deadline {
             let vault = tmp.load();
             let snap = snapshot(&vault);
@@ -95,7 +97,13 @@ mod tests {
                 after = Some(snap);
                 break;
             }
-            fs::write(tmp.path().join("Beta.md"), "beta!").expect("create");
+            let name = if n == 0 {
+                "Beta.md".to_string()
+            } else {
+                format!("Beta-{n}.md")
+            };
+            fs::write(tmp.path().join(name), "beta!").expect("create");
+            n += 1;
         }
         let second = after.expect("directory mtime should move after creating a file");
         assert!(second.note("Beta.md").is_some());

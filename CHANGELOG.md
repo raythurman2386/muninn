@@ -6,28 +6,18 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
-### Fixed
-
-- Google Drive Connect finishes. Google refuses a Desktop client's token
-  request without its client secret, even with PKCE, so sign-in stopped with
-  "Authentication needed: [redacted]" and stored nothing. Official builds now
-  compile in the Desktop client secret from `MUNINN_GOOGLE_CLIENT_SECRET`
-  (never committed) and send it with the code exchange and refresh. A build
-  without it, or a custom Google client id in Settings, fails closed before
-  the browser opens and sends nothing. The browser tab says "signed in" only
-  after the token is in the OS credential store, and shows a failure page
-  otherwise. Provider reasons such as "client_secret is missing." are no
-  longer hidden, while token and secret values stay redacted. Sync Now keeps
-  a failed sign-in's reason in the status instead of a generic hint.
+## [0.6.0] - 2026-11-09
 
 ### Added
 
 - Marketing landing page in `site/` (static HTML, CSS and JS using
   Muninn's Dark and Light themes), and `Dockerfile.marketing`, a static
-  nginx image that serves it on port 80 for a later GoForge deploy. The
-  site is not deployed yet. Its download buttons link to the latest
-  GitHub Release (Linux x86_64 `.deb` and tarball, macOS Apple Silicon
-  only, Windows x86_64 zip).
+  nginx image that serves it on port 80. The site is live at
+  https://muninn.ravenwoodsoftware.dev, deployed with GoForge. Its
+  download buttons link to the latest GitHub Release (Linux x86_64
+  `.deb` and tarball, macOS Apple Silicon only, Windows x86_64 zip).
+
+- Privacy policy in `PRIVACY.md` (optional sync, credentials, and website analytics).
 
 - Tray slice two, on Settings › Appearance, each off by default and saved in
   `settings.json` (older files load as off):
@@ -96,6 +86,10 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Changed
 
+- `PRIVACY.md` now says the marketing site uses first-party Umami
+  (hosted at https://umami-app.ravenwoodsoftware.dev) to count visits. That
+  is separate from the desktop app, which still does not send notes or
+  usage data to us.
 - Google Drive sync keeps its store in the app's hidden `appDataFolder` with
   the `drive.appdata` scope, named by a store name, instead of a pasted folder
   id that `drive.file` could not reach.
@@ -113,6 +107,18 @@ All notable changes to Muninn are documented here. The format is based on
   isolating HOME and removes its temp dir on exit).
 
 ### Fixed
+
+- Google Drive Connect finishes. Google refuses a Desktop client's token
+  request without its client secret, even with PKCE, so sign-in stopped with
+  "Authentication needed: [redacted]" and stored nothing. Official builds now
+  compile in the Desktop client secret from `MUNINN_GOOGLE_CLIENT_SECRET`
+  (never committed) and send it with the code exchange and refresh. A build
+  without it, or a custom Google client id in Settings, fails closed before
+  the browser opens and sends nothing. The browser tab says "signed in" only
+  after the token is in the OS credential store, and shows a failure page
+  otherwise. Provider reasons such as "client_secret is missing." are no
+  longer hidden, while token and secret values stay redacted. Sync Now keeps
+  a failed sign-in's reason in the status instead of a generic hint.
 
 - GitHub and Drive could lose another device's change when both synced at
   once: a rejected GitHub ref update was re-parented onto the new tip with the
