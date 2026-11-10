@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-09
+
 ### Fixed
 
 - Google Drive Connect finishes. Google refuses a Desktop client's token
@@ -24,10 +26,10 @@ All notable changes to Muninn are documented here. The format is based on
 
 - Marketing landing page in `site/` (static HTML, CSS and JS using
   Muninn's Dark and Light themes), and `Dockerfile.marketing`, a static
-  nginx image that serves it on port 80 for a later GoForge deploy. The
-  site is not deployed yet. Its download buttons link to the latest
-  GitHub Release (Linux x86_64 `.deb` and tarball, macOS Apple Silicon
-  only, Windows x86_64 zip).
+  nginx image that serves it on port 80. The site is live at
+  https://muninn.ravenwoodsoftware.dev, deployed with GoForge. Its
+  download buttons link to the latest GitHub Release (Linux x86_64
+  `.deb` and tarball, macOS Apple Silicon only, Windows x86_64 zip).
 
 - Tray slice two, on Settings › Appearance, each off by default and saved in
   `settings.json` (older files load as off):
@@ -96,6 +98,10 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Changed
 
+- `PRIVACY.md` now says the marketing site uses first-party Umami
+  (hosted at https://umami-app.ravenwoodsoftware.dev) to count visits. That
+  is separate from the desktop app, which still does not send notes or
+  usage data to us.
 - Google Drive sync keeps its store in the app's hidden `appDataFolder` with
   the `drive.appdata` scope, named by a store name, instead of a pasted folder
   id that `drive.file` could not reach.
