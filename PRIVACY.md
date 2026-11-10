@@ -2,7 +2,7 @@
 
 Effective date: November 9, 2026
 
-Muninn is a local-first notes app made by Raymond Thurman, doing business as Ravenwood Software. This policy describes what happens when you use optional sync.
+Muninn is a local-first notes app made by Raymond Thurman, doing business as Ravenwood Software. This policy describes what happens when you use optional sync and when you visit the Muninn website.
 
 ## Notes stay on your device
 
