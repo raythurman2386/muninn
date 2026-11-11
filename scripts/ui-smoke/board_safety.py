@@ -146,22 +146,38 @@ def cmd_file(path, count, *ids):
     print(f"ok {os.path.basename(path)}: {len(have)} elements{', with ' + ', '.join(ids) if ids else ''}")
 
 
+def copy_paths(state_home, rel):
+    """The recovery copy's (text, sidecar) for rel: `<vault-id>~<key>` since
+    the #38 review (M1), `<key>` in the older shared layout."""
+    d = recovery_dir(state_home)
+    key = sanitize(rel)
+    names = os.listdir(d) if os.path.isdir(d) else []
+    stems = sorted({n[: -len(".txt")] for n in names if n.endswith(".txt")} | {n[: -len(".json")] for n in names if n.endswith(".json")})
+    stems = [st for st in stems if st == key or (len(st) == 17 + len(key) and st[16] == "~" and st.endswith(key))]
+    return [(os.path.join(d, st + ".txt"), os.path.join(d, st + ".json")) for st in stems]
+
+
 def cmd_recovery(state_home, rel, want):
-    path = os.path.join(recovery_dir(state_home), sanitize(rel) + ".txt")
-    meta = os.path.join(recovery_dir(state_home), sanitize(rel) + ".json")
     if want == "gone":
-        if os.path.exists(path) or os.path.exists(meta):
-            die(f"the recovery copy for {rel} is still there")
+        if copy_paths(state_home, rel):
+            die(f"the recovery copy for {rel} is still there: {copy_paths(state_home, rel)}")
         print(f"ok no recovery copy for {rel}")
         return
     # The app copies on its own frame: give a loaded machine a moment.
     deadline = time.monotonic() + 6 * max(float(os.environ.get("UI_SMOKE_SLOW", "1") or 1), 1.0)
-    while not (os.path.isfile(meta) and os.path.isfile(path)) and time.monotonic() < deadline:
+    found = []
+    while time.monotonic() < deadline:
+        found = [(p, m) for p, m in copy_paths(state_home, rel) if os.path.isfile(p) and os.path.isfile(m)]
+        if found:
+            break
         time.sleep(0.2)
-    if not os.path.isfile(meta):
-        die(f"no recovery sidecar for {rel}")
+    if len(found) != 1:
+        die(f"want one recovery copy (text and sidecar) for {rel}, found {found}")
+    path, meta = found[0]
+    if "~" not in os.path.basename(path):
+        die(f"the recovery copy for {rel} is not keyed by its vault: {path}")
     cmd_file(path, want)
-    print(f"ok the recovery copy for {rel} holds the drawing")
+    print(f"ok the vault-keyed recovery copy for {rel} holds the drawing")
 
 
 def main(argv):

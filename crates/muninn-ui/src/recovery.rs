@@ -10,14 +10,19 @@
 //! Layout:
 //!
 //! ```text
-//! $XDG_STATE_HOME/muninn/recovery/<sanitized-rel>.txt
-//! $XDG_STATE_HOME/muninn/recovery/<sanitized-rel>.json
+//! $XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.txt
+//! $XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.json
 //! ```
 //!
 //! The `.json` sidecar stores the exact vault-relative path, a Unix timestamp
 //! and a stable FNV-1a hash of the canonical vault root (`vault`). The vault
 //! id keeps two vaults that both contain `Alpha.md` from listing each other's
-//! edits when they share the same user state directory. The sanitized file
+//! edits when they share the same user state directory, and the file names
+//! carry it too (#38 review M1), so saving or dirtying `Tools.excalidraw` in
+//! one vault never overwrites or deletes another vault's copy of the same
+//! relative path. Records in the older shared layout (`<sanitized-rel>.*`,
+//! no vault prefix) are moved to their own vault's names when that vault
+//! opens, so a pending recovery is never orphaned. The sanitized file
 //! name (slashes become `__`, a length cap appends a hash) is only a safe,
 //! collision-resistant key. Buffer text lives in the `.txt` file exactly as
 //! the user typed it.
@@ -58,9 +63,50 @@ impl RecoveryStore {
     /// Build a store for `vault_root` below an explicit state home. Tests use
     /// this to keep recovery files out of the real user state directory.
     pub(crate) fn at(state_home: &Path, vault_root: &Path) -> Self {
-        Self {
+        let store = Self {
             dir: state_home.join("muninn").join("recovery"),
             vault: vault_id(vault_root),
+        };
+        store.adopt_legacy();
+        store
+    }
+
+    /// Move this vault's records from the older shared layout to its own
+    /// names. Other vaults' old records are left for them; best effort (a
+    /// record that cannot be moved stays where it is and is not listed).
+    fn adopt_legacy(&self) {
+        let Ok(entries) = fs::read_dir(&self.dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            // New names contain `~`, which `sanitize` never produces.
+            if stem.contains('~')
+                || stem.starts_with('.')
+                || path.extension().and_then(|e| e.to_str()) != Some("json")
+            {
+                continue;
+            }
+            let Ok(meta) = fs::read_to_string(&path) else {
+                continue;
+            };
+            if parse_string(&meta, "vault").as_deref() != Some(self.vault.as_str()) {
+                continue;
+            }
+            let Some(rel) = parse_rel(&meta) else {
+                continue;
+            };
+            if sanitize(&rel) != stem || self.meta_for(&rel).exists() {
+                continue;
+            }
+            let text = path.with_extension("txt");
+            if text.is_file() && fs::rename(&text, self.path_for(&rel)).is_err() {
+                continue;
+            }
+            let _ = fs::rename(&path, self.meta_for(&rel));
         }
     }
 
@@ -75,7 +121,8 @@ impl RecoveryStore {
     }
 
     fn key_for(&self, rel: &str, extension: &str) -> PathBuf {
-        self.dir.join(format!("{}.{extension}", sanitize(rel)))
+        self.dir
+            .join(format!("{}~{}.{extension}", self.vault, sanitize(rel)))
     }
 
     /// Persist a dirty buffer. Only called for text that differs from the
@@ -287,5 +334,71 @@ mod tests {
         assert_eq!(parse_rel(&text).as_deref(), Some(rel));
         assert_eq!(parse_string(&text, "vault").as_deref(), Some("abc"));
         assert_eq!(parse_ts(&text), Some(42));
+    }
+
+    fn temp(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "muninn-recovery-{tag}-{}-{}",
+            std::process::id(),
+            TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn two_vaults_sharing_a_state_home_never_touch_each_others_copies() {
+        let (state, a, b) = (temp("state"), temp("vault-a"), temp("vault-b"));
+        let (store_a, store_b) = (RecoveryStore::at(&state, &a), RecoveryStore::at(&state, &b));
+        for rel in ["Alpha.md", "Tools.excalidraw"] {
+            store_a.save(rel, "A's unsaved text").unwrap();
+            // Vault B saves (clears) and then dirties the same relative path.
+            store_b.save(rel, "B's text").unwrap();
+            store_b.clear(rel);
+            store_b.save(rel, "B again").unwrap();
+            assert_eq!(store_a.load(rel).unwrap(), "A's unsaved text", "{rel}");
+            store_b.clear(rel);
+            assert_eq!(store_a.load(rel).unwrap(), "A's unsaved text", "{rel}");
+        }
+        let listed: Vec<String> = store_a.scan().into_iter().map(|e| e.rel).collect();
+        assert_eq!(listed, ["Alpha.md", "Tools.excalidraw"]);
+        assert!(store_b.scan().is_empty());
+    }
+
+    #[test]
+    fn records_in_the_old_shared_layout_still_restore_for_their_own_vault() {
+        let (state, a, b) = (temp("state"), temp("vault-a"), temp("vault-b"));
+        let dir = state.join("muninn").join("recovery");
+        fs::create_dir_all(&dir).unwrap();
+        // Written by an older Muninn: `<sanitized-rel>.txt` / `.json`.
+        let legacy = |rel: &str, root: &Path, text: &str| {
+            fs::write(dir.join(format!("{}.txt", sanitize(rel))), text).unwrap();
+            fs::write(
+                dir.join(format!("{}.json", sanitize(rel))),
+                format!(
+                    "{{\"rel\":\"{}\",\"vault\":\"{}\",\"ts\":7}}\n",
+                    escape(rel),
+                    vault_id(root)
+                ),
+            )
+            .unwrap();
+        };
+        legacy("folder/Old.md", &a, "pending note");
+        legacy("Mine.md", &b, "B's pending note");
+        let store = RecoveryStore::at(&state, &a);
+        let listed = store.scan();
+        assert_eq!(listed.len(), 1, "{listed:?}");
+        assert_eq!(listed[0].rel, "folder/Old.md");
+        assert_eq!(store.load("folder/Old.md").unwrap(), "pending note");
+        store.clear("folder/Old.md");
+        assert!(
+            store.scan().is_empty(),
+            "clearing removes the old record too"
+        );
+        // B's old record is left for B.
+        let store_b = RecoveryStore::at(&state, &b);
+        assert_eq!(store_b.load("Mine.md").unwrap(), "B's pending note");
+        assert_eq!(store_b.scan().len(), 1);
     }
 }
