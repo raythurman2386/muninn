@@ -48,7 +48,10 @@ All notable changes to Muninn are documented here. The format is based on
   `version`, `versionNonce` and `updated` as Excalidraw does; a deleted
   element stays in the file as an `isDeleted` tombstone. Locked elements and
   the elements Muninn keeps as-is (frames, images) are never picked; resize
-  handles are shown but resizing is not part of this slice. Saving is still
+  handles are shown but resizing is not part of this slice (a press on a
+  handle does nothing). A text label bound to a shape moves, deletes, undoes
+  and redoes with it, and clicking the label selects the shape, so no label
+  is left behind or orphaned in the file. Saving is still
   the explicit `⌘S` with all its guards.
 - Unsaved board drawing is never lost: if the board's file is removed,
   renamed or changed by another app, the board stays open and, once Muninn

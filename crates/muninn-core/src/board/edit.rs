@@ -20,6 +20,10 @@
 //! and locked ones are never selected, moved or deleted, so their bytes stay
 //! as Excalidraw wrote them. Picking an element in a group picks its
 //! outermost group (the last of its `groupIds`), as Excalidraw does.
+//! A text label bound to a shape (`containerId` on the text) stands for
+//! that shape when picked, and every move, delete and snapshot of the shape
+//! covers the label ([`Board::with_labels`]), so undo and redo restore both
+//! and the file never holds a label whose shape is gone (#39 review M1).
 
 use std::collections::VecDeque;
 
@@ -285,10 +289,51 @@ impl Board {
             .collect()
     }
 
-    /// Every pickable element's id, in z-order (`⌘A`).
+    /// Every pickable element's id, in z-order (`⌘A`). A text label bound
+    /// to a pickable container is not listed: it goes with its container.
     #[must_use]
     pub fn pickable_ids(&self) -> Vec<String> {
-        self.pickable().map(|s| s.id.clone()).collect()
+        self.pickable()
+            .filter(|s| self.live_container(s).is_none())
+            .map(|s| s.id.clone())
+            .collect()
+    }
+
+    /// #39 review M1: the pickable container `s` is bound to as its text
+    /// label (`containerId`), if any.
+    fn live_container(&self, s: &Shape) -> Option<&str> {
+        if s.kind != ShapeKind::Text {
+            return None;
+        }
+        let id = s.extra.get("containerId")?.as_str()?;
+        let c = self.shape(id)?;
+        (!c.is_deleted && !c.is_locked()).then_some(c.id.as_str())
+    }
+
+    /// `ids` plus the text labels bound to them (`containerId`), without
+    /// repeats: what a move, delete or snapshot of `ids` covers, so a label
+    /// never stays behind or survives its shape.
+    #[must_use]
+    pub fn with_labels(&self, ids: &[String]) -> Vec<String> {
+        let mut out: Vec<String> = Vec::with_capacity(ids.len());
+        for id in ids {
+            if !out.contains(id) {
+                out.push(id.clone());
+            }
+        }
+        for e in &self.elements {
+            if let Element::Shape(t) = e
+                && t.kind == ShapeKind::Text
+                && t.extra
+                    .get("containerId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|c| ids.iter().any(|i| i == c))
+                && !out.contains(&t.id)
+            {
+                out.push(t.id.clone());
+            }
+        }
+        out
     }
 
     /// `ids` plus every pickable element sharing an outermost group with
@@ -296,6 +341,15 @@ impl Board {
     /// (deleted, locked, raw, gone) are dropped.
     #[must_use]
     pub fn with_groups(&self, ids: &[String]) -> Vec<String> {
+        // A bound label stands for its container, as in Excalidraw.
+        let ids: Vec<String> = ids
+            .iter()
+            .map(|id| {
+                self.shape(id)
+                    .and_then(|s| self.live_container(s))
+                    .map_or_else(|| id.clone(), str::to_owned)
+            })
+            .collect();
         let groups: Vec<String> = ids
             .iter()
             .filter_map(|id| self.shape(id))
@@ -303,6 +357,7 @@ impl Board {
             .collect();
         self.pickable()
             .filter(|s| ids.contains(&s.id) || groups.iter().any(|g| s.in_group(g)))
+            .filter(|s| self.live_container(s).is_none())
             .map(|s| s.id.clone())
             .collect()
     }
@@ -326,6 +381,7 @@ impl Board {
     /// Move pickable elements by (`dx`, `dy`) scene units without bumping
     /// their versions (a drag in progress); see [`Board::commit`].
     pub fn shift(&mut self, ids: &[String], dx: f64, dy: f64) {
+        let ids = self.with_labels(ids);
         for e in &mut self.elements {
             if let Element::Shape(s) = e
                 && ids.contains(&s.id)
@@ -381,7 +437,8 @@ impl Board {
     /// The current state of these elements, to pass to [`Board::commit`].
     #[must_use]
     pub fn snapshot(&self, ids: &[String]) -> Vec<Shape> {
-        ids.iter()
+        self.with_labels(ids)
+            .iter()
             .filter_map(|id| self.shape(id))
             .cloned()
             .collect()
@@ -404,6 +461,7 @@ impl Board {
     /// Delete pickable elements: each becomes an `isDeleted: true` tombstone
     /// with a bumped version.
     pub fn delete(&mut self, ids: &[String], src: &mut IdSource, now: i64) -> Vec<Change> {
+        let ids = &self.with_labels(ids);
         let before = self.snapshot(ids);
         for e in &mut self.elements {
             if let Element::Shape(s) = e
@@ -729,5 +787,70 @@ mod tests {
         let s = board.shape("t").unwrap();
         assert_eq!(s.x, 0.5 + 5.0 + 1.0);
         assert_eq!(s.y, 450.1234567890123 + 5.0);
+    }
+
+    /// #39 review M1: a rectangle with a bound text label, and a free one.
+    fn labelled() -> Board {
+        Board::from_json(include_str!("../../tests/fixtures/board/label.excalidraw")).unwrap()
+    }
+
+    fn orphans(b: &Board) -> Vec<String> {
+        b.elements
+            .iter()
+            .filter_map(Element::shape)
+            .filter(|t| !t.is_deleted)
+            .filter_map(|t| {
+                let c = t.extra.get("containerId")?.as_str()?;
+                let gone = b.shape(c).is_none_or(|c| c.is_deleted);
+                gone.then(|| t.id.clone())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_bound_label_selects_moves_and_deletes_with_its_container() {
+        let mut b = labelled();
+        let mut src = IdSource::new(5);
+        let mut h = History::default();
+        let (box_, label) = ("box".to_owned(), "label".to_owned());
+        assert_eq!(
+            b.with_groups(std::slice::from_ref(&label)),
+            vec![box_.clone()]
+        );
+        assert_eq!(b.pickable_ids(), vec![box_.clone(), "other".to_owned()]);
+        let (lv, bv) = (
+            b.shape("label").unwrap().version,
+            b.shape("box").unwrap().version,
+        );
+        h.record(b.move_by(std::slice::from_ref(&box_), 10.0, 5.0, &mut src, 50));
+        let l = b.shape("label").unwrap();
+        assert_eq!(
+            (l.x, l.y, l.version),
+            (80.5, 42.5, lv + 1),
+            "the label moved with it"
+        );
+        assert_eq!(b.shape("box").unwrap().version, bv + 1);
+        h.record(b.delete(std::slice::from_ref(&box_), &mut src, 60));
+        assert!(
+            b.shape("label").unwrap().is_deleted,
+            "the label is deleted with it"
+        );
+        assert!(orphans(&b).is_empty(), "{:?}", orphans(&b));
+        h.undo(&mut b, &mut src, 70).unwrap();
+        assert!(!b.shape("box").unwrap().is_deleted && !b.shape("label").unwrap().is_deleted);
+        h.undo(&mut b, &mut src, 80).unwrap();
+        assert_eq!(b.shape("label").unwrap().x, 70.5, "undo puts both back");
+        assert_eq!(b.shape("box").unwrap().x, 0.0);
+        h.redo(&mut b, &mut src, 90).unwrap();
+        h.redo(&mut b, &mut src, 100).unwrap();
+        assert!(b.shape("label").unwrap().is_deleted && b.shape("box").unwrap().is_deleted);
+        let saved = Board::from_json(&b.to_json()).unwrap();
+        assert!(orphans(&saved).is_empty(), "no orphaned label in the file");
+        // A drag in progress (`snapshot` + `place`) carries the label too.
+        let mut b = labelled();
+        let start = b.snapshot(std::slice::from_ref(&box_));
+        assert_eq!(start.len(), 2);
+        b.place(&start, 20.0, 0.0);
+        assert_eq!(b.shape("label").unwrap().x, 90.5);
     }
 }
