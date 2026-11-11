@@ -11,6 +11,12 @@ The plan reuses board_edit.Plan on Tools.excalidraw (fixture draw.excalidraw).
   board_sync.py external SRC DST               DST = SRC with keep-text's text
                                                changed to THEIRS, written in
                                                place as another app might
+  board_sync.py external-atomic SRC DST KIND   #41 GK2b: as external, but KIND
+                                               "change" (keep-text reads THEIRS)
+                                               or "delete" (keep-text deleted),
+                                               saved atomically: a temp file
+                                               renamed over DST, as most apps
+                                               (and Muninn) save
   board_sync.py file SAVED BASE                SAVED keeps BASE's elements and
                                                top-level values exactly, and
                                                appends one text element "auto"
@@ -88,6 +94,31 @@ def cmd_external(src, dst):
     print(f"ok another app wrote {dst} in place: keep-text reads {THEIRS!r}")
 
 
+def cmd_external_atomic(src, dst, kind):
+    v = json.load(open(src))
+    for e in v["elements"]:
+        if e.get("id") == "keep-text":
+            if kind == "change":
+                e["text"] = e["originalText"] = THEIRS
+                e["width"] = round(e["width"] * len(THEIRS) / len("keep me"), 2)
+            elif kind == "delete":
+                e["isDeleted"] = True
+            else:
+                die(f"unknown kind {kind!r}")
+            e["version"] += 1
+            e["versionNonce"] += 1
+            break
+    else:
+        die("no keep-text in " + src)
+    # Atomic, as most apps save: the rename changes the folder's time, so the
+    # vault watcher sees it (before the board watcher).
+    tmp = os.path.join(os.path.dirname(dst), ".theirs-atomic.tmp")
+    with open(tmp, "w") as f:
+        json.dump(v, f, indent=2)
+    os.rename(tmp, dst)
+    print(f"ok another app saved {dst} atomically (temp + rename): keep-text {kind}d")
+
+
 def cmd_file(saved_path, base_path):
     saved, base = json.load(open(saved_path)), json.load(open(base_path))
     se, be = saved.get("elements", []), base.get("elements", [])
@@ -136,6 +167,7 @@ def main(argv):
         "script": (cmd_script, 3),
         "point": (cmd_point, 3),
         "external": (cmd_external, 2),
+        "external-atomic": (cmd_external_atomic, 3),
         "file": (cmd_file, 2),
         "theirs": (cmd_theirs, 4),
         "same": (cmd_same, 2),

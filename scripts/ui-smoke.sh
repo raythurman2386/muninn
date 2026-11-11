@@ -131,7 +131,10 @@
 #                   (session log), and neither Ctrl+S nor quitting writes over their
 #                   file, while the drawing gets a recovery copy; then (#41 GK2)
 #                   typing in keep-text while another app rewrites it is flagged,
-#                   never reloaded under the editor, and never autosaved over
+#                   never reloaded under the editor, and never autosaved over;
+#                   then (#41 GK2b) the same three ways with an ATOMIC save by the
+#                   other app (temp + rename): change under typing, delete under
+#                   typing, change under an open editor with nothing typed
 #   x11_chrome      on Xvfb: select, deselect, select again; after each click 12
 #                   quick window grabs and a settled one show the key hint bar and
 #                   zoom controls exactly where they were (no slide); a copy with the
@@ -1330,6 +1333,44 @@ step_x11_sync() {
   quit || return 1
   python3 "$syncs" same "$draw_board" "$m/theirs-text.excalidraw" || { echo "quitting wrote over their edit"; return 1; }
   echo "ok typing under another app's change to the same text: flagged, theirs never written over, mine in the recovery copy"
+  # 5. #41 review GK2b: the same with an ATOMIC save by the other app (temp file
+  #    renamed over the board, as most apps save). The rename changes the
+  #    folder's time, so the vault watcher sees it first; it must follow the
+  #    same rule. (a) they change keep-text while I type in it; (b) they delete
+  #    it while I type in it; (c) they change it while its editor is open with
+  #    nothing typed.
+  local case kind log
+  # UI_SMOKE_ATOMIC_CASES picks some (the failing-first runs take one each).
+  for case in ${UI_SMOKE_ATOMIC_CASES:-a:change:typed b:delete:typed c:change:open}; do
+    kind="$(cut -d: -f2 <<<"$case")"
+    export XDG_CONFIG_HOME="$work/config-x11-sync-atomic-${case%%:*}" XDG_STATE_HOME="$work/state-x11-sync-atomic-${case%%:*}"
+    rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+    log="$XDG_STATE_HOME/muninn/session.log"
+    cp "$draw_fixture" "$draw_board"
+    launch "atomic-${case%%:*}-before" || return 1
+    # shellcheck disable=SC2086
+    python3 "$texts" x11-double-click "$wid" $text || return 1
+    if [ "${case##*:}" = typed ]; then python3 "$texts" x11-type "$wid" " LOCAL" || return 1; fi
+    rest 1
+    python3 "$syncs" external-atomic "$draw_fixture" "$draw_board" "$kind" || return 1
+    cp "$draw_board" "$m/theirs-atomic.excalidraw"
+    rest 2 && shot "atomic-${case%%:*}-theirs" || return 1
+    grep -q "reloaded the open board" "$log" && { echo "($case) the board was reloaded under the open editor"; return 1; }
+    if [ "${case##*:}" = typed ]; then
+      grep -q "open board changed on disk; kept unsaved" "$log" || { echo "($case) their atomic save under the typing was not flagged"; return 1; }
+    fi
+    python3 "$harness" x11-chord "$wid" esc && rest 3 && shot "atomic-${case%%:*}-after-esc" || return 1
+    python3 "$syncs" same "$draw_board" "$m/theirs-atomic.excalidraw" || { echo "($case) Esc and autosave wrote over their atomic save"; return 1; }
+    if [ "${case##*:}" = typed ]; then
+      grep -rq "keep me LOCAL" "$XDG_STATE_HOME/muninn/recovery/" 2>/dev/null || { echo "($case) the typed LOCAL is not in the recovery copy"; return 1; }
+    else
+      grep -q "reloaded the open board" "$log" || { echo "($case) their change was not shown once the editor closed"; return 1; }
+      python3 "$syncs" theirs "$s/x11-sync-atomic-c-after-esc.png" "$s/x11-sync-before.png" "$tree" "$draw_fixture" || return 1
+    fi
+    quit || return 1
+    python3 "$syncs" same "$draw_board" "$m/theirs-atomic.excalidraw" || { echo "($case) quitting wrote over their atomic save"; return 1; }
+    echo "ok ($case) their atomic save: never reloaded under the editor, never written over$( [ "${case##*:}" = typed ] && echo ', mine in the recovery copy' || echo ', shown once the editor closed')"
+  done
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
