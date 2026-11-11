@@ -216,6 +216,10 @@ pick_display() { # the X display for an x11 step: UI_SMOKE_DISPLAY (a number), e
   echo "no free X display in :90-:130" >&2; return 1
 }
 
+reopen_sidebar() { # $work/reopen.json: Cmd+\ at 0.3 s, for a relaunch straight into Board
+  printf '{"events":[{"t":0.3,"type":"key","name":"\\\\","cmd":true}]}' >"$work/reopen.json"
+}
+
 explicit_save() { # board autosave off in $XDG_CONFIG_HOME: the s4-s6 steps check the file is unchanged until Ctrl+S
   mkdir -p "$XDG_CONFIG_HOME/muninn"
   printf '{"board_autosave": false}\n' >"$XDG_CONFIG_HOME/muninn/settings.json"
@@ -299,7 +303,7 @@ BOARD_MARKS="fit panned wheeled plus arrow write back refit"
 board_snap() { # board_snap MARK: replay board.json to MARK with its own settings
   export XDG_CONFIG_HOME="$work/config-board-$1"
   rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
-  "$bin" --vault "$vault" --script "$root/scripts/ui-smoke/board.json" \
+  "$bin" --vault "$vault" --script "$work/board-open.json" \
     --at "mark:$1+0.2" --scale 1 \
     --snap "$out/screens/board-$1.png" --tree "$out/trees/board-$1.json"
 }
@@ -308,6 +312,9 @@ step_headless_board() {
   isolate
   python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
   local mark
+  # Slice 8: these marks were measured with the notes sidebar open; reopen it.
+  python3 "$harness" sidebar-open "$root/scripts/ui-smoke/board.json" "$work/board-open.json" || return 1
+  reopen_sidebar
   for mark in $BOARD_MARKS; do board_snap "$mark" || return 1; done
   local s="$out/screens" t="$out/trees" m="$work/measure"
   mkdir -p "$m"
@@ -327,7 +334,7 @@ step_headless_board() {
   python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
   python3 -c 'import json,sys; b=json.load(open(sys.argv[1]))["board"]; print("saved board", b); assert b["rel"]=="Smoke.excalidraw" and "eye" in b' \
     "$XDG_CONFIG_HOME/muninn/settings.json" || return 1
-  "$bin" --vault "$vault" --at 1.5 --scale 1 \
+  "$bin" --vault "$vault" --script "$work/reopen.json" --at 1.5 --scale 1 \
     --snap "$s/board-restart.png" --tree "$t/board-restart.json" || return 1
   python3 "$harness" tree-mode "$t/board-restart.json" board || return 1
   python3 "$pixels" same "$s/board-restart.png" "$t/board-restart.json" "$m/back.json" "$m/restart.json"
@@ -348,7 +355,8 @@ step_headless_big_restart() {
   # a board is only restored into the vault it was saved from.
   python3 -c 'import json,sys; v=json.load(open(sys.argv[1])); v["last_vault"]=sys.argv[3]; v["recent_vaults"]=[sys.argv[3]]; json.dump(v, open(sys.argv[2], "w"), indent=2)' \
     "$work/config-board-back/muninn/settings.json" "$XDG_CONFIG_HOME/muninn/settings.json" "$big" || return 1
-  "$bin" --vault "$big" --at 2.5 --scale 1 \
+  reopen_sidebar
+  "$bin" --vault "$big" --script "$work/reopen.json" --at 2.5 --scale 1 \
     --snap "$s/big-restart.png" --tree "$t/big-restart.json" || return 1
   python3 "$harness" tree-mode "$t/big-restart.json" board || return 1
   python3 "$pixels" same "$s/big-restart.png" "$t/big-restart.json" "$m/back.json" "$m/big-restart.json" || return 1
@@ -368,7 +376,7 @@ step_headless_big_write() {
     "$work/config-board-back/muninn/settings.json" "$XDG_CONFIG_HOME/muninn/settings.json" "$big" || return 1
   local want
   want="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["board"], sort_keys=True))' "$XDG_CONFIG_HOME/muninn/settings.json")" || return 1
-  printf '{"events":[{"t":2.5,"type":"key","name":"2","cmd":true},{"t":3.0,"type":"mark","name":"written"},{"t":3.4,"type":"key","name":"4","cmd":true},{"t":4.6,"type":"mark","name":"board"}]}' \
+  printf '{"events":[{"t":2.5,"type":"key","name":"2","cmd":true},{"t":3.0,"type":"mark","name":"written"},{"t":3.4,"type":"key","name":"4","cmd":true},{"t":3.8,"type":"key","name":"\\\\","cmd":true},{"t":4.6,"type":"mark","name":"board"}]}' \
     >"$work/big-write.json"
   "$bin" --vault "$big" --script "$work/big-write.json" --at "mark:written+0.2" --scale 1 \
     --tree "$t/big-write.json" || return 1
@@ -403,9 +411,11 @@ step_headless_draw() {
   mkdir -p "$m"
   printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
     >"$m/open.json"
+  python3 "$harness" sidebar-open "$m/open.json" "$m/open.json" || return 1
   draw_run before "$m/open.json" before || return 1
   python3 "$harness" tree-text "$t/draw-before.json" board-surface-title Tools || return 1
   python3 "$draw" script "$t/draw-before.json" "$m/draw.json" || return 1
+  python3 "$harness" sidebar-open "$m/draw.json" "$m/draw.json" || return 1
   draw_run drawn "$m/draw.json" drawn || return 1
   python3 "$harness" tree-text "$t/draw-drawn.json" board-save-state Unsaved || return 1
   python3 "$draw" pixels "$s/draw-before.png" "$s/draw-drawn.png" "$t/draw-before.json" || return 1
@@ -418,7 +428,8 @@ step_headless_draw() {
   # Relaunch on the saved run's settings: Board, Tools and its view come back and
   # the drawing is read from the file.
   export XDG_CONFIG_HOME="$work/config-draw-saved"
-  "$bin" --vault "$vault" --at 1.5 --scale 1 \
+  reopen_sidebar
+  "$bin" --vault "$vault" --script "$work/reopen.json" --at 1.5 --scale 1 \
     --snap "$s/draw-reloaded.png" --tree "$t/draw-reloaded.json" || return 1
   python3 "$harness" tree-text "$t/draw-reloaded.json" board-surface-title Tools || return 1
   python3 "$draw" same "$s/draw-drawn.png" "$s/draw-reloaded.png" "$t/draw-before.json"
@@ -513,6 +524,7 @@ step_headless_board_safety() {
   cp "$draw_fixture" "$draw_board"
   printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"},{"t":2.3,"type":"tap","key":"search-box"},{"t":2.6,"type":"type","text":"road1x+0","every":0.06},{"t":3.4,"type":"mark","name":"typed"}]}' \
     >"$m/search.json"
+  python3 "$harness" sidebar-open "$m/search.json" "$m/search.json" || return 1
   safety_run search-before "$m/search.json" before || return 1
   safety_run search-typed "$m/search.json" typed || return 1
   python3 "$harness" tree-text "$t/safety-search-typed.json" search "road1x+0" || return 1
@@ -739,6 +751,8 @@ step_x11_board() {
   # Let the Board page finish appearing first: a click during its entrance can miss
   # the row (seen once in about ten runs).
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 1-fit || return 1
   python3 "$pixels" fit "$s/x11-board-1-fit.png" "$tree" "$smoke_fixture" "$m/fit.json" || return 1
   # The hand tool pans (a plain drag on empty canvas is the slice 5 marquee).
@@ -757,6 +771,7 @@ step_x11_board() {
   python3 "$pixels" same "$s/x11-board-7-back.png" "$tree" "$m/arrow.json" "$m/back.json" || return 1
   close_app || return 1
   launch || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+backslash || return 1
   shot 8-relaunch || return 1
   python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
   python3 "$pixels" same "$s/x11-board-8-relaunch.png" "$tree" "$m/back.json" "$m/relaunch.json" || return 1
@@ -817,6 +832,8 @@ step_x11_draw() {
   row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
   launch || return 1
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 1-before || return 1
   python3 "$draw" x11 "$wid" "$tree" && shot 2-drawn || return 1
   python3 "$draw" pixels "$s/x11-draw-1-before.png" "$s/x11-draw-2-drawn.png" "$tree" || return 1
@@ -831,6 +848,7 @@ step_x11_draw() {
   python3 "$draw" file "$draw_board" "$draw_fixture" "$m/resaved.excalidraw" "$tree" || return 1
   "$roundtrip" "$draw_board" || return 1
   launch || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+backslash || return 1
   shot 4-reloaded || return 1
   python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
   python3 "$draw" same "$s/x11-draw-2-drawn.png" "$s/x11-draw-4-reloaded.png" "$tree" || return 1
@@ -897,6 +915,8 @@ step_x11_board_safety() {
   # B1: draw, remove the file, leave and re-enter Board, Keep mine.
   launch || return 1
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 1-open || return 1
   draw_one 0 && shot 2-drawn || return 1
   python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw 6 || return 1
@@ -920,7 +940,12 @@ step_x11_board_safety() {
   echo "ok quitting left their file alone"
   python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw 7 || return 1
   launch && shot 7-banner || return 1
-  python3 "$harness" x11-click "$wid" $restore && shot 8-restored || return 1
+  # Slice 8: this relaunch opens straight into Board, sidebar collapsed. The Restore
+  # point comes from the headless banner tree (Write, sidebar shown) and Save copy
+  # from the headless restored tree (Board, collapsed): match each in turn.
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
+  python3 "$harness" x11-click "$wid" $restore && sleep 1 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && shot 8-restored || return 1
   python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
   python3 "$harness" x11-click "$wid" $copy && shot 9-copied || return 1
   local f
@@ -941,6 +966,8 @@ step_x11_board_safety() {
   cp "$draw_fixture" "$draw_board"
   launch || return 1
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row || return 1
   draw_one 0 || return 1
   cp "$theirs" "$draw_board"
@@ -1095,9 +1122,11 @@ step_headless_text() {
   mkdir -p "$m"
   printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
     >"$m/open.json"
+  python3 "$harness" sidebar-open "$m/open.json" "$m/open.json" || return 1
   text_run before "$m/open.json" before || return 1
   python3 "$harness" tree-text "$t/text-before.json" board-surface-title Tools || return 1
   python3 "$texts" script "$t/text-before.json" "$draw_fixture" "$m/text.json" || return 1
+  python3 "$harness" sidebar-open "$m/text.json" "$m/text.json" || return 1
   python3 "$texts" pixels before "$s/text-before.png" "$s/text-before.png" "$t/text-before.json" "$draw_fixture" || return 1
   for mark in typing committed editing edited undone redone saved; do
     text_run "$mark" "$m/text.json" "$mark" || return 1
@@ -1156,6 +1185,8 @@ step_x11_text() {
   from="$(python3 "$texts" point "$tree" "$draw_fixture" drag-from)" || return 1
   to="$(python3 "$texts" point "$tree" "$draw_fixture" drag-to)" || return 1
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
   # shellcheck disable=SC2086
   python3 "$harness" x11-click "$wid" $row && shot before || return 1
   check before before || return 1

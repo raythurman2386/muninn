@@ -12,6 +12,8 @@
   harness.py tree-text TREE.json KEY TEXT      assert KEY shows text containing TEXT
   harness.py x11-drag WINDOW X Y DX DY         button-1 drag from window point X,Y by DX,DY
   harness.py x11-wheel WINDOW X Y BUTTON N     N wheel notches (button 4 up, 5 down) at X,Y
+  harness.py sidebar-open IN.json OUT.json [T] slice 8: SCRIPT with Cmd+\\ (reopen the notes
+                                               sidebar) 0.2 s after its first Cmd+4, or at T
 
 The board canvas pixel checks are in board_pixels.py, the drawing checks in
 board_draw.py (both need Pillow).
@@ -316,8 +318,29 @@ def x11_close(wid):
     print(f"ok sent WM_DELETE_WINDOW to {wid}")
 
 
+def sidebar_open(src, dst, at=None):
+    """Slice 8 collapses the notes sidebar on entering Board. The s3-s7 steps were
+    measured with it open, so their scripts reopen it (Cmd+\\) right after Cmd+4,
+    the way a user who wants it would; later Cmd+4s keep it open (session)."""
+    script = json.load(open(src))
+    events = script["events"]
+    if at is None:
+        first = next(
+            (e for e in events if e.get("type") == "key" and e.get("name") == "4" and e.get("cmd")),
+            None,
+        )
+        if first is None:
+            die(f"{src}: no Cmd+4 to reopen the sidebar after")
+        at = first["t"] + 0.2
+    events.append({"t": float(at), "type": "key", "name": "\\", "cmd": True})
+    events.sort(key=lambda e: e["t"])
+    json.dump(script, open(dst, "w"))
+    print(f"ok {dst}: Cmd+\\ at {float(at):.2f} s")
+
+
 def main(argv):
     commands = {
+        "sidebar-open": sidebar_open,
         "tree-mode": tree_mode,
         "settings-mode": settings_mode,
         "x11-wait": x11_wait,
