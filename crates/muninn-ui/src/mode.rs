@@ -53,6 +53,8 @@ impl State {
         if mode == self.mode {
             return;
         }
+        // Slice 6: leaving Board commits an open text editor.
+        self.commit_board_text();
         self.pending_heading = None;
         self.pending_top = false;
         self.complete = None;

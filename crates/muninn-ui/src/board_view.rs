@@ -438,6 +438,7 @@ impl State {
     /// its view. Unsaved drawing on the open board is saved first; when that
     /// save fails, the open board stays open.
     pub fn select_board(&mut self, path: PathBuf) {
+        self.commit_board_text();
         if self
             .board_open
             .as_ref()
@@ -895,7 +896,12 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
     // Text is rasterized at its on-screen size; keep that bounded however far
     // the camera zooms in (see `MAX_SCREEN_FONT`).
     let zoom = open.cam.view().zoom.max(f32::MIN_POSITIVE);
+    let editing = s.board_text.as_ref().and_then(|t| t.id.as_deref());
     for (i, t) in scene.texts.iter().enumerate() {
+        if editing == Some(t.id.as_str()) {
+            // Slice 6: the editor stands in for the text it edits.
+            continue;
+        }
         let font_size = t.font_size.min(crate::board_scene::MAX_SCREEN_FONT / zoom);
         let mut block =
             col()
@@ -923,7 +929,9 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
         .clip_soft(10.0)
         .fill(scene.paper)
         .border(1.0, k.c.border_muted)
-        .cursor(if s.board_tool.is_some() {
+        .cursor(if s.board_tool == Some(crate::BoardTool::Text) {
+            Cursor::Text
+        } else if s.board_tool.is_some() {
             Cursor::Crosshair
         } else if s.board_hand {
             Cursor::Grab
@@ -981,6 +989,18 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
         })
         .pointer_buttons([PointerButton::Primary])
         .on_drag(|s: &mut State, d: &mut Drag, tx: &mut Tx| {
+            // Slice 6: a press outside the open text editor commits it, and
+            // that click does nothing else.
+            if d.phase == Phase::Down && s.commit_board_text() {
+                s.board_text_swallow = true;
+                return;
+            }
+            if s.board_text_swallow {
+                if d.phase == Phase::Up {
+                    s.board_text_swallow = false;
+                }
+                return;
+            }
             if s.board_tool.is_some() {
                 // The preview is part of the view, so this rebuilds.
                 s.draw_board(d);
@@ -998,9 +1018,15 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
             // element selects it; only one on empty canvas fits.
             if s.board_tool.is_none() && s.board_selection().is_empty() {
                 s.fit_board();
+            } else if s.board_tool.is_none() {
+                // Slice 6: one text element selected: edit it in place.
+                s.board_double_press();
             }
         })
         .child(world);
+    if let Some(editor) = crate::board_text::editor(s, open.cam.view()) {
+        canvas_el = canvas_el.child(editor);
+    }
     if scene.bounds.is_none() {
         canvas_el = canvas_el.child(
             col()

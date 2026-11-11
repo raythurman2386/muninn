@@ -53,6 +53,17 @@ All notable changes to Muninn are documented here. The format is based on
   and redoes with it, and clicking the label selects the shape, so no label
   is left behind or orphaned in the file. Saving is still
   the explicit `⌘S` with all its guards.
+- Board text (in progress): the text tool (`T`/`8` or the toolbar) places a
+  text element where you click and opens an editor there; `Enter` breaks
+  the line, and `Esc`, a click outside, leaving Board or saving commits.
+  Double-clicking a text element edits it in place. New text is written
+  with Excalidraw's fields (`text`, `originalText`, `fontSize` 20,
+  `fontFamily`, `textAlign`, `verticalAlign`, `lineHeight`, measured
+  `width`/`height`, `containerId` null, `autoResize`); committing empty text
+  adds nothing, and emptying existing text deletes it as a tombstone. Each
+  commit is one undoable edit that bumps `version`, `versionNonce` and
+  `updated`. While typing, Board and Graph keys stay in the editor and `⌘Z`
+  undoes typing. Text inside shapes (bound text) is not part of this slice.
 - Unsaved board drawing is never lost: if the board's file is removed,
   renamed or changed by another app, the board stays open and, once Muninn
   notices (when the boards are re-listed — entering Board, a vault reload or

@@ -188,6 +188,11 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   is dropped when the file changes underneath. Edits only mark the board unsaved: they
   are written by the same explicit save, and the recovery copy below is taken once a
   move drag lands, not per frame.
+  Text (`board_text`, over `muninn_core` `board::text`) places and edits free-standing
+  text elements through an in-canvas Rune text field; a commit (Esc, a click outside,
+  focus loss, leaving Board, saving) is one history edit with the size measured by the
+  canvas's own text layout. While the field is open `State::is_typing` is true, so Board
+  and Graph keys never fire into it; text bound to containers is out of scope.
   Unsaved drawing is never dropped (`board_safety`): a file removed, renamed or changed
   outside Muninn is noticed when the boards are re-listed (entering Board, a vault reload, a
   rescan) or when a save re-reads the file, not live (the board watcher is slice 7); then

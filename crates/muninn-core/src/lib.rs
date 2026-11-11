@@ -22,7 +22,8 @@ pub mod testing;
 
 pub use board::{
     BOARD_EXTENSION, Board, BoardFile, Change, Element, HISTORY_LIMIT, History, IdSource,
-    MUNINN_SOURCE, SCENE_VERSION, Shape, ShapeKind, TextBody, index_after, list_boards,
+    MUNINN_SOURCE, SCENE_VERSION, Shape, ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE,
+    TEXT_LINE_HEIGHT, TextBody, index_after, list_boards,
 };
 pub use note::Note;
 pub use preview::Attachment;

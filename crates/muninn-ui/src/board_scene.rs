@@ -68,6 +68,8 @@ pub const MAX_SCREEN_FONT: f32 = 1024.0;
 /// One text element, in world-element coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SceneText {
+    /// The element's id (the canvas hides text whose editor is open).
+    pub id: String,
     pub at: [f32; 2],
     pub lines: Vec<String>,
     pub font_size: f32,
@@ -204,7 +206,7 @@ pub(crate) fn paint_item(item: &Item, map: impl Fn([f32; 2]) -> [f32; 2], scale:
 
 /// An Excalidraw colour: `#rgb`, `#rrggbb` or `#rrggbbaa`; `None` for
 /// `transparent` or anything unreadable.
-fn color(value: &str) -> Option<Color> {
+pub(crate) fn color(value: &str) -> Option<Color> {
     let value = value.trim();
     if value.eq_ignore_ascii_case("transparent") {
         return None;
@@ -417,6 +419,7 @@ fn item_pieces(item: &Item) -> Vec<Piece> {
             out.push(Piece::Text {
                 at: [b[0], b[1]],
                 text: SceneText {
+                    id: item.id.clone(),
                     at: [0.0; 2],
                     lines: body.text.split('\n').map(str::to_owned).collect(),
                     font_size,

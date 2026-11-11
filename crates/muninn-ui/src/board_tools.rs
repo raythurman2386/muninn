@@ -2,7 +2,8 @@
 //!
 //! A tool is picked from the toolbar in the canvas's top-left corner or with
 //! Excalidraw's keys: `R` rectangle, `D` diamond, `O` ellipse, `A` arrow, `L`
-//! line, `P` or `X` freehand (also `2`–`7`, Excalidraw's number row), and `V`
+//! line, `P` or `X` freehand, `T` text (also `2`–`8`, Excalidraw's number
+//! row; text is slice 6, `board_text`), and `V`
 //! or `1` for no tool. With no tool, a drag selects or moves (slice 5,
 //! `board_edit`) and the hand tool `H` pans. With a tool, a
 //! drag draws: the element is previewed while the pointer moves and added to
@@ -57,17 +58,20 @@ pub enum BoardTool {
     Arrow,
     Line,
     Freedraw,
+    /// Slice 6: a click places text (`board_text`).
+    Text,
 }
 
 impl BoardTool {
     /// Toolbar order, as in Excalidraw.
-    pub const ALL: [BoardTool; 6] = [
+    pub const ALL: [BoardTool; 7] = [
         BoardTool::Rectangle,
         BoardTool::Diamond,
         BoardTool::Ellipse,
         BoardTool::Arrow,
         BoardTool::Line,
         BoardTool::Freedraw,
+        BoardTool::Text,
     ];
 
     /// The element kind the tool draws.
@@ -80,6 +84,7 @@ impl BoardTool {
             BoardTool::Arrow => ShapeKind::Arrow,
             BoardTool::Line => ShapeKind::Line,
             BoardTool::Freedraw => ShapeKind::Freedraw,
+            BoardTool::Text => ShapeKind::Text,
         }
     }
 
@@ -99,6 +104,7 @@ impl BoardTool {
             BoardTool::Arrow => "A",
             BoardTool::Line => "L",
             BoardTool::Freedraw => "P",
+            BoardTool::Text => "T",
         }
     }
 
@@ -110,6 +116,7 @@ impl BoardTool {
             BoardTool::Arrow => &ARROW,
             BoardTool::Line => &LINE,
             BoardTool::Freedraw => &PEN,
+            BoardTool::Text => &TEXT,
         }
     }
 }
@@ -126,6 +133,7 @@ pub fn tool_for_key(text: &str) -> Option<Option<BoardTool>> {
         "a" | "A" | "5" => Some(BoardTool::Arrow),
         "l" | "L" | "6" => Some(BoardTool::Line),
         "p" | "P" | "x" | "X" | "7" => Some(BoardTool::Freedraw),
+        "t" | "T" | "8" => Some(BoardTool::Text),
         _ => return None,
     })
 }
@@ -171,6 +179,12 @@ static PEN: Icon = Icon {
     body: r#"<path d="M3 14C5 9 7 8 8.5 10.5C10 13 11.5 13 13 9.5C14 7 15.5 6 17 6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>"#,
 };
 
+static TEXT: Icon = Icon {
+    name: "board-text",
+    view: 20.0,
+    body: r#"<path d="M4.5 5.5V4H15.5V5.5M10 4V16M7.5 16H12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>"#,
+};
+
 /// An element being drawn: its tool and the pointer's scene positions so far.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Draft {
@@ -191,7 +205,7 @@ pub fn fingerprint(bytes: &str) -> u64 {
     h.finish()
 }
 
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
@@ -251,6 +265,17 @@ impl State {
         let Some(tool) = self.board_tool else {
             return;
         };
+        if tool == BoardTool::Text {
+            // Slice 6: a click (on release) opens the text editor there.
+            if d.phase == Phase::Up
+                && !d.cancelled()
+                && let Some(open) = &self.board_open
+            {
+                let at = open.cam.view().scene([d.x, d.y]);
+                self.begin_board_text([f64::from(at[0]), f64::from(at[1])]);
+            }
+            return;
+        }
         let Some(open) = &mut self.board_open else {
             return;
         };
@@ -310,6 +335,8 @@ impl State {
     /// Save the open board if it has unsaved drawing (`⌘S`). `true` when the
     /// file on disk now holds the drawing (or there was nothing to save).
     pub fn save_board(&mut self) -> bool {
+        // Slice 6: text being typed is part of what is saved (quit, switch).
+        self.commit_board_text();
         let root = self.vault.root.clone();
         let Some(open) = &mut self.board_open else {
             return true;

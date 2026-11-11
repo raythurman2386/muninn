@@ -56,8 +56,10 @@ use crate::vault::{Vault, atomic_write, sort_paths, walk};
 
 mod create;
 mod edit;
+mod text;
 pub use create::{IdSource, index_after};
 pub use edit::{Change, HISTORY_LIMIT, History};
+pub use text::{TEXT_FONT_FAMILY, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
 /// File extension of a board, without the dot.
 pub const BOARD_EXTENSION: &str = "excalidraw";

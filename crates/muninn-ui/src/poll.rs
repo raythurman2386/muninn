@@ -30,6 +30,12 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         return changed;
     }
     let mut changed = false;
+    // Board slice 6: the text editor commits once it loses the keyboard
+    // (a click on the sidebar, a dialog), so it never strands Board keys.
+    if s.board_text.is_some() && !s.board_text_field.focused {
+        s.commit_board_text();
+        changed = true;
+    }
     // Remember the open board for the next launch once a frame drew it; this
     // writes settings only, nothing on screen changes.
     s.board_shown_tick(tx);

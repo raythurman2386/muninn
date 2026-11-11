@@ -218,6 +218,7 @@ impl State {
             || self.rename_prompt.is_some()
             || self.new_folder_prompt.is_some()
             || self.rename_folder_prompt.is_some()
+            || self.board_text.is_some()
     }
 
     /// DES-01: help overlay.

@@ -8,6 +8,7 @@ mod board_camera;
 mod board_edit;
 mod board_safety;
 mod board_scene;
+mod board_text;
 mod board_tools;
 mod board_view;
 mod camera;
@@ -34,6 +35,7 @@ pub use autostart::{
 pub use board_camera::{BoardCam, BoardView};
 pub use board_edit::{BoardEdit, Gesture, NUDGE, NUDGE_BIG};
 pub use board_scene::{BoardScene, SceneText};
+pub use board_text::{BoardTextTarget, measure_text};
 pub use board_tools::{BoardTool, Draft, tool_for_key};
 pub use board_view::{
     BoardConflict, BoardCounts, BoardSession, BoardStatus, BoardSummary, OpenBoard,

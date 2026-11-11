@@ -350,6 +350,12 @@ pub struct State {
     pub board_hand: bool,
     /// Ids, seeds and nonces for drawn elements.
     pub board_ids: muninn_core::IdSource,
+    /// Slice 6: the text element whose in-canvas editor is open.
+    pub board_text: Option<crate::board_text::BoardTextTarget>,
+    /// Slice 6: the in-canvas text editor's field.
+    pub board_text_field: TextEdit,
+    /// Slice 6: the click that closed a text editor; its drag is ignored.
+    pub board_text_swallow: bool,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -657,6 +663,9 @@ impl State {
             board_tool: None,
             board_hand: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
+            board_text: None,
+            board_text_field: TextEdit::default(),
+            board_text_swallow: false,
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
