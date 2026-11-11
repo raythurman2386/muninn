@@ -356,6 +356,10 @@ pub struct State {
     pub board_text_field: TextEdit,
     /// Slice 6: the click that closed a text editor; its drag is ignored.
     pub board_text_swallow: bool,
+    /// #40 review M1: the uncommitted editor text in the last recovery
+    /// copy, and the typing's `(text, first, last change)` not copied yet.
+    pub(crate) board_recovered_text: Option<String>,
+    pub(crate) board_text_wait: Option<(String, f64, f64)>,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -666,6 +670,8 @@ impl State {
             board_text: None,
             board_text_field: TextEdit::default(),
             board_text_swallow: false,
+            board_recovered_text: None,
+            board_text_wait: None,
             scope: Scope::Global,
             graph,
             cam: Camera::new(),

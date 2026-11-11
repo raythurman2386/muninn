@@ -19,9 +19,16 @@
 //!   `⌘⇧Z` inside it are the text field's own undo and redo of the typing
 //!   (Rune's `TextEdit` history). Board undo applies to whole commits once the
 //!   editor is closed.
-//! - Text bound to a container (`containerId`, text inside a shape) is not
-//!   part of this slice: new text is always free-standing, and bound text in
-//!   a file is drawn and edited as plain text at its own position.
+//! - Text bound to a container (`containerId`, a label inside a shape):
+//!   double-clicking the shape, or its label (whose click selects the
+//!   shape), edits that label in place, as in Excalidraw. The label keeps
+//!   its `containerId` and the shape its `boundElements`, and on commit the
+//!   label is re-centred in the shape. A label inside a locked shape is
+//!   locked with it. New text is always free-standing; creating a label for
+//!   a shape that has none is not part of this slice.
+//! - A crash while typing loses nothing: text typed but not committed counts
+//!   as unsaved, and the board's recovery copy includes it (written once the
+//!   typing rests), so Restore brings it back.
 //! - The text size of a new element is Excalidraw's default 20; existing text
 //!   keeps its `fontSize`, drawn and edited within the s3 clamp.
 
@@ -41,6 +48,12 @@ pub struct BoardTextTarget {
     pub font_size: f64,
     pub line_height: f64,
     pub color: rune::Color,
+    /// The text when the editor opened (empty for new text), so text being
+    /// typed is known to be unsaved (#40 review M1).
+    pub original: String,
+    /// The shape this text is the bound label of (#40 review M2): the label
+    /// is re-centred in it on commit.
+    pub container: Option<String>,
 }
 
 /// Excalidraw's default stroke colour.
@@ -90,6 +103,8 @@ impl State {
             font_size: TEXT_FONT_SIZE,
             line_height: TEXT_LINE_HEIGHT,
             color: default_ink(),
+            original: String::new(),
+            container: None,
         });
         self.open_text_field(String::new());
     }
@@ -125,6 +140,8 @@ impl State {
             font_size: body.font_size,
             line_height,
             color,
+            original: body.text.clone(),
+            container: None,
         });
         self.board_clear_selection();
         self.open_text_field(body.text);
@@ -160,13 +177,7 @@ impl State {
             return true;
         };
         let now = crate::board_tools::now_ms();
-        let edit = match &target.id {
-            None => model
-                .add_text(target.at, &text, size, &mut self.board_ids, now)
-                .into_iter()
-                .collect(),
-            Some(id) => model.set_text(id, &text, size, &mut self.board_ids, now),
-        };
+        let edit = apply_text(model, &target, &text, size, &mut self.board_ids, now);
         if !open.record(edit) {
             // Nothing changed: show the hidden element again.
             open.rebuild();
@@ -175,13 +186,94 @@ impl State {
         true
     }
 
-    /// A double click with nothing but one text element selected edits it.
+    /// A double click with one element selected: a text element is edited,
+    /// and a shape with a bound label (the box, or the label itself, which
+    /// selects its box) edits that label, as in Excalidraw (#40 review M2).
     pub(crate) fn board_double_press(&mut self) -> bool {
         let one = match self.board_selection() {
             [id] => id.clone(),
             _ => return false,
         };
-        self.edit_board_text(&one)
+        let label = self
+            .board_open
+            .as_ref()
+            .and_then(|o| o.model.as_ref())
+            .and_then(|m| m.bound_label(&one))
+            .map(|s| s.id.clone());
+        match label {
+            Some(label) => {
+                if !self.edit_board_text(&label) {
+                    return false;
+                }
+                if let Some(t) = &mut self.board_text {
+                    t.container = Some(one);
+                }
+                true
+            }
+            None => self.edit_board_text(&one),
+        }
+    }
+
+    /// The editor's text when it differs from what the element held: typed
+    /// but not committed, so it is unsaved (#40 review M1).
+    pub(crate) fn board_text_pending(&self) -> Option<String> {
+        let target = self.board_text.as_ref()?;
+        let text = &self.board_text_field.text;
+        (*text != target.original).then(|| text.clone())
+    }
+
+    /// The open board's JSON with the text being typed applied, as a commit
+    /// would apply it (on a copy: the drawing and its history are unchanged).
+    pub(crate) fn board_json_with_pending_text(&self) -> Option<String> {
+        let model = self.board_open.as_ref()?.model.as_ref()?;
+        let (Some(target), Some(text)) = (self.board_text.as_ref(), self.board_text_pending())
+        else {
+            return Some(model.to_json());
+        };
+        let mut copy = model.clone();
+        let mut ids = self.board_ids.clone();
+        let size = measure_text(&text, target.font_size, target.line_height);
+        let _ = apply_text(
+            &mut copy,
+            target,
+            &text,
+            size,
+            &mut ids,
+            crate::board_tools::now_ms(),
+        );
+        Some(copy.to_json())
+    }
+}
+
+/// Apply editor text to `model` as one edit: new text, an edited element,
+/// or a bound label re-centred in its container.
+fn apply_text(
+    model: &mut muninn_core::Board,
+    target: &BoardTextTarget,
+    text: &str,
+    size: [f64; 2],
+    ids: &mut muninn_core::IdSource,
+    now: i64,
+) -> Vec<muninn_core::Change> {
+    match &target.id {
+        None => model
+            .add_text(target.at, text, size, ids, now)
+            .into_iter()
+            .collect(),
+        Some(id) => {
+            let centre = target
+                .container
+                .as_ref()
+                .and_then(|c| model.shape(c))
+                .map(|c| {
+                    let b = c.own_box();
+                    [b[0] + b[2] / 2.0, b[1] + b[3] / 2.0]
+                });
+            match centre {
+                Some(centre) => model.set_label_text(id, text, size, centre, ids, now),
+                None => model.set_text(id, text, size, ids, now),
+            }
+        }
     }
 }
 

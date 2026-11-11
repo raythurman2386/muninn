@@ -366,9 +366,11 @@ impl State {
     /// Whether the open board holds drawing that is not on disk.
     #[must_use]
     pub fn board_dirty(&self) -> bool {
-        self.board_open.as_ref().is_some_and(|open| {
-            matches!(open.status, BoardStatus::Unsaved | BoardStatus::Failed(_))
-        })
+        // #40 review M1: text typed but not committed is unsaved too.
+        self.board_text_pending().is_some()
+            || self.board_open.as_ref().is_some_and(|open| {
+                matches!(open.status, BoardStatus::Unsaved | BoardStatus::Failed(_))
+            })
     }
 }
 

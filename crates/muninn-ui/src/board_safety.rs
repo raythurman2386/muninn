@@ -37,6 +37,11 @@ use crate::state::conflict_stamp;
 use crate::{Mode, State};
 
 /// Why a quit was refused.
+/// #40 review M1: the recovery copy of text being typed waits until the
+/// typing has rested this long, or at most this long while it never does.
+const TYPING_REST: f64 = 0.5;
+const TYPING_MAX_AGE: f64 = 2.0;
+
 const QUIT_REFUSED: &str = "Board not saved and no recovery copy could be written";
 
 /// #38 review M2: `path` lies inside the vault `root`: below it through
@@ -83,22 +88,34 @@ impl State {
     /// is unsaved and changed since the last copy, removed once it is not
     /// dirty. Cheap when nothing changed. Errors leave the drawing in memory.
     pub(crate) fn board_recovery_tick(&mut self) -> io::Result<()> {
-        let Some(open) = &mut self.board_open else {
+        // #40 review M1: text typed but not committed is unsaved drawing too.
+        let pending = self.board_text_pending();
+        let Some(open) = &self.board_open else {
             return Ok(());
         };
         let Some(rel) = open.rel() else {
             return Ok(());
         };
-        if open.dirty() {
-            if open.recovered_at == Some(open.generation) {
+        if open.dirty() || pending.is_some() {
+            if open.recovered_at == Some(open.generation) && self.board_recovered_text == pending {
                 return Ok(());
             }
-            let Some(model) = &open.model else {
+            let generation = open.generation;
+            let Some(json) = self.board_json_with_pending_text() else {
                 return Ok(());
             };
-            self.recovery.save(&rel, &model.to_json())?;
-            open.recovered_at = Some(open.generation);
-        } else if open.recovered_at.take().is_some() {
+            self.recovery.save(&rel, &json)?;
+            if let Some(open) = &mut self.board_open {
+                open.recovered_at = Some(generation);
+            }
+            self.board_recovered_text = pending;
+            return Ok(());
+        }
+        self.board_recovered_text = None;
+        let Some(open) = &mut self.board_open else {
+            return Ok(());
+        };
+        if open.recovered_at.take().is_some() {
             self.recovery.clear(&rel);
             self.recovered.retain(|entry| entry.rel != rel);
         }
@@ -116,6 +133,26 @@ impl State {
         {
             return;
         }
+        // #40 review M1: text being typed is copied once the typing rests
+        // (0.5 s, at most every 2 s), not on every keystroke.
+        if let Some(text) = self.board_text_pending()
+            && self.board_recovered_text.as_ref() != Some(&text)
+            && !self
+                .board_open
+                .as_ref()
+                .is_some_and(|o| o.dirty() && o.recovered_at != Some(o.generation))
+        {
+            let now = self.now;
+            let wait = self.board_text_wait.get_or_insert((text.clone(), now, now));
+            if wait.0 != text {
+                wait.0 = text;
+                wait.2 = now;
+            }
+            if now - wait.2 < TYPING_REST && now - wait.1 < TYPING_MAX_AGE {
+                return;
+            }
+        }
+        self.board_text_wait = None;
         if let Err(e) = self.board_recovery_tick() {
             let message = format!("Could not persist board recovery copy: {e}");
             if self.error.as_deref() != Some(message.as_str()) {
@@ -310,9 +347,12 @@ impl State {
     /// clean, or its recovery copy holds the latest drawing.
     #[must_use]
     pub fn can_quit(&self) -> bool {
-        self.board_open
-            .as_ref()
-            .is_none_or(|open| !open.dirty() || open.recovered_at == Some(open.generation))
+        let pending = self.board_text_pending();
+        self.board_open.as_ref().is_none_or(|open| {
+            (!open.dirty() && pending.is_none())
+                || (open.recovered_at == Some(open.generation)
+                    && self.board_recovered_text == pending)
+        })
     }
 }
 

@@ -96,6 +96,34 @@ impl Board {
         ids: &mut IdSource,
         now: i64,
     ) -> Vec<Change> {
+        self.set_text_in(id, text, size, None, ids, now)
+    }
+
+    /// [`Board::set_text`] for a label bound to a shape (#40 review M2):
+    /// the label is also re-centred on `centre`, its container's centre, as
+    /// Excalidraw lays out bound text. `containerId` and the container's
+    /// `boundElements` are kept as they are.
+    pub fn set_label_text(
+        &mut self,
+        id: &str,
+        text: &str,
+        size: [f64; 2],
+        centre: [f64; 2],
+        ids: &mut IdSource,
+        now: i64,
+    ) -> Vec<Change> {
+        self.set_text_in(id, text, size, Some(centre), ids, now)
+    }
+
+    fn set_text_in(
+        &mut self,
+        id: &str,
+        text: &str,
+        size: [f64; 2],
+        centre: Option<[f64; 2]>,
+        ids: &mut IdSource,
+        now: i64,
+    ) -> Vec<Change> {
         let text = normalise(text);
         let Some(current) = self.shape(id) else {
             return Vec::new();
@@ -123,6 +151,10 @@ impl Board {
                 s.extra.insert("originalText".to_owned(), json!(text));
                 s.width = round2(size[0]);
                 s.height = round2(size[1]);
+                if let Some(c) = centre {
+                    s.x = round2(c[0] - size[0] / 2.0);
+                    s.y = round2(c[1] - size[1] / 2.0);
+                }
             }
         }
         self.commit(&before, ids, now)
