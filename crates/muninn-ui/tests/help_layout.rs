@@ -53,7 +53,7 @@ const ACTIONS: &[&str] = &[
     "Open the highlighted result",
     "Back in note history",
     "Forward in note history",
-    "Write / Read / Graph",
+    "Write / Read / Graph / Board",
     "Close the outermost layer",
     "Open the command palette",
     "Find in the open note",

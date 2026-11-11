@@ -6,6 +6,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Board mode (in progress): a fourth mode button, `⌘4` / `Ctrl+4`, and **Toggle
+  Board** in the command palette open a Board page that lists the vault's
+  `.excalidraw` boards with their element counts. Drawing is not there yet.
+  Esc leaves Board for the last note mode, and the last mode (now including
+  Board) is restored on launch; older `settings.json` files load unchanged.
+
 ## [0.6.0] - 2026-11-09
 
 ### Added

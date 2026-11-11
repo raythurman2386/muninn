@@ -22,6 +22,12 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.toggle_graph();
         return true;
     }
+    // Board has no selection or tool to drop yet, so Esc leaves it the way
+    // it leaves the graph.
+    if e.key == Key::Escape && s.mode == Mode::Board {
+        s.toggle_board();
+        return true;
+    }
     // The settings modal owns the keyboard while it is mounted: only the
     // toggle chord is read here, everything else belongs to its controls.
     if s.settings_modal {
@@ -110,6 +116,8 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.set_mode(Mode::Preview);
     } else if e.is_command('3') {
         s.set_mode(Mode::Graph);
+    } else if e.is_command('4') {
+        s.set_mode(Mode::Board);
     } else {
         return false;
     }

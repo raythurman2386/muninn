@@ -331,6 +331,10 @@ pub struct State {
     pub history_index: usize,
     pub mode: Mode,
     pub last_note_mode: Mode,
+    /// Board mode: the vault's boards as last read from disk
+    /// ([`State::refresh_boards`]), and the one picked in the list.
+    pub boards: Vec<crate::BoardSummary>,
+    pub board_selected: Option<PathBuf>,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -626,6 +630,8 @@ impl State {
             history_index: 0,
             mode: Mode::Editor,
             last_note_mode: Mode::Editor,
+            boards: Vec::new(),
+            board_selected: None,
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
@@ -1235,6 +1241,7 @@ impl State {
             PaletteAction::NewNote => self.new_note(),
             PaletteAction::TogglePreview => self.toggle_preview(),
             PaletteAction::ToggleGraph => self.toggle_graph(),
+            PaletteAction::ToggleBoard => self.toggle_board(),
         }
     }
 
@@ -1382,7 +1389,9 @@ impl State {
     }
 
     pub fn open_from_list(&mut self, id: usize) {
-        if self.mode == Mode::Graph {
+        // A note picked from the sidebar while Graph or Board is up opens in
+        // Write, as the graph always has.
+        if !self.mode.is_note_mode() {
             self.mode = Mode::Editor;
             self.camera_glide = None;
         }
@@ -2993,6 +3002,9 @@ impl State {
             Ok(v) => {
                 self.vault = v;
                 self.graph.sync(&self.vault);
+                if self.mode == Mode::Board {
+                    self.refresh_boards();
+                }
                 // A later successful scan proves the startup failure is gone.
                 self.startup_error = None;
                 // Reloads keep the note by path identity; save its caret before
@@ -4065,7 +4077,7 @@ impl State {
                 self.editor.anchor = offset;
                 self.editor.focus = offset;
             }
-            Mode::Graph => {}
+            Mode::Graph | Mode::Board => {}
         }
     }
 

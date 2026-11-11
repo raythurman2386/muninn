@@ -1957,6 +1957,9 @@ fn main_body(s: &State, k: &Kit) -> El {
     if s.mode == Mode::Graph {
         return crate::graph_view::graph(s, k);
     }
+    if s.mode == Mode::Board {
+        return crate::board_view::board(s, k);
+    }
     let mut content = row().key("note-body").w_full().grow(1.0).min_h(0.0).child(
         col()
             .key("page")
@@ -2160,7 +2163,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("Enter (search)", "Open the highlighted result"),
                 ("⌘[ / Ctrl+[", "Back in note history"),
                 ("⌘] / Ctrl+]", "Forward in note history"),
-                ("⌘1 / ⌘2 / ⌘3", "Write / Read / Graph"),
+                ("⌘1 / ⌘2 / ⌘3 / ⌘4", "Write / Read / Graph / Board"),
                 ("Esc", "Close the outermost layer"),
                 ("⌘+⇧+P / Ctrl+Shift+P", "Open the command palette"),
             ],
@@ -3359,6 +3362,14 @@ fn mode_switch(s: &State, k: &Kit) -> El {
             Mode::Graph,
             s.mode,
         ))
+        .child(mode_button(
+            k,
+            "Board",
+            &ic::DOT_GRID,
+            "mode-board",
+            Mode::Board,
+            s.mode,
+        ))
 }
 
 fn mode_button(
@@ -4209,7 +4220,7 @@ mod help_layout_tests {
         );
 
         assert_eq!(shortcut_label("[[").chords, vec![vec!["[[".to_owned()]]);
-        assert_eq!(shortcut_label("⌘1 / ⌘2 / ⌘3").chords.len(), 3);
+        assert_eq!(shortcut_label("⌘1 / ⌘2 / ⌘3 / ⌘4").chords.len(), 4);
         assert_eq!(
             shortcut_label("Tab / Shift+Tab").chords,
             vec![

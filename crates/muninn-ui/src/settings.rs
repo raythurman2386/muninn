@@ -568,6 +568,7 @@ impl Settings {
         settings.mode = match value.get("mode").and_then(Value::as_str) {
             Some("preview") => Mode::Preview,
             Some("graph") => Mode::Graph,
+            Some("board") => Mode::Board,
             _ => Mode::Editor,
         };
         settings.scope = match value.get("scope").and_then(Value::as_str) {

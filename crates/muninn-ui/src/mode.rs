@@ -1,5 +1,5 @@
-//! Mode state machine: which main-column page is shown (Write, Read or
-//! Graph), the graph's scope (Global or Local), and the transitions between
+//! Mode state machine: which main-column page is shown (Write, Read, Graph
+//! or Board), the graph's scope (Global or Local), and the transitions between
 //! them.
 //!
 //! `Mode` and `Scope` are plain enums whose fields live on
@@ -14,14 +14,24 @@ pub enum Mode {
     Editor,
     Preview,
     Graph,
+    /// The whiteboard page (`.excalidraw` files). Like Graph, it is not a
+    /// note mode: leaving it returns to the last of Write/Read.
+    Board,
 }
 
 impl Mode {
-    /// Stable settings-file spelling. Array-indexed so serialising the three
-    /// variants does not repeat the same match shape used elsewhere.
+    /// Stable settings-file spelling. Array-indexed so serialising the
+    /// variants does not repeat the same match shape used elsewhere. Older
+    /// settings files only ever contain the first three keys.
     pub(crate) fn as_key(self) -> &'static str {
-        const KEYS: [&str; 3] = ["editor", "preview", "graph"];
+        const KEYS: [&str; 4] = ["editor", "preview", "graph", "board"];
         KEYS[self as usize]
+    }
+
+    /// Write and Read show the open note; Graph and Board replace it.
+    #[must_use]
+    pub fn is_note_mode(self) -> bool {
+        matches!(self, Mode::Editor | Mode::Preview)
     }
 }
 
@@ -46,7 +56,7 @@ impl State {
         self.pending_heading = None;
         self.pending_top = false;
         self.complete = None;
-        if mode != Mode::Graph && self.mode != Mode::Graph {
+        if mode.is_note_mode() && self.mode.is_note_mode() {
             self.last_note_mode = mode;
         }
         if mode == Mode::Graph {
@@ -66,6 +76,10 @@ impl State {
             // A glide belongs to the visible graph; leaving it must not resume
             // mid-flight when the user comes back.
             self.camera_glide = None;
+        }
+        if mode == Mode::Board {
+            // The file is the source of truth: list what is on disk now.
+            self.refresh_boards();
         }
         if mode == Mode::Editor {
             self.focus_editor();
@@ -87,8 +101,17 @@ impl State {
         }
     }
 
+    /// ⌘4 / the palette: enter Board, or go back to the last note mode.
+    pub fn toggle_board(&mut self) {
+        if self.mode == Mode::Board {
+            self.set_mode(self.last_note_mode);
+        } else {
+            self.set_mode(Mode::Board);
+        }
+    }
+
     pub fn toggle_preview(&mut self) {
-        if self.mode == Mode::Graph {
+        if !self.mode.is_note_mode() {
             self.set_mode(self.last_note_mode);
         } else if self.mode == Mode::Editor {
             self.set_mode(Mode::Preview);

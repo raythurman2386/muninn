@@ -62,7 +62,7 @@ prefixed `missing:`. `muninn --help` prints this usage without starting Rune.
 Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 `~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
 missing file starts from defaults instead of blocking startup. It remembers the theme,
-collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
+collapsed folders, the last vault and note, Write/Read/Graph/Board mode, Global/Local scope, the
 autosave delay (0.55 s by default), the default note template, the Reduce motion choice, the tray, start-at-login and shortcut switches and up to five recent vaults. `Cmd/Ctrl+,`
 opens the in-window Settings modal, split into tabs: **Vaults** (open or create a vault,
 or reopen a recent one), **Editor** (step the autosave delay, 0.05–10 s, and the default
@@ -222,7 +222,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘E` / `Ctrl+E` | Toggle Write / Read |
 | `⌘G` / `Ctrl+G` | Toggle Graph |
 | `⌘L` / `Ctrl+L` | Toggle Global / Local graph |
-| `⌘1` / `⌘2` / `⌘3` | Write / Read / Graph |
+| `⌘1` / `⌘2` / `⌘3` / `⌘4` | Write / Read / Graph / Board |
 | `↑` / `↓` / `←` / `→` (graph) | Move the focus ring to the nearest node (sorted order wraps when no node lies that way) |
 | `Enter` (graph) | Open the focused note; when it is already open, glide the camera back to it |
 | `+` / `-` (graph) | Zoom in / out at the canvas centre |

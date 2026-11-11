@@ -6,8 +6,12 @@
   harness.py x11-wait TITLE TIMEOUT            print the id of the mapped window titled TITLE
   harness.py x11-chord WINDOW CHORD            focus WINDOW, press CHORD (e.g. ctrl+2) via XTEST
   harness.py x11-close WINDOW                  send WM_DELETE_WINDOW (the normal close path)
+  harness.py x11-type WINDOW TEXT              type plain text via XTEST
+  harness.py x11-click WINDOW X Y              left click at window point X,Y via XTEST
+  harness.py tree-center TREE.json KEY         print "X Y", the centre of KEY's rect
 
-Mode keys are Muninn's settings keys: editor (Write), preview (Read), graph (Graph).
+Mode keys are Muninn's settings keys: editor (Write), preview (Read), graph (Graph),
+board (Board).
 Later slices add board steps here (pointer drags for shapes, select, move, text).
 """
 
@@ -15,7 +19,12 @@ import json
 import sys
 import time
 
-MODE_BUTTONS = {"editor": "mode-editor", "preview": "mode-preview", "graph": "mode-graph"}
+MODE_BUTTONS = {
+    "editor": "mode-editor",
+    "preview": "mode-preview",
+    "graph": "mode-graph",
+    "board": "mode-board",
+}
 
 
 def die(message):
@@ -50,6 +59,16 @@ def tree_mode(path, expected):
     if active != [want]:
         die(f"{path}: active mode buttons {active}, expected [{want}]")
     print(f"ok {path}: active mode {want}")
+
+
+def tree_center(path, key):
+    tree = json.load(open(path))
+    for n in walk(tree.get("elements", [])):
+        if n.get("key") == key and isinstance(n.get("rect"), list):
+            x, y, w, h = n["rect"]
+            print(f"{round(x + w / 2)} {round(y + h / 2)}")
+            return
+    die(f"{path}: no element {key}")
 
 
 def settings_mode(path, expected):
@@ -113,7 +132,7 @@ def x11_chord(wid, chord):
     xtest.fake_input(d, X.MotionNotify, x=g.x + g.width // 2, y=g.y + g.height // 2)
     d.sync()
     time.sleep(0.2)
-    names = {"ctrl": "Control_L", "shift": "Shift_L", "alt": "Alt_L"}
+    names = {"ctrl": "Control_L", "shift": "Shift_L", "alt": "Alt_L", "esc": "Escape", "enter": "Return"}
     keys = [names.get(k, k) for k in chord.split("+")]
     codes = [d.keysym_to_keycode(XK.string_to_keysym(k)) for k in keys]
     if 0 in codes:
@@ -127,6 +146,63 @@ def x11_chord(wid, chord):
         d.sync()
         time.sleep(0.03)
     print(f"ok pressed {chord} on {wid}")
+
+
+def focus(d, wid):
+    from Xlib import X
+    from Xlib.ext import xtest
+
+    w = window(d, wid)
+    w.set_input_focus(X.RevertToParent, X.CurrentTime)
+    g = w.get_geometry()
+    xtest.fake_input(d, X.MotionNotify, x=g.x + g.width // 2, y=g.y + g.height // 2)
+    d.sync()
+    time.sleep(0.2)
+    return w
+
+
+def x11_type(wid, text):
+    from Xlib import X, XK
+    from Xlib.ext import xtest
+
+    d = display()
+    focus(d, wid)
+    shift = d.keysym_to_keycode(XK.string_to_keysym("Shift_L"))
+    for ch in text:
+        sym = XK.string_to_keysym(ch) or XK.string_to_keysym({" ": "space"}.get(ch, ch))
+        code = d.keysym_to_keycode(sym)
+        if code == 0:
+            die(f"cannot type {ch!r}")
+        upper = ch.isupper()
+        if upper:
+            xtest.fake_input(d, X.KeyPress, shift)
+        xtest.fake_input(d, X.KeyPress, code)
+        xtest.fake_input(d, X.KeyRelease, code)
+        if upper:
+            xtest.fake_input(d, X.KeyRelease, shift)
+        d.sync()
+        time.sleep(0.04)
+    print(f"ok typed {text!r} on {wid}")
+
+
+def x11_click(wid, x, y):
+    from Xlib import X
+    from Xlib.ext import xtest
+
+    d = display()
+    w = focus(d, wid)
+    origin = w.translate_coords(d.screen().root, 0, 0)
+    # translate_coords gives the root's position in the window; negate it.
+    rx, ry = -origin.x + int(x), -origin.y + int(y)
+    xtest.fake_input(d, X.MotionNotify, x=rx, y=ry)
+    d.sync()
+    time.sleep(0.15)
+    xtest.fake_input(d, X.ButtonPress, 1)
+    d.sync()
+    time.sleep(0.08)
+    xtest.fake_input(d, X.ButtonRelease, 1)
+    d.sync()
+    print(f"ok clicked {x},{y} in {wid}")
 
 
 def x11_close(wid):
@@ -150,6 +226,9 @@ def main(argv):
         "x11-wait": x11_wait,
         "x11-chord": x11_chord,
         "x11-close": x11_close,
+        "x11-type": x11_type,
+        "x11-click": x11_click,
+        "tree-center": tree_center,
     }
     if len(argv) < 2 or argv[1] not in commands:
         print(__doc__, file=sys.stderr)

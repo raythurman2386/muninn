@@ -32,10 +32,17 @@
 #   build           cargo build the app and the board_roundtrip example
 #   seed            vault: two linked .md notes and Plan.excalidraw (the core test fixture)
 #   cli_check       `muninn --check`: 2 notes, 0 broken links (the board is not a note)
-#   headless_modes  Ctrl/⌘+3, +2, +1 → Graph, Read, Write: a PNG and tree per mode, the
-#                   active mode button asserted from the tree
-#   x11_modes       windowed app on Xvfb: launch shot, Ctrl+3/2/1 with a shot each,
-#                   settings.json "mode" asserted after each, clean close (exit 0)
+#   headless_modes  one input script (scripts/ui-smoke/modes.json) through Graph, Read,
+#                   Write, Board by ⌘4, Esc out, Board by its mode button, a board row
+#                   picked, Graph, Board by the command palette ("whiteboard"), Read,
+#                   Write, Board again: a PNG and tree per mark, the active mode button
+#                   asserted from each tree
+#   headless_restart  enter Board, quit, relaunch with the same settings: the app opens
+#                   in Board (asserted from the relaunch tree and settings.json)
+#   x11_modes       windowed app on Xvfb: launch shot, Ctrl+3/2/1/4, a click on the Board
+#                   button, the palette, each with a shot and settings.json "mode"
+#                   asserted; clean close (exit 0) in Board, then a relaunch that must
+#                   come back in Board and close cleanly again
 #   board_untouched the app left the seeded board byte-identical (it only reads boards);
 #                   then the board_roundtrip example (load → compare → atomic save →
 #                   reload, on a hidden scratch copy) passes on that file
@@ -50,7 +57,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes x11_modes board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart x11_modes board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -108,16 +115,36 @@ step_cli_check() {
   grep -qx 'notes: 2' <<<"$report" && grep -qx 'broken links: 0' <<<"$report"
 }
 
+# mark in modes.json → the mode it must show
+HEADLESS_MARKS="graph:graph preview:preview editor:editor board-shortcut:board board-esc:editor
+board-button:board board-selected:board graph-after:graph board-palette:board
+preview-after:preview editor-after:editor end-in-board:board"
+
 step_headless_modes() {
   isolate
   command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName'
-  local mode
-  for mode in graph preview editor; do
+  local pair mark mode
+  for pair in $HEADLESS_MARKS; do
+    mark="${pair%%:*}" mode="${pair#*:}"
     "$bin" --vault "$vault" --script "$root/scripts/ui-smoke/modes.json" \
-      --at "mark:$mode+0.9" --scale 1 \
-      --snap "$out/screens/headless-$mode.png" --tree "$out/trees/headless-$mode.json" || return 1
-    python3 "$harness" tree-mode "$out/trees/headless-$mode.json" "$mode" || return 1
+      --at "mark:$mark+0.9" --scale 1 \
+      --snap "$out/screens/headless-$mark.png" --tree "$out/trees/headless-$mark.json" || return 1
+    python3 "$harness" tree-mode "$out/trees/headless-$mark.json" "$mode" || return 1
   done
+}
+
+step_headless_restart() {
+  isolate
+  # Its own settings, so the earlier steps' last mode cannot make this pass.
+  export XDG_CONFIG_HOME="$work/config-restart"
+  mkdir -p "$XDG_CONFIG_HOME"
+  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true}]}' >"$work/enter-board.json"
+  "$bin" --vault "$vault" --script "$work/enter-board.json" --at 1.2 --scale 1 \
+    --snap "$out/screens/restart-1-enter-board.png" || return 1
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
+  "$bin" --vault "$vault" --at 1.0 --scale 1 \
+    --snap "$out/screens/restart-2-relaunch.png" --tree "$out/trees/restart-relaunch.json" || return 1
+  python3 "$harness" tree-mode "$out/trees/restart-relaunch.json" board
 }
 
 find_lavapipe() {
@@ -182,34 +209,60 @@ step_x11_modes() {
   export DISPLAY=":$n"
   echo "Xvfb on $DISPLAY"
 
-  "$bin" --vault "$vault" >"$out/logs/x11-app.log" 2>&1 &
-  app_pid=$!
-  local wid
-  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
-  sleep 2
-  import -window "$wid" "$out/screens/x11-launch.png" || return 1
-  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" editor || true
+  local settings="$XDG_CONFIG_HOME/muninn/settings.json" wid
+  launch() { # launch LOG: start the windowed app and wait for its window
+    "$bin" --vault "$vault" >>"$out/logs/$1" 2>&1 &
+    app_pid=$!
+    wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+    sleep 2
+  }
+  shot() { sleep 1.5; import -window "$wid" "$out/screens/x11-$1.png"; }
+  expect() { python3 "$harness" settings-mode "$settings" "$1"; }
+  chord() { python3 "$harness" x11-chord "$wid" "$1"; }
+  close_app() { # close_app: WM_DELETE_WINDOW, then require exit status 0
+    python3 "$harness" x11-close "$wid" || return 1
+    local i status=124
+    for i in $(seq 100); do
+      if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+      sleep 0.1
+    done
+    app_pid=
+    echo "app exit status: $status"
+    [ "$status" = 0 ]
+  }
 
-  local mode key
-  for mode in graph preview editor; do
-    case "$mode" in graph) key=3 ;; preview) key=2 ;; editor) key=1 ;; esac
-    python3 "$harness" x11-chord "$wid" "ctrl+$key" || return 1
-    sleep 1.5
-    import -window "$wid" "$out/screens/x11-$mode.png" || return 1
-    python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" "$mode" || return 1
-  done
+  # Fresh settings, so the launch is a first run (Write) whatever ran before.
+  export XDG_CONFIG_HOME="$work/config-x11"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  settings="$XDG_CONFIG_HOME/muninn/settings.json"
+  launch x11-app.log || return 1
+  import -window "$wid" "$out/screens/x11-0-launch.png" || return 1
 
-  python3 "$harness" x11-close "$wid" || return 1
-  local status=124
-  for i in $(seq 100); do
-    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
-    sleep 0.1
-  done
-  app_pid=
-  cp "$XDG_CONFIG_HOME/muninn/settings.json" "$out/logs/x11-settings.json" 2>/dev/null
+  chord ctrl+3 && shot 1-graph && expect graph || return 1
+  chord ctrl+2 && shot 2-read && expect preview || return 1
+  chord ctrl+1 && shot 3-write && expect editor || return 1
+  chord ctrl+4 && shot 4-board-shortcut && expect board || return 1
+  chord esc && shot 5-board-esc && expect editor || return 1
+  # The Board button's centre, from the headless tree (same 1180x780 window, scale 1).
+  local tree="$out/trees/headless-editor.json" xy
+  [ -f "$tree" ] || { echo "run headless_modes first (needs $tree)"; return 1; }
+  xy="$(python3 "$harness" tree-center "$tree" mode-board)" || return 1
+  python3 "$harness" x11-click "$wid" $xy && shot 6-board-button && expect board || return 1
+  chord ctrl+3 && shot 7-graph && expect graph || return 1
+  chord ctrl+shift+p && python3 "$harness" x11-type "$wid" whiteboard && sleep 0.5 &&
+    chord enter && shot 8-board-palette && expect board || return 1
+  chord ctrl+2 && shot 9-read && expect preview || return 1
+  chord ctrl+1 && shot 10-write && expect editor || return 1
+  chord ctrl+4 && shot 11-board-before-quit && expect board || return 1
+  close_app || return 1
+
+  # Relaunch: the last mode (Board) is restored.
+  launch x11-app-relaunch.log || return 1
+  import -window "$wid" "$out/screens/x11-12-relaunch-board.png" || return 1
+  expect board || return 1
+  close_app || return 1
+  cp "$settings" "$out/logs/x11-settings.json" 2>/dev/null
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
-  echo "app exit status: $status"
-  [ "$status" = 0 ]
 }
 
 step_board_untouched() {

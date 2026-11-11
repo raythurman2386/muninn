@@ -542,6 +542,8 @@ fn scenes() -> &'static [Scene] {
                  both versions were kept: Daily (remote).md."
                 .to_owned();
         }),
+        // Board slice 2: the Board page (`scripts/ui-smoke.sh`).
+        ("board", |s| s.set_mode(Mode::Board)),
     ]
 }
 
@@ -583,6 +585,7 @@ mod tests {
                 "settings-sync-drive",
                 "settings-sync-tailscale",
                 "settings-sync-conflict",
+                "board",
             ]
         );
     }
