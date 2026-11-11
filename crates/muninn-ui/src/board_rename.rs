@@ -3,7 +3,7 @@
 //!
 //! Three ways in, one inline name field:
 //! - **F2** on Board (when no text field has the keyboard) renames the open
-//!   board in its Boards-panel row;
+//!   board in its Boards-panel row, or in its title when it has no row;
 //! - **Rename** in the right-click menu of a board row, in the Board panel
 //!   or in the notes sidebar's Boards section;
 //! - a **double click** on the open board's title above the canvas.
@@ -11,6 +11,8 @@
 //! The field holds the name without `.excalidraw` (it stays implicit), all
 //! of it selected; Enter renames, Esc cancels. A taken or invalid name is
 //! refused with the reason under the field, which stays open for a fix.
+//! A rename only starts where its field is drawn, and is cancelled when
+//! that field goes away, so it never holds the keyboard out of sight.
 //!
 //! The rename itself ([`State::rename_board`]): pending board text is
 //! committed and the open board saved first (a refused save renames
@@ -50,8 +52,29 @@ pub struct BoardRename {
 
 impl State {
     /// Open the inline name field for the board at `path`, drawn at `place`.
-    pub fn begin_rename_board(&mut self, path: PathBuf, place: BoardPlace) {
+    pub fn begin_rename_board(&mut self, path: PathBuf, place: BoardPlace) -> bool {
         self.menu = None;
+        // GK MF-B: a rename has the keyboard (`is_typing`), so it only starts
+        // where its field will be drawn. A board with no row there (in a
+        // hidden folder, or opened from outside the vault through an embed)
+        // is refused instead of taking Board's keys into an unseen field.
+        let listed = match place {
+            BoardPlace::Sidebar => {
+                self.search.text.trim().is_empty()
+                    && self.sidebar_boards.iter().any(|b| b.path == path)
+            }
+            BoardPlace::Panel | BoardPlace::Header => self.board_rename_shows(&path, place),
+        };
+        if !listed {
+            self.log_event(
+                "board",
+                &format!(
+                    "rename not offered: {} has no {place:?} row",
+                    path.display()
+                ),
+            );
+            return false;
+        }
         // One text field at a time: a board text editor commits, a note or
         // folder prompt goes, as they do for each other.
         self.commit_board_text();
@@ -79,15 +102,59 @@ impl State {
             place,
             error: None,
         });
+        true
     }
 
-    /// F2 on Board / a double click on the title: rename the open board.
+    /// F2 on Board: rename the open board in its panel row, or in its title
+    /// when it has no row (a board in a hidden folder, or one opened from
+    /// outside the vault through an embed).
     pub fn begin_rename_open_board(&mut self, place: BoardPlace) -> bool {
         let Some(path) = self.board_open.as_ref().map(|open| open.path.clone()) else {
             return false;
         };
-        self.begin_rename_board(path, place);
-        true
+        let place = if place == BoardPlace::Panel && !self.board_rename_shows(&path, place) {
+            BoardPlace::Header
+        } else {
+            place
+        };
+        self.begin_rename_board(path, place)
+    }
+
+    /// Whether a name field for `path` at `place` is drawn right now: the
+    /// Board panel lists it, the shown sidebar lists it (not while a search
+    /// hides its Boards section), or it is the open board's title on Board.
+    pub(crate) fn board_rename_shows(&self, path: &Path, place: BoardPlace) -> bool {
+        match place {
+            BoardPlace::Panel => {
+                self.mode == Mode::Board && self.boards.iter().any(|b| b.file.path == path)
+            }
+            BoardPlace::Sidebar => {
+                self.sidebar_shown()
+                    && self.search.text.trim().is_empty()
+                    && self.sidebar_boards.iter().any(|b| b.path == path)
+            }
+            BoardPlace::Header => {
+                self.mode == Mode::Board
+                    && self
+                        .board_open
+                        .as_ref()
+                        .is_some_and(|open| open.path == path)
+            }
+        }
+    }
+
+    /// Per frame (GK MF-B): a rename whose field is no longer drawn (its row
+    /// went with a re-list, say, after another app deleted the board) is
+    /// cancelled, so it never keeps the keyboard out of sight.
+    pub(crate) fn board_rename_keep_on_screen(&mut self) -> bool {
+        let gone = self
+            .board_rename
+            .as_ref()
+            .is_some_and(|r| !self.board_rename_shows(&r.path, r.place));
+        if gone {
+            self.cancel_rename_board();
+        }
+        gone
     }
 
     pub fn cancel_rename_board(&mut self) {
@@ -155,6 +222,12 @@ impl State {
             // Like a note rename: the vault reloads, and with it the open
             // note's text (now holding the new embed).
             self.reload(self.selected_path.clone());
+            // A reload closes an open board the list does not hold (one in
+            // a hidden folder, or outside the vault); it was saved above, so
+            // open it again under its new name.
+            if is_open && self.board_open.is_none() {
+                self.select_board(target.clone());
+            }
         }
         if !failures.is_empty() {
             self.error = Some(format!(

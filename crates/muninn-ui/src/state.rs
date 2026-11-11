@@ -3881,7 +3881,9 @@ impl State {
             (MenuTarget::Folder(folder), "new_folder") => self.begin_new_folder(&folder),
             (MenuTarget::Folder(folder), "rename") => self.begin_rename_folder(&folder),
             (MenuTarget::Folder(folder), "delete") => self.delete_folder(&folder),
-            (MenuTarget::Board(path, place), "rename") => self.begin_rename_board(path, place),
+            (MenuTarget::Board(path, place), "rename") => {
+                self.begin_rename_board(path, place);
+            }
             _ => {}
         }
     }

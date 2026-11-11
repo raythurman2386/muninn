@@ -508,3 +508,99 @@ fn a_multibyte_name_renames_the_board_without_crashing() {
     assert_eq!(open_path(&app.rt), Some(again));
     assert!(!rename_field_open(&app.rt) && app.rt.state.board_rename.is_none());
 }
+/// MF-B: a board with no row in the Board panel (here in a hidden folder,
+/// opened from a note's embed) took F2 into an invisible field: Board's keys
+/// died and Esc left Board. F2 now renames it in the title instead.
+#[test]
+fn f2_on_a_board_with_no_panel_row_renames_in_the_title() {
+    let fx = Fixture::new(&[
+        ("Home.md", "# Home\n\n![[.hidden/Secret.excalidraw]]\n"),
+        (".hidden/Secret.excalidraw", DRAW),
+        ("Shown.excalidraw", DRAW),
+    ]);
+    let mut app = fx.launch();
+    let secret = fx.path(".hidden/Secret.excalidraw");
+    app.rt.state.open_board_at(secret.clone());
+    frames(&mut app.rt, 10);
+    assert_eq!(app.rt.state.mode, Mode::Board);
+    assert_eq!(open_path(&app.rt), Some(secret.clone()));
+    assert!(
+        !app.rt.state.boards.iter().any(|b| b.file.path == secret),
+        "precondition: no panel row for it"
+    );
+
+    key(&mut app.rt, Key::Function(2));
+    assert!(field_matches_state(&app.rt), "no rename without a field");
+    assert!(
+        rename_field_open(&app.rt),
+        "F2 opens the field in the title"
+    );
+    key(&mut app.rt, Key::Escape);
+    assert!(app.rt.state.board_rename.is_none(), "Esc cancels it");
+    assert_eq!(app.rt.state.mode, Mode::Board, "and stays on Board");
+    assert!(!app.rt.state.is_typing(), "Board has the keys back");
+
+    key(&mut app.rt, Key::Function(2));
+    type_text(&mut app.rt, "Found");
+    key(&mut app.rt, Key::Enter);
+    let found = fx.path(".hidden/Found.excalidraw");
+    assert!(found.is_file(), "{:?}", names_under(fx.vault.path()));
+    assert_eq!(open_path(&app.rt), Some(found));
+    assert!(field_matches_state(&app.rt));
+}
+
+/// MF-B, the other ways in: a row menu or a title rename for a board with no
+/// such row is refused, and a field whose row goes away (the file deleted by
+/// another app) closes with it.
+#[test]
+fn a_board_rename_never_has_the_keyboard_without_a_field() {
+    let fx = Fixture::new(&[
+        (".hidden/Secret.excalidraw", DRAW),
+        ("Shown.excalidraw", DRAW),
+        ("Other.excalidraw", DRAW),
+    ]);
+    let mut app = fx.launch();
+    let secret = fx.path(".hidden/Secret.excalidraw");
+    let shown = fx.path("Shown.excalidraw");
+    let other = fx.path("Other.excalidraw");
+    app.rt.state.open_board_at(shown.clone());
+    frames(&mut app.rt, 10);
+    for place in [
+        muninn_ui::BoardPlace::Panel,
+        muninn_ui::BoardPlace::Sidebar,
+        muninn_ui::BoardPlace::Header,
+    ] {
+        let _ = app.rt.state.begin_rename_board(secret.clone(), place);
+        frames(&mut app.rt, 3);
+        assert!(field_matches_state(&app.rt), "{place:?}: no hidden field");
+        assert!(app.rt.state.board_rename.is_none(), "{place:?} is refused");
+        assert!(!app.rt.state.is_typing(), "{place:?}: keys still work");
+    }
+    // A title rename is for the open board only.
+    let _ = app
+        .rt
+        .state
+        .begin_rename_board(other.clone(), muninn_ui::BoardPlace::Header);
+    frames(&mut app.rt, 3);
+    assert!(app.rt.state.board_rename.is_none(), "not the open board");
+
+    // A panel-row rename whose board another app deletes.
+    right_click(&mut app.rt, "board-row-0");
+    press(&mut app.rt, "menu-rename");
+    assert_eq!(
+        app.rt.state.board_rename.as_ref().map(|r| r.path.clone()),
+        Some(other.clone())
+    );
+    assert!(
+        rename_field_open(&app.rt),
+        "Other's row turns into the field"
+    );
+    fs::remove_file(&other).unwrap();
+    frames(&mut app.rt, 240);
+    assert!(
+        !app.rt.state.boards.iter().any(|b| b.file.path == other),
+        "the watcher dropped the row"
+    );
+    assert!(field_matches_state(&app.rt), "the field went with its row");
+    assert!(!app.rt.state.is_typing());
+}

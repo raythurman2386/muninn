@@ -36,6 +36,11 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         s.commit_board_text();
         changed = true;
     }
+    // GK MF-B (#43): a board rename keeps the keyboard only while its field
+    // is on screen.
+    if s.board_rename_keep_on_screen() {
+        changed = true;
+    }
     // Remember the open board for the next launch once a frame drew it; this
     // writes settings only, nothing on screen changes.
     s.board_shown_tick(tx);
