@@ -215,19 +215,14 @@ impl Vault {
         prepare_root(&root)?;
         let mut paths = Vec::new();
         let mut dirs = Vec::new();
-        walk(&root, &mut paths, &mut dirs, &root, 0);
+        walk(&root, &mut paths, &mut dirs, &root, 0, "md");
         dirs.sort_by(|a, b| {
             a.to_lowercase()
                 .cmp(&b.to_lowercase())
                 .then_with(|| a.cmp(b))
         });
         dirs.dedup();
-        paths.sort_by(|a, b| {
-            a.to_string_lossy()
-                .to_lowercase()
-                .cmp(&b.to_string_lossy().to_lowercase())
-                .then_with(|| a.cmp(b))
-        });
+        sort_paths(&mut paths);
         Ok(ScanJob {
             root,
             paths,
@@ -1272,7 +1267,7 @@ fn group_broken(broken: HashMap<String, (String, Vec<usize>)>) -> Vec<BrokenLink
 /// `path`, never a truncated file. A failed write removes the temp file. The
 /// temp name starts with `.` so the vault walk ignores it even if a killed
 /// process leaves one behind.
-fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
+pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
     atomic_replace(path, true, |file| file.write_all(data))
 }
 
@@ -1441,7 +1436,28 @@ fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
     })
 }
 
-fn walk(dir: &Path, out: &mut Vec<PathBuf>, dirs: &mut Vec<String>, root: &Path, depth: usize) {
+/// Case-insensitive path order, then exact, so scans are deterministic.
+pub(crate) fn sort_paths(paths: &mut [PathBuf]) {
+    paths.sort_by(|a, b| {
+        a.to_string_lossy()
+            .to_lowercase()
+            .cmp(&b.to_string_lossy().to_lowercase())
+            .then_with(|| a.cmp(b))
+    });
+}
+
+/// Collect files with extension `ext` (case-insensitive) and every visible
+/// folder under `dir`. Notes use `md`; boards use
+/// [`BOARD_EXTENSION`](crate::BOARD_EXTENSION). Both share these rules: at most
+/// 12 levels, dot-entries skipped, symlinks not followed.
+pub(crate) fn walk(
+    dir: &Path,
+    out: &mut Vec<PathBuf>,
+    dirs: &mut Vec<String>,
+    root: &Path,
+    depth: usize,
+    ext: &str,
+) {
     if depth > 12 {
         return;
     }
@@ -1465,11 +1481,11 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>, dirs: &mut Vec<String>, root: &Path,
             if let Ok(rel) = path.strip_prefix(root) {
                 dirs.push(rel.to_string_lossy().replace('\\', "/"));
             }
-            walk(&path, out, dirs, root, depth + 1);
+            walk(&path, out, dirs, root, depth + 1, ext);
         } else if kind.is_file()
             && path
                 .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("md"))
+                .is_some_and(|e| e.eq_ignore_ascii_case(ext))
         {
             out.push(path);
         }

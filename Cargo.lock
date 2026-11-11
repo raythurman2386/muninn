@@ -1960,6 +1960,9 @@ dependencies = [
 [[package]]
 name = "muninn-core"
 version = "0.6.0"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "muninn-graph"
