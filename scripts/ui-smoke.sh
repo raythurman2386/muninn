@@ -115,6 +115,24 @@
 #                   changed untouched byte, wrong text) must FAIL
 #   x11_text        the same on Xvfb with XTEST (ü typed through a remapped spare
 #                   keycode, Ctrl+Y redo): the file is unchanged until Ctrl+S
+#   headless_sync   Board slice 7, offscreen, autosave on (the default) on a fresh
+#                   Tools.excalidraw: T, a click, "auto", Esc and no Cmd+S. Just after
+#                   Esc the save-state reads Unsaved and the file is the fixture; 3 s
+#                   later it reads Saved and board_sync.py file checks the autosave
+#                   (the fixture's elements and top-level values exact, "auto"
+#                   appended) and the s1 round-trip; with "board_autosave": false the
+#                   same run leaves the file untouched; negative controls must FAIL.
+#                   (The headless clock is virtual, so another app's write mid-run is
+#                   checked under X11 and by the board_sync unit tests.)
+#   x11_sync        on Xvfb: another app rewrites the open, clean board in place
+#                   and its longer keep-text shows with no click (pixels, session log);
+#                   text typed then is autosaved on top of their version; then, with
+#                   autosave off, an unsaved nudge plus another app's write is flagged
+#                   (session log), and neither Ctrl+S nor quitting writes over their
+#                   file, while the drawing gets a recovery copy
+#   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
+#   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
+#   else the first free display from :90.
 #   board_untouched the app left the boards it did not edit (Plan, Smoke) byte-identical,
 #                   and no hidden temp file in the vault (it only reads boards);
 #                   then the board_roundtrip example (load → compare → atomic save →
@@ -130,7 +148,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -147,6 +165,7 @@ draw="$root/scripts/ui-smoke/board_draw.py"
 safety="$root/scripts/ui-smoke/board_safety.py"
 edit="$root/scripts/ui-smoke/board_edit.py"
 texts="$root/scripts/ui-smoke/board_text.py"
+syncs="$root/scripts/ui-smoke/board_sync.py"
 draw_board="$vault/Tools.excalidraw"
 draw_fixture="$root/crates/muninn-core/tests/fixtures/board/draw.excalidraw"
 resave="$root/target/debug/examples/board_resave"
@@ -164,6 +183,22 @@ isolate() {
   export XDG_CACHE_HOME="$work/cache" XDG_DATA_HOME="$work/data"
   unset MUNINN_VAULT MUNINN_REDUCED_MOTION WAYLAND_DISPLAY WAYLAND_SOCKET DISPLAY || true
   mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME"
+}
+
+pick_display() { # the X display for an x11 step: UI_SMOKE_DISPLAY (a number), else the first free from 90
+  if [ -n "${UI_SMOKE_DISPLAY:-}" ]; then
+    local d="${UI_SMOKE_DISPLAY#:}"
+    if [ -e "/tmp/.X$d-lock" ] || [ -e "/tmp/.X11-unix/X$d" ]; then echo "display :$d is in use" >&2; return 1; fi
+    echo "$d"; return 0
+  fi
+  local n
+  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || { echo "$n"; return 0; }; done
+  echo "no free X display in :90-:130" >&2; return 1
+}
+
+explicit_save() { # board autosave off in $XDG_CONFIG_HOME: the s4-s6 steps check the file is unchanged until Ctrl+S
+  mkdir -p "$XDG_CONFIG_HOME/muninn"
+  printf '{"board_autosave": false}\n' >"$XDG_CONFIG_HOME/muninn/settings.json"
 }
 
 cleanup() {
@@ -336,6 +371,7 @@ draw_run() { # draw_run NAME SCRIPT MARK: a fresh Tools board and settings, run 
   # and a later run would list it in the launch banner.
   export XDG_CONFIG_HOME="$work/config-draw-$1" XDG_STATE_HOME="$work/state-draw-$1"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  explicit_save
   "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
     --snap "$out/screens/draw-$1.png" --tree "$out/trees/draw-$1.json"
 }
@@ -373,6 +409,7 @@ edit_run() { # edit_run NAME SCRIPT MARK: a fresh Tools board and settings, run 
   cp "$draw_fixture" "$draw_board"
   export XDG_CONFIG_HOME="$work/config-edit-$1" XDG_STATE_HOME="$work/state-edit-$1"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  explicit_save
   "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
     --snap "$out/screens/edit-$1.png" --tree "$out/trees/edit-$1.json"
 }
@@ -432,6 +469,7 @@ no_key() { # no_key TREE KEY: the tree has no element KEY
 safety_run() { # safety_run NAME SCRIPT MARK
   export XDG_CONFIG_HOME="$work/config-safety-$1"
   rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  explicit_save
   "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
     --snap "$out/screens/safety-$1.png" --tree "$out/trees/safety-$1.json"
 }
@@ -565,7 +603,7 @@ step_x11_modes() {
 
   # A private display well above the ones a desktop session (Xwayland) uses.
   local n
-  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  n="$(pick_display)" || return 1
   Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb.log" 2>&1 &
   xvfb_pid=$!
   local i
@@ -645,7 +683,7 @@ step_x11_board() {
   export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
-  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  n="$(pick_display)" || return 1
   Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-board.log" 2>&1 &
   xvfb_pid=$!
   local i
@@ -723,7 +761,7 @@ step_x11_draw() {
   export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
-  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  n="$(pick_display)" || return 1
   Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-draw.log" 2>&1 &
   xvfb_pid=$!
   local i
@@ -732,6 +770,7 @@ step_x11_draw() {
   echo "Xvfb on $DISPLAY, vulkan icd $icd"
   export XDG_CONFIG_HOME="$work/config-x11-draw"
   rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  explicit_save
   cp "$draw_fixture" "$draw_board"
   local wid s="$out/screens" m="$work/draw-x11" fixture_sha
   mkdir -p "$m"
@@ -791,7 +830,7 @@ step_x11_board_safety() {
   export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"; chmod -R u+w "$work" 2>/dev/null' EXIT
   local n
-  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  n="$(pick_display)" || return 1
   Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-safety.log" 2>&1 &
   xvfb_pid=$!
   local i
@@ -800,6 +839,7 @@ step_x11_board_safety() {
   echo "Xvfb on $DISPLAY, vulkan icd $icd"
   export XDG_CONFIG_HOME="$work/config-x11-safety" XDG_STATE_HOME="$work/state-x11-safety"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  explicit_save
   cp "$draw_fixture" "$draw_board"
   local wid s="$out/screens" theirs="$work/safety/theirs.excalidraw"
   sed 's/keep me/theirs/' "$draw_fixture" >"$theirs"
@@ -876,6 +916,7 @@ step_x11_board_safety() {
   # The refusal: no save and no recovery copy possible, so a close is refused.
   export XDG_CONFIG_HOME="$work/config-x11-refuse" XDG_STATE_HOME="$work/state-x11-refuse"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME/muninn/recovery"
+  explicit_save
   chmod a-w "$XDG_STATE_HOME/muninn/recovery"
   cp "$draw_fixture" "$draw_board"
   launch || return 1
@@ -911,7 +952,7 @@ step_x11_edit() {
   export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
-  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  n="$(pick_display)" || return 1
   Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-edit.log" 2>&1 &
   xvfb_pid=$!
   local i
@@ -920,6 +961,7 @@ step_x11_edit() {
   echo "Xvfb on $DISPLAY, vulkan icd $icd"
   export XDG_CONFIG_HOME="$work/config-x11-edit" XDG_STATE_HOME="$work/state-x11-edit"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  explicit_save
   cp "$draw_fixture" "$draw_board"
   local wid s="$out/screens" m="$work/edit-x11" fixture_sha saved_sha
   mkdir -p "$m"
@@ -1006,6 +1048,7 @@ text_run() { # text_run NAME SCRIPT MARK: a fresh Tools board and settings, run 
   cp "$draw_fixture" "$draw_board"
   export XDG_CONFIG_HOME="$work/config-text-$1" XDG_STATE_HOME="$work/state-text-$1"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  explicit_save
   "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
     --snap "$out/screens/text-$1.png" --tree "$out/trees/text-$1.json"
 }
@@ -1066,7 +1109,7 @@ step_x11_text() {
   export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
-  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  n="$(pick_display)" || return 1
   Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-text.log" 2>&1 &
   xvfb_pid=$!
   local i
@@ -1075,6 +1118,7 @@ step_x11_text() {
   echo "Xvfb on $DISPLAY, vulkan icd $icd"
   export XDG_CONFIG_HOME="$work/config-x11-text" XDG_STATE_HOME="$work/state-x11-text"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  explicit_save
   cp "$draw_fixture" "$draw_board"
   local wid s="$out/screens" m="$work/text-x11" fixture_sha
   mkdir -p "$m"
@@ -1129,6 +1173,135 @@ step_x11_text() {
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
+
+sync_run() { # sync_run NAME SCRIPT MARK: a fresh Tools board and settings (autosave on), run to MARK
+  cp "$draw_fixture" "$draw_board"
+  export XDG_CONFIG_HOME="$work/config-sync-$1" XDG_STATE_HOME="$work/state-sync-$1"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
+    --snap "$out/screens/sync-$1.png" --tree "$out/trees/sync-$1.json"
+}
+
+step_headless_sync() {
+  isolate
+  python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
+  local t="$out/trees" m="$work/sync"
+  mkdir -p "$m"
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
+    >"$m/open.json"
+  sync_run before "$m/open.json" before || return 1
+  python3 "$harness" tree-text "$t/sync-before.json" board-surface-title Tools || return 1
+  python3 "$syncs" script "$t/sync-before.json" "$draw_fixture" "$m/sync.json" || return 1
+  sync_run typed "$m/sync.json" typed || return 1
+  python3 "$harness" tree-text "$t/sync-typed.json" board-save-state Unsaved || return 1
+  python3 "$syncs" same "$draw_board" "$draw_fixture" || { echo "written before the drawing rested"; return 1; }
+  sync_run autosaved "$m/sync.json" autosaved || return 1
+  python3 "$harness" tree-text "$t/sync-autosaved.json" board-save-state Saved || return 1
+  cp "$draw_board" "$out/logs/sync-autosaved.excalidraw"
+  python3 "$syncs" file "$draw_board" "$draw_fixture" || return 1
+  "$roundtrip" "$draw_board" || return 1
+  must_fail "the original file as the autosave" python3 "$syncs" file "$draw_fixture" "$draw_fixture" || return 1
+  must_fail "Saved on the typed tree" python3 "$harness" tree-text "$t/sync-typed.json" board-save-state Saved || return 1
+  # The same run with board autosave off writes nothing (Cmd+S only).
+  cp "$draw_fixture" "$draw_board"
+  export XDG_CONFIG_HOME="$work/config-sync-off" XDG_STATE_HOME="$work/state-sync-off"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  explicit_save
+  "$bin" --vault "$vault" --script "$m/sync.json" --at "mark:end" --scale 1 --tree "$t/sync-off.json" || return 1
+  python3 "$harness" tree-text "$t/sync-off.json" board-save-state Unsaved || return 1
+  python3 "$syncs" same "$draw_board" "$draw_fixture" || { echo "autosaved with board_autosave off"; return 1; }
+  echo "ok with board_autosave off the file is untouched"
+}
+
+step_x11_sync() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/sync-before.json"
+  [ -f "$tree" ] || { echo "run headless_sync first (needs $tree)"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-sync.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  local wid s="$out/screens" m="$work/sync-x11" slow row new rect
+  mkdir -p "$m"
+  slow="$(python3 -c "print(max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  shot() { sleep "$(python3 -c "print(1.5 * $slow)")"; import -window "$wid" "$s/x11-sync-$1.png"; }
+  rest() { sleep "$(python3 -c "print($1 * $slow)")"; }
+  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  new="$(python3 "$syncs" point "$tree" "$draw_fixture" new)" || return 1
+  rect="$(python3 "$syncs" point "$tree" "$draw_fixture" rect)" || return 1
+  launch() { # launch NAME: the app on Tools, with this run's settings
+    "$bin" --vault "$vault" >>"$out/logs/x11-sync-app.log" 2>&1 &
+    app_pid=$!
+    wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+    sleep 2
+    python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+    # shellcheck disable=SC2086
+    python3 "$harness" x11-click "$wid" $row && shot "$1" || return 1
+  }
+  quit() {
+    python3 "$harness" x11-close "$wid" || return 1
+    for i in $(seq 100); do kill -0 "$app_pid" 2>/dev/null || break; sleep 0.1; done
+    app_pid=
+  }
+  # 1. Autosave on (the default). Another app changes the open, clean board:
+  #    it is re-read and their text shows, with no click.
+  export XDG_CONFIG_HOME="$work/config-x11-sync" XDG_STATE_HOME="$work/state-x11-sync"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  cp "$draw_fixture" "$draw_board"
+  launch before || return 1
+  python3 "$syncs" external "$draw_fixture" "$draw_board" || return 1
+  cp "$draw_board" "$m/theirs.excalidraw"
+  rest 2 && shot reloaded || return 1
+  python3 "$syncs" theirs "$s/x11-sync-reloaded.png" "$s/x11-sync-before.png" "$tree" "$draw_fixture" || return 1
+  must_fail "their text on the before shot" python3 "$syncs" theirs "$s/x11-sync-before.png" "$s/x11-sync-before.png" "$tree" "$draw_fixture" || return 1
+  grep -q "reloaded the open board" "$XDG_STATE_HOME/muninn/session.log" || { echo "no reload in the session log"; return 1; }
+  echo "ok the clean board was re-read from the other app's write"
+  # 2. Text typed on it is autosaved once it rests, on top of their version.
+  python3 "$texts" x11-type "$wid" t || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $new || return 1
+  python3 "$texts" x11-type "$wid" auto || return 1
+  python3 "$harness" x11-chord "$wid" esc || return 1
+  rest 3 && shot autosaved || return 1
+  cp "$draw_board" "$out/logs/x11-sync-autosaved.excalidraw"
+  python3 "$syncs" file "$draw_board" "$m/theirs.excalidraw" || { echo "not autosaved over their version"; return 1; }
+  "$roundtrip" "$draw_board" || return 1
+  must_fail "the fixture as the base of the autosave" python3 "$syncs" file "$draw_board" "$draw_fixture" || return 1
+  quit || return 1
+  # 3. Autosave off: an unsaved nudge, then another app writes the file. The
+  #    drawing is kept and flagged, and neither Ctrl+S nor quitting writes
+  #    over their file.
+  export XDG_CONFIG_HOME="$work/config-x11-sync-dirty" XDG_STATE_HOME="$work/state-x11-sync-dirty"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  explicit_save
+  cp "$draw_fixture" "$draw_board"
+  launch dirty-before || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $rect || return 1
+  python3 "$harness" x11-chord "$wid" Right && sleep 1 || return 1
+  python3 "$syncs" external "$draw_fixture" "$draw_board" || return 1
+  cp "$draw_board" "$m/theirs-dirty.excalidraw"
+  rest 2 && shot dirty-flagged || return 1
+  grep -q "open board changed on disk; kept unsaved" "$XDG_STATE_HOME/muninn/session.log" || { echo "the change was not flagged"; return 1; }
+  python3 "$harness" x11-chord "$wid" ctrl+s && shot dirty-save-refused || return 1
+  python3 "$syncs" same "$draw_board" "$m/theirs-dirty.excalidraw" || { echo "Ctrl+S wrote over their file"; return 1; }
+  quit || return 1
+  python3 "$syncs" same "$draw_board" "$m/theirs-dirty.excalidraw" || { echo "quitting wrote over their file"; return 1; }
+  ls "$XDG_STATE_HOME/muninn/recovery/" | grep -q 'Tools' || { echo "no recovery copy of the kept drawing"; return 1; }
+  echo "ok the dirty board was flagged, their file was never written over, and the drawing has a recovery copy"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
 
 step_board_untouched() {
   sha256sum -c "$work/board.sha256" || { echo "the app changed the board file"; return 1; }
