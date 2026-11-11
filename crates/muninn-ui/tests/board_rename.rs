@@ -457,3 +457,54 @@ fn hiding_the_sidebar_or_leaving_board_cancels_a_board_rename() {
     assert!(!rename_field_open(&app.rt));
     assert!(fx.path("Plan.excalidraw").is_file());
 }
+
+// ---- GK on 9e0a99e ---------------------------------------------------------
+
+/// The rename field is on screen exactly when a rename is under way: never
+/// a rename that has the keyboard (`is_typing`) with no field to show it.
+fn field_matches_state(rt: &Runtime<State>) -> bool {
+    rt.state.board_rename.is_some() == rename_field_open(rt)
+}
+
+/// B-1: a multibyte name whose byte length puts the `.excalidraw` check
+/// mid-character (`é ünïcode` is 12 bytes) crashed the app on Enter.
+#[test]
+fn a_multibyte_name_renames_the_board_without_crashing() {
+    let fx = Fixture::with_config(
+        &[("Alpha.md", "# Alpha\n")],
+        &[("muninn/settings.json", r#"{"board_autosave": false}"#)],
+    );
+    let mut app = fx.launch();
+    new_board(&mut app);
+    draw_rect(&mut app.rt, 0.0);
+    key(&mut app.rt, Key::Function(2));
+    assert!(rename_field_open(&app.rt), "F2 opens the name field");
+    type_text(&mut app.rt, "é ünïcode");
+    key(&mut app.rt, Key::Enter);
+    let new = fx.path("é ünïcode.excalidraw");
+    assert!(
+        new.is_file(),
+        "renamed on disk: {:?}",
+        names_under(fx.vault.path())
+    );
+    assert!(!fx.path("Untitled board.excalidraw").exists());
+    assert_eq!(
+        elements_on_disk(&new),
+        1,
+        "the unsaved rectangle came along"
+    );
+    assert_eq!(open_path(&app.rt), Some(new.clone()));
+    assert_eq!(text_of(&app.rt, "board-surface-title"), "é ünïcode");
+    // Typing the extension after a multibyte name, from the title this time.
+    double_click(&mut app.rt, "board-surface-title");
+    assert!(
+        rename_field_open(&app.rt),
+        "double click opens the name field"
+    );
+    type_text(&mut app.rt, "ünïcode ñé.excalidraw");
+    key(&mut app.rt, Key::Enter);
+    let again = fx.path("ünïcode ñé.excalidraw");
+    assert!(again.is_file(), "{:?}", names_under(fx.vault.path()));
+    assert_eq!(open_path(&app.rt), Some(again));
+    assert!(!rename_field_open(&app.rt) && app.rt.state.board_rename.is_none());
+}

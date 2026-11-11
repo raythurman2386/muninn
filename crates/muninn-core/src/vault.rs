@@ -1722,9 +1722,16 @@ pub fn board_name(input: &str) -> io::Result<String> {
         ))
     };
     let mut name = input.trim();
-    let ext = crate::BOARD_EXTENSION.len() + 1;
-    if name.len() >= ext && name[name.len() - ext..].eq_ignore_ascii_case(".excalidraw") {
-        name = name[..name.len() - ext].trim_end();
+    // GK B-1: never slice at a byte offset that may sit inside a multibyte
+    // character. `get` is `None` there, and the suffix is ASCII, so a name
+    // that ends in the extension always has a boundary where it starts.
+    let suffix = format!(".{}", crate::BOARD_EXTENSION);
+    let cut = name.len().saturating_sub(suffix.len());
+    if name
+        .get(cut..)
+        .is_some_and(|end| end.eq_ignore_ascii_case(&suffix))
+    {
+        name = name[..cut].trim_end();
     }
     if name.is_empty() {
         return invalid("cannot be empty");
@@ -2696,6 +2703,81 @@ mod board_rename_tests {
             "keep"
         );
         assert!(tmp.path().join("A.excalidraw").is_file());
+    }
+
+    /// GK B-1: `board_name` compared the last 11 bytes with `.excalidraw`
+    /// by slicing, which panicked when that cut fell inside a multibyte
+    /// character (`é ünïcode` is 12 bytes; the cut at byte 1 is inside `é`).
+    /// Every name of 11–14 bytes built from 2-, 3- and 4-byte characters,
+    /// with and without a typed extension, is accepted unchanged.
+    #[test]
+    fn multibyte_board_names_of_11_to_14_bytes_are_accepted_without_panicking() {
+        let mut names = vec!["é ünïcode".to_owned(), "ünïcode ñé".to_owned()];
+        for total in 11..=14 {
+            for wide in ['é', '€', '😀'] {
+                for pad in 0..wide.len_utf8() {
+                    let mut name = "a".repeat(pad);
+                    while name.len() + wide.len_utf8() <= total {
+                        name.push(wide);
+                    }
+                    name.push_str(&"b".repeat(total - name.len()));
+                    names.push(name);
+                }
+            }
+        }
+        let mid_char = names
+            .iter()
+            .filter(|n| n.len() >= 11 && !n.is_char_boundary(n.len() - 11))
+            .count();
+        assert!(
+            mid_char >= 8,
+            "the cut lands inside a character ({mid_char})"
+        );
+        for name in &names {
+            assert!((11..=14).contains(&name.len()), "{name:?}");
+            assert_eq!(board_name(name).unwrap(), *name, "{name:?}");
+            for ext in [".excalidraw", ".EXCALIDRAW", " .excalidraw"] {
+                let typed = format!("{name}{ext}");
+                assert_eq!(board_name(&typed).unwrap(), *name, "{typed:?}");
+            }
+        }
+        // A multibyte name that only looks like the extension is kept whole.
+        assert_eq!(board_name("ｅxcalidraw").unwrap(), "ｅxcalidraw");
+        assert_eq!(board_name("é.excalidraw").unwrap(), "é");
+        // And the rename itself goes through with it.
+        let tmp = TempVault::new(&[("Ideas/Untitled board.excalidraw", EMPTY)]);
+        let v = vault(&tmp);
+        let old = tmp.path().join("Ideas/Untitled board.excalidraw");
+        let new = v.rename_board(&old, "é ünïcode").unwrap();
+        assert_eq!(new, tmp.path().join("Ideas/é ünïcode.excalidraw"));
+        assert_eq!(fs::read_to_string(&new).unwrap(), EMPTY);
+    }
+
+    /// The B-1 sweep: every other path that takes a name the user typed
+    /// (new note, note rename, new folder, folder rename, New board, link
+    /// suggestions) handles multibyte names of the same awkward lengths.
+    #[test]
+    fn multibyte_names_through_every_name_taking_path() {
+        let tmp = TempVault::new(&[("Home.md", "# Home\n")]);
+        let mut v = vault(&tmp);
+        let note = v.create_note_in("é ünïcode", "").unwrap();
+        assert_eq!(note, tmp.path().join("é ünïcode.md"));
+        v = vault(&tmp);
+        let id = v.resolve("é ünïcode").expect("the new note resolves");
+        let renamed = v.rename_note(id, "ünïcode ñé").unwrap();
+        assert!(renamed.ends_with("ünïcode ñé.md"), "{renamed:?}");
+        v = vault(&tmp);
+        assert!(!v.suggest_links("ünï", 5).is_empty(), "suggestions find it");
+        assert!(v.suggest_links("é", 5).len() <= 5);
+        let folder = v.create_folder("", "😀 ünïcode").unwrap();
+        assert!(folder.is_dir());
+        v = vault(&tmp);
+        let moved = v.rename_folder("😀 ünïcode", "€€€ ünï").unwrap();
+        assert!(moved.ends_with("€€€ ünï"), "{moved:?}");
+        let board = v.create_board_in("é ünïcode", "€€€ ünï").unwrap();
+        assert_eq!(board, tmp.path().join("€€€ ünï/é ünïcode.excalidraw"));
+        let again = v.create_board_in("é ünïcode", "€€€ ünï").unwrap();
+        assert_eq!(again, tmp.path().join("€€€ ünï/é ünïcode 2.excalidraw"));
     }
 
     #[test]
