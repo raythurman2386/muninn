@@ -10,3 +10,7 @@
 /.cargo/config.toml
 .ripwire_quality_*
 .ripwire_quality
+
+# Python bytecode from the smoke harness (scripts/ui-smoke).
+__pycache__/
+*.pyc
