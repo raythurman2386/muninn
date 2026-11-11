@@ -53,6 +53,23 @@ All notable changes to Muninn are documented here. The format is based on
   and redoes with it, and clicking the label selects the shape, so no label
   is left behind or orphaned in the file. Saving is still
   the explicit `⌘S` with all its guards.
+- Board autosave and watcher (in progress): an open board's drawing is saved
+  once it rests (the autosave delay, at least 1 s, or every 10 s while it keeps
+  changing), through the same guarded atomic save as `⌘S`, so a file another
+  app changed is never written over (the conflict bar decides). It never saves
+  mid-drag or with a text editor open; `"board_autosave": false` in
+  `settings.json` leaves saving to `⌘S`. While Board shows, boards changed by
+  another app are noticed within about 1.5 s: a clean open board is re-read in
+  place, a board with unsaved drawing is flagged and kept, and the list's
+  counts follow. The sidebar has a Boards section, a note's
+  `![[Name.excalidraw]]` embed shows a board placeholder with an Open board
+  button, and Board with nothing picked reads "No board selected".
+- Board memory and writes: undo history is bounded by size (32 MiB) as well as
+  by count, so editing a 10 MB board no longer grows memory towards gigabytes;
+  the board recovery copy and `settings.json` are written once a stream of
+  changes (a held arrow key, a pan, typing) rests, not once per change; an
+  old-layout recovery record shadowed by a newer copy is removed instead of
+  being offered again on every launch.
 - Board text (in progress): the text tool (`T`/`8` or the toolbar) places a
   text element where you click and opens an editor there; `Enter` breaks
   the line, and `Esc`, a click outside, leaving Board or saving commits.

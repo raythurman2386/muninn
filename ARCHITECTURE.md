@@ -171,11 +171,17 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   changes the drawing's extent keeps the view) lives in the session and in
   `settings.json`, never in the board file.
   Drawing (`board_tools`) adds elements to the loaded `Board` through
-  `Board::add_drawn` and redraws from the model. A board is written only by an explicit
-  save (`⌘S`) or a flush where the drawing would otherwise be lost (picking another
-  board, switching vault, a vault rescan, quitting); there is no autosave yet. A
-  watcher-driven vault reload while Board is showing re-reads a clean board from disk
-  (a dirty one is kept, below); a dedicated board watcher is slice 7. Each write is `Board::save` (atomic temp+rename) to the board's own path,
+  `Board::add_drawn` and redraws from the model. A board is written by an explicit save
+  (`⌘S`), by autosave (`board_sync`: once the drawing has rested for the autosave delay,
+  at least 1 s, or every 10 s while it never rests; never mid-gesture, with a text editor
+  open, after a failed save or over a conflict; `"board_autosave": false` in
+  `settings.json` turns it off), or by a flush where the drawing would otherwise be lost
+  (picking another board, switching vault, a vault rescan, quitting). The board watcher
+  (`board_sync`, every 1.5 s while Board is showing) compares each listed board's file
+  modified time and length with the last look: a changed open board that is clean is
+  re-read (keeping the view; Muninn's own writes are recognised and skipped), a dirty one
+  is flagged as below and never dropped, and any other changed board's list entry is
+  re-read. Each write is `Board::save` (atomic temp+rename) to the board's own path,
   refused unless that path is inside the vault the board was opened from *and* the
   currently open vault, and refused if the file's bytes no longer match what was loaded
   or last saved (changed or removed on disk). A refused flush keeps the drawing in memory
@@ -185,17 +191,25 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   elements of the in-memory `Board` and keeps a bounded undo history (`History`, 100
   edits) per open board; every edit, undo and redo bumps the touched elements' Excalidraw
   `version`/`versionNonce`/`updated`, a delete is an `isDeleted` tombstone, and the history
-  is dropped when the file changes underneath. Edits only mark the board unsaved: they
-  are written by the same explicit save, and the recovery copy below is taken once a
-  move drag lands, not per frame.
+  is dropped when the file changes underneath. The history is also bounded by size (32 MiB
+  of changed elements, the oldest edits dropped first; the newest edit is always kept), so
+  edits on a big drawing cannot grow memory without bound. Edits mark the board unsaved:
+  they are written by the save or autosave above, and the recovery copy below is taken
+  once the drawing rests (0.5 s, or every 2 s while it keeps changing; a move drag once it
+  lands), not per frame or per held key. View changes (pan, zoom) write `settings.json`
+  once they rest, too.
   Text (`board_text`, over `muninn_core` `board::text`) places and edits free-standing
   text elements through an in-canvas Rune text field; a commit (Esc, a click outside,
   focus loss, leaving Board, saving) is one history edit with the size measured by the
   canvas's own text layout. While the field is open `State::is_typing` is true, so Board
-  and Graph keys never fire into it; text bound to containers is out of scope.
+  and Graph keys never fire into it. A label bound to a shape (`containerId`) is edited by
+  double-clicking the shape or the label and re-centred in the shape on commit; a label in
+  a locked shape is locked with it. Text typed but not committed counts as unsaved, and
+  the recovery copy is the model with that text applied (on a clone).
   Unsaved drawing is never dropped (`board_safety`): a file removed, renamed or changed
-  outside Muninn is noticed when the boards are re-listed (entering Board, a vault reload, a
-  rescan) or when a save re-reads the file, not live (the board watcher is slice 7); then
+  outside Muninn is noticed by the board watcher while Board is showing, when the boards
+  are re-listed (entering Board, a vault reload, a rescan) or when a save re-reads the
+  file; then
   the board is kept open and flags it in the heading with the note conflict bar's choices:
   Keep mine (write to the board's own path, recreating a removed file, still only inside
   the open vault), Save copy (a new sibling `Title (conflict YYYYMMDD-HHMMSS).excalidraw`

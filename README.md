@@ -248,7 +248,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `Delete` / `Backspace` (board) | Delete the selection (kept in the file as an `isDeleted` tombstone) |
 | `⌘A` / `Ctrl+A` (board) | Select every element |
 | `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (board) | Undo / redo drawing, moves and deletes (last 100) |
-| `⌘S` / `Ctrl+S` (board) | Save the board's drawing (atomically, to the open board only) |
+| `⌘S` / `Ctrl+S` (board) | Save the board's drawing now (atomically, to the open board only; autosave also saves it once it rests, unless `"board_autosave": false`) |
 | `Esc` (board) | Clear the selection, else drop the tool, else leave Board for the last note mode |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
