@@ -7,6 +7,8 @@
   harness.py x11-chord WINDOW CHORD            focus WINDOW, press CHORD (e.g. ctrl+2) via XTEST
   harness.py x11-close WINDOW                  send WM_DELETE_WINDOW (the normal close path)
   harness.py x11-type WINDOW TEXT              type plain text via XTEST
+  harness.py x11-type-unicode WINDOW TEXT      type any text via XTEST: each character is put
+                                               on a spare keycode for its press, then cleared
   harness.py x11-click WINDOW X Y [B] [N]      click at window point X,Y via XTEST (button B,
                                                default 1; 3 = right; N presses, 2 = double)
   harness.py tree-rect TREE.json KEY           print "X Y W H", KEY's rect
@@ -236,6 +238,44 @@ def x11_type(wid, text):
     print(f"ok typed {text!r} on {wid}")
 
 
+def x11_type_unicode(wid, text):
+    """Type TEXT, accents and other scripts included. The default Xvfb keymap
+    has no key for `é`, so each character is mapped onto a spare keycode
+    (one with no keysyms), pressed, and the keycode is cleared again."""
+    from Xlib import X
+    from Xlib.ext import xtest
+
+    d = display()
+    focus(d, wid)
+    first = d.display.info.min_keycode
+    count = d.display.info.max_keycode - first + 1
+    mapping = d.get_keyboard_mapping(first, count)
+    spare = next(
+        (first + i for i, syms in enumerate(mapping) if not any(syms)), None
+    )
+    if spare is None:
+        die("no spare keycode to type with")
+    width = len(mapping[0])
+    try:
+        for ch in text:
+            cp = ord(ch)
+            # X keysyms: Latin-1 is the code point, the rest 0x01000000 + it.
+            sym = cp if 0x20 <= cp <= 0x7E or 0xA0 <= cp <= 0xFF else 0x01000000 | cp
+            d.change_keyboard_mapping(spare, [(sym,) * width])
+            d.sync()
+            # Let the app see the MappingNotify and reload its keymap.
+            time.sleep(0.15 * SLOW)
+            xtest.fake_input(d, X.KeyPress, spare)
+            xtest.fake_input(d, X.KeyRelease, spare)
+            d.sync()
+            time.sleep(0.08 * SLOW)
+    finally:
+        d.change_keyboard_mapping(spare, [(0,) * width])
+        d.sync()
+    settle()
+    print(f"ok typed {text!r} on {wid} (keycode {spare})")
+
+
 def x11_click(wid, x, y, button="1", count="1"):
     """Click (COUNT presses of BUTTON: 3 is a right click, a COUNT of 2 a
     double click, quick enough for the toolkit's double-click interval)."""
@@ -365,6 +405,7 @@ def main(argv):
         "x11-chord": x11_chord,
         "x11-close": x11_close,
         "x11-type": x11_type,
+        "x11-type-unicode": x11_type_unicode,
         "x11-click": x11_click,
         "tree-center": tree_center,
         "tree-rect": tree_rect,

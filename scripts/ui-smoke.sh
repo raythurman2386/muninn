@@ -158,7 +158,8 @@
 #                   the old path is gone, the board stays open, the watchers do not flag
 #                   it, and a new rectangle + Ctrl+S saves to the new path; then a double
 #                   click on the title and Rename in the board row's right-click menu
-#                   rename it again; no recovery copy is left under any old name
+#                   rename it again; F2 to the multibyte "é ünïcode" (12 bytes; GK B-1
+#                   crashed here) and back; no recovery copy is left under any old name
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -1705,6 +1706,20 @@ step_x11_board_rename() {
   python3 "$harness" x11-chord "$wid" enter && shot 9-menu-renamed || return 1
   [ -f "$d/Plan.excalidraw" ] && [ ! -e "$d/Sketch.excalidraw" ] || { echo "Rename in the row menu did not rename"; ls -R "$empty_vault"; return 1; }
   echo "ok Rename in the row's right-click menu renamed Sketch to Plan"
+  # 4. GK B-1: a multibyte name whose byte length (12) put the old
+  # `.excalidraw` check mid-character crashed the app on Enter. F2 to it,
+  # then back to Plan for the checks below.
+  python3 "$harness" x11-chord "$wid" F2 || return 1
+  python3 "$harness" x11-type-unicode "$wid" "é ünïcode" || return 1
+  python3 "$harness" x11-chord "$wid" enter && shot 10-multibyte || return 1
+  kill -0 "$app_pid" 2>/dev/null || { echo "the app exited on a multibyte name"; tail -n 20 "$log"; return 1; }
+  [ -f "$d/é ünïcode.excalidraw" ] && [ ! -e "$d/Plan.excalidraw" ] || { echo "F2 + 'é ünïcode' + Enter did not rename"; ls -R "$empty_vault"; return 1; }
+  grep -q '!\[\[é ünïcode.excalidraw\]\]' "$d/Idea.md" || { echo "the embed did not follow the multibyte name"; cat "$d/Idea.md"; return 1; }
+  echo "ok F2 renamed Plan to 'é ünïcode' (12 bytes) without a crash; embed followed"
+  python3 "$harness" x11-chord "$wid" F2 || return 1
+  python3 "$harness" x11-type "$wid" Plan || return 1
+  python3 "$harness" x11-chord "$wid" enter || return 1
+  [ -f "$d/Plan.excalidraw" ] && [ ! -e "$d/é ünïcode.excalidraw" ] || { echo "F2 back to Plan did not rename"; ls -R "$empty_vault"; return 1; }
   python3 "$harness" x11-close "$wid" || return 1
   for i in $(seq 100); do kill -0 "$app_pid" 2>/dev/null || break; sleep 0.1; done
   app_pid=
