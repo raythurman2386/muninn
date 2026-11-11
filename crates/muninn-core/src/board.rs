@@ -54,6 +54,9 @@ use serde_json::{Map, Number, Value};
 
 use crate::vault::{Vault, atomic_write, sort_paths, walk};
 
+mod create;
+pub use create::{IdSource, index_after};
+
 /// File extension of a board, without the dot.
 pub const BOARD_EXTENSION: &str = "excalidraw";
 

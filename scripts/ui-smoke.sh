@@ -31,7 +31,8 @@
 # Steps (UI_SMOKE_STEPS, space-separated, default all, in this order):
 #   build           cargo build the app and the board_roundtrip example
 #   seed            vault: two linked .md notes, Plan.excalidraw (the core test fixture)
-#                   and Smoke.excalidraw (one element of each kind, for the pixel checks)
+#                   and Smoke.excalidraw (one element of each kind, for the pixel checks),
+#                   and Tools.excalidraw (the board the draw steps draw on)
 #   cli_check       `muninn --check`: 2 notes, 0 broken links (the board is not a note)
 #   headless_modes  one input script (scripts/ui-smoke/modes.json) through Graph, Read,
 #                   Write, Board by ⌘4, Esc out, Board by its mode button, a board row
@@ -61,7 +62,18 @@
 #   x11_board       the same checks in the windowed app on Xvfb with XTEST input (row
 #                   click, button-1 drag, wheel buttons, "=", Left, Ctrl+1/4, a clean
 #                   close and relaunch, "0")
-#   board_untouched the app left the seeded boards byte-identical (it only reads boards);
+#   headless_draw   Board slice 4, offscreen: draws a rectangle, ellipse, diamond, line,
+#                   arrow and freehand stroke on Tools.excalidraw (fixture draw.excalidraw)
+#                   with tool letters and pointer strokes, checks the ink per tool
+#                   (board_draw.py pixels: edges, insides, ellipse vs diamond, the
+#                   arrowhead, nothing else changed), saves with Cmd+S, checks the file
+#                   (board_draw.py file: Excalidraw fields, geometry through the fit
+#                   camera, old elements value- and byte-identical to s1's save, then the
+#                   s1 round-trip), and relaunches onto the saved drawing
+#   x11_draw        the same on Xvfb with XTEST, also proving the file is written by
+#                   Ctrl+S and not before
+#   board_untouched the app left the boards it did not edit (Plan, Smoke) byte-identical,
+#                   and no hidden temp file in the vault (it only reads boards);
 #                   then the board_roundtrip example (load → compare → atomic save →
 #                   reload, on a hidden scratch copy) passes on that file
 # Later slices add board steps (enter Board mode, draw, select, move, undo, text, save,
@@ -75,7 +87,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write x11_modes x11_board board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw x11_modes x11_board x11_draw board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -88,6 +100,12 @@ fixture="$root/crates/muninn-core/tests/fixtures/board/scene.excalidraw"
 smoke_board="$vault/Smoke.excalidraw"
 smoke_fixture="$root/crates/muninn-core/tests/fixtures/board/smoke.excalidraw"
 pixels="$root/scripts/ui-smoke/board_pixels.py"
+draw="$root/scripts/ui-smoke/board_draw.py"
+draw_board="$vault/Tools.excalidraw"
+draw_fixture="$root/crates/muninn-core/tests/fixtures/board/draw.excalidraw"
+resave="$root/target/debug/examples/board_resave"
+# The checkers import each other; keep __pycache__ out of the tree.
+export PYTHONDONTWRITEBYTECODE=1
 
 # Build with the real cargo home before HOME is isolated (as settings-tab-snapshots.sh).
 real_home="$HOME"
@@ -115,7 +133,8 @@ need() { # need COMMAND PACKAGE
 
 step_build() {
   cargo build --locked -p muninn-app --manifest-path "$root/Cargo.toml" &&
-    cargo build --locked -p muninn-core --example board_roundtrip --manifest-path "$root/Cargo.toml"
+    cargo build --locked -p muninn-core --example board_roundtrip --example board_resave \
+      --manifest-path "$root/Cargo.toml"
 }
 
 step_seed() {
@@ -125,6 +144,8 @@ step_seed() {
   printf '# Second\n\nBack to [[Welcome]].\n\n- one\n- two\n' >"$vault/Second.md"
   cp "$fixture" "$board"
   cp "$smoke_fixture" "$smoke_board"
+  # Tools is the board the draw steps edit; board_untouched checks the other two.
+  cp "$draw_fixture" "$draw_board"
   sha256sum "$board" "$smoke_board" | tee "$work/board.sha256"
   find "$vault" -type f | sort
 }
@@ -257,6 +278,46 @@ step_headless_big_write() {
     --snap "$s/big-write-board.png" --tree "$t/big-write-board.json" || return 1
   python3 "$harness" tree-mode "$t/big-write-board.json" board || return 1
   python3 "$pixels" same "$s/big-write-board.png" "$t/big-write-board.json" "$m/back.json" "$m/big-write.json"
+}
+
+# Board slice 4: draw one element with each tool on Tools.excalidraw by injected
+# pointer and key input, check the ink with board_draw.py, save with Cmd+S, check
+# the file (new elements' fields and geometry, old elements value- and
+# byte-identical to s1's own save, s1 round-trip), and relaunch onto it.
+draw_run() { # draw_run NAME SCRIPT MARK: a fresh Tools board and settings, run to MARK
+  cp "$draw_fixture" "$draw_board"
+  export XDG_CONFIG_HOME="$work/config-draw-$1"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
+    --snap "$out/screens/draw-$1.png" --tree "$out/trees/draw-$1.json"
+}
+
+step_headless_draw() {
+  isolate
+  python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
+  local s="$out/screens" t="$out/trees" m="$work/draw"
+  mkdir -p "$m"
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
+    >"$m/open.json"
+  draw_run before "$m/open.json" before || return 1
+  python3 "$harness" tree-text "$t/draw-before.json" board-surface-title Tools || return 1
+  python3 "$draw" script "$t/draw-before.json" "$m/draw.json" || return 1
+  draw_run drawn "$m/draw.json" drawn || return 1
+  python3 "$harness" tree-text "$t/draw-drawn.json" board-save-state Unsaved || return 1
+  python3 "$draw" pixels "$s/draw-before.png" "$s/draw-drawn.png" "$t/draw-before.json" || return 1
+  draw_run saved "$m/draw.json" saved || return 1
+  python3 "$harness" tree-text "$t/draw-saved.json" board-save-state Saved || return 1
+  cp "$draw_board" "$out/logs/draw-saved.excalidraw"
+  "$resave" "$draw_fixture" "$m/resaved.excalidraw" || return 1
+  python3 "$draw" file "$draw_board" "$draw_fixture" "$m/resaved.excalidraw" "$t/draw-before.json" || return 1
+  "$roundtrip" "$draw_board" || return 1
+  # Relaunch on the saved run's settings: Board, Tools and its view come back and
+  # the drawing is read from the file.
+  export XDG_CONFIG_HOME="$work/config-draw-saved"
+  "$bin" --vault "$vault" --at 1.5 --scale 1 \
+    --snap "$s/draw-reloaded.png" --tree "$t/draw-reloaded.json" || return 1
+  python3 "$harness" tree-text "$t/draw-reloaded.json" board-surface-title Tools || return 1
+  python3 "$draw" same "$s/draw-drawn.png" "$s/draw-reloaded.png" "$t/draw-before.json"
 }
 
 find_lavapipe() {
@@ -454,11 +515,84 @@ step_x11_board() {
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
+# The draw checks in the windowed app on Xvfb with XTEST: tool letters, button-1
+# strokes, Ctrl+S (the file must not change before it and must after), a clean
+# close, the file checks, and a relaunch that shows the saved drawing.
+step_x11_draw() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/draw-before.json"
+  [ -f "$tree" ] || { echo "run headless_draw first (needs $tree)"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n
+  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-draw.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  export XDG_CONFIG_HOME="$work/config-x11-draw"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  cp "$draw_fixture" "$draw_board"
+  local wid s="$out/screens" m="$work/draw-x11" fixture_sha
+  mkdir -p "$m"
+  fixture_sha="$(sha256sum <"$draw_fixture")"
+  launch() {
+    "$bin" --vault "$vault" >>"$out/logs/x11-draw-app.log" 2>&1 &
+    app_pid=$!
+    wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+    sleep 2
+  }
+  shot() { sleep 1.5; import -window "$wid" "$s/x11-draw-$1.png"; }
+  close_app() {
+    python3 "$harness" x11-close "$wid" || return 1
+    local i status=124
+    for i in $(seq 100); do
+      if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+      sleep 0.1
+    done
+    app_pid=
+    echo "app exit status: $status"
+    [ "$status" = 0 ]
+  }
+  local row
+  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  launch || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 || return 1
+  python3 "$harness" x11-click "$wid" $row && shot 1-before || return 1
+  python3 "$draw" x11 "$wid" "$tree" && shot 2-drawn || return 1
+  python3 "$draw" pixels "$s/x11-draw-1-before.png" "$s/x11-draw-2-drawn.png" "$tree" || return 1
+  [ "$(sha256sum <"$draw_board")" = "$fixture_sha" ] || { echo "the board was written before Ctrl+S"; return 1; }
+  echo "ok the file is unchanged before Ctrl+S"
+  python3 "$harness" x11-chord "$wid" ctrl+s && shot 3-saved || return 1
+  [ "$(sha256sum <"$draw_board")" != "$fixture_sha" ] || { echo "Ctrl+S did not write the board"; return 1; }
+  echo "ok Ctrl+S wrote the board"
+  close_app || return 1
+  cp "$draw_board" "$out/logs/x11-draw-saved.excalidraw"
+  "$resave" "$draw_fixture" "$m/resaved.excalidraw" || return 1
+  python3 "$draw" file "$draw_board" "$draw_fixture" "$m/resaved.excalidraw" "$tree" || return 1
+  "$roundtrip" "$draw_board" || return 1
+  launch || return 1
+  shot 4-reloaded || return 1
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
+  python3 "$draw" same "$s/x11-draw-2-drawn.png" "$s/x11-draw-4-reloaded.png" "$tree" || return 1
+  close_app || return 1
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
 step_board_untouched() {
   sha256sum -c "$work/board.sha256" || { echo "the app changed the board file"; return 1; }
   "$roundtrip" "$board" || return 1
   # The checker's scratch save is hidden and removed; nothing else appears in the vault.
   find "$vault" -name '.roundtrip-*' | grep . && { echo "scratch file left behind"; return 1; }
+  # Nor any atomic-write temp file from the draw steps' saves.
+  find "$vault" -name '.*' -type f | grep . && { echo "hidden temp file left behind"; return 1; }
   return 0
 }
 

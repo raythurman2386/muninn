@@ -24,9 +24,17 @@ All notable changes to Muninn are documented here. The format is based on
   launch. Text sizes are clamped
   (1–2048, and at most 1024 pt on screen at any zoom), so a huge `fontSize`
   cannot crash the app.
-  The board file is never written.
+  Viewing alone never writes the board file.
   Esc leaves Board for the last note mode, and the last mode (now including
   Board) is restored on launch; older `settings.json` files load unchanged.
+- Board drawing tools (in progress): a toolbar and Excalidraw's keys (`R`,
+  `D`, `O`, `A`, `L`, `P`/`X`, `V`/`Esc` for no tool) draw rectangles,
+  diamonds, ellipses, arrows, lines and freehand strokes as new Excalidraw
+  elements (fresh ids, seeds, versions and fractional indexes). The heading
+  shows Unsaved; `⌘S` / `Ctrl+S` saves the board atomically, and Muninn also
+  saves it before opening another board, switching vault or quitting. Every
+  element already in the file is kept, and a board that changed on disk,
+  was removed, or belongs to another vault is never written.
 
 ## [0.6.0] - 2026-11-09
 

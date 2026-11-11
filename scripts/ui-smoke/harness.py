@@ -9,10 +9,12 @@
   harness.py x11-type WINDOW TEXT              type plain text via XTEST
   harness.py x11-click WINDOW X Y              left click at window point X,Y via XTEST
   harness.py tree-center TREE.json KEY         print "X Y", the centre of KEY's rect
+  harness.py tree-text TREE.json KEY TEXT      assert KEY shows text containing TEXT
   harness.py x11-drag WINDOW X Y DX DY         button-1 drag from window point X,Y by DX,DY
   harness.py x11-wheel WINDOW X Y BUTTON N     N wheel notches (button 4 up, 5 down) at X,Y
 
-The board canvas pixel checks are in board_pixels.py (needs Pillow).
+The board canvas pixel checks are in board_pixels.py, the drawing checks in
+board_draw.py (both need Pillow).
 
 Mode keys are Muninn's settings keys: editor (Write), preview (Read), graph (Graph),
 board (Board).
@@ -72,6 +74,27 @@ def tree_center(path, key):
             x, y, w, h = n["rect"]
             print(f"{round(x + w / 2)} {round(y + h / 2)}")
             return
+    die(f"{path}: no element {key}")
+
+
+def tree_text(path, key, needle):
+    """Assert the element KEY (or one inside it) shows text containing NEEDLE."""
+
+    def strings(node):
+        for v in node.values() if isinstance(node, dict) else node:
+            if isinstance(v, str):
+                yield v
+            elif isinstance(v, (dict, list)):
+                yield from strings(v)
+
+    tree = json.load(open(path))
+    for n in walk(tree.get("elements", [])):
+        if n.get("key") == key:
+            found = [s for s in strings(n) if needle in s]
+            if found:
+                print(f"ok {path}: {key} says {found[0]!r}")
+                return
+            die(f"{path}: {key} does not say {needle!r}")
     die(f"{path}: no element {key}")
 
 
@@ -280,6 +303,7 @@ def main(argv):
         "x11-type": x11_type,
         "x11-click": x11_click,
         "tree-center": tree_center,
+        "tree-text": tree_text,
         "x11-drag": x11_drag,
         "x11-wheel": x11_wheel,
     }

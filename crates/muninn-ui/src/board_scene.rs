@@ -3,7 +3,7 @@
 //! This turns a [`muninn_core::Board`] into what the canvas paints: one Rune
 //! [`Shape`] holding every stroke and fill in z-order, the text elements as
 //! positioned labels, and the content's bounding box for fits. It is
-//! read-only and best-effort; editing arrives in later slices:
+//! best-effort; slice 4 adds drawing new elements (`board_tools.rs`):
 //!
 //! - rectangles (rounded when `roundness` is set), diamonds and ellipses,
 //!   stroked and, unless the background is `transparent`, filled; hachure and
@@ -172,6 +172,34 @@ impl BoardScene {
             outlined,
         }
     }
+}
+
+/// One element painted through `map` (scene point to canvas point) with its
+/// stroke widths scaled by `scale`: the draft preview while drawing. Text is
+/// not drawn this way.
+pub(crate) fn paint_item(item: &Item, map: impl Fn([f32; 2]) -> [f32; 2], scale: f32) -> Shape {
+    let mut shape = Shape::new();
+    for piece in item_pieces(item) {
+        match piece {
+            Piece::Fill(points, color) => {
+                shape = shape.fill(points.into_iter().map(&map).collect::<Vec<_>>(), color);
+            }
+            Piece::Stroke {
+                points,
+                closed,
+                width,
+                cap,
+                color,
+            } => {
+                let points: Vec<[f32; 2]> = points.into_iter().map(&map).collect();
+                if points.len() >= 2 {
+                    shape = shape.stroke_with(points, closed, width * scale, cap, color);
+                }
+            }
+            Piece::Text { .. } => {}
+        }
+    }
+    shape
 }
 
 /// An Excalidraw colour: `#rgb`, `#rrggbb` or `#rrggbbaa`; `None` for

@@ -2,9 +2,10 @@
 //! board canvas.
 //!
 //! The page lists the boards found on disk with their element counts (read
-//! through `muninn_core::Board`). Picking one opens it on a read-only canvas
-//! ([`BoardScene`]) with a pan and zoom camera ([`BoardCam`]). Nothing here
-//! writes a board; drawing and saving come in later slices.
+//! through `muninn_core::Board`). Picking one opens it on a canvas
+//! ([`BoardScene`]) with a pan and zoom camera ([`BoardCam`]). Drawing tools
+//! and saving are in `board_tools.rs` (slice 4); select, move, delete and
+//! undo come in slice 5, text in slice 6, autosave and the watcher in slice 7.
 //!
 //! Camera behaviour:
 //!
@@ -12,7 +13,8 @@
 //!   session (its view is remembered per board) or it is the board restored
 //!   from the last session (its view is in `settings.json`, never in the file).
 //! - Switching modes and coming back keeps the open board and its view. The
-//!   file is re-read from disk on the way back in, and the view stays put.
+//!   file is re-read from disk on the way back in (unless it has unsaved
+//!   drawing, which stays as it is), and the view stays put.
 //! - Restarting reopens the last board at the view it had when settings were
 //!   last saved: on a board pick, a drag or key gesture, a fit, a mode switch
 //!   and on close. A plain wheel zoom is saved by the next of those.
@@ -31,11 +33,35 @@ use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
 use crate::board_camera::{BoardCam, BoardView, KEY_PAN, KEY_ZOOM, WHEEL_IN, WHEEL_OUT};
+use crate::board_tools::{self, Draft, fingerprint};
 use crate::{BoardScene, Mode, State};
+
+/// Whether the open board's drawing is on disk.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BoardStatus {
+    /// As loaded; nothing drawn yet.
+    Clean,
+    /// Drawn on since the last save.
+    Unsaved,
+    /// The last save wrote everything.
+    Saved,
+    /// The last save was refused or failed; the drawing is still in memory.
+    Failed(String),
+}
 
 /// The board on the canvas: its drawing and camera.
 pub struct OpenBoard {
     pub path: PathBuf,
+    /// The vault the board was opened from; it is only ever saved back there.
+    pub vault_root: PathBuf,
+    /// The board as loaded plus what was drawn on it, or `None` when the file
+    /// could not be read (then it is never written).
+    pub model: Option<Board>,
+    /// Fingerprint of the file's bytes as last read or written.
+    pub disk: Option<u64>,
+    pub status: BoardStatus,
+    /// The element being drawn, if a drag with a tool is under way.
+    pub draft: Option<Draft>,
     /// The drawing, or why the file could not be read.
     pub scene: Result<BoardScene, String>,
     pub cam: BoardCam,
@@ -72,11 +98,16 @@ enum Shown {
 }
 
 impl OpenBoard {
-    fn load(path: PathBuf, view: Option<BoardView>) -> OpenBoard {
-        let scene = read_scene(&path);
+    fn load(path: PathBuf, view: Option<BoardView>, vault_root: PathBuf) -> OpenBoard {
+        let (model, disk, scene) = read_board(&path);
         let (origin, size) = world_of(&scene);
         OpenBoard {
             path,
+            vault_root,
+            model,
+            disk,
+            status: BoardStatus::Clean,
+            draft: None,
             scene,
             cam: BoardCam::new(view.unwrap_or_default(), origin, size),
             canvas: [0.0; 2],
@@ -88,9 +119,14 @@ impl OpenBoard {
         }
     }
 
-    /// Re-read the file and keep the view where it is.
+    /// Re-read the file and keep the view where it is. Unsaved drawing is
+    /// kept instead: the file is not read over it.
     fn reload(&mut self) {
-        self.scene = read_scene(&self.path);
+        if self.dirty() {
+            return;
+        }
+        (self.model, self.disk, self.scene) = read_board(&self.path);
+        self.status = BoardStatus::Clean;
         let (origin, size) = world_of(&self.scene);
         self.cam.rebase(origin, size);
         if self.auto_fit {
@@ -112,12 +148,37 @@ impl OpenBoard {
     fn centre(&self) -> [f32; 2] {
         [self.canvas[0] / 2.0, self.canvas[1] / 2.0]
     }
+
+    /// Unsaved drawing, including a save that failed.
+    #[must_use]
+    pub fn dirty(&self) -> bool {
+        matches!(self.status, BoardStatus::Unsaved | BoardStatus::Failed(_))
+    }
+
+    /// Redraw after the model changed, keeping the view (its eye and zoom
+    /// are scene units, so the world element's new extent does not move it).
+    pub(crate) fn rebuild(&mut self) {
+        if let Some(model) = &self.model {
+            self.scene = Ok(BoardScene::build(model));
+            let (origin, size) = world_of(&self.scene);
+            self.cam.rebase(origin, size);
+        }
+    }
 }
 
-fn read_scene(path: &Path) -> Result<BoardScene, String> {
-    Board::load(path)
-        .map(|board| BoardScene::build(&board))
-        .map_err(|e| e.to_string())
+/// Read a board file once: the model, the bytes' fingerprint and the scene.
+fn read_board(path: &Path) -> (Option<Board>, Option<u64>, Result<BoardScene, String>) {
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) => return (None, None, Err(e.to_string())),
+    };
+    match Board::from_json(&text) {
+        Ok(board) => {
+            let scene = BoardScene::build(&board);
+            (Some(board), Some(fingerprint(&text)), Ok(scene))
+        }
+        Err(e) => (None, Some(fingerprint(&text)), Err(e.to_string())),
+    }
 }
 
 fn world_of(scene: &Result<BoardScene, String>) -> ([f32; 2], [f32; 2]) {
@@ -201,7 +262,7 @@ impl State {
             (Some(path), _) => {
                 let path = path.clone();
                 let view = self.board_views.get(&path).copied();
-                self.board_open = Some(OpenBoard::load(path, view));
+                self.board_open = Some(OpenBoard::load(path, view, self.vault.root.clone()));
             }
             (None, _) => self.board_open = None,
         }
@@ -211,7 +272,7 @@ impl State {
         {
             let path = b.file.path.clone();
             self.board_selected = Some(path.clone());
-            let mut open = OpenBoard::load(path, session.view);
+            let mut open = OpenBoard::load(path, session.view, self.vault.root.clone());
             open.restored = Some(session);
             self.board_open = Some(open);
         }
@@ -240,8 +301,17 @@ impl State {
         }
     }
 
-    /// Select a listed board by its absolute path (`BoardFile::path`) and open it on the canvas. Picking the
-    /// board that is already open keeps its view.
+    /// Re-read one board's list entry (its counts) after a save.
+    pub(crate) fn refresh_board_summary(&mut self, path: &Path) {
+        if let Some(b) = self.boards.iter_mut().find(|b| b.file.path == path) {
+            *b = BoardSummary::read(b.file.clone());
+        }
+    }
+
+    /// Select a listed board by its absolute path (`BoardFile::path`) and
+    /// open it on the canvas. Picking the board that is already open keeps
+    /// its view. Unsaved drawing on the open board is saved first; when that
+    /// save fails, the open board stays open.
     pub fn select_board(&mut self, path: PathBuf) {
         if self
             .board_open
@@ -251,13 +321,19 @@ impl State {
             self.board_selected = Some(path);
             return;
         }
+        if !self.save_board() {
+            return;
+        }
+        if let Some(open) = &mut self.board_open {
+            open.draft = None;
+        }
         self.stash_board_view();
         let view = self.board_views.get(&path).copied();
         // The canvas keeps its size from board to board, so a new board can
         // fit now instead of waiting for a layout change that never comes.
         let canvas = self.board_open.as_ref().map(|open| open.canvas);
         self.board_selected = Some(path.clone());
-        let mut open = OpenBoard::load(path, view);
+        let mut open = OpenBoard::load(path, view, self.vault.root.clone());
         if let Some(canvas) = canvas {
             open.canvas = canvas;
             if open.needs_fit {
@@ -351,8 +427,9 @@ impl State {
         self.board_open.as_ref().map(|open| open.cam.view())
     }
 
-    /// Board-only keys: `+`/`-` zoom, `0`/`F` fit, arrows pan. Kept on
-    /// `State`, like the graph's, so they work without a window.
+    /// Board-only keys: `+`/`-` zoom, `0`/`F` fit, arrows pan, and the tool
+    /// letters (`board_tools.rs`). Kept on `State`, like the graph's, so they
+    /// work without a window.
     pub fn board_key(&mut self, e: &KeyEvent) -> bool {
         if self.mode != Mode::Board
             || self.board_open.is_none()
@@ -371,7 +448,7 @@ impl State {
                 "+" | "=" => self.zoom_board(KEY_ZOOM),
                 "-" | "_" => self.zoom_board(1.0 / KEY_ZOOM),
                 "0" | "f" | "F" => self.fit_board(),
-                _ => return false,
+                t => return board_tools::tool_key(self, t),
             },
             _ => return false,
         }
@@ -502,6 +579,12 @@ fn board_list(s: &State, k: &Kit) -> El {
 }
 
 fn surface(s: &State, k: &Kit) -> El {
+    let status = s.board_open.as_ref().map(|open| match &open.status {
+        BoardStatus::Clean => (String::new(), k.c.text_faint),
+        BoardStatus::Unsaved => ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent),
+        BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
+        BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
+    });
     let (title, detail) = match s.selected_board() {
         Some(b) => (
             b.file.title.clone(),
@@ -529,6 +612,15 @@ fn surface(s: &State, k: &Kit) -> El {
                 .color(k.c.text_muted)
                 .truncate(),
         );
+    let heading = match status {
+        Some((label, color)) if !label.is_empty() => heading.child(spacer()).child(
+            text(label)
+                .key("board-save-state")
+                .font(k.ty.caption())
+                .color(color),
+        ),
+        _ => heading,
+    };
     let body = match s.board_open.as_ref() {
         Some(open) => match &open.scene {
             Ok(scene) => board_canvas(s, k, open, scene),
@@ -623,7 +715,11 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
         .clip_soft(10.0)
         .fill(scene.paper)
         .border(1.0, k.c.border_muted)
-        .cursor(Cursor::Grab)
+        .cursor(if s.board_tool.is_some() {
+            Cursor::Crosshair
+        } else {
+            Cursor::Grab
+        })
         .on_drawn_layout_tx(|s: &mut State, r: [f32; 4], tx: &mut Tx| {
             let Some(open) = &mut s.board_open else {
                 return;
@@ -675,10 +771,20 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
         })
         .pointer_buttons([PointerButton::Primary])
         .on_drag(|s: &mut State, d: &mut Drag, tx: &mut Tx| {
-            s.drag_board(d);
-            tx.live_only();
+            if s.board_tool.is_some() {
+                // The preview is part of the view, so this rebuilds.
+                s.draw_board(d);
+            } else {
+                s.drag_board(d);
+                tx.live_only();
+            }
         })
-        .on_double_press(|s: &mut State| s.fit_board())
+        .on_double_press(|s: &mut State| {
+            // A double click while drawing is two clicks, not a fit.
+            if s.board_tool.is_none() {
+                s.fit_board();
+            }
+        })
         .child(world);
     if scene.bounds.is_none() {
         canvas_el = canvas_el.child(
@@ -698,7 +804,13 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
                 ),
         );
     }
-    canvas_el.child(board_controls(s, k)).child(board_hint(k))
+    if let Some(layer) = board_tools::preview(open) {
+        canvas_el = canvas_el.child(layer);
+    }
+    canvas_el
+        .child(board_tools::toolbar(s, k))
+        .child(board_controls(s, k))
+        .child(board_hint(k))
 }
 
 fn board_controls(s: &State, k: &Kit) -> El {
@@ -757,7 +869,7 @@ fn board_hint(k: &Kit) -> El {
         .center_y()
         .fill(k.alpha(k.c.bg_deep, 0.78))
         .child(
-            text("Drag pan · Scroll zoom · +/- zoom · 0/F fit · Arrows pan · Read-only")
+            text("R D O A L P draw · V/Esc no tool · ⌘S save · Drag pan · Scroll zoom · 0 fit")
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )

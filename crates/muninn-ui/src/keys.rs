@@ -22,10 +22,12 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.toggle_graph();
         return true;
     }
-    // Board has no selection or tool to drop yet, so Esc leaves it the way
-    // it leaves the graph.
+    // Esc on Board drops the drawing tool; with none picked it leaves Board
+    // the way it leaves the graph.
     if e.key == Key::Escape && s.mode == Mode::Board {
-        s.toggle_board();
+        if !s.board_escape() {
+            s.toggle_board();
+        }
         return true;
     }
     // The settings modal owns the keyboard while it is mounted: only the
@@ -105,6 +107,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.new_note();
     } else if e.is_command('s') {
         s.save_now();
+        // Board slice 4: on Board the chord also saves the open board.
+        if s.mode == Mode::Board {
+            s.save_board();
+        }
     } else if e.is_command('e') {
         s.toggle_preview();
     } else if e.is_command('g') {

@@ -6,6 +6,7 @@
 mod autostart;
 mod board_camera;
 mod board_scene;
+mod board_tools;
 mod board_view;
 mod camera;
 mod global_shortcut;
@@ -30,7 +31,8 @@ pub use autostart::{
 };
 pub use board_camera::{BoardCam, BoardView};
 pub use board_scene::{BoardScene, SceneText};
-pub use board_view::{BoardCounts, BoardSession, BoardSummary, OpenBoard};
+pub use board_tools::{BoardTool, Draft, tool_for_key};
+pub use board_view::{BoardCounts, BoardSession, BoardStatus, BoardSummary, OpenBoard};
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use keys::{on_key, shortcut};
 pub use mode::{Mode, Scope};

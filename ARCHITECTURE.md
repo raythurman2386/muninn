@@ -170,6 +170,15 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   the loaded file; its camera (an eye point and zoom in scene units, so a reload that
   changes the drawing's extent keeps the view) lives in the session and in
   `settings.json`, never in the board file.
+  Drawing (`board_tools`) adds elements to the loaded `Board` through
+  `Board::add_drawn` and redraws from the model. A board is written only by an explicit
+  save (`⌘S`) or a flush where the drawing would otherwise be lost (picking another
+  board, switching vault, a vault rescan, quitting); there is no autosave or watcher
+  reload yet. Each write is `Board::save` (atomic temp+rename) to the board's own path,
+  refused unless that path is inside the vault the board was opened from *and* the
+  currently open vault, and refused if the file's bytes no longer match what was loaded
+  or last saved (changed or removed on disk). A refused flush keeps the drawing in memory
+  and blocks the board or vault switch, like a note that cannot be saved.
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
   atomic rename. A crash or failed write leaves the previous bytes intact instead of a

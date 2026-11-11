@@ -341,6 +341,10 @@ pub struct State {
     pub board_views: HashMap<PathBuf, crate::BoardView>,
     /// The last session's board, applied on the first board refresh.
     pub board_restore: Option<crate::BoardSession>,
+    /// Board slice 4: the picked drawing tool (`None`: a drag pans).
+    pub board_tool: Option<crate::BoardTool>,
+    /// Ids, seeds and nonces for drawn elements.
+    pub board_ids: muninn_core::IdSource,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -645,6 +649,8 @@ impl State {
             } else {
                 None
             },
+            board_tool: None,
+            board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
@@ -1015,6 +1021,12 @@ impl State {
         if self.dirty() {
             self.error =
                 Some("Save or resolve the current note before switching vaults".to_owned());
+            return false;
+        }
+        // The open board saves into the vault it came from, before that
+        // vault is let go; a board that cannot be saved blocks the switch.
+        if !self.save_board() {
+            self.error = Some("Save the current board before switching vaults".to_owned());
             return false;
         }
         let started = Instant::now();
@@ -3147,6 +3159,8 @@ impl State {
         // write `board: null` to settings below and lose the restore. Only a
         // scan of another root starts the boards over.
         let same_vault = vault.root == self.vault.root;
+        // Unsaved drawing goes to its own vault before the scan replaces it.
+        self.save_board();
         self.vault = vault;
         self.scan_field.focused = false;
         self.startup_error = None;

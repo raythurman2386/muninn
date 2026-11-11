@@ -235,7 +235,11 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `+` / `-` (board) | Zoom in / out at the canvas centre |
 | `←` / `↑` / `→` / `↓` (board) | Pan the board |
 | `0` / `F` / double-click (board) | Fit the drawing |
-| `Esc` (board) | Leave Board for the last note mode |
+| `R` / `D` / `O` / `A` / `L` / `P` or `X` (board) | Pick the rectangle, diamond, ellipse, arrow, line or freehand tool (also `2`–`7` and the toolbar) |
+| Drag with a tool (board) | Draw that shape; the tool stays picked |
+| `V` / `1` (board) | Drop the drawing tool (selection comes later) |
+| `⌘S` / `Ctrl+S` (board) | Save the board's drawing (atomically, to the open board only) |
+| `Esc` (board) | Drop the drawing tool, or leave Board for the last note mode |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |

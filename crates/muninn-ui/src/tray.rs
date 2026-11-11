@@ -269,6 +269,8 @@ impl State {
     /// and settings), which Rune's quit skips.
     pub fn flush_before_quit(&mut self) {
         self.save_now();
+        // Board slice 4: unsaved drawing is saved on the normal close path too.
+        self.save_board();
         self.save_settings();
     }
 }
