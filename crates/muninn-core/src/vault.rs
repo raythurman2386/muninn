@@ -860,6 +860,39 @@ impl Vault {
         }
     }
 
+    /// Board slice 8: create an empty board named `title` (sanitised like a
+    /// note title) in `folder`, as `Title.excalidraw`, or `Title 2…` when
+    /// that name is taken; never overwrites. The folder is resolved like a
+    /// note's (`..` and hidden parts dropped), and a folder that resolves
+    /// outside the vault (a symlink) is refused.
+    pub fn create_board_in(&self, title: &str, folder: &str) -> io::Result<PathBuf> {
+        let title = sanitise_title(title);
+        let dir = folder_dir(&self.root, folder);
+        fs::create_dir_all(&dir)?;
+        let root = fs::canonicalize(&self.root)?;
+        if !fs::canonicalize(&dir)?.starts_with(&root) {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("{} is outside the vault", dir.display()),
+            ));
+        }
+        let body = crate::Board::new().to_json();
+        let mut n = 1;
+        loop {
+            let name = if n == 1 {
+                format!("{title}.excalidraw")
+            } else {
+                format!("{title} {n}.excalidraw")
+            };
+            let path = dir.join(name);
+            if !path.exists() {
+                atomic_write(&path, body.as_bytes())?;
+                return Ok(path);
+            }
+            n += 1;
+        }
+    }
+
     /// Rename a note's stem (file name) in place, keeping its folder. The
     /// new title is sanitised like a create name; an existing target file is
     /// an error (never overwrite). Updates the note and the index, so the
@@ -2346,6 +2379,59 @@ mod atomic_write_tests {
             temp_files(tmp.path()).is_empty(),
             "{:?}",
             temp_files(tmp.path())
+        );
+    }
+}
+
+/// Board slice 8: `Vault::create_board_in`.
+#[cfg(test)]
+mod board_create_tests {
+    use std::fs;
+
+    use crate::testing::TempVault;
+    use crate::{Board, Vault};
+
+    fn vault(tmp: &TempVault) -> Vault {
+        Vault::load(tmp.path()).unwrap()
+    }
+
+    #[test]
+    fn a_new_board_is_an_empty_scene_and_never_overwrites() {
+        let tmp = TempVault::new(&[("Untitled board.excalidraw", "keep")]);
+        let v = vault(&tmp);
+        let a = v.create_board_in("Untitled board", "").unwrap();
+        let b = v.create_board_in("Untitled board", "").unwrap();
+        assert_eq!(a, tmp.path().join("Untitled board 2.excalidraw"));
+        assert_eq!(b, tmp.path().join("Untitled board 3.excalidraw"));
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Untitled board.excalidraw")).unwrap(),
+            "keep"
+        );
+        let board = Board::from_json(&fs::read_to_string(&a).unwrap()).unwrap();
+        assert_eq!(board.live_elements().count(), 0);
+    }
+
+    #[test]
+    fn a_new_board_stays_inside_the_vault() {
+        let tmp = TempVault::new(&[]);
+        let v = vault(&tmp);
+        let p = v.create_board_in("Plan", "../../Out/./.hidden/In").unwrap();
+        assert!(p.starts_with(tmp.path()), "{p:?}");
+        assert_eq!(p, tmp.path().join("Out/In/Plan.excalidraw"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_new_board_is_refused_in_a_folder_that_links_out_of_the_vault() {
+        let tmp = TempVault::new(&[]);
+        let outside = TempVault::new(&[]);
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("Link")).unwrap();
+        let v = vault(&tmp);
+        let err = v.create_board_in("B", "Link").unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+        assert!(
+            fs::read_dir(outside.path()).unwrap().next().is_none(),
+            "nothing written outside"
         );
     }
 }
