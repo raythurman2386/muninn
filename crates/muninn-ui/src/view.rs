@@ -1559,7 +1559,7 @@ fn folder_field_row(s: &State, k: &Kit, key: &str, placeholder: &str, is_new: bo
 /// The open right-click menu, rendered inline under the row that asked.
 /// Right-click opens it; Escape, an action, or Cancel closes it. Primary
 /// behaviour (open note / toggle folder) is untouched.
-fn context_menu(s: &State, k: &Kit) -> El {
+pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
     let Some(menu) = &s.menu else {
         return el();
     };
@@ -1577,6 +1577,7 @@ fn context_menu(s: &State, k: &Kit) -> El {
             ("Rename", "rename"),
             ("Delete", "delete"),
         ],
+        MenuTarget::Board(..) => vec![("Rename", "rename")],
     };
     let mut col_menu = col()
         .key("context-menu")
@@ -2185,7 +2186,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("⌘E / Ctrl+E", "Toggle Write / Read"),
                 ("[[", "Wikilink completion"),
                 ("Tab (editor)", "Indent four spaces"),
-                ("F2", "Rename the selected note"),
+                ("F2", "Rename the selected note (on Board: the board)"),
                 ("Del", "Delete the selected note"),
             ],
         ),
@@ -3756,6 +3757,11 @@ fn sidebar_boards(s: &State, k: &Kit, filtering: bool) -> El {
     let open = s.board_open.as_ref().map(|open| open.path.as_path());
     for (i, board) in s.sidebar_boards.iter().enumerate() {
         let path = board.path.clone();
+        if s.renaming_board_at(&path, crate::BoardPlace::Sidebar) {
+            list = list.child(crate::board_rename::rename_field(s, k));
+            continue;
+        }
+        let menu_path = path.clone();
         let current = s.mode == Mode::Board && open == Some(board.path.as_path());
         let folder = board.folder();
         let mut body = row().grow(1.0).min_w(0.0).gap(6.0).center_y().child(
@@ -3785,8 +3791,21 @@ fn sidebar_boards(s: &State, k: &Kit, filtering: bool) -> El {
                 .center_y()
                 .child(icon(&ic::DOT_GRID, 14.0).color(k.c.icon_muted))
                 .child(body)
-                .on_press(move |s: &mut State| s.open_board_at(path.clone())),
+                .on_press(move |s: &mut State| s.open_board_at(path.clone()))
+                .on_secondary_press(move |s: &mut State, press, _| {
+                    s.open_board_menu(
+                        menu_path.clone(),
+                        crate::BoardPlace::Sidebar,
+                        press.x,
+                        press.y,
+                    );
+                }),
         );
+        if s.menu.as_ref().is_some_and(|m| {
+            m.target == MenuTarget::Board(board.path.clone(), crate::BoardPlace::Sidebar)
+        }) {
+            list = list.child(context_menu(s, k));
+        }
     }
     list
 }

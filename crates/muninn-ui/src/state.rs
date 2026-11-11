@@ -23,6 +23,8 @@ use crate::watch::{self, VaultSnapshot};
 pub enum MenuTarget {
     Note(usize),
     Folder(String),
+    /// A board row (#43 rename), in the Board panel or the notes sidebar.
+    Board(PathBuf, crate::BoardPlace),
 }
 
 impl MenuTarget {
@@ -446,6 +448,9 @@ pub struct State {
     /// Inline rename field for a note.
     pub rename_prompt: Option<RenamePrompt>,
     pub rename_field: TextEdit,
+    /// #43: a board being renamed, and its inline name field.
+    pub board_rename: Option<crate::BoardRename>,
+    pub board_rename_field: TextEdit,
     /// Inline name field for a folder being created.
     pub new_folder_prompt: Option<FolderPrompt>,
     pub new_folder_field: TextEdit,
@@ -737,6 +742,8 @@ impl State {
             new_note_field: TextEdit::new(""),
             rename_prompt: None,
             rename_field: TextEdit::new(""),
+            board_rename: None,
+            board_rename_field: TextEdit::new(""),
             new_folder_prompt: None,
             new_folder_field: TextEdit::new(""),
             rename_folder_prompt: None,
@@ -3094,7 +3101,7 @@ impl State {
         }
     }
 
-    fn flush(&mut self) {
+    pub(crate) fn flush(&mut self) {
         self.save_now();
     }
 
@@ -3336,6 +3343,7 @@ impl State {
     /// Shared start for the sidebar's inline fields: close the pointer menu and
     /// hand the keyboard to a prompt instead of the editor or search box.
     fn begin_inline_prompt(&mut self) {
+        self.cancel_rename_board();
         self.reveal_sidebar();
         self.dismiss_palette();
         self.menu = None;
@@ -3471,7 +3479,7 @@ impl State {
         }
     }
 
-    fn format_rewrite_failures(&self, failures: &[(usize, io::Error)]) -> String {
+    pub(crate) fn format_rewrite_failures(&self, failures: &[(usize, io::Error)]) -> String {
         failures
             .iter()
             .map(|(id, error)| {
@@ -3842,6 +3850,15 @@ impl State {
         });
     }
 
+    /// #43: right-click on a board row (`place` says which list it is in).
+    pub fn open_board_menu(&mut self, path: PathBuf, place: crate::BoardPlace, x: f32, y: f32) {
+        self.menu = Some(ContextMenu {
+            target: MenuTarget::Board(path, place),
+            x,
+            y,
+        });
+    }
+
     pub fn close_menu(&mut self) {
         self.menu = None;
     }
@@ -3864,6 +3881,7 @@ impl State {
             (MenuTarget::Folder(folder), "new_folder") => self.begin_new_folder(&folder),
             (MenuTarget::Folder(folder), "rename") => self.begin_rename_folder(&folder),
             (MenuTarget::Folder(folder), "delete") => self.delete_folder(&folder),
+            (MenuTarget::Board(path, place), "rename") => self.begin_rename_board(path, place),
             _ => {}
         }
     }

@@ -779,6 +779,11 @@ fn board_list(s: &State, k: &Kit) -> El {
     for (i, b) in s.boards.iter().enumerate() {
         let on = s.board_selected.as_ref() == Some(&b.file.path);
         let path = b.file.path.clone();
+        if s.renaming_board_at(&path, crate::BoardPlace::Panel) {
+            list = list.child(crate::board_rename::rename_field(s, k));
+            continue;
+        }
+        let menu_path = path.clone();
         list = list.child(
             col()
                 .key(format!("board-row-{i}"))
@@ -802,6 +807,14 @@ fn board_list(s: &State, k: &Kit) -> El {
                     // instead of moving through the list.
                     tx.blur();
                 })
+                .on_secondary_press(move |s: &mut State, press, _| {
+                    s.open_board_menu(
+                        menu_path.clone(),
+                        crate::BoardPlace::Panel,
+                        press.x,
+                        press.y,
+                    );
+                })
                 .child(
                     text(b.file.title.clone())
                         .font(k.ty.ui_compact)
@@ -815,6 +828,11 @@ fn board_list(s: &State, k: &Kit) -> El {
                         .truncate(),
                 ),
         );
+        if s.menu.as_ref().is_some_and(|m| {
+            m.target == crate::MenuTarget::Board(b.file.path.clone(), crate::BoardPlace::Panel)
+        }) {
+            list = list.child(crate::view::context_menu(s, k));
+        }
     }
     list
 }
@@ -858,23 +876,36 @@ fn surface(s: &State, k: &Kit) -> El {
             "Pick a board on the left to see what it holds".to_owned(),
         ),
     };
-    let heading = row()
-        .h(36.0)
-        .gap(10.0)
-        .center_y()
-        .child(
-            text(title)
-                .key("board-surface-title")
-                .font(k.ty.ui_medium)
-                .color(k.c.text_base),
-        )
-        .child(
-            text(detail)
-                .key("board-surface-detail")
-                .font(k.ty.caption())
-                .color(k.c.text_muted)
-                .truncate(),
-        );
+    // #43: a double click on the open board's title renames it in place.
+    let renaming = s
+        .board_open
+        .as_ref()
+        .is_some_and(|open| s.renaming_board_at(&open.path, crate::BoardPlace::Header));
+    let title = if renaming {
+        col()
+            .w(320.0)
+            .child(crate::board_rename::rename_field(s, k))
+    } else {
+        let t = text(title)
+            .key("board-surface-title")
+            .font(k.ty.ui_medium)
+            .color(k.c.text_base);
+        if s.board_open.is_some() {
+            t.label("Board name; double-click to rename")
+                .on_double_press(|s: &mut State| {
+                    s.begin_rename_open_board(crate::BoardPlace::Header);
+                })
+        } else {
+            t
+        }
+    };
+    let heading = row().h(36.0).gap(10.0).center_y().child(title).child(
+        text(detail)
+            .key("board-surface-detail")
+            .font(k.ty.caption())
+            .color(k.c.text_muted)
+            .truncate(),
+    );
     let heading = match status {
         Some((label, color)) if !label.is_empty() => heading.child(spacer()).child(
             text(label)

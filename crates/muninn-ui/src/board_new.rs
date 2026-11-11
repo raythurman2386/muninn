@@ -52,6 +52,13 @@ impl State {
         self.cancel_rename_note();
         self.cancel_new_folder();
         self.cancel_rename_folder();
+        if self
+            .board_rename
+            .as_ref()
+            .is_some_and(|r| r.place == crate::BoardPlace::Sidebar)
+        {
+            self.cancel_rename_board();
+        }
     }
 
     /// The folder a new board goes in: the open board's folder, else the

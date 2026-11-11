@@ -63,7 +63,7 @@ const ACTIONS: &[&str] = &[
     "Toggle Write / Read",
     "Wikilink completion",
     "Indent four spaces",
-    "Rename the selected note",
+    "Rename the selected note (on Board: the board)",
     "Delete the selected note",
     "Toggle Graph",
     "Toggle Global / Local",

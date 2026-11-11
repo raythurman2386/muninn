@@ -55,6 +55,8 @@ impl State {
         }
         // Slice 6: leaving Board commits an open text editor.
         self.commit_board_text();
+        // #43: a rename field in the Board panel or title goes with them.
+        self.board_rename_left_board(mode);
         self.pending_heading = None;
         self.pending_top = false;
         self.complete = None;

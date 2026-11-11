@@ -7,6 +7,7 @@ mod autostart;
 mod board_camera;
 mod board_edit;
 mod board_new;
+mod board_rename;
 mod board_safety;
 mod board_scene;
 mod board_sync;
@@ -36,6 +37,7 @@ pub use autostart::{
 };
 pub use board_camera::{BoardCam, BoardView};
 pub use board_edit::{BoardEdit, Gesture, NUDGE, NUDGE_BIG};
+pub use board_rename::{BoardPlace, BoardRename};
 pub use board_scene::{BoardScene, SceneText};
 pub use board_text::{BoardTextTarget, measure_text};
 pub use board_tools::{BoardTool, Draft, tool_for_key};
