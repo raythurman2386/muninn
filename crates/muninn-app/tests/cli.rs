@@ -95,3 +95,38 @@ fn a_missing_check_path_prints_our_usage() {
     assert!(text.contains("--list-links"), "{text}");
     assert!(text.contains("--trace"), "{text}");
 }
+
+/// GK MF-C (#43): `--version` / `-V` print `muninn <version>` and exit 0
+/// without opening a window. Before, both fell through to the GUI. The child
+/// is killed after 20 s, so a launch fails the test instead of hanging it.
+#[test]
+fn version_prints_the_crate_version_and_exits_without_a_window() {
+    for flag in ["--version", "-V"] {
+        let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_muninn"))
+            .arg(flag)
+            .env_remove("DISPLAY")
+            .env_remove("WAYLAND_DISPLAY")
+            .env_remove("WAYLAND_SOCKET")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let start = std::time::Instant::now();
+        while child.try_wait().unwrap().is_none() {
+            if start.elapsed() > std::time::Duration::from_secs(20) {
+                let _ = child.kill();
+                panic!("{flag}: still running after 20 s (it launched the app)");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(
+            stdout(&output),
+            format!("muninn {}\n", env!("CARGO_PKG_VERSION")),
+            "{flag}: stderr {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output.status.code(), Some(0), "{flag}");
+        assert!(output.stderr.is_empty(), "{flag}: nothing on stderr");
+    }
+}

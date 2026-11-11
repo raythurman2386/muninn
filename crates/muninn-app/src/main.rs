@@ -40,6 +40,15 @@ static TRACE: AtomicBool = AtomicBool::new(false);
 static THEME: std::sync::Mutex<Option<ThemeMode>> = std::sync::Mutex::new(None);
 
 fn main() {
+    // `--version` / `-V` print the version and exit, before Rune or a window
+    // is touched (GK MF-C, #43).
+    if std::env::args_os()
+        .skip(1)
+        .any(|arg| arg == std::ffi::OsStr::new("--version") || arg == std::ffi::OsStr::new("-V"))
+    {
+        println!("muninn {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     // Rune consumes `--help` for its own headless-tooling usage before
     // `extra_args`, so answer the app's help from the raw process arguments.
     if std::env::args_os()
@@ -333,14 +342,16 @@ fn print_help(out: &mut impl std::io::Write) {
          muninn [--vault PATH] [--trace] [--theme omarchy|system|dark|light]\n  \
          muninn --check <vault>\n  \
          muninn --list-links <vault>\n  \
-         muninn --help\n\
+         muninn --help\n  \
+         muninn --version\n\
          \n\
          Options:\n  \
          --vault PATH     Open this vault (else $MUNINN_VAULT, the last vault, ~/Muninn)\n  \
          --theme MODE     Session theme override: omarchy (default), system, dark, light\n  \
          --trace          Log every autosave tick to the session log\n  \
          --check          Headless: exit 0 if clean, 1 for broken links/duplicates, 2 if unreadable\n  \
-         --list-links     Headless: one `referrer -> target` line per wikilink, sorted",
+         --list-links     Headless: one `referrer -> target` line per wikilink, sorted\n  \
+         -V, --version    Print `muninn <version>` and exit",
         env!("CARGO_PKG_VERSION"),
     );
 }

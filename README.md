@@ -55,7 +55,8 @@ titles with their note counts, the skipped-file count and a folder-depth warning
 exits `0` when clean, `1` when there are broken links or duplicate titles, and `2` when
 the path is not a readable vault folder. It never creates a missing folder. `--list-links`
 prints one sorted `referrer -> target` line per wikilink, with unresolved targets
-prefixed `missing:`. `muninn --help` prints this usage without starting Rune.
+prefixed `missing:`. `muninn --help` prints this usage without starting Rune, and
+`muninn --version` (or `-V`) prints `muninn <version>`, for example `muninn 0.7.0`.
 
 ### Settings and vaults
 

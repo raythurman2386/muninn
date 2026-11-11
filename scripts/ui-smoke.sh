@@ -34,7 +34,8 @@
 #   seed            vault: two linked .md notes, Plan.excalidraw (the core test fixture)
 #                   and Smoke.excalidraw (one element of each kind, for the pixel checks),
 #                   and Tools.excalidraw (the board the draw steps draw on)
-#   cli_check       `muninn --check`: 2 notes, 0 broken links (the board is not a note)
+#   cli_check       `muninn --check`: 2 notes, 0 broken links (the board is not a note);
+#                   `muninn --version` / `-V` print `muninn <Cargo.toml version>`
 #   headless_modes  one input script (scripts/ui-smoke/modes.json) through Graph, Read,
 #                   Write, Board by ⌘4, Esc out, Board by its mode button, a board row
 #                   picked, Graph, Board by the command palette ("whiteboard"), Read,
@@ -265,10 +266,17 @@ step_seed() {
 
 step_cli_check() {
   isolate
-  local report
+  local report version want
   report="$("$bin" --check "$vault")" || return 1
   echo "$report"
-  grep -qx 'notes: 2' <<<"$report" && grep -qx 'broken links: 0' <<<"$report"
+  grep -qx 'notes: 2' <<<"$report" && grep -qx 'broken links: 0' <<<"$report" || return 1
+  # GK MF-C (#43): --version prints the workspace version and exits without
+  # a window (DISPLAY and Wayland are unset here, so a launch would fail).
+  want="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$root/Cargo.toml" | head -n 1)"
+  version="$(timeout 20 "$bin" --version)" || return 1
+  echo "$version"
+  [[ "$version" == "muninn $want" ]] || { echo "want 'muninn $want'"; return 1; }
+  [[ "$(timeout 20 "$bin" -V)" == "muninn $want" ]]
 }
 
 # mark in modes.json → the mode it must show
