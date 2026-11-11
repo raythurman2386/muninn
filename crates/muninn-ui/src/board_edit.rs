@@ -250,17 +250,45 @@ impl State {
         };
         match d.phase {
             Phase::Down => {
-                if !shift && on_handle(model, &open.edit.selection, view, [d.x, d.y]) {
+                let tol = f64::from(HIT_SLOP / view.zoom.max(f32::MIN_POSITIVE));
+                let hit = model.hit_test(at, tol).map(|s| s.id.clone());
+                // What a hit picks: its outermost group, a bound label its
+                // container (#39 recheck M2), so it is compared with the
+                // selection as the selection holds it.
+                let group = hit
+                    .as_ref()
+                    .map(|id| model.with_groups(std::slice::from_ref(id)))
+                    .unwrap_or_default();
+                let in_sel = group.iter().any(|g| open.edit.selection.contains(g));
+                // A press on a handle does nothing (no resize yet), unless it
+                // is on a selected element itself (inside its own bounds): a
+                // thin line's midpoint or a small shape lies under its handles
+                // (#39 recheck M1). Handles sit outside the bounds, so a corner
+                // grab still never moves anything.
+                let on_selected = in_sel
+                    && open.edit.selection.iter().any(|id| {
+                        model.shape(id).is_some_and(|e| {
+                            let pad = (e.stroke_width / 2.0)
+                                .max(1.0 / f64::from(view.zoom.max(f32::MIN_POSITIVE)));
+                            e.bounds().is_some_and(|b| {
+                                at[0] >= b[0] - pad
+                                    && at[0] <= b[2] + pad
+                                    && at[1] >= b[1] - pad
+                                    && at[1] <= b[3] + pad
+                            })
+                        })
+                    });
+                if !shift
+                    && !on_selected
+                    && on_handle(model, &open.edit.selection, view, [d.x, d.y])
+                {
                     open.edit.gesture = None;
                     return;
                 }
-                let tol = f64::from(HIT_SLOP / view.zoom.max(f32::MIN_POSITIVE));
-                let hit = model.hit_test(at, tol).map(|s| s.id.clone());
                 open.edit.gesture = match hit {
-                    Some(id) => {
-                        let group = model.with_groups(std::slice::from_ref(&id));
+                    Some(_) => {
                         let sel = &mut open.edit.selection;
-                        if shift && sel.contains(&id) {
+                        if shift && in_sel {
                             sel.retain(|s| !group.contains(s));
                             None
                         } else {
@@ -268,7 +296,7 @@ impl State {
                                 let mut all = sel.clone();
                                 all.extend(group);
                                 *sel = model.with_groups(&all);
-                            } else if !sel.contains(&id) {
+                            } else if !in_sel {
                                 *sel = group;
                             }
                             Some(Gesture::Move {

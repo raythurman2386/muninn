@@ -667,3 +667,71 @@ fn a_shapes_bound_label_moves_deletes_and_undoes_with_it_and_never_orphans() {
     }
     assert!(!alive("box") && !alive("label"));
 }
+
+/// Draw with tool `t` from `a` to `b` and return the new element's id.
+fn draw_with(rt: &mut Runtime<State>, t: &str, a: [f32; 2], b: [f32; 2]) -> String {
+    text(rt, t);
+    drag(rt, a, b);
+    text(rt, "v");
+    model(rt).elements.last().unwrap().id().unwrap().to_owned()
+}
+
+#[test]
+fn a_selected_thin_line_arrow_or_small_shape_still_drags_from_itself() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    let line = draw_with(&mut rt, "l", [150.0, 150.0], [250.0, 150.0]);
+    let arrow = draw_with(&mut rt, "a", [150.0, 250.0], [250.0, 250.0]);
+    let small = draw_with(&mut rt, "r", [320.0, 150.0], [326.0, 156.0]);
+    for (id, grab) in [
+        (&line, [200.0, 150.0]),
+        (&arrow, [200.0, 250.0]),
+        (&small, [323.0, 153.0]),
+    ] {
+        click(&mut rt, grab);
+        assert_eq!(selection(&rt), vec![id.clone()], "{id} selected");
+        let x0 = shape(&rt, id).x;
+        drag(&mut rt, grab, [grab[0] + 30.0, grab[1] + 20.0]);
+        let x1 = shape(&rt, id).x;
+        assert!(
+            (x1 - x0 - 30.0).abs() < 0.6,
+            "{id}: dragging it moved it by {}",
+            x1 - x0
+        );
+    }
+}
+
+#[test]
+fn shift_clicking_a_label_deselects_its_shape_and_dragging_by_it_keeps_the_selection() {
+    let tmp = TempVault::new(&[("Alpha.md", "# Alpha\n"), ("Draw.excalidraw", LABEL)]);
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    let on_label = [100.0, 50.0];
+    click(&mut rt, on_label);
+    assert_eq!(selection(&rt), ids(&["box"]));
+    hold_shift(&mut rt, true);
+    click(&mut rt, on_label);
+    hold_shift(&mut rt, false);
+    assert!(
+        selection(&rt).is_empty(),
+        "Shift+click on the label takes its shape out"
+    );
+    click(&mut rt, on_label);
+    hold_shift(&mut rt, true);
+    click(&mut rt, [330.0, 0.0]);
+    hold_shift(&mut rt, false);
+    assert_eq!(selection(&rt), ids(&["box", "other"]));
+    let (b0, o0) = (shape(&rt, "box").x, shape(&rt, "other").x);
+    drag(&mut rt, on_label, [on_label[0] + 25.0, on_label[1]]);
+    assert_eq!(
+        selection(&rt),
+        ids(&["box", "other"]),
+        "dragging by the label keeps both"
+    );
+    assert!(
+        (shape(&rt, "other").x - o0 - 25.0).abs() < 0.6,
+        "the other shape moved too"
+    );
+    assert!((shape(&rt, "box").x - b0 - 25.0).abs() < 0.6);
+}
