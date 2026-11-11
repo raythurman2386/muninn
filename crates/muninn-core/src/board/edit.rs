@@ -272,7 +272,10 @@ impl Board {
     /// The topmost pickable element at scene point `p`, within `tol`.
     #[must_use]
     pub fn hit_test(&self, p: [f64; 2], tol: f64) -> Option<&Shape> {
-        self.pickable().rev().find(|s| s.hit(p, tol))
+        // #40 review M2: a label inside a locked shape is locked with it.
+        self.pickable()
+            .rev()
+            .find(|s| s.hit(p, tol) && !self.held_by_locked(s))
     }
 
     /// Pickable elements whose bounds lie wholly inside `rect` (min x, min
@@ -294,9 +297,36 @@ impl Board {
     #[must_use]
     pub fn pickable_ids(&self) -> Vec<String> {
         self.pickable()
-            .filter(|s| self.live_container(s).is_none())
+            .filter(|s| self.live_container(s).is_none() && !self.held_by_locked(s))
             .map(|s| s.id.clone())
             .collect()
+    }
+
+    /// #40 review M2: `s` is a text label bound to a live but locked shape,
+    /// so it is not picked, moved or edited on its own.
+    fn held_by_locked(&self, s: &Shape) -> bool {
+        if s.kind != ShapeKind::Text {
+            return false;
+        }
+        s.extra
+            .get("containerId")
+            .and_then(|v| v.as_str())
+            .and_then(|id| self.shape(id))
+            .is_some_and(|c| !c.is_deleted && c.is_locked())
+    }
+
+    /// The live text label bound to `container` (`containerId`), if any:
+    /// what a double click on the shape edits, as in Excalidraw.
+    #[must_use]
+    pub fn bound_label(&self, container: &str) -> Option<&Shape> {
+        let c = self.shape(container)?;
+        if c.is_deleted || c.is_locked() || c.kind == ShapeKind::Text {
+            return None;
+        }
+        self.pickable().find(|s| {
+            s.kind == ShapeKind::Text
+                && s.extra.get("containerId").and_then(|v| v.as_str()) == Some(container)
+        })
     }
 
     /// #39 review M1: the pickable container `s` is bound to as its text
@@ -357,7 +387,7 @@ impl Board {
             .collect();
         self.pickable()
             .filter(|s| ids.contains(&s.id) || groups.iter().any(|g| s.in_group(g)))
-            .filter(|s| self.live_container(s).is_none())
+            .filter(|s| self.live_container(s).is_none() && !self.held_by_locked(s))
             .map(|s| s.id.clone())
             .collect()
     }
