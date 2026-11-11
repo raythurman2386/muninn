@@ -500,7 +500,9 @@ fn deletes_undos_and_moves_keep_the_recovery_copy_current_but_not_per_drag_frame
     let state_home = unique_dir("state");
     let mut rt = launch_in(tmp.path(), &state_home);
     open(&mut rt);
-    let copy = state_home.join("muninn/recovery/Draw.excalidraw.txt");
+    // Keyed by vault since the #38 review (M1): ask the app for the path.
+    let copy = rt.state.recovery_path("Draw.excalidraw");
+    assert!(copy.starts_with(&state_home));
     let read = |p: &Path| Board::from_json(&std::fs::read_to_string(p).expect("copy")).unwrap();
     click(&mut rt, RECT);
     plain(&mut rt, Key::Delete);
