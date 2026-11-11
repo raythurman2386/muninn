@@ -357,6 +357,9 @@ fn toggling_the_sidebar_on_board_moves_the_chrome_at_once_without_a_slide() {
 
 // ---- Gatekeeper MF1: hidden sidebar fields give the keyboard back ------------
 
+/// A named way to open one of the sidebar's text fields.
+type Begin = (&'static str, fn(&mut State));
+
 fn key_text(rt: &mut Runtime<State>, t: &str) {
     rt.key(KeyEvent {
         key: Key::Text(t.into()),
@@ -438,7 +441,7 @@ fn entering_board_cancels_an_open_new_note_prompt() {
 
 #[test]
 fn entering_board_cancels_the_rename_note_and_folder_prompts() {
-    let begins: [(&str, fn(&mut State)); 3] = [
+    let begins: [Begin; 3] = [
         ("rename note", |s| s.begin_rename_note(0)),
         ("new folder", |s| s.begin_new_folder("")),
         ("rename folder", |s| s.begin_rename_folder("Sub")),
@@ -467,7 +470,7 @@ fn entering_board_cancels_the_rename_note_and_folder_prompts() {
 
 #[test]
 fn hiding_the_sidebar_with_its_toggle_cancels_the_folder_prompts_too() {
-    let begins: [(&str, fn(&mut State)); 4] = [
+    let begins: [Begin; 4] = [
         ("new note", |s| s.new_note()),
         ("rename note", |s| s.begin_rename_note(0)),
         ("new folder", |s| s.begin_new_folder("")),
