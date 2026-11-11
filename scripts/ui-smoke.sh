@@ -139,6 +139,17 @@
 #                   quick window grabs and a settled one show the key hint bar and
 #                   zoom controls exactly where they were (no slide); a copy with the
 #                   chrome moved 20 px must FAIL
+#                   then (slice 8) the notes sidebar toggled open and shut with
+#                   Ctrl+\\: the canvas narrows, so the chrome may move, but every quick
+#                   grab shows the bottom strip as before or as settled, never between;
+#                   a blend half way must FAIL
+#   headless_new_board  slice 8 on a vault with no boards: entering Board writes no
+#                   file, collapses the notes sidebar and offers "New board"; New board
+#                   writes an empty "Untitled board.excalidraw" in the folder New note
+#                   uses (the selected note's) and opens it, a second one is "Untitled board 2"; Ctrl+\\ reopens the
+#                   sidebar, and leaving Board shows it
+#   x11_new_board   on Xvfb: the same vault, Board, click "New board" in the empty
+#                   state (the file appears and opens), then the sidebar toggle button
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -157,7 +168,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -1421,11 +1432,132 @@ step_x11_chrome() {
   cmp -s "$s/select-base.png" "$s/select-settled.png" && { echo "the select click changed nothing on screen"; return 1; }
   python3 "$chrome" shifted "$s/select-base.png" "$s/shifted.png" 20 || return 1
   must_fail "the chrome moved 20 px" python3 "$chrome" still "$tree" "$s/select-base.png" "$s/shifted.png" || return 1
+  # Slice 8: the notes sidebar toggle. The canvas narrows or widens, so the chrome
+  # may move, but in one step: no grab shows it between before and settled.
+  for step in sidebar-open sidebar-shut; do
+    python3 "$chrome" x11-key-burst "$wid" ctrl+backslash "$s" "$step" 12 || return 1
+    python3 "$chrome" jump "$s/$step-base.png" "$s/$step-settled.png" "$s/$step"-[0-9][0-9].png || { echo "$step: the chrome slid"; return 1; }
+  done
+  cmp -s "$s/sidebar-open-base.png" "$s/sidebar-open-settled.png" && { echo "Ctrl+\\ changed nothing on screen"; return 1; }
+  python3 "$chrome" midway "$s/sidebar-open-base.png" "$s/sidebar-open-settled.png" "$s/sidebar-midway.png" || return 1
+  must_fail "a frame half way through the toggle" python3 "$chrome" jump "$s/sidebar-open-base.png" "$s/sidebar-open-settled.png" "$s/sidebar-midway.png" || return 1
   python3 "$harness" x11-close "$wid" || return 1
   for i in $(seq 100); do kill -0 "$app_pid" 2>/dev/null || break; sleep 0.1; done
   app_pid=
   cmp -s "$draw_fixture" "$draw_board" || { echo "selecting wrote the board"; return 1; }
-  echo "ok the hint bar and zoom controls stayed put through select, deselect and select again"
+  echo "ok the hint bar and zoom controls stayed put through select, deselect and select again, and jumped (never slid) with the sidebar toggle"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+# Slice 8: a vault with no boards. Each run is its own launch on its own settings.
+empty_vault="$work/empty-vault"
+
+empty_run() { # empty_run NAME SCRIPT MARK
+  export XDG_CONFIG_HOME="$work/config-new-$1" XDG_STATE_HOME="$work/state-new-$1"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --vault "$empty_vault" --script "$2" --at "mark:$3+0.4" --scale 1 \
+    --snap "$out/screens/new-$1.png" --tree "$out/trees/new-$1.json"
+}
+
+listing() { (cd "$empty_vault" && find . -type f -not -path './.muninn*' | sort | xargs sha256sum); }
+
+step_headless_new_board() {
+  isolate
+  local t="$out/trees" m="$work/new"
+  rm -rf "$empty_vault" "$m"; mkdir -p "$empty_vault/Ideas" "$m"
+  printf '# Start\n\nNo boards here yet.\n' >"$empty_vault/Start.md"
+  printf '# Idea\n' >"$empty_vault/Ideas/Idea.md"
+  listing >"$m/before.txt"
+  # 1. Board on a vault with no boards: nothing written, sidebar collapsed, New board offered.
+  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.5,"type":"mark","name":"empty"}]}' >"$m/empty.json"
+  empty_run empty "$m/empty.json" empty || return 1
+  python3 "$harness" tree-mode "$t/new-empty.json" board || return 1
+  python3 "$harness" tree-text "$t/new-empty.json" board-new-empty "New board" || return 1
+  python3 "$harness" tree-text "$t/new-empty.json" board-list-empty "No boards in this vault yet" || return 1
+  no_key "$t/new-empty.json" search-box || return 1
+  listing >"$m/after-open.txt"
+  diff "$m/before.txt" "$m/after-open.txt" || { echo "opening Board wrote into the vault"; return 1; }
+  find "$empty_vault" -name '*.excalidraw' | grep . && { echo "a board appeared without New board"; return 1; }
+  echo "ok entering Board on a vault with no boards wrote nothing"
+  # 2. New board in the empty state: an empty Untitled board, open. With no board open
+  #    it goes where New note would: the selected note's folder (Ideas/Idea.md is the
+  #    note a fresh launch shows), never the vault root by surprise.
+  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.5,"type":"tap","key":"board-new-empty"},{"t":2.5,"type":"mark","name":"created"}]}' >"$m/create.json"
+  empty_run created "$m/create.json" created || return 1
+  [ -f "$empty_vault/Ideas/Untitled board.excalidraw" ] || { echo "no Untitled board.excalidraw"; ls -R "$empty_vault"; return 1; }
+  python3 "$harness" tree-text "$t/new-created.json" board-surface-title "Untitled board" || return 1
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["type"]=="excalidraw" and d["elements"]==[], d; print("ok empty scene", sys.argv[1])' \
+    "$empty_vault/Ideas/Untitled board.excalidraw" || return 1
+  "$roundtrip" "$empty_vault/Ideas/Untitled board.excalidraw" || return 1
+  must_fail "the empty-state tree as a created board" python3 "$harness" tree-text "$t/new-empty.json" board-surface-title "Untitled board" || return 1
+  # 3. New board again from the panel header: never overwrites, takes the next name.
+  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.5,"type":"tap","key":"board-new"},{"t":2.5,"type":"mark","name":"second"}]}' >"$m/second.json"
+  empty_run second "$m/second.json" second || return 1
+  [ -f "$empty_vault/Ideas/Untitled board 2.excalidraw" ] || { echo "no Untitled board 2"; ls -R "$empty_vault"; return 1; }
+  python3 "$harness" tree-text "$t/new-second.json" board-surface-title "Untitled board 2" || return 1
+  # 4. Ctrl+\ reopens the notes sidebar on Board; Graph (leaving Board) shows it.
+  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.0,"type":"mark","name":"shut"},{"t":1.8,"type":"key","name":"\\\\","cmd":true},{"t":2.4,"type":"mark","name":"open"},{"t":3.2,"type":"key","name":"\\\\","cmd":true},{"t":3.6,"type":"key","name":"3","cmd":true},{"t":4.2,"type":"mark","name":"left"}]}' >"$m/toggle.json"
+  empty_run shut "$m/toggle.json" shut || return 1
+  empty_run open "$m/toggle.json" open || return 1
+  empty_run left "$m/toggle.json" left || return 1
+  no_key "$t/new-shut.json" search-box || return 1
+  python3 "$harness" tree-center "$t/new-open.json" search-box || { echo "Ctrl+\\ did not reopen the sidebar"; return 1; }
+  python3 "$harness" tree-mode "$t/new-left.json" graph || return 1
+  python3 "$harness" tree-center "$t/new-left.json" search-box || { echo "leaving Board did not restore the sidebar"; return 1; }
+  ls -R "$empty_vault"
+}
+
+step_x11_new_board() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/new-empty.json"
+  [ -f "$tree" ] || { echo "run headless_new_board first (needs $tree)"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-new.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  local wid s="$out/screens" slow at toggle
+  slow="$(python3 -c "print(max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  shot() { sleep "$(python3 -c "print(1.5 * $slow)")"; import -window "$wid" "$s/x11-new-$1.png"; }
+  at="$(python3 "$harness" tree-center "$tree" board-new-empty)" || return 1
+  toggle="$(python3 "$harness" tree-center "$tree" sidebar-toggle)" || return 1
+  rm -rf "$empty_vault"; mkdir -p "$empty_vault/Ideas"
+  printf '# Start\n\nNo boards here yet.\n' >"$empty_vault/Start.md"
+  printf '# Idea\n' >"$empty_vault/Ideas/Idea.md"
+  export XDG_CONFIG_HOME="$work/config-x11-new" XDG_STATE_HOME="$work/state-x11-new"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --vault "$empty_vault" >>"$out/logs/x11-new-app.log" 2>&1 &
+  app_pid=$!
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  sleep 2
+  shot 0-write || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 && shot 1-board-empty || return 1
+  find "$empty_vault" -name '*.excalidraw' | grep . && { echo "a board appeared just by entering Board"; return 1; }
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $at && shot 2-created || return 1
+  [ -f "$empty_vault/Ideas/Untitled board.excalidraw" ] || { echo "clicking New board made no file"; ls -R "$empty_vault"; return 1; }
+  grep -q 'created Ideas/Untitled board.excalidraw' "$XDG_STATE_HOME/muninn/session.log" || { echo "no 'created' line in the session log"; return 1; }
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $toggle && shot 3-sidebar-open || return 1
+  cmp -s "$s/x11-new-2-created.png" "$s/x11-new-3-sidebar-open.png" && { echo "the sidebar toggle changed nothing"; return 1; }
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && shot 4-sidebar-shut || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+3 && shot 5-graph || return 1
+  python3 "$harness" x11-close "$wid" || return 1
+  for i in $(seq 100); do kill -0 "$app_pid" 2>/dev/null || break; sleep 0.1; done
+  app_pid=
+  "$roundtrip" "$empty_vault/Ideas/Untitled board.excalidraw" || return 1
+  ls -R "$empty_vault"
+  echo "ok New board under X11 made and opened Untitled board; the sidebar toggled by button and Ctrl+\\"
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 

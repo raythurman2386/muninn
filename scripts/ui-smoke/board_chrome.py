@@ -10,6 +10,17 @@ bar (and the zoom controls) slide back across the bottom of the board.
                                                    the zoom controls exactly as BASE
     board_chrome.py shifted BASE OUT DX            BASE with the chrome moved DX px
                                                    (the negative control)
+    board_chrome.py x11-key-burst WID CHORD DIR NAME N
+                                                   press CHORD (e.g. ctrl+backslash, the
+                                                   sidebar toggle); grab before, N quick
+                                                   frames, then once settled
+    board_chrome.py jump BASE SETTLED FRAME...     slice 8: the sidebar toggle moves the
+                                                   canvas, so its chrome may move, but
+                                                   only in one step: the bottom strip of
+                                                   every FRAME equals BASE's or
+                                                   SETTLED's (no frame in between)
+    board_chrome.py midway BASE SETTLED OUT        BASE's bottom strip half way to
+                                                   SETTLED's (the negative control)
 """
 import json
 import os
@@ -110,8 +121,84 @@ def shifted(base, out, dx):
     print(f"ok wrote {out}")
 
 
+STRIP = 70
+
+
+def strip(path):
+    im = Image.open(path).convert("RGB")
+    w, h = im.size
+    return im.crop((0, h - STRIP, w, h))
+
+
+def differs(a, b):
+    diff = ImageChops.difference(a, b).convert("L")
+    return diff.point(lambda v: 255 if v > 40 else 0).histogram()[255]
+
+
+def x11_key_burst(wid, chord, out, name, n):
+    from Xlib import X, XK
+    from Xlib.ext import xtest
+
+    d = harness.display()
+    w = harness.focus(d, wid)
+    time.sleep(0.4 * SLOW)
+    grab(d, w).save(f"{out}/{name}-base.png")
+    names = {"ctrl": "Control_L", "shift": "Shift_L", "alt": "Alt_L"}
+    codes = [d.keysym_to_keycode(XK.string_to_keysym(names.get(k, k))) for k in chord.split("+")]
+    if 0 in codes:
+        die(f"unknown key in {chord}")
+    for code in codes:
+        xtest.fake_input(d, X.KeyPress, code)
+        d.sync()
+        time.sleep(0.02)
+    for code in reversed(codes):
+        xtest.fake_input(d, X.KeyRelease, code)
+    d.sync()
+    t0 = time.monotonic()
+    times = []
+    for i in range(int(n)):
+        grab(d, w).save(f"{out}/{name}-{i:02d}.png")
+        times.append(time.monotonic() - t0)
+        time.sleep(0.02)
+    time.sleep(1.0 * SLOW)
+    grab(d, w).save(f"{out}/{name}-settled.png")
+    span = ", ".join(f"{t:.2f}" for t in times)
+    print(f"ok pressed {chord}; {n} frames at {span} s after the release, then settled")
+
+
+def jump(base, settled, *frames):
+    b, s = strip(base), strip(settled)
+    if differs(b, s) <= 6:
+        die(f"{os.path.basename(settled)}: the toggle changed nothing in the bottom {STRIP} px")
+    worst = 0
+    for f in frames:
+        im = strip(f)
+        best = min(differs(b, im), differs(s, im))
+        worst = max(worst, best)
+        if best > 6:
+            die(f"{os.path.basename(f)}: the bottom chrome is between where it was and where it settled ({best} px differ from both): it slid")
+    print(f"ok {len(frames)} frames: each shows the bottom chrome before or after the toggle, nothing between (at most {worst} px differ)")
+
+
+def midway(base, settled, out):
+    b = Image.open(base).convert("RGB")
+    s = Image.open(settled).convert("RGB")
+    w, h = b.size
+    m = b.copy()
+    m.paste(Image.blend(strip(base), strip(settled), 0.5), (0, h - STRIP))
+    m.save(out)
+    print(f"ok wrote {out}")
+
+
 def main(argv):
-    commands = {"x11-burst": x11_burst, "still": still, "shifted": shifted}
+    commands = {
+        "x11-burst": x11_burst,
+        "still": still,
+        "shifted": shifted,
+        "x11-key-burst": x11_key_burst,
+        "jump": jump,
+        "midway": midway,
+    }
     if len(argv) < 2 or argv[1] not in commands:
         print(__doc__, file=sys.stderr)
         sys.exit(2)
