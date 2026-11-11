@@ -25,6 +25,7 @@ fn unique_dir(tag: &str) -> PathBuf {
     ));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("temp dir");
+    muninn_core::testing::remove_on_thread_exit(&dir);
     dir
 }
 
