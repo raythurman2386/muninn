@@ -847,6 +847,11 @@ fn surface(s: &State, k: &Kit) -> El {
                 .to_string_lossy()
                 .replace('\\', "/"),
         ),
+        // Slice 8: with no boards at all there is nothing on the left to pick.
+        (None, None) if s.boards.is_empty() => (
+            "No boards yet".to_owned(),
+            "Make one with New board".to_owned(),
+        ),
         // Parked P5: nothing is picked, so no board is "empty".
         (None, None) => (
             "No board selected".to_owned(),

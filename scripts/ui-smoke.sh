@@ -1474,6 +1474,7 @@ step_headless_new_board() {
   python3 "$harness" tree-mode "$t/new-empty.json" board || return 1
   python3 "$harness" tree-text "$t/new-empty.json" board-new-empty "New board" || return 1
   python3 "$harness" tree-text "$t/new-empty.json" board-list-empty "No boards in this vault yet" || return 1
+  python3 "$harness" tree-text "$t/new-empty.json" board-surface-title "No boards yet" || return 1
   no_key "$t/new-empty.json" search-box || return 1
   listing >"$m/after-open.txt"
   diff "$m/before.txt" "$m/after-open.txt" || { echo "opening Board wrote into the vault"; return 1; }

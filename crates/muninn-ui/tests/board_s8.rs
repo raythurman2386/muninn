@@ -112,6 +112,19 @@ fn board_mode_in_a_vault_with_no_boards_writes_nothing_and_offers_new_board() {
         "and so does the Boards panel"
     );
     assert_eq!(files(tmp.path()), before, "opening Board writes nothing");
+    // Raymond's screenshot: with no boards at all, "No board selected / Pick a
+    // board on the left" points at a list that is empty.
+    let title = app
+        .rt
+        .elements()
+        .into_iter()
+        .find(|e| e.key.as_deref() == Some("board-surface-title"))
+        .and_then(|e| e.text)
+        .unwrap_or_default();
+    assert_eq!(
+        title, "No boards yet",
+        "the heading says why, not 'pick one'"
+    );
 }
 
 #[test]
