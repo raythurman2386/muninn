@@ -8,7 +8,8 @@
 //!   removed is never written over: the save is refused and the conflict bar
 //!   (Keep mine / Save copy / Load theirs) decides. A move drag, a drawing
 //!   drag or an open text editor is never saved half-way. A failed save is not
-//!   retried on its own; the bar or `⌘S` does that.
+//!   retried on its own; the bar or `⌘S` does that. `"board_autosave":
+//!   false` in `settings.json` turns it off (`⌘S` and the quit save remain).
 //! - **Watcher.** Every `WATCH_INTERVAL` while Board is showing, each listed
 //!   board's file metadata (modified time and length; no contents) is
 //!   compared with the last look. The open board, when it changed: a clean
@@ -41,7 +42,7 @@ impl State {
     /// `true` when the status line changed (saved or failed).
     pub(crate) fn board_autosave_tick(&mut self, t: f64) -> bool {
         let delay = self.autosave_delay().max(BOARD_AUTOSAVE_MIN);
-        let busy = self.board_text.is_some();
+        let busy = self.board_text.is_some() || !self.settings.board_autosave;
         let Some(open) = &self.board_open else {
             self.board_autosave_wait = None;
             return false;
@@ -148,6 +149,35 @@ impl State {
             visible = true;
         }
         visible
+    }
+
+    /// When the next poll is needed for slice 7's timed work, so a resting
+    /// window (which polls only at a wake it asked for) still runs it: soon
+    /// while an autosave, a recovery copy or a settings write is pending,
+    /// and at the watcher's next look while Board shows.
+    pub(crate) fn board_wake(&self, t: f64) -> Option<std::time::Duration> {
+        const PENDING: f64 = 0.25;
+        // An unsaved board that autosave or the recovery copy has yet to
+        // reach counts from its first change, before either has started its
+        // wait (a key's change lands after this frame's poll).
+        let unwritten = self.board_open.as_ref().is_some_and(|open| {
+            let autosave = self.settings.board_autosave
+                && open.status == BoardStatus::Unsaved
+                && open.conflict.is_none();
+            let copy = open.dirty() && open.recovered_at != Some(open.generation);
+            autosave || copy
+        });
+        let pending = unwritten
+            || self.board_autosave_wait.is_some()
+            || self.board_recovery_wait.is_some()
+            || self.settings_due.is_some();
+        let watch = (self.mode == Mode::Board)
+            .then(|| (crate::state::WATCH_INTERVAL - (t - self.last_board_watch)).max(0.0));
+        let next = match (pending.then_some(PENDING), watch) {
+            (Some(a), Some(b)) => a.min(b),
+            (a, b) => a.or(b)?,
+        };
+        Some(std::time::Duration::from_secs_f64(next))
     }
 
     /// After Muninn itself wrote `path`: the board watcher and the vault

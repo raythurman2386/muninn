@@ -126,8 +126,11 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     // This is invisible on screen, so it must not report a change.
     s.recovery_tick(t);
     // #38 review B2: the same for an unsaved board, after each change.
-    // #40 recheck B1: and ask for the poll it still needs (typing at rest).
-    if let Some(wake) = s.board_recovery_poll(t) {
+    // #40 recheck B1: the copy may still need a poll (typing at rest), and
+    // slice 7 keeps the board watcher, autosave and settings write on time:
+    // a resting window polls only at a wake it asked for.
+    let recovery = s.board_recovery_poll(t);
+    if let Some(wake) = [recovery, s.board_wake(t)].into_iter().flatten().min() {
         tx.wake_after(wake);
     }
 

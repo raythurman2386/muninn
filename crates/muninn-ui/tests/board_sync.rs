@@ -27,7 +27,11 @@ fn vault() -> TempVault {
 }
 
 fn launch(root: &Path) -> App {
-    let (config, state_home) = (TempVault::new(&[]), TempVault::new(&[]));
+    launch_with(root, TempVault::new(&[]))
+}
+
+fn launch_with(root: &Path, config: TempVault) -> App {
+    let state_home = TempVault::new(&[]);
     let state = State::with_settings(
         root.to_path_buf(),
         state_home.path().to_path_buf(),
@@ -214,6 +218,30 @@ fn autosave_writes_the_board_once_it_rests_and_not_mid_gesture() {
 }
 
 #[test]
+fn autosave_can_be_turned_off_in_settings() {
+    let tmp = vault();
+    let config = TempVault::new(&[("muninn/settings.json", r#"{"board_autosave": false}"#)]);
+    assert!(!Settings::load_from(config.path()).board_autosave);
+    assert!(Settings::default().board_autosave, "on by default");
+    let mut app = launch_with(tmp.path(), config);
+    open(&mut app.rt);
+    nudge(&mut app.rt);
+    frames(&mut app.rt, 900);
+    assert_eq!(
+        fs::read_to_string(board_file(&tmp)).unwrap(),
+        DRAW,
+        "15 s later"
+    );
+    assert_eq!(status(&app.rt), BoardStatus::Unsaved);
+    assert!(app.rt.state.save_board(), "⌘S still saves");
+    let kept = Settings::load_from(app.config.path());
+    assert!(
+        !kept.board_autosave,
+        "the setting survives the app's own writes"
+    );
+}
+
+#[test]
 fn autosave_never_writes_over_a_file_another_app_changed() {
     let tmp = vault();
     let mut app = launch(tmp.path());
@@ -299,4 +327,36 @@ fn the_board_list_follows_other_apps_while_on_board() {
     fs::write(tmp.path().join("New.excalidraw"), DRAW).unwrap();
     frames(&mut app.rt, 200);
     assert!(detail(&app.rt, "New").is_some(), "the new board is listed");
+}
+
+#[test]
+fn a_resting_window_on_board_still_wakes_for_the_watcher_and_autosave() {
+    // A real window that rests runs `poll` only at a wake it asked for, so
+    // without one the watcher and autosave would wait for the next input.
+    let tmp = vault();
+    let mut app = launch(tmp.path());
+    open(&mut app.rt);
+    frames(&mut app.rt, 120);
+    let now = app.rt.state.now;
+    let wake = app
+        .rt
+        .wake_deadline()
+        .expect("Board at rest asks for a wake");
+    assert!(
+        wake - now <= 1.5 + 1e-6,
+        "the watcher's next look is due within its interval, not {:.2} s",
+        wake - now
+    );
+    nudge(&mut app.rt);
+    frames(&mut app.rt, 1);
+    let now = app.rt.state.now;
+    let wake = app
+        .rt
+        .wake_deadline()
+        .expect("an unsaved board asks for a wake");
+    assert!(
+        wake - now <= 0.3,
+        "the pending autosave and recovery copy wake soon, not in {:.2} s",
+        wake - now
+    );
 }
