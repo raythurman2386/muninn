@@ -239,6 +239,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | Drag with a tool (board) | Draw that shape; the tool stays picked |
 | `T` / `8` (board), then click | Place text and type it in place (`Enter` breaks the line; `Esc` or a click outside commits; empty text is discarded) |
 | Double-click text (board) | Edit that text in place (emptying it deletes it); `⌘Z` while typing undoes typing |
+| Double-click a shape or its label (board) | Edit the label inside that shape in place; it stays centred in the shape |
 | `V` / `1` (board) | Drop the drawing tool (back to selecting) |
 | Click / Shift+click (board) | Select an element (its outermost group) / add or remove it |
 | Drag on empty canvas (board) | Marquee: select the elements wholly inside it (Shift adds) |

@@ -63,7 +63,14 @@ All notable changes to Muninn are documented here. The format is based on
   adds nothing, and emptying existing text deletes it as a tombstone. Each
   commit is one undoable edit that bumps `version`, `versionNonce` and
   `updated`. While typing, Board and Graph keys stay in the editor and `⌘Z`
-  undoes typing. Text inside shapes (bound text) is not part of this slice.
+  undoes typing. Double-clicking a shape with a label inside it (or the
+  label) edits that label in place; it stays bound (`containerId`,
+  `boundElements`) and is re-centred in the shape on commit. A label inside
+  a locked shape is locked with it. Adding a label to a shape without one is
+  not part of this slice. Text typed but not yet committed counts as
+  unsaved: the recovery copy includes it once typing rests (0.5 s, at most
+  every 2 s), so a crash while typing loses nothing, and quitting or saving
+  mid-edit commits it.
 - Unsaved board drawing is never lost: if the board's file is removed,
   renamed or changed by another app, the board stays open and, once Muninn
   notices (when the boards are re-listed — entering Board, a vault reload or
