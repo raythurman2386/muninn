@@ -397,7 +397,9 @@ step_x11_board() {
   row="$(python3 "$harness" tree-center "$tree" board-row-1)" || return 1
   read -r cx cy < <(python3 "$harness" tree-center "$tree" board-canvas) || return 1
   launch || return 1
-  python3 "$harness" x11-chord "$wid" ctrl+4 || return 1
+  # Let the Board page finish appearing first: a click during its entrance can miss
+  # the row (seen once in about ten runs).
+  python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 1-fit || return 1
   python3 "$pixels" fit "$s/x11-board-1-fit.png" "$tree" "$smoke_fixture" "$m/fit.json" || return 1
   python3 "$harness" x11-drag "$wid" "$cx" "$cy" 120 60 && shot 2-panned || return 1
