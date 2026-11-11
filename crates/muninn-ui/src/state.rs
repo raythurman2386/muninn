@@ -435,6 +435,11 @@ pub struct State {
     pub collapsed: HashSet<String>,
     /// Open right-click menu, if any.
     pub menu: Option<ContextMenu>,
+    /// Board slice 8: whether the notes sidebar shows outside Board (the
+    /// user's own choice; on at launch) and on Board (off at launch, so the
+    /// canvas gets the room; reopening it there holds for the session).
+    pub sidebar_open: bool,
+    pub sidebar_open_board: bool,
     /// Inline name field for a note being created. Empty/cancel creates nothing.
     pub new_note_prompt: Option<NamePrompt>,
     pub new_note_field: TextEdit,
@@ -726,6 +731,8 @@ impl State {
             now: 0.0,
             collapsed,
             menu: None,
+            sidebar_open: true,
+            sidebar_open_board: false,
             new_note_prompt: None,
             new_note_field: TextEdit::new(""),
             rename_prompt: None,

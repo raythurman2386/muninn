@@ -6,6 +6,7 @@
 mod autostart;
 mod board_camera;
 mod board_edit;
+mod board_new;
 mod board_safety;
 mod board_scene;
 mod board_sync;

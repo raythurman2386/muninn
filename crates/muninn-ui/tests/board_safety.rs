@@ -353,6 +353,11 @@ fn typing_in_the_sidebar_search_on_board_never_picks_a_tool_or_zooms() {
     let tmp = vault();
     let mut s = launch(tmp.path());
     open_draw(&mut s.rt);
+    // Slice 8: the notes sidebar is collapsed on Board; reopen it to search.
+    // The canvas narrows when it opens, so take the view after that.
+    if !s.rt.state.sidebar_shown() {
+        click(&mut s.rt, "sidebar-toggle");
+    }
     let view = s.rt.state.board_view();
     click(&mut s.rt, "search-box");
     assert!(s.rt.state.search.focused);
@@ -377,6 +382,10 @@ fn typing_in_the_sidebar_search_on_graph_never_fires_graph_keys() {
     let mut s = launch(tmp.path());
     mode(&mut s.rt, '3');
     assert_eq!(s.rt.state.mode, Mode::Graph);
+    // Slice 8: the notes sidebar is collapsed on Board; reopen it to search.
+    if !s.rt.state.sidebar_shown() {
+        click(&mut s.rt, "sidebar-toggle");
+    }
     click(&mut s.rt, "search-box");
     assert!(s.rt.state.search.focused);
     for c in "f0+-i".chars() {
@@ -436,6 +445,10 @@ fn clicking_the_canvas_after_searching_gives_the_keys_back_to_the_board() {
     let tmp = vault();
     let mut s = launch(tmp.path());
     open_draw(&mut s.rt);
+    // Slice 8: the notes sidebar is collapsed on Board; reopen it to search.
+    if !s.rt.state.sidebar_shown() {
+        click(&mut s.rt, "sidebar-toggle");
+    }
     click(&mut s.rt, "search-box");
     s.rt.key(plain(Key::Text("x".into())));
     frames(&mut s.rt, 1);

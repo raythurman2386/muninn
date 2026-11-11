@@ -467,6 +467,13 @@ fn typing_in_the_sidebar_search_never_deletes_selects_all_or_undoes_on_board() {
     click(&mut rt, RECT);
     plain(&mut rt, Key::Right);
     let nudged = shape(&rt, "keep-rect");
+    // Slice 8: the notes sidebar is collapsed on Board; reopen it to search.
+    if !rt.state.sidebar_shown() {
+        let (x, y) = rt.find("sidebar-toggle").expect("the sidebar toggle");
+        rt.pointer_down(x, y);
+        rt.pointer_up(x, y);
+        frames(&mut rt, 2);
+    }
     let (x, y) = rt.find("search-box").expect("search");
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);

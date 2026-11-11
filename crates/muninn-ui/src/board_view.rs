@@ -737,6 +737,27 @@ fn header(s: &State, k: &Kit) -> El {
                 .color(k.c.text_faint),
         )
         .child(spacer())
+        .child(new_board_button(k, "board-new"))
+}
+
+/// Slice 8: New board (an empty `Untitled board.excalidraw`, opened).
+fn new_board_button(k: &Kit, key: &str) -> El {
+    row()
+        .key(key.to_owned())
+        .h(28.0)
+        .px(10.0)
+        .gap(6.0)
+        .radius(7.0)
+        .center_y()
+        .border(1.0, k.c.border_muted)
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .role("button")
+        .label("New board")
+        .on_press(|s: &mut State| s.new_board())
+        .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
+        .child(text("New board").font(k.ty.ui_compact).color(k.c.text_base))
 }
 
 fn board_list(s: &State, k: &Kit) -> El {
@@ -867,12 +888,21 @@ fn surface(s: &State, k: &Kit) -> El {
             Ok(scene) => board_canvas(s, k, open, scene),
             Err(e) => placeholder(k, &ic::DOT_GRID, "This board could not be read", e),
         },
+        // Slice 8: an empty Board offers a way in, not just a message.
+        None if s.boards.is_empty() => placeholder(
+            k,
+            &ic::DOT_GRID,
+            "No boards in this vault yet",
+            "A board is an Excalidraw file in your vault. Make one to start drawing.",
+        )
+        .child(new_board_button(k, "board-new-empty")),
         None => placeholder(
             k,
             &ic::DOT_GRID,
             "No board open",
-            "Pick a board on the left. Boards are Excalidraw files in your vault.",
-        ),
+            "Pick a board on the left, or make a new one. Boards are Excalidraw files in your vault.",
+        )
+        .child(new_board_button(k, "board-new-empty")),
     };
     col()
         .key("board-surface")

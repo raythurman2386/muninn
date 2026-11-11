@@ -13,7 +13,7 @@ pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     shortcut(s, e, tx)
 }
 
-pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
+pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     // Escape dismisses the topmost layer (see `Layer` / `State::topmost_layer`)
     // before falling through to the graph escape below. Text fields handle
     // Escape first and never reach here.
@@ -83,6 +83,14 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         return true;
     }
     if !typing {
+        // Slice 8: Cmd/Ctrl+\\ shows or hides the notes sidebar (Board keeps
+        // its own state). Not from a text field: there it is the field's.
+        if e.is_command('\\') {
+            s.toggle_sidebar();
+            // The canvas and its chrome move at once, not with a glide.
+            tx.instant();
+            return true;
+        }
         if e.key == Key::Text("?".to_owned()) {
             s.toggle_help();
             return true;

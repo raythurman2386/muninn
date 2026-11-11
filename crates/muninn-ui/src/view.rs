@@ -49,8 +49,15 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
             s.reject_drop(files);
             tx.instant();
         })
-        .child(sidebar(s, &k))
-        .child(divider(&k))
+        // Slice 8: the sidebar can be hidden. Its two slots stay in the tree
+        // (empty when hidden) so the main column keeps its place and the
+        // toggle moves things at once instead of sliding them.
+        .child(if s.sidebar_shown() {
+            sidebar(s, &k)
+        } else {
+            el().key("sidebar-hidden")
+        })
+        .child(if s.sidebar_shown() { divider(&k) } else { el() })
         .child(main_column(s, &k));
     if s.palette.is_some() {
         base = base.child(palette_layer(s, &k));
@@ -3294,6 +3301,7 @@ fn topbar(s: &State, k: &Kit) -> El {
         .px(20.0)
         .gap(12.0)
         .center_y()
+        .child(sidebar_toggle(s, k))
         .child(history_button(
             k,
             "history-back",
@@ -3310,6 +3318,31 @@ fn topbar(s: &State, k: &Kit) -> El {
         ))
         .child(title_col)
         .child(mode_switch(s, k))
+}
+
+/// Slice 8: show or hide the notes sidebar (also Cmd/Ctrl+\\).
+fn sidebar_toggle(s: &State, k: &Kit) -> El {
+    pressable(k, "sidebar-toggle".to_owned())
+        .size(26.0, 26.0)
+        .center()
+        .border(1.0, k.c.border_muted)
+        .role("button")
+        .label(if s.sidebar_shown() {
+            "Hide sidebar"
+        } else {
+            "Show sidebar"
+        })
+        .on_press_tx(|s: &mut State, tx: &mut Tx| {
+            s.toggle_sidebar();
+            tx.instant();
+        })
+        .child(
+            icon(&rune_kit::shell::SIDEBAR, 14.0).color(if s.sidebar_shown() {
+                k.c.text_muted
+            } else {
+                k.c.text_accent
+            }),
+        )
 }
 
 /// M2 NAV-03: a compact Back/Forward chip. Disabled chips dim but keep their
