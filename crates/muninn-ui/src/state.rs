@@ -1983,6 +1983,7 @@ impl State {
         self.complete = None;
         self.complete_dismissed = None;
         self.dismiss_palette();
+        self.reveal_sidebar();
         self.set_text_focus(false, true);
     }
 
@@ -3335,6 +3336,7 @@ impl State {
     /// Shared start for the sidebar's inline fields: close the pointer menu and
     /// hand the keyboard to a prompt instead of the editor or search box.
     fn begin_inline_prompt(&mut self) {
+        self.reveal_sidebar();
         self.dismiss_palette();
         self.menu = None;
         self.vault_field.focused = false;

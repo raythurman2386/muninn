@@ -32,6 +32,15 @@ impl State {
         }
     }
 
+    /// Show the sidebar in the current mode if it is hidden. Cmd+K and the
+    /// inline prompts call this before taking the keyboard, so the field
+    /// that gets it is on screen (on Board the sidebar starts collapsed).
+    pub(crate) fn reveal_sidebar(&mut self) {
+        if !self.sidebar_shown() {
+            self.toggle_sidebar();
+        }
+    }
+
     /// The notes sidebar just went out of sight (its toggle, or a mode
     /// switch that collapses it): its fields go with it, so none is left
     /// holding the keyboard. Search lets go of focus and the inline

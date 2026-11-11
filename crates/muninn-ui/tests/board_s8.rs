@@ -487,3 +487,25 @@ fn hiding_the_sidebar_with_its_toggle_cancels_the_folder_prompts_too() {
         );
     }
 }
+
+#[test]
+fn search_and_new_note_on_board_show_the_sidebar_they_type_into() {
+    // Cmd+K and Cmd+N hand the keyboard to a sidebar field; on Board, where
+    // the sidebar starts collapsed, that field must not be out of sight.
+    for (what, c) in [("search", 'k'), ("new note", 'n')] {
+        let (_tmp, mut app) = board_then_write();
+        command(&mut app.rt, '4');
+        frames(&mut app.rt, 10);
+        assert!(!app.rt.state.sidebar_shown());
+        command(&mut app.rt, c);
+        frames(&mut app.rt, 30);
+        assert!(
+            app.rt.state.is_typing(),
+            "{what}: the field has the keyboard"
+        );
+        assert!(
+            app.rt.state.sidebar_shown() && sidebar(&app.rt),
+            "{what}: the field it types into is on screen"
+        );
+    }
+}
