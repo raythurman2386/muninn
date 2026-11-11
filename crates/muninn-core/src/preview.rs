@@ -260,7 +260,7 @@ fn attachment_name(target: &str) -> Option<&str> {
 }
 
 /// `true` for an Excalidraw board's file name (`Plan.excalidraw`).
-fn is_board_name(name: &str) -> bool {
+pub(crate) fn is_board_name(name: &str) -> bool {
     name.rsplit_once('.')
         .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case(crate::BOARD_EXTENSION))
 }

@@ -27,5 +27,5 @@ pub use board::{
 };
 pub use note::Note;
 pub use preview::Attachment;
-pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy};
+pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy, board_name};
 pub use wikilink::{WikiLink, heading_offset, headings, parse_links, unclosed_link};
