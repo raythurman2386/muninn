@@ -37,7 +37,37 @@ pub(crate) fn file_state(path: &Path) -> Option<FileState> {
     Some((meta.modified().ok(), meta.len()))
 }
 
+/// What a watcher may do with the open board when its file changed on disk.
+/// Both watchers (the board watcher and the vault watcher's
+/// `refresh_boards`) ask [`State::open_board_disk_rule`], so they cannot
+/// drift apart (#41 review GK2b: an atomic save reaches the vault watcher
+/// first, and it used to reload under the open text editor).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OpenBoardDiskRule {
+    /// Unsaved drawing, or text typed into the editor and not committed:
+    /// flag their change (`check_disk`), never reload.
+    Flag,
+    /// A gesture, a draft or an open editor with nothing typed: do not
+    /// reload under it (the editor's commit would write the old text back
+    /// over theirs); look again once it is over.
+    Later,
+    /// Clean and idle: re-read the file.
+    Reload,
+}
+
 impl State {
+    /// The rule for the open board, if one is open. See [`OpenBoardDiskRule`].
+    pub(crate) fn open_board_disk_rule(&self) -> Option<OpenBoardDiskRule> {
+        let open = self.board_open.as_ref()?;
+        Some(if open.dirty() || self.board_text_pending().is_some() {
+            OpenBoardDiskRule::Flag
+        } else if open.edit.gesture.is_some() || open.draft.is_some() || self.board_text.is_some() {
+            OpenBoardDiskRule::Later
+        } else {
+            OpenBoardDiskRule::Reload
+        })
+    }
+
     /// Per frame: autosave the open board once its drawing has rested.
     /// `true` when the status line changed (saved or failed).
     pub(crate) fn board_autosave_tick(&mut self, t: f64) -> bool {
@@ -122,13 +152,12 @@ impl State {
         // yet is unsaved work too, so their change raises the conflict; and
         // an open editor is never reloaded under, even with nothing typed
         // (its commit would write the old text over theirs).
-        let typing = self.board_text_pending().is_some();
-        let editor_open = self.board_text.is_some();
+        let rule = self.open_board_disk_rule();
         let mut visible = false;
         for path in changed {
             let open = self.board_open.as_mut().filter(|open| open.path == path);
             if let Some(open) = open {
-                if open.dirty() || typing {
+                if rule == Some(OpenBoardDiskRule::Flag) {
                     let was = open.conflict;
                     open.check_disk();
                     if open.conflict != was {
@@ -137,7 +166,7 @@ impl State {
                     }
                     continue;
                 }
-                if open.edit.gesture.is_some() || open.draft.is_some() || editor_open {
+                if rule == Some(OpenBoardDiskRule::Later) {
                     // Look again next time, once the gesture is over or the
                     // editor has closed.
                     self.board_stats.remove(&path);

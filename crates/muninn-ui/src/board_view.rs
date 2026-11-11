@@ -33,6 +33,7 @@ use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
 use crate::board_camera::{BoardCam, BoardView, KEY_PAN, KEY_ZOOM, WHEEL_IN, WHEEL_OUT};
+use crate::board_sync::OpenBoardDiskRule;
 use crate::board_tools::{self, Draft, fingerprint};
 use crate::{BoardScene, Mode, State};
 
@@ -372,12 +373,35 @@ impl State {
         // #38 review B1: unsaved drawing is never dropped. Its file may have
         // been removed, renamed or changed meanwhile; the board stays open,
         // flagged, until the user saves it somewhere or discards it.
-        if let Some(open) = &mut self.board_open
-            && open.dirty()
-        {
-            open.check_disk();
-            self.board_selected = Some(open.path.clone());
-            return;
+        //
+        // #41 review GK2b: the same rule as the board watcher. An atomic save
+        // by another app (temp file + rename) changes the folder's time, so
+        // this vault-watcher path sees it first: typed, uncommitted text is
+        // unsaved work (flag, never reload), and an open editor with nothing
+        // typed is not reloaded under (the board watcher looks again once
+        // it closes).
+        match self.open_board_disk_rule() {
+            Some(OpenBoardDiskRule::Flag) => {
+                if let Some(open) = &mut self.board_open {
+                    let was = open.conflict;
+                    open.check_disk();
+                    let flagged = open.conflict != was;
+                    self.board_selected = Some(open.path.clone());
+                    if flagged {
+                        self.log_event("watch", "open board changed on disk; kept unsaved");
+                    }
+                }
+                return;
+            }
+            Some(OpenBoardDiskRule::Later) => {
+                if let Some(open) = &self.board_open {
+                    let path = open.path.clone();
+                    self.board_stats.remove(&path);
+                    self.board_selected = Some(path);
+                }
+                return;
+            }
+            Some(OpenBoardDiskRule::Reload) | None => {}
         }
         if let Some(path) = &self.board_selected
             && !self.boards.iter().any(|b| &b.file.path == path)

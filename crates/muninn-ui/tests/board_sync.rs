@@ -414,12 +414,42 @@ fn disk_text(tmp: &TempVault) -> (String, bool) {
     )
 }
 
+/// How another app writes the board. #41 GK2b: an atomic save (temp file,
+/// then rename over the board, as most apps and Muninn itself write) also
+/// changes the folder's time, so the vault watcher sees it first.
+#[derive(Clone, Copy, Debug)]
+enum Write {
+    InPlace,
+    Atomic,
+}
+
+fn write_theirs(tmp: &TempVault, body: &str, how: Write) {
+    match how {
+        Write::InPlace => fs::write(board_file(tmp), body).unwrap(),
+        Write::Atomic => {
+            let temp = tmp.path().join(".theirs.tmp");
+            fs::write(&temp, body).unwrap();
+            fs::rename(&temp, board_file(tmp)).unwrap();
+        }
+    }
+}
+
 fn conflict(rt: &Runtime<State>) -> bool {
     rt.state.board_open.as_ref().unwrap().conflict.is_some()
 }
 
 #[test]
 fn typing_in_a_label_another_app_changed_raises_the_conflict_and_never_overwrites_theirs() {
+    label_changed_under_typing(Write::InPlace);
+}
+
+#[test]
+fn typing_in_a_label_another_app_saved_atomically_raises_the_conflict_and_never_overwrites_theirs()
+{
+    label_changed_under_typing(Write::Atomic);
+}
+
+fn label_changed_under_typing(how: Write) {
     let tmp = vault();
     let mut app = launch(tmp.path());
     open(&mut app.rt);
@@ -430,11 +460,11 @@ fn typing_in_a_label_another_app_changed_raises_the_conflict_and_never_overwrite
         el["text"] = "keep me THEIRS".into();
         el["originalText"] = "keep me THEIRS".into();
     });
-    fs::write(board_file(&tmp), &other).unwrap();
+    write_theirs(&tmp, &other, how);
     frames(&mut app.rt, 200);
     assert!(
         conflict(&app.rt),
-        "their change is flagged, not reloaded under the editor"
+        "{how:?}: their change is flagged, not reloaded under the editor"
     );
     assert_eq!(
         app.rt.state.board_text_field.text, "keep me LOCAL",
@@ -445,7 +475,7 @@ fn typing_in_a_label_another_app_changed_raises_the_conflict_and_never_overwrite
     assert_eq!(
         disk_text(&tmp),
         ("keep me THEIRS".to_owned(), false),
-        "autosave never writes over their edit"
+        "{how:?}: autosave never writes over their edit"
     );
     assert_eq!(
         shape(&app.rt, "keep-text").text.unwrap().text,
@@ -457,28 +487,37 @@ fn typing_in_a_label_another_app_changed_raises_the_conflict_and_never_overwrite
 
 #[test]
 fn typing_in_a_label_another_app_deleted_keeps_the_typed_text() {
+    label_deleted_under_typing(Write::InPlace);
+}
+
+#[test]
+fn typing_in_a_label_another_app_deleted_atomically_keeps_the_typed_text() {
+    label_deleted_under_typing(Write::Atomic);
+}
+
+fn label_deleted_under_typing(how: Write) {
     let tmp = vault();
     let mut app = launch(tmp.path());
     open(&mut app.rt);
     double_click(&mut app.rt, TEXT);
     type_str(&mut app.rt, " LOCAL");
-    fs::write(board_file(&tmp), theirs(|el| el["isDeleted"] = true.into())).unwrap();
+    write_theirs(&tmp, &theirs(|el| el["isDeleted"] = true.into()), how);
     frames(&mut app.rt, 200);
-    assert!(conflict(&app.rt), "their delete is flagged");
+    assert!(conflict(&app.rt), "{how:?}: their delete is flagged");
     assert_eq!(app.rt.state.board_text_field.text, "keep me LOCAL");
     plain(&mut app.rt, Key::Escape);
     frames(&mut app.rt, 300);
     assert_eq!(
         disk_text(&tmp),
         ("keep me".to_owned(), true),
-        "theirs stays on disk"
+        "{how:?}: theirs stays on disk"
     );
     let mine = shape(&app.rt, "keep-text");
     assert!(!mine.is_deleted);
     assert_eq!(
         mine.text.unwrap().text,
         "keep me LOCAL",
-        "the typed text is kept"
+        "{how:?}: the typed text is kept"
     );
     let copy =
         fs::read_to_string(app.rt.state.recovery_path("Draw.excalidraw")).expect("a recovery copy");
@@ -490,6 +529,15 @@ fn typing_in_a_label_another_app_deleted_keeps_the_typed_text() {
 
 #[test]
 fn an_open_editor_with_nothing_typed_waits_and_then_shows_their_change() {
+    nothing_typed_then_their_change(Write::InPlace);
+}
+
+#[test]
+fn an_open_editor_with_nothing_typed_waits_and_then_shows_their_atomic_save() {
+    nothing_typed_then_their_change(Write::Atomic);
+}
+
+fn nothing_typed_then_their_change(how: Write) {
     let tmp = vault();
     let mut app = launch(tmp.path());
     open(&mut app.rt);
@@ -499,24 +547,29 @@ fn an_open_editor_with_nothing_typed_waits_and_then_shows_their_change() {
         el["text"] = "keep me THEIRS".into();
         el["originalText"] = "keep me THEIRS".into();
     });
-    fs::write(board_file(&tmp), &other).unwrap();
+    write_theirs(&tmp, &other, how);
     frames(&mut app.rt, 200);
     assert!(
         app.rt.state.board_text.is_some(),
         "not reloaded under the editor"
     );
+    assert_eq!(
+        app.rt.state.board_text_field.text, "keep me",
+        "{how:?}: the open editor still shows what it opened on"
+    );
     plain(&mut app.rt, Key::Escape);
     frames(&mut app.rt, 300);
     assert_eq!(
-        shape(&app.rt, "keep-text").text.unwrap().text,
-        "keep me THEIRS"
-    );
-    assert_eq!(status(&app.rt), BoardStatus::Clean);
-    assert_eq!(
         fs::read_to_string(board_file(&tmp)).unwrap(),
         other,
-        "nothing written"
+        "{how:?}: nothing written over theirs"
     );
+    assert_eq!(
+        shape(&app.rt, "keep-text").text.unwrap().text,
+        "keep me THEIRS",
+        "{how:?}: their change shows once the editor closes"
+    );
+    assert_eq!(status(&app.rt), BoardStatus::Clean);
 }
 
 // Raymond's hands-on report: the canvas chrome (the key hint bar, and the
