@@ -16,7 +16,7 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
 
 | Crate | May depend on | Why |
 | --- | --- | --- |
-| `muninn-core` | nothing in the workspace | Pure domain model; fast unit tests. |
+| `muninn-core` | nothing in the workspace | Pure domain model; fast unit tests. Its only external dependency is `serde_json`, for board files. |
 | `muninn-graph` | `muninn-core` | Needs note ids and links, nothing else. |
 | `muninn-sync` | nothing in the workspace | Plans and transfers vault bytes. It does not read the UI or the link index. |
 | `muninn-ui` | `muninn-core`, `muninn-graph`, `muninn-sync`, Rune | Owns state, rendering, input, and the manual sync session. |
@@ -160,6 +160,12 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   (`xdg-open`/`open`/`start`) because Rune's `Tx::open_url` refuses `file:`; drag-drop imports
   copy accepted files into the current folder with the same temp+rename rule and never
   overwrite an existing name.
+- **Boards are files, not notes.** A whiteboard is an Excalidraw `.excalidraw` JSON file in
+  the vault (`muninn_core::Board`). `Vault::boards` lists them with the note scan's own walk
+  (same depth limit, dot-entries skipped) but never adds them to the note index, links or
+  search. Loading keeps every field and element type Muninn does not model, so a save never
+  drops what Excalidraw wrote, and saves use the same atomic temp+rename path as notes.
+  Obsidian's `.excalidraw.md` files end in `.md` and stay notes.
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
   atomic rename. A crash or failed write leaves the previous bytes intact instead of a

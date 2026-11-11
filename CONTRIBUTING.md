@@ -49,6 +49,9 @@ If you add a workspace crate or dependency edge, update the allowed graph in
 - UI changes should have a headless runtime test in `crates/muninn-ui/tests/ui.rs` when the
   behaviour can be driven by keys or pointer events.
 - New graph behaviour should keep the deterministic layout tests passing.
+- `scripts/ui-smoke.sh` launches the real app headless (Rune offscreen tooling, then a windowed
+  run on a private Xvfb display), switches modes, screenshots each step and checks vault files
+  afterwards. Usage and requirements are in its header; output lands in `target/ui-smoke`.
 - Snapshot images are proof for a PR, not committed fixtures. Use
   `cargo run -p xtask -- snapshots` and attach what changed.
 
