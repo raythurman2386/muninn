@@ -30,7 +30,11 @@
 //!
 //! The selection is drawn as an outline round each selected element and a
 //! box with corner and edge handles round all of them. The handles only
-//! show the selection; resizing is not part of this slice.
+//! show the selection; resizing is not part of this slice, so a press on a
+//! handle does nothing (#39 review M2) instead of moving what is under it.
+//! A text label bound to a shape (`containerId`) goes with it: clicking the
+//! label selects the shape, and moving, deleting, undoing and redoing the
+//! shape carry the label too (#39 review M1, `Board::with_labels`).
 
 use muninn_core::{Change, History, Shape as Element};
 use rune::{Color, Drag, LineCap, Phase, Shape, canvas};
@@ -246,6 +250,10 @@ impl State {
         };
         match d.phase {
             Phase::Down => {
+                if !shift && on_handle(model, &open.edit.selection, view, [d.x, d.y]) {
+                    open.edit.gesture = None;
+                    return;
+                }
                 let tol = f64::from(HIT_SLOP / view.zoom.max(f32::MIN_POSITIVE));
                 let hit = model.hit_test(at, tol).map(|s| s.id.clone());
                 open.edit.gesture = match hit {
@@ -334,6 +342,60 @@ impl State {
     }
 }
 
+/// The selection box (canvas points) the handles sit on: the selection's
+/// bounds plus the outline gap, and a second gap round several elements.
+fn selection_box(
+    model: &muninn_core::Board,
+    sel: &[String],
+    view: crate::BoardView,
+) -> Option<[f32; 4]> {
+    let all = model.bounds_of(sel)?;
+    let a = view.screen([all[0] as f32, all[1] as f32]);
+    let c = view.screen([all[2] as f32, all[3] as f32]);
+    let g = if sel.len() > 1 {
+        2.0 * OUTLINE_GAP
+    } else {
+        OUTLINE_GAP
+    };
+    Some([a[0] - g, a[1] - g, c[0] + g, c[1] + g])
+}
+
+/// The centres of the eight handles on box `r`.
+fn handle_centres(r: [f32; 4]) -> [[f32; 2]; 8] {
+    let (mx, my) = ((r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0);
+    [
+        [r[0], r[1]],
+        [mx, r[1]],
+        [r[2], r[1]],
+        [r[2], my],
+        [r[2], r[3]],
+        [mx, r[3]],
+        [r[0], r[3]],
+        [r[0], my],
+    ]
+}
+
+/// #39 review M2: whether canvas point `p` is on a selection handle. The
+/// handles do not resize yet, so a press on one does nothing (rather than
+/// grabbing the element under it and moving it).
+fn on_handle(
+    model: &muninn_core::Board,
+    sel: &[String],
+    view: crate::BoardView,
+    p: [f32; 2],
+) -> bool {
+    if sel.is_empty() {
+        return false;
+    }
+    let Some(r) = selection_box(model, sel, view) else {
+        return false;
+    };
+    let reach = HANDLE / 2.0 + 2.0;
+    handle_centres(r)
+        .iter()
+        .any(|h| (p[0] - h[0]).abs() <= reach && (p[1] - h[1]).abs() <= reach)
+}
+
 /// The selection outlines, handles and marquee over the canvas, in canvas
 /// points; `None` when there is nothing to draw.
 pub(crate) fn overlay(open: &OpenBoard) -> Option<rune::El> {
@@ -366,28 +428,11 @@ pub(crate) fn overlay(open: &OpenBoard) -> Option<rune::El> {
             shape = boxed(shape, screen(b), 1.0);
         }
     }
-    if let Some(all) = model.bounds_of(sel) {
-        let mut r = screen(all);
+    if let Some(r) = selection_box(model, sel, view) {
         if sel.len() > 1 {
-            r = [
-                r[0] - OUTLINE_GAP,
-                r[1] - OUTLINE_GAP,
-                r[2] + OUTLINE_GAP,
-                r[3] + OUTLINE_GAP,
-            ];
             shape = boxed(shape, r, 1.0);
         }
-        let (mx, my) = ((r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0);
-        for [hx, hy] in [
-            [r[0], r[1]],
-            [mx, r[1]],
-            [r[2], r[1]],
-            [r[2], my],
-            [r[2], r[3]],
-            [mx, r[3]],
-            [r[0], r[3]],
-            [r[0], my],
-        ] {
+        for [hx, hy] in handle_centres(r) {
             let h = HANDLE / 2.0;
             let sq = vec![
                 [hx - h, hy - h],

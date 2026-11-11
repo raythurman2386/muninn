@@ -580,3 +580,90 @@ fn after_an_edit_a_resized_canvas_keeps_the_view_instead_of_refitting() {
     frames(&mut rt, 3);
     assert_eq!(rt.state.board_view(), view, "nor an undo");
 }
+
+#[test]
+fn a_press_on_a_resize_handle_does_nothing_until_resizing_exists() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    click(&mut rt, RECT);
+    assert_eq!(selection(&rt), ids(&["keep-rect"]));
+    let before = shape(&rt, "keep-rect");
+    // keep-rect is 0,0 → 60,40; its top-left handle sits OUTLINE_GAP (4)
+    // outside that corner, and the bottom-right one likewise.
+    for corner in [[0.0, 0.0], [60.0, 40.0]] {
+        let (x, y) = at(&rt, corner);
+        let off = if corner[0] == 0.0 { -4.0 } else { 4.0 };
+        let (x0, y0) = (x + off, y + off);
+        rt.pointer_down(x0, y0);
+        rt.frame(1.0 / 60.0);
+        for step in 1..=8 {
+            rt.pointer_move(x0 + 7.5 * step as f32, y0 + 2.0 * step as f32);
+            rt.frame(1.0 / 60.0);
+        }
+        rt.pointer_up(x0 + 60.0, y0 + 16.0);
+        frames(&mut rt, 2);
+        assert_eq!(
+            shape(&rt, "keep-rect"),
+            before,
+            "grabbing the {corner:?} handle moved it"
+        );
+    }
+    assert_eq!(status(&rt), BoardStatus::Clean, "no edit was recorded");
+    assert_eq!(selection(&rt), ids(&["keep-rect"]), "the selection stays");
+    command(&mut rt, 'z', false);
+    assert_eq!(shape(&rt, "keep-rect"), before, "nothing to undo");
+}
+
+const LABEL: &str = include_str!("../../muninn-core/tests/fixtures/board/label.excalidraw");
+
+#[test]
+fn a_shapes_bound_label_moves_deletes_and_undoes_with_it_and_never_orphans() {
+    let tmp = TempVault::new(&[("Alpha.md", "# Alpha\n"), ("Draw.excalidraw", LABEL)]);
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    // A click on the label selects its container.
+    click(&mut rt, [100.0, 50.0]);
+    assert_eq!(selection(&rt), ids(&["box"]));
+    let (b0, l0) = (shape(&rt, "box"), shape(&rt, "label"));
+    drag(&mut rt, [100.0, 50.0], [140.0, 70.0]);
+    let (b1, l1) = (shape(&rt, "box"), shape(&rt, "label"));
+    let (dx, dy) = (b1.x - b0.x, b1.y - b0.y);
+    assert!(dx > 30.0, "the box moved: {dx}");
+    assert!(
+        (l1.x - l0.x - dx).abs() < 1e-9 && (l1.y - l0.y - dy).abs() < 1e-9,
+        "the label moved with it"
+    );
+    assert!(l1.version > l0.version);
+    plain(&mut rt, Key::Delete);
+    assert!(shape(&rt, "box").is_deleted && shape(&rt, "label").is_deleted);
+    command(&mut rt, 'z', false);
+    assert!(
+        !shape(&rt, "box").is_deleted && !shape(&rt, "label").is_deleted,
+        "undo brings both"
+    );
+    command(&mut rt, 'z', false);
+    assert_eq!(
+        (shape(&rt, "label").x, shape(&rt, "box").x),
+        (l0.x, b0.x),
+        "undo moves both back"
+    );
+    command(&mut rt, 'z', true);
+    command(&mut rt, 'z', true);
+    command(&mut rt, 's', false);
+    let saved: Value =
+        serde_json::from_str(&fs::read_to_string(tmp.path().join("Draw.excalidraw")).unwrap())
+            .unwrap();
+    let els = saved["elements"].as_array().unwrap();
+    let alive = |id: &str| els.iter().any(|e| e["id"] == id && e["isDeleted"] == false);
+    for e in els {
+        if let Some(c) = e["containerId"].as_str() {
+            assert!(
+                e["isDeleted"] == true || alive(c),
+                "orphaned label {}",
+                e["id"]
+            );
+        }
+    }
+    assert!(!alive("box") && !alive("label"));
+}
