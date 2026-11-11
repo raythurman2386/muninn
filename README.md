@@ -79,7 +79,11 @@ most bars; GNOME needs an AppIndicator extension). The menu is flat: Rune's tray
 submenus. **Close to tray** (off by default, `close_to_tray`) makes closing the window hide
 it while a tray icon is up; Quit Muninn in the tray saves and quits. Without a tray icon
 (switch off, icon failed, macOS) closing quits as before. Muninn cannot tell whether a tray
-host actually shows the icon, so leave Close to tray off on a desktop without one. Both
+host actually shows the icon, so leave Close to tray off on a desktop without one. Only one
+Muninn runs at a time: launching it again (from the app launcher, or with `--vault PATH`)
+brings the running window back, switching to that vault when one is named, instead of
+starting a second app with a second tray icon. `--new-instance` starts a separate app
+anyway. Both
 switches are disabled on macOS, which Rune's tray does not support yet. **Start Muninn at
 login** (off, `auto_start`) writes `$XDG_CONFIG_HOME/autostart/muninn.desktop` on Linux and
 a `Muninn` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows,

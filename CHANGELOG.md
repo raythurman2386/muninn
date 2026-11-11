@@ -6,6 +6,26 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **One Muninn at a time (#42).** Launching Muninn while it is already
+  running, for example from the app launcher while it sits in the tray with
+  Close to tray on, started a second app with its own tray icon, so two "M"
+  icons showed. The first windowed launch now takes a lock
+  (`$XDG_RUNTIME_DIR/muninn/instance.lock`, released when the app exits or is
+  killed), and a later launch hands its activation token and `--vault` to the
+  running app and exits 0. The running app shows its window, and switches to
+  that vault first when another one is named. When the running app does not
+  answer, the launch says so and exits 1 instead of starting a second copy.
+  `--new-instance` skips the check. The channel is a Unix socket on Linux and
+  macOS, and a loopback port with a random secret on Windows. Headless runs
+  (`--snap`, `--tree`, `--check`, `--list-links`) never take the lock.
+- UI smoke steps each get their own `XDG_RUNTIME_DIR` and no session bus, so a
+  test launch can never reach a Muninn or tray on the desktop. A new
+  `x11_single_instance` step checks for exactly one tray item (a
+  StatusNotifierItem on a private bus) across a second launch, the Show tray
+  icon switch, a tray-host restart, a vault switch and a kill -9 relaunch.
+
 ## [0.7.0] - 2026-11-11
 
 ### Added
