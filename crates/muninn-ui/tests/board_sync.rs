@@ -360,3 +360,161 @@ fn a_resting_window_on_board_still_wakes_for_the_watcher_and_autosave() {
         wake - now
     );
 }
+
+// #41 review GK2: the watcher and an open text editor. Typed text that is
+// not committed yet is unsaved work; another app's change to the board must
+// raise the conflict, never reload the board under the editor.
+
+const TEXT: [f32; 2] = [30.0, 460.0];
+
+fn double_click(rt: &mut Runtime<State>, p: [f32; 2]) {
+    let (x, y) = at(rt, p);
+    for _ in 0..2 {
+        rt.pointer_down(x, y);
+        rt.frame(1.0 / 60.0);
+        rt.pointer_up(x, y);
+        rt.frame(1.0 / 60.0);
+    }
+    frames(rt, 2);
+}
+
+fn type_str(rt: &mut Runtime<State>, s: &str) {
+    for c in s.chars() {
+        plain(rt, Key::Text(c.to_string()));
+    }
+}
+
+/// The fixture with keep-text changed by `f`, as another app would write it.
+fn theirs(f: impl Fn(&mut serde_json::Value)) -> String {
+    let mut doc: serde_json::Value = serde_json::from_str(DRAW).unwrap();
+    let el = doc["elements"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|e| e["id"] == "keep-text")
+        .unwrap();
+    f(el);
+    el["version"] = (el["version"].as_u64().unwrap() + 1).into();
+    serde_json::to_string_pretty(&doc).unwrap()
+}
+
+fn disk_text(tmp: &TempVault) -> (String, bool) {
+    let doc: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(board_file(tmp)).unwrap()).unwrap();
+    let el = doc["elements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["id"] == "keep-text")
+        .unwrap()
+        .clone();
+    (
+        el["text"].as_str().unwrap().to_owned(),
+        el["isDeleted"] == true,
+    )
+}
+
+fn conflict(rt: &Runtime<State>) -> bool {
+    rt.state.board_open.as_ref().unwrap().conflict.is_some()
+}
+
+#[test]
+fn typing_in_a_label_another_app_changed_raises_the_conflict_and_never_overwrites_theirs() {
+    let tmp = vault();
+    let mut app = launch(tmp.path());
+    open(&mut app.rt);
+    double_click(&mut app.rt, TEXT);
+    assert!(app.rt.state.board_text.is_some(), "editing keep-text");
+    type_str(&mut app.rt, " LOCAL");
+    let other = theirs(|el| {
+        el["text"] = "keep me THEIRS".into();
+        el["originalText"] = "keep me THEIRS".into();
+    });
+    fs::write(board_file(&tmp), &other).unwrap();
+    frames(&mut app.rt, 200);
+    assert!(
+        conflict(&app.rt),
+        "their change is flagged, not reloaded under the editor"
+    );
+    assert_eq!(
+        app.rt.state.board_text_field.text, "keep me LOCAL",
+        "the typing is kept"
+    );
+    plain(&mut app.rt, Key::Escape);
+    frames(&mut app.rt, 300);
+    assert_eq!(
+        disk_text(&tmp),
+        ("keep me THEIRS".to_owned(), false),
+        "autosave never writes over their edit"
+    );
+    assert_eq!(
+        shape(&app.rt, "keep-text").text.unwrap().text,
+        "keep me LOCAL"
+    );
+    assert!(app.rt.state.board_dirty(), "mine is kept, unsaved");
+    assert!(app.rt.find("board-keep-mine").is_some());
+}
+
+#[test]
+fn typing_in_a_label_another_app_deleted_keeps_the_typed_text() {
+    let tmp = vault();
+    let mut app = launch(tmp.path());
+    open(&mut app.rt);
+    double_click(&mut app.rt, TEXT);
+    type_str(&mut app.rt, " LOCAL");
+    fs::write(board_file(&tmp), theirs(|el| el["isDeleted"] = true.into())).unwrap();
+    frames(&mut app.rt, 200);
+    assert!(conflict(&app.rt), "their delete is flagged");
+    assert_eq!(app.rt.state.board_text_field.text, "keep me LOCAL");
+    plain(&mut app.rt, Key::Escape);
+    frames(&mut app.rt, 300);
+    assert_eq!(
+        disk_text(&tmp),
+        ("keep me".to_owned(), true),
+        "theirs stays on disk"
+    );
+    let mine = shape(&app.rt, "keep-text");
+    assert!(!mine.is_deleted);
+    assert_eq!(
+        mine.text.unwrap().text,
+        "keep me LOCAL",
+        "the typed text is kept"
+    );
+    let copy =
+        fs::read_to_string(app.rt.state.recovery_path("Draw.excalidraw")).expect("a recovery copy");
+    assert!(
+        copy.contains("keep me LOCAL"),
+        "and reaches the recovery copy"
+    );
+}
+
+#[test]
+fn an_open_editor_with_nothing_typed_waits_and_then_shows_their_change() {
+    let tmp = vault();
+    let mut app = launch(tmp.path());
+    open(&mut app.rt);
+    double_click(&mut app.rt, TEXT);
+    assert!(app.rt.state.board_text.is_some());
+    let other = theirs(|el| {
+        el["text"] = "keep me THEIRS".into();
+        el["originalText"] = "keep me THEIRS".into();
+    });
+    fs::write(board_file(&tmp), &other).unwrap();
+    frames(&mut app.rt, 200);
+    assert!(
+        app.rt.state.board_text.is_some(),
+        "not reloaded under the editor"
+    );
+    plain(&mut app.rt, Key::Escape);
+    frames(&mut app.rt, 300);
+    assert_eq!(
+        shape(&app.rt, "keep-text").text.unwrap().text,
+        "keep me THEIRS"
+    );
+    assert_eq!(status(&app.rt), BoardStatus::Clean);
+    assert_eq!(
+        fs::read_to_string(board_file(&tmp)).unwrap(),
+        other,
+        "nothing written"
+    );
+}

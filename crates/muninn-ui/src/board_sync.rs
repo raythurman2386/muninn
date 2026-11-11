@@ -118,11 +118,17 @@ impl State {
             })
             .map(|(path, _)| path.clone())
             .collect();
+        // #41 review GK2: text typed into the open editor and not committed
+        // yet is unsaved work too, so their change raises the conflict; and
+        // an open editor is never reloaded under, even with nothing typed
+        // (its commit would write the old text over theirs).
+        let typing = self.board_text_pending().is_some();
+        let editor_open = self.board_text.is_some();
         let mut visible = false;
         for path in changed {
             let open = self.board_open.as_mut().filter(|open| open.path == path);
             if let Some(open) = open {
-                if open.dirty() {
+                if open.dirty() || typing {
                     let was = open.conflict;
                     open.check_disk();
                     if open.conflict != was {
@@ -131,8 +137,9 @@ impl State {
                     }
                     continue;
                 }
-                if open.edit.gesture.is_some() || open.draft.is_some() {
-                    // Look again next time, once the gesture is over.
+                if open.edit.gesture.is_some() || open.draft.is_some() || editor_open {
+                    // Look again next time, once the gesture is over or the
+                    // editor has closed.
                     self.board_stats.remove(&path);
                     continue;
                 }
