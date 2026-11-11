@@ -101,6 +101,20 @@
 #   x11_edit        the same on Xvfb with XTEST (plus Shift+click to add, Ctrl+Y to
 #                   redo): the file is unchanged until Ctrl+S, the undo after it
 #                   reads Unsaved, and quitting flushes that undo into the file
+#   headless_text   Board slice 6, offscreen, on a fresh Tools.excalidraw: T, a click,
+#                   typing "r1 dü", Enter, "ok" (tool letters, a digit, non-ASCII and a
+#                   newline), Esc, then a drag that would draw a rectangle had a typed
+#                   key picked a tool; a double click on keep-text, "!", Esc; Cmd+Z,
+#                   Cmd+Shift+Z, Cmd+S; board_text.py pixels checks each mark (the new
+#                   text's ink on two lines at the click, keep-text's ink longer, back,
+#                   longer, nothing else drawn), the tree has the editor only while it
+#                   is open, and board_text.py file checks the save (text/originalText,
+#                   Excalidraw's text fields, measured geometry at the click, keep-text's
+#                   bumped version, the rest byte-identical to s1's save) and the s1
+#                   round-trip; negative controls (wrong shots, the original file, a
+#                   changed untouched byte, wrong text) must FAIL
+#   x11_text        the same on Xvfb with XTEST (ü typed through a remapped spare
+#                   keycode, Ctrl+Y redo): the file is unchanged until Ctrl+S
 #   board_untouched the app left the boards it did not edit (Plan, Smoke) byte-identical,
 #                   and no hidden temp file in the vault (it only reads boards);
 #                   then the board_roundtrip example (load → compare → atomic save →
@@ -116,7 +130,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit x11_modes x11_board x11_draw x11_board_safety x11_edit board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -132,6 +146,7 @@ pixels="$root/scripts/ui-smoke/board_pixels.py"
 draw="$root/scripts/ui-smoke/board_draw.py"
 safety="$root/scripts/ui-smoke/board_safety.py"
 edit="$root/scripts/ui-smoke/board_edit.py"
+texts="$root/scripts/ui-smoke/board_text.py"
 draw_board="$vault/Tools.excalidraw"
 draw_fixture="$root/crates/muninn-core/tests/fixtures/board/draw.excalidraw"
 resave="$root/target/debug/examples/board_resave"
@@ -984,6 +999,133 @@ step_x11_edit() {
   must_fail "the quit save is not the Ctrl+S save" python3 "$edit" file "$draw_board" "$draw_fixture" "$m/resaved.excalidraw" "$tree" || return 1
   must_fail "outline on the unselected X11 shot" check selected 0-before || return 1
   must_fail "delete on the undone X11 shot" check deleted 7-undone || return 1
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+text_run() { # text_run NAME SCRIPT MARK: a fresh Tools board and settings, run to MARK
+  cp "$draw_fixture" "$draw_board"
+  export XDG_CONFIG_HOME="$work/config-text-$1" XDG_STATE_HOME="$work/state-text-$1"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
+    --snap "$out/screens/text-$1.png" --tree "$out/trees/text-$1.json"
+}
+
+text_negatives() { # text_negatives PREFIX SAVED TREE RESAVED: shared negative controls
+  local s="$out/screens" m="$work/text-neg"
+  mkdir -p "$m"
+  must_fail "new text on the before shot" python3 "$texts" pixels typing "$s/$1before.png" "$s/$1before.png" "$3" "$draw_fixture" || return 1
+  must_fail "the edit on the undone shot" python3 "$texts" pixels edited "$s/$1undone.png" "$s/$1before.png" "$3" "$draw_fixture" || return 1
+  must_fail "the undo on the redone shot" python3 "$texts" pixels undone "$s/$1redone.png" "$s/$1before.png" "$3" "$draw_fixture" || return 1
+  must_fail "the original file" python3 "$texts" file "$draw_fixture" "$draw_fixture" "$4" "$3" || return 1
+  python3 -c 'import sys; t=open(sys.argv[1]).read(); open(sys.argv[2],"w").write(t.replace("\"https://example.com/keep\"", "\"https://example.com/keep\" ", 1))' \
+    "$2" "$m/bytes.excalidraw" || return 1
+  must_fail "a changed byte in an untouched element" python3 "$texts" file "$m/bytes.excalidraw" "$draw_fixture" "$4" "$3" || return 1
+  python3 -c 'import json,sys; v=json.load(open(sys.argv[1])); v["elements"][-1]["originalText"]="r1 du\nok"; json.dump(v, open(sys.argv[2],"w"), indent=2)' \
+    "$2" "$m/wrong.excalidraw" || return 1
+  must_fail "originalText without the non-ASCII character" python3 "$texts" file "$m/wrong.excalidraw" "$draw_fixture" "$4" "$3" || return 1
+}
+
+step_headless_text() {
+  isolate
+  python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
+  local s="$out/screens" t="$out/trees" m="$work/text" mark
+  mkdir -p "$m"
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
+    >"$m/open.json"
+  text_run before "$m/open.json" before || return 1
+  python3 "$harness" tree-text "$t/text-before.json" board-surface-title Tools || return 1
+  python3 "$texts" script "$t/text-before.json" "$draw_fixture" "$m/text.json" || return 1
+  python3 "$texts" pixels before "$s/text-before.png" "$s/text-before.png" "$t/text-before.json" "$draw_fixture" || return 1
+  for mark in typing committed editing edited undone redone saved; do
+    text_run "$mark" "$m/text.json" "$mark" || return 1
+    python3 "$texts" pixels "$mark" "$s/text-$mark.png" "$s/text-before.png" "$t/text-before.json" "$draw_fixture" || return 1
+  done
+  python3 "$harness" tree-center "$t/text-typing.json" board-text-editor >/dev/null || { echo "no editor while typing"; return 1; }
+  python3 "$harness" tree-center "$t/text-editing.json" board-text-editor >/dev/null || { echo "no editor after the double click"; return 1; }
+  echo "ok the editor is open at typing and editing"
+  no_key "$t/text-committed.json" board-text-editor || return 1
+  no_key "$t/text-edited.json" board-text-editor || return 1
+  python3 "$harness" tree-text "$t/text-committed.json" board-save-state Unsaved || return 1
+  python3 "$harness" tree-text "$t/text-saved.json" board-save-state Saved || return 1
+  cp "$draw_board" "$out/logs/text-saved.excalidraw"
+  "$resave" "$draw_fixture" "$m/resaved.excalidraw" || return 1
+  python3 "$texts" file "$draw_board" "$draw_fixture" "$m/resaved.excalidraw" "$t/text-before.json" || return 1
+  "$roundtrip" "$draw_board" || return 1
+  text_negatives text- "$out/logs/text-saved.excalidraw" "$t/text-before.json" "$m/resaved.excalidraw" || return 1
+}
+
+step_x11_text() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/text-before.json"
+  [ -f "$tree" ] || { echo "run headless_text first (needs $tree)"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n
+  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-text.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  export XDG_CONFIG_HOME="$work/config-x11-text" XDG_STATE_HOME="$work/state-x11-text"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  cp "$draw_fixture" "$draw_board"
+  local wid s="$out/screens" m="$work/text-x11" fixture_sha
+  mkdir -p "$m"
+  fixture_sha="$(sha256sum <"$draw_fixture")"
+  "$bin" --vault "$vault" >>"$out/logs/x11-text-app.log" 2>&1 &
+  app_pid=$!
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  sleep 2
+  shot() { sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"; import -window "$wid" "$s/x11-text-$1.png"; }
+  check() { python3 "$texts" pixels "$1" "$s/x11-text-$2.png" "$s/x11-text-before.png" "$tree" "$draw_fixture"; }
+  local row new text from to
+  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  new="$(python3 "$texts" point "$tree" "$draw_fixture" new)" || return 1
+  text="$(python3 "$texts" point "$tree" "$draw_fixture" text)" || return 1
+  from="$(python3 "$texts" point "$tree" "$draw_fixture" drag-from)" || return 1
+  to="$(python3 "$texts" point "$tree" "$draw_fixture" drag-to)" || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $row && shot before || return 1
+  check before before || return 1
+  python3 "$texts" x11-type "$wid" t || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $new || return 1
+  python3 "$texts" x11-type "$wid" "$(printf 'r1 dü\nok')" && shot typing || return 1
+  check typing typing || return 1
+  python3 "$harness" x11-chord "$wid" esc || return 1
+  set -- $from $to
+  python3 "$harness" x11-drag "$wid" "$1" "$2" $(( $3 - $1 )) $(( $4 - $2 )) && shot committed || return 1
+  check committed committed || return 1
+  # shellcheck disable=SC2086
+  python3 "$texts" x11-double-click "$wid" $text && shot editing || return 1
+  check editing editing || return 1
+  python3 "$texts" x11-type "$wid" '!' || return 1
+  python3 "$harness" x11-chord "$wid" esc && shot edited || return 1
+  check edited edited || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+z && shot undone || return 1
+  check undone undone || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+y && shot redone || return 1
+  check redone redone || return 1
+  [ "$(sha256sum <"$draw_board")" = "$fixture_sha" ] || { echo "the board was written before Ctrl+S"; return 1; }
+  echo "ok the file is unchanged before Ctrl+S"
+  python3 "$harness" x11-chord "$wid" ctrl+s && shot saved || return 1
+  check saved saved || return 1
+  cp "$draw_board" "$out/logs/x11-text-saved.excalidraw"
+  "$resave" "$draw_fixture" "$m/resaved.excalidraw" || return 1
+  python3 "$texts" file "$out/logs/x11-text-saved.excalidraw" "$draw_fixture" "$m/resaved.excalidraw" "$tree" || return 1
+  "$roundtrip" "$out/logs/x11-text-saved.excalidraw" || return 1
+  text_negatives x11-text- "$out/logs/x11-text-saved.excalidraw" "$tree" "$m/resaved.excalidraw" || return 1
+  python3 "$harness" x11-close "$wid" || return 1
+  for i in $(seq 100); do kill -0 "$app_pid" 2>/dev/null || break; sleep 0.1; done
+  app_pid=
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
