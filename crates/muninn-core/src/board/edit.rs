@@ -34,6 +34,26 @@ use super::{Board, Element, IdSource, Shape, ShapeKind};
 /// How many edits undo keeps per open board.
 pub const HISTORY_LIMIT: usize = 100;
 
+/// Roughly how many bytes of element copies undo and redo may hold per open
+/// board. Each edit keeps whole before/after copies of the elements it
+/// touched, so on a big drawing (a 10 MB board is mostly freehand points) a
+/// hundred select-all moves would otherwise hold gigabytes. Older edits are
+/// dropped first; the newest edit is always kept, however large.
+pub const HISTORY_BYTES: usize = 32 * 1024 * 1024;
+
+/// Counts bytes written to it; sizes `extra` without keeping a copy.
+struct Count(usize);
+
+impl std::io::Write for Count {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0 += buf.len();
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// Ellipses are hit-tested as polygons of this many sides.
 const ELLIPSE_SIDES: usize = 64;
 
@@ -46,6 +66,21 @@ fn round2(v: f64) -> f64 {
 }
 
 impl Shape {
+    /// Roughly the bytes this element holds in memory: its points, strings
+    /// and the JSON size of the fields kept as they are.
+    #[must_use]
+    pub fn approx_bytes(&self) -> usize {
+        let mut extra = Count(0);
+        let _ = serde_json::to_writer(&mut extra, &self.extra);
+        std::mem::size_of::<Shape>()
+            + self.id.len()
+            + self.stroke_color.len()
+            + self.background_color.len()
+            + self.points.len() * std::mem::size_of::<[f64; 2]>()
+            + self.text.as_ref().map_or(0, |t| t.text.len())
+            + extra.0
+    }
+
     /// Excalidraw's `bumpVersion`: `version + 1`, a new `versionNonce` and
     /// `updated` set to `now` (milliseconds since the epoch).
     pub fn bump(&mut self, ids: &mut IdSource, now: i64) {
@@ -528,11 +563,21 @@ impl Board {
 }
 
 /// Undo and redo for one open board: whole edits, newest last, at most
-/// [`HISTORY_LIMIT`] of them. A new edit clears redo.
+/// [`HISTORY_LIMIT`] of them and about [`HISTORY_BYTES`] of element copies
+/// (the newest edit is kept even when it alone is larger). A new edit clears
+/// redo.
 #[derive(Clone, Debug, Default)]
 pub struct History {
-    undo: VecDeque<Vec<Change>>,
-    redo: Vec<Vec<Change>>,
+    undo: VecDeque<(Vec<Change>, usize)>,
+    redo: Vec<(Vec<Change>, usize)>,
+    /// Approximate bytes held by `undo` and `redo` together.
+    bytes: usize,
+}
+
+fn edit_bytes(edit: &[Change]) -> usize {
+    edit.iter()
+        .map(|c| c.before.approx_bytes() + c.after.approx_bytes())
+        .sum()
 }
 
 impl History {
@@ -541,11 +586,16 @@ impl History {
         if edit.is_empty() {
             return;
         }
-        if self.undo.len() == HISTORY_LIMIT {
-            self.undo.pop_front();
-        }
-        self.undo.push_back(edit);
         self.redo.clear();
+        let size = edit_bytes(&edit);
+        self.undo.push_back((edit, size));
+        self.bytes = self.undo.iter().map(|(_, n)| n).sum();
+        while self.undo.len() > 1 && (self.undo.len() > HISTORY_LIMIT || self.bytes > HISTORY_BYTES)
+        {
+            if let Some((_, n)) = self.undo.pop_front() {
+                self.bytes -= n;
+            }
+        }
     }
 
     #[must_use]
@@ -564,11 +614,17 @@ impl History {
         self.undo.len()
     }
 
+    /// Approximate bytes of element copies held for undo and redo.
+    #[must_use]
+    pub fn bytes(&self) -> usize {
+        self.bytes
+    }
+
     /// Take back the newest edit. Returns the ids it touched (still live
     /// ones first select again), or `None` with nothing to undo.
     pub fn undo(&mut self, board: &mut Board, src: &mut IdSource, now: i64) -> Option<Vec<String>> {
         let edit = self.undo.pop_back()?;
-        let states: Vec<&Shape> = edit.iter().rev().map(|c| &c.before).collect();
+        let states: Vec<&Shape> = edit.0.iter().rev().map(|c| &c.before).collect();
         let ids = board.restore(&states, src, now);
         self.redo.push(edit);
         Some(ids)
@@ -577,7 +633,7 @@ impl History {
     /// Apply the newest undone edit again.
     pub fn redo(&mut self, board: &mut Board, src: &mut IdSource, now: i64) -> Option<Vec<String>> {
         let edit = self.redo.pop()?;
-        let states: Vec<&Shape> = edit.iter().map(|c| &c.after).collect();
+        let states: Vec<&Shape> = edit.0.iter().map(|c| &c.after).collect();
         let ids = board.restore(&states, src, now);
         self.undo.push_back(edit);
         Some(ids)
@@ -769,6 +825,41 @@ mod tests {
         b.shift(&ids, -30.0, 0.0);
         assert!(b.commit(&before, &mut src, 5).is_empty());
         assert_eq!(b.snapshot(&ids), before);
+    }
+
+    #[test]
+    fn history_of_a_big_drawing_stays_within_its_byte_budget() {
+        // A board with one huge freehand stroke (a 10 MB board is mostly
+        // points): every move of it keeps two whole copies for undo.
+        let mut b = Board::new();
+        let mut src = IdSource::new(3);
+        let path: Vec<[f64; 2]> = (0..60_000)
+            .map(|i| [f64::from(i % 997), f64::from(i / 997)])
+            .collect();
+        b.add_drawn(ShapeKind::Freedraw, &path, &mut src, 1);
+        let ids = vec![id(&b, 0)];
+        let points = b.shape(&ids[0]).unwrap().points.len();
+        assert!(points > 50_000, "{points}");
+        let per_edit = 2 * points * std::mem::size_of::<[f64; 2]>();
+        let mut h = History::default();
+        for _ in 0..HISTORY_LIMIT {
+            h.record(b.move_by(&ids, 1.0, 0.0, &mut src, 1));
+        }
+        // 32 MiB: what one open board may keep for undo and redo.
+        let budget = 32 * 1024 * 1024;
+        assert!(
+            h.undo_len() * per_edit <= budget,
+            "{} edits of {per_edit} bytes kept, over {budget}",
+            h.undo_len()
+        );
+        assert!(h.undo_len() >= 1, "the newest edit always undoes");
+        assert!(h.bytes() <= HISTORY_BYTES, "{}", h.bytes());
+        let x = b.shape(&ids[0]).unwrap().x;
+        h.undo(&mut b, &mut src, 2).unwrap();
+        assert_eq!(b.shape(&ids[0]).unwrap().x, x - 1.0);
+        // Undone edits sit in redo; together they stay within the budget.
+        while h.undo(&mut b, &mut src, 3).is_some() {}
+        assert!(h.redo(&mut b, &mut src, 4).is_some());
     }
 
     #[test]
