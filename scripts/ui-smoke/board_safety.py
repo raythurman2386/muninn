@@ -154,6 +154,10 @@ def cmd_recovery(state_home, rel, want):
             die(f"the recovery copy for {rel} is still there")
         print(f"ok no recovery copy for {rel}")
         return
+    # The app copies on its own frame: give a loaded machine a moment.
+    deadline = time.monotonic() + 6 * max(float(os.environ.get("UI_SMOKE_SLOW", "1") or 1), 1.0)
+    while not (os.path.isfile(meta) and os.path.isfile(path)) and time.monotonic() < deadline:
+        time.sleep(0.2)
     if not os.path.isfile(meta):
         die(f"no recovery sidecar for {rel}")
     cmd_file(path, want)

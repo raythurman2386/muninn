@@ -4,6 +4,7 @@
 #
 #   scripts/ui-smoke.sh [OUT_DIR]            default OUT_DIR: target/ui-smoke
 #   UI_SMOKE_STEPS="headless_modes" scripts/ui-smoke.sh    run a subset (names below)
+#   UI_SMOKE_SLOW=3 scripts/ui-smoke.sh      stretch the X11 pauses (a busy machine)
 #
 # Everything runs against a throwaway HOME/XDG dirs and a throwaway vault under
 # OUT_DIR/work (deleted on exit unless UI_SMOKE_KEEP=1). It never reads or writes your
@@ -501,7 +502,7 @@ step_x11_modes() {
     wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
     sleep 2
   }
-  shot() { sleep 1.5; import -window "$wid" "$out/screens/x11-$1.png"; }
+  shot() { sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"; import -window "$wid" "$out/screens/x11-$1.png"; }
   expect() { python3 "$harness" settings-mode "$settings" "$1"; }
   chord() { python3 "$harness" x11-chord "$wid" "$1"; }
   close_app() { # close_app: WM_DELETE_WINDOW, then require exit status 0
@@ -583,7 +584,7 @@ step_x11_board() {
     wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
     sleep 2
   }
-  shot() { sleep 1.5; import -window "$wid" "$s/x11-board-$1.png"; }
+  shot() { sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"; import -window "$wid" "$s/x11-board-$1.png"; }
   close_app() {
     python3 "$harness" x11-close "$wid" || return 1
     local i status=124
@@ -661,7 +662,7 @@ step_x11_draw() {
     wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
     sleep 2
   }
-  shot() { sleep 1.5; import -window "$wid" "$s/x11-draw-$1.png"; }
+  shot() { sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"; import -window "$wid" "$s/x11-draw-$1.png"; }
   close_app() {
     python3 "$harness" x11-close "$wid" || return 1
     local i status=124
@@ -728,7 +729,7 @@ step_x11_board_safety() {
     wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
     sleep 2
   }
-  shot() { sleep 1.5; import -window "$wid" "$s/x11-safety-$1.png"; }
+  shot() { sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"; import -window "$wid" "$s/x11-safety-$1.png"; }
   close_app() {
     python3 "$harness" x11-close "$wid" || return 1
     local i status=124

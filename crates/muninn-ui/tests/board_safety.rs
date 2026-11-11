@@ -428,3 +428,26 @@ fn restoring_a_board_over_a_changed_file_never_writes_without_keep_mine() {
     click(&mut rt, "board-keep-mine");
     assert_eq!(Board::load(&path).unwrap().elements.len(), n_draw() + 1);
 }
+
+#[test]
+fn clicking_the_canvas_after_searching_gives_the_keys_back_to_the_board() {
+    let tmp = vault();
+    let mut s = launch(tmp.path());
+    open_draw(&mut s.rt);
+    click(&mut s.rt, "search-box");
+    s.rt.key(plain(Key::Text("x".into())));
+    frames(&mut s.rt, 1);
+    assert!(s.rt.state.is_typing());
+    let r = s.rt.presented("board-canvas").expect("canvas").0;
+    let p = (r[0] + r[2] - 40.0, r[1] + r[3] - 60.0);
+    s.rt.pointer_down(p.0, p.1);
+    frames(&mut s.rt, 1);
+    s.rt.pointer_up(p.0, p.1);
+    frames(&mut s.rt, 2);
+    s.rt.key(plain(Key::Text("r".into())));
+    frames(&mut s.rt, 1);
+    assert!(
+        s.rt.state.board_tool.is_some(),
+        "a click on the canvas ends the search's hold on the keys"
+    );
+}

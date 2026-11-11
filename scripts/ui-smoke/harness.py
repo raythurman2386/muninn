@@ -22,6 +22,7 @@ Later slices add board editing steps (shapes, select, move, text).
 """
 
 import json
+import os
 import sys
 import time
 
@@ -32,6 +33,9 @@ MODE_BUTTONS = {
     "board": "mode-board",
 }
 
+
+# UI_SMOKE_SLOW=N stretches the X11 pauses N times, for a busy machine.
+SLOW = max(float(os.environ.get("UI_SMOKE_SLOW", "1") or 1), 1.0)
 
 def die(message):
     print(f"FAIL {message}", file=sys.stderr)
@@ -99,10 +103,24 @@ def tree_text(path, key, needle):
 
 
 def settings_mode(path, expected):
-    mode = json.load(open(path)).get("mode")
+    # The app writes settings on its own frame: give a loaded machine a moment.
+    deadline = time.monotonic() + 6 * SLOW
+    while True:
+        try:
+            mode = json.load(open(path)).get("mode")
+        except (OSError, ValueError):
+            mode = None
+        if mode == expected or time.monotonic() > deadline:
+            break
+        time.sleep(0.2)
     if mode != expected:
         die(f"{path}: mode {mode!r}, expected {expected!r}")
     print(f"ok {path}: mode {mode}")
+
+
+def settle():
+    """After an X11 action, let the app take it in (UI_SMOKE_SLOW scales this)."""
+    time.sleep(0.3 * SLOW)
 
 
 def display():
@@ -158,7 +176,7 @@ def x11_chord(wid, chord):
     g = w.get_geometry()
     xtest.fake_input(d, X.MotionNotify, x=g.x + g.width // 2, y=g.y + g.height // 2)
     d.sync()
-    time.sleep(0.2)
+    time.sleep(0.2 * SLOW)
     names = {"ctrl": "Control_L", "shift": "Shift_L", "alt": "Alt_L", "esc": "Escape", "enter": "Return"}
     keys = [names.get(k, k) for k in chord.split("+")]
     codes = [d.keysym_to_keycode(XK.string_to_keysym(k)) for k in keys]
@@ -172,6 +190,7 @@ def x11_chord(wid, chord):
         xtest.fake_input(d, X.KeyRelease, code)
         d.sync()
         time.sleep(0.03)
+    settle()
     print(f"ok pressed {chord} on {wid}")
 
 
@@ -209,6 +228,7 @@ def x11_type(wid, text):
             xtest.fake_input(d, X.KeyRelease, shift)
         d.sync()
         time.sleep(0.04)
+    settle()
     print(f"ok typed {text!r} on {wid}")
 
 
@@ -223,12 +243,13 @@ def x11_click(wid, x, y):
     rx, ry = -origin.x + int(x), -origin.y + int(y)
     xtest.fake_input(d, X.MotionNotify, x=rx, y=ry)
     d.sync()
-    time.sleep(0.15)
+    time.sleep(0.15 * SLOW)
     xtest.fake_input(d, X.ButtonPress, 1)
     d.sync()
-    time.sleep(0.08)
+    time.sleep(0.08 * SLOW)
     xtest.fake_input(d, X.ButtonRelease, 1)
     d.sync()
+    settle()
     print(f"ok clicked {x},{y} in {wid}")
 
 
@@ -247,17 +268,18 @@ def x11_drag(wid, x, y, dx, dy):
     rx, ry = to_root(d, w, x, y)
     xtest.fake_input(d, X.MotionNotify, x=rx, y=ry)
     d.sync()
-    time.sleep(0.15)
+    time.sleep(0.15 * SLOW)
     xtest.fake_input(d, X.ButtonPress, 1)
     d.sync()
     steps = 12
     for i in range(1, steps + 1):
-        time.sleep(0.025)
+        time.sleep(0.025 * SLOW)
         xtest.fake_input(d, X.MotionNotify, x=rx + round(int(dx) * i / steps), y=ry + round(int(dy) * i / steps))
         d.sync()
-    time.sleep(0.1)
+    time.sleep(0.1 * SLOW)
     xtest.fake_input(d, X.ButtonRelease, 1)
     d.sync()
+    settle()
     print(f"ok dragged {x},{y} by {dx},{dy} in {wid}")
 
 
@@ -276,6 +298,7 @@ def x11_wheel(wid, x, y, button, notches):
         xtest.fake_input(d, X.ButtonRelease, int(button))
         d.sync()
         time.sleep(0.12)
+    settle()
     print(f"ok wheel button {button} x{notches} at {x},{y} in {wid}")
 
 
