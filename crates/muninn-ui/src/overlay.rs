@@ -107,7 +107,8 @@ pub enum PaletteAction {
     NewNote,
     TogglePreview,
     ToggleGraph,
-    /// Enter Board, or go back to the last note mode (⌘4).
+    /// Enter Board, or go back to the last note mode. Its hint is ⌘4, which
+    /// enters Board.
     ToggleBoard,
 }
 

@@ -290,3 +290,67 @@ fn settings_written_before_board_still_load() {
         assert_eq!(Settings::load_from(&config).mode, mode, "{key}");
     }
 }
+
+#[test]
+fn switching_vaults_drops_the_old_vaults_boards_and_selection() {
+    let a = board_vault();
+    let b = TempVault::new(&[
+        ("Gamma.md", "# Gamma\n"),
+        ("Other.excalidraw", r#"{"type":"excalidraw","version":2}"#),
+    ]);
+    let (mut rt, _) = fresh(&a);
+    rt.state.set_mode(Mode::Board);
+    frame(&mut rt);
+    let plan = rt.state.boards[0].file.path.clone();
+    rt.state.select_board(plan.clone());
+    assert_eq!(rt.state.board_selected.as_ref(), Some(&plan));
+
+    assert!(rt.state.switch_vault(b.path().to_path_buf()));
+    // State changed outside an event: ask for a rebuild.
+    rt.invalidate();
+    frame(&mut rt);
+    assert_eq!(
+        rt.state.board_selected, None,
+        "A's board is not selected in B"
+    );
+    let titles: Vec<&str> = rt
+        .state
+        .boards
+        .iter()
+        .map(|b| b.file.title.as_str())
+        .collect();
+    assert_eq!(titles, ["Other"], "only B's boards are listed");
+    assert!(
+        rt.state
+            .boards
+            .iter()
+            .all(|x| x.file.path.starts_with(b.path())),
+        "every listed board is under B"
+    );
+    assert!(rt.find("board-row-0").is_some());
+    assert!(rt.find("board-row-1").is_none(), "A's board row is gone");
+}
+
+#[test]
+fn a_fresh_scan_of_the_vault_resets_the_board_list_too() {
+    let tmp = board_vault();
+    let (mut rt, _) = fresh(&tmp);
+    rt.state.set_mode(Mode::Board);
+    frame(&mut rt);
+    let plan = rt.state.boards[0].file.path.clone();
+    rt.state.select_board(plan);
+    fs::write(
+        tmp.path().join("Later.excalidraw"),
+        r#"{"type":"excalidraw","version":2}"#,
+    )
+    .unwrap();
+
+    // `retry_startup` installs a finished scan through `install_scanned_vault`.
+    assert!(rt.state.retry_startup());
+    frame(&mut rt);
+    assert_eq!(rt.state.board_selected, None);
+    assert!(
+        rt.state.boards.iter().any(|b| b.file.title == "Later"),
+        "the list is read from disk again"
+    );
+}

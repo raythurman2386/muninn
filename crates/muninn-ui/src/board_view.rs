@@ -79,7 +79,8 @@ impl State {
         }
     }
 
-    /// Select a listed board (by vault-relative path) for the surface header.
+    /// Select a listed board by its absolute path (`BoardFile::path`) for the
+    /// surface header.
     pub fn select_board(&mut self, path: PathBuf) {
         self.board_selected = Some(path);
     }

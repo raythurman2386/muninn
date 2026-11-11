@@ -1042,6 +1042,9 @@ impl State {
                 self.settings.push_recent(&root);
                 self.settings.last_vault = Some(root);
                 self.settings.selected_rel = None;
+                // Boards belong to the vault: drop the old one's list and pick.
+                self.board_selected = None;
+                self.refresh_boards();
                 let first = self.vault.notes.first().map(|note| note.id);
                 if let Some(id) = first {
                     self.load_note(id, false);
@@ -3145,6 +3148,8 @@ impl State {
         self.dirty_at = None;
         self.trash_undo = None;
         self.broken_panel = false;
+        self.board_selected = None;
+        self.refresh_boards();
         let restore = self.restore_after_scan.take();
         let id = restore
             .and_then(|rel| {

@@ -101,7 +101,8 @@ impl State {
         }
     }
 
-    /// ⌘4 / the palette: enter Board, or go back to the last note mode.
+    /// The palette's Toggle Board: enter Board, or go back to the last note
+    /// mode. ⌘4 only enters Board (like ⌘3 for Graph); Esc leaves it.
     pub fn toggle_board(&mut self) {
         if self.mode == Mode::Board {
             self.set_mode(self.last_note_mode);
