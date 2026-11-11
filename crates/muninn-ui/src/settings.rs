@@ -23,6 +23,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::{Value, json};
 
+use crate::{BoardSession, BoardView};
+
 use crate::{Mode, Scope};
 
 /// Default idle window before autosave, in seconds. The settings modal can
@@ -449,6 +451,14 @@ pub struct Settings {
     pub auto_start: bool,
     /// Settings › Appearance › the global show-Muninn shortcut. Off by default.
     pub show_shortcut: bool,
+    /// Board slice 3: the board open when the session ended and its view
+    /// (`{"rel": …, "eye": [x, y], "zoom": z}`). Files saved before boards
+    /// load as `None`.
+    pub board: Option<BoardSession>,
+    /// Board slice 7: an open board with unsaved drawing is saved once it
+    /// rests. On by default; `"board_autosave": false` in `settings.json`
+    /// leaves saving to `⌘S` (and the quit save).
+    pub board_autosave: bool,
 }
 
 impl Default for Settings {
@@ -469,6 +479,8 @@ impl Default for Settings {
             close_to_tray: false,
             auto_start: false,
             show_shortcut: false,
+            board: None,
+            board_autosave: true,
         }
     }
 }
@@ -528,6 +540,15 @@ impl Settings {
             "close_to_tray": self.close_to_tray,
             "auto_start": self.auto_start,
             "show_shortcut": self.show_shortcut,
+            "board_autosave": self.board_autosave,
+            "board": self.board.as_ref().map(|b| {
+                let mut value = json!({ "rel": b.rel });
+                if let Some(view) = b.view {
+                    value["eye"] = json!(view.eye);
+                    value["zoom"] = json!(view.zoom);
+                }
+                value
+            }),
         });
         let bytes = serde_json::to_vec_pretty(&value)?;
         atomic_write(&path, &bytes)
@@ -568,6 +589,7 @@ impl Settings {
         settings.mode = match value.get("mode").and_then(Value::as_str) {
             Some("preview") => Mode::Preview,
             Some("graph") => Mode::Graph,
+            Some("board") => Mode::Board,
             _ => Mode::Editor,
         };
         settings.scope = match value.get("scope").and_then(Value::as_str) {
@@ -602,8 +624,33 @@ impl Settings {
         settings.close_to_tray = flag("close_to_tray");
         settings.auto_start = flag("auto_start");
         settings.show_shortcut = flag("show_shortcut");
+        settings.board_autosave = value
+            .get("board_autosave")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        settings.board = value.get("board").and_then(parse_board_session);
         settings
     }
+}
+
+/// The saved board: a non-empty `rel`, and a view only when `eye` and `zoom`
+/// are both present and usable.
+fn parse_board_session(value: &Value) -> Option<BoardSession> {
+    let rel = value.get("rel")?.as_str().filter(|rel| !rel.is_empty())?;
+    let eye = value.get("eye").and_then(Value::as_array).and_then(|eye| {
+        let x = eye.first()?.as_f64()?;
+        let y = eye.get(1)?.as_f64()?;
+        (eye.len() == 2).then_some([x as f32, y as f32])
+    });
+    let zoom = value.get("zoom").and_then(Value::as_f64);
+    let view = match (eye, zoom) {
+        (Some(eye), Some(zoom)) => BoardView::new(eye, zoom as f32),
+        _ => None,
+    };
+    Some(BoardSession {
+        rel: rel.to_owned(),
+        view,
+    })
 }
 
 /// The XDG config root: `$XDG_CONFIG_HOME`, else `$HOME/.config`
@@ -699,6 +746,11 @@ mod tests {
             close_to_tray: true,
             auto_start: true,
             show_shortcut: true,
+            board: Some(BoardSession {
+                rel: "sketches/Plan.excalidraw".to_owned(),
+                view: BoardView::new([-120.37, 44.5], 1.3),
+            }),
+            board_autosave: false,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -714,6 +766,45 @@ mod tests {
         assert!(!old.close_to_tray && !old.auto_start && !old.show_shortcut);
         let each = Settings::from_value(&serde_json::json!({ "auto_start": true }));
         assert!(each.auto_start && !each.close_to_tray && !each.show_shortcut);
+    }
+
+    #[test]
+    fn board_autosave_is_on_by_default_and_in_old_files() {
+        assert!(Settings::default().board_autosave);
+        assert!(Settings::from_value(&serde_json::json!({ "mode": "board" })).board_autosave);
+        let off = Settings::from_value(&serde_json::json!({ "board_autosave": false }));
+        assert!(!off.board_autosave);
+    }
+
+    #[test]
+    fn the_saved_board_loads_with_or_without_a_view() {
+        assert_eq!(Settings::default().board, None);
+        let old = Settings::from_value(&serde_json::json!({ "mode": "board" }));
+        assert_eq!(old.board, None);
+        let rel_only =
+            Settings::from_value(&serde_json::json!({ "board": { "rel": "A.excalidraw" } }));
+        assert_eq!(
+            rel_only.board,
+            Some(BoardSession {
+                rel: "A.excalidraw".to_owned(),
+                view: None
+            })
+        );
+        let full = Settings::from_value(
+            &serde_json::json!({ "board": { "rel": "A.excalidraw", "eye": [3.5, -2.0], "zoom": 2.0 } }),
+        );
+        assert_eq!(full.board.unwrap().view, BoardView::new([3.5, -2.0], 2.0));
+        for bad in [
+            serde_json::json!({ "board": { "rel": "" } }),
+            serde_json::json!({ "board": "A.excalidraw" }),
+            serde_json::json!({ "board": { "eye": [0, 0], "zoom": 1 } }),
+        ] {
+            assert_eq!(Settings::from_value(&bad).board, None, "{bad}");
+        }
+        let broken_view = Settings::from_value(
+            &serde_json::json!({ "board": { "rel": "A.excalidraw", "eye": [0], "zoom": -1 } }),
+        );
+        assert_eq!(broken_view.board.unwrap().view, None);
     }
 
     #[test]

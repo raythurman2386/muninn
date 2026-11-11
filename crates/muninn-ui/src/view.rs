@@ -49,8 +49,15 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
             s.reject_drop(files);
             tx.instant();
         })
-        .child(sidebar(s, &k))
-        .child(divider(&k))
+        // Slice 8: the sidebar can be hidden. Its two slots stay in the tree
+        // (empty when hidden) so the main column keeps its place and the
+        // toggle moves things at once instead of sliding them.
+        .child(if s.sidebar_shown() {
+            sidebar(s, &k)
+        } else {
+            el().key("sidebar-hidden")
+        })
+        .child(if s.sidebar_shown() { divider(&k) } else { el() })
         .child(main_column(s, &k));
     if s.palette.is_some() {
         base = base.child(palette_layer(s, &k));
@@ -320,7 +327,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
                         }
                     });
             }
-            scroller.child(list)
+            scroller.child(list).child(sidebar_boards(s, k, filtering))
         })
         .child(divider_h(k))
         .child(
@@ -1552,7 +1559,7 @@ fn folder_field_row(s: &State, k: &Kit, key: &str, placeholder: &str, is_new: bo
 /// The open right-click menu, rendered inline under the row that asked.
 /// Right-click opens it; Escape, an action, or Cancel closes it. Primary
 /// behaviour (open note / toggle folder) is untouched.
-fn context_menu(s: &State, k: &Kit) -> El {
+pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
     let Some(menu) = &s.menu else {
         return el();
     };
@@ -1570,6 +1577,7 @@ fn context_menu(s: &State, k: &Kit) -> El {
             ("Rename", "rename"),
             ("Delete", "delete"),
         ],
+        MenuTarget::Board(..) => vec![("Rename", "rename")],
     };
     let mut col_menu = col()
         .key("context-menu")
@@ -1957,6 +1965,9 @@ fn main_body(s: &State, k: &Kit) -> El {
     if s.mode == Mode::Graph {
         return crate::graph_view::graph(s, k);
     }
+    if s.mode == Mode::Board {
+        return crate::board_view::board(s, k);
+    }
     let mut content = row().key("note-body").w_full().grow(1.0).min_h(0.0).child(
         col()
             .key("page")
@@ -2160,7 +2171,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("Enter (search)", "Open the highlighted result"),
                 ("⌘[ / Ctrl+[", "Back in note history"),
                 ("⌘] / Ctrl+]", "Forward in note history"),
-                ("⌘1 / ⌘2 / ⌘3", "Write / Read / Graph"),
+                ("⌘1 / ⌘2 / ⌘3 / ⌘4", "Write / Read / Graph / Board"),
                 ("Esc", "Close the outermost layer"),
                 ("⌘+⇧+P / Ctrl+Shift+P", "Open the command palette"),
             ],
@@ -2175,7 +2186,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("⌘E / Ctrl+E", "Toggle Write / Read"),
                 ("[[", "Wikilink completion"),
                 ("Tab (editor)", "Indent four spaces"),
-                ("F2", "Rename the selected note"),
+                ("F2", "Rename the selected note (on Board: the board)"),
                 ("Del", "Delete the selected note"),
             ],
         ),
@@ -3187,10 +3198,22 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
         .fill(k.alpha(k.c.warning.fg, 0.10))
         .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.warning.fg))
         .child(
-            text(format!(
-                "Recovered unsaved edits for {}",
-                plural(count, "note", "notes")
-            ))
+            text(format!("Recovered unsaved edits for {}", {
+                let boards = s
+                    .recovered
+                    .iter()
+                    .filter(|e| crate::board_safety::is_board_rel(&e.rel))
+                    .count();
+                match (count - boards, boards) {
+                    (notes, 0) => plural(notes, "note", "notes"),
+                    (0, boards) => plural(boards, "board", "boards"),
+                    (notes, boards) => format!(
+                        "{} and {}",
+                        plural(notes, "note", "notes"),
+                        plural(boards, "board", "boards")
+                    ),
+                }
+            }))
             .font(k.ty.caption())
             .color(k.c.warning.fg)
             .truncate(),
@@ -3279,6 +3302,7 @@ fn topbar(s: &State, k: &Kit) -> El {
         .px(20.0)
         .gap(12.0)
         .center_y()
+        .child(sidebar_toggle(s, k))
         .child(history_button(
             k,
             "history-back",
@@ -3295,6 +3319,31 @@ fn topbar(s: &State, k: &Kit) -> El {
         ))
         .child(title_col)
         .child(mode_switch(s, k))
+}
+
+/// Slice 8: show or hide the notes sidebar (also Cmd/Ctrl+\\).
+fn sidebar_toggle(s: &State, k: &Kit) -> El {
+    pressable(k, "sidebar-toggle".to_owned())
+        .size(26.0, 26.0)
+        .center()
+        .border(1.0, k.c.border_muted)
+        .role("button")
+        .label(if s.sidebar_shown() {
+            "Hide sidebar"
+        } else {
+            "Show sidebar"
+        })
+        .on_press_tx(|s: &mut State, tx: &mut Tx| {
+            s.toggle_sidebar();
+            tx.instant();
+        })
+        .child(
+            icon(&rune_kit::shell::SIDEBAR, 14.0).color(if s.sidebar_shown() {
+                k.c.text_muted
+            } else {
+                k.c.text_accent
+            }),
+        )
 }
 
 /// M2 NAV-03: a compact Back/Forward chip. Disabled chips dim but keep their
@@ -3357,6 +3406,14 @@ fn mode_switch(s: &State, k: &Kit) -> El {
             &ic::SHARE,
             "mode-graph",
             Mode::Graph,
+            s.mode,
+        ))
+        .child(mode_button(
+            k,
+            "Board",
+            &ic::DOT_GRID,
+            "mode-board",
+            Mode::Board,
             s.mode,
         ))
 }
@@ -3667,6 +3724,92 @@ fn heading_keys(source: &str) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// Slice 7: the sidebar's Boards section, below the notes. A row opens the
+/// board on Board. Hidden while searching notes and in a vault with none.
+fn sidebar_boards(s: &State, k: &Kit, filtering: bool) -> El {
+    if filtering || s.sidebar_boards.is_empty() {
+        return el();
+    }
+    let mut list = col()
+        .key("sidebar-boards")
+        .w_full()
+        .px(8.0)
+        .pb(8.0)
+        .gap(2.0)
+        .role("list")
+        .child(
+            row()
+                .h(28.0)
+                .px(8.0)
+                .gap(8.0)
+                .center_y()
+                .child(
+                    text("BOARDS")
+                        .font(TextStyle::new(10.0, 650.0).tracking(0.9))
+                        .color(k.c.text_muted),
+                )
+                .child(
+                    text(s.sidebar_boards.len().to_string())
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
+        );
+    let open = s.board_open.as_ref().map(|open| open.path.as_path());
+    for (i, board) in s.sidebar_boards.iter().enumerate() {
+        let path = board.path.clone();
+        if s.renaming_board_at(&path, crate::BoardPlace::Sidebar) {
+            list = list.child(crate::board_rename::rename_field(s, k));
+            continue;
+        }
+        let menu_path = path.clone();
+        let current = s.mode == Mode::Board && open == Some(board.path.as_path());
+        let folder = board.folder();
+        let mut body = row().grow(1.0).min_w(0.0).gap(6.0).center_y().child(
+            text(&board.title)
+                .key(format!("sidebar-board-title-{i}"))
+                .font(k.ty.ui_compact)
+                .color(if current {
+                    k.c.text_accent
+                } else {
+                    k.c.text_base
+                })
+                .truncate(),
+        );
+        if !folder.is_empty() {
+            body = body.child(
+                text(folder)
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint)
+                    .truncate(),
+            );
+        }
+        list = list.child(
+            pressable(k, format!("sidebar-board-{i}"))
+                .h(30.0)
+                .px(8.0)
+                .gap(8.0)
+                .center_y()
+                .child(icon(&ic::DOT_GRID, 14.0).color(k.c.icon_muted))
+                .child(body)
+                .on_press(move |s: &mut State| s.open_board_at(path.clone()))
+                .on_secondary_press(move |s: &mut State, press, _| {
+                    s.open_board_menu(
+                        menu_path.clone(),
+                        crate::BoardPlace::Sidebar,
+                        press.x,
+                        press.y,
+                    );
+                }),
+        );
+        if s.menu.as_ref().is_some_and(|m| {
+            m.target == MenuTarget::Board(board.path.clone(), crate::BoardPlace::Sidebar)
+        }) {
+            list = list.child(context_menu(s, k));
+        }
+    }
+    list
+}
+
 /// DES-02: attachments are real files but not notes, and Rune's Markdown has
 /// no image pipeline. The reader therefore lists each embed with its size and
 /// an Open button, which hands the canonical path to the platform opener
@@ -3679,6 +3822,8 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
     let mut rows = col().w_full().gap(4.0);
     for (index, attachment) in attachments.iter().enumerate() {
         let target = attachment.target.clone();
+        let board = attachment.is_board();
+        let board_path = attachment.path.clone().filter(|_| board);
         let size = attachment
             .size_label()
             .unwrap_or_else(|| "missing file".to_owned());
@@ -3712,7 +3857,10 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
                 .center_y()
                 .fill(k.c.layer_01)
                 .border(1.0, k.c.border_muted)
-                .child(icon(&ic::PHOTO, 15.0).color(k.c.icon_muted))
+                .child(
+                    icon(if board { &ic::DOT_GRID } else { &ic::PHOTO }, 15.0)
+                        .color(k.c.icon_muted),
+                )
                 .child(body)
                 .child(
                     pressable(k, format!("attachment-open-{index}"))
@@ -3720,9 +3868,19 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
                         .py(4.0)
                         .center_y()
                         .border(1.0, k.c.border_muted)
-                        .child(text("Open").font(k.ty.caption()).color(k.c.text_accent))
+                        .child(
+                            text(if board { "Open board" } else { "Open" })
+                                .font(k.ty.caption())
+                                .color(k.c.text_accent),
+                        )
                         .on_press(move |s: &mut State| {
-                            s.open_attachment(&target);
+                            // Slice 7: an embedded board opens on Board.
+                            match &board_path {
+                                Some(path) => s.open_board_at(path.clone()),
+                                None => {
+                                    s.open_attachment(&target);
+                                }
+                            }
                         }),
                 ),
         );
@@ -4209,7 +4367,7 @@ mod help_layout_tests {
         );
 
         assert_eq!(shortcut_label("[[").chords, vec![vec!["[[".to_owned()]]);
-        assert_eq!(shortcut_label("⌘1 / ⌘2 / ⌘3").chords.len(), 3);
+        assert_eq!(shortcut_label("⌘1 / ⌘2 / ⌘3 / ⌘4").chords.len(), 4);
         assert_eq!(
             shortcut_label("Tab / Shift+Tab").chords,
             vec![

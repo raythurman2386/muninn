@@ -23,6 +23,8 @@ use crate::watch::{self, VaultSnapshot};
 pub enum MenuTarget {
     Note(usize),
     Folder(String),
+    /// A board row (#43 rename), in the Board panel or the notes sidebar.
+    Board(PathBuf, crate::BoardPlace),
 }
 
 impl MenuTarget {
@@ -89,6 +91,9 @@ pub(crate) const WATCH_INTERVAL: f64 = 1.5;
 /// recovery file. Shorter than the 0.55 s autosave window so a crash during
 /// that window still leaves the text recoverable.
 const RECOVERY_DEBOUNCE: f64 = 0.2;
+
+/// How long a view change rests before it is written to `settings.json`.
+const SETTINGS_IDLE: f64 = 0.5;
 
 /// SAF-05: a continuous typist never goes idle, so force a copy at least this
 /// often. Combined with the idle debounce this bounds crash loss to about a
@@ -240,6 +245,9 @@ const NOTE_EDITOR_CAP: usize = 24;
 /// bounded chunks from [`crate::poll`], one frame at a time.
 pub(crate) const SCAN_SYNC_LIMIT: usize = 100;
 
+/// Shown when a vault rescan is refused because the open board cannot be saved.
+const RESCAN_BOARD_REFUSED: &str = "Save the current board before rescanning the vault";
+
 /// Note bodies read per poll tick. Reading is the expensive part (the walk is
 /// metadata only); 50 keeps a tick far below one frame on a cold cache while a
 /// 2,000-note vault finishes in about forty ticks.
@@ -331,6 +339,48 @@ pub struct State {
     pub history_index: usize,
     pub mode: Mode,
     pub last_note_mode: Mode,
+    /// Board mode: the vault's boards as last read from disk
+    /// ([`State::refresh_boards`]), and the one picked in the list.
+    pub boards: Vec<crate::BoardSummary>,
+    pub board_selected: Option<PathBuf>,
+    /// Board slice 3: the board on the canvas and its camera.
+    pub board_open: Option<crate::board_view::OpenBoard>,
+    /// Views of boards opened earlier this session, by path.
+    pub board_views: HashMap<PathBuf, crate::BoardView>,
+    /// The last session's board, applied on the first board refresh.
+    pub board_restore: Option<crate::BoardSession>,
+    /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).
+    pub board_tool: Option<crate::BoardTool>,
+    /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
+    pub board_hand: bool,
+    /// Ids, seeds and nonces for drawn elements.
+    pub board_ids: muninn_core::IdSource,
+    /// Slice 6: the text element whose in-canvas editor is open.
+    pub board_text: Option<crate::board_text::BoardTextTarget>,
+    /// Slice 6: the in-canvas text editor's field.
+    pub board_text_field: TextEdit,
+    /// Slice 6: the click that closed a text editor; its drag is ignored.
+    pub board_text_swallow: bool,
+    /// #40 review M1: the uncommitted editor text in the last recovery copy.
+    pub(crate) board_recovered_text: Option<String>,
+    /// Slice 7: the board recovery copy waits for the drawing (and any text
+    /// being typed) to rest: `((generation, typed text), first change, last
+    /// change)` of what is not copied yet.
+    pub(crate) board_recovery_wait: Option<((u64, Option<String>), f64, f64)>,
+    /// Slice 7: a view change (held arrow pan, zoom, a stroke) is written to
+    /// `settings.json` once things rest, not once per event. When it was
+    /// last asked for.
+    pub(crate) settings_due: Option<f64>,
+    /// Slice 7 autosave: `(generation, first change, last change)` of the
+    /// open board's drawing not saved yet.
+    pub(crate) board_autosave_wait: Option<(u64, f64, f64)>,
+    /// Slice 7 board watcher: each listed board's file metadata at the last
+    /// look, and when that was.
+    pub(crate) board_stats: std::collections::BTreeMap<PathBuf, Option<crate::watch::FileState>>,
+    pub(crate) last_board_watch: f64,
+    /// Slice 7: the vault's boards for the sidebar's Boards section, listed
+    /// (file names only, nothing parsed) whenever the vault is (re)scanned.
+    pub sidebar_boards: Vec<muninn_core::BoardFile>,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -387,12 +437,20 @@ pub struct State {
     pub collapsed: HashSet<String>,
     /// Open right-click menu, if any.
     pub menu: Option<ContextMenu>,
+    /// Board slice 8: whether the notes sidebar shows outside Board (the
+    /// user's own choice; on at launch) and on Board (off at launch, so the
+    /// canvas gets the room; reopening it there holds for the session).
+    pub sidebar_open: bool,
+    pub sidebar_open_board: bool,
     /// Inline name field for a note being created. Empty/cancel creates nothing.
     pub new_note_prompt: Option<NamePrompt>,
     pub new_note_field: TextEdit,
     /// Inline rename field for a note.
     pub rename_prompt: Option<RenamePrompt>,
     pub rename_field: TextEdit,
+    /// #43: a board being renamed, and its inline name field.
+    pub board_rename: Option<crate::BoardRename>,
+    pub board_rename_field: TextEdit,
     /// Inline name field for a folder being created.
     pub new_folder_prompt: Option<FolderPrompt>,
     pub new_folder_field: TextEdit,
@@ -409,7 +467,7 @@ pub struct State {
     /// Last note moved to the trash, offered as Undo in the status bar.
     pub trash_undo: Option<TrashUndo>,
     /// SAF-05 recovery files for this vault (XDG state, never the vault).
-    recovery: RecoveryStore,
+    pub(crate) recovery: RecoveryStore,
     /// Dirty buffers found at startup; the banner lists and restores these.
     pub recovered: Vec<RecoveryEntry>,
     /// Trailing-debounce clock for the next recovery write.
@@ -424,7 +482,7 @@ pub struct State {
     recovery_rel: Option<String>,
     recovery_text: Option<String>,
     /// SAF-03 baseline: metadata picture of the vault at the last check.
-    watched: Option<VaultSnapshot>,
+    pub(crate) watched: Option<VaultSnapshot>,
     last_watch: f64,
     /// XDG state root, kept so a vault switch can re-key crash recovery.
     pub(crate) state_home: PathBuf,
@@ -626,6 +684,28 @@ impl State {
             history_index: 0,
             mode: Mode::Editor,
             last_note_mode: Mode::Editor,
+            boards: Vec::new(),
+            board_selected: None,
+            board_open: None,
+            board_views: HashMap::new(),
+            board_restore: if restore_vault {
+                settings.board.clone()
+            } else {
+                None
+            },
+            board_tool: None,
+            board_hand: false,
+            board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
+            board_text: None,
+            board_text_field: TextEdit::default(),
+            board_text_swallow: false,
+            board_recovered_text: None,
+            board_recovery_wait: None,
+            settings_due: None,
+            board_autosave_wait: None,
+            board_stats: std::collections::BTreeMap::new(),
+            last_board_watch: 0.0,
+            sidebar_boards: Vec::new(),
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
@@ -656,10 +736,14 @@ impl State {
             now: 0.0,
             collapsed,
             menu: None,
+            sidebar_open: true,
+            sidebar_open_board: false,
             new_note_prompt: None,
             new_note_field: TextEdit::new(""),
             rename_prompt: None,
             rename_field: TextEdit::new(""),
+            board_rename: None,
+            board_rename_field: TextEdit::new(""),
             new_folder_prompt: None,
             new_folder_field: TextEdit::new(""),
             rename_folder_prompt: None,
@@ -734,6 +818,9 @@ impl State {
         );
         if let Some(job) = state.scan.as_ref() {
             state.log_event("scan-start", &format!("total={}", job.total()));
+        } else {
+            // A big vault lists its boards when its chunked scan finishes.
+            state.list_sidebar_boards();
         }
         // LIF-01: reopen the note that was open last time, but only when this is
         // the same vault. A `--vault` override gets that vault's first note
@@ -774,6 +861,20 @@ impl State {
     /// Saves are immediate and best-effort: the file is a few hundred bytes,
     /// and a failed settings write must never interrupt editing. Callers are
     /// the mutators below plus the app's `on_close` hook.
+    /// Write `settings.json` once things rest (a held arrow key pans
+    /// many times a second); [`State::save_settings`] writes now.
+    pub(crate) fn save_settings_soon(&mut self) {
+        self.settings_due = Some(self.now);
+    }
+
+    /// Per frame: the settings write asked for by [`State::save_settings_soon`].
+    pub(crate) fn settings_tick(&mut self, t: f64) {
+        if self.settings_due.is_some_and(|at| t - at >= SETTINGS_IDLE) {
+            self.settings_due = None;
+            self.save_settings();
+        }
+    }
+
     pub fn save_settings(&self) -> bool {
         let Some(config_home) = self.settings_home.as_ref() else {
             return false;
@@ -794,6 +895,7 @@ impl State {
             .or_else(|| self.restore_after_scan.clone());
         settings.mode = self.mode;
         settings.scope = self.scope;
+        settings.board = self.board_session();
         match settings.save_to(config_home) {
             Ok(()) => true,
             Err(e) => {
@@ -997,6 +1099,12 @@ impl State {
                 Some("Save or resolve the current note before switching vaults".to_owned());
             return false;
         }
+        // The open board saves into the vault it came from, before that
+        // vault is let go; a board that cannot be saved blocks the switch.
+        if !self.save_board() {
+            self.error = Some("Save the current board before switching vaults".to_owned());
+            return false;
+        }
         let started = Instant::now();
         match Vault::load(&root) {
             Ok(vault) => {
@@ -1008,6 +1116,7 @@ impl State {
                 self.restore_after_scan = None;
                 self.scan_field.focused = false;
                 self.vault = vault;
+                self.list_sidebar_boards();
                 self.log_open(started);
                 self.selected = None;
                 self.selected_path = None;
@@ -1036,6 +1145,10 @@ impl State {
                 self.settings.push_recent(&root);
                 self.settings.last_vault = Some(root);
                 self.settings.selected_rel = None;
+                // Boards belong to the vault: drop the old one's list, pick,
+                // open board, remembered views and pending restore.
+                self.clear_boards();
+                self.refresh_boards();
                 let first = self.vault.notes.first().map(|note| note.id);
                 if let Some(id) = first {
                     self.load_note(id, false);
@@ -1235,6 +1348,7 @@ impl State {
             PaletteAction::NewNote => self.new_note(),
             PaletteAction::TogglePreview => self.toggle_preview(),
             PaletteAction::ToggleGraph => self.toggle_graph(),
+            PaletteAction::ToggleBoard => self.toggle_board(),
         }
     }
 
@@ -1382,7 +1496,9 @@ impl State {
     }
 
     pub fn open_from_list(&mut self, id: usize) {
-        if self.mode == Mode::Graph {
+        // A note picked from the sidebar while Graph or Board is up opens in
+        // Write, as the graph always has.
+        if !self.mode.is_note_mode() {
             self.mode = Mode::Editor;
             self.camera_glide = None;
         }
@@ -1874,6 +1990,7 @@ impl State {
         self.complete = None;
         self.complete_dismissed = None;
         self.dismiss_palette();
+        self.reveal_sidebar();
         self.set_text_focus(false, true);
     }
 
@@ -2613,6 +2730,10 @@ impl State {
     /// Load one recovered buffer into the editor as dirty. If the note no
     /// longer exists it is recreated at its original vault-relative path.
     pub fn restore_recovery(&mut self, rel: &str) -> bool {
+        // #38 review B2: a board's copy opens on Board, never as a note.
+        if crate::board_safety::is_board_rel(rel) {
+            return self.restore_board_recovery(rel);
+        }
         let Some(id) = self.vault.notes.iter().find(|n| n.rel == rel).map(|n| n.id) else {
             return self.restore_missing_note(rel);
         };
@@ -2974,12 +3095,13 @@ impl State {
     fn refresh_index_only(&mut self) {
         if let Ok(vault) = Vault::load(&self.vault.root) {
             self.vault = vault;
+            self.list_sidebar_boards();
             self.graph.sync(&self.vault);
             self.refresh_watch();
         }
     }
 
-    fn flush(&mut self) {
+    pub(crate) fn flush(&mut self) {
         self.save_now();
     }
 
@@ -2992,7 +3114,11 @@ impl State {
         match Vault::load(&root) {
             Ok(v) => {
                 self.vault = v;
+                self.list_sidebar_boards();
                 self.graph.sync(&self.vault);
+                if self.mode == Mode::Board {
+                    self.refresh_boards();
+                }
                 // A later successful scan proves the startup failure is gone.
                 self.startup_error = None;
                 // Reloads keep the note by path identity; save its caret before
@@ -3021,13 +3147,21 @@ impl State {
     /// Retry the startup scan after [`State::startup_error`]. A small vault is
     /// scanned synchronously; a large one starts the same chunked path as
     /// startup, and `poll` completes it. On failure the error is refreshed.
+    ///
+    /// The open board is saved first, like before a board or vault switch; a
+    /// board that cannot be saved refuses the rescan, so the drawing is never
+    /// dropped by the vault the scan installs.
     pub fn retry_startup(&mut self) -> bool {
+        if !self.save_board() {
+            self.error = Some(RESCAN_BOARD_REFUSED.to_owned());
+            return false;
+        }
         match Vault::scan_start(&self.vault.root) {
             Ok(mut job) => {
                 let total = job.total();
                 if total <= SCAN_SYNC_LIMIT {
                     job.read_chunk(usize::MAX);
-                    self.install_scanned_vault(job.finish());
+                    return self.install_scanned_vault(job.finish());
                 } else {
                     self.startup_error = None;
                     self.error = None;
@@ -3080,7 +3214,10 @@ impl State {
             .scan_started
             .take()
             .map_or(0.0, |started| started.elapsed().as_secs_f64() * 1_000.0);
-        self.install_scanned_vault(vault);
+        if !self.install_scanned_vault(vault) {
+            self.log_event("scan-aborted", "the open board could not be saved");
+            return true;
+        }
         self.log_event(
             "scan-complete",
             &format!(
@@ -3111,8 +3248,25 @@ impl State {
 
     /// Replace the placeholder with a finished scan: build the graph, reopen
     /// the session's note (or the first one) and start watching the folder.
-    fn install_scanned_vault(&mut self, vault: Vault) {
+    ///
+    /// Unsaved drawing is saved into its own vault first. If that save fails
+    /// the scan is abandoned (false): the open board, its drawing and the
+    /// current vault stay as they are, as when a board or vault switch is
+    /// refused.
+    fn install_scanned_vault(&mut self, vault: Vault) -> bool {
+        // The scan re-reads the vault that is already open (startup or Retry),
+        // so the open board and its view stay: clearing them here would also
+        // write `board: null` to settings below and lose the restore. Only a
+        // scan of another root starts the boards over.
+        let same_vault = vault.root == self.vault.root;
+        if !self.save_board() {
+            self.restore_after_scan = None;
+            self.scan_field.focused = false;
+            self.error = Some(RESCAN_BOARD_REFUSED.to_owned());
+            return false;
+        }
         self.vault = vault;
+        self.list_sidebar_boards();
         self.scan_field.focused = false;
         self.startup_error = None;
         self.error = None;
@@ -3133,6 +3287,10 @@ impl State {
         self.dirty_at = None;
         self.trash_undo = None;
         self.broken_panel = false;
+        if !same_vault {
+            self.clear_boards();
+        }
+        self.refresh_boards();
         let restore = self.restore_after_scan.take();
         let id = restore
             .and_then(|rel| {
@@ -3153,6 +3311,7 @@ impl State {
         self.settings.last_vault = Some(root);
         self.save_settings();
         self.refresh_watch();
+        true
     }
 
     /// Begin naming a note in the current folder. Nothing is created until
@@ -3184,6 +3343,8 @@ impl State {
     /// Shared start for the sidebar's inline fields: close the pointer menu and
     /// hand the keyboard to a prompt instead of the editor or search box.
     fn begin_inline_prompt(&mut self) {
+        self.cancel_rename_board();
+        self.reveal_sidebar();
         self.dismiss_palette();
         self.menu = None;
         self.vault_field.focused = false;
@@ -3318,7 +3479,7 @@ impl State {
         }
     }
 
-    fn format_rewrite_failures(&self, failures: &[(usize, io::Error)]) -> String {
+    pub(crate) fn format_rewrite_failures(&self, failures: &[(usize, io::Error)]) -> String {
         failures
             .iter()
             .map(|(id, error)| {
@@ -3689,6 +3850,15 @@ impl State {
         });
     }
 
+    /// #43: right-click on a board row (`place` says which list it is in).
+    pub fn open_board_menu(&mut self, path: PathBuf, place: crate::BoardPlace, x: f32, y: f32) {
+        self.menu = Some(ContextMenu {
+            target: MenuTarget::Board(path, place),
+            x,
+            y,
+        });
+    }
+
     pub fn close_menu(&mut self) {
         self.menu = None;
     }
@@ -3711,6 +3881,9 @@ impl State {
             (MenuTarget::Folder(folder), "new_folder") => self.begin_new_folder(&folder),
             (MenuTarget::Folder(folder), "rename") => self.begin_rename_folder(&folder),
             (MenuTarget::Folder(folder), "delete") => self.delete_folder(&folder),
+            (MenuTarget::Board(path, place), "rename") => {
+                self.begin_rename_board(path, place);
+            }
             _ => {}
         }
     }
@@ -4065,7 +4238,7 @@ impl State {
                 self.editor.anchor = offset;
                 self.editor.focus = offset;
             }
-            Mode::Graph => {}
+            Mode::Graph | Mode::Board => {}
         }
     }
 
@@ -4365,7 +4538,7 @@ fn finish_name_field(field: &mut TextEdit) -> Option<String> {
 /// A vault-relative note path that cannot escape the vault root. Used only
 /// when recreating a note whose file disappeared while its recovery copy
 /// survived.
-fn safe_rel(rel: &str) -> bool {
+pub(crate) fn safe_rel(rel: &str) -> bool {
     !rel.is_empty()
         && !rel.starts_with('/')
         && !rel.contains('\\')
@@ -4405,7 +4578,7 @@ fn flag_on(value: Option<&OsStr>) -> bool {
 }
 
 /// UTC `YYYYMMDD-HHMMSS`, used to give a conflict copy a unique, sortable name.
-fn conflict_stamp() -> String {
+pub(crate) fn conflict_stamp() -> String {
     let secs = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());

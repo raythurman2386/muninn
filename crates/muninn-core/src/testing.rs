@@ -52,6 +52,25 @@ impl Drop for TempVault {
     }
 }
 
+thread_local! {
+    static SCRATCH: std::cell::RefCell<Vec<Scratch>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        drop(fs::remove_dir_all(&self.0));
+    }
+}
+
+/// Remove `dir` when the current thread ends: a test's config and state
+/// homes, which outlive the `Runtime` they are handed to (a relaunch reuses
+/// them), go when the test does instead of piling up in the temp folder.
+pub fn remove_on_thread_exit(dir: &Path) {
+    SCRATCH.with(|s| s.borrow_mut().push(Scratch(dir.to_path_buf())));
+}
+
 /// A deterministic synthetic vault of `n` notes: 25-note star groups plus a
 /// chain, so every note links to its group hub and the previous note. Used by
 /// graph and UI performance/settle tests so the fixture lives in one place.
@@ -75,4 +94,23 @@ pub fn big_vault(n: usize) -> TempVault {
         .map(|(name, body)| (name.as_str(), body.as_str()))
         .collect();
     TempVault::new(&refs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_scratch_dir_is_gone_once_its_thread_ends() {
+        let dir = std::env::temp_dir().join(format!("muninn-scratch-{}", std::process::id()));
+        let inner = dir.clone();
+        std::thread::spawn(move || {
+            fs::create_dir_all(inner.join("state")).expect("dir");
+            remove_on_thread_exit(&inner);
+            assert!(inner.is_dir(), "kept while the thread runs");
+        })
+        .join()
+        .expect("thread");
+        assert!(!dir.exists(), "{} was left behind", dir.display());
+    }
 }

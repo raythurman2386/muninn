@@ -5,10 +5,15 @@ use rune::{Key, KeyEvent, Tx};
 use crate::{Mode, State};
 
 pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
+    // #40 recheck B1: a Board key's edit reaches the recovery copy without
+    // waiting for more input.
+    if s.mode == crate::Mode::Board {
+        tx.wake_after(crate::board_safety::BOARD_EDIT_WAKE);
+    }
     shortcut(s, e, tx)
 }
 
-pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
+pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     // Escape dismisses the topmost layer (see `Layer` / `State::topmost_layer`)
     // before falling through to the graph escape below. Text fields handle
     // Escape first and never reach here.
@@ -22,6 +27,14 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.toggle_graph();
         return true;
     }
+    // Esc on Board drops the drawing tool; with none picked it leaves Board
+    // the way it leaves the graph.
+    if e.key == Key::Escape && s.mode == Mode::Board {
+        if !s.board_escape() {
+            s.toggle_board();
+        }
+        return true;
+    }
     // The settings modal owns the keyboard while it is mounted: only the
     // toggle chord is read here, everything else belongs to its controls.
     if s.settings_modal {
@@ -33,7 +46,19 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     // M3 GRP-02: arrows, Enter and the zoom/fit/isolate keys are graph-only;
     // State owns them so the canvas can be tested without a window. The
     // palette takes precedence while it is open (its input owns arrows).
-    if s.palette.is_none() && s.mode == Mode::Graph && s.graph_key(e) {
+    // A focused text field (the sidebar search, a prompt) owns typing, so
+    // neither canvas reads letters, digits or arrows meant for it.
+    if !s.is_typing() && s.mode == Mode::Graph && s.graph_key(e) {
+        return true;
+    }
+    // Board slice 5: undo, redo and select all on the open board, before
+    // the note chords (⌘Z is the editor's otherwise, ⌘A its select-all).
+    if !s.is_typing() && crate::board_edit::board_command(s, e) {
+        return true;
+    }
+    // Board slice 3: zoom, fit and arrow-pan keys on the open board; slice 4
+    // adds the tool letters, slice 5 Delete, arrows nudging and Esc.
+    if !s.is_typing() && s.mode == Mode::Board && s.board_key(e) {
         return true;
     }
     // v0.5: Cmd/Ctrl+Shift+P opens the command palette from anywhere,
@@ -58,8 +83,23 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         return true;
     }
     if !typing {
+        // Slice 8: Cmd/Ctrl+\\ shows or hides the notes sidebar (Board keeps
+        // its own state). Not from a text field: there it is the field's.
+        if e.is_command('\\') {
+            s.toggle_sidebar();
+            // The canvas and its chrome move at once, not with a glide.
+            tx.instant();
+            return true;
+        }
         if e.key == Key::Text("?".to_owned()) {
             s.toggle_help();
+            return true;
+        }
+        // #43: on Board, F2 renames the open board (in its panel row).
+        if e.key == Key::Function(2)
+            && s.mode == Mode::Board
+            && s.begin_rename_open_board(crate::BoardPlace::Panel)
+        {
             return true;
         }
         if e.key == Key::Function(2)
@@ -95,6 +135,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.new_note();
     } else if e.is_command('s') {
         s.save_now();
+        // Board slice 4: on Board the chord also saves the open board.
+        if s.mode == Mode::Board {
+            s.save_board();
+        }
     } else if e.is_command('e') {
         s.toggle_preview();
     } else if e.is_command('g') {
@@ -110,6 +154,8 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
         s.set_mode(Mode::Preview);
     } else if e.is_command('3') {
         s.set_mode(Mode::Graph);
+    } else if e.is_command('4') {
+        s.set_mode(Mode::Board);
     } else {
         return false;
     }

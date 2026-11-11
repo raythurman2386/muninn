@@ -31,6 +31,12 @@ impl Attachment {
         self.size.map(human_size)
     }
 
+    /// True for an embedded Excalidraw board (`![[Plan.excalidraw]]`).
+    #[must_use]
+    pub fn is_board(&self) -> bool {
+        is_board_name(&self.name)
+    }
+
     /// True when [`Attachment::path`] exists on disk.
     #[must_use]
     pub fn exists(&self) -> bool {
@@ -253,6 +259,12 @@ fn attachment_name(target: &str) -> Option<&str> {
         .then_some(name)
 }
 
+/// `true` for an Excalidraw board's file name (`Plan.excalidraw`).
+pub(crate) fn is_board_name(name: &str) -> bool {
+    name.rsplit_once('.')
+        .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case(crate::BOARD_EXTENSION))
+}
+
 /// A reader-visible placeholder for an attachment embed. Rune has no image
 /// pipeline and `Tx::open_url` refuses `file:` links, so the filename and size
 /// are shown in an inline code span and marked as an attachment; the file
@@ -265,7 +277,13 @@ fn attachment_placeholder(link: &WikiLink, size: Option<u64>, out: &mut String) 
         // A backtick would close the code span and turn the rest into text.
         out.push(if c == '`' { '\'' } else { c });
     }
-    out.push_str("` (attachment");
+    // Board slice 7: an embedded Excalidraw board says so; the reader's
+    // strip opens it on Board.
+    out.push_str(if is_board_name(name) {
+        "` (board"
+    } else {
+        "` (attachment"
+    });
     if let Some(alias) = &link.alias {
         out.push_str(" — ");
         escape_label(alias, out);
@@ -377,6 +395,26 @@ mod tests {
         let out = v.preview("[[pic.png]] and ![[Other]]", home);
         assert!(out.contains("missing:pic.png"), "{out}");
         assert!(out.contains("[Other](<missing:Other>)"), "{out}");
+    }
+
+    #[test]
+    fn a_board_embed_renders_a_board_placeholder() {
+        let tmp = TempVault::new(&[
+            (
+                "Home.md",
+                "![[Plan.excalidraw]] and ![[Gone.excalidraw|old plan]]\n",
+            ),
+            ("Plan.excalidraw", "{}"),
+        ]);
+        let v = tmp.load();
+        let home = v.resolve("Home").unwrap();
+        let out = v.preview_with_attachments(&v.note(home).source, home);
+        assert!(out.contains("`Plan.excalidraw` (board) · "), "{out}");
+        assert!(
+            out.contains("`Gone.excalidraw` (board — old plan) · missing"),
+            "{out}"
+        );
+        assert!(!out.contains("(attachment"), "{out}");
     }
 
     #[test]

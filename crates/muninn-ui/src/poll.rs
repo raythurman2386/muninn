@@ -30,6 +30,20 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         return changed;
     }
     let mut changed = false;
+    // Board slice 6: the text editor commits once it loses the keyboard
+    // (a click on the sidebar, a dialog), so it never strands Board keys.
+    if s.board_text.is_some() && !s.board_text_field.focused {
+        s.commit_board_text();
+        changed = true;
+    }
+    // GK MF-B (#43): a board rename keeps the keyboard only while its field
+    // is on screen.
+    if s.board_rename_keep_on_screen() {
+        changed = true;
+    }
+    // Remember the open board for the next launch once a frame drew it; this
+    // writes settings only, nothing on screen changes.
+    s.board_shown_tick(tx);
 
     // M2: query-derived state (search highlight, in-note find matches) is
     // recomputed here, before this frame's commit, because the view only
@@ -100,9 +114,30 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         s.dirty_at = None;
     }
 
+    // Slice 7: boards another app changed, then autosave of the open board
+    // (after the watcher, so a change on disk is flagged before a save).
+    if s.board_watch_tick(t) {
+        changed = true;
+    }
+    if s.board_autosave_tick(t) {
+        changed = true;
+    }
+
+    // Slice 7: a view change asked for a settings write; do it once the
+    // view rests (one write per held key or stroke, not per event).
+    s.settings_tick(t);
+
     // SAF-05: copy a dirty buffer to the XDG recovery file after a short idle.
     // This is invisible on screen, so it must not report a change.
     s.recovery_tick(t);
+    // #38 review B2: the same for an unsaved board, after each change.
+    // #40 recheck B1: the copy may still need a poll (typing at rest), and
+    // slice 7 keeps the board watcher, autosave and settings write on time:
+    // a resting window polls only at a wake it asked for.
+    let recovery = s.board_recovery_poll(t);
+    if let Some(wake) = [recovery, s.board_wake(t)].into_iter().flatten().min() {
+        tx.wake_after(wake);
+    }
 
     if s.mode == Mode::Graph {
         // A node click or scope switch eases the camera over a few frames.

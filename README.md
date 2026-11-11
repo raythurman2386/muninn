@@ -55,14 +55,15 @@ titles with their note counts, the skipped-file count and a folder-depth warning
 exits `0` when clean, `1` when there are broken links or duplicate titles, and `2` when
 the path is not a readable vault folder. It never creates a missing folder. `--list-links`
 prints one sorted `referrer -> target` line per wikilink, with unresolved targets
-prefixed `missing:`. `muninn --help` prints this usage without starting Rune.
+prefixed `missing:`. `muninn --help` prints this usage without starting Rune, and
+`muninn --version` (or `-V`) prints `muninn <version>`, for example `muninn 0.7.0`.
 
 ### Settings and vaults
 
 Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 `~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
 missing file starts from defaults instead of blocking startup. It remembers the theme,
-collapsed folders, the last vault and note, Write/Read/Graph mode, Global/Local scope, the
+collapsed folders, the last vault and note, Write/Read/Graph/Board mode, Global/Local scope, the
 autosave delay (0.55 s by default), the default note template, the Reduce motion choice, the tray, start-at-login and shortcut switches and up to five recent vaults. `Cmd/Ctrl+,`
 opens the in-window Settings modal, split into tabs: **Vaults** (open or create a vault,
 or reopen a recent one), **Editor** (step the autosave delay, 0.05–10 s, and the default
@@ -222,7 +223,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘E` / `Ctrl+E` | Toggle Write / Read |
 | `⌘G` / `Ctrl+G` | Toggle Graph |
 | `⌘L` / `Ctrl+L` | Toggle Global / Local graph |
-| `⌘1` / `⌘2` / `⌘3` | Write / Read / Graph |
+| `⌘1` / `⌘2` / `⌘3` / `⌘4` | Write / Read / Graph / Board |
 | `↑` / `↓` / `←` / `→` (graph) | Move the focus ring to the nearest node (sorted order wraps when no node lies that way) |
 | `Enter` (graph) | Open the focused note; when it is already open, glide the camera back to it |
 | `+` / `-` (graph) | Zoom in / out at the canvas centre |
@@ -230,6 +231,26 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `I` (graph) | Toggle Isolate (dim non-neighbours) |
 | `Enter` (Find node) | Select and centre the best title/path match |
 | `Esc` | Leave the graph |
+| `H`, or drag with the hand / Shift+wheel (board) | Pan the board |
+| Wheel / pinch (board) | Zoom at the pointer |
+| `+` / `-` (board) | Zoom in / out at the canvas centre |
+| `←` / `↑` / `→` / `↓` (board, nothing selected) | Pan the board |
+| `0` / `F` / double-click (board) | Fit the drawing |
+| `R` / `D` / `O` / `A` / `L` / `P` or `X` (board) | Pick the rectangle, diamond, ellipse, arrow, line or freehand tool (also `2`–`7` and the toolbar) |
+| Drag with a tool (board) | Draw that shape; the tool stays picked |
+| `T` / `8` (board), then click | Place text and type it in place (`Enter` breaks the line; `Esc` or a click outside commits; empty text is discarded) |
+| Double-click text (board) | Edit that text in place (emptying it deletes it); `⌘Z` while typing undoes typing |
+| Double-click a shape or its label (board) | Edit the label inside that shape in place; it stays centred in the shape |
+| `V` / `1` (board) | Drop the drawing tool (back to selecting) |
+| Click / Shift+click (board) | Select an element (its outermost group) / add or remove it |
+| Drag on empty canvas (board) | Marquee: select the elements wholly inside it (Shift adds) |
+| Drag a selected element (board) | Move the selection |
+| `←` / `↑` / `→` / `↓`, Shift for 5 (board, with a selection) | Nudge the selection 1 (or 5) units |
+| `Delete` / `Backspace` (board) | Delete the selection (kept in the file as an `isDeleted` tombstone) |
+| `⌘A` / `Ctrl+A` (board) | Select every element |
+| `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (board) | Undo / redo drawing, moves and deletes (last 100) |
+| `⌘S` / `Ctrl+S` (board) | Save the board's drawing now (atomically, to the open board only; autosave also saves it once it rests, unless `"board_autosave": false`) |
+| `Esc` (board) | Clear the selection, else drop the tool, else leave Board for the last note mode |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |

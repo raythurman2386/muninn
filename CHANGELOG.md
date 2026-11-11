@@ -6,6 +6,191 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-11
+
+### Added
+
+- **Board tab.** A fourth mode (`⌘4` / `Ctrl+4`) for drawing, on a canvas
+  drawn natively by Muninn. Boards are ordinary `.excalidraw` files in the
+  vault, read and written in Excalidraw's own format, so Excalidraw can open
+  them, and elements Muninn does not draw are kept as they are. In short:
+  drawing tools (rectangle, diamond, ellipse, arrow, line, freehand, text)
+  with Excalidraw's keys; select, move, delete, undo and redo; text and shape
+  labels; autosave with conflict and changed-on-disk protection; crash
+  recovery; a Boards section in the sidebar and `![[Name.excalidraw]]` embeds
+  in notes; a collapsible sidebar; and New board and rename. The entries below
+  give the details.
+- Board mode: a fourth mode button, `⌘4` / `Ctrl+4`, and **Toggle
+  Board** in the command palette open a Board page that lists the vault's
+  `.excalidraw` boards with their element counts.
+- Board canvas: picking a board draws its rectangles,
+  ellipses, diamonds, lines, arrows, freehand strokes and text on the board's
+  own paper colour, fitted to the canvas. Drag or Shift+wheel pans, the wheel
+  zooms at the pointer (as in Graph), `+`/`-` zoom, arrows pan, `0`/`F` or a
+  double-click refits, and corner buttons zoom and fit. Each board keeps its
+  view while Muninn runs, and the last board and its view come back on launch.
+  This holds in large vaults too (the chunked startup scan keeps the restored
+  board, also when Muninn relaunches in another mode and the board is not
+  drawn until Board opens), and a newly picked board is only remembered once a
+  frame has drawn it, so a board that cannot be drawn is not reopened on every
+  launch. Text sizes are clamped
+  (1–2048, and at most 1024 pt on screen at any zoom), so a huge `fontSize`
+  cannot crash the app.
+  Viewing alone never writes the board file.
+  Esc leaves Board for the last note mode, and the last mode (now including
+  Board) is restored on launch; older `settings.json` files load unchanged.
+- Board drawing tools: a toolbar and Excalidraw's keys (`R`,
+  `D`, `O`, `A`, `L`, `P`/`X`, `V`/`Esc` for no tool) draw rectangles,
+  diamonds, ellipses, arrows, lines and freehand strokes as new Excalidraw
+  elements (fresh ids, seeds, versions and fractional indexes). The heading
+  shows Unsaved; `⌘S` / `Ctrl+S` saves the board atomically, and Muninn also
+  saves it before opening another board, switching vault, rescanning the
+  vault or quitting; if that save fails, the board switch, vault switch or
+  rescan is refused and the drawing stays. Every element already in the file
+  is kept, and a board that changed on disk, was removed, or belongs to
+  another vault is never written without asking.
+- Board editing: with no tool picked, click selects an element
+  (its outermost group; Shift+click adds or removes), a drag on empty canvas
+  draws a marquee, a drag on the selection moves it, arrows nudge it (Shift
+  for 5), `Delete`/`Backspace` deletes it, `⌘A` selects all, and `⌘Z` /
+  `⌘⇧Z` (`Ctrl+Y`) undo and redo drawing, moves and deletes (last 100 per
+  board). `Esc` clears the selection, then drops the tool, then leaves Board.
+  Panning moves to the hand tool (`H`), Shift+wheel, a trackpad or the
+  arrows with nothing selected. Each edit bumps the touched elements'
+  `version`, `versionNonce` and `updated` as Excalidraw does; a deleted
+  element stays in the file as an `isDeleted` tombstone. Locked elements and
+  the elements Muninn keeps as-is (frames, images) are never picked; resize
+  handles are shown but resizing is not supported yet (a press on a
+  handle does nothing). A text label bound to a shape moves, deletes, undoes
+  and redoes with it, and clicking the label selects the shape, so no label
+  is left behind or orphaned in the file. Saving is still
+  the explicit `⌘S` with all its guards.
+- Board autosave and watcher: an open board's drawing is saved
+  once it rests (the autosave delay, at least 1 s, or every 10 s while it keeps
+  changing), through the same guarded atomic save as `⌘S`, so a file another
+  app changed is never written over (the conflict bar decides). It never saves
+  mid-drag or with a text editor open; `"board_autosave": false` in
+  `settings.json` leaves saving to `⌘S`. While Board shows, boards changed by
+  another app are noticed within about 1.5 s: a clean open board is re-read in
+  place, a board with unsaved drawing is flagged and kept, and the list's
+  counts follow. The sidebar has a Boards section, a note's
+  `![[Name.excalidraw]]` embed shows a board placeholder with an Open board
+  button, and Board with nothing picked reads "No board selected".
+- Board memory and writes: undo history is bounded by size (32 MiB) as well as
+  by count, so editing a 10 MB board no longer grows memory towards gigabytes;
+  the board recovery copy and `settings.json` are written once a stream of
+  changes (a held arrow key, a pan, typing) rests, not once per change; an
+  old-layout recovery record shadowed by a newer copy is removed instead of
+  being offered again on every launch.
+- Board text: the text tool (`T`/`8` or the toolbar) places a
+  text element where you click and opens an editor there; `Enter` breaks
+  the line, and `Esc`, a click outside, leaving Board or saving commits.
+  Double-clicking a text element edits it in place. New text is written
+  with Excalidraw's fields (`text`, `originalText`, `fontSize` 20,
+  `fontFamily`, `textAlign`, `verticalAlign`, `lineHeight`, measured
+  `width`/`height`, `containerId` null, `autoResize`); committing empty text
+  adds nothing, and emptying existing text deletes it as a tombstone. Each
+  commit is one undoable edit that bumps `version`, `versionNonce` and
+  `updated`. While typing, Board and Graph keys stay in the editor and `⌘Z`
+  undoes typing. Double-clicking a shape with a label inside it (or the
+  label) edits that label in place; it stays bound (`containerId`,
+  `boundElements`) and is re-centred in the shape on commit. A label inside
+  a locked shape is locked with it. Adding a label to a shape without one is
+  not supported yet. Text typed but not yet committed counts as
+  unsaved: the recovery copy is written on a timer, once typing rests for
+  about 0.5 s and at least every 2 s while it goes on, so a crash keeps
+  everything up to the last copy but can lose the last moments of typing
+  (up to about 2 s). Quitting or saving mid-edit commits it.
+- Unsaved board drawing is never lost: if the board's file is removed,
+  renamed or changed by another app, the board stays open and, once Muninn
+  notices (when the boards are re-listed — entering Board, a vault reload or
+  rescan — when a save reads the file first, or within about 1.5 s
+  while Board shows), is flagged in the heading and offers **Keep mine** (write it back to its own path), **Save
+  copy** (a new `Title (conflict …).excalidraw` beside it) and **Load
+  theirs** / **Discard**. A dirty board also keeps a crash-recovery copy, like
+  a note, that the launch banner can restore onto Board (flagged, and
+  never written over a changed file without Keep mine); quitting with a board
+  that cannot be saved keeps that copy, or refuses to quit if even the copy
+  cannot be written. Recovery copies are kept per vault, so two vaults with
+  a same-named board or note never overwrite or clear each other's copy
+  (older copies are picked up by their own vault), and a recovery record is
+  never restored or written outside its vault (no `..`, absolute paths or
+  symlinks out).
+- New board: a **New board** button in the Boards panel header, and in the
+  empty state when a vault has no boards yet ("No boards in this vault yet"),
+  creates an empty `Untitled board.excalidraw` (numbered if taken), opens it
+  and lists it.
+- Collapsible sidebar: the title-bar toggle or `⌘\` / `Ctrl+\` hides and
+  shows the notes sidebar (not while a text field has the keyboard). Entering
+  Board collapses it to give the canvas room and leaving Board restores it;
+  reopening it on Board lasts for the session. A hidden sidebar never keeps
+  the keyboard: hiding it unfocuses search and cancels its inline prompts,
+  and `⌘K` or a new-note prompt shows it first.
+- Board rename: `F2` on Board (with no text field focused), **Rename** in a
+  board row's right-click menu (Boards panel or the sidebar's Boards
+  section), or a double-click on the board's title opens an inline name
+  field (`F2` uses the title when the board has no row in the Boards panel,
+  for example one in a hidden folder). Names in any script work, accents
+  and emoji included; `Enter` renames and `Esc` cancels, and `.excalidraw` is added for
+  you. A taken or invalid name is refused with the reason and the field
+  stays open. The open board is saved first and stays open under its new
+  name with its view and recovery copy, the file watcher
+  does not report the rename, and notes that embed or link the board
+  (`![[Old.excalidraw]]`) are updated to the new name, keeping folder,
+  heading and alias.
+- `muninn --version` (or `-V`) prints `muninn 0.7.0` and exits without
+  opening a window.
+- Typing in the sidebar search on Board or Graph no longer triggers the
+  canvas's keys (tool letters, zoom, fit, arrows).
+
+### Known limitations
+
+- Board parsing and saving run on the UI thread, so opening or saving a very
+  large board can pause the window briefly.
+- Long text labels overflow their shape; they are not wrapped to its width.
+- An IME composition in progress (for example CJK input) is dropped when the
+  text is committed, and CJK line breaking is approximate. The measured text
+  width uses Muninn's font, which can differ slightly from Excalidraw's.
+- Not yet supported on Board: resize and rotate, arrows that follow the
+  shapes they are bound to, copy/paste and duplicate, text styling, adding a
+  label to a shape that has none, and deleting or moving a board to another
+  folder from inside Muninn (use the file manager).
+- After restoring a board from crash recovery, it can be flagged as changed
+  on disk by another app even when it was not; choose **Keep mine** to save.
+  Until then the board cannot be renamed either, and the rename field says
+  only "Save the board first: it could not be saved".
+- A crash-recovery copy is written as two files (the content, then a small
+  record of where it belongs and when), each atomically but not as a pair.
+  A crash between the two writes can leave a first copy without its record,
+  which is then not offered on the next launch, or a newer copy with the
+  previous copy's time.
+- New board checks that its name is free and then writes the file, so a
+  file another app creates under that exact name in the same instant is
+  replaced. A broken symlink with the next free name (`Untitled board
+  2.excalidraw` pointing at nothing) is replaced by the new board; nothing
+  outside the vault is written.
+- Board rename has the same check-then-rename window: a file another app
+  creates under the new name in that instant is replaced.
+- Rename updates the notes that embed or link the board from the copy
+  Muninn holds, without checking whether another app changed those notes a
+  moment before (the same as note rename), and it does not roll back: if
+  one note cannot be written, the board is still renamed, the other notes
+  are updated, and the error names the note that was not.
+- Embeds written with a `../` path (`![[../Ideas/Plan.excalidraw]]`) are
+  not followed by Muninn and are not updated by a rename.
+- A rename that only changes letter case (`plan` to `Plan`) is tested on
+  Linux (ext4); on the case-insensitive disks of macOS and Windows it is
+  expected to work but has not been tried by hand.
+- Opening Settings › Vaults › Open vault while on Board also opens the notes
+  sidebar on Board for the rest of the session, as do `⌘K` and `⌘N` there.
+  Opening a note from the list or a new-note prompt switches to Write
+  without going through the usual mode switch; nothing is lost, as no
+  sidebar field is open at that point.
+- Saving a board resets its file permissions to the default (0644), and the
+  first save of an Excalidraw file reorders its keys and fills in defaults.
+- The sidebar's hidden or shown state on Board is not remembered across
+  restarts.
+
 ## [0.6.0] - 2026-11-09
 
 ### Added

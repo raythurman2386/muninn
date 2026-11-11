@@ -40,6 +40,15 @@ static TRACE: AtomicBool = AtomicBool::new(false);
 static THEME: std::sync::Mutex<Option<ThemeMode>> = std::sync::Mutex::new(None);
 
 fn main() {
+    // `--version` / `-V` print the version and exit, before Rune or a window
+    // is touched (GK MF-C, #43).
+    if std::env::args_os()
+        .skip(1)
+        .any(|arg| arg == std::ffi::OsStr::new("--version") || arg == std::ffi::OsStr::new("-V"))
+    {
+        println!("muninn {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     // Rune consumes `--help` for its own headless-tooling usage before
     // `extra_args`, so answer the app's help from the raw process arguments.
     if std::env::args_os()
@@ -93,7 +102,13 @@ fn main() {
         // LIF-01: settings are also written on each toggle/open, but the close
         // hook captures the final note/mode if the window is closed right after
         // a change that did not reach a mutator.
-        s.flush_before_quit();
+        //
+        // #38 review B2: a board that can neither be saved nor copied to
+        // recovery refuses the quit; the window comes back with the reason.
+        if !s.flush_before_quit() {
+            reopen_window();
+            return;
+        }
         // The app keeps running after a close (below) only so Close to tray
         // can hide the window. Without a live tray icon, closing quits as it
         // always has.
@@ -110,6 +125,7 @@ fn main() {
     // Appearance). The state gets a way to make each; it acts only while
     // its setting is on. Headless runs (`--snap`, `--tree`, scripts) get none.
     let handle = app.handle();
+    WINDOW.with(|w| *w.borrow_mut() = Some(handle.clone()));
     app.init(move || {
         let mut state = init();
         if !headless {
@@ -196,6 +212,22 @@ fn tray_factory(handle: rune::AppHandle<State>) -> TrayFactory {
     })
 }
 
+thread_local! {
+    /// The app handle, so the `fn` close hook can bring the window back when
+    /// a quit is refused.
+    static WINDOW: std::cell::RefCell<Option<rune::AppHandle<State>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Show the window again after a refused close.
+fn reopen_window() {
+    WINDOW.with(|w| {
+        if let Some(handle) = w.borrow().as_ref() {
+            handle.open();
+        }
+    });
+}
+
 /// One tray pick, on the existing paths: Rune's `open`/`activate` show and
 /// focus the window, New note is Cmd/Ctrl+N's field, Sync now is the Sync
 /// tab's Sync Now (without showing the window), and Quit runs the close
@@ -209,10 +241,17 @@ fn run_tray_action(handle: &rune::AppHandle<State>, action: TrayAction) {
             handle.open();
         }
         TrayAction::SyncNow => handle.update(|s, _| s.tray_sync_now()),
-        TrayAction::Quit => handle.update(|s, tx| {
-            s.flush_before_quit();
-            tx.quit();
-        }),
+        TrayAction::Quit => {
+            let reopen = handle.clone();
+            handle.update(move |s, tx| {
+                if s.flush_before_quit() {
+                    tx.quit();
+                } else {
+                    // A board that cannot be saved or recovered: show why.
+                    reopen.open();
+                }
+            });
+        }
     }
 }
 
@@ -303,14 +342,16 @@ fn print_help(out: &mut impl std::io::Write) {
          muninn [--vault PATH] [--trace] [--theme omarchy|system|dark|light]\n  \
          muninn --check <vault>\n  \
          muninn --list-links <vault>\n  \
-         muninn --help\n\
+         muninn --help\n  \
+         muninn --version\n\
          \n\
          Options:\n  \
          --vault PATH     Open this vault (else $MUNINN_VAULT, the last vault, ~/Muninn)\n  \
          --theme MODE     Session theme override: omarchy (default), system, dark, light\n  \
          --trace          Log every autosave tick to the session log\n  \
          --check          Headless: exit 0 if clean, 1 for broken links/duplicates, 2 if unreadable\n  \
-         --list-links     Headless: one `referrer -> target` line per wikilink, sorted",
+         --list-links     Headless: one `referrer -> target` line per wikilink, sorted\n  \
+         -V, --version    Print `muninn <version>` and exit",
         env!("CARGO_PKG_VERSION"),
     );
 }
@@ -542,6 +583,8 @@ fn scenes() -> &'static [Scene] {
                  both versions were kept: Daily (remote).md."
                 .to_owned();
         }),
+        // Board slice 2: the Board page (`scripts/ui-smoke.sh`).
+        ("board", |s| s.set_mode(Mode::Board)),
     ]
 }
 
@@ -583,6 +626,7 @@ mod tests {
                 "settings-sync-drive",
                 "settings-sync-tailscale",
                 "settings-sync-conflict",
+                "board",
             ]
         );
     }

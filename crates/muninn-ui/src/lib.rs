@@ -1,9 +1,19 @@
-//! Muninn's state and Rune views: sidebar, editor, Markdown reader and graph canvas.
+//! Muninn's state and Rune views: sidebar, editor, Markdown reader, graph canvas and boards.
 //!
 //! The binary in `muninn-app` only wires these into `rune::run`; everything that can be
 //! tested headlessly lives here.
 
 mod autostart;
+mod board_camera;
+mod board_edit;
+mod board_new;
+mod board_rename;
+mod board_safety;
+mod board_scene;
+mod board_sync;
+mod board_text;
+mod board_tools;
+mod board_view;
 mod camera;
 mod global_shortcut;
 mod graph_view;
@@ -24,6 +34,15 @@ pub use autostart::{
     AUTOSTART_NAME, AutostartPort, NativeAutostart, WINDOWS_RUN_KEY, autostart_dir,
     autostart_supported, desktop_entry, desktop_entry_path, remove_desktop_entry,
     windows_disable_args, windows_enable_args, write_desktop_entry,
+};
+pub use board_camera::{BoardCam, BoardView};
+pub use board_edit::{BoardEdit, Gesture, NUDGE, NUDGE_BIG};
+pub use board_rename::{BoardPlace, BoardRename};
+pub use board_scene::{BoardScene, SceneText};
+pub use board_text::{BoardTextTarget, measure_text};
+pub use board_tools::{BoardTool, Draft, tool_for_key};
+pub use board_view::{
+    BoardConflict, BoardCounts, BoardSession, BoardStatus, BoardSummary, OpenBoard,
 };
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use keys::{on_key, shortcut};

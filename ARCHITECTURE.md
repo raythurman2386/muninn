@@ -78,8 +78,8 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    or a truncated file.
 6. **Crash recovery (SAF-05).** While a buffer is dirty it is copied, after a 0.2 s idle
    (and at most one second apart during continuous typing), to the XDG state directory:
-   `$XDG_STATE_HOME/muninn/recovery/<sanitized-rel>.txt`, with a tiny
-   `<sanitized-rel>.json` sidecar holding the exact vault-relative path, a stable hash of
+   `$XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.txt`, with a tiny
+   `<vault-id>~<sanitized-rel>.json` sidecar holding the exact vault-relative path, a stable hash of
    the canonical vault root and a Unix timestamp. The hash keeps two vaults that share a
    note name from listing each other's edits. The copy uses the same temp-file + fsync +
    rename pattern, so a `kill -9` leaves the newest complete text. Clean buffers are never
@@ -166,6 +166,61 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   search. Loading keeps every field and element type Muninn does not model, so a save never
   drops what Excalidraw wrote, and saves use the same atomic temp+rename path as notes.
   Obsidian's `.excalidraw.md` files end in `.md` and stay notes.
+  The Board canvas (`muninn-ui` `board_scene`, `board_camera`) draws a board read-only from
+  the loaded file; its camera (an eye point and zoom in scene units, so a reload that
+  changes the drawing's extent keeps the view) lives in the session and in
+  `settings.json`, never in the board file.
+  Drawing (`board_tools`) adds elements to the loaded `Board` through
+  `Board::add_drawn` and redraws from the model. A board is written by an explicit save
+  (`⌘S`), by autosave (`board_sync`: once the drawing has rested for the autosave delay,
+  at least 1 s, or every 10 s while it never rests; never mid-gesture, with a text editor
+  open, after a failed save or over a conflict; `"board_autosave": false` in
+  `settings.json` turns it off), or by a flush where the drawing would otherwise be lost
+  (picking another board, switching vault, a vault rescan, quitting). The board watcher
+  (`board_sync`, every 1.5 s while Board is showing) compares each listed board's file
+  modified time and length with the last look: a changed open board that is clean is
+  re-read (keeping the view; Muninn's own writes are recognised and skipped), a dirty one
+  is flagged as below and never dropped, and any other changed board's list entry is
+  re-read. Each write is `Board::save` (atomic temp+rename) to the board's own path,
+  refused unless that path is inside the vault the board was opened from *and* the
+  currently open vault, and refused if the file's bytes no longer match what was loaded
+  or last saved (changed or removed on disk). A refused flush keeps the drawing in memory
+  and blocks the board switch, the vault switch or the vault rescan (Retry, or the
+  chunked startup scan finishing), like a note that cannot be saved.
+  Editing (`board_edit`, over `muninn_core` `board::edit`) selects, moves and deletes
+  elements of the in-memory `Board` and keeps a bounded undo history (`History`, 100
+  edits) per open board; every edit, undo and redo bumps the touched elements' Excalidraw
+  `version`/`versionNonce`/`updated`, a delete is an `isDeleted` tombstone, and the history
+  is dropped when the file changes underneath. The history is also bounded by size (32 MiB
+  of changed elements, the oldest edits dropped first; the newest edit is always kept), so
+  edits on a big drawing cannot grow memory without bound. Edits mark the board unsaved:
+  they are written by the save or autosave above, and the recovery copy below is taken
+  once the drawing rests (0.5 s, or every 2 s while it keeps changing; a move drag once it
+  lands), not per frame or per held key. View changes (pan, zoom) write `settings.json`
+  once they rest, too.
+  Text (`board_text`, over `muninn_core` `board::text`) places and edits free-standing
+  text elements through an in-canvas Rune text field; a commit (Esc, a click outside,
+  focus loss, leaving Board, saving) is one history edit with the size measured by the
+  canvas's own text layout. While the field is open `State::is_typing` is true, so Board
+  and Graph keys never fire into it. A label bound to a shape (`containerId`) is edited by
+  double-clicking the shape or the label and re-centred in the shape on commit; a label in
+  a locked shape is locked with it. Text typed but not committed counts as unsaved, and
+  the recovery copy is the model with that text applied (on a clone).
+  Unsaved drawing is never dropped (`board_safety`): a file removed, renamed or changed
+  outside Muninn is noticed by the board watcher while Board is showing, when the boards
+  are re-listed (entering Board, a vault reload, a rescan) or when a save re-reads the
+  file; then
+  the board is kept open and flags it in the heading with the note conflict bar's choices:
+  Keep mine (write to the board's own path, recreating a removed file, still only inside
+  the open vault), Save copy (a new sibling `Title (conflict YYYYMMDD-HHMMSS).excalidraw`
+  that becomes the open board) and Load theirs / Discard. While a board is dirty its drawing
+  is also copied after each change to the SAF-05 recovery store notes use (keyed by the
+  vault's id and its vault-relative path, outside the vault, same temp+fsync+rename), and the copy is removed
+  once the board is saved or discarded; the launch banner restores it onto Board, never as
+  a note, flagged the same way when the file is gone or now holds something else, and only
+  for a plain relative path that stays inside the vault (`board_safety::inside_vault`, also
+  checked by every board write). Closing or quitting saves the board, or else updates that copy; if neither is
+  possible the quit is refused and the window comes back with the reason.
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
   atomic rename. A crash or failed write leaves the previous bytes intact instead of a

@@ -860,6 +860,188 @@ impl Vault {
         }
     }
 
+    /// Board slice 8: create an empty board named `title` (sanitised like a
+    /// note title) in `folder`, as `Title.excalidraw`, or `Title 2…` when
+    /// that name is taken; never overwrites. The folder is resolved like a
+    /// note's (`..` and hidden parts dropped), and a folder that resolves
+    /// outside the vault (a symlink) is refused.
+    pub fn create_board_in(&self, title: &str, folder: &str) -> io::Result<PathBuf> {
+        let title = sanitise_title(title);
+        let dir = folder_dir(&self.root, folder);
+        let root = fs::canonicalize(&self.root)?;
+        let outside = || {
+            io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("{} is outside the vault", dir.display()),
+            )
+        };
+        // Check containment before making any folder: the deepest part of
+        // `dir` that exists must resolve inside the vault, or a link out of
+        // it would get new folders created on the far side.
+        let existing = dir.ancestors().find(|a| a.exists()).unwrap_or(&self.root);
+        if !fs::canonicalize(existing)?.starts_with(&root) {
+            return Err(outside());
+        }
+        fs::create_dir_all(&dir)?;
+        // And again once it exists, in case a part changed in between.
+        if !fs::canonicalize(&dir)?.starts_with(&root) {
+            return Err(outside());
+        }
+        let body = crate::Board::new().to_json();
+        let mut n = 1;
+        loop {
+            let name = if n == 1 {
+                format!("{title}.excalidraw")
+            } else {
+                format!("{title} {n}.excalidraw")
+            };
+            let path = dir.join(name);
+            if !path.exists() {
+                atomic_write(&path, body.as_bytes())?;
+                return Ok(path);
+            }
+            n += 1;
+        }
+    }
+
+    /// Board rename: rename the board at `path` to `new_name` in its own
+    /// folder, returning the new path. The name is checked by [`board_name`]
+    /// (refused, never rewritten) and `.excalidraw` stays implicit. The board
+    /// must be a plain file inside the vault (no symlink, no folder that
+    /// resolves outside it), an existing file is never overwritten, and the
+    /// rename itself is one `fs::rename`, so the file is never half-moved.
+    /// Renaming to the same name returns the path unchanged.
+    pub fn rename_board(&self, path: &Path, new_name: &str) -> io::Result<PathBuf> {
+        let name = board_name(new_name)?;
+        let outside = || {
+            io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("{} is not a board inside the vault", path.display()),
+            )
+        };
+        let root = fs::canonicalize(&self.root)?;
+        let rel = path.strip_prefix(&self.root).map_err(|_| outside())?;
+        if !rel
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err(outside());
+        }
+        let dir = path.parent().ok_or_else(outside)?;
+        if !fs::canonicalize(dir)?.starts_with(&root) {
+            return Err(outside());
+        }
+        let meta = fs::symlink_metadata(path)?;
+        if meta.file_type().is_symlink() || !meta.is_file() {
+            return Err(outside());
+        }
+        let target = dir.join(format!("{name}.{}", crate::BOARD_EXTENSION));
+        if target == path {
+            return Ok(target);
+        }
+        // A case-only rename on a case-insensitive disk "exists" as the same
+        // file; anything else there is someone else's and is kept.
+        if fs::symlink_metadata(&target).is_ok()
+            && fs::canonicalize(&target).ok() != fs::canonicalize(path).ok()
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{name}.{} already exists", crate::BOARD_EXTENSION),
+            ));
+        }
+        fs::rename(path, &target)?;
+        Ok(target)
+    }
+
+    /// Board rename: notes whose `![[Board.excalidraw]]` embeds (or plain
+    /// `[[Board.excalidraw]]` links) resolve to the board at `board`, with the
+    /// distinct target spellings that do. The board-file counterpart of
+    /// [`Vault::link_referrers`]: computed before the rename, while the old
+    /// path still resolves, and handed to [`Vault::rewrite_board_embeds`].
+    #[must_use]
+    pub fn board_embed_referrers(&self, board: &Path) -> Vec<(usize, Vec<String>)> {
+        let Ok(want) = fs::canonicalize(board) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for note in &self.notes {
+            let mut targets: Vec<String> = Vec::new();
+            for link in parse_links(&note.source) {
+                let name = link.target.rsplit(['/', '\\']).next().unwrap_or("");
+                if !crate::preview::is_board_name(name) || targets.contains(&link.target) {
+                    continue;
+                }
+                let here = self
+                    .attachment_path(&link.target, note.id)
+                    .and_then(|p| fs::canonicalize(p).ok());
+                if here.as_ref() == Some(&want) {
+                    targets.push(link.target.clone());
+                }
+            }
+            if !targets.is_empty() {
+                out.push((note.id, targets));
+            }
+        }
+        out
+    }
+
+    /// Board rename: point the links found by [`Vault::board_embed_referrers`]
+    /// at the board's new file name (`new_path`), keeping each one's folder
+    /// part, heading and alias. Written like [`Vault::rewrite_inbound_links`]:
+    /// one atomic [`Vault::write_note`] per file, failures returned, no
+    /// rollback of the rename.
+    pub fn rewrite_board_embeds(
+        &mut self,
+        inbound: &[(usize, Vec<String>)],
+        new_path: &Path,
+    ) -> Vec<(usize, io::Error)> {
+        let Some(file) = new_path.file_name().and_then(|n| n.to_str()) else {
+            return Vec::new();
+        };
+        let mut failures = Vec::new();
+        for (from, targets) in inbound {
+            let Some(note) = self.notes.get(*from) else {
+                continue;
+            };
+            let source = note.source.clone();
+            let mut out = String::with_capacity(source.len());
+            let mut last = 0;
+            let mut changed = false;
+            for link in parse_links(&source) {
+                if !targets.iter().any(|t| t.as_str() == link.target) {
+                    continue;
+                }
+                let folder = match link.target.rfind(['/', '\\']) {
+                    Some(at) => &link.target[..=at],
+                    None => "",
+                };
+                out.push_str(&source[last..link.start]);
+                out.push_str("[[");
+                out.push_str(folder);
+                out.push_str(file);
+                if let Some(heading) = &link.heading {
+                    out.push('#');
+                    out.push_str(heading);
+                }
+                if let Some(alias) = &link.alias {
+                    out.push('|');
+                    out.push_str(alias);
+                }
+                out.push_str("]]");
+                last = link.end;
+                changed = true;
+            }
+            if !changed {
+                continue;
+            }
+            out.push_str(&source[last..]);
+            if let Err(error) = self.write_note(*from, &out) {
+                failures.push((*from, error));
+            }
+        }
+        failures
+    }
+
     /// Rename a note's stem (file name) in place, keeping its folder. The
     /// new title is sanitised like a create name; an existing target file is
     /// an error (never overwrite). Updates the note and the index, so the
@@ -1523,6 +1705,61 @@ fn parse_trash_slot(name: &str) -> Option<(u64, u64)> {
         Some((stamp, suffix)) => Some((stamp.parse().ok()?, suffix.parse().ok()?)),
         None => Some((name.parse().ok()?, 0)),
     }
+}
+
+/// Board rename: the board name `input` asks for, trimmed and without a
+/// typed `.excalidraw`, or `InvalidInput` when it cannot be a board's file
+/// name on every platform Muninn runs on: empty, a path (separators, `.` or
+/// `..`), hidden (a leading `.`), a character Windows forbids or a control
+/// character, a trailing `.`, or a reserved device name (`CON`, `NUL`, …).
+/// Unlike a new note's title it is refused, not quietly rewritten, so the
+/// name on disk is the one the user typed.
+pub fn board_name(input: &str) -> io::Result<String> {
+    let invalid = |why: &str| {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("a board name {why}"),
+        ))
+    };
+    let mut name = input.trim();
+    // GK B-1: never slice at a byte offset that may sit inside a multibyte
+    // character. `get` is `None` there, and the suffix is ASCII, so a name
+    // that ends in the extension always has a boundary where it starts.
+    let suffix = format!(".{}", crate::BOARD_EXTENSION);
+    let cut = name.len().saturating_sub(suffix.len());
+    if name
+        .get(cut..)
+        .is_some_and(|end| end.eq_ignore_ascii_case(&suffix))
+    {
+        name = name[..cut].trim_end();
+    }
+    if name.is_empty() {
+        return invalid("cannot be empty");
+    }
+    if name.contains(['/', '\\']) || name == "." || name == ".." {
+        return invalid("cannot contain / or \\");
+    }
+    if name.starts_with('.') {
+        return invalid("cannot start with a dot");
+    }
+    if name
+        .chars()
+        .any(|c| c.is_control() || matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+    {
+        return invalid("cannot contain : * ? \" < > | or control characters");
+    }
+    if name.ends_with('.') {
+        return invalid("cannot end with a dot");
+    }
+    let stem = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.len() == 4
+            && stem.as_bytes()[3].is_ascii_digit());
+    if reserved {
+        return invalid("cannot be a reserved device name");
+    }
+    Ok(name.to_owned())
 }
 
 fn sanitise_title(title: &str) -> String {
@@ -2346,6 +2583,295 @@ mod atomic_write_tests {
             temp_files(tmp.path()).is_empty(),
             "{:?}",
             temp_files(tmp.path())
+        );
+    }
+}
+
+/// Board slice 8: `Vault::create_board_in`.
+#[cfg(test)]
+mod board_create_tests {
+    use std::fs;
+
+    use crate::testing::TempVault;
+    use crate::{Board, Vault};
+
+    fn vault(tmp: &TempVault) -> Vault {
+        Vault::load(tmp.path()).unwrap()
+    }
+
+    #[test]
+    fn a_new_board_is_an_empty_scene_and_never_overwrites() {
+        let tmp = TempVault::new(&[("Untitled board.excalidraw", "keep")]);
+        let v = vault(&tmp);
+        let a = v.create_board_in("Untitled board", "").unwrap();
+        let b = v.create_board_in("Untitled board", "").unwrap();
+        assert_eq!(a, tmp.path().join("Untitled board 2.excalidraw"));
+        assert_eq!(b, tmp.path().join("Untitled board 3.excalidraw"));
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Untitled board.excalidraw")).unwrap(),
+            "keep"
+        );
+        let board = Board::from_json(&fs::read_to_string(&a).unwrap()).unwrap();
+        assert_eq!(board.live_elements().count(), 0);
+    }
+
+    #[test]
+    fn a_new_board_stays_inside_the_vault() {
+        let tmp = TempVault::new(&[]);
+        let v = vault(&tmp);
+        let p = v.create_board_in("Plan", "../../Out/./.hidden/In").unwrap();
+        assert!(p.starts_with(tmp.path()), "{p:?}");
+        assert_eq!(p, tmp.path().join("Out/In/Plan.excalidraw"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_new_board_is_refused_in_a_folder_that_links_out_of_the_vault() {
+        let tmp = TempVault::new(&[]);
+        let outside = TempVault::new(&[]);
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("Link")).unwrap();
+        let v = vault(&tmp);
+        let err = v.create_board_in("B", "Link").unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+        assert!(
+            fs::read_dir(outside.path()).unwrap().next().is_none(),
+            "nothing written outside"
+        );
+    }
+
+    /// GK P2: containment is checked before any folder is made, so a
+    /// subfolder of a link that points out of the vault is not created
+    /// outside it on the way to being refused.
+    #[cfg(unix)]
+    #[test]
+    fn a_refused_board_folder_is_not_created_outside_the_vault() {
+        let tmp = TempVault::new(&[]);
+        let outside = TempVault::new(&[]);
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("Link")).unwrap();
+        let v = vault(&tmp);
+        let err = v.create_board_in("B", "Link/New/Deeper").unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+        assert!(
+            !outside.path().join("New").exists(),
+            "no folder made outside the vault"
+        );
+    }
+}
+
+/// Board rename: `Vault::rename_board`, `board_name` and the embed rewrite.
+#[cfg(test)]
+mod board_rename_tests {
+    use std::fs;
+    use std::io::ErrorKind;
+
+    use crate::testing::TempVault;
+    use crate::{Vault, board_name};
+
+    const EMPTY: &str =
+        r#"{"type":"excalidraw","version":2,"elements":[],"appState":{},"files":{}}"#;
+
+    fn vault(tmp: &TempVault) -> Vault {
+        Vault::load(tmp.path()).unwrap()
+    }
+
+    #[test]
+    fn a_board_is_renamed_in_place_with_its_bytes_and_the_extension_implicit() {
+        let tmp = TempVault::new(&[("Ideas/Untitled board.excalidraw", EMPTY)]);
+        let v = vault(&tmp);
+        let old = tmp.path().join("Ideas/Untitled board.excalidraw");
+        let new = v.rename_board(&old, "Roadmap").unwrap();
+        assert_eq!(new, tmp.path().join("Ideas/Roadmap.excalidraw"));
+        assert!(!old.exists(), "the old file is gone");
+        assert_eq!(fs::read_to_string(&new).unwrap(), EMPTY, "same bytes");
+        // Typing the extension does not double it.
+        let again = v.rename_board(&new, "Plan.excalidraw").unwrap();
+        assert_eq!(again, tmp.path().join("Ideas/Plan.excalidraw"));
+        // The same name is a no-op, not a collision with itself.
+        assert_eq!(v.rename_board(&again, " Plan ").unwrap(), again);
+    }
+
+    #[test]
+    fn a_board_rename_never_overwrites_another_file() {
+        let tmp = TempVault::new(&[("A.excalidraw", EMPTY), ("B.excalidraw", "keep")]);
+        let v = vault(&tmp);
+        let err = v
+            .rename_board(&tmp.path().join("A.excalidraw"), "B")
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::AlreadyExists);
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("B.excalidraw")).unwrap(),
+            "keep"
+        );
+        assert!(tmp.path().join("A.excalidraw").is_file());
+    }
+
+    /// GK B-1: `board_name` compared the last 11 bytes with `.excalidraw`
+    /// by slicing, which panicked when that cut fell inside a multibyte
+    /// character (`é ünïcode` is 12 bytes; the cut at byte 1 is inside `é`).
+    /// Every name of 11–14 bytes built from 2-, 3- and 4-byte characters,
+    /// with and without a typed extension, is accepted unchanged.
+    #[test]
+    fn multibyte_board_names_of_11_to_14_bytes_are_accepted_without_panicking() {
+        let mut names = vec!["é ünïcode".to_owned(), "ünïcode ñé".to_owned()];
+        for total in 11..=14 {
+            for wide in ['é', '€', '😀'] {
+                for pad in 0..wide.len_utf8() {
+                    let mut name = "a".repeat(pad);
+                    while name.len() + wide.len_utf8() <= total {
+                        name.push(wide);
+                    }
+                    name.push_str(&"b".repeat(total - name.len()));
+                    names.push(name);
+                }
+            }
+        }
+        let mid_char = names
+            .iter()
+            .filter(|n| n.len() >= 11 && !n.is_char_boundary(n.len() - 11))
+            .count();
+        assert!(
+            mid_char >= 8,
+            "the cut lands inside a character ({mid_char})"
+        );
+        for name in &names {
+            assert!((11..=14).contains(&name.len()), "{name:?}");
+            assert_eq!(board_name(name).unwrap(), *name, "{name:?}");
+            for ext in [".excalidraw", ".EXCALIDRAW", " .excalidraw"] {
+                let typed = format!("{name}{ext}");
+                assert_eq!(board_name(&typed).unwrap(), *name, "{typed:?}");
+            }
+        }
+        // A multibyte name that only looks like the extension is kept whole.
+        assert_eq!(board_name("ｅxcalidraw").unwrap(), "ｅxcalidraw");
+        assert_eq!(board_name("é.excalidraw").unwrap(), "é");
+        // And the rename itself goes through with it.
+        let tmp = TempVault::new(&[("Ideas/Untitled board.excalidraw", EMPTY)]);
+        let v = vault(&tmp);
+        let old = tmp.path().join("Ideas/Untitled board.excalidraw");
+        let new = v.rename_board(&old, "é ünïcode").unwrap();
+        assert_eq!(new, tmp.path().join("Ideas/é ünïcode.excalidraw"));
+        assert_eq!(fs::read_to_string(&new).unwrap(), EMPTY);
+    }
+
+    /// The B-1 sweep: every other path that takes a name the user typed
+    /// (new note, note rename, new folder, folder rename, New board, link
+    /// suggestions) handles multibyte names of the same awkward lengths.
+    #[test]
+    fn multibyte_names_through_every_name_taking_path() {
+        let tmp = TempVault::new(&[("Home.md", "# Home\n")]);
+        let mut v = vault(&tmp);
+        let note = v.create_note_in("é ünïcode", "").unwrap();
+        assert_eq!(note, tmp.path().join("é ünïcode.md"));
+        v = vault(&tmp);
+        let id = v.resolve("é ünïcode").expect("the new note resolves");
+        let renamed = v.rename_note(id, "ünïcode ñé").unwrap();
+        assert!(renamed.ends_with("ünïcode ñé.md"), "{renamed:?}");
+        v = vault(&tmp);
+        assert!(!v.suggest_links("ünï", 5).is_empty(), "suggestions find it");
+        assert!(v.suggest_links("é", 5).len() <= 5);
+        let folder = v.create_folder("", "😀 ünïcode").unwrap();
+        assert!(folder.is_dir());
+        v = vault(&tmp);
+        let moved = v.rename_folder("😀 ünïcode", "€€€ ünï").unwrap();
+        assert!(moved.ends_with("€€€ ünï"), "{moved:?}");
+        let board = v.create_board_in("é ünïcode", "€€€ ünï").unwrap();
+        assert_eq!(board, tmp.path().join("€€€ ünï/é ünïcode.excalidraw"));
+        let again = v.create_board_in("é ünïcode", "€€€ ünï").unwrap();
+        assert_eq!(again, tmp.path().join("€€€ ünï/é ünïcode 2.excalidraw"));
+    }
+
+    #[test]
+    fn invalid_board_names_are_refused_not_rewritten() {
+        for bad in [
+            "",
+            "   ",
+            ".excalidraw",
+            "a/b",
+            "a\\b",
+            "..",
+            ".hidden",
+            "x:y",
+            "what?",
+            "tab\there",
+            "trailing.",
+            "CON",
+            "nul.excalidraw",
+        ] {
+            let err = board_name(bad).expect_err(bad);
+            assert_eq!(err.kind(), ErrorKind::InvalidInput, "{bad:?}");
+        }
+        assert_eq!(board_name("  Road map  ").unwrap(), "Road map");
+        assert_eq!(board_name("Plan.EXCALIDRAW").unwrap(), "Plan");
+        assert_eq!(board_name("v1.2 plan").unwrap(), "v1.2 plan");
+        let tmp = TempVault::new(&[("A.excalidraw", EMPTY)]);
+        let v = vault(&tmp);
+        let a = tmp.path().join("A.excalidraw");
+        assert_eq!(
+            v.rename_board(&a, "../Out").unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
+        assert!(a.is_file(), "a refused rename leaves the board alone");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_board_outside_the_vault_or_behind_a_link_is_not_renamed() {
+        let tmp = TempVault::new(&[]);
+        let outside = TempVault::new(&[("Far.excalidraw", EMPTY)]);
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("Link")).unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("Far.excalidraw"),
+            tmp.path().join("Alias.excalidraw"),
+        )
+        .unwrap();
+        let v = vault(&tmp);
+        for path in [
+            tmp.path().join("Link/Far.excalidraw"),
+            tmp.path().join("Alias.excalidraw"),
+            outside.path().join("Far.excalidraw"),
+        ] {
+            let err = v.rename_board(&path, "Moved").unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "{path:?}");
+        }
+        assert!(outside.path().join("Far.excalidraw").is_file());
+        assert!(!outside.path().join("Moved.excalidraw").exists());
+        assert!(!tmp.path().join("Moved.excalidraw").exists());
+    }
+
+    #[test]
+    fn embeds_and_links_to_a_renamed_board_follow_it() {
+        let tmp = TempVault::new(&[
+            ("Ideas/Plan.excalidraw", EMPTY),
+            ("Other/Plan.excalidraw", EMPTY),
+            (
+                "Ideas/Note.md",
+                "See ![[Plan.excalidraw]] and ![[Plan.excalidraw|the plan]], [[Plan.excalidraw]].\n",
+            ),
+            (
+                "Home.md",
+                "![[Ideas/Plan.excalidraw]] ![[Other/Plan.excalidraw]] [[Plan]]\n",
+            ),
+        ]);
+        let mut v = vault(&tmp);
+        let old = tmp.path().join("Ideas/Plan.excalidraw");
+        let inbound = v.board_embed_referrers(&old);
+        assert_eq!(inbound.len(), 2, "{inbound:?}");
+        let new = v.rename_board(&old, "Roadmap").unwrap();
+        let failures = v.rewrite_board_embeds(&inbound, &new);
+        assert!(failures.is_empty());
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Ideas/Note.md")).unwrap(),
+            "See ![[Roadmap.excalidraw]] and ![[Roadmap.excalidraw|the plan]], [[Roadmap.excalidraw]].\n"
+        );
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Home.md")).unwrap(),
+            "![[Ideas/Roadmap.excalidraw]] ![[Other/Plan.excalidraw]] [[Plan]]\n",
+            "the other Plan board and the note link [[Plan]] are left alone"
+        );
+        let note = v.notes.iter().find(|n| n.rel == "Home.md").unwrap();
+        assert!(
+            note.source.contains("Ideas/Roadmap.excalidraw"),
+            "the index follows"
         );
     }
 }

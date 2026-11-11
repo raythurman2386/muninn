@@ -107,17 +107,21 @@ pub enum PaletteAction {
     NewNote,
     TogglePreview,
     ToggleGraph,
+    /// Enter Board, or go back to the last note mode. Its hint is ⌘4, which
+    /// enters Board.
+    ToggleBoard,
 }
 
 impl PaletteAction {
     /// Every action, in the order shown before a query is typed.
-    pub const ALL: [PaletteAction; 6] = [
+    pub const ALL: [PaletteAction; 7] = [
         PaletteAction::OpenLocalGraph,
         PaletteAction::SwitchVault,
         PaletteAction::OpenSettings,
         PaletteAction::NewNote,
         PaletteAction::TogglePreview,
         PaletteAction::ToggleGraph,
+        PaletteAction::ToggleBoard,
     ];
 
     /// The row's main label.
@@ -130,6 +134,7 @@ impl PaletteAction {
             PaletteAction::NewNote => "New note",
             PaletteAction::TogglePreview => "Toggle Write / Read",
             PaletteAction::ToggleGraph => "Toggle Graph",
+            PaletteAction::ToggleBoard => "Toggle Board",
         }
     }
 
@@ -143,6 +148,7 @@ impl PaletteAction {
             PaletteAction::NewNote => "⌘N",
             PaletteAction::TogglePreview => "⌘E",
             PaletteAction::ToggleGraph => "⌘G",
+            PaletteAction::ToggleBoard => "⌘4",
         }
     }
 
@@ -156,6 +162,7 @@ impl PaletteAction {
             PaletteAction::NewNote => "new note create add",
             PaletteAction::TogglePreview => "write read preview editor mode",
             PaletteAction::ToggleGraph => "graph global local mode",
+            PaletteAction::ToggleBoard => "board whiteboard excalidraw drawing canvas sketch mode",
         }
     }
 
@@ -211,6 +218,8 @@ impl State {
             || self.rename_prompt.is_some()
             || self.new_folder_prompt.is_some()
             || self.rename_folder_prompt.is_some()
+            || self.board_rename.is_some()
+            || self.board_text.is_some()
     }
 
     /// DES-01: help overlay.
