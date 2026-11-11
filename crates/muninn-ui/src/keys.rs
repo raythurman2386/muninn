@@ -5,6 +5,11 @@ use rune::{Key, KeyEvent, Tx};
 use crate::{Mode, State};
 
 pub fn on_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
+    // #40 recheck B1: a Board key's edit reaches the recovery copy without
+    // waiting for more input.
+    if s.mode == crate::Mode::Board {
+        tx.wake_after(crate::board_safety::BOARD_EDIT_WAKE);
+    }
     shortcut(s, e, tx)
 }
 

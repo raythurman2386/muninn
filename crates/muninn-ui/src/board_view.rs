@@ -721,7 +721,12 @@ fn board_list(s: &State, k: &Kit) -> El {
 }
 
 fn surface(s: &State, k: &Kit) -> El {
+    // #40 recheck: text typed but not committed is unsaved too.
+    let typing = s.board_text_pending().is_some();
     let status = s.board_open.as_ref().map(|open| match &open.status {
+        BoardStatus::Clean | BoardStatus::Saved if typing => {
+            ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent)
+        }
         BoardStatus::Clean => (String::new(), k.c.text_faint),
         BoardStatus::Unsaved => ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent),
         BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
@@ -989,6 +994,9 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
         })
         .pointer_buttons([PointerButton::Primary])
         .on_drag(|s: &mut State, d: &mut Drag, tx: &mut Tx| {
+            // #40 recheck B1: what this press changes (an edit, an editor
+            // opened) reaches the recovery copy without more input.
+            tx.wake_after(crate::board_safety::BOARD_EDIT_WAKE);
             // Slice 6: a press outside the open text editor commits it, and
             // that click does nothing else.
             if d.phase == Phase::Down && s.commit_board_text() {

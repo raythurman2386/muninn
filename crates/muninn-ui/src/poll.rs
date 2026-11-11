@@ -113,7 +113,10 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     // This is invisible on screen, so it must not report a change.
     s.recovery_tick(t);
     // #38 review B2: the same for an unsaved board, after each change.
-    s.board_recovery_poll();
+    // #40 recheck B1: and ask for the poll it still needs (typing at rest).
+    if let Some(wake) = s.board_recovery_poll() {
+        tx.wake_after(wake);
+    }
 
     if s.mode == Mode::Graph {
         // A node click or scope switch eases the camera over a few frames.

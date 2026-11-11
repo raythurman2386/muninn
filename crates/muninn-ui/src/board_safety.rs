@@ -28,6 +28,7 @@
 
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 
 use muninn_core::Board;
 
@@ -39,8 +40,13 @@ use crate::{Mode, State};
 /// Why a quit was refused.
 /// #40 review M1: the recovery copy of text being typed waits until the
 /// typing has rested this long, or at most this long while it never does.
-const TYPING_REST: f64 = 0.5;
+pub(crate) const TYPING_REST: f64 = 0.5;
 const TYPING_MAX_AGE: f64 = 2.0;
+
+/// #40 recheck B1: after a board press or key, poll again this soon, so an
+/// edit (or an editor opened) by it is seen by the recovery copy without
+/// waiting for more input.
+pub(crate) const BOARD_EDIT_WAKE: Duration = Duration::from_millis(50);
 
 const QUIT_REFUSED: &str = "Board not saved and no recovery copy could be written";
 
@@ -122,8 +128,18 @@ impl State {
         Ok(())
     }
 
-    /// Per frame: the recovery copy, reporting a failed write once.
-    pub(crate) fn board_recovery_poll(&mut self) {
+    /// Per frame: the recovery copy, reporting a failed write once. Returns
+    /// when `poll` must run again (#40 recheck B1): a resting window polls
+    /// only at a wake it asked for, so a deferred copy of text being typed,
+    /// or an open editor whose next keystroke lands after this poll, would
+    /// otherwise wait for the next input, and a crash would lose it.
+    pub(crate) fn board_recovery_poll(&mut self) -> Option<Duration> {
+        // While the editor is open, look again soon: a keystroke is applied
+        // after the frame's poll, so this poll may not have seen it yet.
+        let editing = self
+            .board_text
+            .is_some()
+            .then(|| Duration::from_secs_f64(TYPING_REST));
         // Slice 5: a move drag changes the model every frame; copy once it
         // lands instead of writing (and fsyncing) per frame.
         if self
@@ -131,7 +147,7 @@ impl State {
             .as_ref()
             .is_some_and(|open| open.edit.gesture.is_some())
         {
-            return;
+            return editing;
         }
         // #40 review M1: text being typed is copied once the typing rests
         // (0.5 s, at most every 2 s), not on every keystroke.
@@ -149,7 +165,8 @@ impl State {
                 wait.2 = now;
             }
             if now - wait.2 < TYPING_REST && now - wait.1 < TYPING_MAX_AGE {
-                return;
+                let due = (TYPING_REST - (now - wait.2)).min(TYPING_MAX_AGE - (now - wait.1));
+                return Some(Duration::from_secs_f64(due.max(0.0)));
             }
         }
         self.board_text_wait = None;
@@ -159,6 +176,7 @@ impl State {
                 self.error = Some(message);
             }
         }
+        editing
     }
 
     /// Keep mine: write the drawing to the board's own path even though the
