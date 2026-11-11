@@ -518,3 +518,61 @@ fn an_open_editor_with_nothing_typed_waits_and_then_shows_their_change() {
         "nothing written"
     );
 }
+
+// Raymond's hands-on report: the canvas chrome (the key hint bar, and the
+// toolbar and zoom controls with it) slid back into place whenever the
+// selection appeared or cleared.
+
+/// The drawn rect of each piece of canvas chrome, found by what it shows so
+/// the lookup does not depend on its key; and whether any is mid-animation.
+fn chrome(rt: &Runtime<State>) -> (Vec<[f32; 4]>, bool) {
+    let els = rt.elements();
+    let hint = els
+        .iter()
+        .find(|e| {
+            e.text
+                .as_deref()
+                .is_some_and(|t| t.starts_with("Click/drag select"))
+        })
+        .expect("the hint bar");
+    let zoom = els
+        .iter()
+        .find(|e| e.key.as_deref() == Some("board-zoom"))
+        .expect("the zoom label");
+    let tool = els
+        .iter()
+        .find(|e| e.key.as_deref() == Some("board-toolbar"))
+        .expect("the toolbar");
+    let moving = hint.moving || zoom.moving || tool.moving;
+    (vec![hint.rect, zoom.rect, tool.rect], moving)
+}
+
+#[test]
+fn the_hint_bar_and_canvas_chrome_stay_put_when_the_selection_changes() {
+    let tmp = vault();
+    let mut app = launch(tmp.path());
+    open(&mut app.rt);
+    frames(&mut app.rt, 60);
+    let (rest, moving) = chrome(&app.rt);
+    assert!(!moving, "settled before the first click");
+    for (what, p) in [
+        ("select", RECT),
+        ("deselect", [250.0, 100.0]),
+        ("select again", RECT),
+    ] {
+        let (x, y) = at(&app.rt, p);
+        app.rt.pointer_down(x, y);
+        app.rt.frame(1.0 / 60.0);
+        app.rt.pointer_up(x, y);
+        for i in 0..30 {
+            app.rt.frame(1.0 / 60.0);
+            let (now, moving) = chrome(&app.rt);
+            assert!(!moving, "{what}: chrome mid-animation at frame {i}");
+            assert_eq!(now, rest, "{what}: chrome moved at frame {i}");
+        }
+    }
+    assert!(
+        !app.rt.state.board_selection().is_empty(),
+        "the clicks did select"
+    );
+}

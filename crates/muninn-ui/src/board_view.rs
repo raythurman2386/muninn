@@ -1123,6 +1123,7 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
 fn board_controls(s: &State, k: &Kit) -> El {
     let zoom = s.board_view().map_or(1.0, |v| v.zoom);
     row()
+        .key("board-controls")
         .pin(None, None, Some(12.0), Some(12.0))
         .h(30.0)
         .padding(3.0)
@@ -1168,7 +1169,11 @@ fn control(
 }
 
 fn board_hint(k: &Kit) -> El {
+    // Keyed, as the toolbar is: a selection outline or a drawing preview
+    // added before it in the canvas would otherwise give it a new place in
+    // the tree, and it slid in again from the corner (Raymond's report).
     row()
+        .key("board-hint")
         .pin(Some(12.0), None, None, Some(12.0))
         .h(26.0)
         .px(9.0)
