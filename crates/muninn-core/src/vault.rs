@@ -868,13 +868,24 @@ impl Vault {
     pub fn create_board_in(&self, title: &str, folder: &str) -> io::Result<PathBuf> {
         let title = sanitise_title(title);
         let dir = folder_dir(&self.root, folder);
-        fs::create_dir_all(&dir)?;
         let root = fs::canonicalize(&self.root)?;
-        if !fs::canonicalize(&dir)?.starts_with(&root) {
-            return Err(io::Error::new(
+        let outside = || {
+            io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 format!("{} is outside the vault", dir.display()),
-            ));
+            )
+        };
+        // Check containment before making any folder: the deepest part of
+        // `dir` that exists must resolve inside the vault, or a link out of
+        // it would get new folders created on the far side.
+        let existing = dir.ancestors().find(|a| a.exists()).unwrap_or(&self.root);
+        if !fs::canonicalize(existing)?.starts_with(&root) {
+            return Err(outside());
+        }
+        fs::create_dir_all(&dir)?;
+        // And again once it exists, in case a part changed in between.
+        if !fs::canonicalize(&dir)?.starts_with(&root) {
+            return Err(outside());
         }
         let body = crate::Board::new().to_json();
         let mut n = 1;
@@ -2432,6 +2443,24 @@ mod board_create_tests {
         assert!(
             fs::read_dir(outside.path()).unwrap().next().is_none(),
             "nothing written outside"
+        );
+    }
+
+    /// GK P2: containment is checked before any folder is made, so a
+    /// subfolder of a link that points out of the vault is not created
+    /// outside it on the way to being refused.
+    #[cfg(unix)]
+    #[test]
+    fn a_refused_board_folder_is_not_created_outside_the_vault() {
+        let tmp = TempVault::new(&[]);
+        let outside = TempVault::new(&[]);
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("Link")).unwrap();
+        let v = vault(&tmp);
+        let err = v.create_board_in("B", "Link/New/Deeper").unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+        assert!(
+            !outside.path().join("New").exists(),
+            "no folder made outside the vault"
         );
     }
 }
