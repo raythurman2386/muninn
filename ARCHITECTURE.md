@@ -79,7 +79,7 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
 6. **Crash recovery (SAF-05).** While a buffer is dirty it is copied, after a 0.2 s idle
    (and at most one second apart during continuous typing), to the XDG state directory:
    `$XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.txt`, with a tiny
-   `<sanitized-rel>.json` sidecar holding the exact vault-relative path, a stable hash of
+   `<vault-id>~<sanitized-rel>.json` sidecar holding the exact vault-relative path, a stable hash of
    the canonical vault root and a Unix timestamp. The hash keeps two vaults that share a
    note name from listing each other's edits. The copy uses the same temp-file + fsync +
    rename pattern, so a `kill -9` leaves the newest complete text. Clean buffers are never

@@ -306,3 +306,49 @@ impl State {
             .is_none_or(|open| !open.dirty() || open.recovered_at == Some(open.generation))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::inside_vault;
+
+    fn temp(tag: &str) -> std::path::PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("muninn-inside-vault-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn plain_paths_inside_pass_and_dot_dot_or_absolute_fail() {
+        let root = temp("plain");
+        assert!(inside_vault(&root, &root.join("a/b.excalidraw")));
+        assert!(inside_vault(&root, &root.join("new.excalidraw")));
+        assert!(!inside_vault(&root, &root.join("../x.excalidraw")));
+        assert!(!inside_vault(&root, &root.join("a/../../x.excalidraw")));
+        assert!(!inside_vault(
+            &root,
+            std::path::Path::new("/tmp/x.excalidraw")
+        ));
+        assert!(!inside_vault(&root, &root));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// #38 recheck: a folder inside the vault that is a symlink out of it.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_folder_pointing_out_of_the_vault_is_outside() {
+        let (root, out) = (temp("link-root"), temp("link-out"));
+        std::os::unix::fs::symlink(&out, root.join("escape")).unwrap();
+        std::fs::create_dir_all(root.join("real")).unwrap();
+        std::os::unix::fs::symlink(root.join("real"), root.join("alias")).unwrap();
+        // A missing file below the link resolves through its existing parent.
+        assert!(!inside_vault(&root, &root.join("escape/new.excalidraw")));
+        std::fs::write(out.join("there.excalidraw"), "{}").unwrap();
+        assert!(!inside_vault(&root, &root.join("escape/there.excalidraw")));
+        // A link that stays inside the vault is fine.
+        assert!(inside_vault(&root, &root.join("alias/new.excalidraw")));
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&out);
+    }
+}
