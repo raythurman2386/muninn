@@ -52,8 +52,9 @@ pub struct OpenBoard {
     /// has drawn it, so a board that crashes on its first draw is not
     /// reopened on every launch.
     shown: Shown,
-    /// The session this board was restored from, kept while it is not shown
-    /// yet (the startup scan still runs) so a quit then does not forget it.
+    /// The session this board was restored from, kept until a frame has
+    /// shown it (during the startup scan, or while the app stays in another
+    /// mode) so a settings write or quit then does not forget it.
     restored: Option<BoardSession>,
 }
 
@@ -280,19 +281,17 @@ impl State {
     /// view, or a restore that has not been applied yet.
     #[must_use]
     ///
-    /// A board no frame has drawn yet is not remembered: if drawing it
-    /// crashed, the next launch must not reopen it. While the startup scan
-    /// runs (nothing can be drawn) the session it was restored from is kept.
+    /// A board no frame has drawn yet is not remembered: if drawing a
+    /// newly picked board crashed, the next launch must not reopen it. A
+    /// board restored from the last launch keeps that session until it has
+    /// been shown, whether or not the startup scan still runs (the app may
+    /// stay in Write and never draw it).
     pub fn board_session(&self) -> Option<BoardSession> {
         let Some(open) = &self.board_open else {
             return self.board_restore.clone();
         };
         if open.shown < Shown::Remembered {
-            return if self.loading() {
-                open.restored.clone()
-            } else {
-                None
-            };
+            return open.restored.clone();
         }
         let rel = self
             .boards

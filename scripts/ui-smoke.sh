@@ -54,6 +54,10 @@
 #   headless_big_restart  the same restart in a 160-note vault, which scans in chunks:
 #                   the relaunch must still open Smoke at its saved view (pixels as
 #                   "back") and settings.json must still name it afterwards
+#   headless_big_write  the same 160-note vault relaunched in Write: the scan ends, Cmd+2
+#                   writes settings, and settings.json must still name Smoke and its
+#                   view (the board is restored, not yet drawn); then Cmd+4 draws it
+#                   at that view
 #   x11_board       the same checks in the windowed app on Xvfb with XTEST input (row
 #                   click, button-1 drag, wheel buttons, "=", Left, Ctrl+1/4, a clean
 #                   close and relaunch, "0")
@@ -71,7 +75,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart x11_modes x11_board board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write x11_modes x11_board board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -228,6 +232,31 @@ step_headless_big_restart() {
   python3 "$pixels" same "$s/big-restart.png" "$t/big-restart.json" "$m/back.json" "$m/big-restart.json" || return 1
   python3 -c 'import json,sys; b=json.load(open(sys.argv[1]))["board"]; print("saved board after the scan", b); assert b and b["rel"]=="Smoke.excalidraw" and "eye" in b' \
     "$XDG_CONFIG_HOME/muninn/settings.json"
+}
+
+# #37 review: the same big vault relaunched in Write. The restored board is not
+# drawn, the scan ends, and a settings write must still keep it.
+step_headless_big_write() {
+  isolate
+  local big="$work/big-vault" s="$out/screens" t="$out/trees" m="$work/measure"
+  [ -f "$m/back.json" ] && [ -d "$big" ] || { echo "run headless_big_restart first"; return 1; }
+  export XDG_CONFIG_HOME="$work/config-big-write"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME/muninn"
+  python3 -c 'import json,sys; v=json.load(open(sys.argv[1])); v["last_vault"]=sys.argv[3]; v["recent_vaults"]=[sys.argv[3]]; v["mode"]="editor"; json.dump(v, open(sys.argv[2], "w"), indent=2)' \
+    "$work/config-board-back/muninn/settings.json" "$XDG_CONFIG_HOME/muninn/settings.json" "$big" || return 1
+  local want
+  want="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["board"], sort_keys=True))' "$XDG_CONFIG_HOME/muninn/settings.json")" || return 1
+  printf '{"events":[{"t":2.5,"type":"key","name":"2","cmd":true},{"t":3.0,"type":"mark","name":"written"},{"t":3.4,"type":"key","name":"4","cmd":true},{"t":4.6,"type":"mark","name":"board"}]}' \
+    >"$work/big-write.json"
+  "$bin" --vault "$big" --script "$work/big-write.json" --at "mark:written+0.2" --scale 1 \
+    --tree "$t/big-write.json" || return 1
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" preview || return 1
+  python3 -c 'import json,sys; b=json.load(open(sys.argv[1])).get("board"); print("saved board after the scan in Write", b); assert b is not None and json.dumps(b, sort_keys=True)==sys.argv[2], "the board to restore was forgotten"' \
+    "$XDG_CONFIG_HOME/muninn/settings.json" "$want" || return 1
+  "$bin" --vault "$big" --script "$work/big-write.json" --at "mark:board+0.2" --scale 1 \
+    --snap "$s/big-write-board.png" --tree "$t/big-write-board.json" || return 1
+  python3 "$harness" tree-mode "$t/big-write-board.json" board || return 1
+  python3 "$pixels" same "$s/big-write-board.png" "$t/big-write-board.json" "$m/back.json" "$m/big-write.json"
 }
 
 find_lavapipe() {

@@ -521,6 +521,77 @@ fn a_big_vault_reopens_the_last_board_and_its_view_after_the_scan() {
     assert_eq!(saved.view, Some(left));
 }
 
+/// #37 review: a big vault relaunched in Write mode scans in chunks and the
+/// restored board is never drawn; the scan ending (and any settings write
+/// after it) must not forget the board.
+#[test]
+fn a_big_vault_relaunched_in_write_keeps_the_board_it_would_restore() {
+    let mut files: Vec<(String, String)> = (0..160)
+        .map(|i| (format!("notes/n{i:03}.md"), format!("# N{i}\n")))
+        .collect();
+    files.push(("Smoke.excalidraw".into(), SMOKE.into()));
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    let tmp = TempVault::new(&refs);
+    let mut s = fresh(&tmp);
+    for _ in 0..200 {
+        if !s.rt.state.loading() {
+            break;
+        }
+        frames(&mut s.rt, 1);
+    }
+    open(&mut s.rt, "Smoke");
+    s.rt.key(plain(Key::Right));
+    frames(&mut s.rt, 2);
+    let left = view_of(&s.rt);
+    s.rt.key(command('1'));
+    frames(&mut s.rt, 2);
+    assert_ne!(s.rt.state.mode, Mode::Board);
+    s.rt.state.flush_before_quit();
+    drop(s.rt);
+
+    let mut rt = launch(tmp.path(), &s.config, &s.state_home);
+    assert!(rt.state.loading(), "a vault this big scans in chunks");
+    for _ in 0..200 {
+        if !rt.state.loading() {
+            break;
+        }
+        frames(&mut rt, 1);
+    }
+    assert!(!rt.state.loading());
+    frames(&mut rt, 30);
+    assert_ne!(rt.state.mode, Mode::Board, "relaunched in Write");
+    assert_eq!(
+        rt.state.board_session(),
+        Some(muninn_ui::BoardSession {
+            rel: "Smoke.excalidraw".into(),
+            view: Some(left)
+        }),
+        "the scan ending keeps the board to restore"
+    );
+    // A settings write in Write (another mode, then quit) keeps it too.
+    rt.key(command('2'));
+    frames(&mut rt, 2);
+    rt.state.flush_before_quit();
+    let saved = Settings::load_from(&s.config)
+        .board
+        .expect("still remembered after the scan and a quit");
+    assert_eq!(saved.rel, "Smoke.excalidraw");
+    assert_eq!(saved.view, Some(left));
+    // And Board shows it there.
+    rt.key(command('4'));
+    frames(&mut rt, 10);
+    assert!(
+        rt.state
+            .board_selected
+            .as_ref()
+            .is_some_and(|p| p.ends_with("Smoke.excalidraw"))
+    );
+    assert_eq!(view_of(&rt), left);
+}
+
 #[test]
 fn switching_to_a_vault_with_no_boards_lists_none_and_remembers_none() {
     let tmp = vault();
