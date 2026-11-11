@@ -99,7 +99,15 @@ impl RecoveryStore {
             let Some(rel) = parse_rel(&meta) else {
                 continue;
             };
-            if sanitize(&rel) != stem || self.meta_for(&rel).exists() {
+            if sanitize(&rel) != stem {
+                continue;
+            }
+            // A copy under the new names was written after this one (only a
+            // newer Muninn writes them), so the old record is stale: drop it
+            // rather than leave it to come back once the new copy is cleared.
+            if self.meta_for(&rel).exists() {
+                let _ = fs::remove_file(path.with_extension("txt"));
+                let _ = fs::remove_file(&path);
                 continue;
             }
             let text = path.with_extension("txt");
@@ -164,6 +172,15 @@ impl RecoveryStore {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            // Only this vault's own names; an old-layout record that could not
+            // be adopted is not listed (its text is not where `load` looks).
+            let own = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(&format!("{}~", self.vault)));
+            if !own {
                 continue;
             }
             let Ok(meta) = fs::read_to_string(&path) else {
@@ -400,5 +417,44 @@ mod tests {
         let store_b = RecoveryStore::at(&state, &b);
         assert_eq!(store_b.load("Mine.md").unwrap(), "B's pending note");
         assert_eq!(store_b.scan().len(), 1);
+    }
+
+    #[test]
+    fn an_old_layout_record_shadowed_by_a_newer_copy_is_never_offered_again() {
+        let (state, a) = (temp("state"), temp("vault-a"));
+        let dir = state.join("muninn").join("recovery");
+        fs::create_dir_all(&dir).unwrap();
+        let store = RecoveryStore::at(&state, &a);
+        store.save("Tools.excalidraw", "newer copy").unwrap();
+        // An older Muninn left a copy of the same board in the shared layout.
+        fs::write(
+            dir.join(format!("{}.txt", sanitize("Tools.excalidraw"))),
+            "old copy",
+        )
+        .unwrap();
+        fs::write(
+            dir.join(format!("{}.json", sanitize("Tools.excalidraw"))),
+            format!(
+                "{{\"rel\":\"Tools.excalidraw\",\"vault\":\"{}\",\"ts\":7}}\n",
+                vault_id(&a)
+            ),
+        )
+        .unwrap();
+        let store = RecoveryStore::at(&state, &a);
+        assert_eq!(store.load("Tools.excalidraw").unwrap(), "newer copy");
+        assert_eq!(store.scan().len(), 1, "listed once");
+        // Saving the board clears its copy; the old one must not come back.
+        store.clear("Tools.excalidraw");
+        let store = RecoveryStore::at(&state, &a);
+        assert!(
+            store.scan().is_empty(),
+            "the old copy came back: {:?}",
+            store.load("Tools.excalidraw")
+        );
+        assert_eq!(
+            fs::read_dir(&dir).unwrap().count(),
+            0,
+            "the shadowed old record is gone"
+        );
     }
 }
