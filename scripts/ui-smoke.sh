@@ -129,7 +129,13 @@
 #                   text typed then is autosaved on top of their version; then, with
 #                   autosave off, an unsaved nudge plus another app's write is flagged
 #                   (session log), and neither Ctrl+S nor quitting writes over their
-#                   file, while the drawing gets a recovery copy
+#                   file, while the drawing gets a recovery copy; then (#41 GK2)
+#                   typing in keep-text while another app rewrites it is flagged,
+#                   never reloaded under the editor, and never autosaved over
+#   x11_chrome      on Xvfb: select, deselect, select again; after each click 12
+#                   quick window grabs and a settled one show the key hint bar and
+#                   zoom controls exactly where they were (no slide); a copy with the
+#                   chrome moved 20 px must FAIL
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -148,7 +154,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -1300,6 +1306,85 @@ step_x11_sync() {
   python3 "$syncs" same "$draw_board" "$m/theirs-dirty.excalidraw" || { echo "quitting wrote over their file"; return 1; }
   ls "$XDG_STATE_HOME/muninn/recovery/" | grep -q 'Tools' || { echo "no recovery copy of the kept drawing"; return 1; }
   echo "ok the dirty board was flagged, their file was never written over, and the drawing has a recovery copy"
+  # 4. #41 review GK2, autosave on: typing in keep-text's editor while another
+  #    app rewrites that same element. Their change is flagged (not reloaded
+  #    under the editor), and Esc's commit is never autosaved over theirs.
+  export XDG_CONFIG_HOME="$work/config-x11-sync-text" XDG_STATE_HOME="$work/state-x11-sync-text"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  cp "$draw_fixture" "$draw_board"
+  local text
+  text="$(python3 "$texts" point "$tree" "$draw_fixture" text)" || return 1
+  launch text-before || return 1
+  # shellcheck disable=SC2086
+  python3 "$texts" x11-double-click "$wid" $text || return 1
+  python3 "$texts" x11-type "$wid" " LOCAL" && rest 1 || return 1
+  python3 "$syncs" external "$draw_fixture" "$draw_board" || return 1
+  cp "$draw_board" "$m/theirs-text.excalidraw"
+  rest 2 && shot text-flagged || return 1
+  grep -q "open board changed on disk; kept unsaved" "$XDG_STATE_HOME/muninn/session.log" || { echo "their change under the open editor was not flagged"; return 1; }
+  grep -q "reloaded the open board" "$XDG_STATE_HOME/muninn/session.log" && { echo "the board was reloaded under the open editor"; return 1; }
+  python3 "$harness" x11-chord "$wid" esc && rest 3 && shot text-after-esc || return 1
+  python3 "$syncs" same "$draw_board" "$m/theirs-text.excalidraw" || { echo "autosave wrote over their edit"; return 1; }
+  ls "$XDG_STATE_HOME/muninn/recovery/" | grep -q 'Tools' || { echo "no recovery copy of the typed text"; return 1; }
+  grep -rq "keep me LOCAL" "$XDG_STATE_HOME/muninn/recovery/" || { echo "the recovery copy lacks the typed text"; return 1; }
+  quit || return 1
+  python3 "$syncs" same "$draw_board" "$m/theirs-text.excalidraw" || { echo "quitting wrote over their edit"; return 1; }
+  echo "ok typing under another app's change to the same text: flagged, theirs never written over, mine in the recovery copy"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+step_x11_chrome() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/sync-before.json"
+  [ -f "$tree" ] || { echo "run headless_sync first (needs $tree)"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-chrome.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  local wid s="$out/screens/chrome" chrome="$root/scripts/ui-smoke/board_chrome.py" row rect new
+  mkdir -p "$s"
+  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  rect="$(python3 "$syncs" point "$tree" "$draw_fixture" rect)" || return 1
+  new="$(python3 "$syncs" point "$tree" "$draw_fixture" new)" || return 1
+  export XDG_CONFIG_HOME="$work/config-x11-chrome" XDG_STATE_HOME="$work/state-x11-chrome"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  cp "$draw_fixture" "$draw_board"
+  "$bin" --vault "$vault" >>"$out/logs/x11-chrome-app.log" 2>&1 &
+  app_pid=$!
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  sleep 2
+  python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $row && sleep 3 || return 1
+  # Select, deselect, select again: each click, then 12 quick grabs (about
+  # every 40-60 ms) and one once settled, all against the shot before it.
+  local step base
+  for step in select:rect deselect:new reselect:rect; do
+    local name="${step%%:*}" at
+    at="$rect"; [ "${step#*:}" = new ] && at="$new"
+    # shellcheck disable=SC2086
+    python3 "$chrome" x11-burst "$wid" $at "$s" "$name" 12 || return 1
+    base="$s/$name-base.png"
+    python3 "$chrome" still "$tree" "$base" "$s/$name"-[0-9][0-9].png "$s/$name-settled.png" || { echo "$name: the chrome moved"; return 1; }
+  done
+  cmp -s "$s/select-base.png" "$s/select-settled.png" && { echo "the select click changed nothing on screen"; return 1; }
+  python3 "$chrome" shifted "$s/select-base.png" "$s/shifted.png" 20 || return 1
+  must_fail "the chrome moved 20 px" python3 "$chrome" still "$tree" "$s/select-base.png" "$s/shifted.png" || return 1
+  python3 "$harness" x11-close "$wid" || return 1
+  for i in $(seq 100); do kill -0 "$app_pid" 2>/dev/null || break; sleep 0.1; done
+  app_pid=
+  cmp -s "$draw_fixture" "$draw_board" || { echo "selecting wrote the board"; return 1; }
+  echo "ok the hint bar and zoom controls stayed put through select, deselect and select again"
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
