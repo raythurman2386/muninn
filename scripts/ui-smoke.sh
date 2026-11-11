@@ -152,6 +152,12 @@
 #                   state (the file appears and opens), then the sidebar toggle button
 #                   and Ctrl+\\; then (GK MF1) Ctrl+K and Ctrl+4: the hidden search field
 #                   lets go, so R and a drag draw a rectangle that Ctrl+S saves
+#   x11_board_rename  #43 (Raymond: "I can't seem to update the name of the new board"):
+#                   New board, draw, F2, type a name, Enter: the file is renamed on disk,
+#                   the old path is gone, the board stays open, the watchers do not flag
+#                   it, and a new rectangle + Ctrl+S saves to the new path; then a double
+#                   click on the title and Rename in the board row's right-click menu
+#                   rename it again; no recovery copy is left under any old name
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -170,7 +176,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -1606,6 +1612,101 @@ step_x11_new_board() {
   "$roundtrip" "$empty_vault/Ideas/Untitled board.excalidraw" || return 1
   ls -R "$empty_vault"
   echo "ok New board under X11 made and opened Untitled board; the sidebar toggled by button and Ctrl+\\"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+step_x11_board_rename() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/new-empty.json" made="$out/trees/new-created.json"
+  [ -f "$made" ] || { echo "run headless_new_board first (needs $made)"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-rename.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  local wid s="$out/screens" slow at cx cy tx ty tw th rx ry rw rh d="$empty_vault/Ideas"
+  slow="$(python3 -c "print(max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  shot() { sleep "$(python3 -c "print(1.5 * $slow)")"; import -window "$wid" "$s/x11-rename-$1.png"; }
+  rects() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print([e["type"] for e in d["elements"] if not e.get("isDeleted")].count("rectangle"))' "$1"; }
+  at="$(python3 "$harness" tree-center "$tree" board-new-empty)" || return 1
+  read -r cx cy _ <<<"$(python3 -c 'import json,sys; sys.path.insert(0, sys.argv[2]); import board_pixels as b; r=b.canvas_rect(sys.argv[1]); print(int(r[0]), int(r[1]))' "$made" "$root/scripts/ui-smoke")"
+  read -r tx ty tw th <<<"$(python3 "$harness" tree-rect "$made" board-surface-title)" || return 1
+  read -r rx ry rw rh <<<"$(python3 "$harness" tree-rect "$made" board-row-0)" || return 1
+  draw() { # draw DX: a rectangle with the R tool on the canvas
+    python3 "$harness" x11-chord "$wid" r || return 1
+    python3 "$harness" x11-drag "$wid" $(( cx + 260 + $1 )) $(( cy + 260 )) 110 70 || return 1
+    python3 "$harness" x11-chord "$wid" v
+  }
+  rm -rf "$empty_vault"; mkdir -p "$d"
+  printf '# Start\n\nNo boards here yet.\n' >"$empty_vault/Start.md"
+  printf '# Idea\n\n![[Untitled board.excalidraw]]\n' >"$d/Idea.md"
+  export XDG_CONFIG_HOME="$work/config-x11-rename" XDG_STATE_HOME="$work/state-x11-rename"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME/muninn" "$XDG_STATE_HOME"
+  # Explicit save, so the drawing is still unsaved when F2 renames it.
+  printf '{"board_autosave": false}\n' >"$XDG_CONFIG_HOME/muninn/settings.json"
+  local log="$XDG_STATE_HOME/muninn/session.log"
+  "$bin" --vault "$empty_vault" >>"$out/logs/x11-rename-app.log" 2>&1 &
+  app_pid=$!
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  sleep 2
+  python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $at && shot 0-created || return 1
+  [ -f "$d/Untitled board.excalidraw" ] || { echo "New board made no file"; ls -R "$empty_vault"; return 1; }
+  draw 0 && shot 1-drawn || return 1
+  [ "$(rects "$d/Untitled board.excalidraw")" = 0 ] || { echo "the drawing was saved before the rename"; return 1; }
+  # 1. F2 on Board: type a name, Enter.
+  python3 "$harness" x11-chord "$wid" F2 && shot 2-f2-field || return 1
+  python3 "$harness" x11-type "$wid" Roadmap || return 1
+  python3 "$harness" x11-chord "$wid" enter && shot 3-renamed || return 1
+  [ -f "$d/Roadmap.excalidraw" ] || { echo "F2 + Roadmap + Enter renamed nothing"; ls -R "$empty_vault"; return 1; }
+  [ -e "$d/Untitled board.excalidraw" ] && { echo "the old path is still there"; return 1; }
+  [ "$(rects "$d/Roadmap.excalidraw")" = 1 ] || { echo "the unsaved rectangle was not saved before the rename"; return 1; }
+  grep -q 'renamed Ideas/Untitled board.excalidraw to Ideas/Roadmap.excalidraw' "$log" || { echo "no 'renamed' line in the session log"; return 1; }
+  grep -q '!\[\[Roadmap.excalidraw\]\]' "$d/Idea.md" || { echo "the embed in Idea.md did not follow"; cat "$d/Idea.md"; return 1; }
+  echo "ok F2 renamed Ideas/Untitled board.excalidraw to Ideas/Roadmap.excalidraw (drawing saved first; embed followed)"
+  # 2. The watchers look (every 1.5 s) and do not flag Muninn's own rename.
+  sleep 4
+  grep -q 'changed on disk' "$log" && { echo "the rename was flagged as a change on disk"; grep 'changed on disk' "$log"; return 1; }
+  # 3. Still open and editable: a second rectangle saves to the new path.
+  draw 160 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+s && shot 4-saved || return 1
+  [ "$(rects "$d/Roadmap.excalidraw")" = 2 ] || { echo "Ctrl+S did not save to the new path ($(rects "$d/Roadmap.excalidraw") rectangles)"; return 1; }
+  [ -e "$d/Untitled board.excalidraw" ] && { echo "a save went back to the old path"; return 1; }
+  echo "ok the renamed board stayed open, and Ctrl+S saved 2 rectangles to Roadmap.excalidraw"
+  # 4. A double click on the title above the canvas.
+  python3 "$harness" x11-click "$wid" $(( tx + 12 )) $(( ty + th / 2 )) 1 2 && shot 5-title-field || return 1
+  python3 "$harness" x11-type "$wid" Sketch || return 1
+  python3 "$harness" x11-chord "$wid" enter && shot 6-title-renamed || return 1
+  [ -f "$d/Sketch.excalidraw" ] && [ ! -e "$d/Roadmap.excalidraw" ] || { echo "double-click on the title did not rename"; ls -R "$empty_vault"; return 1; }
+  echo "ok a double click on the title renamed Roadmap to Sketch"
+  # 5. Rename in the board row's right-click menu (its first item, under the row).
+  python3 "$harness" x11-click "$wid" $(( rx + rw / 2 )) $(( ry + rh / 2 )) 3 && shot 7-menu || return 1
+  python3 "$harness" x11-click "$wid" $(( rx + rw / 2 )) $(( ry + rh + 21 )) && shot 8-menu-field || return 1
+  python3 "$harness" x11-type "$wid" Plan || return 1
+  python3 "$harness" x11-chord "$wid" enter && shot 9-menu-renamed || return 1
+  [ -f "$d/Plan.excalidraw" ] && [ ! -e "$d/Sketch.excalidraw" ] || { echo "Rename in the row menu did not rename"; ls -R "$empty_vault"; return 1; }
+  echo "ok Rename in the row's right-click menu renamed Sketch to Plan"
+  python3 "$harness" x11-close "$wid" || return 1
+  for i in $(seq 100); do kill -0 "$app_pid" 2>/dev/null || break; sleep 0.1; done
+  app_pid=
+  [ "$(rects "$d/Plan.excalidraw")" = 2 ] || { echo "Plan.excalidraw lost drawing"; return 1; }
+  "$roundtrip" "$d/Plan.excalidraw" || return 1
+  find "$XDG_STATE_HOME" -iname '*untitled_board*' -o -iname '*roadmap*' -o -iname '*sketch*' | grep . && { echo "a recovery copy is left under an old name"; return 1; }
+  grep -q '!\[\[Plan.excalidraw\]\]' "$d/Idea.md" || { echo "the embed did not follow every rename"; cat "$d/Idea.md"; return 1; }
+  grep 'renamed' "$log"
+  ls -R "$empty_vault"
+  echo "ok board rename under X11: F2, title double click and row menu; the file moved each time and the board stayed open"
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 

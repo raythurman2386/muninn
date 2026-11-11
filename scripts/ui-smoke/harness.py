@@ -7,7 +7,9 @@
   harness.py x11-chord WINDOW CHORD            focus WINDOW, press CHORD (e.g. ctrl+2) via XTEST
   harness.py x11-close WINDOW                  send WM_DELETE_WINDOW (the normal close path)
   harness.py x11-type WINDOW TEXT              type plain text via XTEST
-  harness.py x11-click WINDOW X Y              left click at window point X,Y via XTEST
+  harness.py x11-click WINDOW X Y [B] [N]      click at window point X,Y via XTEST (button B,
+                                               default 1; 3 = right; N presses, 2 = double)
+  harness.py tree-rect TREE.json KEY           print "X Y W H", KEY's rect
   harness.py tree-center TREE.json KEY         print "X Y", the centre of KEY's rect
   harness.py tree-text TREE.json KEY TEXT      assert KEY shows text containing TEXT
   harness.py x11-drag WINDOW X Y DX DY         button-1 drag from window point X,Y by DX,DY
@@ -234,7 +236,9 @@ def x11_type(wid, text):
     print(f"ok typed {text!r} on {wid}")
 
 
-def x11_click(wid, x, y):
+def x11_click(wid, x, y, button="1", count="1"):
+    """Click (COUNT presses of BUTTON: 3 is a right click, a COUNT of 2 a
+    double click, quick enough for the toolkit's double-click interval)."""
     from Xlib import X
     from Xlib.ext import xtest
 
@@ -246,13 +250,27 @@ def x11_click(wid, x, y):
     xtest.fake_input(d, X.MotionNotify, x=rx, y=ry)
     d.sync()
     time.sleep(0.15 * SLOW)
-    xtest.fake_input(d, X.ButtonPress, 1)
-    d.sync()
-    time.sleep(0.08 * SLOW)
-    xtest.fake_input(d, X.ButtonRelease, 1)
-    d.sync()
+    count = int(count)
+    for i in range(count):
+        xtest.fake_input(d, X.ButtonPress, int(button))
+        d.sync()
+        time.sleep(0.08 * SLOW if count == 1 else 0.04)
+        xtest.fake_input(d, X.ButtonRelease, int(button))
+        d.sync()
+        if i + 1 < count:
+            time.sleep(0.06)
     settle()
-    print(f"ok clicked {x},{y} in {wid}")
+    print(f"ok clicked {x},{y} in {wid} (button {button} x{count})")
+
+
+def tree_rect(path, key):
+    """Print "X Y W H" for KEY's rect."""
+    tree = json.load(open(path))
+    for n in walk(tree.get("elements", [])):
+        if n.get("key") == key and isinstance(n.get("rect"), list):
+            print(" ".join(str(round(v)) for v in n["rect"]))
+            return
+    die(f"{path}: no element {key}")
 
 
 def to_root(d, w, x, y):
@@ -349,6 +367,7 @@ def main(argv):
         "x11-type": x11_type,
         "x11-click": x11_click,
         "tree-center": tree_center,
+        "tree-rect": tree_rect,
         "tree-text": tree_text,
         "x11-drag": x11_drag,
         "x11-wheel": x11_wheel,
