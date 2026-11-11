@@ -27,3 +27,18 @@ fn cli_parses_check_list_links_help_and_trace() {
         "--trace"
     ));
 }
+
+#[test]
+fn new_instance_is_a_run_flag() {
+    let args = [
+        "--new-instance".to_owned(),
+        "--vault".to_owned(),
+        "/v".to_owned(),
+    ];
+    assert!(matches!(cli(&args), Cli::Run(None)));
+    assert!(has_flag(&args, "--new-instance"));
+    assert_eq!(vault_arg(&args), Some(PathBuf::from("/v")));
+    let mut help = Vec::new();
+    print_help(&mut help);
+    assert!(String::from_utf8(help).unwrap().contains("--new-instance"));
+}

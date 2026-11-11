@@ -17,6 +17,7 @@ muninn-core.workspace = true
 muninn-ui.workspace = true
 rune.workspace = true
 rune-theme-opencode.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 muninn-core = { workspace = true, features = ["test-support"] }

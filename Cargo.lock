@@ -1955,6 +1955,7 @@ dependencies = [
  "muninn-ui",
  "rune",
  "rune-theme-opencode",
+ "serde_json",
 ]
 
 [[package]]
