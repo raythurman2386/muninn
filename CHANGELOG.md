@@ -97,9 +97,10 @@ All notable changes to Muninn are documented here. The format is based on
   `boundElements`) and is re-centred in the shape on commit. A label inside
   a locked shape is locked with it. Adding a label to a shape without one is
   not supported yet. Text typed but not yet committed counts as
-  unsaved: the recovery copy includes it once typing rests (0.5 s, at most
-  every 2 s), so a crash while typing loses nothing, and quitting or saving
-  mid-edit commits it.
+  unsaved: the recovery copy is written on a timer, once typing rests for
+  about 0.5 s and at least every 2 s while it goes on, so a crash keeps
+  everything up to the last copy but can lose the last moments of typing
+  (up to about 2 s). Quitting or saving mid-edit commits it.
 - Unsaved board drawing is never lost: if the board's file is removed,
   renamed or changed by another app, the board stays open and, once Muninn
   notices (when the boards are re-listed — entering Board, a vault reload or
@@ -128,13 +129,17 @@ All notable changes to Muninn are documented here. The format is based on
 - Board rename: `F2` on Board (with no text field focused), **Rename** in a
   board row's right-click menu (Boards panel or the sidebar's Boards
   section), or a double-click on the board's title opens an inline name
-  field; `Enter` renames and `Esc` cancels, and `.excalidraw` is added for
+  field (`F2` uses the title when the board has no row in the Boards panel,
+  for example one in a hidden folder). Names in any script work, accents
+  and emoji included; `Enter` renames and `Esc` cancels, and `.excalidraw` is added for
   you. A taken or invalid name is refused with the reason and the field
   stays open. The open board is saved first and stays open under its new
   name with its view and recovery copy, the file watcher
   does not report the rename, and notes that embed or link the board
   (`![[Old.excalidraw]]`) are updated to the new name, keeping folder,
   heading and alias.
+- `muninn --version` (or `-V`) prints `muninn 0.7.0` and exits without
+  opening a window.
 - Typing in the sidebar search on Board or Graph no longer triggers the
   canvas's keys (tool letters, zoom, fit, arrows).
 
@@ -152,6 +157,35 @@ All notable changes to Muninn are documented here. The format is based on
   folder from inside Muninn (use the file manager).
 - After restoring a board from crash recovery, it can be flagged as changed
   on disk by another app even when it was not; choose **Keep mine** to save.
+  Until then the board cannot be renamed either, and the rename field says
+  only "Save the board first: it could not be saved".
+- A crash-recovery copy is written as two files (the content, then a small
+  record of where it belongs and when), each atomically but not as a pair.
+  A crash between the two writes can leave a first copy without its record,
+  which is then not offered on the next launch, or a newer copy with the
+  previous copy's time.
+- New board checks that its name is free and then writes the file, so a
+  file another app creates under that exact name in the same instant is
+  replaced. A broken symlink with the next free name (`Untitled board
+  2.excalidraw` pointing at nothing) is replaced by the new board; nothing
+  outside the vault is written.
+- Board rename has the same check-then-rename window: a file another app
+  creates under the new name in that instant is replaced.
+- Rename updates the notes that embed or link the board from the copy
+  Muninn holds, without checking whether another app changed those notes a
+  moment before (the same as note rename), and it does not roll back: if
+  one note cannot be written, the board is still renamed, the other notes
+  are updated, and the error names the note that was not.
+- Embeds written with a `../` path (`![[../Ideas/Plan.excalidraw]]`) are
+  not followed by Muninn and are not updated by a rename.
+- A rename that only changes letter case (`plan` to `Plan`) is tested on
+  Linux (ext4); on the case-insensitive disks of macOS and Windows it is
+  expected to work but has not been tried by hand.
+- Opening Settings › Vaults › Open vault while on Board also opens the notes
+  sidebar on Board for the rest of the session, as do `⌘K` and `⌘N` there.
+  Opening a note from the list or a new-note prompt switches to Write
+  without going through the usual mode switch; nothing is lost, as no
+  sidebar field is open at that point.
 - Saving a board resets its file permissions to the default (0644), and the
   first save of an Excalidraw file reorders its keys and fills in defaults.
 - The sidebar's hidden or shown state on Board is not remembered across
