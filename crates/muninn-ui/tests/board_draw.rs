@@ -507,3 +507,80 @@ fn a_board_from_another_vault_is_refused_by_save() {
     assert!(matches!(status(&rt), BoardStatus::Failed(ref e) if e.contains("another vault")));
     assert_eq!(fs::read_to_string(&path).unwrap(), DRAW);
 }
+
+#[test]
+fn a_board_that_cannot_be_saved_refuses_a_vault_rescan() {
+    let tmp = vault();
+    let path = tmp.path().join("Draw.excalidraw");
+    let mut rt = launch(tmp.path());
+    open(&mut rt, "Draw");
+    rt.key(text("r"));
+    stroke(&mut rt, &[[300.0, 300.0], [380.0, 360.0]]);
+    let drawn = model(&rt).elements.len();
+    // Someone else edits the board, so the flush before the rescan fails.
+    let theirs = DRAW.replace("kept as-is", "edited elsewhere");
+    fs::write(&path, &theirs).unwrap();
+    fs::write(tmp.path().join("Gamma.md"), "# Gamma\n").unwrap();
+    assert!(!rt.state.retry_startup(), "the rescan must be refused");
+    frames(&mut rt, 2);
+    assert!(
+        rt.state
+            .error
+            .as_deref()
+            .is_some_and(|e| e.contains("board"))
+    );
+    // The drawing, the open board and the old vault are all still there.
+    let open = rt.state.board_open.as_ref().expect("board stays open");
+    assert!(open.path.ends_with("Draw.excalidraw"));
+    assert_eq!(model(&rt).elements.len(), drawn);
+    assert!(rt.state.board_dirty());
+    assert!(
+        !rt.state
+            .vault
+            .notes
+            .iter()
+            .any(|n| n.rel.ends_with("Gamma.md"))
+    );
+    assert_eq!(fs::read_to_string(&path).unwrap(), theirs);
+    // Once the file is back as it was loaded, the rescan saves the drawing
+    // into its own board first and then goes ahead.
+    fs::write(&path, DRAW).unwrap();
+    assert!(rt.state.retry_startup());
+    frames(&mut rt, 2);
+    assert!(
+        rt.state
+            .vault
+            .notes
+            .iter()
+            .any(|n| n.rel.ends_with("Gamma.md"))
+    );
+    let saved = Board::load(&path).unwrap();
+    assert_eq!(saved.elements.len(), drawn);
+}
+
+#[test]
+fn a_board_that_cannot_be_saved_refuses_a_large_chunked_rescan() {
+    let mut files: Vec<(String, String)> = (0..130)
+        .map(|i| (format!("n{i:03}.md"), format!("# N{i}\n")))
+        .collect();
+    files.push(("Draw.excalidraw".into(), DRAW.into()));
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    let tmp = TempVault::new(&refs);
+    let path = tmp.path().join("Draw.excalidraw");
+    let mut rt = launch(tmp.path());
+    frames(&mut rt, 20);
+    open(&mut rt, "Draw");
+    rt.key(text("r"));
+    stroke(&mut rt, &[[300.0, 300.0], [380.0, 360.0]]);
+    let drawn = model(&rt).elements.len();
+    fs::remove_file(&path).unwrap();
+    assert!(!rt.state.retry_startup());
+    assert!(!rt.state.loading(), "no chunked scan may start");
+    frames(&mut rt, 20);
+    assert_eq!(model(&rt).elements.len(), drawn);
+    assert!(rt.state.board_dirty());
+    assert!(!path.exists(), "a removed board is not recreated");
+}

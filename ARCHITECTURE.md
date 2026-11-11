@@ -178,7 +178,8 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   refused unless that path is inside the vault the board was opened from *and* the
   currently open vault, and refused if the file's bytes no longer match what was loaded
   or last saved (changed or removed on disk). A refused flush keeps the drawing in memory
-  and blocks the board or vault switch, like a note that cannot be saved.
+  and blocks the board switch, the vault switch or the vault rescan (Retry, or the
+  chunked startup scan finishing), like a note that cannot be saved.
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
   atomic rename. A crash or failed write leaves the previous bytes intact instead of a

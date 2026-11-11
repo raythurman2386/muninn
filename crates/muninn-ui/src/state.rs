@@ -240,6 +240,9 @@ const NOTE_EDITOR_CAP: usize = 24;
 /// bounded chunks from [`crate::poll`], one frame at a time.
 pub(crate) const SCAN_SYNC_LIMIT: usize = 100;
 
+/// Shown when a vault rescan is refused because the open board cannot be saved.
+const RESCAN_BOARD_REFUSED: &str = "Save the current board before rescanning the vault";
+
 /// Note bodies read per poll tick. Reading is the expensive part (the walk is
 /// metadata only); 50 keeps a tick far below one frame on a cold cache while a
 /// 2,000-note vault finishes in about forty ticks.
@@ -3063,13 +3066,21 @@ impl State {
     /// Retry the startup scan after [`State::startup_error`]. A small vault is
     /// scanned synchronously; a large one starts the same chunked path as
     /// startup, and `poll` completes it. On failure the error is refreshed.
+    ///
+    /// The open board is saved first, like before a board or vault switch; a
+    /// board that cannot be saved refuses the rescan, so the drawing is never
+    /// dropped by the vault the scan installs.
     pub fn retry_startup(&mut self) -> bool {
+        if !self.save_board() {
+            self.error = Some(RESCAN_BOARD_REFUSED.to_owned());
+            return false;
+        }
         match Vault::scan_start(&self.vault.root) {
             Ok(mut job) => {
                 let total = job.total();
                 if total <= SCAN_SYNC_LIMIT {
                     job.read_chunk(usize::MAX);
-                    self.install_scanned_vault(job.finish());
+                    return self.install_scanned_vault(job.finish());
                 } else {
                     self.startup_error = None;
                     self.error = None;
@@ -3122,7 +3133,10 @@ impl State {
             .scan_started
             .take()
             .map_or(0.0, |started| started.elapsed().as_secs_f64() * 1_000.0);
-        self.install_scanned_vault(vault);
+        if !self.install_scanned_vault(vault) {
+            self.log_event("scan-aborted", "the open board could not be saved");
+            return true;
+        }
         self.log_event(
             "scan-complete",
             &format!(
@@ -3153,14 +3167,23 @@ impl State {
 
     /// Replace the placeholder with a finished scan: build the graph, reopen
     /// the session's note (or the first one) and start watching the folder.
-    fn install_scanned_vault(&mut self, vault: Vault) {
+    ///
+    /// Unsaved drawing is saved into its own vault first. If that save fails
+    /// the scan is abandoned (false): the open board, its drawing and the
+    /// current vault stay as they are, as when a board or vault switch is
+    /// refused.
+    fn install_scanned_vault(&mut self, vault: Vault) -> bool {
         // The scan re-reads the vault that is already open (startup or Retry),
         // so the open board and its view stay: clearing them here would also
         // write `board: null` to settings below and lose the restore. Only a
         // scan of another root starts the boards over.
         let same_vault = vault.root == self.vault.root;
-        // Unsaved drawing goes to its own vault before the scan replaces it.
-        self.save_board();
+        if !self.save_board() {
+            self.restore_after_scan = None;
+            self.scan_field.focused = false;
+            self.error = Some(RESCAN_BOARD_REFUSED.to_owned());
+            return false;
+        }
         self.vault = vault;
         self.scan_field.focused = false;
         self.startup_error = None;
@@ -3206,6 +3229,7 @@ impl State {
         self.settings.last_vault = Some(root);
         self.save_settings();
         self.refresh_watch();
+        true
     }
 
     /// Begin naming a note in the current folder. Nothing is created until

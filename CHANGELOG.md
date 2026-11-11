@@ -32,9 +32,11 @@ All notable changes to Muninn are documented here. The format is based on
   diamonds, ellipses, arrows, lines and freehand strokes as new Excalidraw
   elements (fresh ids, seeds, versions and fractional indexes). The heading
   shows Unsaved; `⌘S` / `Ctrl+S` saves the board atomically, and Muninn also
-  saves it before opening another board, switching vault or quitting. Every
-  element already in the file is kept, and a board that changed on disk,
-  was removed, or belongs to another vault is never written.
+  saves it before opening another board, switching vault, rescanning the
+  vault or quitting; if that save fails, the board switch, vault switch or
+  rescan is refused and the drawing stays. Every element already in the file
+  is kept, and a board that changed on disk, was removed, or belongs to
+  another vault is never written.
 
 ## [0.6.0] - 2026-11-09
 

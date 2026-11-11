@@ -564,7 +564,7 @@ step_x11_draw() {
   local row
   row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
   launch || return 1
-  python3 "$harness" x11-chord "$wid" ctrl+4 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 1-before || return 1
   python3 "$draw" x11 "$wid" "$tree" && shot 2-drawn || return 1
   python3 "$draw" pixels "$s/x11-draw-1-before.png" "$s/x11-draw-2-drawn.png" "$tree" || return 1
