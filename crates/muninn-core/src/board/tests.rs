@@ -17,6 +17,13 @@
 //!   repository and commit (decoded from its compressed payload). It is an
 //!   older real export with fields current Excalidraw no longer writes
 //!   (`strokeSharpness`, `boundElementIds`, `baseline`) and no `files` key.
+//! - `lasso-precision.excalidraw`: the 16 elements (lines and ellipses from a
+//!   real drawing) of the "Selects group if any group from group is selected"
+//!   case in `packages/excalidraw/tests/lasso.test.tsx`, same repository and
+//!   commit, converted from the object literal to JSON with
+//!   `JSON.stringify(scene, null, 2)` in Node and wrapped in the scene
+//!   envelope. It carries 77 coordinates printed with 17 significant digits,
+//!   the ones a lossy float parser drifts by one ULP.
 
 use std::fs;
 
@@ -27,6 +34,7 @@ use crate::testing::TempVault;
 
 const SCENE: &str = include_str!("../../tests/fixtures/board/scene.excalidraw");
 const LEGACY: &str = include_str!("../../tests/fixtures/board/legacy-smiley.excalidraw");
+const PRECISION: &str = include_str!("../../tests/fixtures/board/lasso-precision.excalidraw");
 
 fn parse(json: &str) -> Value {
     serde_json::from_str(json).expect("fixture json")
@@ -263,6 +271,73 @@ fn numbers_are_written_like_json_stringify() {
     assert_eq!(num(861.111_111_111_111_1).to_string(), "861.1111111111111");
     assert_eq!(num(f64::NAN).to_string(), "0");
     assert_eq!(num(1e300).to_string(), "1e+300");
+}
+
+/// Every decimal number in `json` with at least `digits` significant digits,
+/// as written.
+fn long_numbers(json: &str, digits: usize) -> Vec<&str> {
+    let bytes = json.as_bytes();
+    let mut found = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let starts = bytes[i] == b'-' || bytes[i].is_ascii_digit();
+        let after_word = i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'.');
+        if !starts || after_word {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        while i < bytes.len() && (bytes[i].is_ascii_digit() || b".eE+-".contains(&bytes[i])) {
+            i += 1;
+        }
+        let token = &json[start..i];
+        let significant = token
+            .split(['e', 'E'])
+            .next()
+            .unwrap_or_default()
+            .trim_start_matches('-')
+            .replace('.', "");
+        if token.contains('.') && significant.trim_start_matches('0').len() >= digits {
+            found.push(token);
+        }
+    }
+    found
+}
+
+#[test]
+fn seventeen_digit_coordinates_survive_load_and_save_exactly() {
+    // The value that drifted before `float_roundtrip`: it read back as
+    // 102.9599151611328, one ULP off.
+    let drifted: f64 = serde_json::from_str("102.95991516113281").unwrap();
+    assert_eq!(drifted.to_bits(), 102.959_915_161_132_81_f64.to_bits());
+
+    let long = long_numbers(PRECISION, 17);
+    assert_eq!(long.len(), 77, "fixture coordinates with 17 digits");
+
+    let tmp = TempVault::new(&[]);
+    let path = tmp.path().join("Lasso.excalidraw");
+    fs::write(&path, PRECISION).unwrap();
+    let board = Board::load(&path).unwrap();
+    board.save(&path).unwrap();
+    let saved = fs::read_to_string(&path).unwrap();
+    // Muninn may reorder keys on its first save, so compare as sorted lists.
+    let (mut before, mut after) = (long.clone(), long_numbers(&saved, 17));
+    before.sort_unstable();
+    after.sort_unstable();
+    assert_eq!(after, before, "17-digit numbers rewritten by load -> save");
+    assert_eq!(
+        parse(&saved),
+        parse(PRECISION),
+        "the scene itself is unchanged"
+    );
+
+    Board::load(&path).unwrap().save(&path).unwrap();
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        saved,
+        "a second save is byte-identical"
+    );
 }
 
 #[test]

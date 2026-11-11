@@ -36,8 +36,9 @@
 #                   active mode button asserted from the tree
 #   x11_modes       windowed app on Xvfb: launch shot, Ctrl+3/2/1 with a shot each,
 #                   settings.json "mode" asserted after each, clean close (exit 0)
-#   board_roundtrip the seeded board is byte-identical after the app runs, and
-#                   board_roundtrip (load → compare → atomic save → reload) passes on it
+#   board_untouched the app left the seeded board byte-identical (it only reads boards);
+#                   then the board_roundtrip example (load → compare → atomic save →
+#                   reload, on a hidden scratch copy) passes on that file
 # Later slices add board steps (enter Board mode, draw, select, move, undo, text, save,
 # reload, round-trip the saved file): write a `step_NAME` function and add NAME to STEPS.
 #
@@ -49,7 +50,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes x11_modes board_roundtrip}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes x11_modes board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -211,7 +212,7 @@ step_x11_modes() {
   [ "$status" = 0 ]
 }
 
-step_board_roundtrip() {
+step_board_untouched() {
   sha256sum -c "$work/board.sha256" || { echo "the app changed the board file"; return 1; }
   "$roundtrip" "$board" || return 1
   # The checker's scratch save is hidden and removed; nothing else appears in the vault.
