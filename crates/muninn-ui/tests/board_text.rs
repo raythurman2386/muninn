@@ -609,3 +609,93 @@ fn a_locked_box_and_its_label_are_neither_picked_nor_edited() {
     );
     assert_eq!(status(&rt), BoardStatus::Clean);
 }
+
+/// Let `secs` pass the way a resting window does (#40 recheck B1): no input
+/// and no frames except the wakes the app itself asked for.
+fn rest(rt: &mut Runtime<State>, secs: f64) {
+    let end = rt.state.now + secs;
+    for _ in 0..10_000 {
+        let Some(due) = rt.wake_deadline() else {
+            return;
+        };
+        if due > end {
+            return;
+        }
+        rt.frame((due - rt.state.now).max(1.0 / 240.0));
+    }
+}
+
+#[test]
+fn typed_text_reaches_the_recovery_copy_while_the_window_rests() {
+    let tmp = vault();
+    let state_home = unique_dir("state");
+    let mut rt = launch_in(tmp.path(), &state_home);
+    open(&mut rt);
+    text(&mut rt, "t");
+    click(&mut rt, EMPTY);
+    type_str(&mut rt, "typed then a pause");
+    // A real window draws nothing after the last key: only its own wakes run.
+    rest(&mut rt, 3.0);
+    let copy = recovery_text(&rt).expect("the paused typing has a recovery copy");
+    assert!(copy.contains("typed then a pause"), "{copy}");
+    drop(rt);
+    let mut rt = launch_in(tmp.path(), &state_home);
+    assert!(rt.state.restore_recovery("Draw.excalidraw"));
+    frames(&mut rt, 2);
+    assert!(
+        model(&rt).live_elements().any(|e| e
+            .shape()
+            .and_then(|s| s.text.as_ref())
+            .is_some_and(|t| t.text == "typed then a pause")),
+        "restore brings it back"
+    );
+}
+
+#[test]
+fn typing_counts_as_unsaved_and_blocks_quit_until_the_copy_has_it() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    text(&mut rt, "t");
+    click(&mut rt, EMPTY);
+    assert!(
+        !rt.state.board_dirty(),
+        "an empty new editor is not unsaved"
+    );
+    text(&mut rt, "x");
+    assert!(rt.state.board_dirty(), "typed text is unsaved");
+    assert!(
+        !rt.state.can_quit(),
+        "quitting before the copy has the typed text would lose it"
+    );
+    let shown = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.key.as_deref() == Some("board-save-state"))
+        .and_then(|e| e.text);
+    assert_eq!(shown.as_deref(), Some("Unsaved · ⌘S saves"));
+    rest(&mut rt, 3.0);
+    assert!(rt.state.board_dirty(), "still not saved");
+    assert!(rt.state.can_quit(), "the copy holds it now");
+    plain(&mut rt, Key::Backspace);
+    assert!(!rt.state.board_dirty(), "back to nothing typed");
+}
+
+#[test]
+fn more_typing_after_a_copy_rewrites_the_copy() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    text(&mut rt, "t");
+    click(&mut rt, EMPTY);
+    type_str(&mut rt, "ab");
+    rest(&mut rt, 3.0);
+    assert!(recovery_text(&rt).expect("a copy").contains("\"ab\""));
+    type_str(&mut rt, "cd");
+    rest(&mut rt, 3.0);
+    let copy = recovery_text(&rt).expect("a copy");
+    assert!(
+        copy.contains("\"abcd\""),
+        "the copy follows the typing: {copy}"
+    );
+}
