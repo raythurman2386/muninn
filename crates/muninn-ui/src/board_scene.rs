@@ -53,6 +53,18 @@ pub struct BoardScene {
     pub outlined: usize,
 }
 
+/// The smallest text size drawn, in scene units.
+pub const MIN_FONT_SIZE: f32 = 1.0;
+/// The largest text size drawn, in scene units. Excalidraw's own sizes stop
+/// at a few hundred; a file asking for more is drawn at this size instead of
+/// handing the rasterizer a glyph larger than it can allocate.
+pub const MAX_FONT_SIZE: f32 = 2048.0;
+/// The largest on-screen text size, in points, at the current zoom. A board
+/// zoomed far into large text draws it at this size: a glyph mask scales with
+/// the square of its size, and one tens of thousands of pixels wide panics the
+/// glyph rasterizer.
+pub const MAX_SCREEN_FONT: f32 = 1024.0;
+
 /// One text element, in world-element coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SceneText {
@@ -365,7 +377,7 @@ fn item_pieces(item: &Item) -> Vec<Piece> {
             let Some(body) = &item.text else { return out };
             let font_size = f(body.font_size);
             let font_size = if font_size.is_finite() && font_size > 0.0 {
-                font_size
+                font_size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE)
             } else {
                 20.0
             };

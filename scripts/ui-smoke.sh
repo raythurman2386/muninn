@@ -51,6 +51,9 @@
 #                   and "+" scale it about the canvas centre, Left moves it 60 pt, a trip
 #                   to Write and back leaves it in place, "0" refits it, and a relaunch on
 #                   the saved settings draws it exactly where it was left
+#   headless_big_restart  the same restart in a 160-note vault, which scans in chunks:
+#                   the relaunch must still open Smoke at its saved view (pixels as
+#                   "back") and settings.json must still name it afterwards
 #   x11_board       the same checks in the windowed app on Xvfb with XTEST input (row
 #                   click, button-1 drag, wheel buttons, "=", Left, Ctrl+1/4, a clean
 #                   close and relaunch, "0")
@@ -68,7 +71,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board x11_modes x11_board board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart x11_modes x11_board board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -202,6 +205,29 @@ step_headless_board() {
     --snap "$s/board-restart.png" --tree "$t/board-restart.json" || return 1
   python3 "$harness" tree-mode "$t/board-restart.json" board || return 1
   python3 "$pixels" same "$s/board-restart.png" "$t/board-restart.json" "$m/back.json" "$m/restart.json"
+}
+
+# #37 M1: a vault over the synchronous scan limit (100 notes) scans in chunks after
+# launch; finishing that scan must keep the restored board and its view.
+step_headless_big_restart() {
+  isolate
+  local big="$work/big-vault" s="$out/screens" t="$out/trees" m="$work/measure" i
+  [ -f "$m/back.json" ] || { echo "run headless_board first (needs its back.json)"; return 1; }
+  rm -rf "$big"; mkdir -p "$big/notes"
+  for i in $(seq -w 1 160); do printf '# Note %s\n' "$i" >"$big/notes/n$i.md"; done
+  cp "$smoke_fixture" "$big/Smoke.excalidraw"
+  export XDG_CONFIG_HOME="$work/config-big"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME/muninn"
+  # The headless_board "back" settings (Board, Smoke at its view), pointed at this vault:
+  # a board is only restored into the vault it was saved from.
+  python3 -c 'import json,sys; v=json.load(open(sys.argv[1])); v["last_vault"]=sys.argv[3]; v["recent_vaults"]=[sys.argv[3]]; json.dump(v, open(sys.argv[2], "w"), indent=2)' \
+    "$work/config-board-back/muninn/settings.json" "$XDG_CONFIG_HOME/muninn/settings.json" "$big" || return 1
+  "$bin" --vault "$big" --at 2.5 --scale 1 \
+    --snap "$s/big-restart.png" --tree "$t/big-restart.json" || return 1
+  python3 "$harness" tree-mode "$t/big-restart.json" board || return 1
+  python3 "$pixels" same "$s/big-restart.png" "$t/big-restart.json" "$m/back.json" "$m/big-restart.json" || return 1
+  python3 -c 'import json,sys; b=json.load(open(sys.argv[1]))["board"]; print("saved board after the scan", b); assert b and b["rel"]=="Smoke.excalidraw" and "eye" in b' \
+    "$XDG_CONFIG_HOME/muninn/settings.json"
 }
 
 find_lavapipe() {

@@ -338,7 +338,7 @@ fn a_fresh_scan_of_the_vault_resets_the_board_list_too() {
     rt.state.set_mode(Mode::Board);
     frame(&mut rt);
     let plan = rt.state.boards[0].file.path.clone();
-    rt.state.select_board(plan);
+    rt.state.select_board(plan.clone());
     fs::write(
         tmp.path().join("Later.excalidraw"),
         r#"{"type":"excalidraw","version":2}"#,
@@ -348,7 +348,10 @@ fn a_fresh_scan_of_the_vault_resets_the_board_list_too() {
     // `retry_startup` installs a finished scan through `install_scanned_vault`.
     assert!(rt.state.retry_startup());
     frame(&mut rt);
-    assert_eq!(rt.state.board_selected, None);
+    // The same vault scanned again keeps the open board (#37 M1: a chunked
+    // startup scan must not drop the restored board); a vault *switch* still
+    // clears it (see the switch tests above).
+    assert_eq!(rt.state.board_selected, Some(plan));
     assert!(
         rt.state.boards.iter().any(|b| b.file.title == "Later"),
         "the list is read from disk again"

@@ -203,7 +203,8 @@ fn a_drag_pans_and_the_wheel_zooms_about_the_pointer() {
     assert_eq!(saved.rel, "Smoke.excalidraw");
     assert_eq!(saved.view, Some(view_of(rt)), "a drag end saves the view");
 
-    // Wheel up zooms in; the scene point under the pointer stays put.
+    // Wheel down (dy < 0 in Rune) zooms in, as in Graph; the scene point
+    // under the pointer stays put.
     let (px, py) = (canvas[0] + 300.0, canvas[1] + 200.0);
     let local = [px - canvas[0], py - canvas[1]];
     let under = view_of(rt).scene(local);
@@ -385,4 +386,153 @@ fn switching_vaults_closes_the_open_board() {
         None,
         "nothing to restore in the new vault"
     );
+}
+
+fn text_board(font_size: f64) -> String {
+    format!(
+        r##"{{"type":"excalidraw","version":2,"elements":[
+{{"type":"rectangle","id":"r","x":0,"y":0,"width":400,"height":300,"strokeColor":"#1e1e1e"}},
+{{"type":"text","id":"t","x":10,"y":10,"width":80,"height":25,"text":"huge","fontSize":{font_size},"strokeColor":"#1e1e1e"}}]}}"##
+    )
+}
+
+fn zoom_all_the_way_in(rt: &mut Runtime<State>) {
+    for _ in 0..30 {
+        rt.key(plain(Key::Text("+".into())));
+        frames(rt, 2);
+    }
+    assert_eq!(view_of(rt).zoom, 8.0, "at the camera's max zoom");
+}
+
+#[test]
+fn a_huge_font_size_opens_and_zooms_without_panicking() {
+    for size in [1e6, 16000.0, 1e300] {
+        let tmp = TempVault::new(&[
+            ("Alpha.md", "# Alpha\n"),
+            ("Huge.excalidraw", &text_board(size)),
+        ]);
+        let mut s = fresh(&tmp);
+        open(&mut s.rt, "Huge");
+        let scene =
+            s.rt.state
+                .board_open
+                .as_ref()
+                .unwrap()
+                .scene
+                .as_ref()
+                .unwrap();
+        assert_eq!(scene.texts.len(), 1, "the text is still drawn");
+        assert!(scene.texts[0].font_size <= 2048.0, "{size}: clamped");
+        zoom_all_the_way_in(&mut s.rt);
+        // Reopening at that zoom (the view is remembered) draws it again.
+        s.rt.state.flush_before_quit();
+        drop(s.rt);
+        let mut rt = launch(tmp.path(), &s.config, &s.state_home);
+        frames(&mut rt, 30);
+        assert_eq!(
+            view_of(&rt).zoom,
+            8.0,
+            "{size}: reopened at the zoom it had"
+        );
+        assert!(rt.find("board-text-0").is_some());
+    }
+}
+
+#[test]
+fn a_board_is_remembered_for_the_next_launch_only_once_a_frame_drew_it() {
+    let tmp = vault();
+    let mut s = fresh(&tmp);
+    s.rt.key(command('4'));
+    frames(&mut s.rt, 2);
+    let i =
+        s.rt.state
+            .boards
+            .iter()
+            .position(|b| b.file.title == "Smoke")
+            .unwrap();
+    let (x, y) = s.rt.find(&format!("board-row-{i}")).unwrap();
+    s.rt.pointer_down(x, y);
+    s.rt.pointer_up(x, y);
+    s.rt.frame(1.0 / 60.0);
+    assert!(s.rt.state.board_open.is_some(), "picked");
+    // Not drawn yet: a crash now must not reopen this board on every launch.
+    assert_eq!(s.rt.state.board_session(), None);
+    assert_eq!(Settings::load_from(&s.config).board, None);
+    frames(&mut s.rt, 60);
+    let saved = Settings::load_from(&s.config)
+        .board
+        .expect("remembered once drawn");
+    assert_eq!(saved.rel, "Smoke.excalidraw");
+}
+
+#[test]
+fn a_big_vault_reopens_the_last_board_and_its_view_after_the_scan() {
+    let mut files: Vec<(String, String)> = (0..160)
+        .map(|i| (format!("notes/n{i:03}.md"), format!("# N{i}\n")))
+        .collect();
+    files.push(("Smoke.excalidraw".into(), SMOKE.into()));
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    let tmp = TempVault::new(&refs);
+    let mut s = fresh(&tmp);
+    for _ in 0..200 {
+        if !s.rt.state.loading() {
+            break;
+        }
+        frames(&mut s.rt, 1);
+    }
+    open(&mut s.rt, "Smoke");
+    s.rt.key(plain(Key::Right));
+    s.rt.key(plain(Key::Text("+".into())));
+    frames(&mut s.rt, 2);
+    let left = view_of(&s.rt);
+    s.rt.state.flush_before_quit();
+    drop(s.rt);
+
+    let mut rt = launch(tmp.path(), &s.config, &s.state_home);
+    assert!(rt.state.loading(), "a vault this big scans in chunks");
+    // Quitting while it scans keeps the board to restore.
+    assert_eq!(
+        rt.state.board_session().map(|b| b.rel),
+        Some("Smoke.excalidraw".to_owned())
+    );
+    for _ in 0..200 {
+        if !rt.state.loading() {
+            break;
+        }
+        frames(&mut rt, 1);
+    }
+    assert!(!rt.state.loading());
+    frames(&mut rt, 30);
+    assert_eq!(rt.state.mode, Mode::Board);
+    let open = rt
+        .state
+        .board_selected
+        .clone()
+        .expect("the last board is open");
+    assert!(open.ends_with("Smoke.excalidraw"));
+    assert_eq!(view_of(&rt), left, "at the view it had");
+    let saved = Settings::load_from(&s.config)
+        .board
+        .expect("still remembered");
+    assert_eq!(saved.rel, "Smoke.excalidraw");
+    assert_eq!(saved.view, Some(left));
+}
+
+#[test]
+fn switching_to_a_vault_with_no_boards_lists_none_and_remembers_none() {
+    let tmp = vault();
+    let other = TempVault::new(&[("Beta.md", "# Beta\n"), ("Gamma.md", "# Gamma\n")]);
+    let mut s = fresh(&tmp);
+    open(&mut s.rt, "Smoke");
+    assert!(s.rt.state.switch_vault(other.path().to_path_buf()));
+    s.rt.key(command('4'));
+    frames(&mut s.rt, 5);
+    assert_eq!(s.rt.state.mode, Mode::Board);
+    assert!(s.rt.state.boards.is_empty());
+    assert!(s.rt.state.board_open.is_none());
+    s.rt.state.flush_before_quit();
+    assert_eq!(Settings::load_from(&s.config).board, None);
 }

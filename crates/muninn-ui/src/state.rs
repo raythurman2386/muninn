@@ -3142,6 +3142,11 @@ impl State {
     /// Replace the placeholder with a finished scan: build the graph, reopen
     /// the session's note (or the first one) and start watching the folder.
     fn install_scanned_vault(&mut self, vault: Vault) {
+        // The scan re-reads the vault that is already open (startup or Retry),
+        // so the open board and its view stay: clearing them here would also
+        // write `board: null` to settings below and lose the restore. Only a
+        // scan of another root starts the boards over.
+        let same_vault = vault.root == self.vault.root;
         self.vault = vault;
         self.scan_field.focused = false;
         self.startup_error = None;
@@ -3163,7 +3168,9 @@ impl State {
         self.dirty_at = None;
         self.trash_undo = None;
         self.broken_panel = false;
-        self.board_selected = None;
+        if !same_vault {
+            self.clear_boards();
+        }
         self.refresh_boards();
         let restore = self.restore_after_scan.take();
         let id = restore

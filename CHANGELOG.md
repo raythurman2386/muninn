@@ -17,6 +17,11 @@ All notable changes to Muninn are documented here. The format is based on
   zooms at the pointer (as in Graph), `+`/`-` zoom, arrows pan, `0`/`F` or a
   double-click refits, and corner buttons zoom and fit. Each board keeps its
   view while Muninn runs, and the last board and its view come back on launch.
+  This holds in large vaults too (the chunked startup scan keeps the restored
+  board), and a board is only remembered once a frame has drawn it, so a board
+  that cannot be drawn is not reopened on every launch. Text sizes are clamped
+  (1–2048, and at most 1024 pt on screen at any zoom), so a huge `fontSize`
+  cannot crash the app.
   The board file is never written.
   Esc leaves Board for the last note mode, and the last mode (now including
   Board) is restored on launch; older `settings.json` files load unchanged.

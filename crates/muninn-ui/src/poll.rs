@@ -30,6 +30,9 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         return changed;
     }
     let mut changed = false;
+    // Remember the open board for the next launch once a frame drew it; this
+    // writes settings only, nothing on screen changes.
+    s.board_shown_tick(tx);
 
     // M2: query-derived state (search highlight, in-note find matches) is
     // recomputed here, before this frame's commit, because the view only

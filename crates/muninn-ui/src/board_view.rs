@@ -16,6 +16,8 @@
 //! - Restarting reopens the last board at the view it had when settings were
 //!   last saved: on a board pick, a drag or key gesture, a fit, a mode switch
 //!   and on close. A plain wheel zoom is saved by the next of those.
+//!   A board is only remembered once a frame has drawn it, so one that
+//!   cannot be drawn is not reopened on the next launch.
 //! - While the view has never been touched, a canvas resize refits it.
 
 use std::path::{Path, PathBuf};
@@ -45,6 +47,27 @@ pub struct OpenBoard {
     /// refits it.
     pub auto_fit: bool,
     view_at_press: BoardView,
+    /// How far the board is from being remembered for the next launch (see
+    /// [`Shown`]). A board is only written to `settings.json` once a frame
+    /// has drawn it, so a board that crashes on its first draw is not
+    /// reopened on every launch.
+    shown: Shown,
+    /// The session this board was restored from, kept while it is not shown
+    /// yet (the startup scan still runs) so a quit then does not forget it.
+    restored: Option<BoardSession>,
+}
+
+/// Steps from opening a board to remembering it for the next launch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Shown {
+    /// No frame has drawn it yet.
+    Not,
+    /// A frame drew it (its canvas reported where it was drawn).
+    Drawn,
+    /// The frame after that one started: the draw finished without a panic.
+    Survived,
+    /// Written to `settings.json`.
+    Remembered,
 }
 
 impl OpenBoard {
@@ -59,6 +82,8 @@ impl OpenBoard {
             needs_fit: view.is_none(),
             auto_fit: view.is_none(),
             view_at_press: view.unwrap_or_default(),
+            shown: Shown::Not,
+            restored: None,
         }
     }
 
@@ -185,7 +210,32 @@ impl State {
         {
             let path = b.file.path.clone();
             self.board_selected = Some(path.clone());
-            self.board_open = Some(OpenBoard::load(path, session.view));
+            let mut open = OpenBoard::load(path, session.view);
+            open.restored = Some(session);
+            self.board_open = Some(open);
+        }
+    }
+
+    /// Per frame: remember the open board for the next launch once a frame
+    /// has drawn it and the next frame has begun, so the draw finished.
+    /// Returns true when settings were written (nothing visible changed).
+    pub(crate) fn board_shown_tick(&mut self, tx: &mut Tx) -> bool {
+        let Some(open) = &mut self.board_open else {
+            return false;
+        };
+        match open.shown {
+            Shown::Drawn => {
+                open.shown = Shown::Survived;
+                tx.wake_after(std::time::Duration::from_millis(16));
+                false
+            }
+            Shown::Survived => {
+                open.shown = Shown::Remembered;
+                open.restored = None;
+                self.save_settings();
+                true
+            }
+            Shown::Not | Shown::Remembered => false,
         }
     }
 
@@ -229,10 +279,21 @@ impl State {
     /// What `settings.json` keeps for the next launch: the open board and its
     /// view, or a restore that has not been applied yet.
     #[must_use]
+    ///
+    /// A board no frame has drawn yet is not remembered: if drawing it
+    /// crashed, the next launch must not reopen it. While the startup scan
+    /// runs (nothing can be drawn) the session it was restored from is kept.
     pub fn board_session(&self) -> Option<BoardSession> {
         let Some(open) = &self.board_open else {
             return self.board_restore.clone();
         };
+        if open.shown < Shown::Remembered {
+            return if self.loading() {
+                open.restored.clone()
+            } else {
+                None
+            };
+        }
         let rel = self
             .boards
             .iter()
@@ -532,7 +593,11 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
                 .size(scene.size[0], scene.size[1])
                 .pin(Some(0.0), Some(0.0), None, None),
         );
+    // Text is rasterized at its on-screen size; keep that bounded however far
+    // the camera zooms in (see `MAX_SCREEN_FONT`).
+    let zoom = open.cam.view().zoom.max(f32::MIN_POSITIVE);
     for (i, t) in scene.texts.iter().enumerate() {
+        let font_size = t.font_size.min(crate::board_scene::MAX_SCREEN_FONT / zoom);
         let mut block =
             col()
                 .key(format!("board-text-{i}"))
@@ -541,8 +606,8 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
             block = block.child(
                 text(line.clone())
                     .font(TextStyle {
-                        line_height: t.font_size * t.line_height,
-                        ..TextStyle::new(t.font_size, 400.0)
+                        line_height: font_size * t.line_height,
+                        ..TextStyle::new(font_size, 400.0)
                     })
                     .color(t.color),
             );
@@ -564,6 +629,10 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
             let Some(open) = &mut s.board_open else {
                 return;
             };
+            if open.shown == Shown::Not {
+                open.shown = Shown::Drawn;
+                tx.wake_after(std::time::Duration::from_millis(16));
+            }
             let size = [r[2], r[3]];
             let resized =
                 (open.canvas[0] - size[0]).abs() > 0.5 || (open.canvas[1] - size[1]).abs() > 0.5;
