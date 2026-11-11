@@ -1,0 +1,84 @@
+     Running unittests src/main.rs (/tmp/m42/target/debug/deps/muninn-5e5648996d4d48f4)
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+     Running tests/cli.rs (/tmp/m42/target/debug/deps/cli-2ac1fda54075fb11)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.01s
+     Running unittests src/lib.rs (/tmp/m42/target/debug/deps/muninn_core-aae8cc84314a03c0)
+test result: ok. 90 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running unittests examples/board_resave.rs (/tmp/m42/target/debug/examples/board_resave-89dd9ee0ac68fa22)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests examples/board_roundtrip.rs (/tmp/m42/target/debug/examples/board_roundtrip-cca2e746ea529c23)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/lib.rs (/tmp/m42/target/debug/deps/muninn_graph-39f509cdf59c2798)
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+     Running tests/perf.rs (/tmp/m42/target/debug/deps/perf-1d5d8e0d6b19f261)
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 5.97s
+     Running unittests src/lib.rs (/tmp/m42/target/debug/deps/muninn_sync-6cb32079017b4528)
+test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.29s
+     Running unittests src/lib.rs (/tmp/m42/target/debug/deps/muninn_ui-5a30cdbf3eac4ad8)
+test result: ok. 63 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+     Running tests/attachments.rs (/tmp/m42/target/debug/deps/attachments-901cc7aa1bf85c37)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+     Running tests/board_canvas.rs (/tmp/m42/target/debug/deps/board_canvas-023d8887413f10bd)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+     Running tests/board_draw.rs (/tmp/m42/target/debug/deps/board_draw-3da5a1f95647309d)
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+     Running tests/board_edit.rs (/tmp/m42/target/debug/deps/board_edit-91026f6cef1fd1ba)
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+     Running tests/board_links.rs (/tmp/m42/target/debug/deps/board_links-bdb86d2c0669ee2e)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+     Running tests/board_mode.rs (/tmp/m42/target/debug/deps/board_mode-0331b0a47231d464)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+     Running tests/board_rename.rs (/tmp/m42/target/debug/deps/board_rename-fb448941b4f0e84a)
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+     Running tests/board_s8.rs (/tmp/m42/target/debug/deps/board_s8-07ed1462f92156e6)
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+     Running tests/board_safety.rs (/tmp/m42/target/debug/deps/board_safety-ded9e177dcfb35a7)
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+     Running tests/board_sync.rs (/tmp/m42/target/debug/deps/board_sync-b500a8139a4ec504)
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s
+     Running tests/board_text.rs (/tmp/m42/target/debug/deps/board_text-8b6e305c52195ed2)
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+     Running tests/command_palette.rs (/tmp/m42/target/debug/deps/command_palette-4dceed0880b2db10)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+     Running tests/conflict.rs (/tmp/m42/target/debug/deps/conflict-f8a612a2ab25afec)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+     Running tests/diagnostics.rs (/tmp/m42/target/debug/deps/diagnostics-e7fe5503b75fb183)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/graph_keyboard.rs (/tmp/m42/target/debug/deps/graph_keyboard-c38acc6dc13d0190)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+     Running tests/graph_motion.rs (/tmp/m42/target/debug/deps/graph_motion-30a19941b4c489d9)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.85s
+     Running tests/help_layout.rs (/tmp/m42/target/debug/deps/help_layout-336582def3a5d3d9)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+     Running tests/links.rs (/tmp/m42/target/debug/deps/links-ea01781f9f144774)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+     Running tests/navigation.rs (/tmp/m42/target/debug/deps/navigation-94d67e6ea2feee86)
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+     Running tests/note_template.rs (/tmp/m42/target/debug/deps/note_template-74bfb26c7e0beac8)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+     Running tests/omarchy.rs (/tmp/m42/target/debug/deps/omarchy-6a80b3c2862d1e78)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+     Running tests/recovery_watch.rs (/tmp/m42/target/debug/deps/recovery_watch-aa023a0a735dc460)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+     Running tests/reduce_motion.rs (/tmp/m42/target/debug/deps/reduce_motion-8e80eac1c2d82ed0)
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.52s
+     Running tests/safety.rs (/tmp/m42/target/debug/deps/safety-d930ccbc21931da0)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+     Running tests/scan_progress.rs (/tmp/m42/target/debug/deps/scan_progress-b77e4f8cd6fd94c5)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+     Running tests/settings.rs (/tmp/m42/target/debug/deps/settings-c7255082310b5c3d)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+     Running tests/settings_tabs.rs (/tmp/m42/target/debug/deps/settings_tabs-c6ba121ddd654e1d)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+     Running tests/state_layers.rs (/tmp/m42/target/debug/deps/state_layers-e13e5f4d24d0ca70)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/tray.rs (/tmp/m42/target/debug/deps/tray-84606ce7605e7944)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+     Running tests/tray_slice_two.rs (/tmp/m42/target/debug/deps/tray_slice_two-34fafca69e56aedc)
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+     Running tests/ui.rs (/tmp/m42/target/debug/deps/ui-9512178be42a9228)
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+     Running tests/welcome_status.rs (/tmp/m42/target/debug/deps/welcome_status-f6686e2a602c518d)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+     Running unittests src/main.rs (/tmp/m42/target/debug/deps/xtask-7be1b30fe6995a45)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
