@@ -750,6 +750,7 @@ mod tests {
                 rel: "sketches/Plan.excalidraw".to_owned(),
                 view: BoardView::new([-120.37, 44.5], 1.3),
             }),
+            board_autosave: false,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -765,6 +766,14 @@ mod tests {
         assert!(!old.close_to_tray && !old.auto_start && !old.show_shortcut);
         let each = Settings::from_value(&serde_json::json!({ "auto_start": true }));
         assert!(each.auto_start && !each.close_to_tray && !each.show_shortcut);
+    }
+
+    #[test]
+    fn board_autosave_is_on_by_default_and_in_old_files() {
+        assert!(Settings::default().board_autosave);
+        assert!(Settings::from_value(&serde_json::json!({ "mode": "board" })).board_autosave);
+        let off = Settings::from_value(&serde_json::json!({ "board_autosave": false }));
+        assert!(!off.board_autosave);
     }
 
     #[test]
