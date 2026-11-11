@@ -426,7 +426,7 @@ pub struct State {
     /// Last note moved to the trash, offered as Undo in the status bar.
     pub trash_undo: Option<TrashUndo>,
     /// SAF-05 recovery files for this vault (XDG state, never the vault).
-    recovery: RecoveryStore,
+    pub(crate) recovery: RecoveryStore,
     /// Dirty buffers found at startup; the banner lists and restores these.
     pub recovered: Vec<RecoveryEntry>,
     /// Trailing-debounce clock for the next recovery write.
@@ -2655,6 +2655,10 @@ impl State {
     /// Load one recovered buffer into the editor as dirty. If the note no
     /// longer exists it is recreated at its original vault-relative path.
     pub fn restore_recovery(&mut self, rel: &str) -> bool {
+        // #38 review B2: a board's copy opens on Board, never as a note.
+        if crate::board_safety::is_board_rel(rel) {
+            return self.restore_board_recovery(rel);
+        }
         let Some(id) = self.vault.notes.iter().find(|n| n.rel == rel).map(|n| n.id) else {
             return self.restore_missing_note(rel);
         };
@@ -4482,7 +4486,7 @@ fn flag_on(value: Option<&OsStr>) -> bool {
 }
 
 /// UTC `YYYYMMDD-HHMMSS`, used to give a conflict copy a unique, sortable name.
-fn conflict_stamp() -> String {
+pub(crate) fn conflict_stamp() -> String {
     let secs = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());

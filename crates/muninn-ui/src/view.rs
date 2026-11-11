@@ -3190,10 +3190,22 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
         .fill(k.alpha(k.c.warning.fg, 0.10))
         .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.warning.fg))
         .child(
-            text(format!(
-                "Recovered unsaved edits for {}",
-                plural(count, "note", "notes")
-            ))
+            text(format!("Recovered unsaved edits for {}", {
+                let boards = s
+                    .recovered
+                    .iter()
+                    .filter(|e| crate::board_safety::is_board_rel(&e.rel))
+                    .count();
+                match (count - boards, boards) {
+                    (notes, 0) => plural(notes, "note", "notes"),
+                    (0, boards) => plural(boards, "board", "boards"),
+                    (notes, boards) => format!(
+                        "{} and {}",
+                        plural(notes, "note", "notes"),
+                        plural(boards, "board", "boards")
+                    ),
+                }
+            }))
             .font(k.ty.caption())
             .color(k.c.warning.fg)
             .truncate(),

@@ -41,11 +41,14 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     // M3 GRP-02: arrows, Enter and the zoom/fit/isolate keys are graph-only;
     // State owns them so the canvas can be tested without a window. The
     // palette takes precedence while it is open (its input owns arrows).
-    if s.palette.is_none() && s.mode == Mode::Graph && s.graph_key(e) {
+    // A focused text field (the sidebar search, a prompt) owns typing, so
+    // neither canvas reads letters, digits or arrows meant for it.
+    if !s.is_typing() && s.mode == Mode::Graph && s.graph_key(e) {
         return true;
     }
-    // Board slice 3: zoom, fit and arrow-pan keys on the open board.
-    if s.palette.is_none() && s.mode == Mode::Board && s.board_key(e) {
+    // Board slice 3: zoom, fit and arrow-pan keys on the open board; slice 4
+    // adds the tool letters.
+    if !s.is_typing() && s.mode == Mode::Board && s.board_key(e) {
         return true;
     }
     // v0.5: Cmd/Ctrl+Shift+P opens the command palette from anywhere,

@@ -173,13 +173,25 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   Drawing (`board_tools`) adds elements to the loaded `Board` through
   `Board::add_drawn` and redraws from the model. A board is written only by an explicit
   save (`⌘S`) or a flush where the drawing would otherwise be lost (picking another
-  board, switching vault, a vault rescan, quitting); there is no autosave or watcher
-  reload yet. Each write is `Board::save` (atomic temp+rename) to the board's own path,
+  board, switching vault, a vault rescan, quitting); there is no autosave yet. A
+  watcher-driven vault reload while Board is showing re-reads a clean board from disk
+  (a dirty one is kept, below); a dedicated board watcher is slice 7. Each write is `Board::save` (atomic temp+rename) to the board's own path,
   refused unless that path is inside the vault the board was opened from *and* the
   currently open vault, and refused if the file's bytes no longer match what was loaded
   or last saved (changed or removed on disk). A refused flush keeps the drawing in memory
   and blocks the board switch, the vault switch or the vault rescan (Retry, or the
   chunked startup scan finishing), like a note that cannot be saved.
+  Unsaved drawing is never dropped (`board_safety`): when its file is removed, renamed or
+  changed outside Muninn, re-listing the boards (entering Board, a watcher reload, a rescan)
+  keeps the board open and flags it in the heading with the note conflict bar's choices:
+  Keep mine (write to the board's own path, recreating a removed file, still only inside
+  the open vault), Save copy (a new sibling `Title (conflict YYYYMMDD-HHMMSS).excalidraw`
+  that becomes the open board) and Load theirs / Discard. While a board is dirty its drawing
+  is also copied after each change to the SAF-05 recovery store notes use (keyed by its
+  vault-relative path, outside the vault, same temp+fsync+rename), and the copy is removed
+  once the board is saved or discarded; the launch banner restores it onto Board, never as
+  a note, flagged the same way when the file is gone or now holds something else. Closing or quitting saves the board, or else updates that copy; if neither is
+  possible the quit is refused and the window comes back with the reason.
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
   atomic rename. A crash or failed write leaves the previous bytes intact instead of a

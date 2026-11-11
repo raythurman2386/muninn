@@ -72,6 +72,20 @@
 #                   s1 round-trip), and relaunches onto the saved drawing
 #   x11_draw        the same on Xvfb with XTEST, also proving the file is written by
 #                   Ctrl+S and not before
+#   headless_board_safety  #38 review, offscreen: typing "road1x+0" in the focused
+#                   sidebar search on Board stays in the search (no tool, no zoom: the
+#                   canvas is unchanged); a seeded SAF-05 recovery copy of a removed
+#                   Tools board is listed by the launch banner, Restore opens it on Board
+#                   flagged as removed (its extra rectangle drawn at the fit), and Keep
+#                   mine writes it back (the copy then goes); Save copy writes
+#                   "Tools (conflict …).excalidraw"; over a file that holds something
+#                   else it is flagged as changed and Load theirs keeps their file
+#   x11_board_safety the same with real XTEST input: draw, remove the file, Ctrl+1/4 keeps
+#                   the drawing, Keep mine writes it; draw, another app rewrites the file,
+#                   closing exits 0 with a recovery copy and their file untouched; the
+#                   relaunch banner restores it flagged, Save copy writes it; and with the
+#                   recovery folder read-only a close is refused (the app stays, the window
+#                   comes back) until the folder is writable again
 #   board_untouched the app left the boards it did not edit (Plan, Smoke) byte-identical,
 #                   and no hidden temp file in the vault (it only reads boards);
 #                   then the board_roundtrip example (load → compare → atomic save →
@@ -87,7 +101,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw x11_modes x11_board x11_draw board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety x11_modes x11_board x11_draw x11_board_safety board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -101,6 +115,7 @@ smoke_board="$vault/Smoke.excalidraw"
 smoke_fixture="$root/crates/muninn-core/tests/fixtures/board/smoke.excalidraw"
 pixels="$root/scripts/ui-smoke/board_pixels.py"
 draw="$root/scripts/ui-smoke/board_draw.py"
+safety="$root/scripts/ui-smoke/board_safety.py"
 draw_board="$vault/Tools.excalidraw"
 draw_fixture="$root/crates/muninn-core/tests/fixtures/board/draw.excalidraw"
 resave="$root/target/debug/examples/board_resave"
@@ -286,8 +301,10 @@ step_headless_big_write() {
 # byte-identical to s1's own save, s1 round-trip), and relaunch onto it.
 draw_run() { # draw_run NAME SCRIPT MARK: a fresh Tools board and settings, run to MARK
   cp "$draw_fixture" "$draw_board"
-  export XDG_CONFIG_HOME="$work/config-draw-$1"
-  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  # Its own state too: a dirty board keeps a recovery copy there (#38 review B2),
+  # and a later run would list it in the launch banner.
+  export XDG_CONFIG_HOME="$work/config-draw-$1" XDG_STATE_HOME="$work/state-draw-$1"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
   "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
     --snap "$out/screens/draw-$1.png" --tree "$out/trees/draw-$1.json"
 }
@@ -318,6 +335,101 @@ step_headless_draw() {
     --snap "$s/draw-reloaded.png" --tree "$t/draw-reloaded.json" || return 1
   python3 "$harness" tree-text "$t/draw-reloaded.json" board-surface-title Tools || return 1
   python3 "$draw" same "$s/draw-drawn.png" "$s/draw-reloaded.png" "$t/draw-before.json"
+}
+
+must_fail() { # must_fail LABEL COMMAND...: a negative control
+  if "${@:2}" >"$work/negative.log" 2>&1; then
+    echo "negative control passed but must fail: $1"; cat "$work/negative.log"; return 1
+  fi
+  echo "ok negative control fails: $1 ($(grep -m1 FAIL "$work/negative.log" || tail -1 "$work/negative.log"))"
+}
+
+no_key() { # no_key TREE KEY: the tree has no element KEY
+  ! python3 "$harness" tree-center "$1" "$2" >/dev/null 2>&1 || { echo "$1 still has $2"; return 1; }
+  echo "ok $1: no $2"
+}
+
+# #38 review: a run on Tools with its own config and state, to MARK.
+safety_run() { # safety_run NAME SCRIPT MARK
+  export XDG_CONFIG_HOME="$work/config-safety-$1"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
+    --snap "$out/screens/safety-$1.png" --tree "$out/trees/safety-$1.json"
+}
+
+# Fresh state with a seeded recovery copy of Tools; THEIRS: "gone" removes the
+# file, "fixture" leaves the fixture there (it then differs from the copy).
+seed_safety() { # seed_safety THEIRS
+  export XDG_STATE_HOME="$work/state-safety"
+  rm -rf "$XDG_STATE_HOME"; mkdir -p "$XDG_STATE_HOME"
+  cp "$draw_fixture" "$draw_board"
+  [ "$1" = gone ] && rm -f "$draw_board"
+  python3 "$safety" seed-recovery "$draw_fixture" "$vault" "$XDG_STATE_HOME" Tools.excalidraw "$work/safety/copy.json"
+}
+
+step_headless_board_safety() {
+  isolate
+  python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
+  local s="$out/screens" t="$out/trees" m="$work/safety" f
+  mkdir -p "$m"
+  # Search focus: Board keys stay out of the focused sidebar search.
+  cp "$draw_fixture" "$draw_board"
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"},{"t":2.3,"type":"tap","key":"search-box"},{"t":2.6,"type":"type","text":"road1x+0","every":0.06},{"t":3.4,"type":"mark","name":"typed"}]}' \
+    >"$m/search.json"
+  safety_run search-before "$m/search.json" before || return 1
+  safety_run search-typed "$m/search.json" typed || return 1
+  python3 "$harness" tree-text "$t/safety-search-typed.json" search "road1x+0" || return 1
+  python3 "$draw" same "$s/safety-search-before.png" "$s/safety-search-typed.png" "$t/safety-search-before.json" || return 1
+  must_fail "the search text before typing" python3 "$harness" tree-text "$t/safety-search-before.json" search "road1x+0" || return 1
+
+  # B2 + B1: restore a removed board from its recovery copy; Keep mine.
+  printf '{"events":[{"t":1.0,"type":"mark","name":"banner"},{"t":1.3,"type":"tap","key":"recovery-restore-0"},{"t":2.8,"type":"mark","name":"restored"},{"t":3.2,"type":"tap","key":"board-%s"},{"t":4.0,"type":"mark","name":"done"}]}' keep-mine \
+    >"$m/keep.json"
+  seed_safety gone || return 1
+  safety_run banner "$m/keep.json" banner || return 1
+  python3 "$safety" text "$t/safety-banner.json" recovery-banner "1 board" || return 1
+  python3 "$safety" text "$t/safety-banner.json" recovery-banner "Tools.excalidraw" || return 1
+  safety_run restored "$m/keep.json" restored || return 1
+  python3 "$harness" tree-mode "$t/safety-restored.json" board || return 1
+  python3 "$safety" text "$t/safety-restored.json" board-conflict "Removed" || return 1
+  python3 "$harness" tree-text "$t/safety-restored.json" board-save-state Unsaved || return 1
+  python3 "$safety" rect "$s/safety-restored.png" "$t/safety-restored.json" "$m/copy.json" || return 1
+  [ ! -e "$draw_board" ] || { echo "restoring wrote the board"; return 1; }
+  echo "ok restoring did not write the board"
+  safety_run kept "$m/keep.json" done || return 1
+  python3 "$safety" file "$draw_board" 6 recovered-rect || return 1
+  "$roundtrip" "$draw_board" || return 1
+  python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw gone || return 1
+  python3 "$harness" tree-text "$t/safety-kept.json" board-save-state Saved || return 1
+  no_key "$t/safety-kept.json" board-conflict || return 1
+  must_fail "the drawing on the banner shot" python3 "$safety" rect "$s/safety-banner.png" "$t/safety-restored.json" "$m/copy.json" || return 1
+  must_fail "the rectangle as absent on the restored shot" python3 "$safety" rect "$s/safety-restored.png" "$t/safety-restored.json" "$m/copy.json" absent || return 1
+  must_fail "the fixture as the kept file" python3 "$safety" file "$draw_fixture" 6 recovered-rect || return 1
+
+  # Save copy instead.
+  sed 's/board-keep-mine/board-save-copy/' "$m/keep.json" >"$m/copy-run.json"
+  seed_safety gone || return 1
+  safety_run copied "$m/copy-run.json" done || return 1
+  f="$(find "$vault" -maxdepth 1 -name 'Tools (conflict *).excalidraw' | head -1)"
+  [ -n "$f" ] || { echo "no conflict copy"; return 1; }
+  python3 "$safety" file "$f" 6 recovered-rect || return 1
+  [ ! -e "$draw_board" ] || { echo "Save copy wrote the original"; return 1; }
+  python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw gone || return 1
+  rm -f "$vault"/Tools\ \(conflict*
+
+  # Over a file that holds something else: flagged as changed; Load theirs.
+  sed 's/board-keep-mine/board-load-theirs/' "$m/keep.json" >"$m/theirs.json"
+  seed_safety fixture || return 1
+  local before
+  before="$(sha256sum <"$draw_board")"
+  safety_run changed "$m/theirs.json" restored || return 1
+  python3 "$safety" text "$t/safety-changed.json" board-conflict "Changed" || return 1
+  safety_run theirs "$m/theirs.json" done || return 1
+  [ "$(sha256sum <"$draw_board")" = "$before" ] || { echo "Load theirs changed their file"; return 1; }
+  echo "ok their file is untouched"
+  python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw gone || return 1
+  python3 "$safety" rect "$s/safety-theirs.png" "$t/safety-restored.json" "$m/copy.json" absent || return 1
+  cp "$draw_fixture" "$draw_board"
 }
 
 find_lavapipe() {
@@ -583,6 +695,126 @@ step_x11_draw() {
   python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
   python3 "$draw" same "$s/x11-draw-2-drawn.png" "$s/x11-draw-4-reloaded.png" "$tree" || return 1
   close_app || return 1
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+step_x11_board_safety() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/safety-search-before.json" restored="$out/trees/safety-restored.json" changed="$out/trees/safety-changed.json"
+  [ -f "$tree" ] && [ -f "$changed" ] || { echo "run headless_board_safety first"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"; chmod -R u+w "$work" 2>/dev/null' EXIT
+  local n
+  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-safety.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  export XDG_CONFIG_HOME="$work/config-x11-safety" XDG_STATE_HOME="$work/state-x11-safety"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  cp "$draw_fixture" "$draw_board"
+  local wid s="$out/screens" theirs="$work/safety/theirs.excalidraw"
+  sed 's/keep me/theirs/' "$draw_fixture" >"$theirs"
+  launch() {
+    "$bin" --vault "$vault" >>"$out/logs/x11-safety-app.log" 2>&1 &
+    app_pid=$!
+    wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+    sleep 2
+  }
+  shot() { sleep 1.5; import -window "$wid" "$s/x11-safety-$1.png"; }
+  close_app() {
+    python3 "$harness" x11-close "$wid" || return 1
+    local i status=124
+    for i in $(seq 100); do
+      if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+      sleep 0.1
+    done
+    app_pid=
+    echo "app exit status: $status"
+    [ "$status" = 0 ]
+  }
+  reenter() { python3 "$harness" x11-chord "$wid" ctrl+1 && sleep 1 && python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1; }
+  draw_one() { # draw_one DX: a rectangle with the R tool at canvas (300+DX, 330)
+    python3 "$harness" x11-chord "$wid" r || return 1
+    python3 "$harness" x11-drag "$wid" $(( cx + 300 + $1 )) $(( cy + 330 )) 90 60 || return 1
+    python3 "$harness" x11-chord "$wid" v
+  }
+  local row keep copy restore cx cy
+  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  keep="$(python3 "$harness" tree-center "$restored" board-keep-mine)" || return 1
+  copy="$(python3 "$harness" tree-center "$changed" board-save-copy)" || return 1
+  restore="$(python3 "$harness" tree-center "$out/trees/safety-banner.json" recovery-restore-0)" || return 1
+  read -r cx cy _ <<<"$(python3 -c 'import json,sys; sys.path.insert(0, sys.argv[2]); import board_pixels as b; r=b.canvas_rect(sys.argv[1]); print(int(r[0]), int(r[1]))' "$tree" "$root/scripts/ui-smoke")"
+
+  # B1: draw, remove the file, leave and re-enter Board, Keep mine.
+  launch || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  python3 "$harness" x11-click "$wid" $row && shot 1-open || return 1
+  draw_one 0 && shot 2-drawn || return 1
+  python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw 6 || return 1
+  rm "$draw_board"
+  reenter && shot 3-removed || return 1
+  python3 "$draw" same "$s/x11-safety-2-drawn.png" "$s/x11-safety-3-removed.png" "$tree" || return 1
+  echo "ok the drawing is still on the canvas after the file was removed"
+  must_fail "the drawn and the open shots" python3 "$draw" same "$s/x11-safety-1-open.png" "$s/x11-safety-3-removed.png" "$tree" || return 1
+  python3 "$harness" x11-click "$wid" $keep && shot 4-kept || return 1
+  python3 "$safety" file "$draw_board" 6 || return 1
+  "$roundtrip" "$draw_board" || return 1
+  python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw gone || return 1
+
+  # B2: draw again, another app rewrites the file, quit: a recovery copy, theirs kept.
+  draw_one 120 && shot 5-drawn || return 1
+  cp "$theirs" "$draw_board"
+  reenter && shot 6-changed || return 1
+  python3 "$draw" same "$s/x11-safety-5-drawn.png" "$s/x11-safety-6-changed.png" "$tree" || return 1
+  close_app || return 1
+  cmp -s "$theirs" "$draw_board" || { echo "quitting wrote over their file"; return 1; }
+  echo "ok quitting left their file alone"
+  python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw 7 || return 1
+  launch && shot 7-banner || return 1
+  python3 "$harness" x11-click "$wid" $restore && shot 8-restored || return 1
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
+  python3 "$harness" x11-click "$wid" $copy && shot 9-copied || return 1
+  local f
+  f="$(find "$vault" -maxdepth 1 -name 'Tools (conflict *).excalidraw' | head -1)"
+  [ -n "$f" ] || { echo "Save copy wrote no copy"; return 1; }
+  python3 "$safety" file "$f" 7 || return 1
+  "$roundtrip" "$f" || return 1
+  cmp -s "$theirs" "$draw_board" || { echo "Save copy wrote over their file"; return 1; }
+  python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw gone || return 1
+  close_app || return 1
+  rm -f "$f"
+
+  # The refusal: no save and no recovery copy possible, so a close is refused.
+  export XDG_CONFIG_HOME="$work/config-x11-refuse" XDG_STATE_HOME="$work/state-x11-refuse"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME/muninn/recovery"
+  chmod a-w "$XDG_STATE_HOME/muninn/recovery"
+  cp "$draw_fixture" "$draw_board"
+  launch || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  python3 "$harness" x11-click "$wid" $row || return 1
+  draw_one 0 || return 1
+  cp "$theirs" "$draw_board"
+  python3 "$harness" x11-close "$wid" || return 1
+  sleep 3
+  kill -0 "$app_pid" 2>/dev/null || { echo "the app quit with an unsaveable, unrecoverable board"; return 1; }
+  echo "ok the close was refused: the app is still running"
+  wid="$(python3 "$harness" x11-wait Muninn 15)" || { echo "the window did not come back"; return 1; }
+  shot 10-refused || return 1
+  echo "ok the window came back"
+  cmp -s "$theirs" "$draw_board" || { echo "the refused close wrote over their file"; return 1; }
+  chmod u+w "$XDG_STATE_HOME/muninn/recovery"
+  close_app || return 1
+  python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw 6 || return 1
+  cmp -s "$theirs" "$draw_board" || return 1
+  cp "$draw_fixture" "$draw_board"
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 

@@ -49,6 +49,28 @@ pub enum BoardStatus {
     Failed(String),
 }
 
+/// Why the open board's file no longer matches its unsaved drawing (#38
+/// review B1/B2). Muninn never writes over it on its own: the heading offers
+/// Keep mine, Save copy and Load theirs (Discard when the file is gone).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoardConflict {
+    /// Another app changed the file since Muninn read or wrote it.
+    Changed,
+    /// The file was removed, renamed or moved away.
+    Missing,
+}
+
+impl BoardConflict {
+    /// The heading's words for it.
+    #[must_use]
+    pub fn message(self) -> &'static str {
+        match self {
+            BoardConflict::Changed => "Changed on disk by another app",
+            BoardConflict::Missing => "Removed or renamed on disk",
+        }
+    }
+}
+
 /// The board on the canvas: its drawing and camera.
 pub struct OpenBoard {
     pub path: PathBuf,
@@ -60,6 +82,13 @@ pub struct OpenBoard {
     /// Fingerprint of the file's bytes as last read or written.
     pub disk: Option<u64>,
     pub status: BoardStatus,
+    /// Set while the drawing is unsaved and the file changed or vanished.
+    pub conflict: Option<BoardConflict>,
+    /// Bumped on every change to the model, so the recovery copy is only
+    /// rewritten when there is something new in it.
+    pub(crate) generation: u64,
+    /// The generation last written to the recovery copy, if one exists.
+    pub(crate) recovered_at: Option<u64>,
     /// The element being drawn, if a drag with a tool is under way.
     pub draft: Option<Draft>,
     /// The drawing, or why the file could not be read.
@@ -107,6 +136,9 @@ impl OpenBoard {
             model,
             disk,
             status: BoardStatus::Clean,
+            conflict: None,
+            generation: 0,
+            recovered_at: None,
             draft: None,
             scene,
             cam: BoardCam::new(view.unwrap_or_default(), origin, size),
@@ -127,6 +159,7 @@ impl OpenBoard {
         }
         (self.model, self.disk, self.scene) = read_board(&self.path);
         self.status = BoardStatus::Clean;
+        self.conflict = None;
         let (origin, size) = world_of(&self.scene);
         self.cam.rebase(origin, size);
         if self.auto_fit {
@@ -155,9 +188,64 @@ impl OpenBoard {
         matches!(self.status, BoardStatus::Unsaved | BoardStatus::Failed(_))
     }
 
+    /// Compare the file with what Muninn last read or wrote, and flag the
+    /// unsaved drawing when it changed or vanished (cleared when it is back).
+    pub(crate) fn check_disk(&mut self) {
+        self.conflict = match std::fs::read_to_string(&self.path) {
+            Ok(text) if Some(fingerprint(&text)) == self.disk => None,
+            Ok(_) => Some(BoardConflict::Changed),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(BoardConflict::Missing),
+            Err(_) => self.conflict,
+        };
+    }
+
+    /// A board opened from a recovered drawing rather than its file (#38
+    /// review B2): unsaved, and flagged when the file is gone or holds
+    /// something else, so writing over it is always an explicit Keep mine.
+    pub(crate) fn recovered(path: PathBuf, model: Board, vault_root: PathBuf) -> OpenBoard {
+        let on_disk = std::fs::read_to_string(&path).ok();
+        let same = on_disk.as_deref() == Some(model.to_json().as_str());
+        let disk = on_disk.as_deref().filter(|_| same).map(fingerprint);
+        let conflict = match on_disk {
+            None => Some(BoardConflict::Missing),
+            Some(_) if !same => Some(BoardConflict::Changed),
+            Some(_) => None,
+        };
+        let scene = Ok(BoardScene::build(&model));
+        let (origin, size) = world_of(&scene);
+        let mut open = OpenBoard {
+            path,
+            vault_root,
+            model: Some(model),
+            disk: None,
+            status: if same {
+                BoardStatus::Clean
+            } else {
+                BoardStatus::Unsaved
+            },
+            conflict,
+            generation: 0,
+            recovered_at: Some(0),
+            draft: None,
+            scene,
+            cam: BoardCam::new(BoardView::default(), origin, size),
+            canvas: [0.0; 2],
+            needs_fit: true,
+            auto_fit: false,
+            view_at_press: BoardView::default(),
+            shown: Shown::Not,
+            restored: None,
+        };
+        // A Changed board keeps the file's fingerprint unknown: a plain save
+        // is refused and the conflict bar decides.
+        open.disk = disk;
+        open
+    }
+
     /// Redraw after the model changed, keeping the view (its eye and zoom
     /// are scene units, so the world element's new extent does not move it).
     pub(crate) fn rebuild(&mut self) {
+        self.generation += 1;
         if let Some(model) = &self.model {
             self.scene = Ok(BoardScene::build(model));
             let (origin, size) = world_of(&self.scene);
@@ -246,12 +334,17 @@ impl State {
     /// so this runs on entering Board mode and after a vault reload rather
     /// than caching across sessions. A selection whose file is gone clears.
     pub fn refresh_boards(&mut self) {
-        self.boards = self
-            .vault
-            .boards()
-            .into_iter()
-            .map(BoardSummary::read)
-            .collect();
+        self.relist_boards();
+        // #38 review B1: unsaved drawing is never dropped. Its file may have
+        // been removed, renamed or changed meanwhile; the board stays open,
+        // flagged, until the user saves it somewhere or discards it.
+        if let Some(open) = &mut self.board_open
+            && open.dirty()
+        {
+            open.check_disk();
+            self.board_selected = Some(open.path.clone());
+            return;
+        }
         if let Some(path) = &self.board_selected
             && !self.boards.iter().any(|b| &b.file.path == path)
         {
@@ -276,6 +369,16 @@ impl State {
             open.restored = Some(session);
             self.board_open = Some(open);
         }
+    }
+
+    /// Re-read the board list only; the open board is left as it is.
+    pub(crate) fn relist_boards(&mut self) {
+        self.boards = self
+            .vault
+            .boards()
+            .into_iter()
+            .map(BoardSummary::read)
+            .collect();
     }
 
     /// Per frame: remember the open board for the next launch once a frame
@@ -585,12 +688,23 @@ fn surface(s: &State, k: &Kit) -> El {
         BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
         BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
     });
-    let (title, detail) = match s.selected_board() {
-        Some(b) => (
+    let (title, detail) = match (s.selected_board(), s.board_open.as_ref()) {
+        (Some(b), _) => (
             b.file.title.clone(),
             format!("{} · {}", b.file.rel, b.detail()),
         ),
-        None => (
+        // An unsaved board whose file is gone is not in the list any more.
+        (None, Some(open)) => (
+            open.path
+                .file_stem()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
+            open.path
+                .strip_prefix(&open.vault_root)
+                .unwrap_or(&open.path)
+                .to_string_lossy()
+                .replace('\\', "/"),
+        ),
+        (None, None) => (
             "Empty board".to_owned(),
             "Select a board to see what it holds".to_owned(),
         ),
@@ -621,6 +735,10 @@ fn surface(s: &State, k: &Kit) -> El {
         ),
         _ => heading,
     };
+    let heading = match s.board_open.as_ref().and_then(|open| open.conflict) {
+        Some(conflict) => heading.child(conflict_bar(k, conflict)),
+        None => heading,
+    };
     let body = match s.board_open.as_ref() {
         Some(open) => match &open.scene {
             Ok(scene) => board_canvas(s, k, open, scene),
@@ -641,6 +759,58 @@ fn surface(s: &State, k: &Kit) -> El {
         .gap(6.0)
         .child(heading)
         .child(body)
+}
+
+/// The choices for unsaved drawing whose file changed or vanished, as the
+/// note conflict bar offers them.
+fn conflict_bar(k: &Kit, conflict: BoardConflict) -> El {
+    let theirs = match conflict {
+        BoardConflict::Changed => "Load theirs",
+        BoardConflict::Missing => "Discard",
+    };
+    row()
+        .key("board-conflict")
+        .gap(6.0)
+        .center_y()
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
+        .child(
+            text(conflict.message())
+                .key("board-conflict-text")
+                .font(k.ty.caption())
+                .color(k.c.danger.fg),
+        )
+        .child(choice(
+            k,
+            "Keep mine",
+            "board-keep-mine",
+            State::board_keep_mine,
+        ))
+        .child(choice(
+            k,
+            "Save copy",
+            "board-save-copy",
+            State::board_save_copy,
+        ))
+        .child(choice(k, theirs, "board-load-theirs", State::board_discard))
+}
+
+fn choice(k: &Kit, label: &str, key: &str, action: fn(&mut State) -> bool) -> El {
+    el().key(key.to_owned())
+        .radius(6.0)
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .px(8.0)
+        .py(4.0)
+        .center_y()
+        .child(
+            text(label.to_owned())
+                .font(k.ty.caption())
+                .color(k.c.text_base),
+        )
+        .on_press(move |s: &mut State| {
+            let _ = action(s);
+        })
 }
 
 fn placeholder(k: &Kit, glyph: &'static rune::Icon, title: &str, detail: &str) -> El {

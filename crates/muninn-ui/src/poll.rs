@@ -106,6 +106,8 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     // SAF-05: copy a dirty buffer to the XDG recovery file after a short idle.
     // This is invisible on screen, so it must not report a change.
     s.recovery_tick(t);
+    // #38 review B2: the same for an unsaved board, after each change.
+    s.board_recovery_poll();
 
     if s.mode == Mode::Graph {
         // A node click or scope switch eases the camera over a few frames.

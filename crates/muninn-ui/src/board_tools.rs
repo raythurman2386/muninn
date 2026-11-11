@@ -11,7 +11,8 @@
 //! a second `Esc` leaves Board. The wheel, pinch, arrows and `+`/`-`/`0`
 //! still move the camera while a tool is picked.
 //!
-//! Saving is explicit and small, ahead of slice 7's autosave and watcher:
+//! Saving is explicit and small, ahead of slice 7's autosave and board
+//! watcher (today a vault reload while Board shows re-reads a clean board):
 //!
 //! - `⌘S` / `Ctrl+S` on Board saves the open board.
 //! - So does any step that would otherwise drop unsaved drawing: picking
@@ -25,7 +26,12 @@
 //!   is never written into another vault.
 //! - Before writing, the file is read again; if its bytes are not the ones
 //!   Muninn loaded or last wrote (another app changed or removed it), the
-//!   save is refused and the drawing stays in memory, marked not saved.
+//!   save is refused and the drawing stays in memory, marked not saved, and
+//!   the heading offers Keep mine, Save copy and Load theirs / Discard
+//!   (`board_safety.rs`, which also keeps the dirty board's crash-recovery
+//!   copy and guards quitting).
+//! - Board keys (tool letters, `+`/`-`/`0`, arrows) only act while no text
+//!   field has focus, so typing in the sidebar search stays in the search.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -291,9 +297,15 @@ impl State {
             Err(e) => BoardStatus::Failed(e),
         };
         if saved {
+            open.conflict = None;
             let path = open.path.clone();
             self.refresh_board_summary(&path);
+        } else {
+            // A removed or changed file: offer Keep mine / Save copy.
+            open.check_disk();
         }
+        // Saved: the recovery copy goes; not saved: it holds the drawing.
+        let _ = self.board_recovery_tick();
         saved
     }
 

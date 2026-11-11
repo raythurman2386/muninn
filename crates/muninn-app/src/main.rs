@@ -93,7 +93,13 @@ fn main() {
         // LIF-01: settings are also written on each toggle/open, but the close
         // hook captures the final note/mode if the window is closed right after
         // a change that did not reach a mutator.
-        s.flush_before_quit();
+        //
+        // #38 review B2: a board that can neither be saved nor copied to
+        // recovery refuses the quit; the window comes back with the reason.
+        if !s.flush_before_quit() {
+            reopen_window();
+            return;
+        }
         // The app keeps running after a close (below) only so Close to tray
         // can hide the window. Without a live tray icon, closing quits as it
         // always has.
@@ -110,6 +116,7 @@ fn main() {
     // Appearance). The state gets a way to make each; it acts only while
     // its setting is on. Headless runs (`--snap`, `--tree`, scripts) get none.
     let handle = app.handle();
+    WINDOW.with(|w| *w.borrow_mut() = Some(handle.clone()));
     app.init(move || {
         let mut state = init();
         if !headless {
@@ -196,6 +203,22 @@ fn tray_factory(handle: rune::AppHandle<State>) -> TrayFactory {
     })
 }
 
+thread_local! {
+    /// The app handle, so the `fn` close hook can bring the window back when
+    /// a quit is refused.
+    static WINDOW: std::cell::RefCell<Option<rune::AppHandle<State>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Show the window again after a refused close.
+fn reopen_window() {
+    WINDOW.with(|w| {
+        if let Some(handle) = w.borrow().as_ref() {
+            handle.open();
+        }
+    });
+}
+
 /// One tray pick, on the existing paths: Rune's `open`/`activate` show and
 /// focus the window, New note is Cmd/Ctrl+N's field, Sync now is the Sync
 /// tab's Sync Now (without showing the window), and Quit runs the close
@@ -209,10 +232,17 @@ fn run_tray_action(handle: &rune::AppHandle<State>, action: TrayAction) {
             handle.open();
         }
         TrayAction::SyncNow => handle.update(|s, _| s.tray_sync_now()),
-        TrayAction::Quit => handle.update(|s, tx| {
-            s.flush_before_quit();
-            tx.quit();
-        }),
+        TrayAction::Quit => {
+            let reopen = handle.clone();
+            handle.update(move |s, tx| {
+                if s.flush_before_quit() {
+                    tx.quit();
+                } else {
+                    // A board that cannot be saved or recovered: show why.
+                    reopen.open();
+                }
+            });
+        }
     }
 }
 

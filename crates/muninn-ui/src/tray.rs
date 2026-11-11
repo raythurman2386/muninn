@@ -267,11 +267,17 @@ impl State {
 
     /// The tray's Quit: the same flush as closing the window (the open note
     /// and settings), which Rune's quit skips.
-    pub fn flush_before_quit(&mut self) {
+    ///
+    /// Board slice 4: unsaved drawing is saved on the close path too. When it
+    /// cannot be saved (the file changed or vanished), its recovery copy is
+    /// brought up to date instead, as a note's is. Returns `false` only when
+    /// neither worked: the caller must not quit then (see
+    /// `board_safety.rs`), and [`State::error`] says why.
+    pub fn flush_before_quit(&mut self) -> bool {
         self.save_now();
-        // Board slice 4: unsaved drawing is saved on the normal close path too.
-        self.save_board();
+        let board = self.flush_board_before_quit();
         self.save_settings();
+        board
     }
 }
 
