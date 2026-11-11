@@ -455,6 +455,10 @@ pub struct Settings {
     /// (`{"rel": …, "eye": [x, y], "zoom": z}`). Files saved before boards
     /// load as `None`.
     pub board: Option<BoardSession>,
+    /// Board slice 7: an open board with unsaved drawing is saved once it
+    /// rests. On by default; `"board_autosave": false` in `settings.json`
+    /// leaves saving to `⌘S` (and the quit save).
+    pub board_autosave: bool,
 }
 
 impl Default for Settings {
@@ -476,6 +480,7 @@ impl Default for Settings {
             auto_start: false,
             show_shortcut: false,
             board: None,
+            board_autosave: true,
         }
     }
 }
@@ -535,6 +540,7 @@ impl Settings {
             "close_to_tray": self.close_to_tray,
             "auto_start": self.auto_start,
             "show_shortcut": self.show_shortcut,
+            "board_autosave": self.board_autosave,
             "board": self.board.as_ref().map(|b| {
                 let mut value = json!({ "rel": b.rel });
                 if let Some(view) = b.view {
@@ -618,6 +624,10 @@ impl Settings {
         settings.close_to_tray = flag("close_to_tray");
         settings.auto_start = flag("auto_start");
         settings.show_shortcut = flag("show_shortcut");
+        settings.board_autosave = value
+            .get("board_autosave")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
         settings.board = value.get("board").and_then(parse_board_session);
         settings
     }
