@@ -265,7 +265,9 @@ def cmd_pixels(mark, png, before, tree, fixture):
     caret = 3 if text == "caret" else 1.5
     if abs(now[0] - was[0]) > 1.5 or abs(now[1] - was[1]) > caret:
         die(f"{mark}: keep-text moved: {was} -> {now}")
-    if text == "caret" and not 0 <= grew <= 6:
+    # The caret blinks, so a shot may miss it: the same -2 px the plain
+    # "there" check allows, up to the caret's width past the last glyph.
+    if text == "caret" and not -2 <= grew <= 6:
         die(f"{mark}: the editor's text does not end where keep-text did (+{grew} px)")
     if text == "there" and abs(grew) > 2:
         die(f"{mark}: keep-text ink width changed by {grew} px")
