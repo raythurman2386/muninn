@@ -325,8 +325,9 @@ impl State {
                     open.auto_fit = false;
                     open.needs_fit = false;
                     // The view is pinned now (no refit to the new extent), so
-                    // a restart should come back to it.
-                    self.save_settings();
+                    // a restart should come back to it (written once the
+                    // view rests, slice 7).
+                    self.save_settings_soon();
                 }
             }
         }

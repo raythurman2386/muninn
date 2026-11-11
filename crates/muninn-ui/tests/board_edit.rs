@@ -506,10 +506,11 @@ fn deletes_undos_and_moves_keep_the_recovery_copy_current_but_not_per_drag_frame
     let read = |p: &Path| Board::from_json(&std::fs::read_to_string(p).expect("copy")).unwrap();
     click(&mut rt, RECT);
     plain(&mut rt, Key::Delete);
-    frames(&mut rt, 1);
+    // Slice 7: the copy is written once the drawing rests (0.5 s).
+    frames(&mut rt, 40);
     assert!(read(&copy).shape("keep-rect").unwrap().is_deleted);
     command(&mut rt, 'z', false);
-    frames(&mut rt, 1);
+    frames(&mut rt, 40);
     assert!(
         !read(&copy).shape("keep-rect").unwrap().is_deleted,
         "the undo is in the copy"
@@ -529,7 +530,7 @@ fn deletes_undos_and_moves_keep_the_recovery_copy_current_but_not_per_drag_frame
         "no write per drag frame"
     );
     rt.pointer_up(x0 + 80.0, y0);
-    frames(&mut rt, 2);
+    frames(&mut rt, 40);
     assert_eq!(
         read(&copy).shape("keep-rect").unwrap().x,
         shape(&rt, "keep-rect").x

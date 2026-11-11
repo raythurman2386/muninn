@@ -126,7 +126,8 @@ fn draw_rect(rt: &mut Runtime<State>) {
     rt.pointer_up(x0 + 80.0, y0 + 50.0);
     frames(rt, 2);
     rt.key(plain(Key::Text("v".into())));
-    frames(rt, 1);
+    // Slice 7: the recovery copy is written once the drawing rests (0.5 s).
+    frames(rt, 40);
 }
 
 fn elements(rt: &Runtime<State>) -> usize {

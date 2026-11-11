@@ -534,7 +534,7 @@ impl State {
             open.auto_fit = false;
             open.needs_fit = false;
         }
-        self.save_settings();
+        self.save_settings_soon();
     }
 
     /// Pan the open board by screen points.
@@ -544,7 +544,7 @@ impl State {
             open.auto_fit = false;
             open.needs_fit = false;
         }
-        self.save_settings();
+        self.save_settings_soon();
     }
 
     /// The open board's view, for tests and the zoom readout.

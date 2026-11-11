@@ -109,12 +109,16 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         s.dirty_at = None;
     }
 
+    // Slice 7: a view change asked for a settings write; do it once the
+    // view rests (one write per held key or stroke, not per event).
+    s.settings_tick(t);
+
     // SAF-05: copy a dirty buffer to the XDG recovery file after a short idle.
     // This is invisible on screen, so it must not report a change.
     s.recovery_tick(t);
     // #38 review B2: the same for an unsaved board, after each change.
     // #40 recheck B1: and ask for the poll it still needs (typing at rest).
-    if let Some(wake) = s.board_recovery_poll() {
+    if let Some(wake) = s.board_recovery_poll(t) {
         tx.wake_after(wake);
     }
 

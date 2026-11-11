@@ -37,17 +37,19 @@ use crate::board_view::{BoardStatus, OpenBoard};
 use crate::state::conflict_stamp;
 use crate::{Mode, State};
 
-/// Why a quit was refused.
-/// #40 review M1: the recovery copy of text being typed waits until the
-/// typing has rested this long, or at most this long while it never does.
-pub(crate) const TYPING_REST: f64 = 0.5;
-const TYPING_MAX_AGE: f64 = 2.0;
+/// Slice 7: the recovery copy of a drawing that keeps changing (a held
+/// arrow nudge, a stream of edits, text being typed) is written once it has
+/// rested this long…
+const BOARD_RECOVERY_IDLE: f64 = 0.5;
+/// …or, while it never rests, at least this often.
+const BOARD_RECOVERY_MAX_AGE: f64 = 2.0;
 
 /// #40 recheck B1: after a board press or key, poll again this soon, so an
 /// edit (or an editor opened) by it is seen by the recovery copy without
 /// waiting for more input.
 pub(crate) const BOARD_EDIT_WAKE: Duration = Duration::from_millis(50);
 
+/// Why a quit was refused.
 const QUIT_REFUSED: &str = "Board not saved and no recovery copy could be written";
 
 /// #38 review M2: `path` lies inside the vault `root`: below it through
@@ -130,16 +132,16 @@ impl State {
 
     /// Per frame: the recovery copy, reporting a failed write once. Returns
     /// when `poll` must run again (#40 recheck B1): a resting window polls
-    /// only at a wake it asked for, so a deferred copy of text being typed,
-    /// or an open editor whose next keystroke lands after this poll, would
-    /// otherwise wait for the next input, and a crash would lose it.
-    pub(crate) fn board_recovery_poll(&mut self) -> Option<Duration> {
+    /// only at a wake it asked for, so a deferred copy, or an open editor
+    /// whose next keystroke lands after this poll, would otherwise wait for
+    /// the next input, and a crash would lose it.
+    pub(crate) fn board_recovery_poll(&mut self, t: f64) -> Option<Duration> {
         // While the editor is open, look again soon: a keystroke is applied
         // after the frame's poll, so this poll may not have seen it yet.
         let editing = self
             .board_text
             .is_some()
-            .then(|| Duration::from_secs_f64(TYPING_REST));
+            .then(|| Duration::from_secs_f64(BOARD_RECOVERY_IDLE));
         // Slice 5: a move drag changes the model every frame; copy once it
         // lands instead of writing (and fsyncing) per frame.
         if self
@@ -149,27 +151,29 @@ impl State {
         {
             return editing;
         }
-        // #40 review M1: text being typed is copied once the typing rests
-        // (0.5 s, at most every 2 s), not on every keystroke.
-        if let Some(text) = self.board_text_pending()
-            && self.board_recovered_text.as_ref() != Some(&text)
-            && !self
-                .board_open
-                .as_ref()
-                .is_some_and(|o| o.dirty() && o.recovered_at != Some(o.generation))
-        {
-            let now = self.now;
-            let wait = self.board_text_wait.get_or_insert((text.clone(), now, now));
-            if wait.0 != text {
-                wait.0 = text;
-                wait.2 = now;
-            }
-            if now - wait.2 < TYPING_REST && now - wait.1 < TYPING_MAX_AGE {
-                let due = (TYPING_REST - (now - wait.2)).min(TYPING_MAX_AGE - (now - wait.1));
-                return Some(Duration::from_secs_f64(due.max(0.0)));
+        // Slice 7: a stream of edits (a held arrow key) and text being typed
+        // (#40 review M1) are copied once they rest, or every
+        // BOARD_RECOVERY_MAX_AGE while they do not. A big board's copy is
+        // megabytes, written and fsynced each time.
+        let pending = self.board_text_pending();
+        if let Some(open) = &self.board_open {
+            let drawing = open.dirty() && open.recovered_at != Some(open.generation);
+            let typing = pending.is_some() && self.board_recovered_text != pending;
+            if drawing || typing {
+                let key = (open.generation, pending);
+                let wait = self.board_recovery_wait.get_or_insert((key.clone(), t, t));
+                if wait.0 != key {
+                    wait.0 = key;
+                    wait.2 = t;
+                }
+                if t - wait.2 < BOARD_RECOVERY_IDLE && t - wait.1 < BOARD_RECOVERY_MAX_AGE {
+                    let due = (BOARD_RECOVERY_IDLE - (t - wait.2))
+                        .min(BOARD_RECOVERY_MAX_AGE - (t - wait.1));
+                    return Some(Duration::from_secs_f64(due.max(0.0)));
+                }
             }
         }
-        self.board_text_wait = None;
+        self.board_recovery_wait = None;
         if let Err(e) = self.board_recovery_tick() {
             let message = format!("Could not persist board recovery copy: {e}");
             if self.error.as_deref() != Some(message.as_str()) {

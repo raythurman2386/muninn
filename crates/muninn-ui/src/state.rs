@@ -90,6 +90,9 @@ pub(crate) const WATCH_INTERVAL: f64 = 1.5;
 /// that window still leaves the text recoverable.
 const RECOVERY_DEBOUNCE: f64 = 0.2;
 
+/// How long a view change rests before it is written to `settings.json`.
+const SETTINGS_IDLE: f64 = 0.5;
+
 /// SAF-05: a continuous typist never goes idle, so force a copy at least this
 /// often. Combined with the idle debounce this bounds crash loss to about a
 /// second of typing.
@@ -356,10 +359,16 @@ pub struct State {
     pub board_text_field: TextEdit,
     /// Slice 6: the click that closed a text editor; its drag is ignored.
     pub board_text_swallow: bool,
-    /// #40 review M1: the uncommitted editor text in the last recovery
-    /// copy, and the typing's `(text, first, last change)` not copied yet.
+    /// #40 review M1: the uncommitted editor text in the last recovery copy.
     pub(crate) board_recovered_text: Option<String>,
-    pub(crate) board_text_wait: Option<(String, f64, f64)>,
+    /// Slice 7: the board recovery copy waits for the drawing (and any text
+    /// being typed) to rest: `((generation, typed text), first change, last
+    /// change)` of what is not copied yet.
+    pub(crate) board_recovery_wait: Option<((u64, Option<String>), f64, f64)>,
+    /// Slice 7: a view change (held arrow pan, zoom, a stroke) is written to
+    /// `settings.json` once things rest, not once per event. When it was
+    /// last asked for.
+    pub(crate) settings_due: Option<f64>,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -671,7 +680,8 @@ impl State {
             board_text_field: TextEdit::default(),
             board_text_swallow: false,
             board_recovered_text: None,
-            board_text_wait: None,
+            board_recovery_wait: None,
+            settings_due: None,
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
@@ -820,6 +830,20 @@ impl State {
     /// Saves are immediate and best-effort: the file is a few hundred bytes,
     /// and a failed settings write must never interrupt editing. Callers are
     /// the mutators below plus the app's `on_close` hook.
+    /// Write `settings.json` once things rest (a held arrow key pans
+    /// many times a second); [`State::save_settings`] writes now.
+    pub(crate) fn save_settings_soon(&mut self) {
+        self.settings_due = Some(self.now);
+    }
+
+    /// Per frame: the settings write asked for by [`State::save_settings_soon`].
+    pub(crate) fn settings_tick(&mut self, t: f64) {
+        if self.settings_due.is_some_and(|at| t - at >= SETTINGS_IDLE) {
+            self.settings_due = None;
+            self.save_settings();
+        }
+    }
+
     pub fn save_settings(&self) -> bool {
         let Some(config_home) = self.settings_home.as_ref() else {
             return false;
