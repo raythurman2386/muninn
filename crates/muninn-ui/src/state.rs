@@ -344,8 +344,10 @@ pub struct State {
     pub board_views: HashMap<PathBuf, crate::BoardView>,
     /// The last session's board, applied on the first board refresh.
     pub board_restore: Option<crate::BoardSession>,
-    /// Board slice 4: the picked drawing tool (`None`: a drag pans).
+    /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).
     pub board_tool: Option<crate::BoardTool>,
+    /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
+    pub board_hand: bool,
     /// Ids, seeds and nonces for drawn elements.
     pub board_ids: muninn_core::IdSource,
     pub scope: Scope,
@@ -653,6 +655,7 @@ impl State {
                 None
             },
             board_tool: None,
+            board_hand: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
             scope: Scope::Global,
             graph,

@@ -107,6 +107,15 @@ impl State {
 
     /// Per frame: the recovery copy, reporting a failed write once.
     pub(crate) fn board_recovery_poll(&mut self) {
+        // Slice 5: a move drag changes the model every frame; copy once it
+        // lands instead of writing (and fsyncing) per frame.
+        if self
+            .board_open
+            .as_ref()
+            .is_some_and(|open| open.edit.gesture.is_some())
+        {
+            return;
+        }
         if let Err(e) = self.board_recovery_tick() {
             let message = format!("Could not persist board recovery copy: {e}");
             if self.error.as_deref() != Some(message.as_str()) {

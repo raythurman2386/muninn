@@ -185,6 +185,9 @@ fn a_drag_pans_and_the_wheel_zooms_about_the_pointer() {
     let probe = [100.0, 50.0];
     let before = view_of(rt).screen(probe);
 
+    // A plain drag on empty canvas is the marquee since slice 5; the hand
+    // tool (`H`) pans.
+    rt.key(plain(Key::Text("h".into())));
     let (x, y) = (canvas[0] + 200.0, canvas[1] + 150.0);
     rt.pointer_down(x, y);
     for step in 1..=10 {

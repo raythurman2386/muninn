@@ -46,8 +46,13 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     if !s.is_typing() && s.mode == Mode::Graph && s.graph_key(e) {
         return true;
     }
+    // Board slice 5: undo, redo and select all on the open board, before
+    // the note chords (⌘Z is the editor's otherwise, ⌘A its select-all).
+    if !s.is_typing() && crate::board_edit::board_command(s, e) {
+        return true;
+    }
     // Board slice 3: zoom, fit and arrow-pan keys on the open board; slice 4
-    // adds the tool letters.
+    // adds the tool letters, slice 5 Delete, arrows nudging and Esc.
     if !s.is_typing() && s.mode == Mode::Board && s.board_key(e) {
         return true;
     }

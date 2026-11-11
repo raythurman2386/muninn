@@ -3,6 +3,7 @@
     {"t": 0.3, "type": "key", "name": "4", "cmd": true},
     {"t": 0.8, "type": "tap", "key": "board-row-1"},
     {"t": 2.0, "type": "mark", "name": "fit"},
+    {"t": 2.3, "type": "type", "text": "h"},
     {"t": 2.5, "type": "drag", "key": "board-canvas", "dx": 120, "dy": 60, "dur": 0.3},
     {"t": 3.4, "type": "mark", "name": "panned"},
     {"t": 3.8, "type": "wheel", "key": "board-canvas", "dy": -40},

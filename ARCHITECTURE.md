@@ -181,6 +181,13 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   or last saved (changed or removed on disk). A refused flush keeps the drawing in memory
   and blocks the board switch, the vault switch or the vault rescan (Retry, or the
   chunked startup scan finishing), like a note that cannot be saved.
+  Editing (`board_edit`, over `muninn_core` `board::edit`) selects, moves and deletes
+  elements of the in-memory `Board` and keeps a bounded undo history (`History`, 100
+  edits) per open board; every edit, undo and redo bumps the touched elements' Excalidraw
+  `version`/`versionNonce`/`updated`, a delete is an `isDeleted` tombstone, and the history
+  is dropped when the file changes underneath. Edits only mark the board unsaved: they
+  are written by the same explicit save, and the recovery copy below is taken once a
+  move drag lands, not per frame.
   Unsaved drawing is never dropped (`board_safety`): a file removed, renamed or changed
   outside Muninn is noticed when the boards are re-listed (entering Board, a vault reload, a
   rescan) or when a save re-reads the file, not live (the board watcher is slice 7); then

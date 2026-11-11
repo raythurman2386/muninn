@@ -107,6 +107,8 @@ pub struct OpenBoard {
     /// has drawn it, so a board that crashes on its first draw is not
     /// reopened on every launch.
     shown: Shown,
+    /// Selection, gesture and undo history (slice 5).
+    pub edit: crate::BoardEdit,
     /// The session this board was restored from, kept until a frame has
     /// shown it (during the startup scan, or while the app stays in another
     /// mode) so a settings write or quit then does not forget it.
@@ -147,6 +149,7 @@ impl OpenBoard {
             auto_fit: view.is_none(),
             view_at_press: view.unwrap_or_default(),
             shown: Shown::Not,
+            edit: crate::BoardEdit::default(),
             restored: None,
         }
     }
@@ -157,9 +160,27 @@ impl OpenBoard {
         if self.dirty() {
             return;
         }
+        // The file still holds the bytes Muninn loaded or last wrote (the
+        // watcher saw Muninn's own save): nothing to re-read, and no refit or
+        // history reset under the user's feet.
+        let disk = self.disk;
+        if disk.is_some()
+            && std::fs::read_to_string(&self.path)
+                .ok()
+                .map(|t| fingerprint(&t))
+                == disk
+        {
+            return;
+        }
         (self.model, self.disk, self.scene) = read_board(&self.path);
         self.status = BoardStatus::Clean;
         self.conflict = None;
+        // Undo steps name elements by id; once another app has changed the
+        // file they could put back states over its edits, so they go.
+        if self.disk != disk {
+            self.edit = crate::BoardEdit::default();
+        }
+        self.prune_selection();
         let (origin, size) = world_of(&self.scene);
         self.cam.rebase(origin, size);
         if self.auto_fit {
@@ -226,6 +247,7 @@ impl OpenBoard {
             conflict,
             generation: 0,
             recovered_at: Some(0),
+            edit: crate::BoardEdit::default(),
             draft: None,
             scene,
             cam: BoardCam::new(BoardView::default(), origin, size),
@@ -542,12 +564,28 @@ impl State {
         {
             return false;
         }
+        // Arrows move the selection (Shift: a bigger step); with nothing
+        // selected they pan.
+        let step = if e.mods.shift {
+            crate::NUDGE_BIG
+        } else {
+            crate::NUDGE
+        };
         match &e.key {
+            rune::Key::Left if self.nudge_board(-step, 0.0) => {}
+            rune::Key::Right if self.nudge_board(step, 0.0) => {}
+            rune::Key::Up if self.nudge_board(0.0, -step) => {}
+            rune::Key::Down if self.nudge_board(0.0, step) => {}
             rune::Key::Left => self.pan_board(KEY_PAN, 0.0),
             rune::Key::Right => self.pan_board(-KEY_PAN, 0.0),
             rune::Key::Up => self.pan_board(0.0, KEY_PAN),
             rune::Key::Down => self.pan_board(0.0, -KEY_PAN),
+            // On Board these never reach the note list's Delete.
+            rune::Key::Delete | rune::Key::Backspace => {
+                self.delete_board_selection();
+            }
             rune::Key::Text(t) => match t.as_str() {
+                "h" | "H" => self.set_board_hand(!self.board_hand),
                 "+" | "=" => self.zoom_board(KEY_ZOOM),
                 "-" | "_" => self.zoom_board(1.0 / KEY_ZOOM),
                 "0" | "f" | "F" => self.fit_board(),
@@ -887,8 +925,10 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
         .border(1.0, k.c.border_muted)
         .cursor(if s.board_tool.is_some() {
             Cursor::Crosshair
-        } else {
+        } else if s.board_hand {
             Cursor::Grab
+        } else {
+            Cursor::Default
         })
         .on_drawn_layout_tx(|s: &mut State, r: [f32; 4], tx: &mut Tx| {
             let Some(open) = &mut s.board_open else {
@@ -944,14 +984,19 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
             if s.board_tool.is_some() {
                 // The preview is part of the view, so this rebuilds.
                 s.draw_board(d);
-            } else {
+            } else if s.board_hand {
                 s.drag_board(d);
                 tx.live_only();
+            } else {
+                // Select, move or marquee (slice 5); the outline rebuilds.
+                let shift = tx.mods().shift;
+                s.edit_board(d, shift);
             }
         })
         .on_double_press(|s: &mut State| {
-            // A double click while drawing is two clicks, not a fit.
-            if s.board_tool.is_none() {
+            // A double click while drawing is two clicks, and one on an
+            // element selects it; only one on empty canvas fits.
+            if s.board_tool.is_none() && s.board_selection().is_empty() {
                 s.fit_board();
             }
         })
@@ -975,6 +1020,9 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
         );
     }
     if let Some(layer) = board_tools::preview(open) {
+        canvas_el = canvas_el.child(layer);
+    }
+    if let Some(layer) = crate::board_edit::overlay(open) {
         canvas_el = canvas_el.child(layer);
     }
     canvas_el
@@ -1039,7 +1087,7 @@ fn board_hint(k: &Kit) -> El {
         .center_y()
         .fill(k.alpha(k.c.bg_deep, 0.78))
         .child(
-            text("R D O A L P draw · V/Esc no tool · ⌘S save · Drag pan · Scroll zoom · 0 fit")
+            text("Click/drag select · Del delete · ⌘Z undo · R D O A L P draw · H pan · ⌘S save · 0 fit")
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )

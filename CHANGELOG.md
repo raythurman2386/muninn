@@ -37,6 +37,19 @@ All notable changes to Muninn are documented here. The format is based on
   rescan is refused and the drawing stays. Every element already in the file
   is kept, and a board that changed on disk, was removed, or belongs to
   another vault is never written without asking.
+- Board editing (in progress): with no tool picked, click selects an element
+  (its outermost group; Shift+click adds or removes), a drag on empty canvas
+  draws a marquee, a drag on the selection moves it, arrows nudge it (Shift
+  for 5), `Delete`/`Backspace` deletes it, `⌘A` selects all, and `⌘Z` /
+  `⌘⇧Z` (`Ctrl+Y`) undo and redo drawing, moves and deletes (last 100 per
+  board). `Esc` clears the selection, then drops the tool, then leaves Board.
+  Panning moves to the hand tool (`H`), Shift+wheel, a trackpad or the
+  arrows with nothing selected. Each edit bumps the touched elements'
+  `version`, `versionNonce` and `updated` as Excalidraw does; a deleted
+  element stays in the file as an `isDeleted` tombstone. Locked elements and
+  the elements Muninn keeps as-is (frames, images) are never picked; resize
+  handles are shown but resizing is not part of this slice. Saving is still
+  the explicit `⌘S` with all its guards.
 - Unsaved board drawing is never lost: if the board's file is removed,
   renamed or changed by another app, the board stays open and, once Muninn
   notices (when the boards are re-listed — entering Board, a vault reload or

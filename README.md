@@ -230,16 +230,23 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `I` (graph) | Toggle Isolate (dim non-neighbours) |
 | `Enter` (Find node) | Select and centre the best title/path match |
 | `Esc` | Leave the graph |
-| Drag / Shift+wheel (board) | Pan the board |
+| `H`, or drag with the hand / Shift+wheel (board) | Pan the board |
 | Wheel / pinch (board) | Zoom at the pointer |
 | `+` / `-` (board) | Zoom in / out at the canvas centre |
-| `←` / `↑` / `→` / `↓` (board) | Pan the board |
+| `←` / `↑` / `→` / `↓` (board, nothing selected) | Pan the board |
 | `0` / `F` / double-click (board) | Fit the drawing |
 | `R` / `D` / `O` / `A` / `L` / `P` or `X` (board) | Pick the rectangle, diamond, ellipse, arrow, line or freehand tool (also `2`–`7` and the toolbar) |
 | Drag with a tool (board) | Draw that shape; the tool stays picked |
-| `V` / `1` (board) | Drop the drawing tool (selection comes later) |
+| `V` / `1` (board) | Drop the drawing tool (back to selecting) |
+| Click / Shift+click (board) | Select an element (its outermost group) / add or remove it |
+| Drag on empty canvas (board) | Marquee: select the elements wholly inside it (Shift adds) |
+| Drag a selected element (board) | Move the selection |
+| `←` / `↑` / `→` / `↓`, Shift for 5 (board, with a selection) | Nudge the selection 1 (or 5) units |
+| `Delete` / `Backspace` (board) | Delete the selection (kept in the file as an `isDeleted` tombstone) |
+| `⌘A` / `Ctrl+A` (board) | Select every element |
+| `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (board) | Undo / redo drawing, moves and deletes (last 100) |
 | `⌘S` / `Ctrl+S` (board) | Save the board's drawing (atomically, to the open board only) |
-| `Esc` (board) | Drop the drawing tool, or leave Board for the last note mode |
+| `Esc` (board) | Clear the selection, else drop the tool, else leave Board for the last note mode |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |

@@ -3,7 +3,8 @@
 //! A tool is picked from the toolbar in the canvas's top-left corner or with
 //! Excalidraw's keys: `R` rectangle, `D` diamond, `O` ellipse, `A` arrow, `L`
 //! line, `P` or `X` freehand (also `2`–`7`, Excalidraw's number row), and `V`
-//! or `1` for no tool. With no tool, a drag pans as before. With a tool, a
+//! or `1` for no tool. With no tool, a drag selects or moves (slice 5,
+//! `board_edit`) and the hand tool `H` pans. With a tool, a
 //! drag draws: the element is previewed while the pointer moves and added to
 //! the in-memory board ([`muninn_core::Board::add_drawn`], which writes it in
 //! Excalidraw's own shape) on release. The tool stays picked so several
@@ -134,6 +135,11 @@ static SELECT: Icon = Icon {
     view: 20.0,
     body: r#"<path d="M5 3L15 10.5L10.4 11.3L13 16.6L11.2 17.5L8.6 12.2L5 15.2Z" stroke="currentColor" stroke-width="1.4" fill="none"/>"#,
 };
+static HAND: Icon = Icon {
+    name: "board-hand",
+    view: 20.0,
+    body: r#"<path d="M7 10V5.2a1.2 1.2 0 0 1 2.4 0V9.5M9.4 9V4.2a1.2 1.2 0 0 1 2.4 0V9M11.8 9V5.2a1.2 1.2 0 0 1 2.4 0V11c0 3.3-2 5.5-5 5.5c-2.2 0-3.4-1-4.6-3L3.8 11a1.2 1.2 0 0 1 2-1.3L7 11.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>"#,
+};
 static RECTANGLE: Icon = Icon {
     name: "board-rectangle",
     view: 20.0,
@@ -205,16 +211,37 @@ impl State {
     /// Pick a tool, or none. Dropping the tool also drops a half-drawn draft.
     pub fn set_board_tool(&mut self, tool: Option<BoardTool>) {
         self.board_tool = tool;
+        if tool.is_some() {
+            // Picking a drawing tool leaves selection and panning behind,
+            // as in Excalidraw.
+            self.board_hand = false;
+            self.board_clear_selection();
+        }
         if let Some(open) = &mut self.board_open {
             open.draft = None;
         }
     }
 
-    /// `Esc` on Board: drop the tool first. `false` when there was none.
+    /// Pick the hand tool (`H`) or put it down. The hand drops the drawing
+    /// tool; a drag then pans.
+    pub fn set_board_hand(&mut self, on: bool) {
+        if on {
+            self.set_board_tool(None);
+            self.board_clear_selection();
+        }
+        self.board_hand = on;
+    }
+
+    /// `Esc` on Board: clear the selection first, then drop the tool or the
+    /// hand. `false` when there was nothing to drop (Esc then leaves Board).
     pub fn board_escape(&mut self) -> bool {
-        if self.board_tool.is_none() {
+        if self.board_clear_selection() {
+            return true;
+        }
+        if self.board_tool.is_none() && !self.board_hand {
             return false;
         }
+        self.board_hand = false;
         self.set_board_tool(None);
         true
     }
@@ -264,12 +291,12 @@ impl State {
                     *last = at;
                 }
                 let Some(model) = &mut open.model else { return };
-                if model
-                    .add_drawn(tool.kind(), &draft.points, &mut self.board_ids, now_ms())
-                    .is_some()
+                if let Some(made) =
+                    model.add_drawn(tool.kind(), &draft.points, &mut self.board_ids, now_ms())
                 {
-                    open.rebuild();
-                    open.status = BoardStatus::Unsaved;
+                    // Undo takes a drawn element back as a tombstone.
+                    let made = muninn_core::Change::created(made);
+                    open.record(vec![made]);
                     open.auto_fit = false;
                     open.needs_fit = false;
                     // The view is pinned now (no refit to the new extent), so
@@ -365,9 +392,17 @@ pub(crate) fn toolbar(s: &State, k: &Kit) -> El {
         .center_y()
         .fill(k.alpha(k.c.layer_02, 0.96))
         .border(1.0, k.c.border_base);
+    bar = bar.child(
+        tool_button(k, s.board_hand, &HAND, "hand", None).on_press_tx(
+            |s: &mut State, tx: &mut Tx| {
+                s.set_board_hand(!s.board_hand);
+                tx.blur();
+            },
+        ),
+    );
     bar = bar.child(tool_button(
         k,
-        s.board_tool.is_none(),
+        s.board_tool.is_none() && !s.board_hand,
         &SELECT,
         "select",
         None,
@@ -399,6 +434,7 @@ fn tool_button(k: &Kit, on: bool, glyph: &'static Icon, name: &str, tool: Option
         .press(k.c.pressed)
         .cursor(Cursor::Pointer)
         .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            s.board_hand = false;
             s.set_board_tool(tool);
             // Keep the keyboard on the canvas for tool letters and arrows.
             tx.blur();
@@ -428,6 +464,7 @@ pub(crate) fn tool_key(s: &mut State, text: &str) -> bool {
     }
     match tool_for_key(text) {
         Some(tool) => {
+            s.board_hand = false;
             s.set_board_tool(tool);
             true
         }

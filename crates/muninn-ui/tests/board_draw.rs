@@ -283,7 +283,7 @@ fn each_tool_draws_its_element_where_the_pointer_went() {
 }
 
 #[test]
-fn a_click_draws_nothing_and_no_tool_still_pans() {
+fn a_click_draws_nothing_and_the_hand_pans() {
     let tmp = vault();
     let mut rt = launch(tmp.path());
     open(&mut rt, "Draw");
@@ -291,11 +291,19 @@ fn a_click_draws_nothing_and_no_tool_still_pans() {
     rt.key(text("r"));
     stroke(&mut rt, &[[200.0, 200.0], [201.0, 200.5]]);
     assert_eq!(model(&rt).elements.len(), n, "a click is not a rectangle");
+    // With no tool a drag on empty canvas is a marquee (slice 5): no pan.
     rt.key(text("v"));
     let view = rt.state.board_view().unwrap();
     stroke(&mut rt, &[[200.0, 200.0], [260.0, 230.0]]);
+    assert_eq!(
+        rt.state.board_view().unwrap(),
+        view,
+        "a marquee does not pan"
+    );
+    rt.key(text("h"));
+    stroke(&mut rt, &[[200.0, 200.0], [260.0, 230.0]]);
     assert_eq!(model(&rt).elements.len(), n);
-    assert_ne!(rt.state.board_view().unwrap(), view, "the drag panned");
+    assert_ne!(rt.state.board_view().unwrap(), view, "the hand panned");
     assert_eq!(status(&rt), BoardStatus::Clean);
 }
 
