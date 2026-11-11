@@ -91,6 +91,11 @@ impl State {
             self.editor.focused = false;
         }
         self.mode = mode;
+        // Slice 8 (GK MF1): entering Board collapses the sidebar, so a field
+        // in it must not keep the keyboard while out of sight.
+        if !self.sidebar_shown() {
+            self.release_sidebar_fields();
+        }
         // LIF-01: the last mode is part of the restored session.
         self.save_settings();
     }

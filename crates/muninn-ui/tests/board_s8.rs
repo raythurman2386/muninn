@@ -354,3 +354,136 @@ fn toggling_the_sidebar_on_board_moves_the_chrome_at_once_without_a_slide() {
         }
     }
 }
+
+// ---- Gatekeeper MF1: hidden sidebar fields give the keyboard back ------------
+
+fn key_text(rt: &mut Runtime<State>, t: &str) {
+    rt.key(KeyEvent {
+        key: Key::Text(t.into()),
+        mods: Mods::default(),
+    });
+    frames(rt, 2);
+}
+
+/// A vault with a board already open on Board, then back in Write.
+fn board_then_write() -> (TempVault, App) {
+    let tmp = TempVault::new(&[
+        ("Alpha.md", "# Alpha\n"),
+        ("Sub/Beta.md", "# Beta\n"),
+        ("Draw.excalidraw", DRAW),
+    ]);
+    let mut app = launch(tmp.path());
+    command(&mut app.rt, '4');
+    frames(&mut app.rt, 10);
+    press(&mut app.rt, "board-row-0");
+    frames(&mut app.rt, 30);
+    assert!(open_path(&app.rt).is_some());
+    command(&mut app.rt, '1');
+    frames(&mut app.rt, 10);
+    assert!(sidebar(&app.rt));
+    (tmp, app)
+}
+
+/// On Board with the sidebar collapsed: nothing is typing, a tool letter picks
+/// its tool, and Cmd+\ reopens the sidebar.
+fn assert_board_has_the_keyboard(app: &mut App, what: &str) {
+    assert_eq!(app.rt.state.mode, Mode::Board, "{what}: on Board");
+    assert!(!sidebar(&app.rt), "{what}: the sidebar is collapsed");
+    assert!(
+        !app.rt.state.is_typing(),
+        "{what}: no hidden field keeps the keyboard"
+    );
+    key_text(&mut app.rt, "r");
+    assert_eq!(
+        app.rt.state.board_tool,
+        Some(muninn_ui::BoardTool::Rectangle),
+        "{what}: R picks the rectangle"
+    );
+    key_text(&mut app.rt, "v");
+    command(&mut app.rt, '\\');
+    assert!(sidebar(&app.rt), "{what}: Cmd+\\ reopens the sidebar");
+}
+
+#[test]
+fn entering_board_from_search_gives_the_keyboard_to_the_board() {
+    let (_tmp, mut app) = board_then_write();
+    command(&mut app.rt, 'k');
+    assert!(app.rt.state.search.focused, "search has the keyboard");
+    command(&mut app.rt, '4');
+    frames(&mut app.rt, 10);
+    assert!(!app.rt.state.search.focused, "search lets go");
+    assert_board_has_the_keyboard(&mut app, "from search");
+}
+
+#[test]
+fn entering_board_cancels_an_open_new_note_prompt() {
+    let (tmp, mut app) = board_then_write();
+    app.rt.state.new_note();
+    frames(&mut app.rt, 3);
+    assert!(app.rt.state.new_note_prompt.is_some());
+    command(&mut app.rt, '4');
+    frames(&mut app.rt, 10);
+    assert!(
+        app.rt.state.new_note_prompt.is_none(),
+        "the hidden prompt is cancelled"
+    );
+    assert_board_has_the_keyboard(&mut app, "from New note");
+    command(&mut app.rt, '1');
+    assert!(
+        app.rt.state.new_note_prompt.is_none(),
+        "and not still open back in Write"
+    );
+    assert!(!tmp.path().join("Untitled.md").exists());
+}
+
+#[test]
+fn entering_board_cancels_the_rename_note_and_folder_prompts() {
+    let begins: [(&str, fn(&mut State)); 3] = [
+        ("rename note", |s| s.begin_rename_note(0)),
+        ("new folder", |s| s.begin_new_folder("")),
+        ("rename folder", |s| s.begin_rename_folder("Sub")),
+    ];
+    for (what, begin) in begins {
+        let (tmp, mut app) = board_then_write();
+        begin(&mut app.rt.state);
+        frames(&mut app.rt, 3);
+        assert!(app.rt.state.is_typing(), "{what}: the prompt is open");
+        command(&mut app.rt, '4');
+        frames(&mut app.rt, 10);
+        let s = &app.rt.state;
+        assert!(
+            s.rename_prompt.is_none()
+                && s.new_folder_prompt.is_none()
+                && s.rename_folder_prompt.is_none(),
+            "{what}: cancelled"
+        );
+        assert_board_has_the_keyboard(&mut app, what);
+        assert!(
+            tmp.path().join("Sub/Beta.md").is_file(),
+            "{what}: nothing renamed"
+        );
+    }
+}
+
+#[test]
+fn hiding_the_sidebar_with_its_toggle_cancels_the_folder_prompts_too() {
+    let begins: [(&str, fn(&mut State)); 4] = [
+        ("new note", |s| s.new_note()),
+        ("rename note", |s| s.begin_rename_note(0)),
+        ("new folder", |s| s.begin_new_folder("")),
+        ("rename folder", |s| s.begin_rename_folder("Sub")),
+    ];
+    for (what, begin) in begins {
+        let (_tmp, mut app) = board_then_write();
+        begin(&mut app.rt.state);
+        frames(&mut app.rt, 3);
+        assert!(app.rt.state.is_typing(), "{what}: the prompt is open");
+        app.rt.state.toggle_sidebar();
+        frames(&mut app.rt, 3);
+        assert!(!app.rt.state.sidebar_shown(), "{what}: hidden in Write");
+        assert!(
+            !app.rt.state.is_typing(),
+            "{what}: no hidden field keeps the keyboard"
+        );
+    }
+}

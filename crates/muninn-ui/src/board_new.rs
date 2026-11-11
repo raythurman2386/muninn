@@ -28,11 +28,21 @@ impl State {
         };
         *open = !*open;
         if !self.sidebar_shown() {
-            // Its fields go with it, so the keyboard is not left in one.
-            self.search.focused = false;
-            self.cancel_new_note();
-            self.cancel_rename_note();
+            self.release_sidebar_fields();
         }
+    }
+
+    /// The notes sidebar just went out of sight (its toggle, or a mode
+    /// switch that collapses it): its fields go with it, so none is left
+    /// holding the keyboard. Search lets go of focus and the inline
+    /// prompts (new note, rename note, new folder, rename folder) are
+    /// cancelled, creating and renaming nothing.
+    pub(crate) fn release_sidebar_fields(&mut self) {
+        self.search.focused = false;
+        self.cancel_new_note();
+        self.cancel_rename_note();
+        self.cancel_new_folder();
+        self.cancel_rename_folder();
     }
 
     /// The folder a new board goes in: the open board's folder, else the
