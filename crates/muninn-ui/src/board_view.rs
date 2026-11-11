@@ -405,6 +405,22 @@ impl State {
         }
     }
 
+    /// Slice 7: list the vault's board files for the sidebar (a folder walk;
+    /// nothing is parsed).
+    pub(crate) fn list_sidebar_boards(&mut self) {
+        self.sidebar_boards = self.vault.boards();
+    }
+
+    /// Slice 7: open a board from outside Board mode (the sidebar's Boards
+    /// section, a note's `![[Board.excalidraw]]` embed): switch to Board and
+    /// pick it, as a click in Board's own list does.
+    pub fn open_board_at(&mut self, path: PathBuf) {
+        self.set_mode(Mode::Board);
+        if self.mode == Mode::Board {
+            self.select_board(path);
+        }
+    }
+
     /// Re-read the board list only; the open board is left as it is.
     pub(crate) fn relist_boards(&mut self) {
         self.boards = self
@@ -413,6 +429,7 @@ impl State {
             .into_iter()
             .map(BoardSummary::read)
             .collect();
+        self.sidebar_boards = self.boards.iter().map(|b| b.file.clone()).collect();
         // Slice 7: the board watcher's baseline is the files as just read.
         self.board_stats = self
             .boards
@@ -785,9 +802,10 @@ fn surface(s: &State, k: &Kit) -> El {
                 .to_string_lossy()
                 .replace('\\', "/"),
         ),
+        // Parked P5: nothing is picked, so no board is "empty".
         (None, None) => (
-            "Empty board".to_owned(),
-            "Select a board to see what it holds".to_owned(),
+            "No board selected".to_owned(),
+            "Pick a board on the left to see what it holds".to_owned(),
         ),
     };
     let heading = row()

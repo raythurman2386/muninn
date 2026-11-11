@@ -376,6 +376,9 @@ pub struct State {
     /// look, and when that was.
     pub(crate) board_stats: std::collections::BTreeMap<PathBuf, Option<crate::watch::FileState>>,
     pub(crate) last_board_watch: f64,
+    /// Slice 7: the vault's boards for the sidebar's Boards section, listed
+    /// (file names only, nothing parsed) whenever the vault is (re)scanned.
+    pub sidebar_boards: Vec<muninn_core::BoardFile>,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -692,6 +695,7 @@ impl State {
             board_autosave_wait: None,
             board_stats: std::collections::BTreeMap::new(),
             last_board_watch: 0.0,
+            sidebar_boards: Vec::new(),
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
@@ -800,6 +804,9 @@ impl State {
         );
         if let Some(job) = state.scan.as_ref() {
             state.log_event("scan-start", &format!("total={}", job.total()));
+        } else {
+            // A big vault lists its boards when its chunked scan finishes.
+            state.list_sidebar_boards();
         }
         // LIF-01: reopen the note that was open last time, but only when this is
         // the same vault. A `--vault` override gets that vault's first note
@@ -1095,6 +1102,7 @@ impl State {
                 self.restore_after_scan = None;
                 self.scan_field.focused = false;
                 self.vault = vault;
+                self.list_sidebar_boards();
                 self.log_open(started);
                 self.selected = None;
                 self.selected_path = None;
@@ -3072,6 +3080,7 @@ impl State {
     fn refresh_index_only(&mut self) {
         if let Ok(vault) = Vault::load(&self.vault.root) {
             self.vault = vault;
+            self.list_sidebar_boards();
             self.graph.sync(&self.vault);
             self.refresh_watch();
         }
@@ -3090,6 +3099,7 @@ impl State {
         match Vault::load(&root) {
             Ok(v) => {
                 self.vault = v;
+                self.list_sidebar_boards();
                 self.graph.sync(&self.vault);
                 if self.mode == Mode::Board {
                     self.refresh_boards();
@@ -3241,6 +3251,7 @@ impl State {
             return false;
         }
         self.vault = vault;
+        self.list_sidebar_boards();
         self.scan_field.focused = false;
         self.startup_error = None;
         self.error = None;

@@ -320,7 +320,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
                         }
                     });
             }
-            scroller.child(list)
+            scroller.child(list).child(sidebar_boards(s, k, filtering))
         })
         .child(divider_h(k))
         .child(
@@ -3690,6 +3690,74 @@ fn heading_keys(source: &str) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// Slice 7: the sidebar's Boards section, below the notes. A row opens the
+/// board on Board. Hidden while searching notes and in a vault with none.
+fn sidebar_boards(s: &State, k: &Kit, filtering: bool) -> El {
+    if filtering || s.sidebar_boards.is_empty() {
+        return el();
+    }
+    let mut list = col()
+        .key("sidebar-boards")
+        .w_full()
+        .px(8.0)
+        .pb(8.0)
+        .gap(2.0)
+        .role("list")
+        .child(
+            row()
+                .h(28.0)
+                .px(8.0)
+                .gap(8.0)
+                .center_y()
+                .child(
+                    text("BOARDS")
+                        .font(TextStyle::new(10.0, 650.0).tracking(0.9))
+                        .color(k.c.text_muted),
+                )
+                .child(
+                    text(s.sidebar_boards.len().to_string())
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
+        );
+    let open = s.board_open.as_ref().map(|open| open.path.as_path());
+    for (i, board) in s.sidebar_boards.iter().enumerate() {
+        let path = board.path.clone();
+        let current = s.mode == Mode::Board && open == Some(board.path.as_path());
+        let folder = board.folder();
+        let mut body = row().grow(1.0).min_w(0.0).gap(6.0).center_y().child(
+            text(&board.title)
+                .key(format!("sidebar-board-title-{i}"))
+                .font(k.ty.ui_compact)
+                .color(if current {
+                    k.c.text_accent
+                } else {
+                    k.c.text_base
+                })
+                .truncate(),
+        );
+        if !folder.is_empty() {
+            body = body.child(
+                text(folder)
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint)
+                    .truncate(),
+            );
+        }
+        list = list.child(
+            pressable(k, format!("sidebar-board-{i}"))
+                .h(30.0)
+                .px(8.0)
+                .gap(8.0)
+                .center_y()
+                .child(icon(&ic::DOT_GRID, 14.0).color(k.c.icon_muted))
+                .child(body)
+                .on_press(move |s: &mut State| s.open_board_at(path.clone())),
+        );
+    }
+    list
+}
+
 /// DES-02: attachments are real files but not notes, and Rune's Markdown has
 /// no image pipeline. The reader therefore lists each embed with its size and
 /// an Open button, which hands the canonical path to the platform opener
@@ -3702,6 +3770,8 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
     let mut rows = col().w_full().gap(4.0);
     for (index, attachment) in attachments.iter().enumerate() {
         let target = attachment.target.clone();
+        let board = attachment.is_board();
+        let board_path = attachment.path.clone().filter(|_| board);
         let size = attachment
             .size_label()
             .unwrap_or_else(|| "missing file".to_owned());
@@ -3735,7 +3805,10 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
                 .center_y()
                 .fill(k.c.layer_01)
                 .border(1.0, k.c.border_muted)
-                .child(icon(&ic::PHOTO, 15.0).color(k.c.icon_muted))
+                .child(
+                    icon(if board { &ic::DOT_GRID } else { &ic::PHOTO }, 15.0)
+                        .color(k.c.icon_muted),
+                )
                 .child(body)
                 .child(
                     pressable(k, format!("attachment-open-{index}"))
@@ -3743,9 +3816,19 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
                         .py(4.0)
                         .center_y()
                         .border(1.0, k.c.border_muted)
-                        .child(text("Open").font(k.ty.caption()).color(k.c.text_accent))
+                        .child(
+                            text(if board { "Open board" } else { "Open" })
+                                .font(k.ty.caption())
+                                .color(k.c.text_accent),
+                        )
                         .on_press(move |s: &mut State| {
-                            s.open_attachment(&target);
+                            // Slice 7: an embedded board opens on Board.
+                            match &board_path {
+                                Some(path) => s.open_board_at(path.clone()),
+                                None => {
+                                    s.open_attachment(&target);
+                                }
+                            }
                         }),
                 ),
         );
