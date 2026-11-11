@@ -150,6 +150,8 @@
 #                   sidebar, and leaving Board shows it
 #   x11_new_board   on Xvfb: the same vault, Board, click "New board" in the empty
 #                   state (the file appears and opens), then the sidebar toggle button
+#                   and Ctrl+\\; then (GK MF1) Ctrl+K and Ctrl+4: the hidden search field
+#                   lets go, so R and a drag draw a rectangle that Ctrl+S saves
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -1584,6 +1586,20 @@ step_x11_new_board() {
   cmp -s "$s/x11-new-2-created.png" "$s/x11-new-3-sidebar-open.png" && { echo "the sidebar toggle changed nothing"; return 1; }
   python3 "$harness" x11-chord "$wid" ctrl+backslash && shot 4-sidebar-shut || return 1
   python3 "$harness" x11-chord "$wid" ctrl+3 && shot 5-graph || return 1
+  # GK MF1: search focused (sidebar shown in Graph), then Board collapses the
+  # sidebar; the hidden field must let go, so R picks the rectangle tool and a
+  # drag on the canvas draws one (with search still focused, R went into the
+  # search box and the drag only drew a marquee).
+  local cx cy
+  read -r cx cy _ <<<"$(python3 -c 'import json,sys; sys.path.insert(0, sys.argv[2]); import board_pixels as b; r=b.canvas_rect(sys.argv[1]); print(int(r[0]), int(r[1]))' "$out/trees/new-created.json" "$root/scripts/ui-smoke")"
+  python3 "$harness" x11-chord "$wid" ctrl+k && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 && shot 6-board-from-search || return 1
+  python3 "$harness" x11-chord "$wid" r || return 1
+  python3 "$harness" x11-drag "$wid" $(( cx + 300 )) $(( cy + 300 )) 120 80 || return 1
+  python3 "$harness" x11-chord "$wid" v || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+s && shot 7-drawn || return 1
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); n=[e["type"] for e in d["elements"] if not e.get("isDeleted")]; assert n==["rectangle"], ("after Ctrl+K then Ctrl+4, R and a drag should draw one rectangle", n); print("ok R drew a rectangle after leaving search for Board")' \
+    "$empty_vault/Ideas/Untitled board.excalidraw" || return 1
   python3 "$harness" x11-close "$wid" || return 1
   for i in $(seq 100); do kill -0 "$app_pid" 2>/dev/null || break; sleep 0.1; done
   app_pid=
