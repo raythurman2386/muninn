@@ -4446,7 +4446,7 @@ fn finish_name_field(field: &mut TextEdit) -> Option<String> {
 /// A vault-relative note path that cannot escape the vault root. Used only
 /// when recreating a note whose file disappeared while its recovery copy
 /// survived.
-fn safe_rel(rel: &str) -> bool {
+pub(crate) fn safe_rel(rel: &str) -> bool {
     !rel.is_empty()
         && !rel.starts_with('/')
         && !rel.contains('\\')

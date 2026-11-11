@@ -78,7 +78,7 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    or a truncated file.
 6. **Crash recovery (SAF-05).** While a buffer is dirty it is copied, after a 0.2 s idle
    (and at most one second apart during continuous typing), to the XDG state directory:
-   `$XDG_STATE_HOME/muninn/recovery/<sanitized-rel>.txt`, with a tiny
+   `$XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.txt`, with a tiny
    `<sanitized-rel>.json` sidecar holding the exact vault-relative path, a stable hash of
    the canonical vault root and a Unix timestamp. The hash keeps two vaults that share a
    note name from listing each other's edits. The copy uses the same temp-file + fsync +
@@ -181,16 +181,19 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   or last saved (changed or removed on disk). A refused flush keeps the drawing in memory
   and blocks the board switch, the vault switch or the vault rescan (Retry, or the
   chunked startup scan finishing), like a note that cannot be saved.
-  Unsaved drawing is never dropped (`board_safety`): when its file is removed, renamed or
-  changed outside Muninn, re-listing the boards (entering Board, a watcher reload, a rescan)
-  keeps the board open and flags it in the heading with the note conflict bar's choices:
+  Unsaved drawing is never dropped (`board_safety`): a file removed, renamed or changed
+  outside Muninn is noticed when the boards are re-listed (entering Board, a vault reload, a
+  rescan) or when a save re-reads the file, not live (the board watcher is slice 7); then
+  the board is kept open and flags it in the heading with the note conflict bar's choices:
   Keep mine (write to the board's own path, recreating a removed file, still only inside
   the open vault), Save copy (a new sibling `Title (conflict YYYYMMDD-HHMMSS).excalidraw`
   that becomes the open board) and Load theirs / Discard. While a board is dirty its drawing
-  is also copied after each change to the SAF-05 recovery store notes use (keyed by its
-  vault-relative path, outside the vault, same temp+fsync+rename), and the copy is removed
+  is also copied after each change to the SAF-05 recovery store notes use (keyed by the
+  vault's id and its vault-relative path, outside the vault, same temp+fsync+rename), and the copy is removed
   once the board is saved or discarded; the launch banner restores it onto Board, never as
-  a note, flagged the same way when the file is gone or now holds something else. Closing or quitting saves the board, or else updates that copy; if neither is
+  a note, flagged the same way when the file is gone or now holds something else, and only
+  for a plain relative path that stays inside the vault (`board_safety::inside_vault`, also
+  checked by every board write). Closing or quitting saves the board, or else updates that copy; if neither is
   possible the quit is refused and the window comes back with the reason.
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's

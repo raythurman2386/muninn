@@ -324,8 +324,11 @@ fn write_board(open: &mut OpenBoard, root: &Path) -> Result<(), String> {
     let Some(model) = &open.model else {
         return Err("the board could not be read, so it is not written".to_owned());
     };
-    if open.vault_root != root || !open.path.starts_with(root) {
+    if open.vault_root != root {
         return Err("the board belongs to another vault".to_owned());
+    }
+    if !crate::board_safety::inside_vault(root, &open.path) {
+        return Err("the board is not inside the open vault".to_owned());
     }
     let on_disk = std::fs::read_to_string(&open.path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => "the file was removed".to_owned(),

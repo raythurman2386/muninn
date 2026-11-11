@@ -12,9 +12,9 @@
 //!   gone) drops the drawing for what is on disk.
 //! - **Recovery copy.** While a board is dirty its drawing is copied, after
 //!   each change, to the same SAF-05 store notes use
-//!   (`$XDG_STATE_HOME/muninn/recovery/<sanitized-rel>.txt` plus its `.json`
-//!   sidecar, keyed by the board's vault-relative path; temp file, fsync,
-//!   rename). The copy goes once the board is saved or discarded. On launch
+//!   (`$XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.txt` plus
+//!   its `.json` sidecar, keyed by the vault and the board's vault-relative
+//!   path; temp file, fsync, rename). The copy goes once the board is saved or discarded. On launch
 //!   the recovery banner lists it beside notes; Restore opens it on Board,
 //!   unsaved and flagged when the file is gone or holds something else, so a
 //!   plain ⌘S is refused and only Keep mine writes over it.
@@ -22,9 +22,12 @@
 //!   the recovery copy is brought up to date first. Only if that copy cannot
 //!   be written either is the quit refused (the window comes back with the
 //!   reason), so a dirty board is never discarded silently.
+//! - **Contained.** Every write (save, Keep mine, Save copy) and every
+//!   restore goes through [`inside_vault`]: a recovery record naming `..`, an
+//!   absolute path, or a symlink out of the vault is refused (#38 review M2).
 
 use std::io;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 use muninn_core::Board;
 
@@ -35,6 +38,31 @@ use crate::{Mode, State};
 
 /// Why a quit was refused.
 const QUIT_REFUSED: &str = "Board not saved and no recovery copy could be written";
+
+/// #38 review M2: `path` lies inside the vault `root`: below it through
+/// plain components only (no `..`, `.`, root or prefix), and, following the
+/// symlinks of whatever part of it exists, still below the canonical root.
+#[must_use]
+pub(crate) fn inside_vault(root: &Path, path: &Path) -> bool {
+    let Ok(rel) = path.strip_prefix(root) else {
+        return false;
+    };
+    if rel.as_os_str().is_empty() || !rel.components().all(|c| matches!(c, Component::Normal(_))) {
+        return false;
+    }
+    let Ok(base) = std::fs::canonicalize(root) else {
+        return false;
+    };
+    let mut probe = path.to_path_buf();
+    loop {
+        if let Ok(real) = std::fs::canonicalize(&probe) {
+            return real.starts_with(&base);
+        }
+        if !probe.pop() {
+            return false;
+        }
+    }
+}
 
 /// `true` for a vault-relative path that names a board.
 #[must_use]
@@ -97,8 +125,12 @@ impl State {
         let Some(model) = &open.model else {
             return false;
         };
-        if open.vault_root != root || !open.path.starts_with(&root) {
+        if open.vault_root != root {
             open.status = BoardStatus::Failed("the board belongs to another vault".to_owned());
+            return false;
+        }
+        if !inside_vault(&root, &open.path) {
+            open.status = BoardStatus::Failed("the board is not inside the open vault".to_owned());
             return false;
         }
         if let Some(parent) = open.path.parent()
@@ -129,7 +161,7 @@ impl State {
         let Some(open) = &mut self.board_open else {
             return false;
         };
-        if open.model.is_none() || open.vault_root != root || !open.path.starts_with(&root) {
+        if open.model.is_none() || open.vault_root != root || !inside_vault(&root, &open.path) {
             return false;
         }
         let old_rel = open.rel();
@@ -140,7 +172,7 @@ impl State {
         let folder = open
             .path
             .parent()
-            .filter(|p| p.is_dir() && p.starts_with(&root))
+            .filter(|p| p.is_dir() && inside_vault(&root, p))
             .map_or_else(|| root.clone(), PathBuf::from);
         let stamp = conflict_stamp();
         let mut copy = folder.join(format!("{stem} (conflict {stamp}).excalidraw"));
@@ -200,6 +232,14 @@ impl State {
     /// Restore a board from its recovery copy (the startup banner's Restore
     /// for a `.excalidraw` path): open it on Board, unsaved.
     pub(crate) fn restore_board_recovery(&mut self, rel: &str) -> bool {
+        // #38 review M2: the record names the path it will be written to;
+        // the same containment as a note's restore, and symlinks followed.
+        if !crate::state::safe_rel(rel)
+            || !inside_vault(&self.vault.root, &self.vault.root.join(rel))
+        {
+            self.error = Some(format!("Refusing unsafe recovery path {rel}"));
+            return false;
+        }
         let text = match self.recovery.load(rel) {
             Ok(text) => text,
             Err(e) => {

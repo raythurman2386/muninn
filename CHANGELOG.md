@@ -38,14 +38,20 @@ All notable changes to Muninn are documented here. The format is based on
   is kept, and a board that changed on disk, was removed, or belongs to
   another vault is never written without asking.
 - Unsaved board drawing is never lost: if the board's file is removed,
-  renamed or changed by another app, the board stays open, is flagged in the
-  heading, and offers **Keep mine** (write it back to its own path), **Save
+  renamed or changed by another app, the board stays open and, once Muninn
+  notices (when the boards are re-listed — entering Board, a vault reload or
+  rescan — or when a save reads the file first; there is no live board
+  watcher yet), is flagged in the heading and offers **Keep mine** (write it back to its own path), **Save
   copy** (a new `Title (conflict …).excalidraw` beside it) and **Load
   theirs** / **Discard**. A dirty board also keeps a crash-recovery copy, like
   a note, that the launch banner can restore onto Board (flagged, and
   never written over a changed file without Keep mine); quitting with a board
   that cannot be saved keeps that copy, or refuses to quit if even the copy
-  cannot be written.
+  cannot be written. Recovery copies are kept per vault, so two vaults with
+  a same-named board or note never overwrite or clear each other's copy
+  (older copies are picked up by their own vault), and a recovery record is
+  never restored or written outside its vault (no `..`, absolute paths or
+  symlinks out).
 - Typing in the sidebar search on Board or Graph no longer triggers the
   canvas's keys (tool letters, zoom, fit, arrows).
 

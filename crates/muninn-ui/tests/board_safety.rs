@@ -451,3 +451,71 @@ fn clicking_the_canvas_after_searching_gives_the_keys_back_to_the_board() {
         "a click on the canvas ends the search's hold on the keys"
     );
 }
+
+/// #38 review M2: plant a recovery record for `rel` beside a real one, as a
+/// tampered (or corrupt) state folder would hold it.
+fn plant_record(rt: &mut Runtime<State>, rel: &str) {
+    open_draw(rt);
+    draw_rect(rt);
+    frames(rt, 2);
+    let real = rt.state.recovery_path("Draw.excalidraw");
+    let meta = fs::read_to_string(real.with_extension("json")).expect("a real sidecar");
+    let vault = meta
+        .split("\"vault\":\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap()
+        .to_owned();
+    let txt = rt.state.recovery_path(rel);
+    fs::copy(&real, &txt).unwrap();
+    let escaped = rel.replace('\\', "\\\\");
+    fs::write(
+        txt.with_extension("json"),
+        format!("{{\"rel\":\"{escaped}\",\"vault\":\"{vault}\",\"ts\":9}}\n"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_tampered_recovery_record_never_writes_outside_the_vault() {
+    let outside = unique_dir("outside");
+    let absolute = outside.join("abs.excalidraw");
+    let tmp = vault();
+    let dotdot = tmp.path().parent().unwrap().join("escape.excalidraw");
+    let _ = fs::remove_file(&dotdot);
+    for rel in [
+        "../escape.excalidraw".to_owned(),
+        "sub/../../escape.excalidraw".to_owned(),
+        absolute.to_string_lossy().into_owned(),
+    ] {
+        let mut s = launch(tmp.path());
+        plant_record(&mut s.rt, &rel);
+        s.rt.key(command('s'));
+        frames(&mut s.rt, 2);
+        let restored = s.rt.state.restore_recovery(&rel);
+        frames(&mut s.rt, 2);
+        assert!(!restored, "{rel}: the restore is refused");
+        // Even with that board open, Keep mine and Save copy stay inside.
+        s.rt.state.board_keep_mine();
+        s.rt.state.board_save_copy();
+        s.rt.state.flush_before_quit();
+        let parent = tmp.path().parent().unwrap();
+        let strays: Vec<_> = fs::read_dir(parent)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with("escape"))
+            .map(|e| e.path())
+            .collect();
+        assert!(
+            strays.is_empty(),
+            "{rel}: wrote {strays:?} (Keep mine or Save copy)"
+        );
+        assert!(!absolute.exists(), "{rel}: wrote {}", absolute.display());
+        assert!(
+            fs::read_dir(&outside).unwrap().next().is_none(),
+            "{rel}: nothing appears outside"
+        );
+    }
+}
