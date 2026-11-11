@@ -397,3 +397,215 @@ fn focus_moving_elsewhere_commits_so_the_editor_never_strands_board_keys() {
         "Board keys work again"
     );
 }
+
+const LABEL: &str = include_str!("../../muninn-core/tests/fixtures/board/label.excalidraw");
+
+fn open_named(rt: &mut Runtime<State>, title: &str) {
+    rt.key(KeyEvent {
+        key: Key::Command('4'),
+        mods: Mods {
+            cmd: true,
+            ..Mods::default()
+        },
+    });
+    frames(rt, 2);
+    let i = rt
+        .state
+        .boards
+        .iter()
+        .position(|b| b.file.title == title)
+        .expect(title);
+    let (x, y) = rt.find(&format!("board-row-{i}")).expect("row");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    frames(rt, 60);
+}
+
+fn recovery_text(rt: &Runtime<State>) -> Option<String> {
+    fs::read_to_string(rt.state.recovery_path("Draw.excalidraw")).ok()
+}
+
+#[test]
+fn text_being_typed_reaches_the_recovery_copy_and_restores_after_a_crash() {
+    let tmp = vault();
+    let state_home = unique_dir("state");
+    let mut rt = launch_in(tmp.path(), &state_home);
+    open(&mut rt);
+    text(&mut rt, "t");
+    click(&mut rt, EMPTY);
+    type_str(&mut rt, "typed for a minute");
+    frames(&mut rt, 180);
+    assert!(editing(&rt), "still typing, nothing committed");
+    let copy = recovery_text(&rt).expect("an open editor with new text has a recovery copy");
+    assert!(copy.contains("typed for a minute"), "{copy}");
+    // kill -9: the app is gone without a commit or a save.
+    drop(rt);
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Draw.excalidraw")).unwrap(),
+        DRAW
+    );
+    let mut rt = launch_in(tmp.path(), &state_home);
+    assert!(rt.state.restore_recovery("Draw.excalidraw"));
+    frames(&mut rt, 2);
+    assert!(
+        model(&rt).live_elements().any(|e| e
+            .shape()
+            .and_then(|s| s.text.as_ref())
+            .is_some_and(|t| t.text == "typed for a minute")),
+        "restore brings the typed text back"
+    );
+}
+
+#[test]
+fn editing_existing_text_mid_way_also_reaches_the_recovery_copy() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    double_click(&mut rt, TEXT);
+    assert!(editing(&rt));
+    type_str(&mut rt, " too");
+    frames(&mut rt, 180);
+    let copy: Value = serde_json::from_str(&recovery_text(&rt).expect("a copy")).unwrap();
+    assert_eq!(element(&copy, "keep-text")["text"], "keep me too");
+}
+
+#[test]
+fn saving_or_quitting_mid_edit_commits_the_typed_text_into_the_file() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    text(&mut rt, "t");
+    click(&mut rt, EMPTY);
+    type_str(&mut rt, "saved mid-edit");
+    // No frame in between: only save_board's own commit can put it there.
+    assert!(rt.state.save_board());
+    assert!(!editing(&rt));
+    assert!(
+        saved(&tmp)["elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["text"] == "saved mid-edit"),
+        "Cmd+S mid-edit saves the typed text"
+    );
+    double_click(&mut rt, TEXT);
+    type_str(&mut rt, "!");
+    assert!(rt.state.flush_before_quit());
+    assert_eq!(element(&saved(&tmp), "keep-text")["text"], "keep me!");
+}
+
+#[test]
+fn quitting_mid_edit_on_a_board_that_cannot_be_saved_keeps_the_text_in_the_copy() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    let theirs = DRAW.replace("https://example.com/keep", "https://example.com/theirs");
+    fs::write(tmp.path().join("Draw.excalidraw"), &theirs).unwrap();
+    text(&mut rt, "t");
+    click(&mut rt, EMPTY);
+    type_str(&mut rt, "not lost");
+    assert!(rt.state.flush_before_quit(), "the copy makes the quit safe");
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Draw.excalidraw")).unwrap(),
+        theirs
+    );
+    assert!(recovery_text(&rt).expect("a copy").contains("not lost"));
+}
+
+#[test]
+fn whitespace_only_text_is_deleted_not_saved() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    double_click(&mut rt, TEXT);
+    for _ in 0.."keep me".len() {
+        plain(&mut rt, Key::Backspace);
+    }
+    type_str(&mut rt, "  \n ");
+    plain(&mut rt, Key::Escape);
+    assert!(
+        shape(&rt, "keep-text").is_deleted,
+        "blank text is a tombstone"
+    );
+    let n = model(&rt).elements.len();
+    text(&mut rt, "t");
+    click(&mut rt, EMPTY);
+    type_str(&mut rt, "   ");
+    plain(&mut rt, Key::Escape);
+    assert_eq!(model(&rt).elements.len(), n, "blank new text adds nothing");
+    assert!(rt.state.save_board());
+    let file = saved(&tmp);
+    assert_eq!(element(&file, "keep-text")["isDeleted"], true);
+    assert!(
+        !file["elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["type"] == "text"
+                && e["isDeleted"] != true
+                && e["id"] != "keep-text"
+                && e["text"].as_str().is_some_and(|t| t.trim().is_empty())),
+        "no blank text element is written"
+    );
+}
+
+#[test]
+fn double_clicking_a_shape_or_its_label_edits_the_bound_label_in_place() {
+    let tmp = TempVault::new(&[("Label.excalidraw", LABEL)]);
+    let mut rt = launch(tmp.path());
+    open_named(&mut rt, "Label");
+    // On the box's edge (its fill is transparent), then on the label itself.
+    for p in [[2.0, 50.0], [100.0, 50.0]] {
+        double_click(&mut rt, p);
+        assert!(editing(&rt), "double-click at {p:?} edits the label");
+        assert_eq!(
+            rt.state.board_text.as_ref().unwrap().id.as_deref(),
+            Some("label")
+        );
+        assert_eq!(field(&rt), "Label");
+        plain(&mut rt, Key::Escape);
+    }
+    double_click(&mut rt, [100.0, 50.0]);
+    type_str(&mut rt, " and more");
+    plain(&mut rt, Key::Escape);
+    let label = shape(&rt, "label");
+    assert_eq!(label.text.as_ref().unwrap().text, "Label and more");
+    assert_eq!(label.extra["containerId"], "box", "still bound");
+    let b = shape(&rt, "box");
+    assert_eq!(b.extra["boundElements"][0]["id"], "label");
+    let (cx, cy) = (label.x + label.width / 2.0, label.y + label.height / 2.0);
+    assert!(
+        (cx - 100.0).abs() < 0.6 && (cy - 50.0).abs() < 0.6,
+        "re-centred in its box: centre ({cx}, {cy})"
+    );
+}
+
+#[test]
+fn a_locked_box_and_its_label_are_neither_picked_nor_edited() {
+    let mut file: Value = serde_json::from_str(LABEL).unwrap();
+    file["elements"][0]["locked"] = true.into();
+    let tmp = TempVault::new(&[("Label.excalidraw", &serde_json::to_string(&file).unwrap())]);
+    let mut rt = launch(tmp.path());
+    open_named(&mut rt, "Label");
+    let before = (shape(&rt, "box").x, shape(&rt, "label").x);
+    click(&mut rt, [100.0, 50.0]);
+    assert!(
+        selection(&rt).is_empty(),
+        "a locked box is not picked by its label"
+    );
+    double_click(&mut rt, [100.0, 50.0]);
+    assert!(!editing(&rt), "a locked box's label is not edited");
+    let (x, y) = at(&rt, [100.0, 50.0]);
+    rt.pointer_down(x, y);
+    rt.frame(1.0 / 60.0);
+    rt.pointer_move(x + 40.0, y);
+    rt.frame(1.0 / 60.0);
+    rt.pointer_up(x + 40.0, y);
+    frames(&mut rt, 2);
+    assert_eq!(
+        (shape(&rt, "box").x, shape(&rt, "label").x),
+        before,
+        "nothing moves"
+    );
+    assert_eq!(status(&rt), BoardStatus::Clean);
+}
