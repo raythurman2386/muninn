@@ -9,10 +9,14 @@
   harness.py x11-type WINDOW TEXT              type plain text via XTEST
   harness.py x11-click WINDOW X Y              left click at window point X,Y via XTEST
   harness.py tree-center TREE.json KEY         print "X Y", the centre of KEY's rect
+  harness.py x11-drag WINDOW X Y DX DY         button-1 drag from window point X,Y by DX,DY
+  harness.py x11-wheel WINDOW X Y BUTTON N     N wheel notches (button 4 up, 5 down) at X,Y
+
+The board canvas pixel checks are in board_pixels.py (needs Pillow).
 
 Mode keys are Muninn's settings keys: editor (Write), preview (Read), graph (Graph),
 board (Board).
-Later slices add board steps here (pointer drags for shapes, select, move, text).
+Later slices add board editing steps (shapes, select, move, text).
 """
 
 import json
@@ -205,6 +209,53 @@ def x11_click(wid, x, y):
     print(f"ok clicked {x},{y} in {wid}")
 
 
+def to_root(d, w, x, y):
+    origin = w.translate_coords(d.screen().root, 0, 0)
+    return -origin.x + int(x), -origin.y + int(y)
+
+
+def x11_drag(wid, x, y, dx, dy):
+    """Button-1 drag from window point x,y by dx,dy, in small steps."""
+    from Xlib import X
+    from Xlib.ext import xtest
+
+    d = display()
+    w = focus(d, wid)
+    rx, ry = to_root(d, w, x, y)
+    xtest.fake_input(d, X.MotionNotify, x=rx, y=ry)
+    d.sync()
+    time.sleep(0.15)
+    xtest.fake_input(d, X.ButtonPress, 1)
+    d.sync()
+    steps = 12
+    for i in range(1, steps + 1):
+        time.sleep(0.025)
+        xtest.fake_input(d, X.MotionNotify, x=rx + round(int(dx) * i / steps), y=ry + round(int(dy) * i / steps))
+        d.sync()
+    time.sleep(0.1)
+    xtest.fake_input(d, X.ButtonRelease, 1)
+    d.sync()
+    print(f"ok dragged {x},{y} by {dx},{dy} in {wid}")
+
+
+def x11_wheel(wid, x, y, button, notches):
+    """Wheel notches as X buttons (4 up, 5 down, 6 left, 7 right) at window point x,y."""
+    from Xlib import X
+    from Xlib.ext import xtest
+
+    d = display()
+    w = focus(d, wid)
+    xtest.fake_input(d, X.MotionNotify, x=to_root(d, w, x, y)[0], y=to_root(d, w, x, y)[1])
+    d.sync()
+    time.sleep(0.15)
+    for _ in range(int(notches)):
+        xtest.fake_input(d, X.ButtonPress, int(button))
+        xtest.fake_input(d, X.ButtonRelease, int(button))
+        d.sync()
+        time.sleep(0.12)
+    print(f"ok wheel button {button} x{notches} at {x},{y} in {wid}")
+
+
 def x11_close(wid):
     from Xlib import X
     from Xlib.protocol import event
@@ -229,6 +280,8 @@ def main(argv):
         "x11-type": x11_type,
         "x11-click": x11_click,
         "tree-center": tree_center,
+        "x11-drag": x11_drag,
+        "x11-wheel": x11_wheel,
     }
     if len(argv) < 2 or argv[1] not in commands:
         print(__doc__, file=sys.stderr)

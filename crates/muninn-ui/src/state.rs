@@ -335,6 +335,12 @@ pub struct State {
     /// ([`State::refresh_boards`]), and the one picked in the list.
     pub boards: Vec<crate::BoardSummary>,
     pub board_selected: Option<PathBuf>,
+    /// Board slice 3: the board on the canvas and its camera.
+    pub board_open: Option<crate::board_view::OpenBoard>,
+    /// Views of boards opened earlier this session, by path.
+    pub board_views: HashMap<PathBuf, crate::BoardView>,
+    /// The last session's board, applied on the first board refresh.
+    pub board_restore: Option<crate::BoardSession>,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -632,6 +638,13 @@ impl State {
             last_note_mode: Mode::Editor,
             boards: Vec::new(),
             board_selected: None,
+            board_open: None,
+            board_views: HashMap::new(),
+            board_restore: if restore_vault {
+                settings.board.clone()
+            } else {
+                None
+            },
             scope: Scope::Global,
             graph,
             cam: Camera::new(),
@@ -800,6 +813,7 @@ impl State {
             .or_else(|| self.restore_after_scan.clone());
         settings.mode = self.mode;
         settings.scope = self.scope;
+        settings.board = self.board_session();
         match settings.save_to(config_home) {
             Ok(()) => true,
             Err(e) => {
@@ -1042,8 +1056,9 @@ impl State {
                 self.settings.push_recent(&root);
                 self.settings.last_vault = Some(root);
                 self.settings.selected_rel = None;
-                // Boards belong to the vault: drop the old one's list and pick.
-                self.board_selected = None;
+                // Boards belong to the vault: drop the old one's list, pick,
+                // open board, remembered views and pending restore.
+                self.clear_boards();
                 self.refresh_boards();
                 let first = self.vault.notes.first().map(|note| note.id);
                 if let Some(id) = first {

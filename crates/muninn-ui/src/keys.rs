@@ -42,6 +42,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, _tx: &mut Tx) -> bool {
     if s.palette.is_none() && s.mode == Mode::Graph && s.graph_key(e) {
         return true;
     }
+    // Board slice 3: zoom, fit and arrow-pan keys on the open board.
+    if s.palette.is_none() && s.mode == Mode::Board && s.board_key(e) {
+        return true;
+    }
     // v0.5: Cmd/Ctrl+Shift+P opens the command palette from anywhere,
     // including the editor. Cmd/Ctrl+P stays the insert-link picker below.
     if e.is_command('p') && e.mods.shift {

@@ -166,6 +166,10 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   search. Loading keeps every field and element type Muninn does not model, so a save never
   drops what Excalidraw wrote, and saves use the same atomic temp+rename path as notes.
   Obsidian's `.excalidraw.md` files end in `.md` and stay notes.
+  The Board canvas (`muninn-ui` `board_scene`, `board_camera`) draws a board read-only from
+  the loaded file; its camera (an eye point and zoom in scene units, so a reload that
+  changes the drawing's extent keeps the view) lives in the session and in
+  `settings.json`, never in the board file.
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
   atomic rename. A crash or failed write leaves the previous bytes intact instead of a

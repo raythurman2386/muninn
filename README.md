@@ -230,6 +230,12 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `I` (graph) | Toggle Isolate (dim non-neighbours) |
 | `Enter` (Find node) | Select and centre the best title/path match |
 | `Esc` | Leave the graph |
+| Drag / Shift+wheel (board) | Pan the board |
+| Wheel / pinch (board) | Zoom at the pointer |
+| `+` / `-` (board) | Zoom in / out at the canvas centre |
+| `←` / `↑` / `→` / `↓` (board) | Pan the board |
+| `0` / `F` / double-click (board) | Fit the drawing |
+| `Esc` (board) | Leave Board for the last note mode |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |

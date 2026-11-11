@@ -1,0 +1,24 @@
+{
+  "events": [
+    {"t": 0.3, "type": "key", "name": "4", "cmd": true},
+    {"t": 0.8, "type": "tap", "key": "board-row-1"},
+    {"t": 2.0, "type": "mark", "name": "fit"},
+    {"t": 2.5, "type": "drag", "key": "board-canvas", "dx": 120, "dy": 60, "dur": 0.3},
+    {"t": 3.4, "type": "mark", "name": "panned"},
+    {"t": 3.8, "type": "wheel", "key": "board-canvas", "dy": -40},
+    {"t": 3.85, "type": "wheel", "key": "board-canvas", "dy": -40},
+    {"t": 3.9, "type": "wheel", "key": "board-canvas", "dy": -40},
+    {"t": 4.4, "type": "mark", "name": "wheeled"},
+    {"t": 4.9, "type": "type", "text": "+"},
+    {"t": 5.4, "type": "mark", "name": "plus"},
+    {"t": 5.9, "type": "key", "name": "Left"},
+    {"t": 6.4, "type": "mark", "name": "arrow"},
+    {"t": 6.9, "type": "key", "name": "1", "cmd": true},
+    {"t": 7.5, "type": "mark", "name": "write"},
+    {"t": 8.0, "type": "key", "name": "4", "cmd": true},
+    {"t": 8.8, "type": "mark", "name": "back"},
+    {"t": 9.3, "type": "type", "text": "0"},
+    {"t": 9.8, "type": "mark", "name": "refit"},
+    {"t": 10.3, "type": "mark", "name": "end"}
+  ]
+}

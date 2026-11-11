@@ -25,12 +25,13 @@
 #     the pacman sync database's SHA-256, and unpacked there (no root, nothing
 #     installed system-wide).
 #
-# Requirements: cargo, Xvfb (xorg-server-xvfb), python3 with python-xlib, ImageMagick
+# Requirements: cargo, Xvfb (xorg-server-xvfb), python3 with python-xlib and Pillow, ImageMagick
 # (`import`), sha256sum. Missing ones fail the step that needs them with the package name.
 #
 # Steps (UI_SMOKE_STEPS, space-separated, default all, in this order):
 #   build           cargo build the app and the board_roundtrip example
-#   seed            vault: two linked .md notes and Plan.excalidraw (the core test fixture)
+#   seed            vault: two linked .md notes, Plan.excalidraw (the core test fixture)
+#                   and Smoke.excalidraw (one element of each kind, for the pixel checks)
 #   cli_check       `muninn --check`: 2 notes, 0 broken links (the board is not a note)
 #   headless_modes  one input script (scripts/ui-smoke/modes.json) through Graph, Read,
 #                   Write, Board by ⌘4, Esc out, Board by its mode button, a board row
@@ -43,7 +44,17 @@
 #                   button, the palette, each with a shot and settings.json "mode"
 #                   asserted; clean close (exit 0) in Board, then a relaunch that must
 #                   come back in Board and close cleanly again
-#   board_untouched the app left the seeded board byte-identical (it only reads boards);
+#   headless_board  Board slice 3, offscreen: scripts/ui-smoke/board.json opens the smoke
+#                   board (crates/muninn-core/tests/fixtures/board/smoke.excalidraw);
+#                   board_pixels.py checks each shape's colour box against where the fit
+#                   puts it, then that a drag moves it by the drag, three wheel notches
+#                   and "+" scale it about the canvas centre, Left moves it 60 pt, a trip
+#                   to Write and back leaves it in place, "0" refits it, and a relaunch on
+#                   the saved settings draws it exactly where it was left
+#   x11_board       the same checks in the windowed app on Xvfb with XTEST input (row
+#                   click, button-1 drag, wheel buttons, "=", Left, Ctrl+1/4, a clean
+#                   close and relaunch, "0")
+#   board_untouched the app left the seeded boards byte-identical (it only reads boards);
 #                   then the board_roundtrip example (load → compare → atomic save →
 #                   reload, on a hidden scratch copy) passes on that file
 # Later slices add board steps (enter Board mode, draw, select, move, undo, text, save,
@@ -57,7 +68,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart x11_modes board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board x11_modes x11_board board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -67,6 +78,9 @@ bin="$root/target/debug/muninn"
 roundtrip="$root/target/debug/examples/board_roundtrip"
 board="$vault/Plan.excalidraw"
 fixture="$root/crates/muninn-core/tests/fixtures/board/scene.excalidraw"
+smoke_board="$vault/Smoke.excalidraw"
+smoke_fixture="$root/crates/muninn-core/tests/fixtures/board/smoke.excalidraw"
+pixels="$root/scripts/ui-smoke/board_pixels.py"
 
 # Build with the real cargo home before HOME is isolated (as settings-tab-snapshots.sh).
 real_home="$HOME"
@@ -103,7 +117,8 @@ step_seed() {
   printf '# Welcome\n\nThis vault is a UI smoke fixture. See [[Second]] and the Plan board.\n' >"$vault/Welcome.md"
   printf '# Second\n\nBack to [[Welcome]].\n\n- one\n- two\n' >"$vault/Second.md"
   cp "$fixture" "$board"
-  sha256sum "$board" | tee "$work/board.sha256"
+  cp "$smoke_fixture" "$smoke_board"
+  sha256sum "$board" "$smoke_board" | tee "$work/board.sha256"
   find "$vault" -type f | sort
 }
 
@@ -145,6 +160,48 @@ step_headless_restart() {
   "$bin" --vault "$vault" --at 1.0 --scale 1 \
     --snap "$out/screens/restart-2-relaunch.png" --tree "$out/trees/restart-relaunch.json" || return 1
   python3 "$harness" tree-mode "$out/trees/restart-relaunch.json" board
+}
+
+# Board slice 3: the smoke board drawn, panned, zoomed, kept across a mode switch
+# and a restart, and refitted. Each mark is its own run with fresh settings, as the
+# script starts from a first launch; board_pixels.py checks every screenshot.
+BOARD_MARKS="fit panned wheeled plus arrow write back refit"
+
+board_snap() { # board_snap MARK: replay board.json to MARK with its own settings
+  export XDG_CONFIG_HOME="$work/config-board-$1"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$vault" --script "$root/scripts/ui-smoke/board.json" \
+    --at "mark:$1+0.2" --scale 1 \
+    --snap "$out/screens/board-$1.png" --tree "$out/trees/board-$1.json"
+}
+
+step_headless_board() {
+  isolate
+  python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
+  local mark
+  for mark in $BOARD_MARKS; do board_snap "$mark" || return 1; done
+  local s="$out/screens" t="$out/trees" m="$work/measure"
+  mkdir -p "$m"
+  python3 "$harness" tree-mode "$t/board-fit.json" board || return 1
+  python3 "$pixels" fit "$s/board-fit.png" "$t/board-fit.json" "$smoke_fixture" "$m/fit.json" || return 1
+  python3 "$pixels" moved "$s/board-panned.png" "$t/board-panned.json" "$m/fit.json" 120 60 "$m/panned.json" || return 1
+  # Three wheel notches at the canvas centre, 1.08 each (board_camera.rs WHEEL_IN).
+  python3 "$pixels" zoomed "$s/board-wheeled.png" "$t/board-wheeled.json" "$m/panned.json" centre centre 1.259712 "$m/wheeled.json" || return 1
+  python3 "$pixels" zoomed "$s/board-plus.png" "$t/board-plus.json" "$m/wheeled.json" centre centre 1.25 "$m/plus.json" || return 1
+  python3 "$pixels" moved "$s/board-arrow.png" "$t/board-arrow.json" "$m/plus.json" 60 0 "$m/arrow.json" || return 1
+  python3 "$harness" tree-mode "$t/board-write.json" editor || return 1
+  python3 "$pixels" same "$s/board-back.png" "$t/board-back.json" "$m/arrow.json" "$m/back.json" || return 1
+  python3 "$pixels" same "$s/board-refit.png" "$t/board-refit.json" "$m/fit.json" "$m/refit.json" || return 1
+  # Restart: the run that stopped at "back" saved Board, Smoke and its view; a plain
+  # relaunch on those settings must draw the board exactly there.
+  export XDG_CONFIG_HOME="$work/config-board-back"
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
+  python3 -c 'import json,sys; b=json.load(open(sys.argv[1]))["board"]; print("saved board", b); assert b["rel"]=="Smoke.excalidraw" and "eye" in b' \
+    "$XDG_CONFIG_HOME/muninn/settings.json" || return 1
+  "$bin" --vault "$vault" --at 1.5 --scale 1 \
+    --snap "$s/board-restart.png" --tree "$t/board-restart.json" || return 1
+  python3 "$harness" tree-mode "$t/board-restart.json" board || return 1
+  python3 "$pixels" same "$s/board-restart.png" "$t/board-restart.json" "$m/back.json" "$m/restart.json"
 }
 
 find_lavapipe() {
@@ -262,6 +319,81 @@ step_x11_modes() {
   expect board || return 1
   close_app || return 1
   cp "$settings" "$out/logs/x11-settings.json" 2>/dev/null
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+# The same board checks in the windowed app on Xvfb, with real XTEST input: a click
+# on the board row, a button-1 drag, wheel notches (button 5, which zooms in as in
+# Graph), "=", Left, Ctrl+1/4,
+# a clean close and a relaunch that must land on the same view, then "0".
+step_x11_board() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/board-fit.json"
+  [ -f "$tree" ] || { echo "run headless_board first (needs $tree)"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n
+  for n in $(seq 90 130); do [ -e "/tmp/.X$n-lock" ] || [ -e "/tmp/.X11-unix/X$n" ] || break; done
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-board.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  export XDG_CONFIG_HOME="$work/config-x11-board"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  local wid s="$out/screens" m="$work/measure-x11"
+  mkdir -p "$m"
+  launch() {
+    "$bin" --vault "$vault" >>"$out/logs/x11-board-app.log" 2>&1 &
+    app_pid=$!
+    wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+    sleep 2
+  }
+  shot() { sleep 1.5; import -window "$wid" "$s/x11-board-$1.png"; }
+  close_app() {
+    python3 "$harness" x11-close "$wid" || return 1
+    local i status=124
+    for i in $(seq 100); do
+      if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+      sleep 0.1
+    done
+    app_pid=
+    echo "app exit status: $status"
+    [ "$status" = 0 ]
+  }
+  local row cx cy
+  row="$(python3 "$harness" tree-center "$tree" board-row-1)" || return 1
+  read -r cx cy < <(python3 "$harness" tree-center "$tree" board-canvas) || return 1
+  launch || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 || return 1
+  python3 "$harness" x11-click "$wid" $row && shot 1-fit || return 1
+  python3 "$pixels" fit "$s/x11-board-1-fit.png" "$tree" "$smoke_fixture" "$m/fit.json" || return 1
+  python3 "$harness" x11-drag "$wid" "$cx" "$cy" 120 60 && shot 2-panned || return 1
+  python3 "$pixels" moved "$s/x11-board-2-panned.png" "$tree" "$m/fit.json" 120 60 "$m/panned.json" || return 1
+  python3 "$harness" x11-wheel "$wid" "$cx" "$cy" 5 1 && shot 3-wheeled || return 1
+  python3 "$pixels" zoomed "$s/x11-board-3-wheeled.png" "$tree" "$m/panned.json" "$cx" "$cy" steps:1.08:1:2 "$m/wheeled.json" || return 1
+  python3 "$harness" x11-chord "$wid" equal && shot 4-plus || return 1
+  python3 "$pixels" zoomed "$s/x11-board-4-plus.png" "$tree" "$m/wheeled.json" centre centre 1.25 "$m/plus.json" || return 1
+  python3 "$harness" x11-chord "$wid" Left && shot 5-arrow || return 1
+  python3 "$pixels" moved "$s/x11-board-5-arrow.png" "$tree" "$m/plus.json" 60 0 "$m/arrow.json" || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+1 && shot 6-write || return 1
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" editor || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+4 && shot 7-back || return 1
+  python3 "$pixels" same "$s/x11-board-7-back.png" "$tree" "$m/arrow.json" "$m/back.json" || return 1
+  close_app || return 1
+  launch || return 1
+  shot 8-relaunch || return 1
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" board || return 1
+  python3 "$pixels" same "$s/x11-board-8-relaunch.png" "$tree" "$m/back.json" "$m/relaunch.json" || return 1
+  python3 "$harness" x11-chord "$wid" 0 && shot 9-refit || return 1
+  python3 "$pixels" same "$s/x11-board-9-refit.png" "$tree" "$m/fit.json" "$m/refit.json" || return 1
+  close_app || return 1
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 

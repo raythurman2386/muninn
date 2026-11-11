@@ -4,6 +4,8 @@
 //! tested headlessly lives here.
 
 mod autostart;
+mod board_camera;
+mod board_scene;
 mod board_view;
 mod camera;
 mod global_shortcut;
@@ -26,7 +28,9 @@ pub use autostart::{
     autostart_supported, desktop_entry, desktop_entry_path, remove_desktop_entry,
     windows_disable_args, windows_enable_args, write_desktop_entry,
 };
-pub use board_view::{BoardCounts, BoardSummary};
+pub use board_camera::{BoardCam, BoardView};
+pub use board_scene::{BoardScene, SceneText};
+pub use board_view::{BoardCounts, BoardSession, BoardSummary, OpenBoard};
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use keys::{on_key, shortcut};
 pub use mode::{Mode, Scope};

@@ -10,7 +10,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 - Board mode (in progress): a fourth mode button, `⌘4` / `Ctrl+4`, and **Toggle
   Board** in the command palette open a Board page that lists the vault's
-  `.excalidraw` boards with their element counts. Drawing is not there yet.
+  `.excalidraw` boards with their element counts.
+- Board canvas (in progress, read-only): picking a board draws its rectangles,
+  ellipses, diamonds, lines, arrows, freehand strokes and text on the board's
+  own paper colour, fitted to the canvas. Drag or Shift+wheel pans, the wheel
+  zooms at the pointer (as in Graph), `+`/`-` zoom, arrows pan, `0`/`F` or a
+  double-click refits, and corner buttons zoom and fit. Each board keeps its
+  view while Muninn runs, and the last board and its view come back on launch.
+  The board file is never written.
   Esc leaves Board for the last note mode, and the last mode (now including
   Board) is restored on launch; older `settings.json` files load unchanged.
 
