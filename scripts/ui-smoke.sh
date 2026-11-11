@@ -160,6 +160,16 @@
 #                   click on the title and Rename in the board row's right-click menu
 #                   rename it again; F2 to the multibyte "é ünïcode" (12 bytes; GK B-1
 #                   crashed here) and back; no recovery copy is left under any old name
+#   x11_single_instance  #42 (two "M" tray icons): on Xvfb and a private D-Bus session
+#                   (dbus-run-session) whose only tray host is scripts/ui-smoke/sni_watcher.py,
+#                   with Show tray icon and Close to tray on. Asserts exactly one registered
+#                   StatusNotifierItem after launch; after closing to the tray and a second
+#                   launch (which exits 0 and brings the hidden window back, one process);
+#                   across Settings › Appearance › Show tray icon off/on/on (0/1/1); across a
+#                   tray-host restart; across a launch naming another vault (the running app
+#                   switches); and across kill -9 and a relaunch (no stale lock or icon).
+#                   Needs dbus-run-session, gdbus and python-gobject besides the x11 tools.
+#                   Rerun alone: UI_SMOKE_STEPS="build x11_single_instance" scripts/ui-smoke.sh
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -178,7 +188,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -211,8 +221,15 @@ isolate() {
   export HOME="$work/home"
   export XDG_CONFIG_HOME="$work/config" XDG_STATE_HOME="$work/state"
   export XDG_CACHE_HOME="$work/cache" XDG_DATA_HOME="$work/data"
+  # Each step (its own subshell) gets its own runtime dir, and no session bus:
+  # Muninn's single-instance lock and socket (#42) live there, so a step can
+  # never hand its launch to a Muninn running on the desktop, and the tray
+  # (zbus falls back to $XDG_RUNTIME_DIR/bus) can never reach the desktop's bar.
+  export XDG_RUNTIME_DIR="$work/runtime/$BASHPID"
   unset MUNINN_VAULT MUNINN_REDUCED_MOTION WAYLAND_DISPLAY WAYLAND_SOCKET DISPLAY || true
+  unset DBUS_SESSION_BUS_ADDRESS XDG_ACTIVATION_TOKEN DESKTOP_STARTUP_ID || true
   mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME"
+  mkdir -p -m 700 "$work/runtime" && mkdir -p -m 700 "$XDG_RUNTIME_DIR"
 }
 
 pick_display() { # the X display for an x11 step: UI_SMOKE_DISPLAY (a number), else the first free from 90
@@ -1730,6 +1747,46 @@ step_x11_board_rename() {
   grep 'renamed' "$log"
   ls -R "$empty_vault"
   echo "ok board rename under X11: F2, title double click and row menu; the file moved each time and the board stayed open"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+step_x11_single_instance() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  need dbus-run-session dbus || return 1
+  need gdbus glib2 || return 1
+  python3 -c 'import Xlib; from gi.repository import Gio' 2>/dev/null || { echo "missing python-xlib or python-gobject"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  trap '[ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local single="$work/single"
+  rm -rf "$single"; mkdir -p "$single/a" "$single/b"
+  printf '# Alpha\n\nVault A of the single-instance step.\n' >"$single/a/Alpha.md"
+  printf '# Beta\n\nVault B of the single-instance step.\n' >"$single/b/Beta.md"
+  export XDG_CONFIG_HOME="$work/config-single" XDG_STATE_HOME="$work/state-single"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME/muninn" "$XDG_STATE_HOME"
+  # Where Settings' tabs and the Show tray icon switch are: headless dumps
+  # (no window, no bus, no lock) at the window's size.
+  local mark
+  for mark in vaults appearance; do
+    "$bin" --vault "$single/a" --scene "settings-$mark" --scale 1 \
+      --snap "$out/screens/single-settings-$mark.png" --tree "$out/trees/single-settings-$mark.json" || return 1
+  done
+  printf '{"tray_icon": true, "close_to_tray": true}\n' >"$XDG_CONFIG_HOME/muninn/settings.json"
+  local n
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-single.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd, runtime dir $XDG_RUNTIME_DIR"
+  bin="$bin" harness="$harness" out="$out" vault_a="$single/a" vault_b="$single/b" \
+    vaults_tree="$out/trees/single-settings-vaults.json" \
+    appearance_tree="$out/trees/single-settings-appearance.json" \
+    dbus-run-session -- bash "$root/scripts/ui-smoke/single_instance.sh" || return 1
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
