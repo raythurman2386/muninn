@@ -354,7 +354,8 @@ impl State {
         if saved {
             open.conflict = None;
             let path = open.path.clone();
-            self.refresh_board_summary(&path);
+            self.board_written(&path);
+            self.summarise_open_board();
         } else {
             // A removed or changed file: offer Keep mine / Save copy.
             open.check_disk();

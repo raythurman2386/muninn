@@ -8,6 +8,7 @@ mod board_camera;
 mod board_edit;
 mod board_safety;
 mod board_scene;
+mod board_sync;
 mod board_text;
 mod board_tools;
 mod board_view;

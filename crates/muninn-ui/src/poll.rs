@@ -109,6 +109,15 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         s.dirty_at = None;
     }
 
+    // Slice 7: boards another app changed, then autosave of the open board
+    // (after the watcher, so a change on disk is flagged before a save).
+    if s.board_watch_tick(t) {
+        changed = true;
+    }
+    if s.board_autosave_tick(t) {
+        changed = true;
+    }
+
     // Slice 7: a view change asked for a settings write; do it once the
     // view rests (one write per held key or stroke, not per event).
     s.settings_tick(t);

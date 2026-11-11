@@ -369,6 +369,13 @@ pub struct State {
     /// `settings.json` once things rest, not once per event. When it was
     /// last asked for.
     pub(crate) settings_due: Option<f64>,
+    /// Slice 7 autosave: `(generation, first change, last change)` of the
+    /// open board's drawing not saved yet.
+    pub(crate) board_autosave_wait: Option<(u64, f64, f64)>,
+    /// Slice 7 board watcher: each listed board's file metadata at the last
+    /// look, and when that was.
+    pub(crate) board_stats: std::collections::BTreeMap<PathBuf, Option<crate::watch::FileState>>,
+    pub(crate) last_board_watch: f64,
     pub scope: Scope,
     pub graph: Graph,
     pub cam: Camera,
@@ -462,7 +469,7 @@ pub struct State {
     recovery_rel: Option<String>,
     recovery_text: Option<String>,
     /// SAF-03 baseline: metadata picture of the vault at the last check.
-    watched: Option<VaultSnapshot>,
+    pub(crate) watched: Option<VaultSnapshot>,
     last_watch: f64,
     /// XDG state root, kept so a vault switch can re-key crash recovery.
     pub(crate) state_home: PathBuf,
@@ -682,6 +689,9 @@ impl State {
             board_recovered_text: None,
             board_recovery_wait: None,
             settings_due: None,
+            board_autosave_wait: None,
+            board_stats: std::collections::BTreeMap::new(),
+            last_board_watch: 0.0,
             scope: Scope::Global,
             graph,
             cam: Camera::new(),

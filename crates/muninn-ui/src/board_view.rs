@@ -188,6 +188,12 @@ impl OpenBoard {
         }
     }
 
+    /// The board watcher saw the file change (slice 7): re-read it as
+    /// [`OpenBoard::reload`] does, unless it has unsaved drawing.
+    pub(crate) fn reload_from_watcher(&mut self) {
+        self.reload();
+    }
+
     /// Centre the content in the canvas (deferred until the canvas has a size).
     pub fn fit(&mut self) {
         if self.canvas[0] < 1.0 || self.canvas[1] < 1.0 {
@@ -321,17 +327,23 @@ pub struct BoardCounts {
     pub raw: usize,
 }
 
+impl BoardCounts {
+    fn of(board: &Board) -> BoardCounts {
+        BoardCounts {
+            live: board.live_elements().count(),
+            raw: board
+                .elements
+                .iter()
+                .filter(|e| e.shape().is_none())
+                .count(),
+        }
+    }
+}
+
 impl BoardSummary {
     fn read(file: BoardFile) -> BoardSummary {
         let counts = Board::load(&file.path)
-            .map(|board| BoardCounts {
-                live: board.live_elements().count(),
-                raw: board
-                    .elements
-                    .iter()
-                    .filter(|e| e.shape().is_none())
-                    .count(),
-            })
+            .map(|board| BoardCounts::of(&board))
             .map_err(|e| e.to_string());
         BoardSummary { file, counts }
     }
@@ -401,6 +413,17 @@ impl State {
             .into_iter()
             .map(BoardSummary::read)
             .collect();
+        // Slice 7: the board watcher's baseline is the files as just read.
+        self.board_stats = self
+            .boards
+            .iter()
+            .map(|b| {
+                (
+                    b.file.path.clone(),
+                    crate::board_sync::file_state(&b.file.path),
+                )
+            })
+            .collect();
     }
 
     /// Per frame: remember the open board for the next launch once a frame
@@ -430,6 +453,20 @@ impl State {
     pub(crate) fn refresh_board_summary(&mut self, path: &Path) {
         if let Some(b) = self.boards.iter_mut().find(|b| b.file.path == path) {
             *b = BoardSummary::read(b.file.clone());
+        }
+    }
+
+    /// Slice 7: after Muninn saved the open board, its list entry is counted
+    /// from the drawing in memory, not by parsing the file it just wrote.
+    pub(crate) fn summarise_open_board(&mut self) {
+        let Some(open) = &self.board_open else {
+            return;
+        };
+        let Some(model) = &open.model else {
+            return;
+        };
+        if let Some(b) = self.boards.iter_mut().find(|b| b.file.path == open.path) {
+            b.counts = Ok(BoardCounts::of(model));
         }
     }
 
