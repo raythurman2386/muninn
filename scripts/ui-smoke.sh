@@ -1874,8 +1874,37 @@ step_headless_kanban_model() {
   grep -qx 'card-text.md -> 2026-11-11.md' <<<"$links" || return 1
   grep -qx 'spec-example.md -> Roadmap.md' <<<"$links" || return 1
   grep -q 'Hidden' <<<"$links" && { echo "a wikilink inside code was indexed"; return 1; }
-  id="$(python3 -c 'import os,sys; fs=sorted((n for n in os.listdir(sys.argv[1]) if n.endswith(".md")), key=lambda n: (n.lower(), n)); print(fs.index("card-text.md"))' "$kvault")"
-  road="$(python3 -c 'import os,sys; fs=sorted((n for n in os.listdir(sys.argv[1]) if n.endswith(".md")), key=lambda n: (n.lower(), n)); print(fs.index("Roadmap.md"))' "$kvault")"
+  # Note ids come from the app's own sidebar, not a second copy of the sort.
+  printf '{"events":[{"t":0.8,"type":"mark","name":"list"}]}' >"$work/kanban-list.json"
+  export XDG_CONFIG_HOME="$work/config-kanban-list"
+  rm -rf "$XDG_CONFIG_HOME"
+  mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$kvault" --script "$work/kanban-list.json" \
+    --at "mark:list+0.3" --scale 1 --tree "$out/trees/kanban-s1-list.json" || return 1
+  read -r id road <<<"$(python3 - "$out/trees/kanban-s1-list.json" <<'PY'
+import json, sys
+
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from walk(value)
+
+def row_id(tree, title):
+    for node in walk(tree):
+        key = str(node.get("key") or "")
+        name = str(node.get("name") or "")
+        if key.startswith("note-row-") and (name == title or name.startswith(title + " ")):
+            return key.removeprefix("note-row-")
+    raise SystemExit(f"no note row titled {title!r}")
+
+tree = json.load(open(sys.argv[1]))
+print(row_id(tree, "card-text"), row_id(tree, "Roadmap"))
+PY
+)"
   echo "card-text id $id, Roadmap id $road"
   printf '%s\n' "$id" >"$work/kanban-note-id"
   printf '%s\n' "$road" >"$work/kanban-road-id"
@@ -1980,6 +2009,19 @@ step_x11_kanban_model() {
   python3 "$harness" x11-click "$wid" $xy || return 1
   sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
   import -window "$wid" "$out/screens/kanban-s1-x11.png" || return 1
+  python3 - "$out/screens/kanban-s1-write.png" "$out/screens/kanban-s1-x11.png" <<'PY' || return 1
+import sys
+from PIL import Image, ImageChops
+headless, windowed = (Image.open(path).convert("RGB") for path in sys.argv[1:])
+if headless.size != windowed.size:
+    raise SystemExit(f"size {headless.size} vs {windowed.size}")
+diff = ImageChops.difference(headless, windowed)
+mean = sum(diff.resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))) / 3
+print(f"x11 vs headless write mean abs diff {mean:.2f}")
+if mean > 12:
+    raise SystemExit(f"the windowed kanban note does not match the headless Write shot ({mean:.2f})")
+print("ok x11 screenshot matches the headless Write shot")
+PY
   python3 "$harness" x11-close "$wid" || return 1
   local status=124
   for i in $(seq 100); do

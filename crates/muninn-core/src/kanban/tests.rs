@@ -156,6 +156,7 @@ fn detection_edges() {
     assert!(!is_kanban("---\nKanban-Plugin: board\n---\n"));
     assert!(!is_kanban("intro\n---\nkanban-plugin: board\n---\n"));
     assert!(!is_kanban("---\nkanban-plugin: board\n"));
+    assert!(!is_kanban("---\nparent:\n  kanban-plugin: board\n---\n"));
     assert!(!is_kanban(""));
     let error = Kanban::parse("just a note").unwrap_err();
     assert_eq!(error.kind(), ErrorKind::InvalidData);
@@ -279,17 +280,54 @@ kanban-plugin: board
 
     let mut edited = base.clone();
     edited.edit_card(0, 1, "Beta\nnested still").unwrap();
-    assert_eq!(edited.lanes()[0].cards()[1].text(), "Beta\nnested still");
-    assert!(edited.source().contains("- [ ] Beta\n  nested still\n"));
-    assert!(edited.source().contains("- [ ] Alpha\n"));
-    assert!(!edited.source().contains("  nested\n"));
+    assert_eq!(
+        edited.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Alpha
+- [ ] Beta
+  nested still
+
+## Doing (3)
+
+- [X] Gamma
+
+## Done
+
+**Complete**
+- [ ] Delta
+"
+    );
 
     let mut deleted = base.clone();
     deleted.delete_card(0, 0).unwrap();
-    assert_eq!(deleted.lanes()[0].cards().len(), 1);
-    assert_eq!(deleted.lanes()[0].cards()[0].text(), "Beta\nnested");
-    assert!(!deleted.source().contains("Alpha"));
-    assert!(deleted.source().contains("  nested\n"));
+    assert_eq!(
+        deleted.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Beta
+  nested
+
+## Doing (3)
+
+- [X] Gamma
+
+## Done
+
+**Complete**
+- [ ] Delta
+"
+    );
 
     let mut moved = base.clone();
     moved.move_card(0, 0, 0, 1).unwrap();
@@ -327,63 +365,123 @@ kanban-plugin: board
 
     let mut across = base.clone();
     across.move_card(0, 0, 1, 0).unwrap();
-    assert_eq!(across.lanes()[0].cards().len(), 1);
-    assert_eq!(across.lanes()[1].cards()[0].text(), "Alpha");
-    assert_eq!(across.lanes()[1].cards()[1].text(), "Gamma");
-    assert!(
-        across
-            .source()
-            .contains("## Doing (3)\n\n- [ ] Alpha\n- [X] Gamma\n")
+    assert_eq!(
+        across.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Beta
+  nested
+
+## Doing (3)
+
+- [ ] Alpha
+- [X] Gamma
+
+## Done
+
+**Complete**
+- [ ] Delta
+"
     );
 
     let mut renamed = base.clone();
     renamed.rename_lane(1, "Busy").unwrap();
     assert_eq!(renamed.lanes()[1].title(), "Busy");
     assert_eq!(renamed.lanes()[1].limit(), Some(3));
-    assert!(renamed.source().contains("## Busy (3)\n"));
-    assert!(!renamed.source().contains("## Doing"));
+    assert_eq!(
+        renamed.source(),
+        source.replacen("## Doing (3)", "## Busy (3)", 1)
+    );
 
     let mut limited = base.clone();
     limited.set_lane_limit(0, Some(4)).unwrap();
-    assert!(limited.source().contains("## To do (4)\n"));
+    assert_eq!(
+        limited.source(),
+        source.replacen("## To do\n", "## To do (4)\n", 1)
+    );
     limited.set_lane_limit(1, Some(9)).unwrap();
-    assert!(limited.source().contains("## Doing (9)\n"));
-    assert!(!limited.source().contains("## Doing (3)\n"));
+    assert_eq!(
+        limited.source(),
+        source.replacen("## To do\n", "## To do (4)\n", 1).replacen(
+            "## Doing (3)",
+            "## Doing (9)",
+            1
+        )
+    );
     limited.set_lane_limit(1, None).unwrap();
-    assert!(limited.source().contains("## Doing\n"));
+    assert_eq!(
+        limited.source(),
+        source.replacen("## To do\n", "## To do (4)\n", 1).replacen(
+            "## Doing (3)\n",
+            "## Doing\n",
+            1
+        )
+    );
     assert_eq!(limited.lanes()[1].limit(), None);
     limited.set_lane_limit(1, Some(0)).unwrap();
-    assert!(!limited.source().contains("(0)"));
+    assert_eq!(
+        limited.source(),
+        source.replacen("## To do\n", "## To do (4)\n", 1).replacen(
+            "## Doing (3)\n",
+            "## Doing\n",
+            1
+        )
+    );
 
     let mut toggled = base.clone();
     toggled.toggle_done(1, 0).unwrap();
-    assert_eq!(toggled.lanes()[1].cards()[0].mark(), ' ');
-    assert!(toggled.source().contains("- [ ] Gamma\n"));
-    assert!(!toggled.source().contains("- [X] Gamma\n"));
+    assert_eq!(
+        toggled.source(),
+        source.replacen("- [X] Gamma", "- [ ] Gamma", 1)
+    );
     toggled.toggle_done(1, 0).unwrap();
-    assert_eq!(toggled.lanes()[1].cards()[0].mark(), 'x');
-    assert!(toggled.source().contains("- [x] Gamma\n"));
+    assert_eq!(
+        toggled.source(),
+        source.replacen("- [X] Gamma", "- [x] Gamma", 1)
+    );
 
     let mut created = base.clone();
     created.add_lane(1, "Review", Some(2), false).unwrap();
     assert_eq!(created.lanes()[1].title(), "Review");
     assert_eq!(created.lanes()[1].limit(), Some(2));
-    assert!(
-        created
-            .source()
-            .contains("## Review (2)\n\n\n\n## Doing (3)\n")
+    assert_eq!(
+        created.source(),
+        source.replacen("## Doing (3)\n", "## Review (2)\n\n\n\n## Doing (3)\n", 1)
     );
-    created.add_lane(0, "Later", None, true).unwrap();
-    assert_eq!(created.lanes()[0].done_word(), Some("Complete"));
-    assert!(created.source().contains("## Later\n\n**Complete**\n"));
+    let mut later = base.clone();
+    later.add_lane(0, "Later", None, true).unwrap();
+    assert_eq!(later.lanes()[0].done_word(), Some("Complete"));
+    assert_eq!(
+        later.source(),
+        source.replacen("## To do\n", "## Later\n\n**Complete**\n\n\n## To do\n", 1)
+    );
 
     let mut removed = base.clone();
     removed.delete_lane(2).unwrap();
-    assert_eq!(removed.lanes().len(), 2);
-    assert!(!removed.source().contains("## Done"));
-    assert!(!removed.source().contains("Delta"));
-    assert!(removed.source().contains("## Doing (3)\n"));
-    assert!(removed.source().contains("- [X] Gamma\n"));
+    assert_eq!(
+        removed.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Alpha
+- [ ] Beta
+  nested
+
+## Doing (3)
+
+- [X] Gamma
+
+"
+    );
 }
 
 #[test]
@@ -478,18 +576,15 @@ kanban-plugin: board
 #[test]
 fn save_uses_the_atomic_writer() {
     let kanban = parse("---\nkanban-plugin: board\n---\n\n## To do\n");
-    let dir = std::env::temp_dir().join(format!("muninn-kanban-save-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("Board.md");
+    let dir = TempVault::new(&[]);
+    let path = dir.path().join("Board.md");
     kanban.save(&path).unwrap();
     assert_eq!(fs::read_to_string(&path).unwrap(), kanban.source());
-    let names: Vec<_> = fs::read_dir(&dir)
+    let names: Vec<_> = fs::read_dir(dir.path())
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .collect();
     assert_eq!(names, vec![std::ffi::OsString::from("Board.md")]);
-    fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]
@@ -542,7 +637,10 @@ fn toggle_of_a_multibyte_mark_changes_that_character() {
     assert!(kanban.lanes()[0].cards()[0].is_done());
     kanban.toggle_done(0, 0).unwrap();
     assert_eq!(kanban.lanes()[0].cards()[0].mark(), ' ');
-    assert!(kanban.source().contains("- [ ] Done\n"));
+    assert_eq!(
+        kanban.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Done\n"
+    );
 }
 
 #[test]
@@ -568,4 +666,130 @@ kanban-plugin: board
     let archive = kanban.archive().expect("archive");
     assert_eq!(archive.cards().len(), 2);
     assert_eq!(archive.cards()[1].text(), "After");
+}
+
+#[test]
+fn a_column_zero_fence_is_not_board_structure() {
+    let source = read_fixture("fence-opaque.md");
+    let kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert_eq!(kanban.lanes().len(), 1);
+    assert_eq!(kanban.lanes()[0].cards().len(), 1);
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "Real card");
+    assert!(kanban.footer_json().is_none());
+    let fence = source
+        .split_once("~~~\n")
+        .expect("tilde fence")
+        .1
+        .split_once("\n~~~\n")
+        .expect("close")
+        .0;
+    let mut toggled = kanban.clone();
+    toggled.toggle_done(0, 0).unwrap();
+    assert_eq!(
+        toggled.source(),
+        source.replacen("- [ ] Real card", "- [x] Real card", 1)
+    );
+    assert!(toggled.source().contains(fence));
+    let mut deleted = kanban.clone();
+    deleted.delete_card(0, 0).unwrap();
+    assert_eq!(
+        deleted.source(),
+        source.replacen("- [ ] Real card\n", "", 1)
+    );
+    assert!(deleted.source().contains("## Not a lane"));
+    assert!(deleted.source().contains("%% kanban:settings"));
+}
+
+#[test]
+fn a_blank_line_then_an_indented_paragraph_stays_with_the_card() {
+    let source = read_fixture("card-paragraph.md");
+    let kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert_eq!(kanban.lanes()[0].cards().len(), 2);
+    assert_eq!(
+        kanban.lanes()[0].cards()[0].text(),
+        "Alpha\n\nsecond paragraph of Alpha"
+    );
+    let mut moved = kanban.clone();
+    moved.move_card(0, 0, 0, 1).unwrap();
+    assert_eq!(
+        moved.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Beta
+- [ ] Alpha
+
+  second paragraph of Alpha
+"
+    );
+    let mut edited = kanban;
+    edited.edit_card(0, 0, "Alpha\n\nafter blank").unwrap();
+    assert_eq!(edited.lanes()[0].cards()[0].text(), "Alpha\n\nafter blank");
+    assert_eq!(
+        edited.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Alpha
+
+  after blank
+- [ ] Beta
+"
+    );
+}
+
+#[test]
+fn editing_a_card_does_not_keep_a_stray_carriage_return() {
+    let mut kanban = parse("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] A ^a1\n");
+    kanban.edit_card(0, 0, "a\r\nb").unwrap();
+    assert_eq!(
+        kanban.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a ^a1\n  b\n"
+    );
+    assert!(!kanban.source().contains('\r'));
+}
+
+#[test]
+fn add_lane_on_a_file_with_no_final_newline_keeps_that_and_a_gap() {
+    let mut kanban = parse("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] A");
+    kanban.add_lane(1, "B", None, false).unwrap();
+    assert_eq!(
+        kanban.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] A\n\n\n## B"
+    );
+    assert!(!kanban.source().ends_with('\n'));
+}
+
+#[test]
+fn footer_edits_keep_nested_objects() {
+    let source = read_fixture("footer-nested.md");
+    let mut kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    let original = kanban.footer_json().expect("footer").to_owned();
+    assert!(original.contains("\"tag-colors\":[{\"tagKey\":\"#x\""));
+    assert!(original.contains("\"o\":{\"k\":1}"));
+    kanban.set_setting("lane-width", &json!(300)).unwrap();
+    assert_eq!(
+        kanban.footer_json(),
+        Some(
+            "{\"kanban-plugin\":\"board\",\"lane-width\":300,\"tag-colors\":[{\"tagKey\":\"#x\",\"color\":\"red\"}],\"o\":{\"k\":1}}"
+        )
+    );
+    kanban.remove_setting("lane-width").unwrap();
+    assert_eq!(
+        kanban.footer_json(),
+        Some(
+            "{\"kanban-plugin\":\"board\",\"tag-colors\":[{\"tagKey\":\"#x\",\"color\":\"red\"}],\"o\":{\"k\":1}}"
+        )
+    );
 }

@@ -48,29 +48,59 @@ struct Line {
 }
 
 pub(super) fn has_kanban_key(source: &str) -> bool {
-    let lines = split_lines(source);
-    let Some(end) = frontmatter_end(&lines, source) else {
+    // Only the frontmatter is read. A nested or indented key is not the marker.
+    let source = source.strip_prefix(BOM).unwrap_or(source);
+    let mut lines = source.split_inclusive('\n');
+    let Some(first) = lines.next() else {
         return false;
     };
-    // `end` is the index of the closing `---` line. Keys sit strictly between.
-    (1..end).any(|index| frontmatter_key(content(source, &lines[index])) == Some("kanban-plugin"))
+    if line_body(first) != "---" {
+        return false;
+    }
+    let mut found = false;
+    for raw in lines {
+        let body = line_body(raw);
+        if body == "---" {
+            return found;
+        }
+        if frontmatter_key(body) == Some("kanban-plugin") {
+            found = true;
+        }
+    }
+    false
 }
 
 pub(super) fn parse(source: &str) -> io::Result<Kanban> {
-    if !has_kanban_key(source) {
+    let lines = split_lines(source);
+    let Some(front_end) = frontmatter_end(&lines, source) else {
+        return Err(invalid_data("not a kanban note"));
+    };
+    let marked = (1..front_end)
+        .any(|index| frontmatter_key(content(source, &lines[index])) == Some("kanban-plugin"));
+    if !marked {
         return Err(invalid_data("not a kanban note"));
     }
-    let lines = split_lines(source);
-    let front_end =
-        frontmatter_end(&lines, source).ok_or_else(|| invalid_data("not a kanban note"))?;
     let mut i = front_end + 1;
     let mut lanes: Vec<Lane> = Vec::new();
     let mut archive: Option<Archive> = None;
     let mut footer: Option<Footer> = None;
+    let mut fence: Option<(u8, usize)> = None;
 
     while i < lines.len() {
         let line = &lines[i];
         let text = content(source, line);
+        if let Some((marker, run)) = fence {
+            if fence_closes(text, marker, run) {
+                fence = None;
+            }
+            i += 1;
+            continue;
+        }
+        if let Some(opened) = opens_fence(text) {
+            fence = Some(opened);
+            i += 1;
+            continue;
+        }
         if text == "%% kanban:settings" {
             let start = line.start;
             let (parsed, next) = parse_footer(source, &lines, i)?;
@@ -107,8 +137,7 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
         }
         if text.starts_with("## ") {
             close_open(&mut lanes, &mut archive, line.start);
-            let heading =
-                parse_heading(source, line).ok_or_else(|| invalid_data("not a kanban note"))?;
+            let heading = parse_heading(source, line);
             let marker = marker_line(source, &lines, i + 1);
             let marker_end = marker.map(|index| lines[index].next);
             let done_word = marker.map(|index| {
@@ -148,8 +177,22 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
     if footer.is_none() {
         close_open(&mut lanes, &mut archive, source.len());
     }
+    // A second settings marker outside a fence is a malformed footer. The same
+    // line inside a fence was already skipped above, and is skipped here too.
+    let mut trailing_fence = None;
     for line in &lines[i..] {
-        if content(source, line) == "%% kanban:settings" {
+        let text = content(source, line);
+        if let Some((marker, run)) = trailing_fence {
+            if fence_closes(text, marker, run) {
+                trailing_fence = None;
+            }
+            continue;
+        }
+        if let Some(opened) = opens_fence(text) {
+            trailing_fence = Some(opened);
+            continue;
+        }
+        if text == "%% kanban:settings" {
             return Err(invalid_data("malformed settings footer"));
         }
     }
@@ -183,10 +226,13 @@ struct Heading {
     limit_suffix: Option<Range<usize>>,
 }
 
-fn parse_heading(source: &str, line: &Line) -> Option<Heading> {
+fn parse_heading(source: &str, line: &Line) -> Heading {
     let start = content_start(source, line);
     let text = &source[start..line.end];
-    let body = text.strip_prefix("## ")?;
+    // The caller checks the `## ` prefix, so this slice is the title body.
+    let body = text
+        .strip_prefix("## ")
+        .expect("lane heading starts with '## '");
     let body_at = start + 3;
     let core_len = body.trim_end().len();
     let core = &body[..core_len];
@@ -196,21 +242,21 @@ fn parse_heading(source: &str, line: &Line) -> Option<Heading> {
         let suffix_end = body_at + core_len;
         // ` (123)`: digits sit between the space-paren and the closing paren.
         let limit_number = suffix_at + 2..suffix_end - 1;
-        return Some(Heading {
+        return Heading {
             title: title.to_owned(),
             title_span,
             written_limit: Some(number),
             limit_number: Some(limit_number),
             limit_suffix: Some(suffix_at..suffix_end),
-        });
+        };
     }
-    Some(Heading {
+    Heading {
         title: core.to_owned(),
         title_span: body_at..body_at + core_len,
         written_limit: None,
         limit_number: None,
         limit_suffix: None,
-    })
+    }
 }
 
 /// `Doing (3)` → `("Doing", 3)`. The space before `(` is required. `0` is
@@ -266,16 +312,43 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
     let mut next = index + 1;
     let mut indent = None;
     let mut text = first;
-    while next < lines.len() && is_continuation(source, &lines[next]) {
+    let mut fence: Option<(u8, usize)> = None;
+    while next < lines.len() {
         let continued = content(source, &lines[next]);
-        let leading: String = continued
-            .chars()
-            .take_while(|ch| ch.is_whitespace())
-            .collect();
-        let indent = indent.get_or_insert(leading);
-        let logical = continued.strip_prefix(indent.as_str()).unwrap_or(continued);
-        text.push('\n');
-        text.push_str(logical);
+        if let Some((marker, run)) = fence {
+            push_logical(&mut text, &mut indent, continued);
+            if fence_closes(continued, marker, run) {
+                fence = None;
+            }
+            end_line = next;
+            next += 1;
+            continue;
+        }
+        if continued.trim().is_empty() {
+            // A blank line stays with the card when an indented continuation
+            // follows it. Otherwise it ends the card.
+            let mut look = next + 1;
+            while look < lines.len() && content(source, &lines[look]).trim().is_empty() {
+                look += 1;
+            }
+            let resumes = look < lines.len() && is_indented(content(source, &lines[look]));
+            if !resumes {
+                break;
+            }
+            while next < look {
+                text.push('\n');
+                end_line = next;
+                next += 1;
+            }
+            continue;
+        }
+        if !is_indented(continued) {
+            break;
+        }
+        if let Some(opened) = opens_fence(continued) {
+            fence = Some(opened);
+        }
+        push_logical(&mut text, &mut indent, continued);
         end_line = next;
         next += 1;
     }
@@ -290,9 +363,39 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
     (card, next)
 }
 
-fn is_continuation(source: &str, line: &Line) -> bool {
-    let text = content(source, line);
+fn is_indented(text: &str) -> bool {
     !text.trim().is_empty() && text.starts_with(char::is_whitespace)
+}
+
+fn push_logical(text: &mut String, indent: &mut Option<String>, line: &str) {
+    text.push('\n');
+    if line.trim().is_empty() {
+        return;
+    }
+    let leading: String = line.chars().take_while(|ch| ch.is_whitespace()).collect();
+    let indent = indent.get_or_insert(leading);
+    text.push_str(line.strip_prefix(indent.as_str()).unwrap_or(line));
+}
+
+/// A fence opener: optional indent, then three or more `` ` `` or `~`.
+fn opens_fence(text: &str) -> Option<(u8, usize)> {
+    let start = text.trim_start();
+    let bytes = start.as_bytes();
+    let marker = *bytes.first()?;
+    if marker != b'`' && marker != b'~' {
+        return None;
+    }
+    let run = bytes.iter().take_while(|&&byte| byte == marker).count();
+    (run >= 3).then_some((marker, run))
+}
+
+fn fence_closes(text: &str, marker: u8, run: usize) -> bool {
+    let trimmed = text.trim();
+    let bytes = trimmed.as_bytes();
+    if bytes.len() < run || !bytes.iter().take(run).all(|byte| *byte == marker) {
+        return false;
+    }
+    bytes[run..].iter().all(u8::is_ascii_whitespace)
 }
 
 /// A task item at column 0: `- [`, one character, `]`, then the end or a space.
@@ -366,18 +469,25 @@ fn frontmatter_end(lines: &[Line], source: &str) -> Option<usize> {
     (1..lines.len()).find(|&index| content(source, &lines[index]) == "---")
 }
 
-/// A flat `key: value` line. List items and comments are not keys.
+/// A column-0 `key: value` line. Indented keys, list items and comments are not keys.
 fn frontmatter_key(line: &str) -> Option<&str> {
-    let line = line.trim();
-    if line.is_empty() || line.starts_with('#') || line.starts_with('-') {
+    if line.is_empty()
+        || line.starts_with(char::is_whitespace)
+        || line.starts_with('#')
+        || line.starts_with('-')
+    {
         return None;
     }
     let (key, _) = line.split_once(':')?;
-    let key = key.trim();
+    let key = key.trim_end();
     if key.is_empty() || key.chars().any(char::is_whitespace) {
         return None;
     }
     Some(key)
+}
+
+fn line_body(raw: &str) -> &str {
+    raw.trim_end_matches(['\n', '\r'])
 }
 
 fn split_lines(source: &str) -> Vec<Line> {

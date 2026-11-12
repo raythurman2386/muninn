@@ -104,6 +104,27 @@ impl Kanban {
             return Err(invalid_input("lane index out of range"));
         }
         let at = self.lane_insert_offset(index)?;
+        let open_ended =
+            at == self.source.len() && !self.source.is_empty() && !self.source.ends_with('\n');
+        if open_ended {
+            // Finish the previous line, leave two blank lines (L-2), then the
+            // new heading. Do not give the file a final newline it did not have.
+            let mut block = String::new();
+            block.push_str(self.nl);
+            block.push_str(self.nl);
+            block.push_str(self.nl);
+            block.push_str("## ");
+            block.push_str(title);
+            if let Some(limit) = limit.filter(|n| *n > 0) {
+                block.push_str(&format!(" ({limit})"));
+            }
+            if done {
+                block.push_str(self.nl);
+                block.push_str(self.nl);
+                block.push_str(ENGLISH_MARKER);
+            }
+            return self.commit(splice(&self.source, at..at, &block));
+        }
         let mut block = format!("## {title}");
         if let Some(limit) = limit.filter(|n| *n > 0) {
             block.push_str(&format!(" ({limit})"));
@@ -263,6 +284,7 @@ impl Kanban {
 }
 
 fn render_card(nl: &str, mark: char, text: &str, block_id: Option<&str>, indent: &str) -> String {
+    let text = text.replace('\r', "");
     let mut lines = text.split('\n');
     let first = lines.next().unwrap_or("");
     let mut out = format!("- [{mark}] {first}");
@@ -490,8 +512,8 @@ fn value_end(line: &str, index: usize) -> io::Result<usize> {
     };
     match kind {
         b'"' => string_end(line, index),
-        b'{' => container_end(line, index, b'}'),
-        b'[' => container_end(line, index, b']'),
+        b'{' => container_end(line, index, true),
+        b'[' => container_end(line, index, false),
         b't' => literal_end(line, index, "true"),
         b'f' => literal_end(line, index, "false"),
         b'n' => literal_end(line, index, "null"),
@@ -525,14 +547,27 @@ fn number_end(line: &str, index: usize) -> io::Result<usize> {
     Ok(cursor)
 }
 
-fn container_end(line: &str, index: usize, close: u8) -> io::Result<usize> {
+/// End offset of a `{...}` or `[...]` value. Objects are key/value members;
+/// arrays are values. Nested containers go back through [`value_end`].
+fn container_end(line: &str, index: usize, object: bool) -> io::Result<usize> {
+    let close = if object { b'}' } else { b']' };
     let bytes = line.as_bytes();
-    let mut cursor = index + 1;
-    cursor = skip_ws(line, cursor);
+    let mut cursor = skip_ws(line, index + 1);
     if bytes.get(cursor) == Some(&close) {
         return Ok(cursor + 1);
     }
     loop {
+        if object {
+            if bytes.get(cursor) != Some(&b'"') {
+                return Err(invalid_data("settings footer JSON does not parse"));
+            }
+            cursor = string_end(line, cursor)?;
+            cursor = skip_ws(line, cursor);
+            if bytes.get(cursor) != Some(&b':') {
+                return Err(invalid_data("settings footer JSON does not parse"));
+            }
+            cursor = skip_ws(line, cursor + 1);
+        }
         cursor = value_end(line, cursor)?;
         cursor = skip_ws(line, cursor);
         match bytes.get(cursor).copied() {
