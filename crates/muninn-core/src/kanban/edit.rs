@@ -241,6 +241,42 @@ impl Kanban {
         Ok(())
     }
 
+    /// Move a lane. Its lines, from the title line up to the next lane, the
+    /// archive or the footer, are taken out and put back unchanged before the
+    /// lane now at `to`, or after the last lane. `to` is the lane's index
+    /// after the move, as for [`Kanban::move_card`]. A `list-collapse`
+    /// setting moves the lane's entry with it, so every lane keeps its state.
+    pub fn move_lane(&mut self, from: usize, to: usize) -> io::Result<()> {
+        let count = self.lanes.len();
+        if from >= count || to >= count {
+            return Err(invalid_input("lane index out of range"));
+        }
+        if from == to {
+            return Ok(());
+        }
+        let lane = self.lane(from)?;
+        let (title, cards, span) = (lane.title.clone(), lane.cards.len(), lane.span.clone());
+        let block = self.source[span.clone()].to_owned();
+        let removed = splice(&self.source, span, "");
+        let without = Kanban::parse(&removed)?;
+        let at = without.lane_insert_offset(to)?;
+        let mut parsed = Kanban::parse(&insert_block(&removed, at, block, without.nl))?;
+        let moved = parsed.lane(to)?;
+        if parsed.lanes.len() != count || moved.title != title || moved.cards.len() != cards {
+            return Err(invalid_data("the lane did not move as a whole"));
+        }
+        if let Some(mut flags) = parsed.collapse_flags()
+            && from.min(to) < flags.len()
+        {
+            flags.resize(flags.len().max(from.max(to) + 1), Value::Bool(false));
+            let flag = flags.remove(from);
+            flags.insert(to, flag);
+            parsed.set_setting(LIST_COLLAPSE, &Value::Array(flags))?;
+        }
+        *self = parsed;
+        Ok(())
+    }
+
     /// Add or remove the lane's done-lane marker: one line either way. A new
     /// marker is the English `**Complete**`, after the blank line under the
     /// title when there is one (as spec section 4 writes a new lane), else
@@ -366,11 +402,7 @@ impl Kanban {
     /// `list-collapse` entries after it moved to stay with their lanes.
     fn commit_lanes(&mut self, next: String, index: usize, added: bool) -> io::Result<()> {
         let mut parsed = Kanban::parse(&next)?;
-        let flags = parsed
-            .footer_json()
-            .and_then(|json| serde_json::from_str::<Value>(json).ok())
-            .and_then(|mut json| json.get_mut(LIST_COLLAPSE).map(Value::take));
-        if let Some(Value::Array(mut flags)) = flags
+        if let Some(mut flags) = parsed.collapse_flags()
             && index < flags.len()
         {
             if added {
@@ -382,6 +414,15 @@ impl Kanban {
         }
         *self = parsed;
         Ok(())
+    }
+
+    /// The footer's `list-collapse` array, when it has one.
+    fn collapse_flags(&self) -> Option<Vec<Value>> {
+        let mut json = serde_json::from_str::<Value>(self.footer_json()?).ok()?;
+        match json.get_mut(LIST_COLLAPSE).map(Value::take) {
+            Some(Value::Array(flags)) => Some(flags),
+            _ => None,
+        }
     }
 
     fn commit(&mut self, next: String) -> io::Result<()> {

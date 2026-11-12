@@ -30,7 +30,8 @@
 //!   puts the same lines back elsewhere; a card moved into a done lane is
 //!   marked done, since cards entering a done lane become done (spec section
 //!   1). A card moved out of one keeps its mark. A click selects a card and
-//!   the arrow keys move the selection.
+//!   the arrow keys move the selection. Alt+Shift+Left/Right move the
+//!   selected card's lane instead (slice 6, `kanban_drag.rs`).
 //! - **Sort by text / date / tags** (a lane's menu): a stable sort, with cards
 //!   that have no date or no tags last in their original order
 //!   ([`muninn_core::CardOrder`]).
@@ -243,7 +244,13 @@ impl State {
     /// Move a card to `to_index` in `to_lane` (its index after the move), on
     /// indices that match the board as it is now. A card entering a done lane
     /// from another lane is marked done.
-    fn move_card_now(&mut self, lane: usize, index: usize, to_lane: usize, to_index: usize) {
+    pub(crate) fn move_card_now(
+        &mut self,
+        lane: usize,
+        index: usize,
+        to_lane: usize,
+        to_index: usize,
+    ) {
         let Some(open) = self.kanban_card_at(lane, index).map(|c| !c.is_done()) else {
             return;
         };
@@ -340,6 +347,8 @@ impl State {
             }
             (MenuTarget::Lane(lane), "insert_lane_before") => self.begin_add_lane(lane),
             (MenuTarget::Lane(lane), "insert_lane_after") => self.begin_add_lane(lane + 1),
+            (MenuTarget::Lane(lane), "move_lane_left") => self.step_kanban_lane(lane, false),
+            (MenuTarget::Lane(lane), "move_lane_right") => self.step_kanban_lane(lane, true),
             (MenuTarget::Lane(lane), "rename_lane") => self.begin_rename_lane(lane),
             (MenuTarget::Lane(lane), "lane_limit") => self.begin_lane_limit(lane),
             (MenuTarget::Lane(lane), "done_lane") => self.set_lane_done(lane, true),
@@ -397,9 +406,19 @@ pub(crate) fn lane_items(s: &State, lane: usize) -> Vec<(&'static str, &'static 
         .kanban_board()
         .and_then(|b| b.lanes().get(lane))
         .is_some_and(|l| l.done_word().is_some());
-    vec![
+    let lanes = s.kanban_board().map_or(0, |b| b.lanes().len());
+    let mut items = vec![
         ("Insert lane before", "insert_lane_before"),
         ("Insert lane after", "insert_lane_after"),
+    ];
+    // Slice 6: the keyboard and menu equivalents of dragging a lane.
+    if lane > 0 {
+        items.push(("Move lane left", "move_lane_left"));
+    }
+    if lane + 1 < lanes {
+        items.push(("Move lane right", "move_lane_right"));
+    }
+    items.extend([
         ("Rename lane", "rename_lane"),
         ("Card limit…", "lane_limit"),
         if done {
@@ -411,7 +430,8 @@ pub(crate) fn lane_items(s: &State, lane: usize) -> Vec<(&'static str, &'static 
         ("Sort by date", "sort_date"),
         ("Sort by tags", "sort_tags"),
         ("Delete lane", "delete_lane"),
-    ]
+    ]);
+    items
 }
 
 /// Delete lane's confirmation, under the lane's header: what goes, what
@@ -574,7 +594,8 @@ pub(crate) fn lane_field(s: &State, k: &Kit) -> El {
 }
 
 /// Arrow keys on the Kanban page: select a card, or with Alt move the
-/// selected one (Shift: to the top or bottom of its lane).
+/// selected one (Shift: to the top or bottom of its lane). Slice 6:
+/// Alt+Shift+Left / Right move the selected card's lane.
 pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
     if s.mode != Mode::Kanban || e.mods.cmd {
         return false;
@@ -597,6 +618,10 @@ pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
             .map(|l| (l, 0));
         return true;
     };
+    if e.mods.alt && e.mods.shift && across != 0 {
+        s.step_kanban_lane(lane, across > 0);
+        return true;
+    }
     if e.mods.alt {
         let step = match (across, down, e.mods.shift) {
             (-1, _, _) => CardStep::PreviousLane,

@@ -21,7 +21,9 @@
 //! on each card and lane, the card editor and **+ Add card** at each lane's
 //! foot, and the header's save status. Slice 5 (`kanban_lanes.rs`) adds the
 //! lane field, **+ Add lane**, the collapse control and collapsed strips, the
-//! selected card's outline, and the card and lane menus' new actions.
+//! selected card's outline, and the card and lane menus' new actions. Slice 6
+//! (`kanban_drag.rs`) makes cards and lane headers draggable and draws where
+//! a drag would drop.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -36,11 +38,12 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use muninn_core::{Card, Kanban, Lane, is_kanban};
-use rune::{El, Key, KeyEvent, Tx, col, el, icon, row, text};
+use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
 
 use crate::board_view::{BoardStatus, UNSAVED, placeholder};
+use crate::kanban_drag::Dragged;
 use crate::kanban_edit::{CardCommit, CardSlot, KanbanHistory};
 use crate::kanban_lanes::{LaneField, lane_field};
 use crate::{DiskState, MenuTarget, Mode, State};
@@ -50,6 +53,8 @@ use crate::{DiskState, MenuTarget, Mode, State};
 const LANE_W: f32 = crate::view::SIDEBAR;
 /// Width of a collapsed lane's strip.
 const STRIP_W: f32 = 52.0;
+/// Opacity of a card or lane while it is dragged (slice 6).
+const DRAGGED: f32 = 0.45;
 
 /// The kanban note on the Kanban page, as read from disk.
 #[derive(Clone, Debug)]
@@ -215,6 +220,7 @@ impl State {
         self.cancel_card_edit();
         self.cancel_lane_edit();
         self.kanban_selected = None;
+        self.kanban_drag = None;
     }
 
     /// A card's menu (its `⋯`, or a right-click on it), drawn under the card.
@@ -392,8 +398,8 @@ fn header(s: &State, k: &Kit) -> El {
 
 /// The lanes, side by side, scrolling both ways. Each lane is built again
 /// only when what it draws changes (its cards, its selected card, the theme);
-/// a lane with the card editor, the lane field or a menu open is built every
-/// frame, as those change.
+/// a lane with the card editor, the lane field, a menu or a drag in it is
+/// built every frame, as those change.
 fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let note = s.note_id(rel);
     let kit = crate::omarchy::kit_id(s, k.dark);
@@ -401,12 +407,17 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
         .kanban_lane_edit
         .filter(|slot| slot.field == LaneField::New)
         .map(|slot| slot.lane);
+    let lane_drop = s.kanban_lane_drop();
     let mut columns = Vec::new();
     for (i, lane) in board.lanes().iter().enumerate() {
         if new_lane == Some(i) {
             columns.push(new_lane_column(s, k));
         }
+        if lane_drop.is_some_and(|(_, slot)| slot == i) {
+            columns.push(lane_drop_bar(s, k));
+        }
         let live = s.kanban_card.is_some_and(|slot| slot.lane == i)
+            || s.kanban_drag_in(i) != (None, None, false)
             || s.kanban_lane_edit.is_some_and(|slot| slot.lane == i)
             || s.menu.as_ref().is_some_and(|m| match m.target {
                 MenuTarget::Lane(l)
@@ -427,6 +438,9 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
         });
     }
     let count = board.lanes().len();
+    if lane_drop.is_some_and(|(_, slot)| slot == count) {
+        columns.push(lane_drop_bar(s, k));
+    }
     columns.push(if new_lane == Some(count) {
         new_lane_column(s, k)
     } else {
@@ -459,8 +473,9 @@ fn lane_version(lane: &Lane) -> u64 {
 }
 
 fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -> El {
+    let (drop, _, dragged) = s.kanban_drag_in(i);
     if lane.collapsed() {
-        return collapsed_lane(k, i, lane);
+        return collapsed_lane(k, i, lane, drop.is_some(), dragged);
     }
     let (count, over) = lane_load(lane);
     let count_color = if over { k.c.warning.fg } else { k.c.text_faint };
@@ -469,6 +484,10 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
         .w_full()
         .gap(8.0)
         .center_y()
+        .cursor(rune::Cursor::Grab)
+        .on_drag(move |s: &mut State, d: &mut Drag, tx: &mut Tx| {
+            s.drag_kanban(Dragged::Lane(i), d, tx);
+        })
         .child(
             text(lane.title().to_owned())
                 .key(format!("kanban-lane-{i}-title"))
@@ -527,6 +546,11 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
         )
         .role("list")
         .label(label)
+        .opacity(if dragged { DRAGGED } else { 1.0 })
+        .on_layout_tx(move |s: &mut State, rect, tx: &mut Tx| {
+            s.kanban_rects.set_lane(i, rect);
+            tx.live_only();
+        })
         .child(head);
     if s.kanban_lane_edit
         .is_some_and(|slot| slot.lane == i && slot.field != LaneField::New)
@@ -554,10 +578,16 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
         if new_at == Some(j) {
             column = column.child(card_editor(s, k));
         }
+        if drop == Some(j) {
+            column = column.child(card_drop_bar(k));
+        }
         column = column.child(card_view(s, k, note, i, j, card));
         if is_menu(s, &MenuTarget::Card(i, j)) || is_menu(s, &MenuTarget::MoveCard(i, j)) {
             column = column.child(crate::view::context_menu(s, k));
         }
+    }
+    if drop == Some(lane.cards().len()) {
+        column = column.child(card_drop_bar(k));
     }
     if new_at == Some(lane.cards().len()) {
         column = column.child(card_editor(s, k));
@@ -583,8 +613,9 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
 }
 
 /// A collapsed lane: a narrow strip with the expand control, the card count
-/// and the title.
-fn collapsed_lane(k: &Kit, i: usize, lane: &Lane) -> El {
+/// and the title. Slice 6: it drags as its lane's header, and is outlined
+/// while a card dragged over it would drop at its end.
+fn collapsed_lane(k: &Kit, i: usize, lane: &Lane, drop: bool, dragged: bool) -> El {
     let (count, over) = lane_load(lane);
     col()
         .key(format!("kanban-lane-{i}"))
@@ -596,7 +627,9 @@ fn collapsed_lane(k: &Kit, i: usize, lane: &Lane) -> El {
         .fill(k.c.layer_01)
         .border(
             1.0,
-            if over {
+            if drop {
+                k.c.text_accent
+            } else if over {
                 k.c.warning.fg
             } else {
                 k.c.border_muted
@@ -604,6 +637,15 @@ fn collapsed_lane(k: &Kit, i: usize, lane: &Lane) -> El {
         )
         .role("list")
         .label(format!("{}, {count} cards, collapsed", lane.title()))
+        .opacity(if dragged { DRAGGED } else { 1.0 })
+        .cursor(rune::Cursor::Grab)
+        .on_drag(move |s: &mut State, d: &mut Drag, tx: &mut Tx| {
+            s.drag_kanban(Dragged::Lane(i), d, tx);
+        })
+        .on_layout_tx(move |s: &mut State, rect, tx: &mut Tx| {
+            s.kanban_rects.set_lane(i, rect);
+            tx.live_only();
+        })
         .child(
             icon_button(
                 k,
@@ -628,6 +670,28 @@ fn collapsed_lane(k: &Kit, i: usize, lane: &Lane) -> El {
                 .w_full()
                 .wrap_anywhere(),
         )
+}
+
+/// Where a dragged card would land in a lane.
+fn card_drop_bar(k: &Kit) -> El {
+    el().key("kanban-drop")
+        .w_full()
+        .h(3.0)
+        .radius(2.0)
+        .fill(k.c.text_accent)
+}
+
+/// Where a dragged lane would go, as tall as that lane.
+fn lane_drop_bar(s: &State, k: &Kit) -> El {
+    let h = s
+        .kanban_lane_drop()
+        .and_then(|(lane, _)| s.kanban_rects.lane_height(lane))
+        .unwrap_or(LANE_W);
+    el().key("kanban-lane-drop")
+        .w(3.0)
+        .h(h)
+        .radius(2.0)
+        .fill(k.c.text_accent)
 }
 
 /// A new lane's title field, where the lane will go.
@@ -735,6 +799,7 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
         mark
     };
     let selected = s.kanban_selected == Some((i, j));
+    let dragged = s.kanban_drag_in(i).1 == Some(j);
     row()
         .key(format!("kanban-card-{i}-{j}"))
         .w_full()
@@ -756,6 +821,14 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
         // As Board edits text: a double click opens the editor.
         .on_double_press(move |s: &mut State| s.begin_edit_card(i, j))
         .on_secondary_press(move |s: &mut State, _, _| s.open_card_menu(i, j))
+        .opacity(if dragged { DRAGGED } else { 1.0 })
+        .on_drag(move |s: &mut State, d: &mut Drag, tx: &mut Tx| {
+            s.drag_kanban(Dragged::Card(i, j), d, tx);
+        })
+        .on_layout_tx(move |s: &mut State, rect, tx: &mut Tx| {
+            s.kanban_rects.set_card(i, j, rect);
+            tx.live_only();
+        })
         .child(mark)
         .child(
             col().grow(1.0).min_w(0.0).child(

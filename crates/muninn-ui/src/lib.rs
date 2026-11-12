@@ -17,6 +17,7 @@ mod board_view;
 mod camera;
 mod global_shortcut;
 mod graph_view;
+mod kanban_drag;
 mod kanban_edit;
 mod kanban_lanes;
 mod kanban_view;

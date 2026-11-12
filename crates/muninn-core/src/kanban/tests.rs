@@ -1876,3 +1876,74 @@ fn an_appended_lane_ends_like_the_new_kanban_template() {
         "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n\n## Later\n\n\n"
     );
 }
+
+#[test]
+fn moving_a_lane_moves_its_lines_unchanged() {
+    let mut board = parse(LANES);
+    board.move_lane(2, 0).expect("Fertig first");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## Fertig\n\n**Fertiggestellt**\n- [x] d\n\
+         ## To do\n\n- [ ] b\n- [ ] A\n\n## Doing\n- [ ] c\n\n"
+    );
+    assert_eq!(board.lanes()[0].done_word(), Some("Fertiggestellt"));
+    assert!(board.lanes()[0].cards()[0].is_done());
+    board.move_lane(0, 2).expect("Fertig last again");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] b\n- [ ] A\n\n## Doing\n- [ ] c\n\n\
+         ## Fertig\n\n**Fertiggestellt**\n- [x] d\n"
+    );
+    // Text between lanes travels with the lane before it.
+    let mut passthrough =
+        parse("---\nkanban-plugin: board\n---\n\n## A\n\n- [ ] a\n\nA note.\n\n## B\n\n- [ ] b\n");
+    passthrough.move_lane(0, 1).expect("A after B");
+    assert_eq!(
+        passthrough.source(),
+        "---\nkanban-plugin: board\n---\n\n## B\n\n- [ ] b\n## A\n\n- [ ] a\n\nA note.\n\n"
+    );
+}
+
+#[test]
+fn a_lane_that_stays_put_changes_nothing_and_a_bad_index_is_refused() {
+    let mut board = parse(LANES);
+    board.move_lane(1, 1).expect("no move");
+    assert_eq!(board.source(), LANES);
+    for (from, to) in [(3, 0), (0, 3)] {
+        let error = board.move_lane(from, to).expect_err("out of range");
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
+        assert_eq!(board.source(), LANES);
+    }
+}
+
+#[test]
+fn moving_a_lane_keeps_collapse_aligned_and_the_footer_order() {
+    let footer =
+        "%% kanban:settings\n```\n{\"list-collapse\":[false,true,true],\"x\":1}\n```\n%%\n";
+    let mut board = parse(&format!("{LANES}\n{footer}"));
+    board.move_lane(0, 2).expect("To do last");
+    assert_eq!(
+        board.footer_json(),
+        Some("{\"list-collapse\":[true,true,false],\"x\":1}")
+    );
+    let titles: Vec<&str> = board.lanes().iter().map(Lane::title).collect();
+    assert_eq!(titles, ["Doing", "Fertig", "To do"]);
+    let flags: Vec<bool> = board.lanes().iter().map(Lane::collapsed).collect();
+    assert_eq!(flags, [true, true, false]);
+    // A short array is padded only as far as the move needs.
+    let short = |json: &str| {
+        parse(&format!(
+            "{LANES}\n%% kanban:settings\n```\n{json}\n```\n%%\n"
+        ))
+    };
+    let mut padded = short("{\"list-collapse\":[true]}");
+    padded.move_lane(0, 2).expect("move");
+    assert_eq!(
+        padded.footer_json(),
+        Some("{\"list-collapse\":[false,false,true]}")
+    );
+    // Lanes past the end of the array are not collapsed either way.
+    let mut past = short("{\"list-collapse\":[true]}");
+    past.move_lane(2, 1).expect("move");
+    assert_eq!(past.footer_json(), Some("{\"list-collapse\":[true]}"));
+}
