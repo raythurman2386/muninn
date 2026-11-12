@@ -9,7 +9,7 @@ use std::ops::Range;
 
 use serde_json::Value;
 
-use super::parse::line_keeps_lead;
+use super::parse::{indent_columns, line_keeps_lead};
 use super::{Card, Kanban, invalid_data, invalid_input};
 
 const ENGLISH_MARKER: &str = "**Complete**";
@@ -23,7 +23,7 @@ impl Kanban {
     pub fn add_card(&mut self, lane: usize, index: usize, text: &str) -> io::Result<()> {
         let text = normalised_card_text(text);
         let at = self.insert_offset(lane, index)?;
-        let indent = self.continuation_indent();
+        let indent = padded_new_card_indent(self.continuation_indent());
         let block = render_card(self.nl, ' ', &text, None, &indent);
         let next = insert_block(&self.source, at, block, self.nl);
         self.accept_card(next, lane, index, &text)
@@ -86,12 +86,15 @@ impl Kanban {
         if to_index > max {
             return Err(invalid_input("card index out of range"));
         }
-        let raw = self.card(from_lane, from_index)?.span.clone();
+        let card = self.card(from_lane, from_index)?;
+        let text = card.text.clone();
+        let raw = card.span.clone();
         let block = self.source[raw.clone()].to_owned();
         let removed = splice(&self.source, raw, "");
         let parsed = Kanban::parse(&removed)?;
         let at = parsed.insert_offset(to_lane, to_index)?;
-        self.commit(insert_block(&removed, at, block, parsed.nl))
+        let next = insert_block(&removed, at, block, parsed.nl);
+        self.accept_card(next, to_lane, to_index, &text)
     }
 
     /// Insert a lane at `index` (`index == lanes.len()` appends, before an
@@ -317,6 +320,16 @@ fn lane_block(nl: &str, title: &str, limit: Option<u32>, done: bool, open_ended:
     block.push_str(nl);
     block.push_str(nl);
     block
+}
+
+/// A new card has no lines of its own to preserve, so an all-space indent
+/// narrower than two columns is widened to two. An edit keeps a one-space indent.
+fn padded_new_card_indent(indent: String) -> String {
+    if indent.chars().all(|ch| ch == ' ') && indent_columns(&indent) < 2 {
+        "  ".to_owned()
+    } else {
+        indent
+    }
 }
 
 /// Drop carriage returns, then one trailing newline, matching what a card stores.

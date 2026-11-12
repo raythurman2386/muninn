@@ -1282,6 +1282,99 @@ kanban-plugin: board
 }
 
 #[test]
+fn moving_a_card_onto_an_indented_note_is_rejected() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  l1
+
+## Done
+
+  indented note
+";
+    let mut kanban = parse(source);
+    let error = kanban.move_card(0, 0, 1, 0).unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidData);
+    assert_eq!(kanban.source(), source);
+}
+
+#[test]
+fn a_unicode_whitespace_line_survives_an_edit() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  l1
+\u{3000}
+\u{a0}
+  l2
+";
+    let mut kanban = parse(source);
+    let text = kanban.lanes()[0].cards()[0].text().to_owned();
+    kanban.edit_card(0, 0, &(text + "\nx")).unwrap();
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  l1
+  x
+\u{3000}
+\u{a0}
+  l2
+"
+    );
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\nl1\nx");
+}
+
+#[test]
+fn adding_a_card_on_a_one_space_board_uses_two_spaces() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+ l0
+";
+    let mut kanban = parse(source);
+    kanban.add_card(0, 1, "new\n\nx").unwrap();
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+ l0
+- [ ] new
+
+  x
+"
+    );
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "new\n\nx");
+}
+
+#[test]
 fn one_indented_continuation_keeps_its_indent() {
     let source = read_fixture("indent-deep-line.md");
     let mut kanban = parse(&source);
