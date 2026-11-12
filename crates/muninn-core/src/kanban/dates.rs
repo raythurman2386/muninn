@@ -106,16 +106,6 @@ impl CivilDate {
         (self.days_since_epoch() + 4).rem_euclid(7) as u32
     }
 
-    /// Today's date in UTC. Muninn has no time-zone database; the picker's
-    /// `today` is the UTC day, which is the same day for most of a session.
-    #[must_use]
-    pub fn today_utc() -> Self {
-        let days = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |elapsed| elapsed.as_secs() / 86_400);
-        Self::from_days_since_epoch(days as i64)
-    }
-
     /// The number of days in this month.
     #[must_use]
     pub fn days_in_month(self) -> u32 {
@@ -160,20 +150,6 @@ impl CivilTime {
     #[must_use]
     pub fn seconds(self) -> i64 {
         i64::from(self.hour) * 3_600 + i64::from(self.minute) * 60 + i64::from(self.second)
-    }
-
-    /// The current UTC time, to the minute.
-    #[must_use]
-    pub fn now_utc() -> Self {
-        let seconds = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |elapsed| elapsed.as_secs());
-        let day = (seconds % 86_400) as u32;
-        Self {
-            hour: (day / 3_600) as u8,
-            minute: ((day / 60) % 60) as u8,
-            second: (day % 60) as u8,
-        }
     }
 }
 
@@ -670,7 +646,11 @@ fn time_at(bytes: &[u8], at: usize) -> Option<CivilTime> {
         end += 1 + value.1;
     }
     let mut hour = hour.0 as u8;
-    let rest = &bytes[end..];
+    let mut rest_at = end;
+    while bytes.get(rest_at) == Some(&b' ') {
+        rest_at += 1;
+    }
+    let rest = &bytes[rest_at..];
     let upper: Vec<u8> = rest
         .iter()
         .take_while(|byte| byte.is_ascii_alphabetic())
@@ -741,7 +721,14 @@ impl DateSettings {
         if let Some(value) = footer_json.and_then(|json| serde_json::from_str::<Value>(json).ok()) {
             settings.apply_value(&value);
         }
+        settings.trim_formats();
         settings
+    }
+
+    fn trim_formats(&mut self) {
+        self.date_format = trimmed_format(&self.date_format, "YYYY-MM-DD");
+        self.time_format = trimmed_format(&self.time_format, "HH:mm");
+        self.date_display_format = trimmed_format(&self.date_display_format, "YYYY-MM-DD");
     }
 
     /// Read the keys this type owns from one JSON object. Other keys, and a
@@ -771,6 +758,7 @@ impl DateSettings {
         if let Some(flag) = value.get(LINK_DATE_TO_DAILY_NOTE).and_then(Value::as_bool) {
             self.link_date_to_daily_note = flag;
         }
+        self.trim_formats();
     }
 
     /// A new date token, trigger and braces included.
@@ -806,6 +794,17 @@ impl DateSettings {
     }
 }
 
+/// A format with surrounding whitespace removed. An all-whitespace format
+/// would write tokens Muninn could not read back, so it falls back.
+fn trimmed_format(value: &str, fallback: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        fallback.to_owned()
+    } else {
+        trimmed.to_owned()
+    }
+}
+
 fn text_value(value: &Value, key: &str) -> Option<String> {
     value
         .get(key)
@@ -814,9 +813,11 @@ fn text_value(value: &Value, key: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// The app-wide `kanban_defaults` object in `settings.json`. Every field is
-/// absent until the user sets it; an absent key means the built-in default.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+/// The app-wide `kanban_defaults` object in `settings.json`. Every known
+/// field is absent until the user sets it; an absent key means the built-in
+/// default. Unknown keys, and known keys with the wrong type, stay in
+/// [`KanbanDefaults::other`] and are written back.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct KanbanDefaults {
     pub date_trigger: Option<String>,
     pub time_trigger: Option<String>,
@@ -826,6 +827,10 @@ pub struct KanbanDefaults {
     pub show_relative_date: Option<bool>,
     pub hide_date_in_title: Option<bool>,
     pub link_date_to_daily_note: Option<bool>,
+    /// Keys this version does not know, kept so a newer Muninn's app defaults
+    /// are not lost by an older one. A known key with the wrong JSON type is
+    /// kept here too.
+    pub other: Map<String, Value>,
 }
 
 impl KanbanDefaults {
@@ -836,7 +841,7 @@ impl KanbanDefaults {
         let Some(value) = value else {
             return Self::default();
         };
-        Self {
+        let mut defaults = Self {
             date_trigger: text_value(value, DATE_TRIGGER),
             time_trigger: text_value(value, TIME_TRIGGER),
             date_format: text_value(value, DATE_FORMAT),
@@ -845,14 +850,34 @@ impl KanbanDefaults {
             show_relative_date: value.get(SHOW_RELATIVE_DATE).and_then(Value::as_bool),
             hide_date_in_title: value.get(HIDE_DATE_IN_TITLE).and_then(Value::as_bool),
             link_date_to_daily_note: value.get(LINK_DATE_TO_DAILY_NOTE).and_then(Value::as_bool),
+            other: Map::new(),
+        };
+        if let Some(object) = value.as_object() {
+            for (key, item) in object {
+                let handled = match key.as_str() {
+                    DATE_TRIGGER => defaults.date_trigger.is_some(),
+                    TIME_TRIGGER => defaults.time_trigger.is_some(),
+                    DATE_FORMAT => defaults.date_format.is_some(),
+                    TIME_FORMAT => defaults.time_format.is_some(),
+                    DATE_DISPLAY_FORMAT => defaults.date_display_format.is_some(),
+                    SHOW_RELATIVE_DATE => defaults.show_relative_date.is_some(),
+                    HIDE_DATE_IN_TITLE => defaults.hide_date_in_title.is_some(),
+                    LINK_DATE_TO_DAILY_NOTE => defaults.link_date_to_daily_note.is_some(),
+                    _ => false,
+                };
+                if !handled {
+                    defaults.other.insert(key.clone(), item.clone());
+                }
+            }
         }
+        defaults
     }
 
     /// The object written to `settings.json`, with only the keys that are
     /// set and in the documented order.
     #[must_use]
     pub fn to_json(&self) -> Value {
-        let mut object = Map::new();
+        let mut object = self.other.clone();
         if let Some(value) = &self.date_trigger {
             object.insert(DATE_TRIGGER.to_owned(), Value::String(value.clone()));
         }
@@ -890,6 +915,7 @@ impl KanbanDefaults {
             && self.show_relative_date.is_none()
             && self.hide_date_in_title.is_none()
             && self.link_date_to_daily_note.is_none()
+            && self.other.is_empty()
     }
 
     fn to_settings(&self) -> DateSettings {
@@ -1109,7 +1135,12 @@ mod tests {
             "date-trigger": 3,
             "hide-date-in-title": "no",
         })));
-        assert!(defaults.is_empty());
+        assert_eq!(defaults.date_trigger, None);
+        assert_eq!(defaults.hide_date_in_title, None);
+        assert!(
+            !defaults.is_empty(),
+            "the raw values are kept for the next write"
+        );
         let footer = r#"{"date-trigger":3,"time-trigger":"","show-relative-date":"yes","hide-date-in-title":null}"#;
         let resolved = DateSettings::resolve(Some(footer), &defaults);
         assert_eq!(resolved, DateSettings::default());
@@ -1134,6 +1165,7 @@ mod tests {
             show_relative_date: Some(true),
             hide_date_in_title: Some(false),
             link_date_to_daily_note: Some(true),
+            ..KanbanDefaults::default()
         };
         let json = defaults.to_json();
         assert_eq!(KanbanDefaults::from_json(Some(&json)), defaults);
@@ -1142,6 +1174,68 @@ mod tests {
             text,
             r#"{"date-display-format":"D MMMM YYYY","date-format":"DD.MM.YYYY","date-trigger":"@d","hide-date-in-title":false,"link-date-to-daily-note":true,"show-relative-date":true,"time-format":"HH:mm","time-trigger":"at"}"#
         );
+    }
+
+    #[test]
+    fn surrounding_whitespace_in_a_format_is_trimmed() {
+        let day = CivilDate::new(2026, 11, 12).unwrap();
+        let time = CivilTime::new(14, 5, 0).unwrap();
+        for (dates, times, want_date, want_time) in [
+            (" DD.MM.YYYY", "HH:mm ", "12.11.2026", "14:05"),
+            ("DD.MM.YYYY ", " HH:mm", "12.11.2026", "14:05"),
+            ("D MMMM YYYY ", "HH:mm ", "12 November 2026", "14:05"),
+        ] {
+            let footer = format!("{{\"date-format\":{dates:?},\"time-format\":{times:?}}}");
+            let settings = DateSettings::resolve(Some(&footer), &KanbanDefaults::default());
+            assert_eq!(settings.date_format, dates.trim(), "{footer}");
+            assert_eq!(settings.time_format, times.trim(), "{footer}");
+            let date_token = settings.date_token(day);
+            let time_token = settings.time_token(time);
+            assert_eq!(date_token, format!("@{{{want_date}}}"));
+            assert_eq!(time_token, format!("@@{{{want_time}}}"));
+            assert_eq!(settings.parse_date(want_date), Some(day), "{footer}");
+            assert_eq!(settings.parse_time(want_time), Some(time), "{footer}");
+        }
+        // The app defaults are trimmed the same way.
+        let defaults = KanbanDefaults {
+            date_format: Some(" DD.MM.YYYY ".to_owned()),
+            ..KanbanDefaults::default()
+        };
+        let settings = DateSettings::resolve(None, &defaults);
+        assert_eq!(settings.date_format, "DD.MM.YYYY");
+        assert_eq!(settings.date_token(day), "@{12.11.2026}");
+    }
+
+    #[test]
+    fn a_space_before_am_or_pm_is_accepted_in_the_fallback() {
+        let time = CivilTime::new(14, 5, 0);
+        assert_eq!(parse_time_with("2:05 PM", "HH:mm"), time);
+        assert_eq!(parse_time_with("2:05PM", "HH:mm"), time);
+        assert_eq!(parse_time_with("2:05 pm", "HH:mm"), time);
+        // The pattern path still parses a spaced meridiem too.
+        assert_eq!(parse_time_with("2:05 PM", "h:mm A"), time);
+        assert_eq!(parse_time_with("14:05", "HH:mm"), time);
+    }
+
+    #[test]
+    fn an_unknown_or_mistyped_app_default_is_kept_for_the_next_write() {
+        let input = json!({
+            "date-trigger": "@d",
+            "date-format": 3,
+            "hide-date-in-title": "no",
+            "unknown": {"x": 1},
+        });
+        let defaults = KanbanDefaults::from_json(Some(&input));
+        assert_eq!(defaults.date_trigger.as_deref(), Some("@d"));
+        assert_eq!(defaults.date_format, None);
+        assert_eq!(defaults.hide_date_in_title, None);
+        assert!(!defaults.is_empty());
+        let out = defaults.to_json();
+        assert_eq!(out["date-trigger"], "@d");
+        assert_eq!(out["date-format"], 3);
+        assert_eq!(out["hide-date-in-title"], "no");
+        assert_eq!(out["unknown"]["x"], 1);
+        assert_eq!(KanbanDefaults::from_json(Some(&out)), defaults);
     }
 
     #[test]

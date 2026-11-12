@@ -372,9 +372,10 @@ pub struct State {
     /// Kanban slice 9: the date/time picker under a card or the card editor,
     /// and the two time fields it edits.
     pub kanban_picker: Option<crate::KanbanPicker>,
-    /// Slice 9: the card editor's text at the Escape that closed a picker, so
-    /// the unchanged trigger does not reopen it.
-    pub kanban_picker_dismissed: Option<String>,
+    /// Slice 9: the card editor's text, trigger start and whether an accept
+    /// set it. An accepted marker survives the token and suppresses the undo;
+    /// an Escape marker is cleared by the next edit.
+    pub kanban_picker_dismissed: Option<(String, usize, bool)>,
     pub kanban_hour_field: TextEdit,
     pub kanban_minute_field: TextEdit,
     /// Kanban slice 5: the card (lane, index) the arrow keys act on.

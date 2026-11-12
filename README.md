@@ -255,7 +255,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (board) | Undo / redo drawing, moves and deletes (last 100) |
 | `⌘S` / `Ctrl+S` (board) | Save the board's drawing now (atomically, to the open board only; autosave also saves it once it rests, unless `"board_autosave": false`) |
 | `Esc` (board) | Clear the selection, else drop the tool, else leave Board for the last note mode |
-| **+ Add card**, a card's `⋯` or right-click (kanban) | Add a card at the lane's end; Edit, Insert card before / after, Duplicate, Split card, Add a date…, Add a time…, Delete |
+| **+ Add card**, a card's `⋯` or right-click (kanban) | Add a card at the lane's end; Edit, Insert card before / after, Duplicate, Split card, Add/Change date…, Add/Change time…, Delete |
 | Double-click a card (kanban) | Edit it in place: `Enter` commits, `Shift+Enter` breaks the line, `Esc` cancels |
 | Type `@` or `@@` in the card editor (kanban) | Open the date or time picker at the caret; the picker's Add replaces the trigger, and `Esc` leaves it |
 | Click a card's checkbox (kanban) | Toggle its done mark; a lane's `⋯` has **Mark all cards done** |
@@ -274,8 +274,8 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `?` (when not typing) | Open Help; `Esc` closes it |
 
 Kanban cards read `@{2026-11-11}`, `@[[2026-11-11]]` and `@@{14:30}` outside
-code; the card's foot shows the date/time, relative days and a daily-note link
-when the board asks. A board's settings footer holds `date-trigger`,
+code; the card's foot shows the date/time, relative days (local calendar days)
+and a daily-note link when the board asks. A board's settings footer holds `date-trigger`,
 `time-trigger`, `date-format`, `time-format`, `date-display-format`,
 `show-relative-date`, `hide-date-in-title` and `link-date-to-daily-note`; app-wide
 defaults live under `kanban_defaults` in `settings.json`, and the footer wins.

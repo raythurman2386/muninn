@@ -916,6 +916,32 @@ mod tests {
     }
 
     #[test]
+    fn kanban_defaults_keep_unknown_and_mistyped_keys_through_a_save() {
+        let home = temp_config("kanban-defaults-raw");
+        let settings = Settings {
+            kanban_defaults: muninn_core::KanbanDefaults::from_json(Some(&json!({
+                "date-trigger": "@d",
+                "date-format": 3,
+                "hide-date-in-title": "no",
+                "unknown": {"x": 1},
+            }))),
+            ..Settings::default()
+        };
+        settings.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"date-format\": 3"), "{text}");
+        assert!(text.contains("\"hide-date-in-title\": \"no\""), "{text}");
+        assert!(text.contains("\"unknown\""), "{text}");
+        let loaded = Settings::load_from(&home);
+        let out = loaded.kanban_defaults.to_json();
+        assert_eq!(out["date-trigger"], "@d");
+        assert_eq!(out["date-format"], 3);
+        assert_eq!(out["hide-date-in-title"], "no");
+        assert_eq!(out["unknown"]["x"], 1);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
     fn corrupt_settings_fall_back_to_defaults() {
         let home = temp_config("corrupt");
         let path = settings_path(&home);

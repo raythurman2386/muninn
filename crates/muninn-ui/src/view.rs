@@ -1604,8 +1604,22 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                 ("Insert card after", "insert_after"),
                 ("Duplicate", "duplicate"),
             ];
-            items.push(("Add a date…", "add_date"));
-            items.push(("Add a time…", "add_time"));
+            items.push((
+                if crate::kanban_dates::has_token(s, *lane, *index, crate::PickerKind::Date) {
+                    "Change date…"
+                } else {
+                    "Add a date…"
+                },
+                "add_date",
+            ));
+            items.push((
+                if crate::kanban_dates::has_token(s, *lane, *index, crate::PickerKind::Time) {
+                    "Change time…"
+                } else {
+                    "Add a time…"
+                },
+                "add_time",
+            ));
             let multi_line = s
                 .kanban
                 .as_ref()

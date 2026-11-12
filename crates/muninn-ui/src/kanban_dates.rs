@@ -3,9 +3,10 @@
 //! - A card's date and time tokens (`@{…}`, `@[[…]]`, `@@{…}`) are read by
 //!   the same [`scan_card_text`] sorting uses, outside fences and inline
 //!   code.
-//! - **Add a date…** and **Add a time…** in a card's menu open a small
-//!   picker. Accepting appends the token to the card's text through
-//!   `edit_kanban`, so it is one undo step and is written only by `⌘S`.
+//! - **Add/Change date…** and **Add/Change time…** in a card's menu open a
+//!   small picker. Accepting writes the card's one token of that kind through
+//!   `edit_kanban` (replacing an existing token), so it is one undo step and
+//!   is written only by `⌘S`.
 //! - Typing a trigger at a word boundary in the card editor opens the same
 //!   picker; accepting replaces the typed trigger with the token at the
 //!   caret. Escape closes the picker and leaves the typed trigger.
@@ -15,6 +16,7 @@
 //!   then the built-in defaults ([`DateSettings::resolve`]).
 
 use std::cmp::Reverse;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use muninn_core::{
     CardText, CivilDate, CivilTime, DateSettings, Kanban, format_date, format_time, scan_card_text,
@@ -94,8 +96,7 @@ impl State {
     ) {
         let settings = self.kanban_date_settings();
         let found = self.card_text(lane, index, &settings);
-        let today = CivilDate::today_utc();
-        let now = CivilTime::now_utc();
+        let (today, now) = local_now();
         let mut picker = KanbanPicker {
             kind,
             card: (lane, index),
@@ -131,6 +132,8 @@ impl State {
         }
         self.kanban_hour_field = TextEdit::new(format!("{:02}", picker.hour));
         self.kanban_minute_field = TextEdit::new(format!("{:02}", picker.minute));
+        select_all(&mut self.kanban_hour_field);
+        select_all(&mut self.kanban_minute_field);
         self.kanban_hour_field.focused = kind == PickerKind::Time;
         self.kanban_minute_field.focused = false;
         if kind == PickerKind::Time {
@@ -139,7 +142,9 @@ impl State {
         self.menu = None;
         self.kanban_picker_dismissed = None;
         self.kanban_picker = Some(picker);
-        self.kanban_selected = Some((lane, index));
+        if self.kanban_card_at(lane, index).is_some() {
+            self.kanban_selected = Some((lane, index));
+        }
         if let Some(shown) = &mut self.kanban {
             shown.error = None;
         }
@@ -170,11 +175,11 @@ impl State {
     /// Escape or Cancel: close the picker and leave the typed trigger, without
     /// reopening it until the editor's text changes.
     pub fn dismiss_picker(&mut self) {
-        let dismissed = self
-            .kanban_picker
-            .as_ref()
-            .is_some_and(|picker| picker.insert.is_some())
-            .then(|| self.kanban_card_field.text.clone());
+        let dismissed = self.kanban_picker.as_ref().and_then(|picker| {
+            picker
+                .insert
+                .map(|insert| (self.kanban_card_field.text.clone(), insert.start, false))
+        });
         self.close_picker();
         self.kanban_picker_dismissed = dismissed;
     }
@@ -210,7 +215,7 @@ impl State {
     }
 
     pub fn picker_today(&mut self) {
-        let today = CivilDate::today_utc();
+        let today = local_today();
         if let Some(picker) = &mut self.kanban_picker {
             picker.year = today.year();
             picker.month = today.month();
@@ -225,7 +230,7 @@ impl State {
     }
 
     pub fn picker_now(&mut self) {
-        let now = CivilTime::now_utc();
+        let now = local_now().1;
         self.kanban_hour_field
             .replace_text(format!("{:02}", now.hour()));
         self.kanban_minute_field
@@ -274,15 +279,19 @@ impl State {
         self.kanban_minute_field.focused = false;
         if let Some(insert) = picker.insert {
             if self.kanban_card.is_some() {
+                let before = self.kanban_card_field.text.clone();
                 self.kanban_card_field
                     .set_selection(insert.start, insert.end);
                 self.kanban_card_field.insert(&token);
                 self.kanban_card_field.focused = true;
+                // Undo in the field returns to the typed trigger; keep it
+                // dismissed so the picker does not reopen on that edit.
+                self.kanban_picker_dismissed = Some((before, insert.start, true));
             }
         } else {
             let what = match picker.kind {
-                PickerKind::Date => "add a date",
-                PickerKind::Time => "add a time",
+                PickerKind::Date => "change the date",
+                PickerKind::Time => "change the time",
             };
             let (lane, index) = picker.card;
             let Some(text) = self
@@ -291,44 +300,57 @@ impl State {
             else {
                 return;
             };
-            let text = with_token(&text, &token);
+            // A menu picker replaces the card's existing token of this kind;
+            // only an editor picker inserts a new one at the caret.
+            let text = match card_token_span(&text, &settings, picker.kind) {
+                Some(range) => {
+                    let mut next = text;
+                    next.replace_range(range, &token);
+                    next
+                }
+                None => with_token(&text, &token),
+            };
             self.edit_kanban(what, |board| board.edit_card(lane, index, &text));
         }
     }
 
-    /// Clear: remove the card's date or time token. In the card editor it
-    /// only closes the picker and leaves the typed trigger.
+    /// Clear: remove the card's date or time token. An editor picker removes
+    /// it from the field being edited and leaves the typed trigger; a menu
+    /// picker removes it with one board edit.
     pub fn picker_clear(&mut self) {
         let Some(picker) = self.kanban_picker.clone() else {
             return;
         };
+        let settings = self.kanban_date_settings();
         if picker.insert.is_some() {
-            self.dismiss_picker();
+            let text = self.kanban_card_field.text.clone();
+            if let Some(range) = card_token_span(&text, &settings, picker.kind) {
+                let (start, end) = clear_span(&text, range.start, range.end);
+                self.kanban_card_field.set_selection(start, end);
+                self.kanban_card_field.insert("");
+            }
+            self.close_picker();
             return;
         }
-        self.kanban_picker = None;
-        let settings = self.kanban_date_settings();
+        let (lane, index) = picker.card;
         let Some(text) = self
-            .kanban_card_at(picker.card.0, picker.card.1)
+            .kanban_card_at(lane, index)
             .map(|card| card.text().to_owned())
         else {
+            self.close_picker();
             return;
         };
-        let found = scan_card_text(&text, &settings);
-        let token = match picker.kind {
-            PickerKind::Date => found.date,
-            PickerKind::Time => found.time,
-        };
-        let Some(token) = token else {
+        let Some(range) = card_token_span(&text, &settings, picker.kind) else {
+            self.close_picker();
             return;
         };
-        let (start, end) = clear_span(&text, token.start, token.end);
+        let (start, end) = clear_span(&text, range.start, range.end);
         let next = format!("{}{}", &text[..start], &text[end..]);
-        let (lane, index) = picker.card;
         let what = match picker.kind {
             PickerKind::Date => "clear the date",
             PickerKind::Time => "clear the time",
         };
+        self.close_picker();
         self.edit_kanban(what, |board| board.edit_card(lane, index, &next));
     }
 
@@ -341,12 +363,24 @@ impl State {
         };
         let settings = self.kanban_date_settings();
         let text = self.kanban_card_field.text.clone();
-        if self.kanban_picker_dismissed.as_deref() == Some(text.as_str()) {
-            return;
-        }
-        self.kanban_picker_dismissed = None;
         let caret = self.kanban_card_field.focus.min(text.len());
         let found = trigger_before_caret(&text, caret, &settings);
+        if let Some((dismissed, start, accepted)) = self.kanban_picker_dismissed.clone() {
+            if dismissed == text && found.as_ref().is_some_and(|(_, at)| at == &start) {
+                // An accepted marker is used once, by the field undo; an
+                // Escape marker stays until the text changes.
+                if accepted {
+                    self.kanban_picker_dismissed = None;
+                }
+                return;
+            }
+            if accepted && found.is_none() {
+                // The token's own text, or typing after it, does not clear
+                // the accepted marker; its field undo still matches it.
+                return;
+            }
+            self.kanban_picker_dismissed = None;
+        }
         match found {
             Some((kind, start)) => {
                 if let Some(picker) = &mut self.kanban_picker
@@ -358,6 +392,8 @@ impl State {
                     if was != kind {
                         self.kanban_hour_field = TextEdit::new(format!("{:02}", picker.hour));
                         self.kanban_minute_field = TextEdit::new(format!("{:02}", picker.minute));
+                        select_all(&mut self.kanban_hour_field);
+                        select_all(&mut self.kanban_minute_field);
                         if kind == PickerKind::Time {
                             self.kanban_card_field.focused = false;
                             self.kanban_hour_field.focused = true;
@@ -383,6 +419,65 @@ impl State {
             }
         }
     }
+}
+
+/// The byte range of the card's first date or time token.
+fn card_token_span(
+    text: &str,
+    settings: &DateSettings,
+    kind: PickerKind,
+) -> Option<std::ops::Range<usize>> {
+    let found = scan_card_text(text, settings);
+    let token = match kind {
+        PickerKind::Date => found.date,
+        PickerKind::Time => found.time,
+    }?;
+    Some(token.start..token.end)
+}
+
+/// The note a link-form date points at: an alias after `|` is display text,
+/// not part of the target.
+fn link_target(value: &str) -> &str {
+    value.split_once('|').map_or(value, |(target, _)| target)
+}
+
+/// Whether the card already has a date or time token, for the menu label.
+pub(crate) fn has_token(s: &State, lane: usize, index: usize, kind: PickerKind) -> bool {
+    let settings = s.kanban_date_settings();
+    s.kanban_card_at(lane, index).is_some_and(|card| {
+        let found = scan_card_text(card.text(), &settings);
+        match kind {
+            PickerKind::Date => found.date.is_some(),
+            PickerKind::Time => found.time.is_some(),
+        }
+    })
+}
+
+/// The local date and time now. Rune reads the OS time zone; core stays
+/// zone-free and only converts the fields.
+pub(crate) fn local_now() -> (CivilDate, CivilTime) {
+    let epoch_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
+        });
+    date_time_from_local(rune::LocalTime::at(epoch_ms))
+}
+
+pub(crate) fn local_today() -> CivilDate {
+    local_now().0
+}
+
+fn date_time_from_local(local: rune::LocalTime) -> (CivilDate, CivilTime) {
+    let date = CivilDate::new(i64::from(local.year), local.month, local.day)
+        .unwrap_or_else(|| CivilDate::from_days_since_epoch(0));
+    let time = CivilTime::new(local.hour as u8, local.minute as u8, local.second as u8)
+        .unwrap_or_else(|| CivilTime::new(0, 0, 0).expect("midnight is a valid time"));
+    (date, time)
+}
+
+fn select_all(field: &mut TextEdit) {
+    field.set_selection(0, field.text.len());
 }
 
 /// The trigger ending at `caret`, at the start of the text or after
@@ -450,7 +545,7 @@ pub(crate) fn picker(s: &State, k: &Kit) -> El {
 }
 
 fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
-    let first = CivilDate::new(picker.year, picker.month, 1).unwrap_or_else(CivilDate::today_utc);
+    let first = CivilDate::new(picker.year, picker.month, 1).unwrap_or_else(local_today);
     let title = format_date(first, "MMMM YYYY");
     let head = row()
         .w_full()
@@ -624,6 +719,10 @@ fn time_picker(s: &State, k: &Kit) -> El {
                     picker_button(k, "kanban-picker-now", "Now")
                         .on_press(|s: &mut State| s.picker_now()),
                 )
+                .child(
+                    picker_button(k, "kanban-picker-clear", "Clear")
+                        .on_press(|s: &mut State| s.picker_clear()),
+                )
                 .child(rune::el().grow(1.0))
                 .child(
                     picker_button(k, "kanban-picker-cancel", "Cancel")
@@ -655,9 +754,11 @@ fn picker_button(k: &Kit, key: &str, label: &str) -> El {
 /// The card's own date/time row: formatted values, an optional relative day,
 /// and a link to the daily note when the board asks.
 pub(crate) fn card_when(
+    s: &State,
     k: &Kit,
     settings: &DateSettings,
     found: &CardText,
+    today: CivilDate,
     i: usize,
     j: usize,
 ) -> El {
@@ -670,20 +771,27 @@ pub(crate) fn card_when(
         .gap(6.0)
         .center_y();
     if let Some(token) = &found.date {
-        let date = settings.parse_date(&token.value);
+        let raw = link_target(&token.value);
+        let date = settings.parse_date(raw);
         let shown = date.map_or_else(
-            || token.value.clone(),
+            || raw.to_owned(),
             |date| format_date(date, &settings.date_display_format),
         );
         let shown = match (settings.show_relative_date, date) {
             (true, Some(date)) => {
-                let days = date.days_since_epoch() - CivilDate::today_utc().days_since_epoch();
+                let days = date.days_since_epoch() - today.days_since_epoch();
                 format!("{shown} · {}", relative_days(days))
             }
             _ => shown,
         };
-        let target = (settings.link_date_to_daily_note || token.link)
-            .then(|| format!("note:{}", token.value));
+        let target = (settings.link_date_to_daily_note || token.link).then(|| {
+            let (note, _) = raw.split_once('#').unwrap_or((raw, ""));
+            if s.vault.resolve(note).is_some() {
+                format!("note:{raw}")
+            } else {
+                format!("missing:{note}")
+            }
+        });
         line = line.child(match target {
             Some(target) => text(shown)
                 .key(format!("kanban-card-{i}-{j}-date"))
@@ -764,6 +872,38 @@ mod tests {
         assert_eq!(clear_span("a @{x} b", 2, 6), (1, 6));
         assert_eq!(clear_span("a@{x}", 1, 5), (1, 5));
         assert_eq!(clear_span("a @{x}", 2, 6), (1, 6));
+    }
+
+    #[test]
+    fn a_fixed_offset_maps_to_the_local_date_and_time() {
+        let epoch = (CivilDate::new(2026, 11, 12).unwrap().days_since_epoch() * 86_400
+            + 23 * 3_600
+            + 30 * 60)
+            * 1_000;
+        assert_eq!(
+            date_time_from_local(rune::LocalTime::at_offset(epoch, 2 * 3_600)),
+            (
+                CivilDate::new(2026, 11, 13).unwrap(),
+                CivilTime::new(1, 30, 0).unwrap()
+            )
+        );
+        assert_eq!(
+            date_time_from_local(rune::LocalTime::at_offset(epoch, -5 * 3_600)),
+            (
+                CivilDate::new(2026, 11, 12).unwrap(),
+                CivilTime::new(18, 30, 0).unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn a_link_alias_is_not_part_of_the_target() {
+        assert_eq!(link_target("2026-11-11|Nov 11"), "2026-11-11");
+        assert_eq!(
+            link_target("daily/2026-11-11#Today"),
+            "daily/2026-11-11#Today"
+        );
+        assert_eq!(link_target("2026-11-11"), "2026-11-11");
     }
 
     #[test]
