@@ -70,7 +70,7 @@ impl State {
         self.board_rename_left_board(mode);
         self.pending_heading = None;
         self.pending_top = false;
-        self.complete = None;
+        self.clear_complete();
         if mode.is_note_mode() && self.mode.is_note_mode() {
             self.last_note_mode = mode;
         }

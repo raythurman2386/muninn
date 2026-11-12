@@ -30,6 +30,7 @@ mod dates;
 mod edit;
 mod parse;
 mod sort;
+mod tags;
 mod text;
 
 #[cfg(test)]
@@ -48,7 +49,13 @@ pub use self::dates::{
     TIME_TRIGGER, format_date, format_time,
 };
 pub use self::sort::CardOrder;
-pub use self::text::{CardText, DateKind, DateToken, TagToken, scan_card_text};
+pub use self::tags::{
+    HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagColor, TagSettings, tag_colors,
+    tag_colors_json,
+};
+pub use self::text::{
+    CardText, DateKind, DateToken, TagToken, is_tag_char, is_tag_text, scan_card_text, scan_tags,
+};
 
 /// The settings key that says which lanes are shown collapsed
 /// (`docs/kanban-format.md` section 9).

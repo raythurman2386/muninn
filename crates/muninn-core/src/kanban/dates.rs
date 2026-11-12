@@ -7,6 +7,11 @@
 
 use serde_json::{Map, Value};
 
+use super::tags::{
+    HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagColor, TagSettings, tag_colors,
+    tag_colors_json,
+};
+
 /// The footer key: the text that starts a date (`@` by default).
 pub const DATE_TRIGGER: &str = "date-trigger";
 /// The footer key: the text that starts a time (`@@` by default).
@@ -837,6 +842,10 @@ pub struct KanbanDefaults {
     pub show_relative_date: Option<bool>,
     pub hide_date_in_title: Option<bool>,
     pub link_date_to_daily_note: Option<bool>,
+    // Tag defaults (slice 10).
+    pub hide_tags_in_title: Option<bool>,
+    pub show_tags_at_bottom: Option<bool>,
+    pub tag_colors: Option<Vec<TagColor>>,
     /// Keys this version does not know, kept so a newer Muninn's app defaults
     /// are not lost by an older one. A known key with the wrong JSON type is
     /// kept here too.
@@ -860,6 +869,9 @@ impl KanbanDefaults {
             show_relative_date: value.get(SHOW_RELATIVE_DATE).and_then(Value::as_bool),
             hide_date_in_title: value.get(HIDE_DATE_IN_TITLE).and_then(Value::as_bool),
             link_date_to_daily_note: value.get(LINK_DATE_TO_DAILY_NOTE).and_then(Value::as_bool),
+            hide_tags_in_title: value.get(HIDE_TAGS_IN_TITLE).and_then(Value::as_bool),
+            show_tags_at_bottom: value.get(SHOW_TAGS_AT_BOTTOM).and_then(Value::as_bool),
+            tag_colors: tag_colors(value.get(TAG_COLORS)),
             other: Map::new(),
         };
         if let Some(object) = value.as_object() {
@@ -873,6 +885,9 @@ impl KanbanDefaults {
                     SHOW_RELATIVE_DATE => defaults.show_relative_date.is_some(),
                     HIDE_DATE_IN_TITLE => defaults.hide_date_in_title.is_some(),
                     LINK_DATE_TO_DAILY_NOTE => defaults.link_date_to_daily_note.is_some(),
+                    HIDE_TAGS_IN_TITLE => defaults.hide_tags_in_title.is_some(),
+                    SHOW_TAGS_AT_BOTTOM => defaults.show_tags_at_bottom.is_some(),
+                    TAG_COLORS => defaults.tag_colors.is_some(),
                     _ => false,
                 };
                 if !handled {
@@ -912,6 +927,15 @@ impl KanbanDefaults {
         if let Some(value) = self.link_date_to_daily_note {
             object.insert(LINK_DATE_TO_DAILY_NOTE.to_owned(), Value::Bool(value));
         }
+        if let Some(value) = self.hide_tags_in_title {
+            object.insert(HIDE_TAGS_IN_TITLE.to_owned(), Value::Bool(value));
+        }
+        if let Some(value) = self.show_tags_at_bottom {
+            object.insert(SHOW_TAGS_AT_BOTTOM.to_owned(), Value::Bool(value));
+        }
+        if let Some(colors) = &self.tag_colors {
+            object.insert(TAG_COLORS.to_owned(), tag_colors_json(colors));
+        }
         Value::Object(object)
     }
 
@@ -925,6 +949,9 @@ impl KanbanDefaults {
             && self.show_relative_date.is_none()
             && self.hide_date_in_title.is_none()
             && self.link_date_to_daily_note.is_none()
+            && self.hide_tags_in_title.is_none()
+            && self.show_tags_at_bottom.is_none()
+            && self.tag_colors.is_none()
             && self.other.is_empty()
     }
 
@@ -953,6 +980,22 @@ impl KanbanDefaults {
         }
         if let Some(value) = self.link_date_to_daily_note {
             settings.link_date_to_daily_note = value;
+        }
+        settings
+    }
+
+    /// The tag settings these defaults supply; missing keys stay built-in.
+    #[must_use]
+    pub fn to_tag_settings(&self) -> TagSettings {
+        let mut settings = TagSettings::default();
+        if let Some(value) = self.hide_tags_in_title {
+            settings.hide_tags_in_title = value;
+        }
+        if let Some(value) = self.show_tags_at_bottom {
+            settings.show_tags_at_bottom = value;
+        }
+        if let Some(colors) = &self.tag_colors {
+            settings.tag_colors.clone_from(colors);
         }
         settings
     }
@@ -1175,6 +1218,12 @@ mod tests {
             show_relative_date: Some(true),
             hide_date_in_title: Some(false),
             link_date_to_daily_note: Some(true),
+            hide_tags_in_title: Some(true),
+            show_tags_at_bottom: Some(false),
+            tag_colors: Some(vec![TagColor {
+                tag_key: "work".to_owned(),
+                color: "2".to_owned(),
+            }]),
             ..KanbanDefaults::default()
         };
         let json = defaults.to_json();
@@ -1182,7 +1231,7 @@ mod tests {
         let text = serde_json::to_string(&json).unwrap();
         assert_eq!(
             text,
-            r#"{"date-display-format":"D MMMM YYYY","date-format":"DD.MM.YYYY","date-trigger":"@d","hide-date-in-title":false,"link-date-to-daily-note":true,"show-relative-date":true,"time-format":"HH:mm","time-trigger":"at"}"#
+            r#"{"date-display-format":"D MMMM YYYY","date-format":"DD.MM.YYYY","date-trigger":"@d","hide-date-in-title":false,"hide-tags-in-title":true,"link-date-to-daily-note":true,"show-relative-date":true,"show-tags-at-bottom":false,"tag-colors":[{"color":"2","tagKey":"work"}],"time-format":"HH:mm","time-trigger":"at"}"#
         );
     }
 

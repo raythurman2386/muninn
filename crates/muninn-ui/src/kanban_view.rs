@@ -28,7 +28,9 @@
 //! from a card, and keeps a dirty kanban's bytes when a linked note is renamed.
 //! Slice 9 (`kanban_dates.rs`) reads card dates and times, hides them from the
 //! title when the board asks, shows them at the card's foot, and opens the
-//! date/time picker from a card menu or a typed trigger.
+//! date/time picker from a card menu or a typed trigger. Slice 10
+//! (`kanban_tags.rs`) hides or chips a card's tags, completes `#` from the
+//! vault's tag index, and fills the Find bar from a chip.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -546,7 +548,7 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let note = s.note_id(rel);
     let dates = s.kanban_date_settings();
     let today = crate::kanban_dates::local_today();
-    let date_key = date_version(&dates, today);
+    let card_key = card_settings_version(s, &dates, today);
     let kit = crate::omarchy::kit_id(s, k.dark);
     let new_lane = s
         .kanban_lane_edit
@@ -591,7 +593,7 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
             let dates = dates.clone();
             rune::memo(
                 format!("kanban-lane-{i}"),
-                (rel, kit, lane_version(lane), selected, date_key),
+                (rel, kit, lane_version(lane), selected, card_key),
                 move || {
                     lane_column(
                         s,
@@ -643,10 +645,18 @@ fn lane_version(lane: &Lane) -> u64 {
     h.finish()
 }
 
-/// A hash of the date settings a card's text and foot depend on.
+/// A hash of the date settings and local day a card's text and foot depend on.
 fn date_version(dates: &DateSettings, today: CivilDate) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     (dates, today).hash(&mut h);
+    h.finish()
+}
+
+/// A hash of the date and tag settings a card's text and foot depend on.
+fn card_settings_version(s: &State, dates: &DateSettings, today: CivilDate) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    date_version(dates, today).hash(&mut h);
+    s.kanban_tag_settings().hash(&mut h);
     h.finish()
 }
 
@@ -983,12 +993,13 @@ fn card_view(
         return card_editor(s, k);
     }
     let done = card.is_done();
+    let tag_settings = s.kanban_tag_settings();
     let found = scan_card_text(card.text(), when.dates);
-    let title_text = if when.dates.hide_date_in_title {
-        found.without_dates(card.text())
-    } else {
-        card.text().to_owned()
-    };
+    let title_text = found.without(
+        card.text(),
+        when.dates.hide_date_in_title,
+        tag_settings.hide_tags_in_title,
+    );
     // Wikilinks open the note. A note embed stays a link: the spec allows
     // `![[Note]]` in a card and does not say to inline the note. An attachment
     // embed keeps the reader's filename placeholder.
@@ -1067,6 +1078,13 @@ fn card_view(
                 )
                 .child(crate::kanban_dates::card_when(
                     k, when.dates, &found, when.today, i, j,
+                ))
+                .child(crate::kanban_tags::card_tags(
+                    k,
+                    &tag_settings,
+                    &found,
+                    i,
+                    j,
                 )),
         )
         .child(
@@ -1133,7 +1151,46 @@ fn card_editor(s: &State, k: &Kit) -> El {
         && complete.card
         && !complete.items.is_empty()
     {
-        editor = editor.child(crate::view::link_complete_list(s, k, complete));
+        let rows = complete
+            .items
+            .iter()
+            .map(|&id| {
+                (
+                    format!("complete-item-{id}"),
+                    s.vault.display_label(id),
+                    crate::view::CompletePick::Note(id),
+                )
+            })
+            .collect();
+        editor = editor.child(crate::view::complete_list(
+            k,
+            "link-complete",
+            rows,
+            complete.index,
+        ));
+    }
+    if let Some(complete) = &s.tag_complete
+        && complete.card
+        && !complete.items.is_empty()
+    {
+        let rows = complete
+            .items
+            .iter()
+            .enumerate()
+            .map(|(index, tag)| {
+                (
+                    format!("complete-tag-{index}"),
+                    format!("#{tag}"),
+                    crate::view::CompletePick::Tag(tag.clone()),
+                )
+            })
+            .collect();
+        editor = editor.child(crate::view::complete_list(
+            k,
+            "tag-complete",
+            rows,
+            complete.index,
+        ));
     }
     editor
 }

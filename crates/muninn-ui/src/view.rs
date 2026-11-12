@@ -12,8 +12,7 @@ use rune_theme_opencode::icons as ic;
 use muninn_core::{Vault, block_anchors, headings};
 
 use crate::{
-    DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State,
-    ThemeMode,
+    DeleteConfirm, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State, ThemeMode,
 };
 
 pub(crate) const SIDEBAR: f32 = 258.0;
@@ -2270,6 +2269,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("⌘S / Ctrl+S", "Save now (autosave is on)"),
                 ("⌘E / Ctrl+E", "Toggle Write / Read"),
                 ("[[", "Wikilink completion"),
+                ("# (card editor)", "Vault tag completion"),
                 ("Tab (editor)", "Indent four spaces"),
                 ("F2", "Rename the selected note (on Board: the board)"),
                 ("Del", "Delete the selected note"),
@@ -3709,7 +3709,18 @@ fn editor(s: &State, k: &Kit) -> El {
     if let Some(complete) = &s.complete
         && !complete.items.is_empty()
     {
-        body = body.child(link_complete_list(s, k, complete));
+        let rows = complete
+            .items
+            .iter()
+            .map(|&id| {
+                (
+                    format!("complete-item-{id}"),
+                    s.vault.display_label(id),
+                    CompletePick::Note(id),
+                )
+            })
+            .collect();
+        body = body.child(complete_list(k, "link-complete", rows, complete.index));
     }
     col()
         .key("editor-pane")
@@ -3730,12 +3741,25 @@ fn editor(s: &State, k: &Kit) -> El {
         )
 }
 
-/// EDT-03: the completion/picker list under the editor. The highlighted row is
-/// moved with Up/Down (and wraps); clicking a row accepts it. Duplicate titles
-/// show their folder through `display_label`.
-pub(crate) fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) -> El {
+/// EDT-03: one row of a completion list. Accepting a note inserts a
+/// wikilink; accepting a tag (kanban slice 10) inserts `#tag`.
+#[derive(Clone, Debug)]
+pub(crate) enum CompletePick {
+    Note(usize),
+    Tag(String),
+}
+
+/// EDT-03: the completion/picker list under the editor or the card editor.
+/// The highlighted row is moved with Up/Down (and wraps); clicking a row
+/// accepts it. Duplicate titles show their folder through `display_label`.
+pub(crate) fn complete_list(
+    k: &Kit,
+    key: &str,
+    rows: Vec<(String, String, CompletePick)>,
+    index: usize,
+) -> El {
     let mut list = col()
-        .key("link-complete")
+        .key(key)
         .mt(8.0)
         .w(420.0)
         .gap(1.0)
@@ -3743,13 +3767,11 @@ pub(crate) fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) ->
         .radius(8.0)
         .fill(k.c.layer_02)
         .border(1.0, k.c.border_base);
-    for (index, &id) in complete.items.iter().enumerate() {
-        let on = complete.index == index;
-        let label = s.vault.display_label(id);
-        let key = format!("complete-item-{id}");
+    for (row_index, (row_key, label, pick)) in rows.into_iter().enumerate() {
+        let on = index == row_index;
         list = list.child(
             row()
-                .key(key)
+                .key(row_key)
                 .w_full()
                 .h(28.0)
                 .px(8.0)
@@ -3762,8 +3784,13 @@ pub(crate) fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) ->
                 })
                 .hover(k.c.hover)
                 .cursor(Cursor::Pointer)
-                .on_press(move |s: &mut State| {
-                    s.complete_choose(id);
+                .on_press(move |s: &mut State| match &pick {
+                    CompletePick::Note(id) => {
+                        s.complete_choose(*id);
+                    }
+                    CompletePick::Tag(tag) => {
+                        s.tag_complete_choose(tag);
+                    }
                 })
                 .child(
                     text(label)

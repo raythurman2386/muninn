@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime};
 
-use muninn_core::{ScanJob, Vault, atomic_copy, jump_offset, unclosed_link};
+use muninn_core::{ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag};
 use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
@@ -201,6 +201,22 @@ pub struct LinkComplete {
     pub card: bool,
 }
 
+/// Kanban slice 10: the card editor's `#` tag completion.
+#[derive(Clone, Debug)]
+pub struct TagComplete {
+    /// Byte offset of the `#` being completed.
+    pub open: usize,
+    /// The caret when the list opened; the typed `#query` is what it replaces.
+    pub at: usize,
+    /// Text after `#`.
+    pub query: String,
+    /// Candidate tags as stored in the vault, best first, capped at eight.
+    pub items: Vec<String>,
+    pub index: usize,
+    /// The list belongs to the kanban card editor (tags are offered there only).
+    pub card: bool,
+}
+
 /// How many recently opened notes the empty palette shows.
 pub(crate) const PALETTE_RECENT_MAX: usize = 6;
 
@@ -326,6 +342,10 @@ pub struct State {
     /// Inline completion dismissed with Escape at `(open offset, caret)`; it
     /// stays closed until either moves.
     pub(crate) complete_dismissed: Option<(usize, usize)>,
+    /// Kanban slice 10: the card editor's open `#` tag completion.
+    pub tag_complete: Option<TagComplete>,
+    /// A tag completion dismissed with Escape at `(open offset, caret)`.
+    pub(crate) tag_complete_dismissed: Option<(usize, usize)>,
     /// M2 NAV-02: the broken-links dashboard is open.
     pub broken_panel: bool,
     /// M2 EDT-04: heading a Read-mode open should scroll to on the next frame.
@@ -718,6 +738,8 @@ impl State {
             find: None,
             complete: None,
             complete_dismissed: None,
+            tag_complete: None,
+            tag_complete_dismissed: None,
             broken_panel: false,
             pending_heading: None,
             pending_top: false,
@@ -1544,8 +1566,7 @@ impl State {
     /// navigation. History-recording callers push afterwards; Back/Forward
     /// call this directly so moving through history does not rewrite it.
     fn load_note_at(&mut self, id: usize, focus: bool) {
-        self.complete = None;
-        self.complete_dismissed = None;
+        self.clear_complete();
         self.pending_heading = None;
         self.pending_top = false;
         let note = &self.vault.notes[id];
@@ -1827,8 +1848,7 @@ impl State {
 
     /// Cmd/Ctrl+F: open the find bar, or refocus it when it is already open.
     pub fn open_find(&mut self) {
-        self.complete = None;
-        self.complete_dismissed = None;
+        self.clear_complete();
         if let Some(find) = self.find.as_mut() {
             find.field.focused = true;
         } else {
@@ -1940,14 +1960,47 @@ impl State {
         None
     }
 
-    /// Detect an open `[[…` at the caret or refresh the candidate list.
+    /// Detect an open `[[…` or `#…` at the caret, or refresh its candidate
+    /// list.
     ///
     /// Runs from `poll` once a frame, like the find bar's match list, because
     /// the view only borrows `State`. The explicit Cmd+P picker is not
     /// detected here: its query is typed into the picker, not the note.
-    /// A focused kanban card editor is completed the same way as Write.
+    /// A focused kanban card editor is completed the same way as Write; the
+    /// `#` tag list is offered there only.
     /// Returns true when something the user can see changed.
     pub fn complete_tick(&mut self) -> bool {
+        if let Some(c) = &self.tag_complete {
+            let open = c.open;
+            let query = c.query.clone();
+            let Some((text, caret, is_card)) = self.completion_source() else {
+                self.tag_complete = None;
+                return true;
+            };
+            if !is_card {
+                self.tag_complete = None;
+                return true;
+            }
+            return match unclosed_tag(&text, caret) {
+                Some((mark, current)) if mark == open => {
+                    if current == query {
+                        false
+                    } else {
+                        let items = self.vault.suggest_tags(&current, 8);
+                        if let Some(c) = self.tag_complete.as_mut() {
+                            c.query = current;
+                            c.items = items;
+                            c.index = 0;
+                        }
+                        true
+                    }
+                }
+                _ => {
+                    self.tag_complete = None;
+                    true
+                }
+            };
+        }
         if let Some(c) = &self.complete {
             let Some(open) = c.open else {
                 return false;
@@ -1985,24 +2038,46 @@ impl State {
         let Some((text, caret, card)) = self.completion_source() else {
             return false;
         };
-        let Some((open, query)) = unclosed_link(&text, caret) else {
-            return false;
-        };
-        if self.complete_dismissed == Some((open, caret)) {
+        if let Some((open, query)) = unclosed_link(&text, caret) {
+            if self.complete_dismissed == Some((open, caret)) {
+                return false;
+            }
+            self.complete_dismissed = None;
+            let items = self.vault.suggest_links(&query, 8);
+            if items.is_empty() {
+                return false;
+            }
+            self.complete = Some(LinkComplete {
+                open: Some(open),
+                at: caret,
+                query,
+                items,
+                index: 0,
+                card,
+            });
+            return true;
+        }
+        if !card {
             return false;
         }
-        self.complete_dismissed = None;
-        let items = self.vault.suggest_links(&query, 8);
+        let Some((open, query)) = unclosed_tag(&text, caret) else {
+            return false;
+        };
+        if self.tag_complete_dismissed == Some((open, caret)) {
+            return false;
+        }
+        self.tag_complete_dismissed = None;
+        let items = self.vault.suggest_tags(&query, 8);
         if items.is_empty() {
             return false;
         }
-        self.complete = Some(LinkComplete {
-            open: Some(open),
+        self.tag_complete = Some(TagComplete {
+            open,
             at: caret,
             query,
             items,
             index: 0,
-            card,
+            card: true,
         });
         true
     }
@@ -2030,27 +2105,43 @@ impl State {
             card: false,
         });
         self.complete_dismissed = None;
+        self.tag_complete = None;
+        self.tag_complete_dismissed = None;
     }
 
     /// Keys claimed while a completion or the picker is open. Up/Down move the
     /// highlight, Enter/Tab accept, Escape dismisses. Typing filters only in
     /// the explicit picker; in inline mode the note itself receives the text
-    /// and `complete_tick` follows the query.
+    /// and `complete_tick` follows the query. The card editor's tag list
+    /// shares these keys; only the accepted text differs (`#tag`).
     pub fn complete_key(&mut self, e: &KeyEvent) -> bool {
-        let Some((picker, current)) = self
+        let tag = self.tag_complete.is_some();
+        let current_note = self
             .complete
             .as_ref()
-            .map(|c| (c.open.is_none(), c.items.get(c.index).copied()))
-        else {
+            .and_then(|c| c.items.get(c.index).copied());
+        let current_tag = self
+            .tag_complete
+            .as_ref()
+            .and_then(|c| c.items.get(c.index))
+            .cloned();
+        if !tag && self.complete.is_none() {
             return false;
-        };
+        }
+        let picker = self.complete.as_ref().is_some_and(|c| c.open.is_none());
         match &e.key {
             Key::Escape => {
                 self.dismiss_complete();
                 true
             }
             Key::Enter | Key::Tab => {
-                if let Some(id) = current {
+                if tag {
+                    if let Some(tag) = current_tag {
+                        self.tag_complete_choose(&tag);
+                    } else {
+                        self.dismiss_complete();
+                    }
+                } else if let Some(id) = current_note {
                     self.complete_choose(id);
                 } else {
                     self.dismiss_complete();
@@ -2089,6 +2180,14 @@ impl State {
 
     /// Move the highlighted suggestion, wrapping at both ends.
     pub fn complete_step(&mut self, delta: isize) -> bool {
+        if let Some(c) = self.tag_complete.as_mut() {
+            if c.items.is_empty() {
+                return false;
+            }
+            let len = c.items.len() as isize;
+            c.index = (c.index as isize + delta).rem_euclid(len) as usize;
+            return true;
+        }
         let Some(c) = self.complete.as_mut() else {
             return false;
         };
@@ -2135,9 +2234,31 @@ impl State {
         true
     }
 
+    /// Insert `#tag`, replacing the typed `#query` in the card editor. The
+    /// pointer uses this too. Escape leaves the typed `#` alone.
+    pub fn tag_complete_choose(&mut self, tag: &str) -> bool {
+        let Some(c) = self.tag_complete.take() else {
+            return false;
+        };
+        let text = format!("#{}", tag.strip_prefix('#').unwrap_or(tag));
+        let field = &mut self.kanban_card_field;
+        let caret = field.focus.min(field.text.len());
+        field.set_selection(c.open.min(caret), caret);
+        field.insert(&text);
+        self.tag_complete_dismissed = None;
+        true
+    }
+
     /// Escape: close the list. Inline completion remembers where it was
     /// dismissed so the next frame does not immediately reopen it.
     pub fn dismiss_complete(&mut self) {
+        if let Some(c) = self.tag_complete.take() {
+            let caret = self
+                .kanban_card_field
+                .focus
+                .min(self.kanban_card_field.text.len());
+            self.tag_complete_dismissed = Some((c.open, caret));
+        }
         if let Some(c) = self.complete.take()
             && let Some(open) = c.open
         {
@@ -2152,14 +2273,22 @@ impl State {
         }
     }
 
+    /// Close both lists and forget where Escape dismissed them (a mode or
+    /// note change, not a dismissal the next frame should honour).
+    pub(crate) fn clear_complete(&mut self) {
+        self.complete = None;
+        self.complete_dismissed = None;
+        self.tag_complete = None;
+        self.tag_complete_dismissed = None;
+    }
+
     pub fn focus_editor(&mut self) {
         self.dismiss_palette();
         self.set_text_focus(true, false);
     }
 
     pub fn focus_search(&mut self) {
-        self.complete = None;
-        self.complete_dismissed = None;
+        self.clear_complete();
         self.dismiss_palette();
         self.reveal_sidebar();
         self.set_text_focus(false, true);
