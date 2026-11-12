@@ -278,7 +278,7 @@ fn limit_suffix(core: &str) -> Option<(&str, u32)> {
 
 fn marker_line(source: &str, lines: &[Line], from: usize) -> Option<usize> {
     let mut index = from;
-    while index < lines.len() && content(source, &lines[index]).trim().is_empty() {
+    while index < lines.len() && is_blank(content(source, &lines[index])) {
         index += 1;
     }
     marker_word(content(source, lines.get(index)?)).map(|_| index)
@@ -293,7 +293,7 @@ fn marker_word(text: &str) -> Option<&str> {
 
 fn archive_heading_line(source: &str, lines: &[Line], rule: usize) -> Option<usize> {
     let mut index = rule + 1;
-    while index < lines.len() && content(source, &lines[index]).trim().is_empty() {
+    while index < lines.len() && is_blank(content(source, &lines[index])) {
         index += 1;
     }
     archive_word(content(source, lines.get(index)?)).map(|_| index)
@@ -325,6 +325,15 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
             // is not part of the card, even when it would close or open a fence.
             if !is_blank(continued) && !is_indented(continued) {
                 break;
+            }
+            if is_blank(continued) {
+                let mut look = next + 1;
+                while look < lines.len() && is_blank(content(source, &lines[look])) {
+                    look += 1;
+                }
+                if !(look < lines.len() && is_indented(content(source, &lines[look]))) {
+                    break;
+                }
             }
             raw.push(continued);
             if fence_closes(continued, marker, run) {
