@@ -21,25 +21,47 @@ impl Kanban {
     /// Insert a card at `index` in `lane` (`index == cards.len()` appends).
     ///
     /// The new line is `- [ ] ` plus `text`. A trailing ` ^id` on its first
-    /// line is the card's block id, not text. A newline in `text` starts a
+    /// line is the card's block id, not text; it must not be one another card
+    /// already uses. A blank text is refused. A newline in `text` starts a
     /// continuation, indented the way existing cards in the file indent
     /// theirs, or by two spaces when none do. In a lane with no cards the
     /// card goes after the lane's leading passthrough text.
     pub fn add_card(&mut self, lane: usize, index: usize, text: &str) -> io::Result<()> {
         let (text, block_id) = card_text_and_id(&normalised_card_text(text));
-        let at = self.insert_offset(lane, index)?;
-        let indent = padded_new_card_indent(self.continuation_indent());
-        let block = render_card(self.nl, ' ', &text, block_id.as_deref(), &indent);
-        let next = insert_block(&self.source, at, block, self.nl);
-        self.accept_card(next, lane, index, &text, block_id.as_deref())
+        if text.is_empty() {
+            return Err(invalid_input("a card's text is not empty"));
+        }
+        if let Some(id) = block_id.as_deref() {
+            self.refuse_used_block_id(id, None)?;
+        }
+        self.insert_card(lane, index, &text, block_id.as_deref())
+    }
+
+    /// Insert a card whose text is written literally: a trailing ` ^id` on its
+    /// first line is text, not a block id, and no id is parsed out of it.
+    /// Because the reader always takes such an ending for an id, a text the
+    /// writer cannot store unchanged is refused. Split card and duplicate use
+    /// this so they can never retarget an existing block link.
+    pub fn add_card_text(&mut self, lane: usize, index: usize, text: &str) -> io::Result<()> {
+        let text = normalised_card_text(text);
+        if card_text_and_id(&text).1.is_some() {
+            return Err(invalid_input(
+                "a card's first line cannot end in a block id; the reader would take it as the card's id",
+            ));
+        }
+        self.insert_card(lane, index, &text, None)
     }
 
     /// Replace a card's markdown. The checkbox character stays. A trailing
-    /// ` ^id` on the first line replaces the card's block id; without one the
-    /// id stays. Continuation lines are indented like the rest of the file.
+    /// ` ^id` on the first line replaces the card's block id when no other
+    /// card uses it; without one the id stays. Continuation lines are
+    /// indented like the rest of the file.
     pub fn edit_card(&mut self, lane: usize, index: usize, text: &str) -> io::Result<()> {
         let card = self.card(lane, index)?;
         let (text, requested_id) = card_text_and_id(&normalised_card_text(text));
+        if let Some(id) = requested_id.as_deref() {
+            self.refuse_used_block_id(id, Some((lane, index)))?;
+        }
         let block_id = requested_id.or_else(|| card.block_id.clone());
         if text == card.text && block_id.as_deref() == card.block_id.as_deref() {
             return Ok(());
@@ -54,6 +76,22 @@ impl Kanban {
         let block = keep_open_ending(&self.source, span.end, block, self.nl);
         let next = splice(&self.source, span, &block);
         self.accept_card(next, lane, index, &text, block_id.as_deref())
+    }
+
+    /// Put a card's lines at `index`; the checks on its id and text are the
+    /// caller's.
+    fn insert_card(
+        &mut self,
+        lane: usize,
+        index: usize,
+        text: &str,
+        block_id: Option<&str>,
+    ) -> io::Result<()> {
+        let at = self.insert_offset(lane, index)?;
+        let indent = padded_new_card_indent(self.continuation_indent());
+        let block = render_card(self.nl, ' ', text, block_id, &indent);
+        let next = insert_block(&self.source, at, block, self.nl);
+        self.accept_card(next, lane, index, text, block_id)
     }
 
     /// Remove one card's lines. Surrounding blank lines stay.
@@ -250,8 +288,10 @@ impl Kanban {
     /// Move a lane. Its lines, from the title line up to the next lane, the
     /// archive or the footer, are taken out and put back unchanged before the
     /// lane now at `to`, or after the last lane. `to` is the lane's index
-    /// after the move, as for [`Kanban::move_card`]. A `list-collapse`
-    /// setting moves the lane's entry with it, so every lane keeps its state.
+    /// after the move, as for [`Kanban::move_card`]. A lane put after the last
+    /// line of a file with no final newline loses its trailing blank lines,
+    /// so that ending is kept. A `list-collapse` setting moves the lane's
+    /// entry with it, so every lane keeps its state.
     pub fn move_lane(&mut self, from: usize, to: usize) -> io::Result<()> {
         let count = self.lanes.len();
         if from >= count || to >= count {
@@ -396,6 +436,31 @@ impl Kanban {
         }
         *self = parsed;
         Ok(id)
+    }
+
+    /// Refuse `id` when a card other than `except` already uses it. Two cards
+    /// with one id make `[[Note#^id]]` point at whichever comes first.
+    fn refuse_used_block_id(&self, id: &str, except: Option<(usize, usize)>) -> io::Result<()> {
+        if self.block_id_used(id, except) {
+            return Err(invalid_input("that block id is already used"));
+        }
+        Ok(())
+    }
+
+    /// Whether a lane card, or an archive card, other than `except` has `id`.
+    fn block_id_used(&self, id: &str, except: Option<(usize, usize)>) -> bool {
+        let lane_used = self.lanes.iter().enumerate().any(|(lane, section)| {
+            section.cards.iter().enumerate().any(|(index, card)| {
+                Some((lane, index)) != except && card.block_id.as_deref() == Some(id)
+            })
+        });
+        lane_used
+            || self.archive.as_ref().is_some_and(|archive| {
+                archive
+                    .cards
+                    .iter()
+                    .any(|card| card.block_id.as_deref() == Some(id))
+            })
     }
 
     /// The next `card-N` that no card in this note already uses.
@@ -685,9 +750,16 @@ fn padded_new_card_indent(indent: String) -> String {
     }
 }
 
-/// Drop carriage returns, then one trailing newline, matching what a card stores.
+/// What a card stores for typed text: carriage returns dropped, a line of
+/// spaces or tabs made the blank line the spec stores, then one trailing
+/// newline dropped.
 fn normalised_card_text(text: &str) -> String {
-    let mut text = text.replace('\r', "");
+    let text = text.replace('\r', "");
+    let mut text = text
+        .split('\n')
+        .map(|line| if is_blank(line) { "" } else { line })
+        .collect::<Vec<_>>()
+        .join("\n");
     if text.ends_with('\n') {
         text.pop();
     }
@@ -736,10 +808,11 @@ fn splice(source: &str, range: Range<usize>, with: &str) -> String {
 }
 
 /// Put `block` at `at`. A block landing mid-line gets a leading newline, and
-/// a block that would swallow the following line gets a trailing one. A file
-/// with no final newline keeps that, unless the block ends with a blank line:
-/// trimming that line's ending would drop the line, and the blank line is
-/// part of the block.
+/// a block that would swallow the following line gets a trailing one.
+///
+/// A file with no final newline keeps that (spec section 10 rule 5). A block
+/// put at the end there loses its trailing blank-line run, and the ending of
+/// its last line, rather than giving the file a newline after it.
 fn insert_block(source: &str, at: usize, mut block: String, nl: &str) -> String {
     if at > 0 && !source[..at].ends_with('\n') {
         block.insert_str(0, nl);
@@ -747,23 +820,12 @@ fn insert_block(source: &str, at: usize, mut block: String, nl: &str) -> String 
     if at < source.len() && !block.ends_with('\n') {
         block.push_str(nl);
     }
-    if at == source.len()
-        && !source.is_empty()
-        && !source.ends_with('\n')
-        && block.ends_with(nl)
-        && !ends_with_blank_line(&block, nl)
-    {
-        block.truncate(block.len() - nl.len());
+    if at == source.len() && !source.is_empty() && !source.ends_with('\n') {
+        while block.ends_with(['\n', '\r']) {
+            block.pop();
+        }
     }
     splice(source, at..at, &block)
-}
-
-/// Whether `block` ends with an empty line, so removing its final line ending
-/// would remove that line rather than the terminator of the last one.
-fn ends_with_blank_line(block: &str, nl: &str) -> bool {
-    block
-        .strip_suffix(nl)
-        .is_some_and(|rest| rest.ends_with('\n'))
 }
 
 /// When `body` begins, after blank lines, with indented passthrough, the end
@@ -889,9 +951,25 @@ fn set_json_key(line: &str, key: &str, value: &Value) -> io::Result<String> {
     Ok(splice(line, close..close, &insertion))
 }
 
+/// Remove every member with `key`: one removal can leave an earlier copy
+/// effective when the object repeats the key.
 fn remove_json_key(line: &str, key: &str) -> io::Result<String> {
+    let mut line = line.to_owned();
+    let mut found = false;
+    while scan_object(&line)?.0.iter().any(|member| member.key == key) {
+        line = remove_one_json_key(&line, key)?;
+        found = true;
+    }
+    if found {
+        Ok(line)
+    } else {
+        Err(invalid_input("no such setting"))
+    }
+}
+
+/// Remove the effective (last) member with `key` and the comma next to it.
+fn remove_one_json_key(line: &str, key: &str) -> io::Result<String> {
     let (members, _) = scan_object(line)?;
-    // The effective member is the last one with this key.
     let Some(index) = members.iter().rposition(|member| member.key == key) else {
         return Err(invalid_input("no such setting"));
     };
