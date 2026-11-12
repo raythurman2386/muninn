@@ -923,10 +923,45 @@ fn an_unchanged_edit_keeps_mixed_continuation_indents() {
     let mut kanban = parse(&source);
     assert_eq!(kanban.source(), source);
     let text = kanban.lanes()[0].cards()[0].text().to_owned();
-    assert!(text.contains("\t```"));
-    assert!(text.contains("\n  two-space line"));
+    assert_eq!(text, "a\n```\n## X\n```\n  two-space line");
     kanban.edit_card(0, 0, &text).unwrap();
     assert_eq!(kanban.source(), source);
+}
+
+#[test]
+fn an_added_line_on_a_mixed_indent_card_moves_with_the_card() {
+    let source = read_fixture("indent-mixed.md");
+    let mut kanban = parse(&source);
+    let text = kanban.lanes()[0].cards()[0].text().to_owned();
+    kanban.edit_card(0, 0, &(text + "\nadded")).unwrap();
+    assert_eq!(
+        kanban.lanes()[0].cards()[0].text(),
+        "a\n```\n## X\n```\n  two-space line\nadded"
+    );
+    kanban.add_lane(1, "Done", None, true).unwrap();
+    kanban.move_card(0, 0, 1, 0).unwrap();
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+## Done
+
+**Complete**
+
+- [ ] a
+	```
+	## X
+	```
+  two-space line
+	added
+
+"
+    );
 }
 
 #[test]
