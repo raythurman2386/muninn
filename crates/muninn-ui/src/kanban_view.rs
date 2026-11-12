@@ -190,14 +190,18 @@ impl State {
             return;
         }
         let same_rel = self.kanban.as_ref().map(|k| &k.rel) == shown.as_ref().map(|k| &k.rel);
-        if !same_rel {
-            self.kanban_selected = None;
-        }
+        // A re-read can move the selected card down its lane; another
+        // kanban's selection goes with that kanban.
+        let selected_card = if same_rel { self.selected_card() } else { None };
         let reloaded = same_rel && shown.is_some();
         self.kanban = shown;
         // Slice 6: replacing the board ends a press held on a card or lane.
         self.kanban_drag = None;
-        self.prune_kanban_selection();
+        // A menu or Delete lane confirmation names a card or lane by place,
+        // which the new board can have moved: it closes with the board it
+        // was opened on rather than act on another card or lane.
+        self.menu = None;
+        self.restore_kanban_selection(selected_card);
         if reloaded {
             self.log_event("watch", "reloaded the shown kanban");
         }

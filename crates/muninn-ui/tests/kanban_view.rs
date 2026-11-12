@@ -384,3 +384,82 @@ fn settings_with_every_mode_key_still_load() {
         assert_eq!(settings.kanban, None, "{key}");
     }
 }
+
+fn settle(rt: &mut Runtime<State>) {
+    for _ in 0..30 {
+        frame(rt);
+    }
+}
+
+fn has(rt: &Runtime<State>, key: &str) -> bool {
+    rt.elements()
+        .iter()
+        .any(|e| e.key.as_deref() == Some(key) && !e.exiting)
+}
+
+// P1-2: a menu or Delete lane confirmation names a card or lane by place;
+// switching kanbans replaces the board under it, so it must close.
+
+#[test]
+fn switching_kanbans_closes_a_card_menu_and_a_delete_lane_confirmation() {
+    let tmp = kanban_vault();
+    let before = snapshot(tmp.path());
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "Busy");
+    settle(&mut rt);
+    rt.update(|s, _| s.open_card_menu(0, 0));
+    settle(&mut rt);
+    assert!(has(&rt, "context-menu"), "the card menu is drawn");
+    show(&mut rt, "Sprint");
+    settle(&mut rt);
+    assert_eq!(shown(&rt), Some("Sprint.md"));
+    assert!(rt.state.menu.is_none(), "the menu closed with its board");
+    assert!(!has(&rt, "context-menu"), "no menu is drawn");
+    assert!(!has(&rt, "menu-delete"));
+
+    // Delete lane's confirmation names a lane by place too.
+    rt.update(|s, _| s.open_lane_menu(1));
+    rt.update(|s, _| s.pick_menu("delete_lane"));
+    settle(&mut rt);
+    assert!(
+        has(&rt, "kanban-delete-lane-question"),
+        "the confirmation is drawn"
+    );
+    show(&mut rt, "Busy");
+    settle(&mut rt);
+    assert!(rt.state.menu.is_none());
+    assert!(!has(&rt, "kanban-delete-lane-question"));
+    // The confirmation's Delete cannot reach the other board's lane.
+    rt.update(|s, _| s.pick_menu("delete"));
+    settle(&mut rt);
+    assert_eq!(shown(&rt), Some("Busy.md"));
+    assert_eq!(snapshot(tmp.path()), before, "no bytes changed");
+}
+
+// P2-3: a board re-read can move cards; the selection is a card, not a place.
+
+#[test]
+fn a_re_read_keeps_the_selection_on_its_card_and_drops_it_when_gone() {
+    let tmp = kanban_vault();
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "Sprint");
+    settle(&mut rt);
+    click(&mut rt, "kanban-card-0-0");
+    frame(&mut rt);
+    assert_eq!(rt.state.kanban_selected, Some((0, 0)));
+    // Another app inserts a card above it.
+    let changed = SPRINT.replacen("## Backlog\n\n", "## Backlog\n\n- [ ] Inserted first\n", 1);
+    fs::write(tmp.path().join("Sprint.md"), &changed).unwrap();
+    rt.state.refresh_kanban();
+    frame(&mut rt);
+    assert_eq!(rt.state.kanban_selected, Some((0, 1)), "the same card");
+    let board = rt.state.kanban.as_ref().unwrap().board.as_ref().unwrap();
+    assert_eq!(board.lanes()[0].cards()[1].text(), "Write the threat model");
+    // The selected card goes: the selection goes with it.
+    let gone = SPRINT.replace("- [ ] Write the threat model\n", "");
+    fs::write(tmp.path().join("Sprint.md"), &gone).unwrap();
+    rt.state.refresh_kanban();
+    frame(&mut rt);
+    assert_eq!(rt.state.kanban_selected, None);
+    assert_eq!(shown(&rt), Some("Sprint.md"));
+}
