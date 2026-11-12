@@ -1,0 +1,127 @@
+rune: `init` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 136 frames at 60 fps, gpu init 84.2 ms, first frame 65.68 ms, frame cpu mean 5.552 ms p50 2.666 p95 14.180 max 143.230, 424 instances
+rune: animating frames 78 (cpu p50 4.550 p95 15.993 ms), at-rest frames 57 (the window draws none; forced cpu p50 1.899 p95 3.165 ms), layout nodes 91, glyphs 239
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/edit-before.json: board-surface-title says 'Tools'
+ok wrote /home/ret/Development/muninn-kanban/target/ui-smoke/work/edit/edit.json: 50 events, zoom 1.0000
+ok before: rectangle fill where planned (1344/1344 px)
+ok before: text ink moved by (0, 0) (want 0.00, 0.00)
+ok before: no selection drawn (0 px)
+ok before: nothing else on the canvas changed
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 188 frames at 60 fps, gpu init 84.5 ms, first frame 65.52 ms, frame cpu mean 4.669 ms p50 2.749 p95 12.293 max 145.026, 476 instances
+rune: animating frames 120 (cpu p50 3.377 p95 12.843 ms), at-rest frames 67 (the window draws none; forced cpu p50 1.889 p95 3.092 ms), layout nodes 92, glyphs 239
+ok selected: rectangle fill where planned (1344/1344 px)
+ok selected: text ink moved by (0, 0) (want 0.00, 0.00)
+ok selected: rect outlined [12, 12, 5, 5, 12, 12, 5, 5]
+ok selected: nothing else on the canvas changed
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 249 frames at 60 fps, gpu init 84.9 ms, first frame 65.01 ms, frame cpu mean 4.268 ms p50 2.643 p95 11.075 max 142.701, 491 instances
+rune: animating frames 160 (cpu p50 2.891 p95 11.343 ms), at-rest frames 88 (the window draws none; forced cpu p50 2.080 p95 3.095 ms), layout nodes 94, glyphs 254
+ok moved: rectangle fill where planned (1344/1344 px)
+ok moved: no fill where the rectangle was (0 px)
+ok moved: text ink moved by (0, 0) (want 0.00, 0.00)
+ok moved: rect outlined [12, 12, 5, 5, 12, 12, 5, 5]
+ok moved: nothing else on the canvas changed
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 17 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 319 frames at 60 fps, gpu init 86.1 ms, first frame 65.12 ms, frame cpu mean 3.782 ms p50 2.480 p95 7.578 max 146.221, 491 instances
+rune: animating frames 172 (cpu p50 2.861 p95 10.798 ms), at-rest frames 146 (the window draws none; forced cpu p50 2.026 p95 3.154 ms), layout nodes 94, glyphs 254
+ok marquee: rectangle fill where planned (1344/1344 px)
+ok marquee: no fill where the rectangle was (0 px)
+ok marquee: text ink moved by (0, 0) (want 0.00, 0.00)
+ok marquee: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
+ok marquee: nothing else on the canvas changed
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 13 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 379 frames at 60 fps, gpu init 82.1 ms, first frame 65.34 ms, frame cpu mean 3.574 ms p50 2.385 p95 7.383 max 144.362, 491 instances
+rune: animating frames 220 (cpu p50 2.793 p95 10.801 ms), at-rest frames 158 (the window draws none; forced cpu p50 2.007 p95 3.201 ms), layout nodes 94, glyphs 254
+ok nudged: rectangle fill where planned (1344/1344 px)
+ok nudged: no fill where the rectangle was (0 px)
+ok nudged: text ink moved by (11, 5) (want 11.00, 5.00)
+ok nudged: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
+ok nudged: nothing else on the canvas changed
+rune: `init` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 17 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 412 frames at 60 fps, gpu init 82.5 ms, first frame 65.20 ms, frame cpu mean 3.562 ms p50 2.279 p95 7.467 max 143.641, 433 instances
+rune: animating frames 245 (cpu p50 2.778 p95 11.118 ms), at-rest frames 166 (the window draws none; forced cpu p50 1.966 p95 3.274 ms), layout nodes 91, glyphs 248
+ok deleted: rectangle fill where planned (1344/1344 px)
+ok deleted: no fill where the rectangle was (0 px)
+ok deleted: the text is gone (0 px)
+ok deleted: no selection drawn (0 px)
+ok deleted: nothing else on the canvas changed
+rune: `init` blocked 11 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 16 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 445 frames at 60 fps, gpu init 83.0 ms, first frame 66.36 ms, frame cpu mean 3.459 ms p50 2.417 p95 7.165 max 145.270, 495 instances
+rune: animating frames 278 (cpu p50 2.736 p95 7.784 ms), at-rest frames 166 (the window draws none; forced cpu p50 1.993 p95 3.252 ms), layout nodes 94, glyphs 254
+ok undone: rectangle fill where planned (1344/1344 px)
+ok undone: no fill where the rectangle was (0 px)
+ok undone: text ink moved by (11, 5) (want 11.00, 5.00)
+ok undone: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
+ok undone: nothing else on the canvas changed
+rune: `init` blocked 11 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 478 frames at 60 fps, gpu init 82.5 ms, first frame 65.86 ms, frame cpu mean 3.467 ms p50 2.478 p95 7.122 max 143.966, 433 instances
+rune: animating frames 311 (cpu p50 2.796 p95 7.629 ms), at-rest frames 166 (the window draws none; forced cpu p50 2.023 p95 3.394 ms), layout nodes 91, glyphs 248
+ok redone: rectangle fill where planned (1344/1344 px)
+ok redone: no fill where the rectangle was (0 px)
+ok redone: the text is gone (0 px)
+ok redone: no selection drawn (0 px)
+ok redone: nothing else on the canvas changed
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 562 frames at 60 fps, gpu init 82.7 ms, first frame 63.90 ms, frame cpu mean 3.410 ms p50 2.514 p95 6.941 max 141.578, 495 instances
+rune: animating frames 379 (cpu p50 2.773 p95 7.752 ms), at-rest frames 182 (the window draws none; forced cpu p50 2.050 p95 3.556 ms), layout nodes 94, glyphs 254
+ok dirty: rectangle fill where planned (1344/1344 px)
+ok dirty: no fill where the rectangle was (0 px)
+ok dirty: text ink moved by (11, 5) (want 11.00, 5.00)
+ok dirty: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
+ok dirty: nothing else on the canvas changed
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 529 frames at 60 fps, gpu init 84.1 ms, first frame 66.11 ms, frame cpu mean 3.387 ms p50 2.344 p95 7.170 max 144.857, 423 instances
+rune: animating frames 354 (cpu p50 2.732 p95 7.611 ms), at-rest frames 174 (the window draws none; forced cpu p50 1.980 p95 3.378 ms), layout nodes 91, glyphs 238
+ok saved: rectangle fill where planned (1344/1344 px)
+ok saved: no fill where the rectangle was (0 px)
+ok saved: the text is gone (0 px)
+ok saved: no selection drawn (0 px)
+ok saved: nothing else on the canvas changed
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/edit-nudged.json: board-save-state says 'Unsaved · ⌘S saves'
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/edit-saved.json: board-save-state says 'Saved'
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/edit-dirty.json: board-save-state says 'Unsaved · ⌘S saves'
+ok parses: the same 5 elements in order
+ok keep-rect: at (100.000, 80.000), version 12→13, new nonce, updated 1794492067038, isDeleted False; every other field kept
+ok keep-text: at (11.000, 455.123), version 4→11, new nonce, updated 1794492067687, isDeleted True; every other field kept
+ok keep-ellipse, keep-frame, gone and 6 top-level values are byte-identical to s1's save
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/vault/Tools.excalidraw: 5 elements (4 modelled, 1 kept raw), 0 files, 3986 bytes written
+ok negative control fails: outline on the unselected shot (FAIL selected: the rect outline is missing on a side [0, 0, 0, 0, 0, 0, 0, 0])
+ok negative control fails: move on the selected shot (FAIL moved: rectangle fill at (576, 301, 624, 329) is 0/1344 px)
+ok negative control fails: nudge on the marquee shot (FAIL nudged: text ink moved by (0, 0), want (11.0, 5.0))
+ok negative control fails: delete on the undone shot (FAIL deleted: text ink is still drawn (196 px at (483, 675, 555, 692)))
+ok negative control fails: undo on the redone shot (FAIL undone: no text ink (0 px))
+ok negative control fails: the original file (FAIL keep-rect: at 0, 0, want 100.000, 80.000 (±1.5))
+ok negative control fails: the tombstone check on the saved file (FAIL keep-text: version 11, want 12)
+ok negative control fails: a changed byte in an untouched element (FAIL untouched element keep-ellipse bytes differ from s1's save)
+ok negative control fails: an unbumped version (FAIL keep-rect: version 12, want 13)

@@ -1,0 +1,98 @@
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/board-open.json: Cmd+\ at 0.50 s
+rune: `init` blocked 22 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-1" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 133 frames at 60 fps, gpu init 82.9 ms, first frame 66.19 ms, frame cpu mean 5.461 ms p50 2.926 p95 14.237 max 142.617, 576 instances
+rune: animating frames 85 (cpu p50 3.646 p95 17.045 ms), at-rest frames 47 (the window draws none; forced cpu p50 2.027 p95 3.261 ms), layout nodes 154, glyphs 344
+rune: `init` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-1" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_drag` on "root/main/board-page/board-body/board-surface/board-canvas" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 217 frames at 60 fps, gpu init 83.7 ms, first frame 65.55 ms, frame cpu mean 4.466 ms p50 2.627 p95 11.785 max 142.831, 576 instances
+rune: animating frames 121 (cpu p50 3.327 p95 14.144 ms), at-rest frames 95 (the window draws none; forced cpu p50 2.276 p95 3.771 ms), layout nodes 154, glyphs 344
+rune: `init` blocked 19 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-1" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_drag` on "root/main/board-page/board-body/board-surface/board-canvas" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 277 frames at 60 fps, gpu init 82.7 ms, first frame 66.04 ms, frame cpu mean 4.075 ms p50 2.460 p95 10.452 max 142.776, 571 instances
+rune: animating frames 134 (cpu p50 3.329 p95 14.321 ms), at-rest frames 142 (the window draws none; forced cpu p50 2.309 p95 3.375 ms), layout nodes 154, glyphs 339
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-1" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_drag` on "root/main/board-page/board-body/board-surface/board-canvas" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 337 frames at 60 fps, gpu init 83.8 ms, first frame 65.18 ms, frame cpu mean 3.869 ms p50 2.571 p95 8.059 max 144.572, 567 instances
+rune: animating frames 141 (cpu p50 3.252 p95 14.109 ms), at-rest frames 195 (the window draws none; forced cpu p50 2.388 p95 3.666 ms), layout nodes 154, glyphs 335
+rune: `init` blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-1" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_drag` on "root/main/board-page/board-body/board-surface/board-canvas" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 397 frames at 60 fps, gpu init 85.3 ms, first frame 67.64 ms, frame cpu mean 3.609 ms p50 2.442 p95 6.636 max 144.670, 566 instances
+rune: animating frames 147 (cpu p50 2.983 p95 13.511 ms), at-rest frames 249 (the window draws none; forced cpu p50 2.378 p95 3.161 ms), layout nodes 154, glyphs 334
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-1" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_drag` on "root/main/board-page/board-body/board-surface/board-canvas" blocked 22 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 463 frames at 60 fps, gpu init 85.1 ms, first frame 65.67 ms, frame cpu mean 3.927 ms p50 2.550 p95 9.547 max 144.197, 404 instances
+rune: animating frames 189 (cpu p50 3.864 p95 13.296 ms), at-rest frames 273 (the window draws none; forced cpu p50 2.385 p95 3.561 ms), layout nodes 144, glyphs 345
+rune: `init` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-1" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_drag` on "root/main/board-page/board-body/board-surface/board-canvas" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 541 frames at 60 fps, gpu init 83.9 ms, first frame 66.05 ms, frame cpu mean 4.020 ms p50 2.580 p95 8.221 max 142.090, 566 instances
+rune: animating frames 232 (cpu p50 4.595 p95 12.565 ms), at-rest frames 308 (the window draws none; forced cpu p50 2.360 p95 3.553 ms), layout nodes 154, glyphs 334
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-1" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_drag` on "root/main/board-page/board-body/board-surface/board-canvas" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 601 frames at 60 fps, gpu init 87.8 ms, first frame 67.83 ms, frame cpu mean 3.966 ms p50 2.691 p95 9.067 max 141.917, 576 instances
+rune: animating frames 238 (cpu p50 4.487 p95 12.979 ms), at-rest frames 362 (the window draws none; forced cpu p50 2.444 p95 3.678 ms), layout nodes 154, glyphs 344
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/board-fit.json: active mode mode-board
+canvas [543.0, 159.0, 609.0, 597.0], fit zoom 0.7100, eye (-78.87, -315.42)
+ok fit: rect-red [599, 382, 713, 454] (off 0.7)
+ok fit: ellipse-blue [769, 390, 869, 454] (off 0.7)
+ok fit: diamond-violet [1024, 382, 1097, 455] (off 0.3)
+ok fit: freedraw-orange [895, 388, 984, 449] (off 0.7)
+ok fit: line-green [598, 503, 742, 533] (off 0.8)
+ok fit: text-ink box has 505 ink pixels
+ok fit: arrow-ink has 241 ink pixels
+ok fit: paper at (741, 418) is white
+ok moved +120,+60: rect-red [719, 442, 833, 514] (off 0.0)
+ok moved +120,+60: ellipse-blue [889, 450, 989, 514] (off 0.0)
+ok moved +120,+60: freedraw-orange [1015, 448, 1104, 509] (off 0.0)
+ok moved +120,+60: line-green [718, 563, 862, 593] (off 0.0)
+ok zoomed x1.2597 at (848, 458): rect-red [685, 439, 829, 530] (off 1.3)
+ok zoomed x1.2597 at (848, 458): ellipse-blue [899, 448, 1026, 530] (off 1.3)
+ok zoomed x1.2597 at (848, 458): line-green [684, 590, 866, 629] (off 0.8)
+ok zoomed x1.2500 at (848, 458): rect-red [644, 434, 825, 547] (off 1.1)
+ok zoomed x1.2500 at (848, 458): ellipse-blue [913, 445, 1071, 547] (off 1.1)
+ok zoomed x1.2500 at (848, 458): line-green [643, 623, 871, 671] (off 0.9)
+ok moved +60,+0: rect-red [704, 434, 885, 547] (off 0.0)
+ok moved +60,+0: ellipse-blue [973, 445, 1131, 547] (off 0.0)
+ok moved +60,+0: line-green [703, 623, 931, 671] (off 0.0)
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/board-write.json: active mode mode-editor
+ok same: rect-red [704, 434, 885, 547] (off 0.0)
+ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)
+ok same: line-green [703, 623, 931, 671] (off 0.0)
+ok same: rect-red [599, 382, 713, 454] (off 0.0)
+ok same: ellipse-blue [769, 390, 869, 454] (off 0.0)
+ok same: diamond-violet [1024, 382, 1097, 455] (off 0.0)
+ok same: freedraw-orange [895, 388, 984, 449] (off 0.0)
+ok same: line-green [598, 503, 742, 533] (off 0.0)
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/config-board-back/muninn/settings.json: mode board
+saved board {'eye': [-145.0443115234375, -246.50299072265625], 'rel': 'Smoke.excalidraw', 'zoom': 1.1179945468902588}
+rune: `init` blocked 22 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 19 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 91 frames at 60 fps, gpu init 83.5 ms, first frame 46.28 ms, frame cpu mean 2.994 ms p50 2.377 p95 4.785 max 46.277, 566 instances
+rune: animating frames 6 (cpu p50 3.235 p95 17.516 ms), at-rest frames 84 (the window draws none; forced cpu p50 2.369 p95 3.415 ms), layout nodes 154, glyphs 334
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/board-restart.json: active mode mode-board
+ok same: rect-red [704, 434, 885, 547] (off 0.0)
+ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)
+ok same: line-green [703, 623, 931, 671] (off 0.0)

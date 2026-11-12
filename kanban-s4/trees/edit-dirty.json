@@ -1,0 +1,2735 @@
+{
+  "accessibility": {
+    "bounds": [
+      0.0,
+      0.0,
+      1180.0,
+      780.0
+    ],
+    "children": [
+      {
+        "bounds": [
+          0.0,
+          0.0,
+          1180.0,
+          780.0
+        ],
+        "children": [
+          {
+            "bounds": [
+              0.0,
+              0.0,
+              0.0,
+              780.0
+            ],
+            "key": "sidebar-hidden",
+            "role": "group"
+          },
+          {
+            "bounds": [
+              0.0,
+              0.0,
+              1180.0,
+              780.0
+            ],
+            "children": [
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  20.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "key": "sidebar-toggle",
+                "name": "Show sidebar",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  58.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      67.5,
+                      19.5,
+                      7.0,
+                      19.0
+                    ],
+                    "name": "‹",
+                    "role": "label"
+                  }
+                ],
+                "key": "history-back",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  96.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      105.5,
+                      19.5,
+                      7.0,
+                      19.0
+                    ],
+                    "name": "›",
+                    "role": "label"
+                  }
+                ],
+                "key": "history-forward",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  134.0,
+                  10.0,
+                  48.0,
+                  20.0
+                ],
+                "key": "topbar-title",
+                "name": "Second",
+                "role": "label"
+              },
+              {
+                "bounds": [
+                  134.0,
+                  32.0,
+                  641.0,
+                  16.0
+                ],
+                "name": "Second.md",
+                "role": "label"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  802.0,
+                  16.0,
+                  66.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      830.0,
+                      23.0,
+                      29.0,
+                      12.0
+                    ],
+                    "name": "Write",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-editor",
+                "name": "Write",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  870.0,
+                  16.0,
+                  64.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      898.0,
+                      23.0,
+                      27.0,
+                      12.0
+                    ],
+                    "name": "Read",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-preview",
+                "name": "Read",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  936.0,
+                  16.0,
+                  70.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      964.0,
+                      23.0,
+                      33.0,
+                      12.0
+                    ],
+                    "name": "Graph",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-graph",
+                "name": "Graph",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  1008.0,
+                  16.0,
+                  69.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      1036.0,
+                      23.0,
+                      32.0,
+                      12.0
+                    ],
+                    "name": "Board",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-board",
+                "name": "Board",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  1079.0,
+                  16.0,
+                  78.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      1107.0,
+                      23.0,
+                      41.0,
+                      12.0
+                    ],
+                    "name": "Kanban",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-kanban",
+                "name": "Kanban",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  0.0,
+                  59.0,
+                  1180.0,
+                  721.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      28.0,
+                      78.0,
+                      44.0,
+                      20.0
+                    ],
+                    "name": "Boards",
+                    "role": "label"
+                  },
+                  {
+                    "bounds": [
+                      82.0,
+                      80.0,
+                      47.0,
+                      16.0
+                    ],
+                    "key": "board-count",
+                    "name": "3 boards",
+                    "role": "label"
+                  },
+                  {
+                    "actions": [
+                      "click"
+                    ],
+                    "bounds": [
+                      1046.0,
+                      74.0,
+                      106.0,
+                      28.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          1074.0,
+                          80.0,
+                          68.0,
+                          16.0
+                        ],
+                        "name": "New board",
+                        "role": "label"
+                      }
+                    ],
+                    "key": "board-new",
+                    "name": "New board",
+                    "role": "button"
+                  },
+                  {
+                    "bounds": [
+                      0.0,
+                      117.0,
+                      1180.0,
+                      663.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          28.0,
+                          117.0,
+                          240.0,
+                          639.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "click",
+                              "focus",
+                              "context-menu"
+                            ],
+                            "bounds": [
+                              28.0,
+                              117.0,
+                              240.0,
+                              48.0
+                            ],
+                            "children": [
+                              {
+                                "bounds": [
+                                  38.0,
+                                  124.0,
+                                  220.0,
+                                  16.0
+                                ],
+                                "name": "Plan",
+                                "role": "label"
+                              },
+                              {
+                                "bounds": [
+                                  38.0,
+                                  142.0,
+                                  220.0,
+                                  16.0
+                                ],
+                                "name": "8 elements · 2 kept as-is",
+                                "role": "label"
+                              }
+                            ],
+                            "key": "board-row-0",
+                            "name": "Plan 8 elements · 2 kept as-is",
+                            "role": "button"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "focus",
+                              "context-menu"
+                            ],
+                            "bounds": [
+                              28.0,
+                              169.0,
+                              240.0,
+                              48.0
+                            ],
+                            "children": [
+                              {
+                                "bounds": [
+                                  38.0,
+                                  176.0,
+                                  220.0,
+                                  16.0
+                                ],
+                                "name": "Smoke",
+                                "role": "label"
+                              },
+                              {
+                                "bounds": [
+                                  38.0,
+                                  194.0,
+                                  220.0,
+                                  16.0
+                                ],
+                                "name": "7 elements",
+                                "role": "label"
+                              }
+                            ],
+                            "key": "board-row-1",
+                            "name": "Smoke 7 elements",
+                            "role": "button"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "focus",
+                              "context-menu"
+                            ],
+                            "bounds": [
+                              28.0,
+                              221.0,
+                              240.0,
+                              48.0
+                            ],
+                            "children": [
+                              {
+                                "bounds": [
+                                  38.0,
+                                  228.0,
+                                  220.0,
+                                  16.0
+                                ],
+                                "name": "Tools",
+                                "role": "label"
+                              },
+                              {
+                                "bounds": [
+                                  38.0,
+                                  246.0,
+                                  220.0,
+                                  16.0
+                                ],
+                                "name": "3 elements · 1 kept as-is",
+                                "role": "label"
+                              }
+                            ],
+                            "key": "board-row-2",
+                            "name": "Tools 3 elements · 1 kept as-is",
+                            "role": "button"
+                          }
+                        ],
+                        "key": "board-list",
+                        "role": "list"
+                      },
+                      {
+                        "bounds": [
+                          284.0,
+                          117.0,
+                          868.0,
+                          639.0
+                        ],
+                        "children": [
+                          {
+                            "bounds": [
+                              284.0,
+                              125.0,
+                              34.0,
+                              20.0
+                            ],
+                            "key": "board-surface-title",
+                            "name": "Board name; double-click to rename",
+                            "role": "label"
+                          },
+                          {
+                            "bounds": [
+                              328.0,
+                              127.0,
+                              225.0,
+                              16.0
+                            ],
+                            "key": "board-surface-detail",
+                            "name": "Tools.excalidraw · 3 elements · 1 kept as-is",
+                            "role": "label"
+                          },
+                          {
+                            "bounds": [
+                              1044.1,
+                              127.0,
+                              107.9,
+                              16.0
+                            ],
+                            "key": "board-save-state",
+                            "name": "Unsaved · ⌘S saves",
+                            "role": "label"
+                          },
+                          {
+                            "bounds": [
+                              284.0,
+                              159.0,
+                              868.0,
+                              597.0
+                            ],
+                            "children": [
+                              {
+                                "bounds": [
+                                  448.5,
+                                  183.0,
+                                  549.9,
+                                  549.0
+                                ],
+                                "children": [
+                                  {
+                                    "bounds": [
+                                      448.5,
+                                      183.0,
+                                      549.9,
+                                      549.0
+                                    ],
+                                    "role": "image"
+                                  },
+                                  {
+                                    "bounds": [
+                                      480.5,
+                                      670.1,
+                                      79.0,
+                                      25.0
+                                    ],
+                                    "children": [
+                                      {
+                                        "bounds": [
+                                          480.5,
+                                          670.1,
+                                          79.0,
+                                          25.0
+                                        ],
+                                        "name": "keep me",
+                                        "role": "label"
+                                      }
+                                    ],
+                                    "key": "board-text-0",
+                                    "role": "group"
+                                  }
+                                ],
+                                "key": "board-world",
+                                "role": "group"
+                              },
+                              {
+                                "bounds": [
+                                  284.0,
+                                  159.0,
+                                  868.0,
+                                  597.0
+                                ],
+                                "key": "board-selection",
+                                "role": "image"
+                              },
+                              {
+                                "bounds": [
+                                  296.0,
+                                  171.0,
+                                  292.0,
+                                  36.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      299.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-hand",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      331.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-select",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      363.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-rectangle",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      395.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-diamond",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      427.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-ellipse",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      459.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-arrow",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      491.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-line",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      523.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-freedraw",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      555.0,
+                                      174.0,
+                                      30.0,
+                                      30.0
+                                    ],
+                                    "key": "board-tool-text",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "board-toolbar",
+                                "role": "group"
+                              },
+                              {
+                                "bounds": [
+                                  1010.0,
+                                  714.0,
+                                  130.0,
+                                  30.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      1013.0,
+                                      717.0,
+                                      24.0,
+                                      24.0
+                                    ],
+                                    "key": "board-zoom-out",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "bounds": [
+                                      1039.0,
+                                      723.0,
+                                      46.0,
+                                      12.0
+                                    ],
+                                    "key": "board-zoom",
+                                    "name": "100%",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      1087.0,
+                                      717.0,
+                                      24.0,
+                                      24.0
+                                    ],
+                                    "key": "board-zoom-in",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click"
+                                    ],
+                                    "bounds": [
+                                      1113.0,
+                                      717.0,
+                                      24.0,
+                                      24.0
+                                    ],
+                                    "key": "board-fit",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "board-controls",
+                                "role": "group"
+                              },
+                              {
+                                "bounds": [
+                                  296.0,
+                                  718.0,
+                                  452.0,
+                                  26.0
+                                ],
+                                "children": [
+                                  {
+                                    "bounds": [
+                                      305.0,
+                                      723.0,
+                                      434.0,
+                                      16.0
+                                    ],
+                                    "name": "Click/drag select · Del delete · ⌘Z undo · R D O A L P draw · H pan · ⌘S save · 0 fit",
+                                    "role": "label"
+                                  }
+                                ],
+                                "key": "board-hint",
+                                "role": "group"
+                              }
+                            ],
+                            "key": "board-canvas",
+                            "role": "button"
+                          }
+                        ],
+                        "key": "board-surface",
+                        "role": "group"
+                      }
+                    ],
+                    "key": "board-body",
+                    "role": "group"
+                  }
+                ],
+                "key": "board-page",
+                "role": "group"
+              }
+            ],
+            "key": "main",
+            "role": "group"
+          }
+        ],
+        "key": "root",
+        "role": "group"
+      }
+    ],
+    "name": "Muninn",
+    "role": "window"
+  },
+  "anim_t": 9.350000000000044,
+  "animating": true,
+  "dark_system": true,
+  "elements": [
+    {
+      "blur": 0.0,
+      "fill": "#161616ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-hidden",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar-hidden",
+      "rect": [
+        0.0,
+        0.0,
+        0.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/#1",
+      "rect": [
+        0.0,
+        0.0,
+        0.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "main",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-toggle",
+      "label": "Show sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/sidebar-toggle",
+      "rect": [
+        20.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/sidebar-toggle/#0",
+      "rect": [
+        26.0,
+        22.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "history-back",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-back",
+      "rect": [
+        58.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-back/#0",
+      "rect": [
+        67.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "‹"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "history-forward",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-forward",
+      "rect": [
+        96.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-forward/#0",
+      "rect": [
+        105.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "›"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3",
+      "rect": [
+        134.0,
+        10.0,
+        641.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0",
+      "rect": [
+        134.0,
+        10.0,
+        641.0,
+        20.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "topbar-title",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0/topbar-title",
+      "rect": [
+        134.0,
+        10.0,
+        48.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Second"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0/#1",
+      "rect": [
+        190.0,
+        20.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#1",
+      "rect": [
+        134.0,
+        32.0,
+        641.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Second.md"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#4",
+      "rect": [
+        787.0,
+        29.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5",
+      "rect": [
+        799.0,
+        13.0,
+        361.0,
+        32.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-editor",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor",
+      "rect": [
+        802.0,
+        16.0,
+        66.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor/#0",
+      "rect": [
+        811.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor/#1",
+      "rect": [
+        830.0,
+        23.0,
+        29.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Write"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-preview",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview",
+      "rect": [
+        870.0,
+        16.0,
+        64.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview/#0",
+      "rect": [
+        879.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview/#1",
+      "rect": [
+        898.0,
+        23.0,
+        27.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Read"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-graph",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph",
+      "rect": [
+        936.0,
+        16.0,
+        70.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph/#0",
+      "rect": [
+        945.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph/#1",
+      "rect": [
+        964.0,
+        23.0,
+        33.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Graph"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#3a3a3aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board",
+      "rect": [
+        1008.0,
+        16.0,
+        69.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board/#0",
+      "rect": [
+        1017.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board/#1",
+      "rect": [
+        1036.0,
+        23.0,
+        32.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-kanban",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban",
+      "rect": [
+        1079.0,
+        16.0,
+        78.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban/#0",
+      "rect": [
+        1088.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban/#1",
+      "rect": [
+        1107.0,
+        23.0,
+        41.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Kanban"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#1",
+      "rect": [
+        0.0,
+        58.0,
+        1180.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-page",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page",
+      "rect": [
+        0.0,
+        59.0,
+        1180.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0",
+      "rect": [
+        0.0,
+        59.0,
+        1180.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/#0",
+      "rect": [
+        28.0,
+        78.0,
+        44.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Boards"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-count",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/board-count",
+      "rect": [
+        82.0,
+        80.0,
+        47.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "3 boards"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/#2",
+      "rect": [
+        139.0,
+        88.0,
+        897.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-new",
+      "label": "New board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/board-new",
+      "rect": [
+        1046.0,
+        74.0,
+        106.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/board-new/#0",
+      "rect": [
+        1056.0,
+        82.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/board-new/#1",
+      "rect": [
+        1074.0,
+        80.0,
+        68.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "New board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-body",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body",
+      "rect": [
+        0.0,
+        117.0,
+        1180.0,
+        663.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-list",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list",
+      "rect": [
+        28.0,
+        117.0,
+        240.0,
+        639.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "board-row-0",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-0",
+      "rect": [
+        28.0,
+        117.0,
+        240.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-0/#0",
+      "rect": [
+        38.0,
+        124.0,
+        220.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Plan"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-0/#1",
+      "rect": [
+        38.0,
+        142.0,
+        220.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "8 elements · 2 kept as-is"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "board-row-1",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-1",
+      "rect": [
+        28.0,
+        169.0,
+        240.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-1/#0",
+      "rect": [
+        38.0,
+        176.0,
+        220.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Smoke"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-1/#1",
+      "rect": [
+        38.0,
+        194.0,
+        220.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "7 elements"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#3a3a3aff",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "board-row-2",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-2",
+      "rect": [
+        28.0,
+        221.0,
+        240.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-2/#0",
+      "rect": [
+        38.0,
+        228.0,
+        220.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Tools"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-row-2/#1",
+      "rect": [
+        38.0,
+        246.0,
+        220.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "3 elements · 1 kept as-is"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-surface",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface",
+      "rect": [
+        284.0,
+        117.0,
+        868.0,
+        639.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/#0",
+      "rect": [
+        284.0,
+        117.0,
+        868.0,
+        36.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-surface-title",
+      "label": "Board name; double-click to rename",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/#0/board-surface-title",
+      "rect": [
+        284.0,
+        125.0,
+        34.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Tools"
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-surface-detail",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/#0/board-surface-detail",
+      "rect": [
+        328.0,
+        127.0,
+        225.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Tools.excalidraw · 3 elements · 1 kept as-is"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/#0/#2",
+      "rect": [
+        563.0,
+        135.0,
+        471.13,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        563.0,
+        135.0,
+        471.0,
+        0.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-save-state",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/#0/board-save-state",
+      "rect": [
+        1044.13,
+        127.0,
+        107.88,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        1044.0,
+        127.0,
+        108.0,
+        16.0
+      ],
+      "text": "Unsaved · ⌘S saves"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffffff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-canvas",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas",
+      "rect": [
+        284.0,
+        159.0,
+        868.0,
+        597.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-world",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-world",
+      "rect": [
+        448.5,
+        183.0,
+        549.86,
+        549.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        284.0,
+        159.0,
+        550.0,
+        549.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-world/#0",
+      "rect": [
+        448.5,
+        183.0,
+        549.86,
+        549.0
+      ],
+      "role": "image",
+      "scale": 1.0,
+      "target": [
+        284.0,
+        159.0,
+        550.0,
+        549.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-text-0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 0.9980000257492065,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-world/board-text-0",
+      "rect": [
+        480.5,
+        670.13,
+        79.0,
+        25.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        316.0,
+        646.12,
+        79.0,
+        25.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#2f9e44ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 0.9980000257492065,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-world/board-text-0/#0",
+      "rect": [
+        480.5,
+        670.13,
+        79.0,
+        25.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        316.0,
+        646.12,
+        79.0,
+        25.0
+      ],
+      "text": "keep me"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-selection",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 0.9980000257492065,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-selection",
+      "rect": [
+        284.0,
+        159.0,
+        868.0,
+        597.0
+      ],
+      "role": "image",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2ef5",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-toolbar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar",
+      "rect": [
+        296.0,
+        171.0,
+        292.0,
+        36.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-hand",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-hand",
+      "rect": [
+        299.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-hand/#0",
+      "rect": [
+        306.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#3a3a3aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-select",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-select",
+      "rect": [
+        331.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-select/#0",
+      "rect": [
+        338.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-rectangle",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-rectangle",
+      "rect": [
+        363.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-rectangle/#0",
+      "rect": [
+        370.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-diamond",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-diamond",
+      "rect": [
+        395.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-diamond/#0",
+      "rect": [
+        402.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-ellipse",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-ellipse",
+      "rect": [
+        427.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-ellipse/#0",
+      "rect": [
+        434.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-arrow",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-arrow",
+      "rect": [
+        459.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-arrow/#0",
+      "rect": [
+        466.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-line",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-line",
+      "rect": [
+        491.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-line/#0",
+      "rect": [
+        498.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-freedraw",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-freedraw",
+      "rect": [
+        523.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-freedraw/#0",
+      "rect": [
+        530.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-tool-text",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-text",
+      "rect": [
+        555.0,
+        174.0,
+        30.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-toolbar/board-tool-text/#0",
+      "rect": [
+        562.0,
+        181.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2ef5",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-controls",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-controls",
+      "rect": [
+        1010.0,
+        714.0,
+        130.0,
+        30.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-zoom-out",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-controls/board-zoom-out",
+      "rect": [
+        1013.0,
+        717.0,
+        24.0,
+        24.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-controls/board-zoom-out/#0",
+      "rect": [
+        1019.0,
+        723.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-zoom",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-controls/board-zoom",
+      "rect": [
+        1039.0,
+        723.0,
+        46.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "100%"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-zoom-in",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-controls/board-zoom-in",
+      "rect": [
+        1087.0,
+        717.0,
+        24.0,
+        24.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-controls/board-zoom-in/#0",
+      "rect": [
+        1093.0,
+        723.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-fit",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-controls/board-fit",
+      "rect": [
+        1113.0,
+        717.0,
+        24.0,
+        24.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-controls/board-fit/#0",
+      "rect": [
+        1119.0,
+        723.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#080808c7",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-hint",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-hint",
+      "rect": [
+        296.0,
+        718.0,
+        452.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-canvas/board-hint/#0",
+      "rect": [
+        305.0,
+        723.0,
+        434.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Click/drag select · Del delete · ⌘Z undo · R D O A L P draw · H pan · ⌘S save · 0 fit"
+    }
+  ],
+  "reduced_motion": false,
+  "scale": 1.0,
+  "t": 9.35,
+  "time_scale": 1.0,
+  "title": "Muninn",
+  "viewport": [
+    1180.0,
+    780.0
+  ],
+  "warnings": []
+}

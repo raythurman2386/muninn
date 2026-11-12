@@ -1,0 +1,7 @@
+ Documenting muninn-core v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-core)
+    Checking muninn-ui v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-ui)
+ Documenting muninn-ui v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-ui)
+ Documenting muninn-app v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-app)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.98s
+   Generated /home/ret/Development/muninn-kanban/target/doc/muninn/index.html and 5 other files
+doc exit 0

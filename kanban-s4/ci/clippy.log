@@ -1,0 +1,4 @@
+    Checking muninn-ui v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-ui)
+    Checking muninn-app v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-app)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.16s
+clippy exit 0

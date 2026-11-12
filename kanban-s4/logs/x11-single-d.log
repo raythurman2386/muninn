@@ -1,0 +1,1 @@
+rune: `init` blocked 12 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)

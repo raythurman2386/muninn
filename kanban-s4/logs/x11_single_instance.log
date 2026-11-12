@@ -1,0 +1,73 @@
+rune: `init` blocked 8 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 1 frames at 60 fps, gpu init 82.0 ms, first frame 72.91 ms, frame cpu mean 72.906 ms p50 72.906 p95 72.906 max 72.906, 615 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 0 (the window draws none; forced cpu p50 0.000 p95 0.000 ms), layout nodes 160, glyphs 537
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 1 frames at 60 fps, gpu init 81.9 ms, first frame 74.86 ms, frame cpu mean 74.856 ms p50 74.856 p95 74.856 max 74.856, 692 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 0 (the window draws none; forced cpu p50 0.000 p95 0.000 ms), layout nodes 182, glyphs 589
+Xvfb on :90, vulkan icd /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json, runtime dir /home/ret/Development/muninn-kanban/target/ui-smoke/work/runtime/3787636
+private bus: unix:path=/tmp/dbus-azpYmnAG8d,guid=f7fcefa11a0fb818c6b9e8d76af5c863
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.2' (uid=1000 pid=3787861 comm="/home/ret/Development/muninn-kanban/target/debug/m")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.5' (uid=1000 pid=3787861 comm="/home/ret/Development/muninn-kanban/target/debug/m")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.7' (uid=1000 pid=3787861 comm="/home/ret/Development/muninn-kanban/target/debug/m")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.8' (uid=1000 pid=3787989 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.8' (uid=1000 pid=3787989 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.8' (uid=1000 pid=3787989 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+(/usr/lib/xdg-desktop-portal:3787989): xdg-desktop-portal-WARNING **: 08:08:35.783: Failed to connect to PipeWire: Couldn't connect to PipeWire
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.hyprland' requested by ':1.8' (uid=1000 pid=3787989 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.hyprland'
+[LOG] Initializing xdph...
+[CRITICAL] Couldn't connect to a wayland compositor
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.hyprland' requested by ':1.8' (uid=1000 pid=3787989 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.hyprland'
+[LOG] Initializing xdph...
+[CRITICAL] Couldn't connect to a wayland compositor
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.hyprland' requested by ':1.8' (uid=1000 pid=3787989 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.hyprland'
+[LOG] Initializing xdph...
+[CRITICAL] Couldn't connect to a wayland compositor
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.hyprland' requested by ':1.8' (uid=1000 pid=3787989 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.hyprland'
+[LOG] Initializing xdph...
+[CRITICAL] Couldn't connect to a wayland compositor
+dbus-daemon[3787840]: [session uid=1000 pid=3787840 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+window 0x200002 'Muninn' 1180x780
+ok   1 SNI item(s): after launch (pid 3787861) [:1.1 ] windows=1 processes=1
+ok sent WM_DELETE_WINDOW to 0x200002
+ok   closing hides the window (close to tray)
+ok   the app keeps running in the tray
+ok   the second launch exits 0 (got 0)
+ok   the hidden window is shown again
+ok   one Muninn process
+ok   1 SNI item(s): after a second launch [:1.1 ] windows=1 processes=1
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+comma on 0x200002
+ok clicked 590,270 in 0x200002 (button 1 x1)
+ok clicked 441,381 in 0x200002 (button 1 x1)
+ok   0 SNI item(s): Show tray icon off [] windows=1 processes=1
+ok   settings.json tray_icon is false
+ok clicked 441,389 in 0x200002 (button 1 x1)
+ok   1 SNI item(s): Show tray icon on [:1.25 ] windows=1 processes=1
+ok   settings.json tray_icon is true
+ok pressed esc on 0x200002
+ok pressed ctrl+comma on 0x200002
+ok clicked 590,270 in 0x200002 (button 1 x1)
+ok   1 SNI item(s): Show tray icon still on after reopening Settings [:1.25 ] windows=1 processes=1
+ok pressed esc on 0x200002
+ok   1 SNI item(s): after a tray-host restart [:1.25 ] windows=1 processes=1
+ok   the vault-switch launch exits 0 (got 0)
+ok   the running app switched to vault B
+ok   still one Muninn process
+ok   1 SNI item(s): after a vault switch [:1.25 ] windows=1 processes=1
+ok   0 SNI item(s): after kill -9 [] windows=0 processes=0
+window 0x200002 'Muninn' 1180x780
+ok   the relaunch is a new process
+ok   1 SNI item(s): after kill -9 and relaunch (pid 3791888) [:1.42 ] windows=1 processes=1
+ok   0 SNI item(s): after a normal quit [] windows=0 processes=0
+single instance: 21/21 checks passed
+A connection to the bus can't be made
