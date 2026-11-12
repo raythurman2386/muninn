@@ -150,8 +150,12 @@ impl State {
                     shown.disk = read.disk;
                     return false;
                 }
+                let kept = self.selected_card();
                 self.kanban = Some(read);
-                self.prune_kanban_selection();
+                // A menu names a place on the board that the re-read can
+                // move; the selected card is found again by its content.
+                self.menu = None;
+                self.restore_kanban_selection(kept);
                 self.log_event("watch", "reloaded the shown kanban");
                 true
             }

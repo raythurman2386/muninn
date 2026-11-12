@@ -1,7 +1,8 @@
 //! Kanban slice 4: card editing on the Kanban page. Each action changes only
 //! its own lines, nothing is written before `⌘S`, undo puts back the exact
 //! bytes, done lanes make done cards, multibyte text edits cleanly, a refused
-//! edit changes nothing, and unsaved edits survive leaving the page.
+//! edit changes nothing, and unsaved edits survive leaving the page. Esc
+//! cancels an open field even after it lost focus.
 
 use std::fs;
 use std::path::PathBuf;
@@ -749,4 +750,209 @@ fn quitting_saves_unsaved_edits() {
     type_text(&mut rt, "Still typing");
     assert!(rt.state.flush_before_quit());
     assert!(on_disk(&tmp).contains("- [ ] Still typing\n"));
+}
+
+/// A click on the page header takes the keyboard from an open field, as a
+/// click on the sidebar or another page would.
+fn blur(rt: &mut Runtime<State>) {
+    let (x, y) = rt.find("kanban-title").expect("kanban title");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..2 {
+        frame(rt);
+    }
+}
+
+/// Alt with an arrow: a card move on the page.
+fn alt_press(rt: &mut Runtime<State>, key: Key) {
+    rt.key(KeyEvent {
+        key,
+        mods: Mods {
+            alt: true,
+            ..Mods::default()
+        },
+    });
+    frame(rt);
+}
+
+/// Ctrl/Cmd is a command chord on the page.
+fn page_command(rt: &mut Runtime<State>, c: char) {
+    rt.key(command(c, false));
+    frame(rt);
+}
+
+/// The board after `op` on `BOARD`, through the core model.
+fn board_after(op: impl FnOnce(&mut muninn_core::Kanban)) -> String {
+    let mut board = muninn_core::Kanban::parse(BOARD).expect("parse");
+    op(&mut board);
+    board.source().to_owned()
+}
+
+// P1-1: a card menu names (lane, index). A keyboard move shifts that index,
+// so the menu must close rather than let Delete act on the card now there.
+
+#[test]
+fn a_keyboard_move_closes_an_open_card_menu_so_delete_cannot_hit_a_neighbour() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    // The menu is on "Review [[Roadmap]]", the second card.
+    act(&mut rt, |s| s.select_kanban_card(0, 1));
+    act(&mut rt, |s| s.open_card_menu(0, 1));
+    assert!(rt.state.menu.is_some());
+    alt_press(&mut rt, Key::Up);
+    let moved = board_after(|b| b.move_card(0, 1, 0, 0).expect("move"));
+    assert_eq!(source(&rt), moved, "the selected card moved up");
+    assert!(rt.state.menu.is_none(), "the menu closed with the move");
+    // The index the menu named now holds the other card. Delete must not act.
+    act(&mut rt, |s| s.pick_menu("delete"));
+    assert_eq!(source(&rt), moved, "nothing was deleted without reopening");
+    // Reopened on the card drawn there, Delete takes that card and no other.
+    act(&mut rt, |s| s.open_card_menu(0, 0));
+    act(&mut rt, |s| s.pick_menu("delete"));
+    assert_eq!(
+        source(&rt),
+        board_after(|b| {
+            b.move_card(0, 1, 0, 0).expect("move");
+            b.delete_card(0, 0).expect("delete");
+        }),
+        "the named card is the one deleted"
+    );
+    assert_eq!(on_disk(&tmp), BOARD, "nothing written before ⌘S");
+}
+
+// P2-1: a card editor or lane field that lost its focus is still open. Esc on
+// the page cancels it and stays; ⌘Z is the field's own undo, not a commit.
+
+#[test]
+fn esc_cancels_a_blurred_card_editor_and_undo_never_commits_it() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.begin_edit_card(0, 0));
+    type_text(&mut rt, " EDITED");
+    blur(&mut rt);
+    assert!(!rt.state.is_typing(), "the click took the keyboard");
+    assert!(rt.state.kanban_card.is_some(), "the editor is still open");
+    // ⌘Z undoes the typing in the field; it does not commit it to the board.
+    page_command(&mut rt, 'z');
+    assert_eq!(rt.state.kanban_card_field.text, "Write the release notes");
+    assert!(rt.state.kanban_card.is_some(), "the editor stays open");
+    assert_eq!(source(&rt), BOARD, "the typing never reached the board");
+    // Esc cancels the field and leaves the page where it is.
+    press(&mut rt, Key::Escape, false);
+    assert_eq!(rt.state.mode, Mode::Kanban);
+    assert_eq!(rt.state.kanban_card, None);
+    assert!(!rt.state.kanban.as_ref().unwrap().dirty());
+    assert_eq!(source(&rt), BOARD);
+    assert_eq!(on_disk(&tmp), BOARD);
+}
+
+#[test]
+fn esc_cancels_a_blurred_lane_field_and_undo_never_commits_it() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.begin_rename_lane(1));
+    type_text(&mut rt, " renamed");
+    blur(&mut rt);
+    assert!(!rt.state.is_typing(), "the click took the keyboard");
+    assert!(
+        rt.state.kanban_lane_edit.is_some(),
+        "the field is still open"
+    );
+    page_command(&mut rt, 'z');
+    assert_eq!(rt.state.kanban_lane_field.text, "Doing");
+    assert!(rt.state.kanban_lane_edit.is_some(), "the field stays open");
+    assert_eq!(source(&rt), BOARD, "the typing never reached the board");
+    press(&mut rt, Key::Escape, false);
+    assert_eq!(rt.state.mode, Mode::Kanban);
+    assert_eq!(rt.state.kanban_lane_edit, None);
+    assert!(!rt.state.kanban.as_ref().unwrap().dirty());
+    assert_eq!(source(&rt), BOARD);
+    assert_eq!(on_disk(&tmp), BOARD);
+}
+
+// P2-2: Open as markdown saves first, so Write shows the card; a refused save
+// keeps the page, with its reason.
+
+#[test]
+fn open_as_markdown_saves_a_new_card_before_showing_the_note() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-lane-0-add");
+    type_text(&mut rt, "From the board");
+    press(&mut rt, Key::Enter, false);
+    let edited = source(&rt);
+    assert_ne!(edited, BOARD);
+    assert_eq!(on_disk(&tmp), BOARD, "not written before the switch");
+    act(&mut rt, |s| s.open_kanban_as_markdown());
+    assert_eq!(rt.state.mode, Mode::Editor);
+    assert_eq!(on_disk(&tmp), edited, "the card is in the file");
+    assert_eq!(rt.state.editor.text, edited, "and in the editor");
+    // The board's save is not left refused by the switch.
+    rt.key(command('5', false));
+    frame(&mut rt);
+    assert_eq!(source(&rt), edited);
+    act(&mut rt, |s| s.toggle_card_done(0, 0));
+    rt.key(command('s', false));
+    frame(&mut rt);
+    assert_eq!(
+        text_of(&rt, "kanban-status").as_deref(),
+        Some("Saved"),
+        "the board can save again"
+    );
+
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-lane-0-add");
+    type_text(&mut rt, "From the board");
+    press(&mut rt, Key::Enter, false);
+    let theirs = format!("{BOARD}- [ ] Added elsewhere, and longer\n");
+    fs::write(tmp.path().join("Board.md"), &theirs).unwrap();
+    act(&mut rt, |s| s.open_kanban_as_markdown());
+    assert_eq!(rt.state.mode, Mode::Kanban, "refused: the page stays");
+    assert!(
+        matches!(
+            rt.state.kanban.as_ref().map(|k| k.status.clone()),
+            Some(muninn_ui::BoardStatus::Failed(reason))
+                if reason == "the file changed on disk"
+        ),
+        "the page says why"
+    );
+    assert_eq!(on_disk(&tmp), theirs, "their file is untouched");
+}
+
+// P2-3: the selection is a card, not a place: undo, redo and a re-read put it
+// back on the same card, or clear it when that card is gone.
+
+#[test]
+fn undo_and_redo_follow_the_selected_card_or_drop_it() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.select_kanban_card(0, 1));
+    act(&mut rt, |s| s.begin_insert_card(0, 0));
+    type_text(&mut rt, "New first");
+    press(&mut rt, Key::Enter, false);
+    let inserted = board_after(|b| b.add_card(0, 0, "New first").expect("add"));
+    assert_eq!(source(&rt), inserted);
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 2)),
+        "the commit moved the selected card down"
+    );
+    // Undo: the inserted card goes, and the selection is still "Review".
+    page_command(&mut rt, 'z');
+    assert_eq!(source(&rt), BOARD);
+    assert_eq!(rt.state.kanban_selected, Some((0, 1)));
+    // Redo: it comes back above, and the selection follows it down again.
+    page_command(&mut rt, 'y');
+    assert_eq!(source(&rt), inserted);
+    assert_eq!(rt.state.kanban_selected, Some((0, 2)));
+    // Undo the insertion with that card selected: it no longer exists.
+    act(&mut rt, |s| s.select_kanban_card(0, 0));
+    page_command(&mut rt, 'z');
+    assert_eq!(source(&rt), BOARD);
+    assert_eq!(rt.state.kanban_selected, None, "the selected card is gone");
+    page_command(&mut rt, 'y');
+    assert_eq!(source(&rt), inserted);
+    assert_eq!(rt.state.kanban_selected, None, "nothing was selected again");
+    assert_eq!(on_disk(&tmp), BOARD);
 }

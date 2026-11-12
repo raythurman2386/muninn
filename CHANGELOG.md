@@ -97,7 +97,18 @@ All notable changes to Muninn are documented here. The format is based on
   note. A lane limit the model refuses no longer stops the recovery copy of
   edits already made, and a vault refresh no longer replaces the board under a
   held drag.
-
+- **Kanban menus name what they act on.** A card or lane menu, its **Move to
+  list…** picker, and **Delete lane**'s confirmation close when a keyboard
+  move, an undo or redo, or another kanban's re-read replaces or shifts the
+  board. A still-open menu can no longer delete the neighbouring card or lane
+  at that place. The selected card is followed by its content instead (or
+  cleared when it is gone), and a menu is not carried from one kanban to the
+  next.
+- **Esc on the Kanban page cancels a field that lost its focus.** After
+  clicking away from an open card editor or lane field, `Esc` now closes the
+  field and stays on the page (as the docs say) instead of leaving the page
+  and committing the text by doing so; `⌘Z` / `Ctrl+Z` there undoes the
+  field's typing rather than committing it first.
 ## [0.7.1] - 2026-11-11
 
 ### Fixed

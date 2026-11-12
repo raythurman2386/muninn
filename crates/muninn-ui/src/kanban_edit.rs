@@ -12,9 +12,11 @@
 //!   in place. The checkbox character and the block id stay. Committing blank
 //!   text keeps the card as it was (Delete removes one).
 //! - In the editor Enter commits, Shift+Enter breaks the line and Esc
-//!   cancels. Leaving the page, picking another kanban, saving and quitting
-//!   commit it. While it is open it owns the keyboard ([`State::is_typing`]),
-//!   so `⌘Z` / `⇧⌘Z` there are the field's own undo and redo of the typing.
+//!   cancels, also after a click elsewhere took its focus (Esc on the page
+//!   closes the open field and stays on the page). Leaving the page, picking
+//!   another kanban, saving and quitting commit it. While it is open it owns
+//!   the keyboard, focused or not, so `⌘Z` / `⇧⌘Z` are the field's own undo
+//!   and redo of the typing, never a commit first.
 //! - **Delete** removes the card's lines. **Duplicate** writes a copy of the
 //!   card's text right after it, without its block id (a block id names one
 //!   card). **Split card** makes each line of a multi-line card its own card,
@@ -96,6 +98,28 @@ impl CardCommit {
             }
             Self::LaneAdded(at) if at <= lane => Some((lane + 1, index)),
             Self::Closed | Self::Done(_) | Self::LaneAdded(_) => Some((lane, index)),
+        }
+    }
+}
+
+/// A card named by what it is rather than by where it is, so the selection
+/// can be put back on it after the board is replaced by a re-read, an undo or
+/// a redo. A block id is unique; without one the card is its text, and `nth`
+/// picks between cards of the same text in its lane.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CardRef {
+    lane: usize,
+    block_id: Option<String>,
+    text: String,
+    nth: usize,
+}
+
+impl CardRef {
+    fn same_card(&self, card: &muninn_core::Card) -> bool {
+        match (&self.block_id, card.block_id()) {
+            (Some(id), Some(other)) => id == other,
+            (None, None) => card.text() == self.text,
+            _ => false,
         }
     }
 }
@@ -250,6 +274,21 @@ impl State {
         }
     }
 
+    /// Esc on the page with a card editor or lane field open, focused or
+    /// not: close it, changing nothing. `false` when neither is open, so Esc
+    /// leaves the page. Esc must not commit the field by leaving.
+    pub fn cancel_kanban_field(&mut self) -> bool {
+        if self.kanban_card.is_some() {
+            self.cancel_card_edit();
+            return true;
+        }
+        if self.kanban_lane_edit.is_some() {
+            self.cancel_lane_edit();
+            return true;
+        }
+        false
+    }
+
     pub fn delete_card(&mut self, lane: usize, index: usize) {
         self.edit_kanban("delete the card", |board| board.delete_card(lane, index));
     }
@@ -352,9 +391,18 @@ impl State {
         if shown.board.as_ref().map(Kanban::source) == Some(next.source()) {
             return true;
         }
-        if let Some(board) = shown.board.replace(next) {
+        let replaced = if let Some(board) = shown.board.replace(next) {
             shown.history.record(board.source().to_owned());
             shown.mark_changed();
+            true
+        } else {
+            false
+        };
+        if replaced {
+            // A card or lane menu (and Delete lane's confirmation) names its
+            // target by place, and this edit can move it: close it rather
+            // than let a later Delete act on another card or lane.
+            self.menu = None;
         }
         // Slice 6: a press held on a card or lane may now point elsewhere.
         self.kanban_drag = None;
@@ -372,12 +420,16 @@ impl State {
     }
 
     fn step_kanban_history(&mut self, undo: bool) {
-        if self.commit_card_edit() == CardCommit::Refused {
+        // An open card editor or lane field owns the chord, focused or not:
+        // undo and redo are its own typing's, never a commit first (leaving
+        // the page, saving and quitting are what commit the field).
+        if self.undo_kanban_field(undo) {
             return;
         }
         // A menu or confirmation names cards and lanes by place, and the
         // undo can move them: it closes rather than act on another one.
         self.menu = None;
+        let kept = self.selected_card();
         let Some(shown) = &mut self.kanban else {
             return;
         };
@@ -406,6 +458,27 @@ impl State {
         shown.error = None;
         shown.mark_changed();
         self.kanban_drag = None;
+        // The text is another version of the board: keep the selection on
+        // the same card when it is still there, else drop it.
+        self.restore_kanban_selection(kept);
+    }
+
+    /// Undo or redo in an open kanban field, when one is open. `false` when
+    /// neither is (the page's own history then has the chord).
+    fn undo_kanban_field(&mut self, undo: bool) -> bool {
+        let field = if self.kanban_card.is_some() {
+            &mut self.kanban_card_field
+        } else if self.kanban_lane_edit.is_some() {
+            &mut self.kanban_lane_field
+        } else {
+            return false;
+        };
+        if undo {
+            field.undo();
+        } else {
+            field.redo();
+        }
+        true
     }
 
     /// `⌘S` on the page: commit the editor, then write the kanban once when
@@ -505,6 +578,50 @@ impl State {
 
     pub(crate) fn kanban_board(&self) -> Option<&Kanban> {
         self.kanban.as_ref()?.board.as_ref()
+    }
+
+    /// The selected card, named by its content, before the board is
+    /// replaced. `None` when no card is selected or it is not on the board.
+    pub(crate) fn selected_card(&self) -> Option<CardRef> {
+        let (lane, index) = self.kanban_selected?;
+        let cards = self.kanban_board()?.lanes().get(lane)?.cards();
+        let card = cards.get(index)?;
+        let mut want = CardRef {
+            lane,
+            block_id: card.block_id().map(str::to_owned),
+            text: card.text().to_owned(),
+            nth: 0,
+        };
+        want.nth = cards[..index].iter().filter(|c| want.same_card(c)).count();
+        Some(want)
+    }
+
+    /// Put the selection back on `card` after the board was replaced, or
+    /// clear it when that card is gone. A block id is looked for in every
+    /// lane (a re-read can move a lane); a card known only by its text stays
+    /// in the lane it was selected in.
+    pub(crate) fn restore_kanban_selection(&mut self, card: Option<CardRef>) {
+        let found = card.and_then(|want| {
+            let board = self.kanban_board()?;
+            let lanes = if want.block_id.is_some() {
+                0..board.lanes().len()
+            } else {
+                want.lane..board.lanes().len().min(want.lane + 1)
+            };
+            let mut nth = want.nth;
+            for lane in lanes {
+                for (index, card) in board.lanes()[lane].cards().iter().enumerate() {
+                    if want.same_card(card) {
+                        if nth == 0 {
+                            return Some((lane, index));
+                        }
+                        nth -= 1;
+                    }
+                }
+            }
+            None
+        });
+        self.kanban_selected = found;
     }
 
     fn kanban_lane_len(&self, lane: usize) -> Option<usize> {

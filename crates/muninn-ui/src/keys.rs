@@ -28,6 +28,12 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         return true;
     }
     if e.key == Key::Escape && s.mode == Mode::Kanban {
+        // A card editor or lane field that lost its focus is still open: Esc
+        // cancels it and the page stays. Esc only leaves with none open,
+        // never committing the field's text by leaving.
+        if s.cancel_kanban_field() {
+            return true;
+        }
         s.toggle_kanban();
         return true;
     }

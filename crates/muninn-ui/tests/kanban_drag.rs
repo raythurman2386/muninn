@@ -596,3 +596,34 @@ fn a_vault_refresh_does_not_replace_the_board_under_a_held_drag() {
     assert_eq!(source(&rt), theirs);
     assert!(!dirty(&rt));
 }
+
+// P1-1: a lane menu names a lane by place. A keyboard lane move shifts that
+// place, so the menu must close rather than let Delete lane hit another lane.
+
+#[test]
+fn a_keyboard_lane_move_closes_an_open_lane_menu_so_delete_cannot_hit_a_neighbour() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-0-0");
+    click(&mut rt, "kanban-lane-0-menu");
+    assert!(has(&mut rt, "menu-delete_lane"), "the lane menu is open");
+    key(&mut rt, Key::Right, alt(true));
+    let moved = board_after(|b| b.move_lane(0, 1).expect("move"));
+    assert_eq!(titles(&rt), ["Doing", "To do", "Waiting", "Done"]);
+    assert_eq!(source(&rt), moved);
+    assert!(rt.state.menu.is_none(), "the menu closed with the move");
+    // Lane 0 is "Doing" now; the menu's Delete for "To do" must not act.
+    act(&mut rt, |s| s.pick_menu("delete_lane"));
+    assert_eq!(source(&rt), moved, "nothing was deleted without reopening");
+    // Reopened on lane 0, Delete takes that lane and its cards, and no other.
+    act(&mut rt, |s| s.open_lane_menu(0));
+    act(&mut rt, |s| s.pick_menu("delete_lane"));
+    act(&mut rt, |s| s.pick_menu("delete"));
+    assert_eq!(titles(&rt), ["To do", "Waiting", "Done"]);
+    assert_eq!(
+        cards(&rt, 0),
+        ["Short card", "A tall", "Another short", "Last short"],
+        "the other lane's cards are all still there"
+    );
+    assert_eq!(on_disk(&tmp), BOARD, "nothing written before ⌘S");
+}
