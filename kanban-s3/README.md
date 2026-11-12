@@ -14,7 +14,7 @@ Proof for PR #47 (`cursor/muninn-kanban-s3-open`): the Kanbans section, the note
 | File | What it shows |
 | --- | --- |
 | `screens/kanban-sidebar.png` | The notes list with the kanban glyph on each kanban note, and the Kanbans section below it |
-| `screens/kanban-new.png` | After New Kanban twice: `Untitled Kanban 2.md` on the Kanban page (To do, Doing, Done) |
+| `screens/kanban-new.png` | After New Kanban at the vault root: `Untitled Kanban.md` on the Kanban page (To do, Doing, Done), listed in the Kanbans section; `kanban-new-second.png` is the second one, `Untitled Kanban 2.md` |
 | `screens/kanban-open-button.png` | `Release.md` opened from the notes list (X11): Write mode with Open as kanban in the header |
 | `screens/kanban-open-kanban.png` | After Open as kanban (X11): the Kanban page with Open as markdown |
 | `screens/kanban-as-markdown.png` | After Open as markdown (X11): back in Write on `Release.md` |
@@ -22,7 +22,7 @@ Proof for PR #47 (`cursor/muninn-kanban-s3-open`): the Kanbans section, the note
 | `screens/kanban-new-convert-offered.png` | The palette on the empty `Blank.md`: Convert empty note to Kanban is offered |
 | `screens/kanban-new-convert.png` | After Convert: `Blank.md` on the Kanban page |
 | `screens/kanban-new-refuse.png` | On `Agenda.md` (has text): Convert is not offered; the note is unchanged |
-| `screens/kanban-new-palette.png` | The palette's Kanbans section, one entry per kanban by name |
+| `screens/kanban-new-palette.png` | The palette on `Agenda.md`: its actions (New Kanban is further down the list, then the Kanbans section with one entry per kanban by name; see `trees/kanban-new-palette.json`) |
 | `screens/kanban-open-from-palette.png` | Overloaded opened from the palette (focus on the Kanban page) |
 
 The other screenshots, all logs, and the accessibility trees (`trees/*kanban*.json`) come from the same run. The pre-existing `Plans/Untitled Kanban.md` and every other seeded file kept their sha256 (`logs/headless_new_kanban.log`, `logs/x11_new_kanban.log`, `logs/x11_kanban_open.log`).
