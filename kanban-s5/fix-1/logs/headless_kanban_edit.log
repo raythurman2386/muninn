@@ -1,0 +1,422 @@
+vulkan icd: /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json (WGPU_BACKEND=vulkan)
+	deviceName         = llvmpipe (LLVM 23.1.3, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 26.2.5-arch1.1 (LLVM 23.1.3)
+rune: `init` blocked 24 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 64 frames at 60 fps, gpu init 104.6 ms, first frame 78.80 ms, frame cpu mean 1.998 ms p50 1.722 p95 2.354 max 78.795, 517 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 63 (the window draws none; forced cpu p50 1.722 p95 2.251 ms), layout nodes 133, glyphs 458
+rune: `init` blocked 15 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 124 frames at 60 fps, gpu init 124.1 ms, first frame 83.76 ms, frame cpu mean 8.119 ms p50 3.906 p95 25.661 max 197.602, 365 instances
+rune: animating frames 42 (cpu p50 11.820 p95 32.259 ms), at-rest frames 81 (the window draws none; forced cpu p50 2.582 p95 5.040 ms), layout nodes 176, glyphs 282
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-open.json: active mode mode-kanban
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 20 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 244 frames at 60 fps, gpu init 82.1 ms, first frame 68.54 ms, frame cpu mean 5.817 ms p50 3.602 p95 16.156 max 150.773, 402 instances
+rune: animating frames 129 (cpu p50 6.142 p95 17.651 ms), at-rest frames 114 (the window draws none; forced cpu p50 2.143 p95 5.879 ms), layout nodes 183, glyphs 312
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-card-new.json: active mode mode-kanban
+rune: `init` blocked 11 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 454 frames at 60 fps, gpu init 82.6 ms, first frame 71.59 ms, frame cpu mean 5.919 ms p50 4.266 p95 15.273 max 178.915, 417 instances
+rune: animating frames 269 (cpu p50 5.933 p95 16.367 ms), at-rest frames 184 (the window draws none; forced cpu p50 2.558 p95 6.224 ms), layout nodes 183, glyphs 326
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-edited.json: active mode mode-kanban
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 412 frames at 60 fps, gpu init 88.9 ms, first frame 69.10 ms, frame cpu mean 4.386 ms p50 2.724 p95 10.509 max 169.476, 413 instances
+rune: animating frames 235 (cpu p50 2.906 p95 10.719 ms), at-rest frames 176 (the window draws none; forced cpu p50 2.427 p95 5.358 ms), layout nodes 180, glyphs 326
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-card-editing.json: active mode mode-kanban
+rune: `init` blocked 11 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 1 ms, waited 1 ms for a core) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 526 frames at 60 fps, gpu init 116.6 ms, first frame 83.63 ms, frame cpu mean 4.497 ms p50 3.531 p95 8.332 max 179.451, 439 instances
+rune: animating frames 341 (cpu p50 3.894 p95 9.553 ms), at-rest frames 184 (the window draws none; forced cpu p50 2.316 p95 5.993 ms), layout nodes 190, glyphs 346
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-duplicated.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 658 frames at 60 fps, gpu init 95.9 ms, first frame 81.82 ms, frame cpu mean 3.738 ms p50 2.732 p95 7.161 max 207.468, 447 instances
+rune: animating frames 460 (cpu p50 2.837 p95 8.266 ms), at-rest frames 197 (the window draws none; forced cpu p50 2.374 p95 4.738 ms), layout nodes 197, glyphs 351
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-inserted-before.json: active mode mode-kanban
+rune: `init` blocked 14 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 790 frames at 60 fps, gpu init 80.8 ms, first frame 64.85 ms, frame cpu mean 3.541 ms p50 2.717 p95 7.033 max 140.884, 456 instances
+rune: animating frames 579 (cpu p50 2.979 p95 7.464 ms), at-rest frames 210 (the window draws none; forced cpu p50 1.906 p95 5.513 ms), layout nodes 204, glyphs 357
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-inserted-after.json: active mode mode-kanban
+rune: `init` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 880 frames at 60 fps, gpu init 85.2 ms, first frame 66.87 ms, frame cpu mean 3.659 ms p50 2.949 p95 7.460 max 137.987, 455 instances
+rune: animating frames 664 (cpu p50 3.163 p95 8.592 ms), at-rest frames 215 (the window draws none; forced cpu p50 2.062 p95 5.029 ms), layout nodes 211, glyphs 357
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-card-split.json: active mode mode-kanban
+rune: `init` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 958 frames at 60 fps, gpu init 85.6 ms, first frame 68.61 ms, frame cpu mean 4.914 ms p50 4.172 p95 9.152 max 147.107, 446 instances
+rune: animating frames 734 (cpu p50 4.520 p95 9.588 ms), at-rest frames 223 (the window draws none; forced cpu p50 2.905 p95 6.362 ms), layout nodes 204, glyphs 351
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-deleted.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 994 frames at 60 fps, gpu init 121.7 ms, first frame 73.63 ms, frame cpu mean 4.243 ms p50 3.442 p95 8.173 max 150.599, 447 instances
+rune: animating frames 770 (cpu p50 3.610 p95 8.435 ms), at-rest frames 223 (the window draws none; forced cpu p50 2.781 p95 6.654 ms), layout nodes 205, glyphs 351
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-toggled.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1102 frames at 60 fps, gpu init 97.4 ms, first frame 76.41 ms, frame cpu mean 3.623 ms p50 3.062 p95 6.424 max 150.682, 468 instances
+rune: animating frames 853 (cpu p50 3.211 p95 6.660 ms), at-rest frames 248 (the window draws none; forced cpu p50 2.493 p95 4.820 ms), layout nodes 213, glyphs 364
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-born-done.json: active mode mode-kanban
+rune: `init` blocked 14 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 16 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1174 frames at 60 fps, gpu init 84.5 ms, first frame 67.67 ms, frame cpu mean 4.171 ms p50 3.559 p95 7.485 max 152.800, 465 instances
+rune: animating frames 925 (cpu p50 3.753 p95 8.002 ms), at-rest frames 248 (the window draws none; forced cpu p50 2.555 p95 5.504 ms), layout nodes 214, glyphs 364
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-all-done.json: active mode mode-kanban
+rune: `init` blocked 15 ms (CPU 2 ms, waited 1 ms for a core) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1210 frames at 60 fps, gpu init 122.5 ms, first frame 90.97 ms, frame cpu mean 3.992 ms p50 3.200 p95 7.722 max 174.563, 464 instances
+rune: animating frames 955 (cpu p50 3.243 p95 8.181 ms), at-rest frames 254 (the window draws none; forced cpu p50 3.028 p95 5.850 ms), layout nodes 213, glyphs 364
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-undo.json: active mode mode-kanban
+rune: `init` blocked 8 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1246 frames at 60 fps, gpu init 91.5 ms, first frame 72.37 ms, frame cpu mean 3.486 ms p50 2.807 p95 6.903 max 156.497, 465 instances
+rune: animating frames 989 (cpu p50 2.901 p95 7.136 ms), at-rest frames 256 (the window draws none; forced cpu p50 2.240 p95 5.227 ms), layout nodes 214, glyphs 364
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-redo.json: active mode mode-kanban
+rune: `init` blocked 14 ms (CPU 2 ms, waited 2 ms for a core) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: `on_key` blocked 28 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 1540 frames at 60 fps, gpu init 101.9 ms, first frame 73.85 ms, frame cpu mean 3.700 ms p50 3.158 p95 6.939 max 155.520, 384 instances
+rune: animating frames 1205 (cpu p50 3.311 p95 6.984 ms), at-rest frames 334 (the window draws none; forced cpu p50 2.434 p95 6.635 ms), layout nodes 176, glyphs 301
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-start.json: active mode mode-kanban
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-open.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-open.json: lane 2 ['Done: Ship 0.7.1', 'Open: Tag the release']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-card-new.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-edited.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo 漢字 🎉 é']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-duplicated.json: lane 0 ['Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo 漢字 🎉 é']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-inserted-before.json: lane 0 ['Open: First', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo 漢字 🎉 é']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-inserted-after.json: lane 0 ['Open: First', 'Open: Second', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo 漢字 🎉 é']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-card-split.json: lane 0 ['Open: First', 'Open: Second', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: with the team', 'Open: Plan the demo 漢字 🎉 é']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-deleted.json: lane 0 ['Open: First', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: with the team', 'Open: Plan the demo 漢字 🎉 é']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-deleted.json: lane 1 ['Open: Fix the sync bug']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-toggled.json: lane 1 ['Done: Fix the sync bug']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-born-done.json: lane 2 ['Done: Ship 0.7.1', 'Open: Tag the release', 'Done: Write the notes']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-all-done.json: lane 2 ['Done: Ship 0.7.1', 'Done: Tag the release', 'Done: Write the notes']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-undo.json: lane 2 ['Done: Ship 0.7.1', 'Open: Tag the release', 'Done: Write the notes']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-redo.json: lane 2 ['Done: Ship 0.7.1', 'Done: Tag the release', 'Done: Write the notes']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-redo.json: lane 0 ['Open: First', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: with the team', 'Open: Plan the demo 漢字 🎉 é']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-start.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]']
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-start.json: lane 2 ['Done: Ship 0.7.1', 'Open: Tag the release']
+ok the card editor holds 'Plan the demo 漢字 🎉 é\nsecond line' (Shift+Enter made the line break)
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-redo.json: kanban-status says 'Unsaved · Ctrl+S saves'
+ok no unsaved indicator on open
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-start.json: kanban-status says 'Unsaved · Ctrl+S saves'
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1264 frames at 60 fps, gpu init 97.8 ms, first frame 75.69 ms, frame cpu mean 3.601 ms p50 3.115 p95 6.333 max 135.555, 465 instances
+rune: animating frames 997 (cpu p50 3.286 p95 6.487 ms), at-rest frames 266 (the window draws none; forced cpu p50 2.255 p95 5.108 ms), layout nodes 214, glyphs 364
+ok sha256 before Cmd+S: 8fe9ecb7bde0f99e1cb6ce1c3280979e238330c394a08e2bf427e134be4713cb (the fixture's)
+rune: `init` blocked 14 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1324 frames at 60 fps, gpu init 88.8 ms, first frame 69.04 ms, frame cpu mean 3.391 ms p50 2.861 p95 6.239 max 144.691, 451 instances
+rune: animating frames 1009 (cpu p50 2.998 p95 6.523 ms), at-rest frames 314 (the window draws none; forced cpu p50 2.298 p95 4.657 ms), layout nodes 214, glyphs 350
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-edit-saved.json: kanban-status says 'Saved'
+ok Board.md after Cmd+S is kanban-edit-saved.md byte for byte
+rune: `init` blocked 29 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1600 frames at 60 fps, gpu init 87.1 ms, first frame 68.36 ms, frame cpu mean 3.675 ms p50 3.135 p95 6.658 max 149.303, 370 instances
+rune: animating frames 1217 (cpu p50 3.265 p95 7.067 ms), at-rest frames 382 (the window draws none; forced cpu p50 2.609 p95 4.383 ms), layout nodes 176, glyphs 287
+ok undo to the start + Cmd+S restores the fixture's bytes

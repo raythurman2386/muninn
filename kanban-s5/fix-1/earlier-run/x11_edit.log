@@ -1,0 +1,5 @@
+Xvfb on :90, vulkan icd /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 148,245 in 0x200002 (button 1 x1)
+FAIL before: rectangle fill at (476, 221, 524, 249) is 0/1344 px
