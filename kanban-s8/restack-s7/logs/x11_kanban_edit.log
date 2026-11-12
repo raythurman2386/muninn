@@ -1,0 +1,37 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
+rune: 181 frames at 60 fps, gpu init 99.1 ms, first frame 56.98 ms, frame cpu mean 6.463 ms p50 3.958 p95 13.528 max 161.831, 329 instances
+rune: animating frames 71 (cpu p50 8.623 p95 17.684 ms), at-rest frames 109 (the window draws none; forced cpu p50 3.747 p95 4.576 ms), layout nodes 164, glyphs 258
+ok /tmp/ui-smoke-s8-full/trees/kanban-edit-x11-cmdk.json: active mode mode-kanban
+rune: 301 frames at 60 fps, gpu init 93.0 ms, first frame 55.08 ms, frame cpu mean 5.625 ms p50 4.031 p95 11.829 max 160.039, 362 instances
+rune: animating frames 160 (cpu p50 4.814 p95 12.543 ms), at-rest frames 140 (the window draws none; forced cpu p50 3.791 p95 4.896 ms), layout nodes 171, glyphs 288
+ok /tmp/ui-smoke-s8-full/trees/kanban-edit-x11-added.json: active mode mode-kanban
+rune: 361 frames at 60 fps, gpu init 90.1 ms, first frame 54.34 ms, frame cpu mean 5.435 ms p50 4.078 p95 11.525 max 157.513, 488 instances
+rune: animating frames 206 (cpu p50 4.697 p95 12.263 ms), at-rest frames 154 (the window draws none; forced cpu p50 3.597 p95 5.166 ms), layout nodes 196, glyphs 413
+ok /tmp/ui-smoke-s8-full/trees/kanban-edit-x11-menu.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-full/trees/kanban-edit-x11-cmdk.json: kanban-title says 'Board'
+Xvfb on :90
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+1 on 0x200002
+ok /tmp/ui-smoke-s8-full/work/config-x11-kanban-edit/muninn/settings.json: mode editor
+ok pressed ctrl+k on 0x200002
+ok typed 'board' on 0x200002
+ok pressed enter on 0x200002
+ok /tmp/ui-smoke-s8-full/work/config-x11-kanban-edit/muninn/settings.json: mode kanban
+saved kanban Board.md
+ok pressed esc on 0x200002
+ok /tmp/ui-smoke-s8-full/work/config-x11-kanban-edit/muninn/settings.json: mode editor
+ok pressed ctrl+5 on 0x200002
+ok /tmp/ui-smoke-s8-full/work/config-x11-kanban-edit/muninn/settings.json: mode kanban
+ok clicked 416,296 in 0x200002 (button 1 x1)
+ok typed 'Plan the demo' on 0x200002
+ok pressed enter on 0x200002
+ok clicked 514,302 in 0x200002 (button 1 x1)
+ok clicked 421,351 in 0x200002 (button 1 x1)
+ok typed ' edited' on 0x200002
+ok pressed enter on 0x200002
+ok Board.md unchanged before Ctrl+S
+ok pressed ctrl+s on 0x200002
+ok Board.md after Ctrl+S is kanban-edit-x11.md byte for byte
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok closing left the saved bytes

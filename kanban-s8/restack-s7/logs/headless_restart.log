@@ -1,0 +1,6 @@
+rune: 73 frames at 60 fps, gpu init 100.6 ms, first frame 63.33 ms, frame cpu mean 12.012 ms p50 9.831 p95 31.646 max 158.828, 284 instances
+rune: animating frames 42 (cpu p50 12.236 p95 35.148 ms), at-rest frames 30 (the window draws none; forced cpu p50 3.375 p95 11.692 ms), layout nodes 64, glyphs 265
+ok /tmp/ui-smoke-s8-full/work/config-restart/muninn/settings.json: mode board
+rune: 61 frames at 60 fps, gpu init 115.4 ms, first frame 49.12 ms, frame cpu mean 3.916 ms p50 3.673 p95 5.210 max 49.120, 284 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 60 (the window draws none; forced cpu p50 3.673 p95 4.836 ms), layout nodes 64, glyphs 265
+ok /tmp/ui-smoke-s8-full/trees/restart-relaunch.json: active mode mode-board

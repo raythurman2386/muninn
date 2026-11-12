@@ -1,0 +1,48 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json (WGPU_BACKEND=vulkan)
+backend: /usr/share/vulkan/icd.d/lvp_icd.json WGPU_BACKEND=vulkan
+rune: 55 frames at 60 fps, gpu init 92.0 ms, first frame 55.54 ms, frame cpu mean 3.591 ms p50 3.283 p95 4.231 max 55.541, 354 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 54 (the window draws none; forced cpu p50 3.283 p95 4.222 ms), layout nodes 133, glyphs 297
+rune: 97 frames at 60 fps, gpu init 90.3 ms, first frame 54.52 ms, frame cpu mean 8.776 ms p50 4.959 p95 13.847 max 156.615, 317 instances
+rune: animating frames 62 (cpu p50 8.884 p95 18.272 ms), at-rest frames 34 (the window draws none; forced cpu p50 3.051 p95 4.241 ms), layout nodes 154, glyphs 244
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-open.json: active mode mode-kanban
+rune: 193 frames at 60 fps, gpu init 92.0 ms, first frame 54.97 ms, frame cpu mean 6.976 ms p50 4.408 p95 15.547 max 157.632, 331 instances
+rune: animating frames 133 (cpu p50 5.662 p95 15.707 ms), at-rest frames 59 (the window draws none; forced cpu p50 3.185 p95 4.757 ms), layout nodes 151, glyphs 255
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-complete.json: active mode mode-kanban
+rune: 253 frames at 60 fps, gpu init 91.4 ms, first frame 54.88 ms, frame cpu mean 6.188 ms p50 4.377 p95 12.265 max 159.369, 317 instances
+rune: animating frames 193 (cpu p50 4.901 p95 12.399 ms), at-rest frames 59 (the window draws none; forced cpu p50 3.102 p95 4.954 ms), layout nodes 154, glyphs 244
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-closed.json: active mode mode-kanban
+rune: 319 frames at 60 fps, gpu init 90.5 ms, first frame 54.42 ms, frame cpu mean 5.766 ms p50 4.313 p95 11.362 max 161.565, 335 instances
+rune: animating frames 259 (cpu p50 4.693 p95 11.700 ms), at-rest frames 59 (the window draws none; forced cpu p50 3.148 p95 5.659 ms), layout nodes 154, glyphs 263
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-copied.json: active mode mode-kanban
+ok link-complete drawn (kanban-links-complete.json)
+ok autocomplete offers Roadmap
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-closed.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]']
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-copied.json: lane 1 ['Open: Fix the sync bug']
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-copied.json: kanban-status says 'Unsaved · Ctrl+S saves'
+rune: 322 frames at 60 fps, gpu init 92.1 ms, first frame 54.36 ms, frame cpu mean 5.668 ms p50 4.176 p95 11.890 max 159.440, 335 instances
+rune: animating frames 261 (cpu p50 4.351 p95 12.194 ms), at-rest frames 60 (the window draws none; forced cpu p50 3.355 p95 4.417 ms), layout nodes 154, glyphs 263
+rune: 385 frames at 60 fps, gpu init 91.2 ms, first frame 54.76 ms, frame cpu mean 5.537 ms p50 4.208 p95 11.346 max 160.983, 439 instances
+rune: animating frames 286 (cpu p50 4.543 p95 12.102 ms), at-rest frames 98 (the window draws none; forced cpu p50 4.076 p95 4.864 ms), layout nodes 175, glyphs 363
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-saved.json: kanban-status says 'Saved'
+ok Board.md after Ctrl+S is kanban-links-saved.md byte for byte
+rune: 457 frames at 60 fps, gpu init 93.4 ms, first frame 55.76 ms, frame cpu mean 5.219 ms p50 4.102 p95 10.491 max 158.669, 321 instances
+rune: animating frames 342 (cpu p50 4.232 p95 11.175 ms), at-rest frames 114 (the window draws none; forced cpu p50 3.697 p95 4.588 ms), layout nodes 154, glyphs 249
+ok the block id is unchanged after copying the link again
+Board.md -> Roadmap.md
+rune: 384 frames at 60 fps, gpu init 92.4 ms, first frame 57.95 ms, frame cpu mean 7.080 ms p50 4.534 p95 13.774 max 159.713, 311 instances
+rune: animating frames 264 (cpu p50 7.340 p95 14.063 ms), at-rest frames 119 (the window draws none; forced cpu p50 3.839 p95 4.963 ms), layout nodes 154, glyphs 238
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-renamed.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-renamed.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Plan]]']
+Board.md -> Plan.md
+ok --list-links follows Roadmap to Plan
+rune: 414 frames at 60 fps, gpu init 92.4 ms, first frame 56.00 ms, frame cpu mean 6.804 ms p50 4.476 p95 13.813 max 157.574, 362 instances
+rune: animating frames 294 (cpu p50 5.576 p95 14.103 ms), at-rest frames 119 (the window draws none; forced cpu p50 3.949 p95 5.719 ms), layout nodes 158, glyphs 288
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-dirty.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-dirty.json: lane 1 ['Done: Fix the sync bug']
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-dirty.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]']
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-dirty.json: kanban-notice says 'Links in Board were not updated'
+ok a dirty kanban kept its bytes and its edit; --list-links still sees Roadmap
+rune: 262 frames at 60 fps, gpu init 94.2 ms, first frame 55.61 ms, frame cpu mean 5.771 ms p50 4.056 p95 11.679 max 159.745, 323 instances
+rune: animating frames 145 (cpu p50 4.676 p95 13.114 ms), at-rest frames 116 (the window draws none; forced cpu p50 3.989 p95 4.571 ms), layout nodes 154, glyphs 250
+ok /tmp/ui-smoke-s8-full/trees/kanban-links-self.json: kanban-title says 'Sprint'
+ok settings.json kanban is Sprint.md

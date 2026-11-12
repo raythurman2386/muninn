@@ -1,0 +1,35 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
+ok mine.md: the mine bytes
+ok theirs.md: the theirs bytes
+ok mine-theirs.md: the mine-theirs bytes
+Xvfb on :90
+app pid 81888 (started by this step)
+window 0x200002 'Muninn' 1180x780
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok clicked 886,88 in 0x200002 (button 1 x1)
+ok Board (conflict 20261112-222713).md is mine.md byte for byte
+ok external delete while dirty: Save copy wrote Board (conflict 20261112-222713).md with the edits
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+app pid 81946 (started by this step)
+window 0x200002 'Muninn' 1180x780
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok the recovery copy for Board.md is mine.md byte for byte
+ok closing with the file gone quits (exit 0) and keeps the edits in the recovery copy
+app pid 81986 (started by this step)
+window 0x200002 'Muninn' 1180x780
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok the recovery copy for Board.md is mine.md byte for byte
+kill -9 81986 (the app this step started)
+app pid 82018 (started by this step)
+window 0x200002 'Muninn' 1180x780
+ok clicked 568,78 in 0x200002 (button 1 x1)
+ok session.log: 20261112-222729 recovery restored kanban Board.md
+ok clicked 791,88 in 0x200002 (button 1 x1)
+ok Board.md is mine.md byte for byte
+ok no recovery copy for Board.md
+ok recovered after SIGKILL: Keep mine wrote the edit; the copy is gone
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0

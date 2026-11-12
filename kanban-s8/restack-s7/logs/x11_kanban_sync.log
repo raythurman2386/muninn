@@ -1,0 +1,41 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
+ok mine.md: the mine bytes
+ok theirs.md: the theirs bytes
+ok mine-theirs.md: the mine-theirs bytes
+Xvfb on :90
+app pid 81694 (started by this step)
+window 0x200002 'Muninn' 1180x780
+ok /tmp/ui-smoke-s8-full/work/config-x11-kanban-sync-sync/muninn/settings.json: mode kanban
+ok session.log: 20261112-222625 watch reloaded the shown kanban
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok pressed ctrl+s on 0x200002
+ok Board.md is mine-theirs.md byte for byte
+ok external write while clean: reloaded; the next save is theirs + mine byte for byte
+ok Board.md replaced by rename (249 bytes)
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok pressed ctrl+s on 0x200002
+ok Board.md is mine.md byte for byte
+ok atomic-rename save while clean: followed; the next save is mine byte for byte
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok Board.md replaced by rename (276 bytes)
+ok session.log: 20261112-222640 watch shown kanban changed on disk; kept unsaved
+ok pressed ctrl+s on 0x200002
+ok external write while dirty: flagged, Ctrl+S refused, their bytes kept
+ok clicked 948,88 in 0x200002 (button 1 x1)
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok pressed ctrl+s on 0x200002
+ok Board.md is mine-theirs.md byte for byte
+ok Load theirs: the page took their bytes (the next save is theirs + mine)
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok Board.md replaced by rename (249 bytes)
+ok clicked 791,88 in 0x200002 (button 1 x1)
+ok Board.md is theirs.md byte for byte
+ok Keep mine: the page's bytes over the other app's
+ok clicked 584,179 in 0x200002 (button 1 x1)
+ok Board.md replaced by rename (249 bytes)
+ok clicked 868,88 in 0x200002 (button 1 x1)
+ok Board (conflict 20261112-222703).md is mine-theirs.md byte for byte
+ok Save copy: Board (conflict 20261112-222703).md holds the page's bytes; Board.md is the other app's
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok closing left both files as they were

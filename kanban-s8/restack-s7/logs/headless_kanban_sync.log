@@ -1,0 +1,71 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json (WGPU_BACKEND=vulkan)
+ok mine.md: the mine bytes
+ok theirs.md: the theirs bytes
+ok mine-theirs.md: the mine-theirs bytes
+rune: 76 frames at 60 fps, gpu init 92.2 ms, first frame 54.84 ms, frame cpu mean 3.774 ms p50 3.304 p95 4.844 max 54.840, 365 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 75 (the window draws none; forced cpu p50 3.277 p95 4.789 ms), layout nodes 177, glyphs 282
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-open.json: active mode mode-kanban
+rune: 100 frames at 60 fps, gpu init 91.3 ms, first frame 54.01 ms, frame cpu mean 3.902 ms p50 3.879 p95 4.860 max 54.013, 385 instances
+rune: animating frames 23 (cpu p50 4.440 p95 5.165 ms), at-rest frames 76 (the window draws none; forced cpu p50 3.557 p95 4.596 ms), layout nodes 178, glyphs 301
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-typed.json: active mode mode-kanban
+rune: 256 frames at 60 fps, gpu init 90.6 ms, first frame 54.04 ms, frame cpu mean 3.860 ms p50 3.763 p95 5.029 max 54.038, 371 instances
+rune: animating frames 42 (cpu p50 3.477 p95 5.298 ms), at-rest frames 213 (the window draws none; forced cpu p50 3.775 p95 5.010 ms), layout nodes 178, glyphs 287
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-autosaved.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-open.json: kanban-title says 'Board'
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-autosaved.json: lane 1 ['Done: Fix the sync bug']
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-autosaved.json: kanban-status says 'Saved'
+ok autosaved: Board.md is the fixture with the card checked, byte for byte
+rune: 100 frames at 60 fps, gpu init 91.6 ms, first frame 54.16 ms, frame cpu mean 3.799 ms p50 3.454 p95 4.982 max 54.163, 385 instances
+rune: animating frames 23 (cpu p50 3.909 p95 5.319 ms), at-rest frames 76 (the window draws none; forced cpu p50 3.329 p95 4.874 ms), layout nodes 178, glyphs 301
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-typed.json: kanban-status says 'Unsaved · Ctrl+S saves'
+ok Board.md unchanged 0.45 s after the edit (autosave waits for it to rest)
+ok negative control fails: Saved on the typed tree (FAIL /tmp/ui-smoke-s8-full/trees/kanban-sync-typed.json: kanban-status does not say 'Saved')
+rune: 256 frames at 60 fps, gpu init 109.2 ms, first frame 55.25 ms, frame cpu mean 3.880 ms p50 3.619 p95 5.127 max 55.249, 385 instances
+rune: animating frames 42 (cpu p50 4.349 p95 5.379 ms), at-rest frames 213 (the window draws none; forced cpu p50 3.525 p95 5.021 ms), layout nodes 178, glyphs 301
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-off.json: kanban-status says 'Unsaved · Ctrl+S saves'
+ok kanban_autosave false: Board.md unchanged until Cmd+S
+ok seeded a recovery copy for Board.md (249 bytes)
+rune: 76 frames at 60 fps, gpu init 93.0 ms, first frame 59.25 ms, frame cpu mean 4.026 ms p50 3.747 p95 5.375 max 59.250, 428 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 75 (the window draws none; forced cpu p50 3.740 p95 5.254 ms), layout nodes 189, glyphs 343
+ok kanban-sync-banner.json: recovery-banner says 'Board.md'
+ok seeded a recovery copy for Board.md (249 bytes)
+rune: 196 frames at 60 fps, gpu init 91.6 ms, first frame 58.16 ms, frame cpu mean 5.004 ms p50 3.902 p95 5.720 max 159.123, 437 instances
+rune: animating frames 47 (cpu p50 3.892 p95 12.113 ms), at-rest frames 148 (the window draws none; forced cpu p50 3.907 p95 5.313 ms), layout nodes 186, glyphs 352
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-changed.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-changed.json: kanban-conflict-text says 'Changed on disk by another app'
+ok kanban-sync-changed.json: kanban-load-theirs says 'Load theirs'
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-changed.json: kanban-status says 'Unsaved · Ctrl+S saves'
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-changed.json: lane 1 ['Done: Fix the sync bug']
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-changed.json: no recovery-banner
+ok restoring (and 1.7 s of autosave on) left Board.md as it was
+ok seeded a recovery copy for Board.md (249 bytes)
+rune: 268 frames at 60 fps, gpu init 106.8 ms, first frame 72.48 ms, frame cpu mean 4.707 ms p50 3.779 p95 5.924 max 152.620, 371 instances
+rune: animating frames 94 (cpu p50 3.779 p95 8.409 ms), at-rest frames 173 (the window draws none; forced cpu p50 3.774 p95 5.251 ms), layout nodes 178, glyphs 287
+ok Keep mine: Board.md is the recovered bytes
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-kept.json: kanban-status says 'Saved'
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-kept.json: no kanban-conflict
+ok no recovery copy for Board.md
+ok seeded a recovery copy for Board.md (249 bytes)
+rune: 268 frames at 60 fps, gpu init 93.1 ms, first frame 59.25 ms, frame cpu mean 4.655 ms p50 3.749 p95 5.641 max 153.242, 365 instances
+rune: animating frames 94 (cpu p50 3.839 p95 9.006 ms), at-rest frames 173 (the window draws none; forced cpu p50 3.673 p95 4.996 ms), layout nodes 177, glyphs 282
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-theirs.json: lane 1 ['Open: Fix the sync bug']
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-theirs.json: no kanban-conflict
+ok no recovery copy for Board.md
+ok Load theirs: Board.md untouched, the page shows it, the copy is gone
+ok seeded a recovery copy for Board.md (249 bytes)
+rune: 196 frames at 60 fps, gpu init 94.3 ms, first frame 46.23 ms, frame cpu mean 6.115 ms p50 4.362 p95 11.099 max 163.847, 407 instances
+rune: animating frames 47 (cpu p50 8.207 p95 22.683 ms), at-rest frames 148 (the window draws none; forced cpu p50 4.010 p95 4.768 ms), layout nodes 173, glyphs 326
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-missing.json: kanban-conflict-text says 'Removed or renamed on disk'
+ok kanban-sync-missing.json: kanban-load-theirs says 'Discard'
+ok seeded a recovery copy for Board.md (249 bytes)
+rune: 268 frames at 60 fps, gpu init 92.3 ms, first frame 48.32 ms, frame cpu mean 5.871 ms p50 4.374 p95 10.970 max 172.608, 514 instances
+rune: animating frames 94 (cpu p50 5.886 p95 14.575 ms), at-rest frames 173 (the window draws none; forced cpu p50 4.316 p95 4.984 ms), layout nodes 178, glyphs 430
+ok /tmp/ui-smoke-s8-full/trees/kanban-sync-copied.json: kanban-title says 'Board (conflict 20261112-222619)'
+ok no recovery copy for Board.md
+ok Save copy: Board (conflict 20261112-222619).md holds the recovered bytes; Board.md stays gone
+ok seeded a recovery copy for Board.md (249 bytes)
+rune: 268 frames at 60 fps, gpu init 93.8 ms, first frame 48.65 ms, frame cpu mean 6.241 ms p50 4.453 p95 11.569 max 165.299, 216 instances
+rune: animating frames 94 (cpu p50 7.633 p95 14.007 ms), at-rest frames 173 (the window draws none; forced cpu p50 4.280 p95 4.990 ms), layout nodes 85, glyphs 168
+ok no recovery copy for Board.md
+ok Discard: no file written, the copy is gone
+ok negative control fails: the fixture as the kept bytes ()

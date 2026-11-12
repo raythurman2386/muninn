@@ -1,0 +1,29 @@
+{
+  "auto_start": false,
+  "autosave_delay": 0.55,
+  "board": null,
+  "board_autosave": true,
+  "close_to_tray": false,
+  "collapsed": [],
+  "kanban": null,
+  "kanban_autosave": true,
+  "last_vault": "/tmp/ui-smoke-s8-full/work/vault",
+  "mode": "board",
+  "note_template": "",
+  "recent_vaults": [
+    "/tmp/ui-smoke-s8-full/work/vault"
+  ],
+  "reduce_motion": "system",
+  "scope": "global",
+  "selected_rel": "Second.md",
+  "show_shortcut": false,
+  "sync": {
+    "disabled_reason": null,
+    "github_client_id": "",
+    "google_client_id": "",
+    "vaults": [],
+    "version": 1
+  },
+  "theme": "omarchy",
+  "tray_icon": false
+}

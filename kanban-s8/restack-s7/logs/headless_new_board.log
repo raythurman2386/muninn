@@ -1,0 +1,35 @@
+rune: 106 frames at 60 fps, gpu init 98.8 ms, first frame 51.58 ms, frame cpu mean 8.563 ms p50 3.810 p95 24.493 max 156.623, 224 instances
+rune: animating frames 42 (cpu p50 9.748 p95 30.824 ms), at-rest frames 63 (the window draws none; forced cpu p50 3.630 p95 4.209 ms), layout nodes 56, glyphs 205
+ok /tmp/ui-smoke-s8-full/trees/new-empty.json: active mode mode-board
+ok /tmp/ui-smoke-s8-full/trees/new-empty.json: board-new-empty says 'New board'
+ok /tmp/ui-smoke-s8-full/trees/new-empty.json: board-list-empty says 'No boards in this vault yet'
+ok /tmp/ui-smoke-s8-full/trees/new-empty.json: board-surface-title says 'No boards yet'
+ok /tmp/ui-smoke-s8-full/trees/new-empty.json: no search-box
+ok entering Board on a vault with no boards wrote nothing
+rune: 166 frames at 60 fps, gpu init 98.4 ms, first frame 51.46 ms, frame cpu mean 7.722 ms p50 5.006 p95 21.527 max 150.635, 263 instances
+rune: animating frames 90 (cpu p50 8.743 p95 23.025 ms), at-rest frames 75 (the window draws none; forced cpu p50 3.588 p95 4.387 ms), layout nodes 85, glyphs 230
+ok /tmp/ui-smoke-s8-full/trees/new-created.json: board-surface-title says 'Untitled board'
+ok empty scene /tmp/ui-smoke-s8-full/work/empty-vault/Ideas/Untitled board.excalidraw
+ok /tmp/ui-smoke-s8-full/work/empty-vault/Ideas/Untitled board.excalidraw: 0 elements (0 modelled, 0 kept raw), 0 files, 115 bytes written
+ok negative control fails: the empty-state tree as a created board (FAIL /tmp/ui-smoke-s8-full/trees/new-empty.json: board-surface-title does not say 'Untitled board')
+rune: 166 frames at 60 fps, gpu init 98.3 ms, first frame 53.95 ms, frame cpu mean 7.694 ms p50 5.073 p95 17.716 max 150.952, 289 instances
+rune: animating frames 90 (cpu p50 8.705 p95 21.049 ms), at-rest frames 75 (the window draws none; forced cpu p50 3.609 p95 4.805 ms), layout nodes 88, glyphs 256
+ok /tmp/ui-smoke-s8-full/trees/new-second.json: board-surface-title says 'Untitled board 2'
+rune: 76 frames at 60 fps, gpu init 97.2 ms, first frame 54.07 ms, frame cpu mean 10.404 ms p50 8.341 p95 31.135 max 154.122, 268 instances
+rune: animating frames 42 (cpu p50 9.930 p95 32.069 ms), at-rest frames 33 (the window draws none; forced cpu p50 3.198 p95 4.365 ms), layout nodes 61, glyphs 249
+rune: 160 frames at 60 fps, gpu init 98.2 ms, first frame 54.93 ms, frame cpu mean 6.975 ms p50 3.890 p95 16.982 max 155.006, 428 instances
+rune: animating frames 42 (cpu p50 10.037 p95 31.446 ms), at-rest frames 117 (the window draws none; forced cpu p50 3.625 p95 4.998 ms), layout nodes 130, glyphs 371
+rune: 268 frames at 60 fps, gpu init 99.2 ms, first frame 54.68 ms, frame cpu mean 7.739 ms p50 4.309 p95 18.261 max 153.028, 1432 instances
+rune: animating frames 94 (cpu p50 12.781 p95 28.052 ms), at-rest frames 173 (the window draws none; forced cpu p50 3.766 p95 4.792 ms), layout nodes 149, glyphs 341
+ok /tmp/ui-smoke-s8-full/trees/new-shut.json: no search-box
+129 75
+ok /tmp/ui-smoke-s8-full/trees/new-left.json: active mode mode-graph
+129 75
+/tmp/ui-smoke-s8-full/work/empty-vault:
+Ideas
+Start.md
+
+/tmp/ui-smoke-s8-full/work/empty-vault/Ideas:
+Idea.md
+Untitled board 2.excalidraw
+Untitled board.excalidraw

@@ -1,0 +1,20 @@
+rune: 136 frames at 60 fps, gpu init 112.3 ms, first frame 76.17 ms, frame cpu mean 8.866 ms p50 5.235 p95 22.622 max 155.413, 424 instances
+rune: animating frames 78 (cpu p50 8.884 p95 30.442 ms), at-rest frames 57 (the window draws none; forced cpu p50 4.256 p95 5.028 ms), layout nodes 91, glyphs 239
+ok /tmp/ui-smoke-s8-full/trees/sync-before.json: board-surface-title says 'Tools'
+ok wrote /tmp/ui-smoke-s8-full/work/sync/sync.json: 11 events, zoom 1.0000
+rune: 238 frames at 60 fps, gpu init 98.2 ms, first frame 64.97 ms, frame cpu mean 6.787 ms p50 4.360 p95 15.610 max 156.814, 449 instances
+rune: animating frames 163 (cpu p50 4.951 p95 20.721 ms), at-rest frames 74 (the window draws none; forced cpu p50 4.161 p95 4.572 ms), layout nodes 95, glyphs 262
+ok /tmp/ui-smoke-s8-full/trees/sync-typed.json: board-save-state says 'Unsaved · Ctrl+S saves'
+ok /tmp/ui-smoke-s8-full/work/vault/Tools.excalidraw is byte-identical to /agent/repos/muninn/crates/muninn-core/tests/fixtures/board/draw.excalidraw
+rune: 406 frames at 60 fps, gpu init 98.5 ms, first frame 62.70 ms, frame cpu mean 5.702 ms p50 4.277 p95 12.895 max 153.844, 433 instances
+rune: animating frames 177 (cpu p50 4.940 p95 16.402 ms), at-rest frames 228 (the window draws none; forced cpu p50 4.222 p95 4.950 ms), layout nodes 95, glyphs 248
+ok /tmp/ui-smoke-s8-full/trees/sync-autosaved.json: board-save-state says 'Saved'
+ok /tmp/ui-smoke-s8-full/work/vault/Tools.excalidraw: 5 elements kept exactly, 'auto' appended
+ok /tmp/ui-smoke-s8-full/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4899 bytes written
+ok negative control fails: the original file as the autosave (FAIL 5 elements, expected 5 + 1)
+ok negative control fails: Saved on the typed tree (FAIL /tmp/ui-smoke-s8-full/trees/sync-typed.json: board-save-state does not say 'Saved')
+rune: 421 frames at 60 fps, gpu init 96.9 ms, first frame 62.19 ms, frame cpu mean 5.600 ms p50 4.301 p95 14.023 max 154.792, 447 instances
+rune: animating frames 177 (cpu p50 4.859 p95 15.440 ms), at-rest frames 243 (the window draws none; forced cpu p50 4.241 p95 4.996 ms), layout nodes 95, glyphs 262
+ok /tmp/ui-smoke-s8-full/trees/sync-off.json: board-save-state says 'Unsaved · Ctrl+S saves'
+ok /tmp/ui-smoke-s8-full/work/vault/Tools.excalidraw is byte-identical to /agent/repos/muninn/crates/muninn-core/tests/fixtures/board/draw.excalidraw
+ok with board_autosave off the file is untouched
