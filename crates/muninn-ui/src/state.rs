@@ -369,6 +369,14 @@ pub struct State {
     /// Kanban slice 5: where the lane field is open, and its field.
     pub kanban_lane_edit: Option<crate::LaneSlot>,
     pub kanban_lane_field: TextEdit,
+    /// Kanban slice 9: the date/time picker under a card or the card editor,
+    /// and the two time fields it edits.
+    pub kanban_picker: Option<crate::KanbanPicker>,
+    /// Slice 9: the card editor's text at the Escape that closed a picker, so
+    /// the unchanged trigger does not reopen it.
+    pub kanban_picker_dismissed: Option<String>,
+    pub kanban_hour_field: TextEdit,
+    pub kanban_minute_field: TextEdit,
     /// Kanban slice 5: the card (lane, index) the arrow keys act on.
     pub kanban_selected: Option<(usize, usize)>,
     /// Kanban slice 6: the card or lane pressed and held (cleared whenever
@@ -738,6 +746,10 @@ impl State {
             kanban_card_field: TextEdit::default(),
             kanban_lane_edit: None,
             kanban_lane_field: TextEdit::default(),
+            kanban_picker: None,
+            kanban_picker_dismissed: None,
+            kanban_hour_field: TextEdit::default(),
+            kanban_minute_field: TextEdit::default(),
             kanban_selected: None,
             kanban_drag: None,
             kanban_rects: crate::kanban_drag::KanbanRects::default(),
@@ -4155,6 +4167,12 @@ impl State {
             }
             (MenuTarget::Card(lane, index), "duplicate") => self.duplicate_card(lane, index),
             (MenuTarget::Card(lane, index), "split") => self.split_card(lane, index),
+            (MenuTarget::Card(lane, index), "add_date") => {
+                self.open_card_date_picker(lane, index);
+            }
+            (MenuTarget::Card(lane, index), "add_time") => {
+                self.open_card_time_picker(lane, index);
+            }
             (MenuTarget::Card(lane, index), "copy_link") => {
                 let _ = self.copy_card_link(lane, index);
             }

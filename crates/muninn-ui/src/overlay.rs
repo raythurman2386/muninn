@@ -24,6 +24,7 @@ pub enum Layer {
     MoveConfirm,
     FolderRenameConfirm,
     Menu,
+    KanbanPicker,
     NewNote,
     RenameNote,
     NewFolder,
@@ -246,7 +247,9 @@ impl State {
             // once a click elsewhere on the page took its focus.
             || (self.mode == crate::Mode::Kanban
                 && ((self.kanban_card.is_some() && self.kanban_card_field.focused)
-                    || (self.kanban_lane_edit.is_some() && self.kanban_lane_field.focused)))
+                    || (self.kanban_lane_edit.is_some() && self.kanban_lane_field.focused)
+                    || self.kanban_hour_field.focused
+                    || self.kanban_minute_field.focused))
     }
 
     /// DES-01: help overlay.
@@ -439,6 +442,9 @@ impl State {
         if self.menu.is_some() {
             return Some(Layer::Menu);
         }
+        if self.kanban_picker.is_some() {
+            return Some(Layer::KanbanPicker);
+        }
         if self.new_note_prompt.is_some() {
             return Some(Layer::NewNote);
         }
@@ -476,6 +482,7 @@ impl State {
             Layer::MoveConfirm => self.cancel_move_confirm(),
             Layer::FolderRenameConfirm => self.cancel_folder_rename_confirm(),
             Layer::Menu => self.close_menu(),
+            Layer::KanbanPicker => self.dismiss_picker(),
             Layer::NewNote => self.cancel_new_note(),
             Layer::RenameNote => self.cancel_rename_note(),
             Layer::NewFolder => self.cancel_new_folder(),

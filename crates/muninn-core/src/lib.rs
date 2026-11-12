@@ -30,7 +30,12 @@ pub use board::{
     IdSource, MUNINN_SOURCE, SCENE_VERSION, Shape, ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE,
     TEXT_LINE_HEIGHT, TextBody, index_after, list_boards,
 };
-pub use kanban::{Archive, Card, CardOrder, Kanban, KanbanFile, Lane, is_kanban};
+pub use kanban::{
+    Archive, Card, CardOrder, CardText, CivilDate, CivilTime, DATE_DISPLAY_FORMAT, DATE_FORMAT,
+    DATE_TRIGGER, DateKind, DateSettings, DateToken, HIDE_DATE_IN_TITLE, Kanban, KanbanDefaults,
+    KanbanFile, LINK_DATE_TO_DAILY_NOTE, Lane, SHOW_RELATIVE_DATE, TIME_FORMAT, TIME_TRIGGER,
+    TagToken, format_date, format_time, is_kanban, scan_card_text,
+};
 pub use note::Note;
 pub use preview::Attachment;
 pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy, atomic_write, board_name};

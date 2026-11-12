@@ -1604,6 +1604,8 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                 ("Insert card after", "insert_after"),
                 ("Duplicate", "duplicate"),
             ];
+            items.push(("Add a date…", "add_date"));
+            items.push(("Add a time…", "add_time"));
             let multi_line = s
                 .kanban
                 .as_ref()

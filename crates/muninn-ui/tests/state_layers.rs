@@ -100,6 +100,18 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                 state.menu = None;
             }
         }
+        Layer::KanbanPicker => {
+            state.kanban_picker = on.then_some(muninn_ui::KanbanPicker {
+                kind: muninn_ui::PickerKind::Date,
+                card: (0, 0),
+                insert: None,
+                year: 2026,
+                month: 11,
+                day: 12,
+                hour: 0,
+                minute: 0,
+            });
+        }
         Layer::NewNote => {
             if on {
                 state.new_note_prompt = Some(NamePrompt {
@@ -147,7 +159,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
     }
 }
 
-const ESCAPE_ORDER: [Layer; 16] = [
+const ESCAPE_ORDER: [Layer; 17] = [
     Layer::Palette,
     Layer::Settings,
     Layer::Help,
@@ -158,6 +170,7 @@ const ESCAPE_ORDER: [Layer; 16] = [
     Layer::MoveConfirm,
     Layer::FolderRenameConfirm,
     Layer::Menu,
+    Layer::KanbanPicker,
     Layer::NewNote,
     Layer::RenameNote,
     Layer::NewFolder,

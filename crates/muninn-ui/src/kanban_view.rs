@@ -26,6 +26,9 @@
 //! a drag would drop. Slice 8 (`kanban_links.rs`) follows a card's wikilink,
 //! completes `[[` in the card editor, copies a stable block id, makes a note
 //! from a card, and keeps a dirty kanban's bytes when a linked note is renamed.
+//! Slice 9 (`kanban_dates.rs`) reads card dates and times, hides them from the
+//! title when the board asks, shows them at the card's foot, and opens the
+//! date/time picker from a card menu or a typed trigger.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -39,7 +42,7 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
-use muninn_core::{Card, Kanban, Lane, is_kanban, parse_links};
+use muninn_core::{Card, Kanban, Lane, is_kanban, parse_links, scan_card_text};
 use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
@@ -199,6 +202,8 @@ impl State {
         // held on it ends with it. The selected card is found again by its
         // content, or kept in place when its lane still holds the same cards.
         self.kanban_board_installed(selected_card);
+        // Slice 9: a picker names a card by place, and the board just changed.
+        self.close_picker();
         if reloaded {
             self.log_event("watch", "reloaded the shown kanban");
         }
@@ -318,6 +323,7 @@ impl State {
         self.kanban = None;
         self.cancel_card_edit();
         self.cancel_lane_edit();
+        self.close_picker();
         self.kanban_selected = None;
         self.kanban_drag = None;
         self.kanban_autosave_wait = None;
@@ -327,6 +333,7 @@ impl State {
     /// A card's menu (its `⋯`, or a right-click on it), drawn under the card.
     pub fn open_card_menu(&mut self, lane: usize, index: usize) {
         if let Some((lane, index)) = self.settle_card_edit(lane, index) {
+            self.close_picker();
             self.open_kanban_menu(MenuTarget::Card(lane, index));
         }
     }
@@ -334,6 +341,7 @@ impl State {
     /// A lane's menu (the `⋯` in its header), drawn under the header.
     pub fn open_lane_menu(&mut self, lane: usize) {
         if let Some(lane) = self.settle_lane_edit(lane) {
+            self.close_picker();
             self.open_kanban_menu(MenuTarget::Lane(lane));
         }
     }
@@ -549,6 +557,9 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
             columns.push(lane_drop_bar(s, k));
         }
         let live = s.kanban_card.is_some_and(|slot| slot.lane == i)
+            || s.kanban_picker
+                .as_ref()
+                .is_some_and(|picker| picker.card.0 == i)
             || s.kanban_drag_in(i) != (None, None, false)
             || s.kanban_lane_edit.is_some_and(|slot| slot.lane == i)
             || s.menu.as_ref().is_some_and(|m| match m.target {
@@ -564,7 +575,7 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
             let selected = s.kanban_selected.filter(|(l, _)| *l == i).map(|(_, j)| j);
             rune::memo(
                 format!("kanban-lane-{i}"),
-                (rel, kit, lane_version(lane), selected),
+                (rel, kit, lane_version(lane), selected, date_version(s)),
                 move || lane_column(s, k, note, i, lane),
             )
         });
@@ -601,6 +612,13 @@ fn lane_version(lane: &Lane) -> u64 {
     for card in lane.cards() {
         (card.mark(), card.text()).hash(&mut h);
     }
+    h.finish()
+}
+
+/// A hash of the date settings a card's text and foot depend on.
+fn date_version(s: &State) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    s.kanban_date_settings().hash(&mut h);
     h.finish()
 }
 
@@ -714,6 +732,12 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
             column = column.child(card_drop_bar(k));
         }
         column = column.child(card_view(s, k, note, i, j, card));
+        if s.kanban_picker
+            .as_ref()
+            .is_some_and(|picker| picker.card == (i, j))
+        {
+            column = column.child(crate::kanban_dates::picker(s, k));
+        }
         if is_menu(s, &MenuTarget::Card(i, j)) || is_menu(s, &MenuTarget::MoveCard(i, j)) {
             column = column.child(crate::view::context_menu(s, k));
         }
@@ -898,11 +922,18 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
         return card_editor(s, k);
     }
     let done = card.is_done();
+    let settings = s.kanban_date_settings();
+    let found = scan_card_text(card.text(), &settings);
+    let title_text = if settings.hide_date_in_title {
+        found.without_dates(card.text())
+    } else {
+        card.text().to_owned()
+    };
     // Wikilinks open the note. A note embed stays a link: the spec allows
     // `![[Note]]` in a card and does not say to inline the note. An attachment
     // embed keeps the reader's filename placeholder.
-    let source = card_markdown(&s.vault, note, card.text());
-    let first = card.text().lines().next().unwrap_or_default();
+    let source = card_markdown(&s.vault, note, &title_text);
+    let first = title_text.lines().next().unwrap_or_default();
     let mark = el()
         .key(format!("kanban-card-{i}-{j}-mark"))
         .size(14.0, 14.0)
@@ -961,14 +992,20 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
         })
         .child(mark)
         .child(
-            col().grow(1.0).min_w(0.0).child(
-                Markdown::new(source)
-                    .style(MarkdownStyle::from_kit(k).link(k.c.text_accent))
-                    .link_style(crate::view::missing_link_style(k))
-                    .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| s.open_card_link(url, tx))
-                    .tasks_read_only()
-                    .build(k),
-            ),
+            col()
+                .grow(1.0)
+                .min_w(0.0)
+                .child(
+                    Markdown::new(source)
+                        .style(MarkdownStyle::from_kit(k).link(k.c.text_accent))
+                        .link_style(crate::view::missing_link_style(k))
+                        .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| {
+                            s.open_card_link(url, tx)
+                        })
+                        .tasks_read_only()
+                        .build(k),
+                )
+                .child(crate::kanban_dates::card_when(k, &settings, &found, i, j)),
         )
         .child(
             menu_button(k, format!("kanban-card-{i}-{j}-menu"), "Card actions")
@@ -985,7 +1022,10 @@ fn card_editor(s: &State, k: &Kit) -> El {
             .width(None)
             .auto_grow(2, 10)
             .wrap_anywhere()
-            .on_edit(|s: &mut State| &mut s.kanban_card_field)
+            .on_edit(|s: &mut State| {
+                s.detect_card_trigger();
+                &mut s.kanban_card_field
+            })
             .on_submit(|s: &mut State, tx: &mut Tx| {
                 // Enter is the completion's accept key while the list is open
                 // (`on_key` claims it). A refused text stays in the field.
@@ -1001,6 +1041,12 @@ fn card_editor(s: &State, k: &Kit) -> El {
                     return true;
                 }
                 if e.key == Key::Escape {
+                    // Slice 9: Escape closes the picker and leaves the typed
+                    // trigger; a second Escape cancels the editor.
+                    if s.kanban_picker.is_some() {
+                        s.dismiss_picker();
+                        return true;
+                    }
                     s.cancel_card_edit();
                     tx.blur();
                     return true;

@@ -241,7 +241,8 @@ impl State {
 
     pub fn sort_lane(&mut self, lane: usize, order: CardOrder) {
         if let Some(lane) = self.settle_lane_edit(lane) {
-            self.edit_kanban("sort the lane", |b| b.sort_cards(lane, order));
+            let dates = self.kanban_date_settings();
+            self.edit_kanban("sort the lane", |b| b.sort_cards_with(lane, order, &dates));
         }
     }
 
