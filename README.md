@@ -56,7 +56,7 @@ exits `0` when clean, `1` when there are broken links or duplicate titles, and `
 the path is not a readable vault folder. It never creates a missing folder. `--list-links`
 prints one sorted `referrer -> target` line per wikilink, with unresolved targets
 prefixed `missing:`. `muninn --help` prints this usage without starting Rune, and
-`muninn --version` (or `-V`) prints `muninn <version>`, for example `muninn 0.7.0`.
+`muninn --version` (or `-V`) prints `muninn <version>`, the workspace version from `Cargo.toml`.
 
 ### Settings and vaults
 
@@ -79,7 +79,11 @@ most bars; GNOME needs an AppIndicator extension). The menu is flat: Rune's tray
 submenus. **Close to tray** (off by default, `close_to_tray`) makes closing the window hide
 it while a tray icon is up; Quit Muninn in the tray saves and quits. Without a tray icon
 (switch off, icon failed, macOS) closing quits as before. Muninn cannot tell whether a tray
-host actually shows the icon, so leave Close to tray off on a desktop without one. Both
+host actually shows the icon, so leave Close to tray off on a desktop without one. Only one
+Muninn runs at a time: launching it again (from the app launcher, or with `--vault PATH`)
+brings the running window back, switching to that vault when one is named, instead of
+starting a second app with a second tray icon. `--new-instance` starts a separate app
+anyway. Both
 switches are disabled on macOS, which Rune's tray does not support yet. **Start Muninn at
 login** (off, `auto_start`) writes `$XDG_CONFIG_HOME/autostart/muninn.desktop` on Linux and
 a `Muninn` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows,

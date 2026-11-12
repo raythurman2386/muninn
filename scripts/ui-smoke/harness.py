@@ -6,6 +6,7 @@
   harness.py x11-wait TITLE TIMEOUT            print the id of the mapped window titled TITLE
   harness.py x11-chord WINDOW CHORD            focus WINDOW, press CHORD (e.g. ctrl+2) via XTEST
   harness.py x11-close WINDOW                  send WM_DELETE_WINDOW (the normal close path)
+  harness.py x11-count TITLE                   print how many mapped windows are titled TITLE
   harness.py x11-type WINDOW TEXT              type plain text via XTEST
   harness.py x11-type-unicode WINDOW TEXT      type any text via XTEST: each character is put
                                                on a spare keycode for its press, then cleared
@@ -154,6 +155,21 @@ def x11_wait(title, timeout):
                 return
         time.sleep(0.25)
     die(f"no mapped window titled {title!r} within {timeout}s")
+
+
+def x11_count(title):
+    """Print how many mapped windows are titled TITLE (0 when the app is hidden)."""
+    from Xlib import X
+
+    d = display()
+    n = 0
+    for w in walk_windows(d.screen().root):
+        try:
+            if w.get_wm_name() == title and w.get_attributes().map_state == X.IsViewable:
+                n += 1
+        except Exception:
+            continue
+    print(n)
 
 
 def walk_windows(window):
@@ -404,6 +420,7 @@ def main(argv):
         "x11-wait": x11_wait,
         "x11-chord": x11_chord,
         "x11-close": x11_close,
+        "x11-count": x11_count,
         "x11-type": x11_type,
         "x11-type-unicode": x11_type_unicode,
         "x11-click": x11_click,

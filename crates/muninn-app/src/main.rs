@@ -17,6 +17,11 @@
 //! tick to `$XDG_STATE_HOME/muninn/session.log`. `--theme omarchy|system|dark|light`
 //! overrides the persisted theme for this session only (Omarchy is the
 //! default: follow the shared Omarchy palette, else the system appearance).
+//!
+//! Only one windowed Muninn runs per user session ([`instance`], #42): a later
+//! launch hands its activation token and `--vault` to the running app, which
+//! shows its window (switching vaults when one was named), and exits 0.
+//! `--new-instance` starts a separate app anyway.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -30,6 +35,8 @@ use muninn_ui::{
 };
 use rune::AppSpec;
 use rune_theme_opencode as theme;
+
+mod instance;
 
 /// `--trace` is parsed before Rune starts, but `init` is a plain function
 /// pointer; this carries the flag between them.
@@ -78,6 +85,14 @@ fn main() {
         }
     }
     TRACE.store(has_flag(args, "--trace"), Ordering::Relaxed);
+    let headless = rune::is_headless();
+    // #42: one windowed Muninn per session. Taken before Rune or a GPU
+    // context starts, so a second launch exits at once; held until exit.
+    let instance = if headless || has_flag(args, "--new-instance") {
+        None
+    } else {
+        claim_instance(args)
+    };
     // Match the shipped `muninn.desktop` (`StartupWMClass` + hicolor icon) so
     // the OS can associate this window with the logo.
     rune::set_app_id("muninn");
@@ -116,7 +131,6 @@ fn main() {
             tx.quit();
         }
     });
-    let headless = rune::is_headless();
     // Close to tray: `keep_running` makes a close hide the window and run
     // `on_close`, whose `tx.quit()` above ends the app unless the tray takes
     // over. Headless runs keep Rune's default close.
@@ -126,6 +140,12 @@ fn main() {
     // its setting is on. Headless runs (`--snap`, `--tree`, scripts) get none.
     let handle = app.handle();
     WINDOW.with(|w| *w.borrow_mut() = Some(handle.clone()));
+    if let Some(primary) = &instance {
+        let shown = handle.clone();
+        if let Err(error) = primary.serve(move |request| show_request(&shown, request)) {
+            eprintln!("muninn: {error}");
+        }
+    }
     app.init(move || {
         let mut state = init();
         if !headless {
@@ -136,6 +156,51 @@ fn main() {
         state
     })
     .run();
+    drop(instance);
+}
+
+/// Become the running app, or hand this launch to the one already running
+/// and exit 0. When the running app does not answer, say so and exit 1
+/// rather than start a second one. When the lock folder cannot be set up at
+/// all, warn and run without the check.
+fn claim_instance(args: &[String]) -> Option<instance::Primary> {
+    let paths = instance::Paths::from_env()?;
+    let request = instance::Request::from_env(vault_arg(args));
+    match instance::claim(&paths, &request, instance::ANSWER_WAIT) {
+        Ok(instance::Claim::Primary(primary)) => Some(primary),
+        Ok(instance::Claim::Forwarded) => std::process::exit(0),
+        Err(error @ instance::Error::NoAnswer { .. }) => {
+            eprintln!("muninn: {error}");
+            std::process::exit(1);
+        }
+        Err(error) => {
+            eprintln!("muninn: {error}; starting anyway");
+            None
+        }
+    }
+}
+
+/// A later launch's request: open its vault when it named another one, then
+/// show and focus the window (with the launcher's token where there is one).
+fn show_request(handle: &rune::AppHandle<State>, request: instance::Request) {
+    if let Some(vault) = request.vault {
+        handle.update(move |s, _| {
+            if !same_folder(&s.vault.root, &vault) {
+                s.switch_vault(vault);
+            }
+        });
+    }
+    match request.token {
+        Some(token) => handle.activate(token),
+        None => handle.open(),
+    }
+}
+
+fn same_folder(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
 }
 
 /// The global show-Muninn shortcut on Rune's `register_shortcut`. Binding
@@ -339,7 +404,7 @@ fn print_help(out: &mut impl std::io::Write) {
         "Muninn {} — a local-first Markdown vault\n\
          \n\
          Usage:\n  \
-         muninn [--vault PATH] [--trace] [--theme omarchy|system|dark|light]\n  \
+         muninn [--vault PATH] [--trace] [--theme omarchy|system|dark|light] [--new-instance]\n  \
          muninn --check <vault>\n  \
          muninn --list-links <vault>\n  \
          muninn --help\n  \
@@ -349,6 +414,7 @@ fn print_help(out: &mut impl std::io::Write) {
          --vault PATH     Open this vault (else $MUNINN_VAULT, the last vault, ~/Muninn)\n  \
          --theme MODE     Session theme override: omarchy (default), system, dark, light\n  \
          --trace          Log every autosave tick to the session log\n  \
+         --new-instance   Start a separate app even when Muninn is already running\n  \
          --check          Headless: exit 0 if clean, 1 for broken links/duplicates, 2 if unreadable\n  \
          --list-links     Headless: one `referrer -> target` line per wikilink, sorted\n  \
          -V, --version    Print `muninn <version>` and exit",

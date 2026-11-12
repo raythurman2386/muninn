@@ -84,6 +84,89 @@ fn help_names_the_new_commands() {
     assert!(text.contains("--check"), "{text}");
     assert!(text.contains("--list-links"), "{text}");
     assert!(text.contains("--trace"), "{text}");
+    assert!(text.contains("--new-instance"), "{text}");
+}
+
+/// #42 end to end, before any window: a launch that finds the lock taken
+/// hands its request over and exits 0, or exits 1 when nobody answers.
+#[cfg(unix)]
+mod single_instance {
+    use std::fs::{self, File};
+    use std::io::{BufRead, BufReader, Write};
+    use std::os::unix::net::UnixListener;
+    use std::path::PathBuf;
+    use std::process::Command;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn runtime(tag: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        // `/tmp`, not macOS's long temp folder: the app would move a long
+        // socket path to its short fallback.
+        let dir = PathBuf::from("/tmp").join(format!("muninn-cli-{tag}-{nanos}"));
+        fs::create_dir_all(dir.join("muninn")).unwrap();
+        dir
+    }
+
+    fn launch(runtime: &PathBuf, args: &[&str]) -> Command {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_muninn"));
+        cmd.args(args)
+            .env("XDG_RUNTIME_DIR", runtime)
+            .env("XDG_ACTIVATION_TOKEN", "token-42")
+            .env_remove("DISPLAY")
+            .env_remove("WAYLAND_DISPLAY")
+            .env_remove("WAYLAND_SOCKET");
+        cmd
+    }
+
+    #[test]
+    fn a_second_launch_hands_over_its_vault_and_token_and_exits_0() {
+        let dir = runtime("forward");
+        let lock = File::create(dir.join("muninn/instance.lock")).unwrap();
+        lock.try_lock().unwrap();
+        let listener = UnixListener::bind(dir.join("muninn/instance.sock")).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap())
+                .read_line(&mut line)
+                .unwrap();
+            stream.write_all(b"ok\n").unwrap();
+            line
+        });
+        let output = launch(&dir, &["--vault", "/tmp/other-vault"])
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "stderr {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let sent: serde_json::Value = serde_json::from_str(&server.join().unwrap()).unwrap();
+        assert_eq!(sent["cmd"], "show");
+        assert_eq!(sent["token"], "token-42");
+        assert_eq!(sent["vault"], "/tmp/other-vault");
+        drop(lock);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_running_app_that_never_answers_makes_the_launch_exit_1() {
+        let dir = runtime("silent");
+        let lock = File::create(dir.join("muninn/instance.lock")).unwrap();
+        lock.try_lock().unwrap();
+        fs::write(dir.join("muninn/instance.info"), "777\n").unwrap();
+        let output = launch(&dir, &[]).output().unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(1), "stderr {stderr}");
+        assert!(stderr.contains("pid 777"), "{stderr}");
+        assert!(stderr.contains("--new-instance"), "{stderr}");
+        drop(lock);
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
 
 #[test]
