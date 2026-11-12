@@ -114,8 +114,9 @@ pub fn scan_card_text(text: &str, settings: &DateSettings) -> CardText {
             line_start += line.len();
             continue;
         }
-        scan_line(body, line_start, line_end, &triggers, &mut found);
-        scan_tags(body, line_start, &mut found.tags);
+        let code = code_ranges(body);
+        scan_line(body, line_start, line_end, &triggers, &code, &mut found);
+        scan_tags(body, line_start, &code, &mut found.tags);
         line_start += line.len();
     }
     found
@@ -137,21 +138,16 @@ fn scan_line(
     base: usize,
     body_end: usize,
     triggers: &[(DateKind, &str)],
+    code: &[Range<usize>],
     found: &mut CardText,
 ) {
-    let mut code = false;
     let mut at = 0;
     while at < body.len() {
         let ch = body[at..]
             .chars()
             .next()
             .expect("a char at a char boundary");
-        if ch == '`' {
-            code = !code;
-            at += 1;
-            continue;
-        }
-        if !code {
+        if !in_code(code, at) {
             let hit = triggers
                 .iter()
                 .find(|(_, trigger)| body[at..].starts_with(*trigger));
@@ -172,6 +168,54 @@ fn scan_line(
         }
         at += ch.len_utf8();
     }
+}
+
+/// Inline code spans: a run of N backticks up to the next run of exactly N.
+/// An unmatched run is literal text, not an open code span.
+fn code_ranges(body: &str) -> Vec<Range<usize>> {
+    let bytes = body.as_bytes();
+    let mut ranges = Vec::new();
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] != b'`' {
+            at += body[at..].chars().next().map_or(1, char::len_utf8);
+            continue;
+        }
+        let open = at;
+        let mut end = at;
+        while bytes.get(end) == Some(&b'`') {
+            end += 1;
+        }
+        let run = end - open;
+        let mut close_at = end;
+        let mut closed = None;
+        while close_at < bytes.len() {
+            if bytes[close_at] == b'`' {
+                let mut close_end = close_at;
+                while bytes.get(close_end) == Some(&b'`') {
+                    close_end += 1;
+                }
+                if close_end - close_at == run {
+                    closed = Some(close_end);
+                    break;
+                }
+                close_at = close_end;
+            } else {
+                close_at += body[close_at..].chars().next().map_or(1, char::len_utf8);
+            }
+        }
+        if let Some(close_end) = closed {
+            ranges.push(end..close_at);
+            at = close_end;
+        } else {
+            at = end;
+        }
+    }
+    ranges
+}
+
+fn in_code(ranges: &[Range<usize>], at: usize) -> bool {
+    ranges.iter().any(|range| range.contains(&at))
 }
 
 /// The bytes of a token after its trigger: `{value}` is len + 2, the link
@@ -217,13 +261,10 @@ fn token_at(
     })
 }
 
-fn scan_tags(body: &str, base: usize, tags: &mut Vec<TagToken>) {
-    let mut code = false;
+fn scan_tags(body: &str, base: usize, code: &[Range<usize>], tags: &mut Vec<TagToken>) {
     let mut before = ' ';
     for (at, ch) in body.char_indices() {
-        if ch == '`' {
-            code = !code;
-        } else if ch == '#' && !code && before.is_whitespace() {
+        if ch == '#' && !in_code(code, at) && before.is_whitespace() {
             let word = &body[at + 1..];
             let len = word
                 .find(|c: char| !(c.is_alphanumeric() || matches!(c, '_' | '-' | '/')))
@@ -326,6 +367,43 @@ mod tests {
         assert_eq!(
             tilde.date.as_ref().map(|t| t.value.as_str()),
             Some("2026-03-03")
+        );
+    }
+
+    #[test]
+    fn a_backtick_run_matches_the_same_run_and_an_unmatched_one_is_literal() {
+        let double = scan("``@{2026-01-01} #code`` @{2026-02-02} #real");
+        assert_eq!(
+            double.date.as_ref().map(|t| t.value.as_str()),
+            Some("2026-02-02")
+        );
+        assert_eq!(
+            double
+                .tags
+                .iter()
+                .map(|t| t.tag.as_str())
+                .collect::<Vec<_>>(),
+            ["real"]
+        );
+        // A single backtick inside a double-backtick span is literal, not a close.
+        let mixed = scan("``a ` @{2026-01-01}`` @{2026-03-03}");
+        assert_eq!(
+            mixed.date.as_ref().map(|t| t.value.as_str()),
+            Some("2026-03-03")
+        );
+        // An unmatched run does not open a code span.
+        let unmatched = scan("`@{2026-04-04} #tag");
+        assert_eq!(
+            unmatched.date.as_ref().map(|t| t.value.as_str()),
+            Some("2026-04-04")
+        );
+        assert_eq!(
+            unmatched
+                .tags
+                .iter()
+                .map(|t| t.tag.as_str())
+                .collect::<Vec<_>>(),
+            ["tag"]
         );
     }
 

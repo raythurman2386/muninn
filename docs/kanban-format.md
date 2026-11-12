@@ -127,8 +127,8 @@ without changing the file. Only an edit the user asks for writes a token.
 - **Time:** `@@{14:30}`, two at-signs then the time in braces.
 - **Triggers.** The footer keys `date-trigger` (default `@`) and `time-trigger` (default `@@`) hold the literal text before the braces. A trigger is not a regular expression; an empty trigger is ignored. The longest trigger is tried first, so `@@` is a time and not an `@` date followed by `@`.
   - **D-1 (resolved).** Trigger and format setting keys and values are given in section 9. A trigger has no word-boundary rule in the file; any `@` followed by `{…}` or `[[…]]` is a date token. The card editor opens the picker only at the start of the text or after whitespace.
-- **Reading.** A token is read outside fenced code and inline code (section 10 rule 4). A token that never closes, or whose braces or brackets hold nothing, is ordinary text. The first date and the first time in the text are the card's values for display and sorting. The first time pairs with the first date even when the time appears earlier.
-- **Date format.** `date-format` (default `YYYY-MM-DD`) says how a new date is written inside the braces. `time-format` (default `HH:mm`) does the same for a time.
+- **Reading.** A token is read outside fenced code and inline code (section 10 rule 4). Inline code is a run of backticks up to the next run of the same length; an unmatched run is ordinary text. A token that never closes, or whose braces or brackets hold nothing, is ordinary text. The first date and the first time in the text are the card's values for display and sorting. The first time pairs with the first date even when the time appears earlier.
+- **Date format.** `date-format` (default `YYYY-MM-DD`) says how a new date is written inside the braces. `time-format` (default `HH:mm`) does the same for a time. Whitespace around a format is ignored, so ` DD.MM.YYYY` and `DD.MM.YYYY ` write the same token.
 - **Format tokens.** Both formats use these tokens. Tokens are case-sensitive. A `[...]` block is literal text, so `[at ]HH:mm` shows `at 14:30`. Any character that is not a token, and any unknown token, is copied as written.
 
   | Token | Meaning | Example for 2026-11-12 14:30:05 |
@@ -158,7 +158,8 @@ without changing the file. Only an edit the user asks for writes a token.
 - **Display.** `date-display-format` (default `YYYY-MM-DD`) formats the date
   row at the card's foot; a time is shown with `time-format`.
   `show-relative-date` (default `false`) adds `today`, `tomorrow`,
-  `yesterday`, `in N days` or `N days ago`. `hide-date-in-title` (default
+  `yesterday`, `in N days` or `N days ago`, counted from the local calendar
+  day. `hide-date-in-title` (default
   `true`) keeps the first date and time tokens out of the card's main text;
   they still appear at the foot. Display never rewrites the file.
   `link-date-to-daily-note` (default `false`) makes the displayed date a link
@@ -167,10 +168,13 @@ without changing the file. Only an edit the user asks for writes a token.
 - **Sorting by date.** Sorting uses the parsed day and time, not the shown
   string: a `DD.MM.YYYY` date sorts by its day, not by the written digits.
   A card with no date sorts after every dated card, in its original order.
-- **Editing.** A new token is appended to the card text with a space when
-  needed. The picker's Clear removes the card's date or time token; nothing
-  else in the card changes. In the card editor the typed trigger is replaced
-  by the accepted token at the caret.
+- **Editing.** A picker opened from a card's menu writes one token for that
+  kind: if the card already has a date (or time) token, the new token
+  replaces it in place; otherwise it is appended with a space when needed.
+  A picker opened from the card editor replaces the typed trigger at the
+  caret, so an editor can add a token next to an existing one. The picker's
+  Clear removes the card's date or time token (in the card editor, the token
+  in the text being edited); nothing else in the card changes.
 - **Tag:** `#word`, as in ordinary Obsidian tags. Inside code it is not a tag.
 - **Inline fields:** text like `[key:: value]`.
   - **Open point T-1:** to be specified before the metadata slice. Kept as text.
@@ -236,7 +240,8 @@ The done-lane marker and the archive heading are written in the language of the 
   A key is resolved in this order: the board's settings footer, then
   `kanban_defaults`, then the built-in default in the table. An absent
   `kanban_defaults`, or an absent key in it, means the built-in default. The
-  object is written with only the keys that are set.
+  object is written with the keys that are set; a key this version does not
+  know, and a known key with the wrong JSON type, is kept as written.
 - **When a footer key is written.** Slice 9's display keys are read only;
   they are not rewritten by viewing or by an unrelated card edit. A picker
   adds its token to the card text, not to the footer. The footer changes only

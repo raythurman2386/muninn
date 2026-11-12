@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use muninn_core::{CivilDate, KanbanDefaults, format_date, testing::TempVault};
 use muninn_ui::{Mode, PickerKind, Settings, State, on_key, poll, view};
@@ -95,6 +96,7 @@ fn type_text(rt: &mut Runtime<State>, typed: &str) {
     // The IME event can land after the frame's view build; force the next
     // build so the picker it opens is in the tree.
     rt.update(|_, _| {});
+    frame(rt);
 }
 
 fn click(rt: &mut Runtime<State>, key: &str) {
@@ -141,12 +143,23 @@ fn text_of(rt: &Runtime<State>, key: &str) -> Option<String> {
         .and_then(|e| e.text)
 }
 
+fn local_today() -> CivilDate {
+    let epoch_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
+        });
+    let local = rune::LocalTime::at(epoch_ms);
+    CivilDate::new(i64::from(local.year), local.month, local.day)
+        .unwrap_or_else(|| CivilDate::from_days_since_epoch(0))
+}
+
 fn today_token() -> String {
-    format!("@{{{}}}", format_date(CivilDate::today_utc(), "YYYY-MM-DD"))
+    format!("@{{{}}}", format_date(local_today(), "YYYY-MM-DD"))
 }
 
 fn today_day(day: u32) -> String {
-    let today = CivilDate::today_utc();
+    let today = local_today();
     format!(
         "@{{{}}}",
         format_date(
@@ -212,10 +225,14 @@ fn add_a_time_from_the_card_menu_writes_exact_bytes_and_undoes_once() {
         rt.state.kanban_picker.as_ref().map(|p| p.kind),
         Some(PickerKind::Time)
     );
-    act(&mut rt, |s| {
-        s.kanban_hour_field.replace_text("14");
-        s.kanban_minute_field.replace_text("05");
-    });
+    assert_eq!(
+        rt.state.kanban_hour_field.selected().chars().count(),
+        2,
+        "the whole hour is selected, so typing replaces it"
+    );
+    type_text(&mut rt, "14");
+    assert_eq!(rt.state.kanban_hour_field.text, "14");
+    act(&mut rt, |s| s.kanban_minute_field.replace_text("05"));
     click(&mut rt, "kanban-picker-set");
     let want = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Plain @@{14:05}\n".to_owned();
     assert_eq!(source(&rt), want);
@@ -434,4 +451,171 @@ fn clicking_the_date_opens_its_daily_note() {
         "the date link opens the daily note"
     );
     assert_eq!(on_disk(&tmp), board, "opening a link writes nothing");
+}
+
+#[test]
+fn a_link_form_alias_strips_the_alias_and_a_missing_note_is_created() {
+    let alias = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due @[[2026-11-11|Nov 11]]\n";
+    let tmp = TempVault::new(&[
+        ("Agenda.md", "# Agenda\n"),
+        ("2026-11-11.md", "# The day\n"),
+        ("Board.md", alias),
+    ]);
+    let mut rt = on_board(&tmp);
+    assert_eq!(
+        text_of(&rt, "kanban-card-0-0-date").as_deref(),
+        Some("2026-11-11"),
+        "the alias is display text, not part of the date"
+    );
+    click(&mut rt, "kanban-card-0-0-date");
+    assert_eq!(
+        rt.state.selected_path,
+        Some(tmp.path().join("2026-11-11.md")),
+        "the link resolves to the note before the alias"
+    );
+    assert!(!tmp.path().join("2026-11-11|Nov 11.md").exists());
+
+    let missing = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due @[[2099-01-02]]\n";
+    let tmp = vault_with(missing);
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-0-0-date");
+    assert_eq!(
+        rt.state.selected_path,
+        Some(tmp.path().join("2099-01-02.md")),
+        "a missing daily note is created like any missing card link"
+    );
+    assert!(tmp.path().join("2099-01-02.md").is_file());
+    assert_eq!(on_disk(&tmp), missing, "the board itself is untouched");
+}
+
+#[test]
+fn a_new_card_at_the_lane_end_shows_the_picker_and_enter_accepts_it() {
+    let tmp = vault_with(PLAIN);
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.begin_add_card(0));
+    type_text(&mut rt, "@");
+    assert!(
+        rt.find("kanban-picker").is_some(),
+        "the picker is drawn for the new card at the lane end"
+    );
+    press(&mut rt, Key::Enter, false);
+    assert!(
+        rt.state.kanban_picker.is_none(),
+        "Enter accepted the picker"
+    );
+    assert_eq!(rt.state.kanban_card_field.text, today_token());
+    assert!(rt.state.kanban_card.is_some(), "the editor stays open");
+    press(&mut rt, Key::Enter, false);
+    assert!(!rt.state.is_typing());
+    assert_eq!(
+        source(&rt),
+        format!(
+            "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Plain\n- [ ] {}\n",
+            today_token()
+        )
+    );
+}
+
+#[test]
+fn a_menu_date_replaces_the_existing_token_in_one_undo_step() {
+    let board = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due @{2026-11-11}\n";
+    let tmp = vault_with(board);
+    let mut rt = on_board(&tmp);
+    menu(&mut rt, "kanban-card-0-0-menu", "add_date");
+    click(&mut rt, "kanban-picker-day-15");
+    click(&mut rt, "kanban-picker-set");
+    let want = format!(
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due {}\n",
+        today_day(15)
+    );
+    assert_eq!(source(&rt), want, "one token, replaced in place");
+    assert_eq!(source(&rt).matches("@").count(), 1);
+    assert_eq!(on_disk(&tmp), board);
+    rt.key(command('z', false));
+    frame(&mut rt);
+    assert_eq!(source(&rt), board, "one undo step");
+}
+
+#[test]
+fn a_menu_time_replaces_and_clear_removes_the_token() {
+    let board = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] At @@{09:00}\n";
+    let tmp = vault_with(board);
+    let mut rt = on_board(&tmp);
+    menu(&mut rt, "kanban-card-0-0-menu", "add_time");
+    assert_eq!(rt.state.kanban_hour_field.selected().chars().count(), 2);
+    type_text(&mut rt, "14");
+    act(&mut rt, |s| s.kanban_minute_field.replace_text("05"));
+    click(&mut rt, "kanban-picker-set");
+    assert_eq!(
+        source(&rt),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] At @@{14:05}\n"
+    );
+    menu(&mut rt, "kanban-card-0-0-menu", "add_time");
+    click(&mut rt, "kanban-picker-clear");
+    assert_eq!(
+        source(&rt),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] At\n"
+    );
+    rt.key(command('z', false));
+    frame(&mut rt);
+    assert!(
+        source(&rt).contains("- [ ] At @@{14:05}\n"),
+        "the clear is one undo step"
+    );
+}
+
+#[test]
+fn an_editor_clear_removes_the_token_from_the_field() {
+    let board = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due @{2026-11-11}\n";
+    let tmp = vault_with(board);
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.begin_edit_card(0, 0));
+    type_text(&mut rt, " @");
+    assert!(rt.state.kanban_picker.is_some());
+    click(&mut rt, "kanban-picker-clear");
+    assert!(rt.state.kanban_picker.is_none(), "Clear closed the picker");
+    assert_eq!(rt.state.kanban_card_field.text, "Due @");
+    assert_eq!(source(&rt), board, "the field is not committed yet");
+    press(&mut rt, Key::Escape, false);
+    assert!(!rt.state.is_typing());
+    assert_eq!(source(&rt), board);
+}
+
+#[test]
+fn undo_after_accept_does_not_reopen_the_picker_and_retyping_does() {
+    let tmp = vault_with(PLAIN);
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| {
+        s.begin_edit_card(0, 0);
+        s.kanban_card_field.set_caret(5);
+    });
+    type_text(&mut rt, " @");
+    click(&mut rt, "kanban-picker-day-15");
+    click(&mut rt, "kanban-picker-set");
+    assert!(rt.state.kanban_card_field.text.contains(&today_day(15)));
+    rt.key(command('z', false));
+    frame(&mut rt);
+    assert_eq!(rt.state.kanban_card_field.text, "Plain @", "the field undo");
+    assert!(
+        rt.state.kanban_picker.is_none(),
+        "undoing the insertion does not reopen the picker"
+    );
+
+    // A fresh editor can open the picker at the same text again.
+    act(&mut rt, |s| s.cancel_card_edit());
+    act(&mut rt, |s| s.begin_edit_card(0, 0));
+    type_text(&mut rt, " @");
+    assert!(rt.state.kanban_picker.is_some());
+
+    // Escape then backspace changes the text, so typing the trigger again
+    // opens the picker.
+    press(&mut rt, Key::Escape, false);
+    assert!(rt.state.kanban_picker.is_none(), "Escape closed the picker");
+    assert!(rt.state.kanban_card.is_some(), "the editor stays open");
+    press(&mut rt, Key::Backspace, false);
+    type_text(&mut rt, " @");
+    assert!(
+        rt.state.kanban_picker.is_some(),
+        "a changed text opens the picker again"
+    );
 }

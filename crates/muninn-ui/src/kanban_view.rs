@@ -42,7 +42,9 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
-use muninn_core::{Card, Kanban, Lane, is_kanban, parse_links, scan_card_text};
+use muninn_core::{
+    Card, CivilDate, DateSettings, Kanban, Lane, is_kanban, parse_links, scan_card_text,
+};
 use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
@@ -542,6 +544,9 @@ fn header(s: &State, k: &Kit) -> El {
 /// built every frame, as those change.
 fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let note = s.note_id(rel);
+    let dates = s.kanban_date_settings();
+    let today = crate::kanban_dates::local_today();
+    let date_key = date_version(&dates, today);
     let kit = crate::omarchy::kit_id(s, k.dark);
     let new_lane = s
         .kanban_lane_edit
@@ -570,13 +575,36 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
                 _ => false,
             });
         columns.push(if live {
-            lane_column(s, k, note, i, lane)
+            lane_column(
+                s,
+                k,
+                note,
+                i,
+                lane,
+                &DateContext {
+                    dates: &dates,
+                    today,
+                },
+            )
         } else {
             let selected = s.kanban_selected.filter(|(l, _)| *l == i).map(|(_, j)| j);
+            let dates = dates.clone();
             rune::memo(
                 format!("kanban-lane-{i}"),
-                (rel, kit, lane_version(lane), selected, date_version(s)),
-                move || lane_column(s, k, note, i, lane),
+                (rel, kit, lane_version(lane), selected, date_key),
+                move || {
+                    lane_column(
+                        s,
+                        k,
+                        note,
+                        i,
+                        lane,
+                        &DateContext {
+                            dates: &dates,
+                            today,
+                        },
+                    )
+                },
             )
         });
     }
@@ -616,13 +644,27 @@ fn lane_version(lane: &Lane) -> u64 {
 }
 
 /// A hash of the date settings a card's text and foot depend on.
-fn date_version(s: &State) -> u64 {
+fn date_version(dates: &DateSettings, today: CivilDate) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    s.kanban_date_settings().hash(&mut h);
+    (dates, today).hash(&mut h);
     h.finish()
 }
 
-fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -> El {
+/// The date settings and the local day a card draws with, resolved once per
+/// frame instead of once per card.
+struct DateContext<'a> {
+    dates: &'a DateSettings,
+    today: CivilDate,
+}
+
+fn lane_column(
+    s: &State,
+    k: &Kit,
+    note: Option<usize>,
+    i: usize,
+    lane: &Lane,
+    when: &DateContext<'_>,
+) -> El {
     let (drop, _, dragged) = s.kanban_drag_in(i);
     if lane.collapsed() {
         return collapsed_lane(k, i, lane, drop.is_some(), dragged);
@@ -725,17 +767,22 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
         .filter(|slot| slot.lane == i && slot.new)
         .map(|slot| slot.index);
     for (j, card) in lane.cards().iter().enumerate() {
-        if new_at == Some(j) {
+        let picker_here = s
+            .kanban_picker
+            .as_ref()
+            .is_some_and(|picker| picker.card == (i, j));
+        let new_here = new_at == Some(j);
+        if new_here {
             column = column.child(card_editor(s, k));
+            if picker_here {
+                column = column.child(crate::kanban_dates::picker(s, k));
+            }
         }
         if drop == Some(j) {
             column = column.child(card_drop_bar(k));
         }
-        column = column.child(card_view(s, k, note, i, j, card));
-        if s.kanban_picker
-            .as_ref()
-            .is_some_and(|picker| picker.card == (i, j))
-        {
+        column = column.child(card_view(s, k, note, i, j, card, when));
+        if picker_here && !new_here {
             column = column.child(crate::kanban_dates::picker(s, k));
         }
         if is_menu(s, &MenuTarget::Card(i, j)) || is_menu(s, &MenuTarget::MoveCard(i, j)) {
@@ -747,6 +794,12 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
     }
     if new_at == Some(lane.cards().len()) {
         column = column.child(card_editor(s, k));
+        if s.kanban_picker
+            .as_ref()
+            .is_some_and(|picker| picker.card == (i, lane.cards().len()))
+        {
+            column = column.child(crate::kanban_dates::picker(s, k));
+        }
     }
     column.child(
         row()
@@ -911,7 +964,15 @@ fn icon_button(
         .child(icon(glyph, size).color(k.c.icon_muted))
 }
 
-fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: &Card) -> El {
+fn card_view(
+    s: &State,
+    k: &Kit,
+    note: Option<usize>,
+    i: usize,
+    j: usize,
+    card: &Card,
+    when: &DateContext<'_>,
+) -> El {
     let editing = s.kanban_card
         == Some(CardSlot {
             lane: i,
@@ -922,9 +983,8 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
         return card_editor(s, k);
     }
     let done = card.is_done();
-    let settings = s.kanban_date_settings();
-    let found = scan_card_text(card.text(), &settings);
-    let title_text = if settings.hide_date_in_title {
+    let found = scan_card_text(card.text(), when.dates);
+    let title_text = if when.dates.hide_date_in_title {
         found.without_dates(card.text())
     } else {
         card.text().to_owned()
@@ -1005,7 +1065,9 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
                         .tasks_read_only()
                         .build(k),
                 )
-                .child(crate::kanban_dates::card_when(k, &settings, &found, i, j)),
+                .child(crate::kanban_dates::card_when(
+                    s, k, when.dates, &found, when.today, i, j,
+                )),
         )
         .child(
             menu_button(k, format!("kanban-card-{i}-{j}-menu"), "Card actions")
@@ -1040,6 +1102,12 @@ fn card_editor(s: &State, k: &Kit) -> El {
                 if s.complete_key(e) {
                     return true;
                 }
+                if e.key == Key::Enter && s.kanban_picker.is_some() {
+                    // Slice 9: Enter accepts the open picker instead of
+                    // committing the bare trigger.
+                    s.picker_accept();
+                    return true;
+                }
                 if e.key == Key::Escape {
                     // Slice 9: Escape closes the picker and leaves the typed
                     // trigger; a second Escape cancels the editor.
@@ -1066,7 +1134,8 @@ fn card_editor(s: &State, k: &Kit) -> El {
 
 /// Card markdown for the reader. Note embeds lose the `!` so they render as
 /// links; attachment and board embeds keep it, and the reader's rewrite turns
-/// those into a filename placeholder. Dates, times and tags are left as text.
+/// those into a filename placeholder. `text` is already what the card shows:
+/// `hide-date-in-title` removed the date and time tokens before this point.
 fn card_markdown(vault: &muninn_core::Vault, note: Option<usize>, text: &str) -> String {
     let text = plain_note_embeds(text);
     match note {
@@ -1170,6 +1239,17 @@ mod tests {
                 // A written (0) is no limit (spec section 4).
                 ("1".to_owned(), false),
             ]
+        );
+    }
+
+    #[test]
+    fn a_lane_memo_key_changes_with_the_local_day() {
+        let dates = DateSettings::default();
+        let today = CivilDate::new(2026, 11, 12).expect("today");
+        assert_ne!(
+            date_version(&dates, today),
+            date_version(&dates, today.add_days(1)),
+            "relative labels change at midnight"
         );
     }
 }
