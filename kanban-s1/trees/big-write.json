@@ -8042,7 +8042,7 @@
                               16.0
                             ],
                             "key": "scan-ms",
-                            "name": "scan 167 ms",
+                            "name": "scan 174 ms",
                             "role": "label"
                           },
                           {
@@ -26128,7 +26128,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "scan 167 ms"
+      "text": "scan 174 ms"
     },
     {
       "blur": 0.0,

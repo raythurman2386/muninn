@@ -1,38 +1,40 @@
 	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
 	driverName         = llvmpipe
-rune: 85 frames at 60 fps, gpu init 120.6 ms, first frame 90.80 ms, frame cpu mean 20.670 ms p50 11.582 p95 26.548 max 405.179, 1413 instances
-rune: animating frames 55 (cpu p50 12.641 p95 26.354 ms), at-rest frames 29 (the window draws none; forced cpu p50 3.822 p95 5.948 ms), layout nodes 136, glyphs 323
+rune: `init` blocked 8 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 85 frames at 60 fps, gpu init 108.4 ms, first frame 66.53 ms, frame cpu mean 18.086 ms p50 13.294 p95 29.253 max 298.593, 1413 instances
+rune: animating frames 55 (cpu p50 13.937 p95 21.549 ms), at-rest frames 29 (the window draws none; forced cpu p50 3.774 p95 5.626 ms), layout nodes 136, glyphs 323
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-graph.json: active mode mode-graph
-rune: 175 frames at 60 fps, gpu init 128.7 ms, first frame 72.89 ms, frame cpu mean 6.277 ms p50 5.911 p95 10.291 max 72.890, 392 instances
-rune: animating frames 119 (cpu p50 6.652 p95 10.613 ms), at-rest frames 55 (the window draws none; forced cpu p50 3.581 p95 4.964 ms), layout nodes 149, glyphs 334
+rune: 175 frames at 60 fps, gpu init 137.1 ms, first frame 64.70 ms, frame cpu mean 6.218 ms p50 5.896 p95 9.192 max 64.704, 392 instances
+rune: animating frames 119 (cpu p50 6.238 p95 9.245 ms), at-rest frames 55 (the window draws none; forced cpu p50 4.070 p95 6.235 ms), layout nodes 149, glyphs 334
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-preview.json: active mode mode-preview
-rune: 235 frames at 60 fps, gpu init 118.1 ms, first frame 67.27 ms, frame cpu mean 8.189 ms p50 5.255 p95 19.146 max 183.841, 397 instances
-rune: animating frames 132 (cpu p50 7.128 p95 26.509 ms), at-rest frames 102 (the window draws none; forced cpu p50 3.584 p95 4.954 ms), layout nodes 137, glyphs 339
+rune: 235 frames at 60 fps, gpu init 176.6 ms, first frame 66.06 ms, frame cpu mean 7.586 ms p50 5.260 p95 14.458 max 172.860, 397 instances
+rune: animating frames 132 (cpu p50 7.641 p95 15.572 ms), at-rest frames 102 (the window draws none; forced cpu p50 4.079 p95 5.031 ms), layout nodes 137, glyphs 339
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-editor.json: active mode mode-editor
-rune: 295 frames at 60 fps, gpu init 103.2 ms, first frame 63.86 ms, frame cpu mean 8.300 ms p50 5.520 p95 16.922 max 181.332, 277 instances
-rune: animating frames 174 (cpu p50 8.322 p95 25.462 ms), at-rest frames 120 (the window draws none; forced cpu p50 3.658 p95 5.743 ms), layout nodes 60, glyphs 259
+rune: 295 frames at 60 fps, gpu init 98.8 ms, first frame 63.38 ms, frame cpu mean 8.321 ms p50 5.549 p95 16.984 max 185.079, 277 instances
+rune: animating frames 174 (cpu p50 8.408 p95 24.043 ms), at-rest frames 120 (the window draws none; forced cpu p50 3.946 p95 5.090 ms), layout nodes 60, glyphs 259
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-board-shortcut.json: active mode mode-board
-rune: 355 frames at 60 fps, gpu init 98.1 ms, first frame 42.39 ms, frame cpu mean 8.998 ms p50 5.793 p95 18.896 max 181.693, 397 instances
-rune: animating frames 216 (cpu p50 9.551 p95 21.201 ms), at-rest frames 138 (the window draws none; forced cpu p50 3.717 p95 4.975 ms), layout nodes 137, glyphs 339
+rune: 355 frames at 60 fps, gpu init 99.4 ms, first frame 40.66 ms, frame cpu mean 9.077 ms p50 5.772 p95 21.615 max 178.898, 397 instances
+rune: animating frames 216 (cpu p50 9.431 p95 22.240 ms), at-rest frames 138 (the window draws none; forced cpu p50 3.753 p95 5.190 ms), layout nodes 137, glyphs 339
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-board-esc.json: active mode mode-editor
-rune: 415 frames at 60 fps, gpu init 98.3 ms, first frame 64.26 ms, frame cpu mean 8.885 ms p50 6.322 p95 17.596 max 166.935, 277 instances
-rune: animating frames 263 (cpu p50 9.741 p95 26.263 ms), at-rest frames 151 (the window draws none; forced cpu p50 4.055 p95 5.787 ms), layout nodes 60, glyphs 259
+rune: 415 frames at 60 fps, gpu init 101.8 ms, first frame 63.92 ms, frame cpu mean 8.938 ms p50 6.462 p95 19.087 max 166.113, 277 instances
+rune: animating frames 263 (cpu p50 9.858 p95 22.117 ms), at-rest frames 151 (the window draws none; forced cpu p50 3.997 p95 6.170 ms), layout nodes 60, glyphs 259
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-board-button.json: active mode mode-board
-rune: 475 frames at 60 fps, gpu init 97.8 ms, first frame 42.11 ms, frame cpu mean 8.675 ms p50 6.361 p95 17.594 max 177.486, 357 instances
-rune: animating frames 318 (cpu p50 8.999 p95 19.017 ms), at-rest frames 156 (the window draws none; forced cpu p50 3.848 p95 5.111 ms), layout nodes 87, glyphs 232
+rune: 475 frames at 60 fps, gpu init 96.0 ms, first frame 46.63 ms, frame cpu mean 8.639 ms p50 6.251 p95 18.474 max 183.730, 357 instances
+rune: animating frames 318 (cpu p50 8.720 p95 19.146 ms), at-rest frames 156 (the window draws none; forced cpu p50 3.742 p95 5.088 ms), layout nodes 87, glyphs 232
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-board-selected.json: active mode mode-board
-rune: 535 frames at 60 fps, gpu init 93.6 ms, first frame 43.69 ms, frame cpu mean 9.327 ms p50 5.651 p95 18.920 max 177.742, 1413 instances
-rune: animating frames 326 (cpu p50 11.827 p95 24.706 ms), at-rest frames 208 (the window draws none; forced cpu p50 4.137 p95 4.974 ms), layout nodes 136, glyphs 323
+rune: 535 frames at 60 fps, gpu init 95.3 ms, first frame 43.27 ms, frame cpu mean 10.362 ms p50 6.313 p95 24.954 max 182.516, 1413 instances
+rune: animating frames 326 (cpu p50 13.144 p95 27.811 ms), at-rest frames 208 (the window draws none; forced cpu p50 4.152 p95 6.178 ms), layout nodes 136, glyphs 323
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-graph-after.json: active mode mode-graph
-rune: 703 frames at 60 fps, gpu init 98.2 ms, first frame 59.25 ms, frame cpu mean 8.926 ms p50 6.470 p95 21.586 max 152.079, 357 instances
-rune: animating frames 477 (cpu p50 8.289 p95 24.378 ms), at-rest frames 225 (the window draws none; forced cpu p50 4.130 p95 9.012 ms), layout nodes 87, glyphs 232
+rune: `on_key` blocked 8 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 703 frames at 60 fps, gpu init 108.5 ms, first frame 59.70 ms, frame cpu mean 8.864 ms p50 6.611 p95 21.442 max 155.685, 357 instances
+rune: animating frames 477 (cpu p50 7.655 p95 22.855 ms), at-rest frames 225 (the window draws none; forced cpu p50 4.069 p95 8.193 ms), layout nodes 87, glyphs 232
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-board-palette.json: active mode mode-board
-rune: 763 frames at 60 fps, gpu init 99.1 ms, first frame 43.83 ms, frame cpu mean 9.645 ms p50 7.007 p95 20.858 max 185.134, 392 instances
-rune: animating frames 521 (cpu p50 11.488 p95 25.252 ms), at-rest frames 241 (the window draws none; forced cpu p50 4.137 p95 5.157 ms), layout nodes 149, glyphs 334
+rune: 763 frames at 60 fps, gpu init 109.2 ms, first frame 48.28 ms, frame cpu mean 10.961 ms p50 8.020 p95 25.974 max 179.587, 392 instances
+rune: animating frames 521 (cpu p50 11.748 p95 28.284 ms), at-rest frames 241 (the window draws none; forced cpu p50 4.161 p95 6.395 ms), layout nodes 149, glyphs 334
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-preview-after.json: active mode mode-preview
-rune: 823 frames at 60 fps, gpu init 93.1 ms, first frame 64.69 ms, frame cpu mean 9.154 ms p50 6.906 p95 19.507 max 162.972, 397 instances
-rune: animating frames 563 (cpu p50 9.993 p95 23.721 ms), at-rest frames 259 (the window draws none; forced cpu p50 4.104 p95 5.120 ms), layout nodes 137, glyphs 339
+rune: 823 frames at 60 fps, gpu init 98.3 ms, first frame 65.26 ms, frame cpu mean 11.716 ms p50 8.186 p95 25.331 max 179.035, 397 instances
+rune: animating frames 563 (cpu p50 13.424 p95 34.397 ms), at-rest frames 259 (the window draws none; forced cpu p50 4.771 p95 6.252 ms), layout nodes 137, glyphs 339
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-editor-after.json: active mode mode-editor
-rune: 883 frames at 60 fps, gpu init 92.8 ms, first frame 63.56 ms, frame cpu mean 9.164 ms p50 6.958 p95 19.003 max 161.892, 357 instances
-rune: animating frames 606 (cpu p50 10.446 p95 23.939 ms), at-rest frames 276 (the window draws none; forced cpu p50 4.083 p95 4.896 ms), layout nodes 87, glyphs 232
+rune: 883 frames at 60 fps, gpu init 113.8 ms, first frame 64.76 ms, frame cpu mean 12.056 ms p50 8.195 p95 26.990 max 169.661, 357 instances
+rune: animating frames 606 (cpu p50 13.507 p95 35.168 ms), at-rest frames 276 (the window draws none; forced cpu p50 4.253 p95 6.227 ms), layout nodes 87, glyphs 232
 ok /agent/repos/muninn/target/ui-smoke/trees/headless-end-in-board.json: active mode mode-board

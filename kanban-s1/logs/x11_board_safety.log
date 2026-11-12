@@ -15,7 +15,7 @@ ok the drawing is still on the canvas after the file was removed
 ok negative control fails: the drawn and the open shots (FAIL 616 canvas pixels differ between /agent/repos/muninn/target/ui-smoke/screens/x11-safety-1-open.png and /agent/repos/muninn/target/ui-smoke/screens/x11-safety-3-removed.png)
 ok clicked 976,135 in 0x200002 (button 1 x1)
 ok Tools.excalidraw: 6 elements
-ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4693 bytes written
+ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4695 bytes written
 ok no recovery copy for Tools.excalidraw
 ok pressed r on 0x200002
 ok dragged 963,489 by 90,60 in 0x200002
@@ -34,8 +34,8 @@ ok clicked 612,78 in 0x200002 (button 1 x1)
 ok pressed ctrl+backslash on 0x200002
 ok /agent/repos/muninn/target/ui-smoke/work/config-x11-safety/muninn/settings.json: mode board
 ok clicked 1036,135 in 0x200002 (button 1 x1)
-ok Tools (conflict 20261112-055630).excalidraw: 7 elements
-ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools (conflict 20261112-055630).excalidraw: 7 elements (6 modelled, 1 kept raw), 0 files, 5411 bytes written
+ok Tools (conflict 20261112-064535).excalidraw: 7 elements
+ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools (conflict 20261112-064535).excalidraw: 7 elements (6 modelled, 1 kept raw), 0 files, 5412 bytes written
 ok no recovery copy for Tools.excalidraw
 ok sent WM_DELETE_WINDOW to 0x200002
 app exit status: 0
