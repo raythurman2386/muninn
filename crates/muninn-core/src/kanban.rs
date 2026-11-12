@@ -62,6 +62,8 @@ pub struct Kanban {
     lanes: Vec<Lane>,
     archive: Option<Archive>,
     footer: Option<Footer>,
+    /// The file ends inside a column-0 code fence that never closed.
+    ends_in_fence: bool,
 }
 
 /// A column. `written_limit` is the number in the title suffix, including
@@ -95,7 +97,7 @@ pub struct Card {
     block_id: Option<String>,
     span: Range<usize>,
     mark_at: usize,
-    /// Leading whitespace of this card's first continuation line.
+    /// Leading whitespace shared by the continuation lines: the shortest one.
     indent: Option<String>,
 }
 

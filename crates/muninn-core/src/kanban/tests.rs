@@ -793,3 +793,105 @@ fn footer_edits_keep_nested_objects() {
         )
     );
 }
+
+#[test]
+fn a_longer_closing_fence_ends_the_fence() {
+    let source = read_fixture("fence-longer-close.md");
+    let kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert_eq!(kanban.lanes().len(), 2);
+    assert_eq!(kanban.lanes()[1].title(), "B");
+    assert_eq!(kanban.lanes()[1].cards()[0].text(), "b");
+    let mut deleted = kanban;
+    deleted.delete_lane(0).unwrap();
+    assert_eq!(
+        deleted.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## B
+
+- [ ] b
+"
+    );
+}
+
+#[test]
+fn an_unclosed_indented_fence_does_not_swallow_the_next_lane() {
+    let source = read_fixture("card-open-fence.md");
+    let kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert_eq!(kanban.lanes().len(), 2);
+    assert_eq!(kanban.lanes()[1].title(), "B");
+    assert_eq!(kanban.lanes()[1].cards()[0].text(), "b");
+    let mut deleted = kanban;
+    deleted.delete_card(0, 0).unwrap();
+    assert_eq!(
+        deleted.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## A
+
+## B
+
+- [ ] b
+"
+    );
+}
+
+#[test]
+fn a_column_zero_card_after_a_closed_fence_is_its_own_card() {
+    let source = read_fixture("card-closed-fence.md");
+    let kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert_eq!(kanban.lanes()[0].cards().len(), 2);
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\n```\ncode\n```");
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "b");
+    let mut deleted = kanban;
+    deleted.delete_card(0, 0).unwrap();
+    assert_eq!(deleted.lanes()[0].cards().len(), 1);
+    assert_eq!(deleted.lanes()[0].cards()[0].text(), "b");
+    assert!(deleted.source().contains("- [ ] b\n"));
+    assert!(!deleted.source().contains("```"));
+}
+
+#[test]
+fn set_setting_does_not_grow_a_file_that_ends_in_a_fence() {
+    let source = read_fixture("fence-unclosed.md");
+    let mut kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert!(kanban.footer_json().is_none());
+    let error = kanban.set_setting("alpha", &json!(1)).unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidData);
+    assert_eq!(kanban.source(), source);
+    let again = kanban.set_setting("beta", &json!(2)).unwrap_err();
+    assert_eq!(again.kind(), ErrorKind::InvalidData);
+    assert_eq!(kanban.source(), source);
+}
+
+#[test]
+fn a_deeper_first_continuation_does_not_change_later_lines() {
+    let mut kanban = parse("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] keep\n");
+    kanban.edit_card(0, 0, "x\n  deeper\n\n- [ ] sub").unwrap();
+    assert_eq!(
+        kanban.lanes()[0].cards()[0].text(),
+        "x\n  deeper\n\n- [ ] sub"
+    );
+    let again = parse(kanban.source());
+    assert_eq!(
+        again.lanes()[0].cards()[0].text(),
+        "x\n  deeper\n\n- [ ] sub"
+    );
+}
+
+#[test]
+fn a_final_carriage_return_is_the_same_line_ending_for_detection_and_parse() {
+    let source = "---\r\nkanban-plugin: board\r\n---\r";
+    assert!(is_kanban(source));
+    assert_eq!(parse(source).source(), source);
+}

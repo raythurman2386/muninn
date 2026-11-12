@@ -8,7 +8,8 @@
 //! With no script the example parses `FILE` and checks that the unedited
 //! model writes the original bytes. It also saves through the atomic writer
 //! to a scratch file in the temp directory (removed afterwards) and checks
-//! the reloaded bytes. The original file is only read. The diff is `diff -u`.
+//! the reloaded bytes. The original file is only read. The diff is computed
+//! in-process.
 //!
 //! `--edit SCRIPT` does that check first, then applies the script and prints
 //! a unified diff of the result against the original. The script is one
@@ -116,7 +117,7 @@ fn check(path: &Path, script: Option<&Path>) -> Result<(), String> {
         return Err("edited output does not round-trip".into());
     }
     scratch_reload(path, &edited)?;
-    print!("{}", unified("kanban", &text, edited.source())?);
+    print!("{}", unified("kanban", &text, edited.source()));
     Ok(())
 }
 
@@ -322,32 +323,71 @@ fn unescape(text: &str) -> String {
     out
 }
 
-/// Unified diff from `diff -u`. A hand-rolled LCS is quadratic in the line
-/// counts and is the wrong tool for a long note.
-fn unified(label: &str, before: &str, after: &str) -> Result<String, String> {
-    let dir = std::env::temp_dir().join(format!("muninn-kanban-diff-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
-    let left = dir.join("before");
-    let right = dir.join("after");
-    let wrote = std::fs::write(&left, before)
-        .and_then(|()| std::fs::write(&right, after))
-        .map_err(|error| error.to_string());
-    let output = wrote.and_then(|()| {
-        std::process::Command::new("diff")
-            .args(["-u", "--label", label, "--label", label])
-            .arg(&left)
-            .arg(&right)
-            .output()
-            .map_err(|error| error.to_string())
-    });
-    let _ = std::fs::remove_dir_all(&dir);
-    let output = output?;
-    match output.status.code() {
-        Some(0) => Ok(String::new()),
-        Some(1) => String::from_utf8(output.stdout).map_err(|error| error.to_string()),
-        _ => Err(format!(
-            "diff failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )),
+/// One unified hunk for the changed middle, with three lines of context.
+/// The common prefix and suffix are skipped, so this stays linear and does
+/// not call an external `diff`.
+fn unified(label: &str, before: &str, after: &str) -> String {
+    let left = split_keep(before);
+    let right = split_keep(after);
+    let mut start = 0;
+    while start < left.len() && start < right.len() && left[start] == right[start] {
+        start += 1;
     }
+    let mut end_left = left.len();
+    let mut end_right = right.len();
+    while end_left > start && end_right > start && left[end_left - 1] == right[end_right - 1] {
+        end_left -= 1;
+        end_right -= 1;
+    }
+    if start == end_left && start == end_right {
+        return String::new();
+    }
+    let context = 3usize;
+    let before_ctx = context.min(start);
+    let after_ctx = context.min(left.len() - end_left);
+    let from = start - before_ctx;
+    let old_len = before_ctx + (end_left - start) + after_ctx;
+    let new_len = before_ctx + (end_right - start) + after_ctx;
+    let mut out = format!(
+        "--- {label}\n+++ {label}\n@@ -{},{old_len} +{},{new_len} @@\n",
+        from + 1,
+        from + 1
+    );
+    for line in &left[from..start] {
+        push_diff_line(&mut out, ' ', line);
+    }
+    for line in &left[start..end_left] {
+        push_diff_line(&mut out, '-', line);
+    }
+    for line in &right[start..end_right] {
+        push_diff_line(&mut out, '+', line);
+    }
+    for line in &left[end_left..end_left + after_ctx] {
+        push_diff_line(&mut out, ' ', line);
+    }
+    out
+}
+
+fn push_diff_line(out: &mut String, marker: char, line: &str) {
+    out.push(marker);
+    out.push_str(line);
+    if !line.ends_with('\n') {
+        out.push('\n');
+        out.push_str("\\ No newline at end of file\n");
+    }
+}
+
+fn split_keep(source: &str) -> Vec<&str> {
+    let mut lines = Vec::new();
+    let mut start = 0;
+    for (index, byte) in source.bytes().enumerate() {
+        if byte == b'\n' {
+            lines.push(&source[start..=index]);
+            start = index + 1;
+        }
+    }
+    if start < source.len() {
+        lines.push(&source[start..]);
+    }
+    lines
 }
