@@ -1,0 +1,122 @@
+vulkan icd: /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json (WGPU_BACKEND=vulkan)
+	deviceName         = llvmpipe (LLVM 23.1.3, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 26.2.5-arch1.1 (LLVM 23.1.3)
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 64 frames at 60 fps, gpu init 101.5 ms, first frame 79.02 ms, frame cpu mean 2.625 ms p50 2.255 p95 4.412 max 79.017, 505 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 63 (the window draws none; forced cpu p50 2.212 p95 4.218 ms), layout nodes 123, glyphs 448
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 124 frames at 60 fps, gpu init 90.6 ms, first frame 62.81 ms, frame cpu mean 4.538 ms p50 1.722 p95 10.247 max 135.243, 284 instances
+rune: animating frames 42 (cpu p50 5.707 p95 17.194 ms), at-rest frames 81 (the window draws none; forced cpu p50 1.554 p95 2.357 ms), layout nodes 133, glyphs 233
+doing at 427,182
+tall at 157,278
+strip at 594,168
+done at 761,254
+lane at 678,138
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 124 frames at 60 fps, gpu init 82.1 ms, first frame 64.12 ms, frame cpu mean 6.172 ms p50 2.425 p95 12.054 max 165.201, 284 instances
+rune: animating frames 42 (cpu p50 10.038 p95 23.906 ms), at-rest frames 81 (the window draws none; forced cpu p50 1.919 p95 4.087 ms), layout nodes 133, glyphs 233
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-open.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 172 frames at 60 fps, gpu init 84.3 ms, first frame 64.62 ms, frame cpu mean 3.812 ms p50 1.619 p95 7.417 max 134.985, 287 instances
+rune: animating frames 46 (cpu p50 5.901 p95 19.103 ms), at-rest frames 125 (the window draws none; forced cpu p50 1.562 p95 2.379 ms), layout nodes 133, glyphs 233
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-cancel-mid.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 214 frames at 60 fps, gpu init 80.6 ms, first frame 63.83 ms, frame cpu mean 3.465 ms p50 1.597 p95 7.298 max 143.469, 284 instances
+rune: animating frames 71 (cpu p50 5.438 p95 17.529 ms), at-rest frames 142 (the window draws none; forced cpu p50 1.532 p95 2.626 ms), layout nodes 133, glyphs 233
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-cancel.json: active mode mode-kanban
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 250 frames at 60 fps, gpu init 83.8 ms, first frame 65.87 ms, frame cpu mean 3.240 ms p50 1.678 p95 7.519 max 135.215, 284 instances
+rune: animating frames 71 (cpu p50 5.133 p95 17.714 ms), at-rest frames 178 (the window draws none; forced cpu p50 1.640 p95 2.642 ms), layout nodes 133, glyphs 233
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-cancel-saved.json: active mode mode-kanban
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 292 frames at 60 fps, gpu init 95.7 ms, first frame 75.02 ms, frame cpu mean 3.227 ms p50 1.677 p95 9.033 max 153.575, 287 instances
+rune: animating frames 71 (cpu p50 5.141 p95 20.540 ms), at-rest frames 220 (the window draws none; forced cpu p50 1.554 p95 3.312 ms), layout nodes 134, glyphs 233
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-drag-mid.json: active mode mode-kanban
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 328 frames at 60 fps, gpu init 80.8 ms, first frame 63.27 ms, frame cpu mean 3.284 ms p50 2.009 p95 7.104 max 137.026, 303 instances
+rune: animating frames 100 (cpu p50 3.754 p95 9.961 ms), at-rest frames 227 (the window draws none; forced cpu p50 1.755 p95 3.486 ms), layout nodes 133, glyphs 252
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-dropped.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 388 frames at 60 fps, gpu init 83.1 ms, first frame 67.25 ms, frame cpu mean 3.464 ms p50 2.130 p95 9.392 max 145.101, 291 instances
+rune: animating frames 134 (cpu p50 2.968 p95 10.146 ms), at-rest frames 253 (the window draws none; forced cpu p50 1.924 p95 3.701 ms), layout nodes 126, glyphs 243
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-collapsed-drop.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 448 frames at 60 fps, gpu init 80.9 ms, first frame 65.04 ms, frame cpu mean 2.561 ms p50 1.622 p95 6.133 max 133.644, 296 instances
+rune: animating frames 168 (cpu p50 1.932 p95 7.382 ms), at-rest frames 279 (the window draws none; forced cpu p50 1.545 p95 2.471 ms), layout nodes 127, glyphs 243
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-done-drop.json: active mode mode-kanban
+rune: `init` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 490 frames at 60 fps, gpu init 83.9 ms, first frame 64.88 ms, frame cpu mean 2.990 ms p50 1.686 p95 8.521 max 171.151, 435 instances
+rune: animating frames 180 (cpu p50 1.944 p95 11.435 ms), at-rest frames 309 (the window draws none; forced cpu p50 1.591 p95 3.072 ms), layout nodes 127, glyphs 344
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-lane-mid.json: active mode mode-kanban
+rune: `init` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 520 frames at 60 fps, gpu init 81.5 ms, first frame 66.04 ms, frame cpu mean 2.972 ms p50 1.709 p95 8.668 max 167.417, 308 instances
+rune: animating frames 210 (cpu p50 1.964 p95 11.743 ms), at-rest frames 309 (the window draws none; forced cpu p50 1.583 p95 2.881 ms), layout nodes 127, glyphs 243
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-lane-dragged.json: active mode mode-kanban
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 574 frames at 60 fps, gpu init 81.5 ms, first frame 64.76 ms, frame cpu mean 2.743 ms p50 1.760 p95 6.281 max 147.826, 308 instances
+rune: animating frames 264 (cpu p50 2.423 p95 6.955 ms), at-rest frames 309 (the window draws none; forced cpu p50 1.604 p95 2.884 ms), layout nodes 127, glyphs 243
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-key-lane.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 652 frames at 60 fps, gpu init 86.2 ms, first frame 66.34 ms, frame cpu mean 2.674 ms p50 1.796 p95 6.171 max 145.425, 307 instances
+rune: animating frames 342 (cpu p50 2.175 p95 6.435 ms), at-rest frames 309 (the window draws none; forced cpu p50 1.572 p95 2.929 ms), layout nodes 127, glyphs 243
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-menu-lane.json: active mode mode-kanban
+rune: `init` blocked 11 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 23 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 700 frames at 60 fps, gpu init 80.3 ms, first frame 64.05 ms, frame cpu mean 2.695 ms p50 1.865 p95 6.188 max 153.492, 292 instances
+rune: animating frames 379 (cpu p50 2.277 p95 6.419 ms), at-rest frames 320 (the window draws none; forced cpu p50 1.591 p95 2.730 ms), layout nodes 127, glyphs 243
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-noop.json: active mode mode-kanban
+rune: `init` blocked 28 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 910 frames at 60 fps, gpu init 81.4 ms, first frame 65.19 ms, frame cpu mean 2.776 ms p50 1.831 p95 6.333 max 142.906, 304 instances
+rune: animating frames 505 (cpu p50 2.513 p95 6.866 ms), at-rest frames 404 (the window draws none; forced cpu p50 1.554 p95 2.795 ms), layout nodes 133, glyphs 252
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-start.json: active mode mode-kanban
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-open.json: lane 0 ['Open: Short card', 'Open: A tall card', 'Open: Another short card', 'Open: Last short card']
+ok kanban-drop gone (kanban-drag-open.json)
+ok kanban-drop drawn (kanban-drag-cancel-mid.json)
+ok kanban-drop gone (kanban-drag-cancel.json)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-cancel.json: lane 0 ['Open: Short card', 'Open: A tall card', 'Open: Another short card', 'Open: Last short card']
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-cancel.json: lane 1 ['Open: In progress']
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 19 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 250 frames at 60 fps, gpu init 82.2 ms, first frame 64.12 ms, frame cpu mean 3.255 ms p50 1.654 p95 7.487 max 147.925, 284 instances
+rune: animating frames 71 (cpu p50 5.087 p95 17.281 ms), at-rest frames 178 (the window draws none; forced cpu p50 1.534 p95 2.703 ms), layout nodes 133, glyphs 233
+ok a cancelled drag + Cmd+S leaves Board.md byte-identical
+ok the bar is drawn between the tall card (h 88) and the next (h 43): y 304
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-dropped.json: lane 0 ['Open: Short card', 'Open: A tall card', 'Open: Last short card', 'Open: Another short card']
+ok kanban-drop gone (kanban-drag-dropped.json)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-collapsed-drop.json: lane 0 ['Open: A tall card', 'Open: Last short card', 'Open: Another short card']
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-done-drop.json: lane 1 []
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-done-drop.json: lane 3 ['Done: Shipped', 'Done: In progress']
+ok kanban-lane-drop drawn (kanban-drag-lane-mid.json)
+ok kanban-lane-drop gone (kanban-drag-lane-dragged.json)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-lane-dragged.json: kanban-lane-2-title says 'To do'
+ok kanban-lane-1-expand drawn (kanban-drag-lane-dragged.json)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-key-lane.json: kanban-lane-1-title says 'To do'
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-menu-lane.json: kanban-lane-2-title says 'Done'
+ok kanban-lane-3-expand drawn (kanban-drag-menu-lane.json)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-noop.json: lane 1 ['Open: A tall card', 'Open: Last short card', 'Open: Another short card']
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-noop.json: kanban-status says 'Unsaved · Ctrl+S saves'
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-start.json: lane 0 ['Open: Short card', 'Open: A tall card', 'Open: Another short card', 'Open: Last short card']
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 712 frames at 60 fps, gpu init 80.4 ms, first frame 66.26 ms, frame cpu mean 2.742 ms p50 1.932 p95 6.251 max 140.377, 292 instances
+rune: animating frames 379 (cpu p50 2.465 p95 6.551 ms), at-rest frames 332 (the window draws none; forced cpu p50 1.565 p95 2.952 ms), layout nodes 127, glyphs 243
+ok sha256 before Cmd+S: 18c45da1ee291832586753b90d0666ad60261e757f995d0121f1bc9855944aa1 (the fixture's)
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 772 frames at 60 fps, gpu init 95.9 ms, first frame 74.99 ms, frame cpu mean 2.657 ms p50 1.837 p95 6.006 max 141.612, 278 instances
+rune: animating frames 391 (cpu p50 2.293 p95 6.834 ms), at-rest frames 380 (the window draws none; forced cpu p50 1.551 p95 3.121 ms), layout nodes 127, glyphs 229
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-saved.json: kanban-status says 'Saved'
+ok Board.md after Cmd+S is kanban-drag-saved.md byte for byte
+ok lanes in order: Doing | To do | Done | Waiting
+ok the footer keeps its keys and order; list-collapse follows Waiting to the end: {"kanban-plugin":"board","list-collapse":[false,false,false,true],"note-key":"kept as is"}
+rune: `init` blocked 8 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 970 frames at 60 fps, gpu init 83.0 ms, first frame 65.06 ms, frame cpu mean 2.763 ms p50 1.755 p95 6.706 max 139.841, 290 instances
+rune: animating frames 517 (cpu p50 2.505 p95 7.706 ms), at-rest frames 452 (the window draws none; forced cpu p50 1.558 p95 2.571 ms), layout nodes 133, glyphs 238
+ok undo to the start + Cmd+S restores the fixture's bytes

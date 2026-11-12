@@ -1,0 +1,1 @@
+rune: first frame took 378 ms (setup 0 ms, init 11 ms, first view 97 ms, window and GPU 270 ms); the slowest is the first `view`: start slow work from `on_ready`. (debug builds only; RUNE_PERF_WARN=0 silences)

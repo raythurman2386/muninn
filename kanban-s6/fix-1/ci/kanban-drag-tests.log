@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running tests/kanban_drag.rs (target/debug/deps/kanban_drag-c1f9afabc78c427c)
+
+running 13 tests
+test opening_another_kanban_mid_drag_ends_the_drag ... ok
+test a_lane_drags_right_and_settles_an_open_lane_field ... ok
+test a_mode_switch_mid_drag_ends_the_drag ... ok
+test a_drag_closes_an_open_menu ... ok
+test lanes_move_by_keyboard_and_by_the_lane_menu ... ok
+test a_card_lands_where_the_bar_shows_between_cards_of_any_height ... ok
+test alt_arrows_mid_drag_end_the_drag_even_before_it_moves ... ok
+test a_drag_commits_an_open_editor_first_and_waits_on_a_refused_one ... ok
+test a_collapsed_lane_takes_a_card_last_and_a_done_lane_marks_it_done ... ok
+test a_lane_drags_by_its_header_and_keeps_collapse_aligned ... ok
+test esc_cancels_a_drag_and_a_drop_in_place_records_nothing ... ok
+test alt_shift_arrows_mid_drag_end_the_drag ... ok
+test undo_and_redo_mid_drag_end_the_drag ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+

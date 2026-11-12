@@ -1,0 +1,55 @@
+Xvfb on :92, vulkan icd /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok pressed ctrl+backslash on 0x200002
+ok clicked 407,193 in 0x200002 (button 1 x1)
+canvas [543.0, 159.0, 609.0, 597.0], fit zoom 0.7100, eye (-78.87, -315.42)
+ok fit: rect-red [599, 382, 713, 454] (off 0.7)
+ok fit: ellipse-blue [769, 390, 869, 454] (off 0.7)
+ok fit: diamond-violet [1024, 382, 1097, 455] (off 0.3)
+ok fit: freedraw-orange [895, 388, 984, 449] (off 0.7)
+ok fit: line-green [598, 503, 742, 533] (off 0.8)
+ok fit: text-ink box has 505 ink pixels
+ok fit: arrow-ink has 241 ink pixels
+ok fit: paper at (741, 418) is white
+ok pressed h on 0x200002
+ok dragged 848,458 by 120,60 in 0x200002
+ok moved +120,+60: rect-red [719, 442, 833, 514] (off 0.0)
+ok moved +120,+60: ellipse-blue [889, 450, 989, 514] (off 0.0)
+ok moved +120,+60: freedraw-orange [1015, 448, 1104, 509] (off 0.0)
+ok moved +120,+60: line-green [718, 563, 862, 593] (off 0.0)
+ok wheel button 5 x1 at 848,458 in 0x200002
+width ratio 1.174: 2 wheel steps of 1.08
+ok zoomed x1.1664 at (848, 458): rect-red [697, 440, 831, 524] (off 0.7)
+ok zoomed x1.1664 at (848, 458): ellipse-blue [896, 448, 1013, 524] (off 0.7)
+ok zoomed x1.1664 at (848, 458): line-green [696, 580, 865, 616] (off 0.7)
+ok pressed equal on 0x200002
+ok zoomed x1.2500 at (848, 458): rect-red [659, 435, 827, 541] (off 0.6)
+ok zoomed x1.2500 at (848, 458): ellipse-blue [908, 446, 1054, 541] (off 0.4)
+ok zoomed x1.2500 at (848, 458): line-green [659, 611, 869, 655] (off 0.9)
+ok pressed Left on 0x200002
+ok moved +60,+0: rect-red [719, 435, 887, 541] (off 0.0)
+ok moved +60,+0: ellipse-blue [968, 446, 1114, 541] (off 0.0)
+ok moved +60,+0: line-green [719, 611, 929, 655] (off 0.0)
+ok pressed ctrl+1 on 0x200002
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/work/config-x11-board/muninn/settings.json: mode editor
+ok pressed ctrl+4 on 0x200002
+ok same: rect-red [719, 435, 887, 541] (off 0.0)
+ok same: ellipse-blue [968, 446, 1114, 541] (off 0.0)
+ok same: line-green [719, 611, 929, 655] (off 0.0)
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+backslash on 0x200002
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/work/config-x11-board/muninn/settings.json: mode board
+ok same: rect-red [719, 435, 887, 541] (off 0.0)
+ok same: ellipse-blue [968, 446, 1114, 541] (off 0.0)
+ok same: line-green [719, 611, 929, 655] (off 0.0)
+ok pressed 0 on 0x200002
+ok same: rect-red [599, 382, 713, 454] (off 0.0)
+ok same: ellipse-blue [769, 390, 869, 454] (off 0.0)
+ok same: diamond-violet [1024, 382, 1097, 455] (off 0.0)
+ok same: freedraw-orange [895, 388, 984, 449] (off 0.0)
+ok same: line-green [598, 503, 742, 533] (off 0.0)
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0

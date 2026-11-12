@@ -1,0 +1,50 @@
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 106 frames at 60 fps, gpu init 89.4 ms, first frame 55.89 ms, frame cpu mean 5.186 ms p50 2.208 p95 16.020 max 142.527, 224 instances
+rune: animating frames 42 (cpu p50 4.934 p95 16.688 ms), at-rest frames 63 (the window draws none; forced cpu p50 1.558 p95 2.653 ms), layout nodes 56, glyphs 205
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-empty.json: active mode mode-board
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-empty.json: board-new-empty says 'New board'
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-empty.json: board-list-empty says 'No boards in this vault yet'
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-empty.json: board-surface-title says 'No boards yet'
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-empty.json: no search-box
+ok entering Board on a vault with no boards wrote nothing
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-surface/board-placeholder/board-new-empty" blocked 26 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 166 frames at 60 fps, gpu init 84.4 ms, first frame 55.25 ms, frame cpu mean 4.720 ms p50 2.543 p95 13.570 max 142.723, 263 instances
+rune: animating frames 90 (cpu p50 4.070 p95 15.614 ms), at-rest frames 75 (the window draws none; forced cpu p50 1.600 p95 2.891 ms), layout nodes 85, glyphs 230
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-created.json: board-surface-title says 'Untitled board'
+ok empty scene /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/work/empty-vault/Ideas/Untitled board.excalidraw
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/work/empty-vault/Ideas/Untitled board.excalidraw: 0 elements (0 modelled, 0 kept raw), 0 files, 115 bytes written
+ok negative control fails: the empty-state tree as a created board (FAIL /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-empty.json: board-surface-title does not say 'Untitled board')
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/#0/board-new" blocked 20 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 166 frames at 60 fps, gpu init 84.5 ms, first frame 56.67 ms, frame cpu mean 4.741 ms p50 2.592 p95 11.319 max 142.830, 289 instances
+rune: animating frames 90 (cpu p50 4.291 p95 16.331 ms), at-rest frames 75 (the window draws none; forced cpu p50 1.643 p95 2.799 ms), layout nodes 88, glyphs 256
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-second.json: board-surface-title says 'Untitled board 2'
+rune: `init` blocked 26 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 76 frames at 60 fps, gpu init 86.0 ms, first frame 57.62 ms, frame cpu mean 6.625 ms p50 4.070 p95 16.429 max 140.856, 268 instances
+rune: animating frames 42 (cpu p50 4.998 p95 17.142 ms), at-rest frames 33 (the window draws none; forced cpu p50 1.676 p95 2.413 ms), layout nodes 61, glyphs 249
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 160 frames at 60 fps, gpu init 84.8 ms, first frame 56.93 ms, frame cpu mean 4.166 ms p50 1.931 p95 10.927 max 146.822, 428 instances
+rune: animating frames 42 (cpu p50 5.118 p95 18.427 ms), at-rest frames 117 (the window draws none; forced cpu p50 1.749 p95 2.759 ms), layout nodes 130, glyphs 371
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 268 frames at 60 fps, gpu init 86.5 ms, first frame 57.71 ms, frame cpu mean 5.039 ms p50 2.928 p95 10.997 max 146.786, 1432 instances
+rune: animating frames 94 (cpu p50 7.142 p95 17.492 ms), at-rest frames 173 (the window draws none; forced cpu p50 2.152 p95 4.336 ms), layout nodes 149, glyphs 341
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-shut.json: no search-box
+129 75
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/new-left.json: active mode mode-graph
+129 75
+/home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/work/empty-vault:
+Ideas
+Start.md
+
+/home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/work/empty-vault/Ideas:
+Idea.md
+Untitled board 2.excalidraw
+Untitled board.excalidraw

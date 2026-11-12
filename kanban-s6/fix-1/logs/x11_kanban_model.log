@@ -1,0 +1,47 @@
+vulkan icd: /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+	deviceName         = llvmpipe (LLVM 23.1.3, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 26.2.5-arch1.1 (LLVM 23.1.3)
+Xvfb on :91, vulkan icd /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+window 0x200002 'Muninn' 1180x780
+ok clicked 129,649 in 0x200002 (button 1 x1)
+x11 vs headless write mean abs diff 0.00
+ok x11 screenshot matches the headless Write shot
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+./2026-11-11.md: OK
+./archive-de.md: OK
+./archive-en.md: OK
+./archive-ja.md: OK
+./block-ids.md: OK
+./bom.md: OK
+./card-closed-fence.md: OK
+./card-open-fence.md: OK
+./card-paragraph.md: OK
+./card-text.md: OK
+./crlf.md: OK
+./done-lane.md: OK
+./drag-board.md: OK
+./edit-board.md: OK
+./fence-column0-card.md: OK
+./fence-longer-close.md: OK
+./fence-opaque.md: OK
+./fence-unclosed.md: OK
+./footer-nested.md: OK
+./frontmatter-extra.md: OK
+./indent-deep-line.md: OK
+./indent-mixed.md: OK
+./lanes-and-limits.md: OK
+./lanes-board.md: OK
+./multibyte.md: OK
+./multiline-cards.md: OK
+./new-kanban.md: OK
+./no-final-newline.md: OK
+./over-limit.md: OK
+./passthrough.md: OK
+./plain-list.md: OK
+./Roadmap.md: OK
+./settings-footer.md: OK
+./spec-example.md: OK
+./task-open-fence.md: OK
+ok x11 kanban note opened and the file is unchanged

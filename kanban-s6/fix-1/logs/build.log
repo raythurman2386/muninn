@@ -1,0 +1,7 @@
+   Compiling muninn-core v0.7.1 (/home/ret/Development/muninn-kanban/target/s6-wt/crates/muninn-core)
+   Compiling muninn-graph v0.7.1 (/home/ret/Development/muninn-kanban/target/s6-wt/crates/muninn-graph)
+   Compiling muninn-ui v0.7.1 (/home/ret/Development/muninn-kanban/target/s6-wt/crates/muninn-ui)
+   Compiling muninn-app v0.7.1 (/home/ret/Development/muninn-kanban/target/s6-wt/crates/muninn-app)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.92s
+   Compiling muninn-core v0.7.1 (/home/ret/Development/muninn-kanban/target/s6-wt/crates/muninn-core)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.76s

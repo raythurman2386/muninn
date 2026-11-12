@@ -1,0 +1,30 @@
+vulkan icd: /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+	deviceName         = llvmpipe (LLVM 23.1.3, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 26.2.5-arch1.1 (LLVM 23.1.3)
+rune: `init` blocked 24 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 181 frames at 60 fps, gpu init 82.9 ms, first frame 53.95 ms, frame cpu mean 3.625 ms p50 1.605 p95 7.068 max 146.027, 363 instances
+rune: animating frames 70 (cpu p50 4.841 p95 10.756 ms), at-rest frames 110 (the window draws none; forced cpu p50 1.504 p95 2.625 ms), layout nodes 175, glyphs 291
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/trees/kanban-drag-x11-open.json: active mode mode-kanban
+Xvfb on :92
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+1 on 0x200002
+ok pressed ctrl+k on 0x200002
+ok typed 'board' on 0x200002
+ok pressed enter on 0x200002
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/work/config-x11-kanban-drag/muninn/settings.json: mode kanban
+ok dragged 416,178 by 270,4 in 0x200002 (Esc before the release)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-fix1/work/config-x11-kanban-drag/muninn/settings.json: mode kanban
+ok pressed ctrl+s on 0x200002
+ok an Esc-cancelled drag + Ctrl+S leaves Board.md byte-identical
+ok dragged 416,376 by 0,-98 in 0x200002
+ok dragged 378,138 by 558,0 in 0x200002
+ok Board.md unchanged before Ctrl+S
+ok pressed ctrl+s on 0x200002
+ok Board.md after Ctrl+S is kanban-drag-x11.md byte for byte
+ok lanes in order: Doing | Waiting | To do | Done
+ok list-collapse follows Waiting to the second lane; the footer's keys keep their order
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok closing left the saved bytes

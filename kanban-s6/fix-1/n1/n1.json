@@ -1,0 +1,15 @@
+{"events":[
+  {"t": 0.6, "type": "tap", "key": "note-row-0"},
+  {"t": 1.2, "type": "key", "name": "5", "cmd": true},
+  {"t": 1.5, "type": "key", "name": "\\", "cmd": true},
+  {"t": 2.0, "type": "tap", "key": "kanban-card-0-0"},
+  {"t": 2.4, "type": "down", "key": "kanban-card-0-1"},
+  {"t": 2.5, "type": "move", "key": "kanban-lane-3"},
+  {"t": 2.6, "type": "move", "key": "kanban-lane-3"},
+  {"t": 2.9, "type": "mark", "name": "held"},
+  {"t": 3.2, "type": "key", "name": "Down", "alt": true},
+  {"t": 3.5, "type": "mark", "name": "after-key"},
+  {"t": 3.8, "type": "up", "key": "kanban-lane-3"},
+  {"t": 4.2, "type": "mark", "name": "released"},
+  {"t": 4.6, "type": "mark", "name": "end"}
+]}
