@@ -21,20 +21,19 @@ impl Kanban {
     /// continuation, indented the way existing cards in the file indent
     /// theirs, or by two spaces when none do.
     pub fn add_card(&mut self, lane: usize, index: usize, text: &str) -> io::Result<()> {
+        let text = normalised_card_text(text);
         let at = self.insert_offset(lane, index)?;
         let indent = self.continuation_indent();
-        let block = render_card(self.nl, ' ', text, None, &indent);
-        self.commit(insert_block(&self.source, at, block, self.nl))
+        let block = render_card(self.nl, ' ', &text, None, &indent);
+        let next = insert_block(&self.source, at, block, self.nl);
+        self.accept_card(next, lane, index, &text)
     }
 
     /// Replace a card's markdown. The checkbox character and the block id
     /// stay. Continuation lines are indented like the rest of the file.
     pub fn edit_card(&mut self, lane: usize, index: usize, text: &str) -> io::Result<()> {
         let card = self.card(lane, index)?;
-        let mut text = text.replace('\r', "");
-        if text.ends_with('\n') {
-            text.pop();
-        }
+        let text = normalised_card_text(text);
         if text == card.text {
             return Ok(());
         }
@@ -48,11 +47,7 @@ impl Kanban {
         let block = render_card(self.nl, mark, &text, block_id.as_deref(), &indent);
         let block = keep_open_ending(&self.source, span.end, block, self.nl);
         let next = splice(&self.source, span, &block);
-        let parsed = Kanban::parse(&next)?;
-        if parsed.card(lane, index)?.text != text {
-            return Err(invalid_data("the edit did not stay in the card"));
-        }
-        self.commit(next)
+        self.accept_card(next, lane, index, &text)
     }
 
     /// Remove one card's lines. Surrounding blank lines stay.
@@ -214,6 +209,22 @@ impl Kanban {
         Ok(())
     }
 
+    /// Keep `next` only when the card at `lane`/`index` reads back as `text`.
+    fn accept_card(
+        &mut self,
+        next: String,
+        lane: usize,
+        index: usize,
+        text: &str,
+    ) -> io::Result<()> {
+        let parsed = Kanban::parse(&next)?;
+        if parsed.card(lane, index)?.text != text {
+            return Err(invalid_data("the edit did not stay in the card"));
+        }
+        *self = parsed;
+        Ok(())
+    }
+
     fn lane(&self, index: usize) -> io::Result<&super::Lane> {
         self.lanes
             .get(index)
@@ -306,6 +317,15 @@ fn lane_block(nl: &str, title: &str, limit: Option<u32>, done: bool, open_ended:
     block.push_str(nl);
     block.push_str(nl);
     block
+}
+
+/// Drop carriage returns, then one trailing newline, matching what a card stores.
+fn normalised_card_text(text: &str) -> String {
+    let mut text = text.replace('\r', "");
+    if text.ends_with('\n') {
+        text.pop();
+    }
+    text
 }
 
 fn render_card(nl: &str, mark: char, text: &str, block_id: Option<&str>, indent: &str) -> String {

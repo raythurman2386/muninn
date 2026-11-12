@@ -1192,6 +1192,96 @@ kanban-plugin: board
 }
 
 #[test]
+fn adding_a_card_beside_an_ideographic_line_keeps_the_new_line_indented() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  l1
+\u{3000}全角
+- [ ] b
+";
+    let mut kanban = parse(source);
+    kanban.add_card(0, 2, "new\nsecond").unwrap();
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  l1
+\u{3000}全角
+- [ ] b
+- [ ] new
+  second
+"
+    );
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\nl1");
+    assert_eq!(kanban.lanes()[0].cards()[2].text(), "new\nsecond");
+    kanban.edit_card(0, 1, "b\nmore").unwrap();
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "b\nmore");
+    assert!(kanban.source().contains("- [ ] b\n  more\n"));
+}
+
+#[test]
+fn a_one_space_card_indents_a_new_line_by_one_space() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+ l0
+";
+    let mut kanban = parse(source);
+    kanban.edit_card(0, 0, "a\nl0\n\nx").unwrap();
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\nl0\n\nx");
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+ l0
+
+ x
+"
+    );
+}
+
+#[test]
+fn a_four_space_line_above_a_tab_line_is_rejected() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+	l0
+";
+    let mut kanban = parse(source);
+    let error = kanban.edit_card(0, 0, "a\n    code\nl0").unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidData);
+    assert_eq!(kanban.source(), source);
+}
+
+#[test]
 fn one_indented_continuation_keeps_its_indent() {
     let source = read_fixture("indent-deep-line.md");
     let mut kanban = parse(&source);
