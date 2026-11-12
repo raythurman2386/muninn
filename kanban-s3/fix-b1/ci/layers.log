@@ -1,0 +1,5 @@
+   Compiling xtask v0.7.1 (/home/ret/Development/muninn-kanban/target/s3-fix-wt/xtask)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.24s
+     Running `target/debug/xtask layers`
+layering ok (6 workspace crates)
+layers exit 0

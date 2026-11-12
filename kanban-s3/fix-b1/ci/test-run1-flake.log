@@ -1,0 +1,41 @@
+   Compiling muninn-core v0.7.1 (/home/ret/Development/muninn-kanban/target/s3-fix-wt/crates/muninn-core)
+   Compiling xtask v0.7.1 (/home/ret/Development/muninn-kanban/target/s3-fix-wt/xtask)
+   Compiling muninn-sync v0.7.1 (/home/ret/Development/muninn-kanban/target/s3-fix-wt/crates/muninn-sync)
+   Compiling muninn-graph v0.7.1 (/home/ret/Development/muninn-kanban/target/s3-fix-wt/crates/muninn-graph)
+   Compiling muninn-ui v0.7.1 (/home/ret/Development/muninn-kanban/target/s3-fix-wt/crates/muninn-ui)
+   Compiling muninn-app v0.7.1 (/home/ret/Development/muninn-kanban/target/s3-fix-wt/crates/muninn-app)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 18s
+     Running unittests src/main.rs (target/debug/deps/muninn-e70152b3512d8f39)
+
+running 14 tests
+test cli_tests::new_instance_is_a_run_flag ... ok
+test cli_tests::cli_parses_check_list_links_help_and_trace ... ok
+test instance::tests::instance_child_probe ... ok
+test instance::tests::paths_follow_the_runtime_dir ... ok
+test instance::tests::bad_requests_are_dropped ... ok
+test tests::the_last_public_scene_names_remain_stable ... ok
+test tests::vault_flag_accepts_both_spellings ... ok
+test instance::tests::a_stale_socket_file_is_replaced_under_the_lock ... ok
+test instance::tests::a_long_folder_gets_a_short_private_socket_path ... ok
+test instance::tests::the_second_claim_is_handed_to_the_first ... ok
+test instance::tests::another_process_holds_it_and_a_kill_frees_it_at_once ... ok
+test tests::close_flush_writes_a_dirty_buffer ... ok
+test instance::tests::a_holder_that_never_answers_is_an_error_and_its_socket_is_left_alone ... ok
+test instance::tests::a_dropped_primary_frees_the_lock ... FAILED
+
+failures:
+
+---- instance::tests::a_dropped_primary_frees_the_lock stdout ----
+
+thread 'instance::tests::a_dropped_primary_frees_the_lock' (3599498) panicked at crates/muninn-app/src/instance.rs:529:77:
+called `Result::unwrap()` on an `Err` value: NoAnswer { pid: Some(3599495) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    instance::tests::a_dropped_primary_frees_the_lock
+
+test result: FAILED. 13 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.01s
+
+error: test failed, to rerun pass `-p muninn-app --bin muninn`
+test exit 101

@@ -1,0 +1,1595 @@
+{
+  "accessibility": {
+    "bounds": [
+      0.0,
+      0.0,
+      1180.0,
+      780.0
+    ],
+    "children": [
+      {
+        "bounds": [
+          0.0,
+          0.0,
+          1180.0,
+          780.0
+        ],
+        "children": [
+          {
+            "bounds": [
+              0.0,
+              0.0,
+              0.0,
+              780.0
+            ],
+            "key": "sidebar-hidden",
+            "role": "group"
+          },
+          {
+            "bounds": [
+              0.0,
+              0.0,
+              1180.0,
+              780.0
+            ],
+            "children": [
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  20.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "key": "sidebar-toggle",
+                "name": "Show sidebar",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  58.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      67.5,
+                      19.5,
+                      7.0,
+                      19.0
+                    ],
+                    "name": "‹",
+                    "role": "label"
+                  }
+                ],
+                "key": "history-back",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  96.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      105.5,
+                      19.5,
+                      7.0,
+                      19.0
+                    ],
+                    "name": "›",
+                    "role": "label"
+                  }
+                ],
+                "key": "history-forward",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  134.0,
+                  10.0,
+                  27.0,
+                  20.0
+                ],
+                "key": "topbar-title",
+                "name": "Idea",
+                "role": "label"
+              },
+              {
+                "bounds": [
+                  134.0,
+                  32.0,
+                  641.0,
+                  16.0
+                ],
+                "name": "Ideas/Idea.md",
+                "role": "label"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  802.0,
+                  16.0,
+                  66.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      830.0,
+                      23.0,
+                      29.0,
+                      12.0
+                    ],
+                    "name": "Write",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-editor",
+                "name": "Write",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  870.0,
+                  16.0,
+                  64.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      898.0,
+                      23.0,
+                      27.0,
+                      12.0
+                    ],
+                    "name": "Read",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-preview",
+                "name": "Read",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  936.0,
+                  16.0,
+                  70.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      964.0,
+                      23.0,
+                      33.0,
+                      12.0
+                    ],
+                    "name": "Graph",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-graph",
+                "name": "Graph",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  1008.0,
+                  16.0,
+                  69.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      1036.0,
+                      23.0,
+                      32.0,
+                      12.0
+                    ],
+                    "name": "Board",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-board",
+                "name": "Board",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  1079.0,
+                  16.0,
+                  78.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      1107.0,
+                      23.0,
+                      41.0,
+                      12.0
+                    ],
+                    "name": "Kanban",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-kanban",
+                "name": "Kanban",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  0.0,
+                  59.0,
+                  1180.0,
+                  721.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      28.0,
+                      78.0,
+                      44.0,
+                      20.0
+                    ],
+                    "name": "Boards",
+                    "role": "label"
+                  },
+                  {
+                    "bounds": [
+                      82.0,
+                      80.0,
+                      47.0,
+                      16.0
+                    ],
+                    "key": "board-count",
+                    "name": "0 boards",
+                    "role": "label"
+                  },
+                  {
+                    "actions": [
+                      "click"
+                    ],
+                    "bounds": [
+                      1046.0,
+                      74.0,
+                      106.0,
+                      28.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          1074.0,
+                          80.0,
+                          68.0,
+                          16.0
+                        ],
+                        "name": "New board",
+                        "role": "label"
+                      }
+                    ],
+                    "key": "board-new",
+                    "name": "New board",
+                    "role": "button"
+                  },
+                  {
+                    "bounds": [
+                      0.0,
+                      117.0,
+                      1180.0,
+                      663.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          28.0,
+                          117.0,
+                          240.0,
+                          639.0
+                        ],
+                        "children": [
+                          {
+                            "bounds": [
+                              28.0,
+                              117.0,
+                              240.0,
+                              32.0
+                            ],
+                            "key": "board-list-empty",
+                            "name": "No boards in this vault yet",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "board-list",
+                        "role": "list"
+                      },
+                      {
+                        "bounds": [
+                          284.0,
+                          117.0,
+                          868.0,
+                          639.0
+                        ],
+                        "children": [
+                          {
+                            "bounds": [
+                              284.0,
+                              125.0,
+                              87.0,
+                              20.0
+                            ],
+                            "key": "board-surface-title",
+                            "name": "No boards yet",
+                            "role": "label"
+                          },
+                          {
+                            "bounds": [
+                              381.0,
+                              127.0,
+                              138.0,
+                              16.0
+                            ],
+                            "key": "board-surface-detail",
+                            "name": "Make one with New board",
+                            "role": "label"
+                          },
+                          {
+                            "bounds": [
+                              284.0,
+                              159.0,
+                              868.0,
+                              597.0
+                            ],
+                            "children": [
+                              {
+                                "bounds": [
+                                  637.0,
+                                  432.5,
+                                  162.0,
+                                  20.0
+                                ],
+                                "key": "board-placeholder-title",
+                                "name": "No boards in this vault yet",
+                                "role": "label"
+                              },
+                              {
+                                "bounds": [
+                                  536.0,
+                                  460.5,
+                                  364.0,
+                                  16.0
+                                ],
+                                "name": "A board is an Excalidraw file in your vault. Make one to start drawing.",
+                                "role": "label"
+                              },
+                              {
+                                "actions": [
+                                  "click"
+                                ],
+                                "bounds": [
+                                  665.0,
+                                  484.5,
+                                  106.0,
+                                  28.0
+                                ],
+                                "children": [
+                                  {
+                                    "bounds": [
+                                      693.0,
+                                      490.5,
+                                      68.0,
+                                      16.0
+                                    ],
+                                    "name": "New board",
+                                    "role": "label"
+                                  }
+                                ],
+                                "key": "board-new-empty",
+                                "name": "New board",
+                                "role": "button"
+                              }
+                            ],
+                            "key": "board-placeholder",
+                            "role": "group"
+                          }
+                        ],
+                        "key": "board-surface",
+                        "role": "group"
+                      }
+                    ],
+                    "key": "board-body",
+                    "role": "group"
+                  }
+                ],
+                "key": "board-page",
+                "role": "group"
+              }
+            ],
+            "key": "main",
+            "role": "group"
+          }
+        ],
+        "key": "root",
+        "role": "group"
+      }
+    ],
+    "name": "Muninn",
+    "role": "window"
+  },
+  "anim_t": 1.8999999999999981,
+  "animating": false,
+  "dark_system": true,
+  "elements": [
+    {
+      "blur": 0.0,
+      "fill": "#161616ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-hidden",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar-hidden",
+      "rect": [
+        0.0,
+        0.0,
+        0.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/#1",
+      "rect": [
+        0.0,
+        0.0,
+        0.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "main",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-toggle",
+      "label": "Show sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/sidebar-toggle",
+      "rect": [
+        20.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/sidebar-toggle/#0",
+      "rect": [
+        26.0,
+        22.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "history-back",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-back",
+      "rect": [
+        58.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-back/#0",
+      "rect": [
+        67.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "‹"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "history-forward",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-forward",
+      "rect": [
+        96.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-forward/#0",
+      "rect": [
+        105.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "›"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3",
+      "rect": [
+        134.0,
+        10.0,
+        641.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0",
+      "rect": [
+        134.0,
+        10.0,
+        641.0,
+        20.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "topbar-title",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0/topbar-title",
+      "rect": [
+        134.0,
+        10.0,
+        27.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Idea"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0/#1",
+      "rect": [
+        169.0,
+        20.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#1",
+      "rect": [
+        134.0,
+        32.0,
+        641.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Ideas/Idea.md"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#4",
+      "rect": [
+        787.0,
+        29.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5",
+      "rect": [
+        799.0,
+        13.0,
+        361.0,
+        32.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-editor",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor",
+      "rect": [
+        802.0,
+        16.0,
+        66.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor/#0",
+      "rect": [
+        811.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor/#1",
+      "rect": [
+        830.0,
+        23.0,
+        29.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Write"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-preview",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview",
+      "rect": [
+        870.0,
+        16.0,
+        64.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview/#0",
+      "rect": [
+        879.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview/#1",
+      "rect": [
+        898.0,
+        23.0,
+        27.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Read"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-graph",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph",
+      "rect": [
+        936.0,
+        16.0,
+        70.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph/#0",
+      "rect": [
+        945.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph/#1",
+      "rect": [
+        964.0,
+        23.0,
+        33.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Graph"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#3a3a3aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board",
+      "rect": [
+        1008.0,
+        16.0,
+        69.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board/#0",
+      "rect": [
+        1017.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board/#1",
+      "rect": [
+        1036.0,
+        23.0,
+        32.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-kanban",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban",
+      "rect": [
+        1079.0,
+        16.0,
+        78.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban/#0",
+      "rect": [
+        1088.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban/#1",
+      "rect": [
+        1107.0,
+        23.0,
+        41.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Kanban"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#1",
+      "rect": [
+        0.0,
+        58.0,
+        1180.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-page",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page",
+      "rect": [
+        0.0,
+        59.0,
+        1180.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0",
+      "rect": [
+        0.0,
+        59.0,
+        1180.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/#0",
+      "rect": [
+        28.0,
+        78.0,
+        44.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Boards"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-count",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/board-count",
+      "rect": [
+        82.0,
+        80.0,
+        47.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "0 boards"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/#2",
+      "rect": [
+        139.0,
+        88.0,
+        897.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-new",
+      "label": "New board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/board-new",
+      "rect": [
+        1046.0,
+        74.0,
+        106.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/board-new/#0",
+      "rect": [
+        1056.0,
+        82.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/#0/board-new/#1",
+      "rect": [
+        1074.0,
+        80.0,
+        68.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "New board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-body",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body",
+      "rect": [
+        0.0,
+        117.0,
+        1180.0,
+        663.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-list",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list",
+      "rect": [
+        28.0,
+        117.0,
+        240.0,
+        639.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-list-empty",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-list/board-list-empty",
+      "rect": [
+        28.0,
+        117.0,
+        240.0,
+        32.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "No boards in this vault yet"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-surface",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface",
+      "rect": [
+        284.0,
+        117.0,
+        868.0,
+        639.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/#0",
+      "rect": [
+        284.0,
+        117.0,
+        868.0,
+        36.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-surface-title",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/#0/board-surface-title",
+      "rect": [
+        284.0,
+        125.0,
+        87.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "No boards yet"
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-surface-detail",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/#0/board-surface-detail",
+      "rect": [
+        381.0,
+        127.0,
+        138.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Make one with New board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-placeholder",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-placeholder",
+      "rect": [
+        284.0,
+        159.0,
+        868.0,
+        597.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-placeholder/#0",
+      "rect": [
+        707.0,
+        402.5,
+        22.0,
+        22.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-placeholder-title",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-placeholder/board-placeholder-title",
+      "rect": [
+        637.0,
+        432.5,
+        162.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "No boards in this vault yet"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-placeholder/#2",
+      "rect": [
+        536.0,
+        460.5,
+        364.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "A board is an Excalidraw file in your vault. Make one to start drawing."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "board-new-empty",
+      "label": "New board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-placeholder/board-new-empty",
+      "rect": [
+        665.0,
+        484.5,
+        106.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-placeholder/board-new-empty/#0",
+      "rect": [
+        675.0,
+        492.5,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/board-page/board-body/board-surface/board-placeholder/board-new-empty/#1",
+      "rect": [
+        693.0,
+        490.5,
+        68.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "New board"
+    }
+  ],
+  "reduced_motion": false,
+  "scale": 1.0,
+  "t": 1.9,
+  "time_scale": 1.0,
+  "title": "Muninn",
+  "viewport": [
+    1180.0,
+    780.0
+  ],
+  "warnings": []
+}
