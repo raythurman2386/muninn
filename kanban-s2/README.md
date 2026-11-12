@@ -6,7 +6,7 @@ Proof for PR #46 (`cursor/muninn-kanban-s2-view`), read-only Kanban mode.
 - Base: `cursor/muninn-kanban-s1-model` at `3bda7d648d8666a743c55d38f4f875116d8fa095`
 - Harness: `scripts/ui-smoke.sh` (all steps), run on minis under `dbus-run-session`, with Wayland/X/D-Bus env unset, a private `XDG_RUNTIME_DIR` inside the clone, a private Xvfb, and `--new-instance` for every windowed launch. Set `UI_SMOKE_FETCH_LAVAPIPE=1`.
 - Result: every step PASS (see `summary.txt`).
-- wgpu backend: Vulkan on lavapipe, `llvmpipe (LLVM 23.1.3, 256 bits)`, Mesa 26.2.5. This comes from `vulkan-swrast-1:26.2.5-1` (sha256 `e14837dfe51c29d8bdb29422b40daaafc2291908c4a6349a0e63addd09fa546b`), fetched into the run's `tools/`. `headless_modes` ran before the fetch, on the host GPU (AMD Radeon 760M, RADV PHOENIX).
+- wgpu backend: in this run, `headless_modes` ran on the host GPU (AMD Radeon 760M, RADV PHOENIX) before the lavapipe fetch, and every other step used Vulkan on lavapipe, `llvmpipe (LLVM 23.1.3, 256 bits)`, Mesa 26.2.5, from `vulkan-swrast-1:26.2.5-1` (sha256 `e14837dfe51c29d8bdb29422b40daaafc2291908c4a6349a0e63addd09fa546b`), fetched into the run's `tools/`. The reviewer's independent re-run used lavapipe for every step.
 - `x11_kanban` against the headless `kanban-readonly.png`: mean abs diff 0.00.
 
 ## Kanban screenshots
