@@ -128,6 +128,7 @@ impl State {
             self.kanban_selected = None;
         }
         self.kanban = shown;
+        self.kanban_drag = None;
     }
 
     /// `rel` read from disk, when it is a note in this vault and a kanban.

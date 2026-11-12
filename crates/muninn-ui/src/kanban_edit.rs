@@ -359,6 +359,8 @@ impl State {
             shown.history.record(board.source().to_owned());
             shown.mark_changed();
         }
+        // Slice 6: a press held on a card or lane may now point elsewhere.
+        self.kanban_drag = None;
         true
     }
 
@@ -406,6 +408,7 @@ impl State {
         shown.board = Some(next);
         shown.error = None;
         shown.mark_changed();
+        self.kanban_drag = None;
     }
 
     /// `⌘S` on the page: commit the editor, then write the kanban once when

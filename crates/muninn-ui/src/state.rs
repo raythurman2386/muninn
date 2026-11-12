@@ -369,8 +369,9 @@ pub struct State {
     pub kanban_lane_field: TextEdit,
     /// Kanban slice 5: the card (lane, index) the arrow keys act on.
     pub kanban_selected: Option<(usize, usize)>,
-    /// Kanban slice 6: the card or lane being dragged, and where lanes and
-    /// cards were laid out (the drop spot is measured against them).
+    /// Kanban slice 6: the card or lane pressed and held (cleared whenever
+    /// the board changes), and where lanes and cards were laid out (the drop
+    /// spot is measured against them).
     pub(crate) kanban_drag: Option<crate::kanban_drag::KanbanDrag>,
     pub(crate) kanban_rects: crate::kanban_drag::KanbanRects,
     /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).

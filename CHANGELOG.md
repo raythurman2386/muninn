@@ -55,7 +55,8 @@ All notable changes to Muninn are documented here. The format is based on
   lane or into another, with a bar showing exactly where it will land; a
   collapsed lane takes it at its end and a done lane marks it done. A lane
   drags by its header (a collapsed lane by its strip) and its collapse state
-  moves with it. `Esc` cancels a drag and a drop in place changes nothing.
+  moves with it. `Esc` cancels a drag and a drop in place changes nothing;
+  a key that changes the board mid-drag (an undo, a keyboard move) ends it.
   Each drop is one undo step, saved by `⌘S`. Without a mouse, a lane's menu
   has **Move lane left / right**, and `Alt+Shift+←/→` moves the selected
   card's lane.
