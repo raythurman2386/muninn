@@ -388,3 +388,177 @@ fn a_drag_commits_an_open_editor_first_and_waits_on_a_refused_one() {
     assert_eq!(on_disk(&tmp), BOARD);
     undo_to_start_and_save(&mut rt, &tmp, 2);
 }
+
+fn alt(shift: bool) -> Mods {
+    Mods {
+        alt: true,
+        shift,
+        ..Mods::default()
+    }
+}
+
+/// The board after `op` on the original, through the core model.
+fn board_after(op: impl FnOnce(&mut muninn_core::Kanban)) -> String {
+    let mut board = muninn_core::Kanban::parse(BOARD).expect("parse");
+    op(&mut board);
+    board.source().to_owned()
+}
+
+// GK N1: a key that changes the board while a press is held ends the drag, so
+// the release can't move whatever card is now at the pressed place.
+
+#[test]
+fn alt_shift_arrows_mid_drag_end_the_drag() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-1-0");
+    let short = centre(rect(&mut rt, "kanban-card-0-0"));
+    let done = centre(rect(&mut rt, "kanban-lane-3"));
+    hold(&mut rt, short, done);
+    assert!(has(&mut rt, "kanban-drop"));
+    key(&mut rt, Key::Right, alt(true));
+    assert!(!has(&mut rt, "kanban-drop"), "the drag ended");
+    drop_at(&mut rt, done);
+    let moved = board_after(|b| b.move_lane(1, 2).expect("move"));
+    assert_eq!(source(&rt), moved, "only the lane moved");
+    // Lanes move left too, and a fresh press drags again.
+    hold(&mut rt, short, done);
+    key(&mut rt, Key::Left, alt(true));
+    drop_at(&mut rt, done);
+    assert_eq!(source(&rt), BOARD);
+    drag(&mut rt, short, done);
+    assert_eq!(cards(&rt, 3), ["x Short card", "x Shipped"]);
+    assert_eq!(on_disk(&tmp), BOARD);
+    undo_to_start_and_save(&mut rt, &tmp, 3);
+}
+
+#[test]
+fn undo_and_redo_mid_drag_end_the_drag() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-0-3");
+    key(&mut rt, Key::Up, alt(false));
+    let moved = source(&rt);
+    assert_ne!(moved, BOARD);
+    let short = centre(rect(&mut rt, "kanban-card-0-0"));
+    let done = centre(rect(&mut rt, "kanban-lane-3"));
+    hold(&mut rt, short, done);
+    command(&mut rt, 'z');
+    drop_at(&mut rt, done);
+    assert_eq!(source(&rt), BOARD, "only the undo");
+    hold(&mut rt, short, done);
+    command(&mut rt, 'y');
+    drop_at(&mut rt, done);
+    assert_eq!(source(&rt), moved, "only the redo");
+    assert_eq!(on_disk(&tmp), BOARD);
+    undo_to_start_and_save(&mut rt, &tmp, 1);
+}
+
+#[test]
+fn alt_arrows_mid_drag_end_the_drag_even_before_it_moves() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-0-0");
+    let tall = centre(rect(&mut rt, "kanban-card-0-1"));
+    let done = centre(rect(&mut rt, "kanban-lane-3"));
+    hold(&mut rt, tall, done);
+    // Short card swaps with the tall one: the pressed place now holds it.
+    key(&mut rt, Key::Down, alt(false));
+    drop_at(&mut rt, done);
+    assert_eq!(
+        cards(&rt, 0),
+        ["A tall", "Short card", "Another short", "Last short"]
+    );
+    assert_eq!(cards(&rt, 3), ["x Shipped"], "nothing was dropped");
+    // A press that has not moved yet ends the same way.
+    let pressed = centre(rect(&mut rt, "kanban-card-0-1"));
+    rt.pointer_move(pressed.0, pressed.1);
+    rt.pointer_down(pressed.0, pressed.1);
+    frame(&mut rt);
+    key(&mut rt, Key::Up, alt(false));
+    let after_key = source(&rt);
+    rt.pointer_move(done.0, done.1);
+    frame(&mut rt);
+    assert!(!has(&mut rt, "kanban-drop"));
+    drop_at(&mut rt, done);
+    assert_eq!(source(&rt), after_key);
+    assert_eq!(source(&rt), BOARD, "the two swaps undo each other");
+    assert_eq!(cards(&rt, 3), ["x Shipped"]);
+}
+
+// GK N2: switching mode mid-drag ends the drag.
+#[test]
+fn a_mode_switch_mid_drag_ends_the_drag() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    let short = centre(rect(&mut rt, "kanban-card-0-0"));
+    let done = centre(rect(&mut rt, "kanban-lane-3"));
+    hold(&mut rt, short, done);
+    assert!(has(&mut rt, "kanban-drop"));
+    command(&mut rt, '1');
+    assert_eq!(rt.state.mode, Mode::Editor);
+    command(&mut rt, '5');
+    assert_eq!(rt.state.mode, Mode::Kanban);
+    assert!(!has(&mut rt, "kanban-drop"), "no bar left over");
+    drop_at(&mut rt, done);
+    assert_eq!(source(&rt), BOARD);
+    assert!(!dirty(&rt));
+}
+
+// GK N4: the paths the first round's tests left out.
+
+#[test]
+fn a_lane_drags_right_and_settles_an_open_lane_field() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.begin_rename_lane(0));
+    act(&mut rt, |s| s.kanban_lane_field.replace_text("Next"));
+    let head = centre(rect(&mut rt, "kanban-lane-0-title"));
+    let doing = rect(&mut rt, "kanban-lane-1");
+    let past = (doing[0] + doing[2] - 10.0, head.1);
+    hold(&mut rt, head, past);
+    assert!(rt.state.kanban_lane_edit.is_none(), "the field committed");
+    assert!(has(&mut rt, "kanban-lane-drop"));
+    drop_at(&mut rt, past);
+    assert_eq!(titles(&rt), ["Doing", "Next", "Waiting", "Done"]);
+    let want = board_after(|b| {
+        b.rename_lane(0, "Next").expect("rename");
+        b.move_lane(0, 1).expect("move");
+    });
+    assert_eq!(source(&rt), want);
+    assert_eq!(on_disk(&tmp), BOARD);
+    undo_to_start_and_save(&mut rt, &tmp, 2);
+}
+
+#[test]
+fn a_drag_closes_an_open_menu() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.open_card_menu(0, 0));
+    assert!(rt.state.menu.is_some());
+    let doing = centre(rect(&mut rt, "kanban-card-1-0"));
+    let todo = centre(rect(&mut rt, "kanban-lane-0"));
+    hold(&mut rt, doing, todo);
+    assert!(rt.state.menu.is_none(), "the drag closed the menu");
+    drop_at(&mut rt, todo);
+    assert_eq!(cards(&rt, 1), Vec::<String>::new());
+    undo_to_start_and_save(&mut rt, &tmp, 1);
+}
+
+#[test]
+fn opening_another_kanban_mid_drag_ends_the_drag() {
+    let tmp = TempVault::new(&[("Board.md", BOARD), ("Other.md", BOARD)]);
+    let mut rt = on_board(&tmp);
+    let short = centre(rect(&mut rt, "kanban-card-0-0"));
+    let done = centre(rect(&mut rt, "kanban-lane-3"));
+    hold(&mut rt, short, done);
+    let other = rt.state.vault.resolve("Other").expect("Other");
+    act(&mut rt, |s| s.open_kanban(other));
+    assert!(!has(&mut rt, "kanban-drop"));
+    drop_at(&mut rt, done);
+    assert_eq!(source(&rt), BOARD);
+    assert!(!dirty(&rt));
+    assert_eq!(on_disk(&tmp), BOARD);
+    let other = fs::read_to_string(tmp.path().join("Other.md")).expect("Other.md");
+    assert_eq!(other, BOARD);
+}

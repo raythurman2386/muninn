@@ -16,6 +16,10 @@
 //!   lane already is records nothing.
 //! - Esc during a drag ends it (Rune cancels the gesture): nothing moves, as
 //!   the board is not touched until the release.
+//! - The press is held from its first moment. Anything that changes the board
+//!   meanwhile (a key's edit, undo or redo, a mode switch, another kanban)
+//!   ends it, and the rest of the gesture does nothing: the card or lane it
+//!   was pressed on may no longer be at that place.
 //! - When a drag starts, an open card editor or lane field is committed first
 //!   and the dragged card or lane is found again (slices 4 and 5). When that
 //!   commit is refused the drag does nothing and the editor keeps its text.
@@ -38,7 +42,7 @@ pub enum Dragged {
     Lane(usize),
 }
 
-/// A drag past the click distance.
+/// A press on a card or lane header, held until the release.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct KanbanDrag {
     /// `None` when an open editor refused to close: the gesture does nothing.
@@ -46,6 +50,8 @@ pub struct KanbanDrag {
     /// Where a release would put it: a card's lane and the number of cards
     /// drawn above the spot, or the number of lanes left of the spot.
     pub slot: Option<(usize, usize)>,
+    /// Past the click distance: a drag, not yet a click.
+    pub moving: bool,
 }
 
 /// Where lanes and cards were last laid out, in window points, reported by
@@ -110,26 +116,37 @@ impl State {
             return;
         }
         if d.phase == Phase::Down {
-            self.kanban_drag = None;
+            self.kanban_drag = Some(KanbanDrag {
+                item: Some(item),
+                slot: None,
+                moving: false,
+            });
             return;
         }
-        let up = d.phase == Phase::Up;
-        if self.kanban_drag.is_none() {
-            if up || d.cancelled() || d.dx.abs().max(d.dy.abs()) < CLICK_TRAVEL {
-                return;
-            }
-            self.menu = None;
-            let item = match item {
-                Dragged::Card(lane, index) => self
-                    .settle_card_edit(lane, index)
-                    .map(|(l, i)| Dragged::Card(l, i)),
-                Dragged::Lane(lane) => self.settle_lane_edit(lane).map(Dragged::Lane),
-            };
-            self.kanban_drag = Some(KanbanDrag { item, slot: None });
-        }
-        let Some(drag) = self.kanban_drag else {
+        // Gone when the board changed since the press (see the module docs).
+        let Some(mut drag) = self.kanban_drag.take() else {
             return;
         };
+        let up = d.phase == Phase::Up;
+        if !drag.moving {
+            if up || d.cancelled() {
+                return;
+            }
+            if d.dx.abs().max(d.dy.abs()) < CLICK_TRAVEL {
+                self.kanban_drag = Some(drag);
+                return;
+            }
+            // Taken out above, so the editor's own commit does not end it.
+            self.menu = None;
+            drag.moving = true;
+            drag.item = match drag.item {
+                Some(Dragged::Card(lane, index)) => self
+                    .settle_card_edit(lane, index)
+                    .map(|(l, i)| Dragged::Card(l, i)),
+                Some(Dragged::Lane(lane)) => self.settle_lane_edit(lane).map(Dragged::Lane),
+                None => None,
+            };
+        }
         let slot = drag
             .item
             .and_then(|item| self.drop_slot(item, d.window_point()));
@@ -137,7 +154,6 @@ impl State {
             self.kanban_drag = Some(KanbanDrag { slot, ..drag });
             return;
         }
-        self.kanban_drag = None;
         if d.cancelled() {
             return;
         }
@@ -170,7 +186,7 @@ impl State {
     }
 
     /// Alt+Shift+Left / Right and the lane menu: move a lane one place.
-    pub fn step_kanban_lane(&mut self, lane: usize, right: bool) {
+    pub(crate) fn step_kanban_lane(&mut self, lane: usize, right: bool) {
         let Some(lane) = self.settle_lane_edit(lane) else {
             return;
         };
@@ -205,6 +221,7 @@ impl State {
         let Some(KanbanDrag {
             item: Some(item),
             slot,
+            moving: true,
         }) = self.kanban_drag
         else {
             return (None, None, false);
@@ -225,6 +242,7 @@ impl State {
             KanbanDrag {
                 item: Some(Dragged::Lane(lane)),
                 slot: Some((_, slot)),
+                moving: true,
             } => Some((lane, slot)),
             _ => None,
         }

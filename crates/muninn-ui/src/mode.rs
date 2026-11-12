@@ -60,6 +60,8 @@ impl State {
         // 4: leaving the Kanban page commits its card editor.
         self.commit_board_text();
         self.commit_card_edit();
+        // Kanban slice 6: a press held on the page ends with it.
+        self.kanban_drag = None;
         // #43: a rename field in the Board panel or title goes with them.
         self.board_rename_left_board(mode);
         self.pending_heading = None;
