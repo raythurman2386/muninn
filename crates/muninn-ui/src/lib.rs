@@ -18,6 +18,7 @@ mod camera;
 mod doc_sync;
 mod global_shortcut;
 mod graph_view;
+mod kanban_dates;
 mod kanban_drag;
 mod kanban_edit;
 mod kanban_lanes;
@@ -53,6 +54,7 @@ pub use board_view::{
 };
 pub use doc_sync::DocConflict;
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
+pub use kanban_dates::{KanbanPicker, PickerInsert, PickerKind};
 pub use kanban_edit::{CardSlot, KanbanHistory};
 pub use kanban_lanes::{CardStep, LaneField, LaneSlot};
 pub use kanban_view::ShownKanban;

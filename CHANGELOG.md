@@ -39,6 +39,20 @@ All notable changes to Muninn are documented here. The format is based on
   picking another kanban, switching vaults or quitting saves them first, and
   a file that changed on disk is not written over. Text the file format
   can't hold stays in the open editor, and the page says why.
+- **Card dates and times.** A card reads `@{…}` and the link form `@[[…]]` as
+  a date, and `@@{…}` as a time, outside fences and inline code. A card's menu
+  has **Add a date…** (a month grid with Today, Clear, Cancel and Add) and
+  **Add a time…** (hour and minute fields); accepting appends the token, one
+  undo step, and changes only the card's line. Typing `@` or `@@` at a word
+  boundary in the card editor opens the same picker at the caret, and Escape
+  leaves the typed trigger. The card's foot shows the formatted date and time,
+  optionally relative (`today`, `in 3 days`) and linked to the daily note.
+  Board footer keys `date-trigger`, `time-trigger`, `date-format`,
+  `time-format`, `date-display-format`, `show-relative-date`,
+  `hide-date-in-title` and `link-date-to-daily-note`, with app-wide
+  `kanban_defaults` in `settings.json`; the footer wins, then the app default,
+  then the built-in. Sorting by date uses the parsed day and time, and cards
+  with no date sort last. Display settings never rewrite the board.
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,

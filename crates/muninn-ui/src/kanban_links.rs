@@ -35,6 +35,7 @@ impl State {
         if self.commit_card_edit() == CardCommit::Refused {
             return;
         }
+        self.close_picker();
         if !self.mode.is_note_mode() {
             self.set_mode(self.last_note_mode);
         }

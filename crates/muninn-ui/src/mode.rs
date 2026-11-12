@@ -62,6 +62,10 @@ impl State {
         self.commit_card_edit();
         // Kanban slice 6: a press held on the page ends with it.
         self.kanban_drag = None;
+        // Kanban slice 9: a date/time picker belongs to the visible page.
+        if mode != Mode::Kanban {
+            self.close_picker();
+        }
         // #43: a rename field in the Board panel or title goes with them.
         self.board_rename_left_board(mode);
         self.pending_heading = None;

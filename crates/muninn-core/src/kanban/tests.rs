@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use serde_json::json;
 
-use super::{CardOrder, Kanban, Lane, is_kanban};
+use super::{CardOrder, DateSettings, Kanban, Lane, is_kanban, scan_card_text};
 use crate::Vault;
 use crate::testing::TempVault;
 
@@ -217,7 +217,8 @@ fn open_points_keep_the_text() {
     assert_eq!(zero.lanes()[0].written_limit(), Some(0));
     assert_eq!(zero.lanes()[0].limit(), None);
 
-    // Dates, tags and inline fields stay card text (D-1, D-2, T-1).
+    // Dates, tags and inline fields stay card text; slice 9 reads dates and
+    // times without changing the bytes. T-1 stays open.
     let text = parse(
         "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due @{2026-11-11} @@{14:30} #release [owner:: muninn]\n",
     );
@@ -225,6 +226,16 @@ fn open_points_keep_the_text() {
         text.lanes()[0].cards()[0].text(),
         "Due @{2026-11-11} @@{14:30} #release [owner:: muninn]"
     );
+    let found = scan_card_text(text.lanes()[0].cards()[0].text(), &DateSettings::default());
+    assert_eq!(
+        found.date.as_ref().map(|token| token.value.as_str()),
+        Some("2026-11-11")
+    );
+    assert_eq!(
+        found.time.as_ref().map(|token| token.value.as_str()),
+        Some("14:30")
+    );
+    assert_eq!(found.tags[0].tag, "release");
 }
 
 #[test]
@@ -1744,6 +1755,52 @@ fn sorting_moves_whole_cards_and_keeps_passthrough_in_place() {
     let sorted = board.source().to_owned();
     board.sort_cards(0, CardOrder::Tags).expect("again");
     assert_eq!(board.source(), sorted);
+}
+
+#[test]
+fn date_sort_reads_the_board_format_and_puts_undated_cards_last() {
+    let source = "---\nkanban-plugin: board\n---\n\n## L\n\n\
+                  - [ ] Later @{01.12.2026}\n\
+                  - [ ] Undated\n\
+                  - [ ] Earlier @{12.11.2026}\n\
+                  - [ ] Same @{12.11.2026} @@{09:00}\n\
+                  - [ ] Same late @{12.11.2026} @@{10:00}\n\n\
+                  %% kanban:settings\n```\n{\"date-format\":\"DD.MM.YYYY\"}\n```\n%%\n";
+    let mut board = parse(source);
+    board.sort_cards(0, CardOrder::Date).expect("date");
+    let texts: Vec<&str> = board.lanes()[0]
+        .cards()
+        .iter()
+        .map(|card| card.text().lines().next().unwrap_or_default())
+        .collect();
+    assert_eq!(
+        texts,
+        [
+            "Earlier @{12.11.2026}",
+            "Same @{12.11.2026} @@{09:00}",
+            "Same late @{12.11.2026} @@{10:00}",
+            "Later @{01.12.2026}",
+            "Undated",
+        ]
+    );
+    // The written text would sort `01.12` before `12.11`; the parsed day does not.
+    assert!(board.source().contains("- [ ] Undated\n"));
+    // The app defaults can supply the format when the caller resolves them.
+    let mut defaults = parse(source);
+    let dates = DateSettings::resolve(
+        None,
+        &super::KanbanDefaults {
+            date_format: Some("DD.MM.YYYY".to_owned()),
+            ..super::KanbanDefaults::default()
+        },
+    );
+    defaults
+        .sort_cards_with(0, CardOrder::Date, &dates)
+        .expect("date");
+    assert_eq!(
+        defaults.lanes()[0].cards()[0].text().lines().next(),
+        Some("Earlier @{12.11.2026}")
+    );
 }
 
 #[test]

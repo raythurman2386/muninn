@@ -26,9 +26,11 @@
 //! lane limit of `0` is no limit and is never written, a done mark other than
 //! `x` is left as it is until toggled, and unknown footer keys are kept.
 
+mod dates;
 mod edit;
 mod parse;
 mod sort;
+mod text;
 
 #[cfg(test)]
 mod tests;
@@ -40,7 +42,13 @@ use std::path::{Path, PathBuf};
 
 use crate::vault::{Vault, atomic_write};
 
+pub use self::dates::{
+    CivilDate, CivilTime, DATE_DISPLAY_FORMAT, DATE_FORMAT, DATE_TRIGGER, DateSettings,
+    HIDE_DATE_IN_TITLE, KanbanDefaults, LINK_DATE_TO_DAILY_NOTE, SHOW_RELATIVE_DATE, TIME_FORMAT,
+    TIME_TRIGGER, format_date, format_time,
+};
 pub use self::sort::CardOrder;
+pub use self::text::{CardText, DateKind, DateToken, TagToken, scan_card_text};
 
 /// The settings key that says which lanes are shown collapsed
 /// (`docs/kanban-format.md` section 9).
@@ -182,6 +190,13 @@ impl Kanban {
         self.footer
             .as_ref()
             .map(|footer| &self.source[footer.json_span.clone()])
+    }
+
+    /// The footer's date/time settings, with the built-in defaults. The app
+    /// defaults live in `settings.json` and are applied by the UI.
+    #[must_use]
+    pub fn date_settings(&self) -> DateSettings {
+        DateSettings::resolve(self.footer_json(), &KanbanDefaults::default())
     }
 
     /// Write the note atomically through the vault's temp-file rename.

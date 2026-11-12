@@ -15,6 +15,8 @@ Status: draft 1, for Muninn 0.8.0. This document is Muninn's own description of 
 | **Archive** | A final section of the file holding cards taken off the board. |
 | **Settings footer** | A block at the end of the file holding the board's own settings as JSON. |
 | **Passthrough** | Any text Muninn does not model. It is kept exactly as found. |
+| **Date token** | A date in card text: `@{…}` or the link form `@[[…]]`. |
+| **Time token** | A time in card text: `@@{…}`. |
 
 ## 2. File layout, top to bottom
 
@@ -117,15 +119,58 @@ kanban-plugin: board
 
 ## 7. Dates, times and tags inside card text
 
-This is user-visible text inside a card. In slice 1 it is kept as card text only and is not interpreted.
+This is user-visible text inside a card. It is read for display and sorting
+without changing the file. Only an edit the user asks for writes a token.
 
 - **Date:** `@{2026-11-11}`, an at-sign then the date in braces.
 - **Date as a link:** `@[[2026-11-11]]`, an at-sign then a wikilink to a daily note. It is also a normal wikilink and counts as one.
 - **Time:** `@@{14:30}`, two at-signs then the time in braces.
-- **Triggers.** The `@` and `@@` triggers can be changed per board in the settings footer.
-  - **Open point D-1:** the footer setting names and value format for the triggers and for the date and time formats. To be specified before the dates slice.
-- **Date format.** The text inside the braces follows a user-chosen format.
-  - **Open point D-2:** the set of format tokens Muninn supports when displaying dates. Unknown tokens display literally.
+- **Triggers.** The footer keys `date-trigger` (default `@`) and `time-trigger` (default `@@`) hold the literal text before the braces. A trigger is not a regular expression; an empty trigger is ignored. The longest trigger is tried first, so `@@` is a time and not an `@` date followed by `@`.
+  - **D-1 (resolved).** Trigger and format setting keys and values are given in section 9. A trigger has no word-boundary rule in the file; any `@` followed by `{…}` or `[[…]]` is a date token. The card editor opens the picker only at the start of the text or after whitespace.
+- **Reading.** A token is read outside fenced code and inline code (section 10 rule 4). A token that never closes, or whose braces or brackets hold nothing, is ordinary text. The first date and the first time in the text are the card's values for display and sorting. The first time pairs with the first date even when the time appears earlier.
+- **Date format.** `date-format` (default `YYYY-MM-DD`) says how a new date is written inside the braces. `time-format` (default `HH:mm`) does the same for a time.
+- **Format tokens.** Both formats use these tokens. Tokens are case-sensitive. A `[...]` block is literal text, so `[at ]HH:mm` shows `at 14:30`. Any character that is not a token, and any unknown token, is copied as written.
+
+  | Token | Meaning | Example for 2026-11-12 14:30:05 |
+  |---|---|---|
+  | `YYYY` | 4-digit year | `2026` |
+  | `YY` | 2-digit year | `26` |
+  | `MMMM` | Full English month | `November` |
+  | `MMM` | 3-letter English month | `Nov` |
+  | `MM` / `M` | Month, padded / not | `11` / `11` |
+  | `DD` / `D` | Day of month, padded / not | `12` / `12` |
+  | `Do` | Day with an English ordinal | `12th` |
+  | `dddd` | Full English weekday | `Thursday` |
+  | `ddd` / `dd` | 3- / 2-letter English weekday | `Thu` / `Th` |
+  | `d` | Weekday number, Sunday is 0 | `4` |
+  | `HH` / `H` | Hour, 24-hour, padded / not | `14` / `14` |
+  | `hh` / `h` | Hour, 12-hour, padded / not | `02` / `2` |
+  | `mm` / `m` | Minute, padded / not | `30` / `30` |
+  | `ss` / `s` | Second, padded / not | `05` / `5` |
+  | `A` / `a` | `AM`/`PM` or `am`/`pm` | `PM` / `pm` |
+
+  Month and weekday names are English; Muninn has no locale table. The
+  2-digit year `69`–`99` is 1969–1999 and `00`–`68` is 2000–2068 when a
+  written date is read back for sorting.
+  - **D-2 (resolved).** This token set is the one Muninn supports. Unknown
+    tokens stay literal, which also means a stray `a` outside `[...]` is the
+    morning/afternoon token; write `[a]` for a literal letter.
+- **Display.** `date-display-format` (default `YYYY-MM-DD`) formats the date
+  row at the card's foot; a time is shown with `time-format`.
+  `show-relative-date` (default `false`) adds `today`, `tomorrow`,
+  `yesterday`, `in N days` or `N days ago`. `hide-date-in-title` (default
+  `true`) keeps the first date and time tokens out of the card's main text;
+  they still appear at the foot. Display never rewrites the file.
+  `link-date-to-daily-note` (default `false`) makes the displayed date a link
+  to a note named by the token's inner text. A link-form date is already a
+  link. The token's bytes in the file are unchanged either way.
+- **Sorting by date.** Sorting uses the parsed day and time, not the shown
+  string: a `DD.MM.YYYY` date sorts by its day, not by the written digits.
+  A card with no date sorts after every dated card, in its original order.
+- **Editing.** A new token is appended to the card text with a space when
+  needed. The picker's Clear removes the card's date or time token; nothing
+  else in the card changes. In the card editor the typed trigger is replaced
+  by the accepted token at the caret.
 - **Tag:** `#word`, as in ordinary Obsidian tags. Inside code it is not a tag.
 - **Inline fields:** text like `[key:: value]`.
   - **Open point T-1:** to be specified before the metadata slice. Kept as text.
@@ -171,8 +216,32 @@ The done-lane marker and the archive heading are written in the language of the 
   - Changing one key replaces only that key's value text, or appends the key at the end of the object, without reordering or reformatting the others.
   - Removing a key removes only that key and its separating comma.
   - When the object has the same key more than once, a JSON reader uses the last member. Muninn changes that last member's value. Removing the key removes every member with that key, so no earlier copy becomes effective. Earlier copies keep their bytes.
-- **Open point S-1:** the meaning of each settings key. It will be specified per slice, from public user documentation and observed behaviour. Unknown keys are always kept.
+- **Open point S-1:** the meaning of each settings key. Keys are specified per slice, from public user documentation and observed behaviour. `list-collapse` and the date/time keys below are specified; other keys stay open. Unknown keys are always kept.
 - **Settings key `list-collapse`.** The value is a JSON array of booleans with one entry per lane, in file order. `true` means the lane is shown collapsed. A missing key, a short array, or a non-boolean entry means "not collapsed" for that lane. When Muninn changes collapse state, it writes only this key's value. It keeps every other key, and the key order, byte-for-byte. If the key was absent, it is appended as the last key. When a lane is added, deleted or moved, the array is kept aligned with the lanes.
+- **Settings keys for dates and times.** These are the keys Muninn reads from the footer and from the app-wide defaults. Values of the wrong JSON type, and unknown keys, are ignored and kept as they are.
+
+  | Key | Type | Built-in default | Meaning |
+  |---|---|---|---|
+  | `date-trigger` | string | `"@"` | Text before a date token. |
+  | `time-trigger` | string | `"@@"` | Text before a time token. |
+  | `date-format` | string | `"YYYY-MM-DD"` | Format written inside a new date token. |
+  | `time-format` | string | `"HH:mm"` | Format written inside a new time token, and shown for a time. |
+  | `date-display-format` | string | `"YYYY-MM-DD"` | Format of the date row at the card's foot. |
+  | `show-relative-date` | boolean | `false` | Add `today` / `in N days` beside the date. |
+  | `hide-date-in-title` | boolean | `true` | Keep the date and time tokens out of the card's main text. |
+  | `link-date-to-daily-note` | boolean | `false` | Make the shown date a link to its daily note. |
+
+- **App-wide defaults.** `settings.json` may hold a `kanban_defaults` object
+  with the same keys. It applies to every board that has no value of its own.
+  A key is resolved in this order: the board's settings footer, then
+  `kanban_defaults`, then the built-in default in the table. An absent
+  `kanban_defaults`, or an absent key in it, means the built-in default. The
+  object is written with only the keys that are set.
+- **When a footer key is written.** Slice 9's display keys are read only;
+  they are not rewritten by viewing or by an unrelated card edit. A picker
+  adds its token to the card text, not to the footer. The footer changes only
+  when a later settings panel writes one key, and then only that key's value
+  changes (as for `list-collapse`).
 - **Malformed footer.** If the footer is unterminated or its JSON does not parse, the file is reported as unreadable as a board. It is never treated as an empty board, and Muninn never writes to it.
 
 ## 10. Round-trip and passthrough rules

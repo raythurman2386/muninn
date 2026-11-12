@@ -227,6 +227,7 @@ impl State {
 
     fn open_card_field(&mut self, slot: CardSlot, text: String) {
         self.menu = None;
+        self.close_picker();
         self.set_text_focus(false, false);
         let mut field = TextEdit::new(text);
         field.set_caret(field.text.len());
@@ -283,6 +284,7 @@ impl State {
     pub fn cancel_card_edit(&mut self) {
         self.kanban_card = None;
         self.kanban_card_field = TextEdit::default();
+        self.close_picker();
         if let Some(shown) = &mut self.kanban {
             shown.error = None;
         }
@@ -420,6 +422,8 @@ impl State {
             // than let a later Delete act on another card or lane.
             self.menu = None;
         }
+        // A picker names a card by place, and an edit may have moved it.
+        self.close_picker();
         // Slice 6: a press held on a card or lane may now point elsewhere.
         self.kanban_drag = None;
         true
@@ -446,6 +450,7 @@ impl State {
         // undo can move them: it closes rather than act on another one.
         self.menu = None;
         let kept = self.selected_card();
+        self.close_picker();
         let Some(shown) = &mut self.kanban else {
             return;
         };
