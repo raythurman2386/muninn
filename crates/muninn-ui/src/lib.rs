@@ -24,6 +24,7 @@ mod kanban_edit;
 mod kanban_lanes;
 mod kanban_links;
 mod kanban_sync;
+mod kanban_tags;
 mod kanban_view;
 mod keys;
 mod mode;
@@ -69,8 +70,8 @@ pub use settings::{
 pub use state::{
     ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction, FindState,
     FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport, LinkComplete,
-    MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TrashUndo,
-    file_action_command,
+    MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TagComplete,
+    TrashUndo, file_action_command,
 };
 pub use tray::{
     TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,

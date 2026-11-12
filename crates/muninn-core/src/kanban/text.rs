@@ -29,12 +29,26 @@ pub struct DateToken {
     pub link: bool,
 }
 
-/// One `#tag` found in card text. The `#` is not part of `tag`.
+/// One `#tag` found in card text. `tag` is the word without its `#`; `start`
+/// is the byte of the `#`, so `text[start..end]` is the whole token.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagToken {
     pub tag: String,
     pub start: usize,
     pub end: usize,
+}
+
+/// The characters a tag may hold after its `#`.
+#[must_use]
+pub fn is_tag_char(c: char) -> bool {
+    c.is_alphanumeric() || matches!(c, '_' | '-' | '/')
+}
+
+/// Whether `tag` (without its `#`) is a tag: non-empty, its characters are
+/// [`is_tag_char`], and it is not only digits.
+#[must_use]
+pub fn is_tag_text(tag: &str) -> bool {
+    !tag.is_empty() && tag.chars().all(is_tag_char) && !tag.chars().all(char::is_numeric)
 }
 
 /// What [`scan_card_text`] found: the first date, the first time, and every
@@ -52,11 +66,33 @@ impl CardText {
     /// never change for a display setting.
     #[must_use]
     pub fn without_dates(&self, text: &str) -> String {
-        let mut ranges: Vec<Range<usize>> = [&self.date, &self.time]
-            .into_iter()
-            .flatten()
-            .map(|token| token.start..token.end)
-            .collect();
+        self.without(text, true, false)
+    }
+
+    /// `text` without every tag token. This is what `hide-tags-in-title`
+    /// shows; like [`CardText::without_dates`] it only changes the display.
+    #[must_use]
+    pub fn without_tags(&self, text: &str) -> String {
+        self.without(text, false, true)
+    }
+
+    /// `text` without the tokens the named display settings hide. Ranges come
+    /// from one scan of `text`, so hiding both kinds in one pass stays
+    /// correct; hiding dates and tags in two passes would use stale offsets.
+    #[must_use]
+    pub fn without(&self, text: &str, dates: bool, tags: bool) -> String {
+        let mut ranges: Vec<Range<usize>> = Vec::new();
+        if dates {
+            ranges.extend(
+                [&self.date, &self.time]
+                    .into_iter()
+                    .flatten()
+                    .map(|token| token.start..token.end),
+            );
+        }
+        if tags {
+            ranges.extend(self.tags.iter().map(|token| token.start..token.end));
+        }
         if ranges.is_empty() {
             return text.to_owned();
         }
@@ -116,10 +152,40 @@ pub fn scan_card_text(text: &str, settings: &DateSettings) -> CardText {
         }
         let code = code_ranges(body);
         scan_line(body, line_start, line_end, &triggers, &code, &mut found);
-        scan_tags(body, line_start, &code, &mut found.tags);
+        scan_tags_in_line(body, line_start, &code, &mut found.tags);
         line_start += line.len();
     }
     found
+}
+
+/// Every `#tag` in `text`, outside fenced blocks and inline code. This is the
+/// card scanner's tag half and the note index's body reader
+/// ([`crate::tags::note_tags`]).
+#[must_use]
+pub fn scan_tags(text: &str) -> Vec<TagToken> {
+    let mut tags = Vec::new();
+    let mut fence: Option<(u8, usize)> = None;
+    let mut line_start = 0;
+    for line in text.split_inclusive('\n') {
+        let body = line.strip_suffix('\n').unwrap_or(line);
+        let body = body.strip_suffix('\r').unwrap_or(body);
+        if let Some((marker, run)) = fence {
+            if fence_closes(body, marker, run) {
+                fence = None;
+            }
+            line_start += line.len();
+            continue;
+        }
+        if let Some(opened) = opens_fence(body) {
+            fence = Some(opened);
+            line_start += line.len();
+            continue;
+        }
+        let code = code_ranges(body);
+        scan_tags_in_line(body, line_start, &code, &mut tags);
+        line_start += line.len();
+    }
+    tags
 }
 
 /// The triggers to look for, longest first so `@@` is not read as `@`.
@@ -261,19 +327,17 @@ fn token_at(
     })
 }
 
-fn scan_tags(body: &str, base: usize, code: &[Range<usize>], tags: &mut Vec<TagToken>) {
+fn scan_tags_in_line(body: &str, base: usize, code: &[Range<usize>], tags: &mut Vec<TagToken>) {
     let mut before = ' ';
     for (at, ch) in body.char_indices() {
         if ch == '#' && !in_code(code, at) && before.is_whitespace() {
             let word = &body[at + 1..];
-            let len = word
-                .find(|c: char| !(c.is_alphanumeric() || matches!(c, '_' | '-' | '/')))
-                .unwrap_or(word.len());
+            let len = word.find(|c: char| !is_tag_char(c)).unwrap_or(word.len());
             let tag = &word[..len];
-            if tag.chars().any(|c| !c.is_ascii_digit()) {
+            if is_tag_text(tag) {
                 tags.push(TagToken {
                     tag: tag.to_owned(),
-                    start: base + at + 1,
+                    start: base + at,
                     end: base + at + 1 + len,
                 });
             }
@@ -458,5 +522,38 @@ mod tests {
             ["Ops", "ui/menu", "last"]
         );
         assert!(scan("## not a tag").tags.is_empty());
+        assert!(scan("# Heading").tags.is_empty());
+        assert!(scan("### also a heading").tags.is_empty());
+        assert!(scan("[[Note#heading]]").tags.is_empty());
+        assert!(scan("`#inline`").tags.is_empty());
+        assert!(scan("#123").tags.is_empty());
+        assert!(scan("#١٢٣").tags.is_empty(), "Unicode digits are digits");
+    }
+
+    #[test]
+    fn tags_are_unicode_nested_and_keep_byte_offsets_in_crlf_text() {
+        let text = "#日本語 #café/résumé\r\nsee #parent/child";
+        let found = scan(text);
+        assert_eq!(
+            found
+                .tags
+                .iter()
+                .map(|t| t.tag.as_str())
+                .collect::<Vec<_>>(),
+            ["日本語", "café/résumé", "parent/child"]
+        );
+        for token in &found.tags {
+            let whole = format!("#{}", token.tag);
+            assert_eq!(&text[token.start..token.end], whole);
+        }
+    }
+
+    #[test]
+    fn without_tags_and_without_both_kinds_use_the_same_scan() {
+        let text = "ship #one @{2026-01-01} then #two";
+        let found = scan(text);
+        assert_eq!(found.without_tags(text), "ship  @{2026-01-01} then ");
+        assert_eq!(found.without(text, true, true), "ship   then ");
+        assert_eq!(found.without(text, false, false), text);
     }
 }

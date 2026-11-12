@@ -374,6 +374,8 @@ impl State {
         self.vault_field.focused = false;
         self.complete = None;
         self.complete_dismissed = None;
+        self.tag_complete = None;
+        self.tag_complete_dismissed = None;
         if let Some(find) = self.find.as_mut() {
             find.field.focused = false;
         }

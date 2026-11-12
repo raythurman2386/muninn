@@ -30,8 +30,15 @@
 //!
 //! Empty targets (`[[#Heading]]`) are self-links and resolve to the note that
 //! contains them.
+//!
+//! ## Tag index
+//!
+//! [`Vault::reindex`] also builds a tag index: each note's frontmatter
+//! `tags`/`tag` and body `#tag` tokens (outside code), keyed case-insensitively
+//! with the first spelling kept for display. [`Vault::tag_index`] and
+//! [`Vault::suggest_tags`] read that cache, so a frame never scans notes.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
@@ -78,6 +85,18 @@ pub struct Vault {
     /// NAV-02: unresolved link targets, grouped, with referrers. Rebuilt by
     /// [`Vault::reindex`].
     broken: Vec<BrokenLink>,
+    /// Tags (lower-cased key) → notes, with the first spelling seen for
+    /// display. Rebuilt by [`Vault::reindex`].
+    tag_index: BTreeMap<String, TagEntry>,
+}
+
+/// One tag in a vault's index.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TagEntry {
+    /// The tag as first spelled in file order, without its `#`.
+    pub tag: String,
+    /// Notes that carry it, in note order.
+    pub notes: Vec<usize>,
 }
 
 /// An in-progress chunked scan started by [`Vault::scan_start`].
@@ -154,6 +173,7 @@ impl ScanJob {
             by_title: HashMap::new(),
             skipped: self.skipped,
             broken: Vec::new(),
+            tag_index: BTreeMap::new(),
         };
         vault.reindex();
         vault
@@ -185,6 +205,7 @@ impl Vault {
             by_title: HashMap::new(),
             skipped: 0,
             broken: Vec::new(),
+            tag_index: BTreeMap::new(),
         }
     }
 
@@ -233,10 +254,11 @@ impl Vault {
         })
     }
 
-    /// Rebuild the title index and every note's link lists.
+    /// Rebuild the title index, every note's link lists, and the tag index.
     pub fn reindex(&mut self) {
         for note in &mut self.notes {
             note.kanban = crate::is_kanban(&note.source);
+            note.tags = crate::note_tags(&note.source);
         }
         self.by_path.clear();
         self.by_title.clear();
@@ -293,6 +315,70 @@ impl Vault {
             note.backlinks.sort_unstable();
             note.backlinks.dedup();
         }
+        self.tag_index.clear();
+        for note in &self.notes {
+            for tag in &note.tags {
+                let entry = self
+                    .tag_index
+                    .entry(tag.to_lowercase())
+                    .or_insert_with(|| TagEntry {
+                        tag: tag.clone(),
+                        notes: Vec::new(),
+                    });
+                entry.notes.push(note.id);
+            }
+        }
+    }
+
+    /// The vault's tags, keyed by lower-case tag and sorted by that key. Each
+    /// entry keeps the first spelling seen in note order, and the note ids
+    /// that carry it. Rebuilt by [`Vault::reindex`], so a frame reads a cache
+    /// and never scans notes.
+    #[must_use]
+    pub fn tag_index(&self) -> &BTreeMap<String, TagEntry> {
+        &self.tag_index
+    }
+
+    /// The notes carrying `tag`, matched case-insensitively. Empty when the
+    /// vault has no such tag.
+    #[must_use]
+    pub fn notes_with_tag(&self, tag: &str) -> &[usize] {
+        let tag = tag.strip_prefix('#').unwrap_or(tag);
+        self.tag_index
+            .get(&tag.to_lowercase())
+            .map_or(&[], |entry| entry.notes.as_slice())
+    }
+
+    /// Tags whose display text matches `query`, best first and capped at
+    /// `cap`. A prefix match sorts before a match anywhere; within a rank the
+    /// index's sort order decides. Used by the card editor's `#` completion.
+    #[must_use]
+    pub fn suggest_tags(&self, query: &str, cap: usize) -> Vec<String> {
+        let query = query
+            .strip_prefix('#')
+            .unwrap_or(query)
+            .trim()
+            .to_lowercase();
+        let mut ranked: Vec<(u8, &TagEntry)> = Vec::new();
+        for (key, entry) in &self.tag_index {
+            let score = if query.is_empty() || key.starts_with(&query) {
+                0
+            } else if key.contains(&query) {
+                1
+            } else {
+                continue;
+            };
+            ranked.push((score, entry));
+        }
+        ranked.sort_by(|(sa, a), (sb, b)| {
+            sa.cmp(sb)
+                .then_with(|| a.tag.to_lowercase().cmp(&b.tag.to_lowercase()))
+        });
+        ranked.truncate(cap);
+        ranked
+            .into_iter()
+            .map(|(_, entry)| entry.tag.clone())
+            .collect()
     }
 
     /// Resolve one note's outgoing links, recording each unresolved target in
@@ -1633,6 +1719,7 @@ fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
         source,
         links: Vec::new(),
         backlinks: Vec::new(),
+        tags: Vec::new(),
         kanban: false,
     })
 }

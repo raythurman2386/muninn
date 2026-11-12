@@ -177,7 +177,31 @@ without changing the file. Only an edit the user asks for writes a token.
   the caret, so an editor can add a token next to an existing one. The
   picker's Clear removes the card's date or time token (in the card editor,
   the token in the text being edited); nothing else in the card changes.
-- **Tag:** `#word`, as in ordinary Obsidian tags. Inside code it is not a tag.
+- **Tag:** `#word`, as in ordinary Obsidian tags. A tag starts at the start of
+  a line or after whitespace, and its characters are letters (any script),
+  digits, `_`, `-` and `/`. `#parent/child` is one tag. A tag that is only
+  digits (`#123`) is not a tag, a heading marker (`# Heading`, `##`) is not a
+  tag, and a `#` inside a wikilink target (`[[Note#heading]]`) is not a tag.
+  Inside code (section 10 rule 4) it is not a tag either. Case is kept for
+  display and matching is case-insensitive, so `#Ops` and `#ops` are one tag
+  and the first spelling seen is the one shown.
+  - **Frontmatter.** A note's `tags:` or `tag:` property also contributes
+    tags, as a scalar (`tags: work`, comma- or space-separated) or a list
+    (`tags:` then `- work` lines, or `tags: [work, home]`). Quoted values are
+    unquoted. The property is read-only here and is never rewritten by a
+    display setting.
+  - **Kanban cards.** A card's tags are the note body's tags: a card is a
+    line of the same file, so it needs no separate rule. The vault index
+    reads ordinary notes, kanban cards and frontmatter the same way.
+  - **Display.** `hide-tags-in-title` (default `false`) keeps the tags out of
+    the card's main text and `show-tags-at-bottom` (default `false`) draws
+    tag chips at the card's foot. Display never rewrites the file. Clicking a
+    chip fills the Find bar with `#tag`; it does not filter cards in this
+    version.
+  - **Completion.** In the card editor, typing `#` at a word boundary offers
+    the vault's tags, like `[[` offers notes. Accepting inserts `#tag`; Escape
+    closes the list and leaves the typed `#`. `#` inside a link target, a URL,
+    an email or a heading marker does not open the list.
 - **Inline fields:** text like `[key:: value]`.
   - **Open point T-1:** to be specified before the metadata slice. Kept as text.
 
@@ -224,7 +248,7 @@ The done-lane marker and the archive heading are written in the language of the 
   - When the object has the same key more than once, a JSON reader uses the last member. Muninn changes that last member's value. Removing the key removes every member with that key, so no earlier copy becomes effective. Earlier copies keep their bytes.
 - **Open point S-1:** the meaning of each settings key. Keys are specified per slice, from public user documentation and observed behaviour. `list-collapse` and the date/time keys below are specified; other keys stay open. Unknown keys are always kept.
 - **Settings key `list-collapse`.** The value is a JSON array of booleans with one entry per lane, in file order. `true` means the lane is shown collapsed. A missing key, a short array, or a non-boolean entry means "not collapsed" for that lane. When Muninn changes collapse state, it writes only this key's value. It keeps every other key, and the key order, byte-for-byte. If the key was absent, it is appended as the last key. When a lane is added, deleted or moved, the array is kept aligned with the lanes.
-- **Settings keys for dates and times.** These are the keys Muninn reads from the footer and from the app-wide defaults. Values of the wrong JSON type, and unknown keys, are ignored and kept as they are.
+- **Settings keys for dates, times and tags.** These are the keys Muninn reads from the footer and from the app-wide defaults. Values of the wrong JSON type, and unknown keys, are ignored and kept as they are.
 
   | Key | Type | Built-in default | Meaning |
   |---|---|---|---|
@@ -236,6 +260,9 @@ The done-lane marker and the archive heading are written in the language of the 
   | `show-relative-date` | boolean | `false` | Add `today` / `in N days` beside the date. |
   | `hide-date-in-title` | boolean | `true` | Keep the date and time tokens out of the card's main text. |
   | `link-date-to-daily-note` | boolean | `false` | Make the shown date a link to its daily note. |
+  | `hide-tags-in-title` | boolean | `false` | Keep `#tag` tokens out of the card's main text. |
+  | `show-tags-at-bottom` | boolean | `false` | Draw tag chips at the card's foot. |
+  | `tag-colors` | array of objects | absent | A tag chip's colour, as `{ "tagKey": "work", "color": "1" }`. Kept as written; Muninn has no colour editor yet and viewing never rewrites it. |
 
 - **App-wide defaults.** `settings.json` may hold a `kanban_defaults` object
   with the same keys. It applies to every board that has no value of its own.
@@ -244,11 +271,11 @@ The done-lane marker and the archive heading are written in the language of the 
   `kanban_defaults`, or an absent key in it, means the built-in default. The
   object is written with the keys that are set; a key this version does not
   know, and a known key with the wrong JSON type, is kept as written.
-- **When a footer key is written.** Slice 9's display keys are read only;
-  they are not rewritten by viewing or by an unrelated card edit. A picker
-  adds its token to the card text, not to the footer. The footer changes only
-  when a later settings panel writes one key, and then only that key's value
-  changes (as for `list-collapse`).
+- **When a footer key is written.** The date, time and tag display keys are
+  read only; they are not rewritten by viewing or by an unrelated card edit.
+  A picker adds its token to the card text, not to the footer. The footer
+  changes only when a later settings panel writes one key, and then only that
+  key's value changes (as for `list-collapse`).
 - **Malformed footer.** If the footer is unterminated or its JSON does not parse, the file is reported as unreadable as a board. It is never treated as an empty board, and Muninn never writes to it.
 
 ## 10. Round-trip and passthrough rules

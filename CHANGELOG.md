@@ -54,6 +54,16 @@ All notable changes to Muninn are documented here. The format is based on
   with app-wide `kanban_defaults` in `settings.json`; the footer wins, then the
   app default, then the built-in. Sorting by date uses the parsed day and time,
   and cards with no date sort last. Display settings never rewrite the board.
+- **Card tags.** A card's `#tag` tokens are read outside fences and inline
+  code, with frontmatter `tags:`/`tag:` (scalar or list) and ordinary note
+  bodies in the same vault-wide, case-insensitive tag index. The footer's
+  `hide-tags-in-title` keeps tags out of the card's main text and
+  `show-tags-at-bottom` draws chips at the card's foot; a chip click fills the
+  Find bar with `#tag`. In the card editor, `#` at a word boundary offers the
+  vault's tags and inserts one at the caret, while Escape leaves the typed
+  `#`. `tag-colors` is kept as written for a later editor. Display settings
+  never rewrite the board. App-wide defaults live under `kanban_defaults` in
+  `settings.json`.
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,

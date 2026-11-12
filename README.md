@@ -280,6 +280,14 @@ and a daily-note link when the board asks. A board's settings footer holds `date
 `show-relative-date`, `hide-date-in-title` and `link-date-to-daily-note`; app-wide
 defaults live under `kanban_defaults` in `settings.json`, and the footer wins.
 
+Cards also read `#tag` (outside code, not a heading or only digits) and the
+note's frontmatter `tags:`/`tag:`, into one case-insensitive vault tag index.
+`hide-tags-in-title` keeps tags out of a card's text and `show-tags-at-bottom`
+draws chips at its foot; clicking a chip fills the Find bar with `#tag`.
+Typing `#` at a word boundary in the card editor offers the vault's tags
+(`Enter`/`Tab` inserts, `Esc` leaves the typed `#`). `tag-colors` is kept as
+written for a later colour editor, and no display setting writes the board.
+
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
 full vault-relative stem, so a link keeps working when two notes share a title.
 `[[Note#Heading]]` opens the note at that heading (caret in Write, scroll in Read).

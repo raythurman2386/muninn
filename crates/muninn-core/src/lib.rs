@@ -15,10 +15,12 @@
 //! tools, benchmarks and future front ends.
 
 mod board;
+mod frontmatter;
 mod kanban;
 mod note;
 mod preview;
 mod search;
+mod tags;
 mod vault;
 mod wikilink;
 
@@ -30,15 +32,19 @@ pub use board::{
     IdSource, MUNINN_SOURCE, SCENE_VERSION, Shape, ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE,
     TEXT_LINE_HEIGHT, TextBody, index_after, list_boards,
 };
+pub use frontmatter::{Frontmatter, FrontmatterValue};
 pub use kanban::{
     Archive, Card, CardOrder, CardText, CivilDate, CivilTime, DATE_DISPLAY_FORMAT, DATE_FORMAT,
-    DATE_TRIGGER, DateKind, DateSettings, DateToken, HIDE_DATE_IN_TITLE, Kanban, KanbanDefaults,
-    KanbanFile, LINK_DATE_TO_DAILY_NOTE, Lane, SHOW_RELATIVE_DATE, TIME_FORMAT, TIME_TRIGGER,
-    TagToken, format_date, format_time, is_kanban, scan_card_text,
+    DATE_TRIGGER, DateKind, DateSettings, DateToken, HIDE_DATE_IN_TITLE, HIDE_TAGS_IN_TITLE,
+    Kanban, KanbanDefaults, KanbanFile, LINK_DATE_TO_DAILY_NOTE, Lane, SHOW_RELATIVE_DATE,
+    SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TIME_FORMAT, TIME_TRIGGER, TagColor, TagSettings, TagToken,
+    format_date, format_time, is_kanban, is_tag_char, is_tag_text, scan_card_text, scan_tags,
+    tag_colors, tag_colors_json,
 };
 pub use note::Note;
 pub use preview::Attachment;
-pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy, atomic_write, board_name};
+pub use tags::{note_tags, tag_key, unclosed_tag};
+pub use vault::{BrokenLink, ScanJob, TagEntry, Vault, atomic_copy, atomic_write, board_name};
 pub use wikilink::{
     WikiLink, block_anchors, block_offset, heading_offset, headings, jump_offset, parse_links,
     unclosed_link,
