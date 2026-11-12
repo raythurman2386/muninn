@@ -8038,11 +8038,11 @@
                             "bounds": [
                               365.0,
                               754.0,
-                              63.0,
+                              65.0,
                               16.0
                             ],
                             "key": "scan-ms",
-                            "name": "scan 171 ms",
+                            "name": "scan 172 ms",
                             "role": "label"
                           },
                           {
@@ -26123,12 +26123,12 @@
       "rect": [
         365.0,
         754.0,
-        63.0,
+        65.0,
         16.0
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "scan 171 ms"
+      "text": "scan 172 ms"
     },
     {
       "blur": 0.0,
@@ -26141,9 +26141,9 @@
       "opacity": 1.0,
       "path": "root/main/note-body/page/status-bar/#2",
       "rect": [
-        435.0,
+        437.0,
         762.0,
-        275.0,
+        273.0,
         0.0
       ],
       "role": "group",

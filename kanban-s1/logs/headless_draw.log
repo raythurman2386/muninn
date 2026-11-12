@@ -1,11 +1,11 @@
 ok /agent/repos/muninn/target/ui-smoke/work/draw/open.json: Cmd+\ at 0.50 s
-rune: 136 frames at 60 fps, gpu init 96.7 ms, first frame 61.95 ms, frame cpu mean 8.801 ms p50 5.661 p95 25.630 max 155.842, 566 instances
-rune: animating frames 78 (cpu p50 8.444 p95 31.064 ms), at-rest frames 57 (the window draws none; forced cpu p50 3.733 p95 5.755 ms), layout nodes 147, glyphs 345
+rune: 136 frames at 60 fps, gpu init 99.2 ms, first frame 67.96 ms, frame cpu mean 11.321 ms p50 7.123 p95 38.704 max 162.402, 566 instances
+rune: animating frames 78 (cpu p50 11.287 p95 40.282 ms), at-rest frames 57 (the window draws none; forced cpu p50 5.278 p95 6.880 ms), layout nodes 147, glyphs 345
 ok /agent/repos/muninn/target/ui-smoke/trees/draw-before.json: board-surface-title says 'Tools'
 ok wrote /agent/repos/muninn/target/ui-smoke/work/draw/draw.json: 137 events
 ok /agent/repos/muninn/target/ui-smoke/work/draw/draw.json: Cmd+\ at 0.50 s
-rune: 470 frames at 60 fps, gpu init 92.6 ms, first frame 62.54 ms, frame cpu mean 6.190 ms p50 5.094 p95 10.898 max 159.076, 721 instances
-rune: animating frames 347 (cpu p50 5.304 p95 12.509 ms), at-rest frames 122 (the window draws none; forced cpu p50 4.112 p95 6.584 ms), layout nodes 149, glyphs 360
+rune: 470 frames at 60 fps, gpu init 94.2 ms, first frame 63.74 ms, frame cpu mean 7.447 ms p50 5.930 p95 13.916 max 162.434, 721 instances
+rune: animating frames 347 (cpu p50 6.306 p95 16.270 ms), at-rest frames 122 (the window draws none; forced cpu p50 5.154 p95 7.733 ms), layout nodes 149, glyphs 360
 ok /agent/repos/muninn/target/ui-smoke/trees/draw-drawn.json: board-save-state says 'Unsaved · ⌘S saves'
 ok rectangle edge at (170, 140): ink (10)
 ok rectangle edge at (230, 190): ink (10)
@@ -48,8 +48,8 @@ ok freehand at (515, 350): ink (17)
 ok between freehand peaks at (440, 312): paper (0)
 ok under freehand valley at (470, 390): paper (0)
 ok nothing outside the strokes changed (old elements included)
-rune: 530 frames at 60 fps, gpu init 96.0 ms, first frame 61.97 ms, frame cpu mean 6.041 ms p50 5.080 p95 11.670 max 156.866, 713 instances
-rune: animating frames 382 (cpu p50 5.204 p95 12.631 ms), at-rest frames 147 (the window draws none; forced cpu p50 4.446 p95 6.028 ms), layout nodes 149, glyphs 352
+rune: 530 frames at 60 fps, gpu init 94.0 ms, first frame 63.28 ms, frame cpu mean 7.293 ms p50 5.901 p95 13.495 max 159.558, 713 instances
+rune: animating frames 382 (cpu p50 6.125 p95 16.627 ms), at-rest frames 147 (the window draws none; forced cpu p50 5.481 p95 7.326 ms), layout nodes 149, glyphs 352
 ok /agent/repos/muninn/target/ui-smoke/trees/draw-saved.json: board-save-state says 'Saved'
 ok parses: 5 old + 6 new elements
 ok every old element and top-level key keeps its values
@@ -61,8 +61,8 @@ ok diamond: (354, 84, 120, 100) (off 0.00)
 ok line: (54, 244, 120, 100) (off 0.00)
 ok arrow: (204, 294, 120, 0) (off 0.00)
 ok freedraw: (354, 244, 120, 100) (off 0.00)
-ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 11 elements (10 modelled, 1 kept raw), 0 files, 10533 bytes written
-rune: 91 frames at 60 fps, gpu init 92.6 ms, first frame 45.58 ms, frame cpu mean 4.593 ms p50 4.150 p95 6.205 max 45.584, 708 instances
-rune: animating frames 1 (cpu p50 16.196 p95 16.196 ms), at-rest frames 89 (the window draws none; forced cpu p50 4.146 p95 5.645 ms), layout nodes 147, glyphs 347
+ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 11 elements (10 modelled, 1 kept raw), 0 files, 10530 bytes written
+rune: 91 frames at 60 fps, gpu init 91.9 ms, first frame 42.96 ms, frame cpu mean 5.478 ms p50 5.007 p95 7.415 max 42.956, 708 instances
+rune: animating frames 1 (cpu p50 17.726 p95 17.726 ms), at-rest frames 89 (the window draws none; forced cpu p50 4.992 p95 6.999 ms), layout nodes 147, glyphs 347
 ok /agent/repos/muninn/target/ui-smoke/trees/draw-reloaded.json: board-surface-title says 'Tools'
 ok the canvas matches (0 pixels differ)

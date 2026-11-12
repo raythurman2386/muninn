@@ -66,10 +66,10 @@ ok saved: the text is gone (0 px)
 ok saved: no selection drawn (0 px)
 ok saved: nothing else on the canvas changed
 ok parses: the same 5 elements in order
-ok keep-rect: at (100.000, 80.000), version 12→13, new nonce, updated 1794452827745, isDeleted False; every other field kept
-ok keep-text: at (11.000, 455.123), version 4→11, new nonce, updated 1794452847550, isDeleted True; every other field kept
+ok keep-rect: at (100.000, 80.000), version 12→13, new nonce, updated 1794455959339, isDeleted False; every other field kept
+ok keep-text: at (11.000, 455.123), version 4→11, new nonce, updated 1794455979116, isDeleted True; every other field kept
 ok keep-ellipse, keep-frame, gone and 6 top-level values are byte-identical to s1's save
-ok /agent/repos/muninn/target/ui-smoke/logs/x11-edit-saved.excalidraw: 5 elements (4 modelled, 1 kept raw), 0 files, 3988 bytes written
+ok /agent/repos/muninn/target/ui-smoke/logs/x11-edit-saved.excalidraw: 5 elements (4 modelled, 1 kept raw), 0 files, 3987 bytes written
 ok pressed ctrl+z on 0x200002
 ok dirty: rectangle fill where planned (1344/1344 px)
 ok dirty: no fill where the rectangle was (0 px)
@@ -80,10 +80,10 @@ ok the undo after the save left the file alone
 ok sent WM_DELETE_WINDOW to 0x200002
 app exit status: 0
 ok parses: the same 5 elements in order
-ok keep-rect: at (100.000, 80.000), version 12→13, new nonce, updated 1794452827745, isDeleted False; every other field kept
-ok keep-text: at (11.000, 455.123), version 4→12, new nonce, updated 1794452853304, isDeleted False; every other field kept
+ok keep-rect: at (100.000, 80.000), version 12→13, new nonce, updated 1794455959339, isDeleted False; every other field kept
+ok keep-text: at (11.000, 455.123), version 4→12, new nonce, updated 1794455984891, isDeleted False; every other field kept
 ok keep-ellipse, keep-frame, gone and 6 top-level values are byte-identical to s1's save
-ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 5 elements (4 modelled, 1 kept raw), 0 files, 3988 bytes written
+ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 5 elements (4 modelled, 1 kept raw), 0 files, 3989 bytes written
 ok negative control fails: the quit save is not the Ctrl+S save (FAIL keep-text: version 12, want 11)
 ok negative control fails: outline on the unselected X11 shot (FAIL selected: the rect outline is missing on a side [0, 0, 0, 0, 0, 0, 0, 0])
 ok negative control fails: delete on the undone X11 shot (FAIL deleted: text ink is still drawn (196 px at (483, 675, 555, 692)))

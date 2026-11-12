@@ -1,20 +1,20 @@
-rune: 136 frames at 60 fps, gpu init 93.1 ms, first frame 63.06 ms, frame cpu mean 8.920 ms p50 5.262 p95 25.861 max 158.545, 417 instances
-rune: animating frames 78 (cpu p50 9.100 p95 28.267 ms), at-rest frames 57 (the window draws none; forced cpu p50 4.207 p95 4.788 ms), layout nodes 87, glyphs 233
+rune: 136 frames at 60 fps, gpu init 88.9 ms, first frame 61.18 ms, frame cpu mean 8.624 ms p50 5.372 p95 20.766 max 152.808, 417 instances
+rune: animating frames 78 (cpu p50 8.425 p95 30.274 ms), at-rest frames 57 (the window draws none; forced cpu p50 4.093 p95 5.024 ms), layout nodes 87, glyphs 233
 ok /agent/repos/muninn/target/ui-smoke/trees/sync-before.json: board-surface-title says 'Tools'
 ok wrote /agent/repos/muninn/target/ui-smoke/work/sync/sync.json: 11 events, zoom 1.0000
-rune: 238 frames at 60 fps, gpu init 92.4 ms, first frame 62.28 ms, frame cpu mean 7.926 ms p50 5.111 p95 19.538 max 164.190, 438 instances
-rune: animating frames 163 (cpu p50 5.987 p95 21.323 ms), at-rest frames 74 (the window draws none; forced cpu p50 4.928 p95 5.818 ms), layout nodes 91, glyphs 252
+rune: 238 frames at 60 fps, gpu init 88.7 ms, first frame 61.43 ms, frame cpu mean 6.743 ms p50 4.346 p95 14.526 max 155.077, 438 instances
+rune: animating frames 163 (cpu p50 4.971 p95 16.748 ms), at-rest frames 74 (the window draws none; forced cpu p50 4.189 p95 4.989 ms), layout nodes 91, glyphs 252
 ok /agent/repos/muninn/target/ui-smoke/trees/sync-typed.json: board-save-state says 'Unsaved · ⌘S saves'
 ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw is byte-identical to /agent/repos/muninn/crates/muninn-core/tests/fixtures/board/draw.excalidraw
-rune: 406 frames at 60 fps, gpu init 94.7 ms, first frame 62.39 ms, frame cpu mean 5.860 ms p50 4.312 p95 14.002 max 159.838, 426 instances
-rune: animating frames 177 (cpu p50 4.856 p95 18.741 ms), at-rest frames 228 (the window draws none; forced cpu p50 4.248 p95 5.137 ms), layout nodes 91, glyphs 242
+rune: 406 frames at 60 fps, gpu init 91.5 ms, first frame 61.81 ms, frame cpu mean 5.720 ms p50 4.253 p95 13.297 max 155.101, 426 instances
+rune: animating frames 177 (cpu p50 4.941 p95 16.481 ms), at-rest frames 228 (the window draws none; forced cpu p50 4.196 p95 4.848 ms), layout nodes 91, glyphs 242
 ok /agent/repos/muninn/target/ui-smoke/trees/sync-autosaved.json: board-save-state says 'Saved'
 ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 5 elements kept exactly, 'auto' appended
-ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4898 bytes written
+ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4899 bytes written
 ok negative control fails: the original file as the autosave (FAIL 5 elements, expected 5 + 1)
 ok negative control fails: Saved on the typed tree (FAIL /agent/repos/muninn/target/ui-smoke/trees/sync-typed.json: board-save-state does not say 'Saved')
-rune: 421 frames at 60 fps, gpu init 94.2 ms, first frame 62.53 ms, frame cpu mean 5.727 ms p50 4.348 p95 13.437 max 156.464, 436 instances
-rune: animating frames 177 (cpu p50 4.957 p95 16.094 ms), at-rest frames 243 (the window draws none; forced cpu p50 4.273 p95 5.144 ms), layout nodes 91, glyphs 252
+rune: 421 frames at 60 fps, gpu init 92.2 ms, first frame 61.89 ms, frame cpu mean 5.644 ms p50 4.261 p95 13.452 max 155.171, 436 instances
+rune: animating frames 177 (cpu p50 4.788 p95 15.676 ms), at-rest frames 243 (the window draws none; forced cpu p50 4.218 p95 5.044 ms), layout nodes 91, glyphs 252
 ok /agent/repos/muninn/target/ui-smoke/trees/sync-off.json: board-save-state says 'Unsaved · ⌘S saves'
 ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw is byte-identical to /agent/repos/muninn/crates/muninn-core/tests/fixtures/board/draw.excalidraw
 ok with board_autosave off the file is untouched

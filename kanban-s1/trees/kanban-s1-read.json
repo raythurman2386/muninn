@@ -203,7 +203,7 @@
                       0.0,
                       143.0,
                       258.0,
-                      1188.0
+                      1388.0
                     ],
                     "children": [
                       {
@@ -255,7 +255,7 @@
                               14.0,
                               16.0
                             ],
-                            "name": "23",
+                            "name": "27",
                             "role": "label"
                           },
                           {
@@ -290,7 +290,7 @@
                           }
                         ],
                         "key": "folder-header-root",
-                        "name": "▾ Vault root 23",
+                        "name": "▾ Vault root 27",
                         "role": "button"
                       },
                       {
@@ -587,7 +587,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "card-paragraph",
+                            "name": "card-closed-fence",
                             "role": "label"
                           },
                           {
@@ -605,7 +605,7 @@
                           }
                         ],
                         "key": "note-row-6",
-                        "name": "card-paragraph no links",
+                        "name": "card-closed-fence no links",
                         "role": "button"
                       },
                       {
@@ -632,7 +632,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "card-text",
+                            "name": "card-open-fence",
                             "role": "label"
                           },
                           {
@@ -645,12 +645,12 @@
                               197.0,
                               16.0
                             ],
-                            "name": "2 links",
+                            "name": "no links",
                             "role": "label"
                           }
                         ],
                         "key": "note-row-7",
-                        "name": "card-text 2 links",
+                        "name": "card-open-fence no links",
                         "role": "button"
                       },
                       {
@@ -677,7 +677,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "crlf",
+                            "name": "card-paragraph",
                             "role": "label"
                           },
                           {
@@ -695,7 +695,7 @@
                           }
                         ],
                         "key": "note-row-8",
-                        "name": "crlf no links",
+                        "name": "card-paragraph no links",
                         "role": "button"
                       },
                       {
@@ -722,7 +722,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "done-lane",
+                            "name": "card-text",
                             "role": "label"
                           },
                           {
@@ -735,12 +735,12 @@
                               197.0,
                               16.0
                             ],
-                            "name": "no links",
+                            "name": "2 links",
                             "role": "label"
                           }
                         ],
                         "key": "note-row-9",
-                        "name": "done-lane no links",
+                        "name": "card-text 2 links",
                         "role": "button"
                       },
                       {
@@ -767,7 +767,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "fence-opaque",
+                            "name": "crlf",
                             "role": "label"
                           },
                           {
@@ -785,7 +785,7 @@
                           }
                         ],
                         "key": "note-row-10",
-                        "name": "fence-opaque no links",
+                        "name": "crlf no links",
                         "role": "button"
                       },
                       {
@@ -812,7 +812,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "footer-nested",
+                            "name": "done-lane",
                             "role": "label"
                           },
                           {
@@ -830,7 +830,7 @@
                           }
                         ],
                         "key": "note-row-11",
-                        "name": "footer-nested no links",
+                        "name": "done-lane no links",
                         "role": "button"
                       },
                       {
@@ -857,7 +857,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "frontmatter-extra",
+                            "name": "fence-longer-close",
                             "role": "label"
                           },
                           {
@@ -875,7 +875,7 @@
                           }
                         ],
                         "key": "note-row-12",
-                        "name": "frontmatter-extra no links",
+                        "name": "fence-longer-close no links",
                         "role": "button"
                       },
                       {
@@ -902,7 +902,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "lanes-and-limits",
+                            "name": "fence-opaque",
                             "role": "label"
                           },
                           {
@@ -920,7 +920,7 @@
                           }
                         ],
                         "key": "note-row-13",
-                        "name": "lanes-and-limits no links",
+                        "name": "fence-opaque no links",
                         "role": "button"
                       },
                       {
@@ -947,7 +947,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "multibyte",
+                            "name": "fence-unclosed",
                             "role": "label"
                           },
                           {
@@ -965,7 +965,7 @@
                           }
                         ],
                         "key": "note-row-14",
-                        "name": "multibyte no links",
+                        "name": "fence-unclosed no links",
                         "role": "button"
                       },
                       {
@@ -992,7 +992,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "multiline-cards",
+                            "name": "footer-nested",
                             "role": "label"
                           },
                           {
@@ -1010,7 +1010,7 @@
                           }
                         ],
                         "key": "note-row-15",
-                        "name": "multiline-cards no links",
+                        "name": "footer-nested no links",
                         "role": "button"
                       },
                       {
@@ -1037,7 +1037,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "new-kanban",
+                            "name": "frontmatter-extra",
                             "role": "label"
                           },
                           {
@@ -1055,7 +1055,7 @@
                           }
                         ],
                         "key": "note-row-16",
-                        "name": "new-kanban no links",
+                        "name": "frontmatter-extra no links",
                         "role": "button"
                       },
                       {
@@ -1082,7 +1082,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "no-final-newline",
+                            "name": "lanes-and-limits",
                             "role": "label"
                           },
                           {
@@ -1100,7 +1100,7 @@
                           }
                         ],
                         "key": "note-row-17",
-                        "name": "no-final-newline no links",
+                        "name": "lanes-and-limits no links",
                         "role": "button"
                       },
                       {
@@ -1127,7 +1127,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "passthrough",
+                            "name": "multibyte",
                             "role": "label"
                           },
                           {
@@ -1145,7 +1145,7 @@
                           }
                         ],
                         "key": "note-row-18",
-                        "name": "passthrough no links",
+                        "name": "multibyte no links",
                         "role": "button"
                       },
                       {
@@ -1172,7 +1172,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "plain-list",
+                            "name": "multiline-cards",
                             "role": "label"
                           },
                           {
@@ -1190,7 +1190,7 @@
                           }
                         ],
                         "key": "note-row-19",
-                        "name": "plain-list no links",
+                        "name": "multiline-cards no links",
                         "role": "button"
                       },
                       {
@@ -1217,7 +1217,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "Roadmap",
+                            "name": "new-kanban",
                             "role": "label"
                           },
                           {
@@ -1230,12 +1230,12 @@
                               197.0,
                               16.0
                             ],
-                            "name": "2 backlinks",
+                            "name": "no links",
                             "role": "label"
                           }
                         ],
                         "key": "note-row-20",
-                        "name": "Roadmap 2 backlinks",
+                        "name": "new-kanban no links",
                         "role": "button"
                       },
                       {
@@ -1262,7 +1262,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "settings-footer",
+                            "name": "no-final-newline",
                             "role": "label"
                           },
                           {
@@ -1280,7 +1280,7 @@
                           }
                         ],
                         "key": "note-row-21",
-                        "name": "settings-footer no links",
+                        "name": "no-final-newline no links",
                         "role": "button"
                       },
                       {
@@ -1307,7 +1307,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "spec-example",
+                            "name": "passthrough",
                             "role": "label"
                           },
                           {
@@ -1320,11 +1320,191 @@
                               197.0,
                               16.0
                             ],
-                            "name": "1 link",
+                            "name": "no links",
                             "role": "label"
                           }
                         ],
                         "key": "note-row-22",
+                        "name": "passthrough no links",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          1325.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              1330.0,
+                              197.0,
+                              20.0
+                            ],
+                            "name": "plain-list",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              1352.0,
+                              197.0,
+                              16.0
+                            ],
+                            "name": "no links",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-23",
+                        "name": "plain-list no links",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          1375.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              1380.0,
+                              197.0,
+                              20.0
+                            ],
+                            "name": "Roadmap",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              1402.0,
+                              197.0,
+                              16.0
+                            ],
+                            "name": "2 backlinks",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-24",
+                        "name": "Roadmap 2 backlinks",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          1425.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              1430.0,
+                              197.0,
+                              20.0
+                            ],
+                            "name": "settings-footer",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              1452.0,
+                              197.0,
+                              16.0
+                            ],
+                            "name": "no links",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-25",
+                        "name": "settings-footer no links",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          1475.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              1480.0,
+                              197.0,
+                              20.0
+                            ],
+                            "name": "spec-example",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              1502.0,
+                              197.0,
+                              16.0
+                            ],
+                            "name": "1 link",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-26",
                         "name": "spec-example 1 link",
                         "role": "button"
                       }
@@ -1338,7 +1518,7 @@
                 "scroll": [
                   0.0,
                   0.0,
-                  600.0
+                  800.0
                 ],
                 "states": [
                   "clips"
@@ -1348,10 +1528,10 @@
                 "bounds": [
                   15.0,
                   750.0,
-                  90.0,
+                  89.0,
                   16.0
                 ],
-                "name": "23 notes · 3 links",
+                "name": "27 notes · 3 links",
                 "role": "label"
               },
               {
@@ -1908,7 +2088,7 @@
                                     "setSize": 5
                                   }
                                 ],
-                                "key": "preview-7",
+                                "key": "preview-9",
                                 "role": "group"
                               }
                             ],
@@ -2101,7 +2281,7 @@
                                 "role": "label"
                               }
                             ],
-                            "key": "rail-link-1-20",
+                            "key": "rail-link-1-24",
                             "name": "Roadmap",
                             "role": "button"
                           },
@@ -2647,7 +2827,7 @@
         0.0,
         143.0,
         258.0,
-        1188.0
+        1388.0
       ],
       "role": "list",
       "scale": 1.0
@@ -2733,7 +2913,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "23"
+      "text": "27"
     },
     {
       "blur": 0.0,
@@ -3496,7 +3676,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "card-paragraph"
+      "text": "card-closed-fence"
     },
     {
       "blur": 0.0,
@@ -3521,11 +3701,10 @@
     },
     {
       "blur": 0.0,
-      "fill": "#a2bcff1a",
+      "fill": "#00000000",
       "focusVisible": false,
       "focusable": true,
       "focused": false,
-      "hover": 1.0,
       "inert": false,
       "key": "note-row-7",
       "loopPhase": null,
@@ -3542,7 +3721,7 @@
     },
     {
       "blur": 0.0,
-      "fill": "#a2bcffff",
+      "fill": "#808080ff",
       "focusVisible": false,
       "focusable": false,
       "focused": false,
@@ -3580,7 +3759,7 @@
     },
     {
       "blur": 0.0,
-      "color": "#a2bcffff",
+      "color": "#fafafaff",
       "fill": "#00000000",
       "focusVisible": false,
       "focusable": false,
@@ -3597,7 +3776,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "card-text"
+      "text": "card-open-fence"
     },
     {
       "blur": 0.0,
@@ -3618,7 +3797,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "2 links"
+      "text": "no links"
     },
     {
       "blur": 0.0,
@@ -3697,7 +3876,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "crlf"
+      "text": "card-paragraph"
     },
     {
       "blur": 0.0,
@@ -3722,10 +3901,11 @@
     },
     {
       "blur": 0.0,
-      "fill": "#00000000",
+      "fill": "#a2bcff1a",
       "focusVisible": false,
       "focusable": true,
       "focused": false,
+      "hover": 1.0,
       "inert": false,
       "key": "note-row-9",
       "loopPhase": null,
@@ -3742,7 +3922,7 @@
     },
     {
       "blur": 0.0,
-      "fill": "#808080ff",
+      "fill": "#a2bcffff",
       "focusVisible": false,
       "focusable": false,
       "focused": false,
@@ -3780,7 +3960,7 @@
     },
     {
       "blur": 0.0,
-      "color": "#fafafaff",
+      "color": "#a2bcffff",
       "fill": "#00000000",
       "focusVisible": false,
       "focusable": false,
@@ -3797,7 +3977,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "done-lane"
+      "text": "card-text"
     },
     {
       "blur": 0.0,
@@ -3818,7 +3998,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "no links"
+      "text": "2 links"
     },
     {
       "blur": 0.0,
@@ -3897,7 +4077,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "fence-opaque"
+      "text": "crlf"
     },
     {
       "blur": 0.0,
@@ -3997,7 +4177,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "footer-nested"
+      "text": "done-lane"
     },
     {
       "blur": 0.0,
@@ -4097,7 +4277,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "frontmatter-extra"
+      "text": "fence-longer-close"
     },
     {
       "blur": 0.0,
@@ -4197,7 +4377,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "lanes-and-limits"
+      "text": "fence-opaque"
     },
     {
       "blur": 0.0,
@@ -4297,7 +4477,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "multibyte"
+      "text": "fence-unclosed"
     },
     {
       "blur": 0.0,
@@ -4397,7 +4577,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "multiline-cards"
+      "text": "footer-nested"
     },
     {
       "blur": 0.0,
@@ -4497,7 +4677,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "new-kanban"
+      "text": "frontmatter-extra"
     },
     {
       "blur": 0.0,
@@ -4597,7 +4777,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "no-final-newline"
+      "text": "lanes-and-limits"
     },
     {
       "blur": 0.0,
@@ -4697,7 +4877,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "passthrough"
+      "text": "multibyte"
     },
     {
       "blur": 0.0,
@@ -4797,7 +4977,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "plain-list"
+      "text": "multiline-cards"
     },
     {
       "blur": 0.0,
@@ -4897,7 +5077,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "Roadmap"
+      "text": "new-kanban"
     },
     {
       "blur": 0.0,
@@ -4918,7 +5098,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "2 backlinks"
+      "text": "no links"
     },
     {
       "blur": 0.0,
@@ -4997,7 +5177,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "settings-footer"
+      "text": "no-final-newline"
     },
     {
       "blur": 0.0,
@@ -5042,7 +5222,7 @@
     },
     {
       "blur": 0.0,
-      "fill": "#a2bcff8c",
+      "fill": "#808080ff",
       "focusVisible": false,
       "focusable": false,
       "focused": false,
@@ -5097,7 +5277,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "spec-example"
+      "text": "passthrough"
     },
     {
       "blur": 0.0,
@@ -5118,6 +5298,406 @@
       ],
       "role": "text",
       "scale": 1.0,
+      "text": "no links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-23",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-23",
+      "rect": [
+        8.0,
+        1325.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-23/#0",
+      "rect": [
+        28.0,
+        1346.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-23/#1",
+      "rect": [
+        43.0,
+        1330.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-23/#1/#0",
+      "rect": [
+        43.0,
+        1330.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "plain-list"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-23/#1/#1",
+      "rect": [
+        43.0,
+        1352.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "no links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-24",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-24",
+      "rect": [
+        8.0,
+        1375.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-24/#0",
+      "rect": [
+        28.0,
+        1396.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-24/#1",
+      "rect": [
+        43.0,
+        1380.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-24/#1/#0",
+      "rect": [
+        43.0,
+        1380.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Roadmap"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-24/#1/#1",
+      "rect": [
+        43.0,
+        1402.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "2 backlinks"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-25",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-25",
+      "rect": [
+        8.0,
+        1425.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-25/#0",
+      "rect": [
+        28.0,
+        1446.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-25/#1",
+      "rect": [
+        43.0,
+        1430.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-25/#1/#0",
+      "rect": [
+        43.0,
+        1430.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "settings-footer"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-25/#1/#1",
+      "rect": [
+        43.0,
+        1452.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "no links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-26",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-26",
+      "rect": [
+        8.0,
+        1475.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcff8c",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-26/#0",
+      "rect": [
+        28.0,
+        1496.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-26/#1",
+      "rect": [
+        43.0,
+        1480.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-26/#1/#0",
+      "rect": [
+        43.0,
+        1480.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "spec-example"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-26/#1/#1",
+      "rect": [
+        43.0,
+        1502.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
       "text": "1 link"
     },
     {
@@ -5132,7 +5712,7 @@
       "path": "root/sidebar/note-scroll/#1",
       "rect": [
         0.0,
-        1335.0,
+        1535.0,
         258.0,
         0.0
       ],
@@ -5191,12 +5771,12 @@
       "rect": [
         15.0,
         750.0,
-        90.0,
+        89.0,
         16.0
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "23 notes · 3 links"
+      "text": "27 notes · 3 links"
     },
     {
       "blur": 0.0,
@@ -5209,9 +5789,9 @@
       "opacity": 1.0,
       "path": "root/sidebar/#6/#1",
       "rect": [
-        113.0,
+        112.0,
         758.0,
-        42.0,
+        43.0,
         0.0
       ],
       "role": "group",
@@ -5947,10 +6527,10 @@
       "focusable": false,
       "focused": false,
       "inert": false,
-      "key": "preview-7",
+      "key": "preview-9",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9",
       "rect": [
         311.0,
         95.0,
@@ -5970,7 +6550,7 @@
       "key": "b0",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b0",
       "rect": [
         311.0,
         95.0,
@@ -5992,7 +6572,7 @@
       "level": 2,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b1",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b1",
       "rect": [
         311.0,
         127.5,
@@ -6015,7 +6595,7 @@
       "level": 2,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/heading-30",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/heading-30",
       "rect": [
         311.0,
         175.5,
@@ -6036,7 +6616,7 @@
       "key": "b3",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3",
       "rect": [
         311.0,
         209.5,
@@ -6057,7 +6637,7 @@
       "label": "Review Roadmap with the team",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i0",
       "rect": [
         311.0,
         209.5,
@@ -6077,7 +6657,7 @@
       "key": "control",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i0/control",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i0/control",
       "rect": [
         319.0,
         214.0,
@@ -6098,7 +6678,7 @@
       "key": "mark",
       "loopPhase": null,
       "opacity": 0.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i0/control/mark",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i0/control/mark",
       "rect": [
         322.0,
         217.0,
@@ -6117,7 +6697,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i0/#1",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i0/#1",
       "rect": [
         343.0,
         209.5,
@@ -6138,7 +6718,7 @@
       "key": "b0",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i0/#1/b0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i0/#1/b0",
       "rect": [
         343.0,
         209.5,
@@ -6160,7 +6740,7 @@
       "label": "Daily @2026-11-11 and the embed 2026-11-11",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i1",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i1",
       "rect": [
         311.0,
         238.5,
@@ -6180,7 +6760,7 @@
       "key": "control",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i1/control",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i1/control",
       "rect": [
         319.0,
         243.0,
@@ -6201,7 +6781,7 @@
       "key": "mark",
       "loopPhase": null,
       "opacity": 0.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i1/control/mark",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i1/control/mark",
       "rect": [
         322.0,
         246.0,
@@ -6220,7 +6800,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i1/#1",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i1/#1",
       "rect": [
         343.0,
         238.5,
@@ -6241,7 +6821,7 @@
       "key": "b0",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i1/#1/b0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i1/#1/b0",
       "rect": [
         343.0,
         238.5,
@@ -6263,7 +6843,7 @@
       "label": "Due @{2026-11-11} at @@{14:30} #release",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i2",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i2",
       "rect": [
         311.0,
         267.5,
@@ -6283,7 +6863,7 @@
       "key": "control",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i2/control",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i2/control",
       "rect": [
         319.0,
         272.0,
@@ -6304,7 +6884,7 @@
       "key": "mark",
       "loopPhase": null,
       "opacity": 0.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i2/control/mark",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i2/control/mark",
       "rect": [
         322.0,
         275.0,
@@ -6323,7 +6903,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i2/#1",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i2/#1",
       "rect": [
         343.0,
         267.5,
@@ -6344,7 +6924,7 @@
       "key": "b0",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i2/#1/b0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i2/#1/b0",
       "rect": [
         343.0,
         267.5,
@@ -6366,7 +6946,7 @@
       "label": "Inline [owner:: muninn] stays text",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i3",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i3",
       "rect": [
         311.0,
         296.5,
@@ -6386,7 +6966,7 @@
       "key": "control",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i3/control",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i3/control",
       "rect": [
         319.0,
         301.0,
@@ -6407,7 +6987,7 @@
       "key": "mark",
       "loopPhase": null,
       "opacity": 0.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i3/control/mark",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i3/control/mark",
       "rect": [
         322.0,
         304.0,
@@ -6426,7 +7006,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i3/#1",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i3/#1",
       "rect": [
         343.0,
         296.5,
@@ -6447,7 +7027,7 @@
       "key": "b0",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i3/#1/b0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i3/#1/b0",
       "rect": [
         343.0,
         296.5,
@@ -6469,7 +7049,7 @@
       "label": "A code span keeps #notag and [[Hidden]]",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i4",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i4",
       "rect": [
         311.0,
         325.5,
@@ -6489,7 +7069,7 @@
       "key": "control",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i4/control",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i4/control",
       "rect": [
         319.0,
         330.0,
@@ -6510,7 +7090,7 @@
       "key": "mark",
       "loopPhase": null,
       "opacity": 0.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i4/control/mark",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i4/control/mark",
       "rect": [
         322.0,
         333.0,
@@ -6529,7 +7109,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i4/#1",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i4/#1",
       "rect": [
         343.0,
         325.5,
@@ -6550,7 +7130,7 @@
       "key": "b0",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i4/#1/b0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i4/#1/b0",
       "rect": [
         343.0,
         325.5,
@@ -7025,10 +7605,10 @@
       "focusable": true,
       "focused": false,
       "inert": false,
-      "key": "rail-link-1-20",
+      "key": "rail-link-1-24",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-1-20",
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-1-24",
       "rect": [
         905.0,
         171.0,
@@ -7048,7 +7628,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-1-20/#0",
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-1-24/#0",
       "rect": [
         913.0,
         178.5,
@@ -7067,7 +7647,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-1-20/#1",
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-1-24/#1",
       "rect": [
         934.0,
         177.0,
@@ -7087,7 +7667,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-1-20/#1/#0",
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-1-24/#1/#0",
       "rect": [
         934.0,
         177.0,
@@ -7388,7 +7968,7 @@
       "label": "Roadmap",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i0/#1/b0#link-0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i0/#1/b0#link-0",
       "rect": [
         394.26,
         209.5,
@@ -7411,7 +7991,7 @@
       "label": "2026-11-11",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-7/b3/i1/#1/b0#link-0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-9/b3/i1/#1/b0#link-0",
       "rect": [
         393.14,
         238.5,
