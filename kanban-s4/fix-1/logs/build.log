@@ -1,0 +1,4 @@
+   Compiling muninn-ui v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-ui)
+   Compiling muninn-app v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-app)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.80s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.40s

@@ -1,0 +1,91 @@
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/text/open.json: Cmd+\ at 0.50 s
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 19 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 136 frames at 60 fps, gpu init 78.5 ms, first frame 62.15 ms, frame cpu mean 5.076 ms p50 2.477 p95 13.279 max 138.069, 573 instances
+rune: animating frames 78 (cpu p50 3.799 p95 15.094 ms), at-rest frames 57 (the window draws none; forced cpu p50 1.990 p95 4.055 ms), layout nodes 154, glyphs 351
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/text-before.json: board-surface-title says 'Tools'
+ok wrote /home/ret/Development/muninn-kanban/target/ui-smoke/work/text/text.json: 39 events, zoom 1.0000
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/text/text.json: Cmd+\ at 0.50 s
+ok before: nothing at the click yet (0 px)
+ok before: keep-text ink in place, right edge +0 px (there)
+ok before: nothing else on the canvas changed (no shape from the drag)
+rune: `init` blocked 15 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 18 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 250 frames at 60 fps, gpu init 78.8 ms, first frame 62.24 ms, frame cpu mean 3.923 ms p50 2.196 p95 10.523 max 135.918, 599 instances
+rune: animating frames 164 (cpu p50 2.382 p95 11.027 ms), at-rest frames 85 (the window draws none; forced cpu p50 1.948 p95 3.270 ms), layout nodes 157, glyphs 376
+ok typing: new text ink on two lines at the click (187 + 146 px)
+ok typing: keep-text ink in place, right edge +0 px (there)
+ok typing: nothing else on the canvas changed (no shape from the drag)
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 332 frames at 60 fps, gpu init 78.6 ms, first frame 62.98 ms, frame cpu mean 3.588 ms p50 2.230 p95 8.931 max 135.241, 598 instances
+rune: animating frames 206 (cpu p50 2.448 p95 10.399 ms), at-rest frames 125 (the window draws none; forced cpu p50 2.008 p95 3.748 ms), layout nodes 159, glyphs 376
+ok committed: new text ink on two lines at the click (187 + 104 px)
+ok committed: keep-text ink in place, right edge +0 px (there)
+ok committed: nothing else on the canvas changed (no shape from the drag)
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 391 frames at 60 fps, gpu init 78.8 ms, first frame 62.72 ms, frame cpu mean 3.483 ms p50 2.136 p95 9.152 max 135.983, 599 instances
+rune: animating frames 256 (cpu p50 2.643 p95 10.691 ms), at-rest frames 134 (the window draws none; forced cpu p50 1.969 p95 2.916 ms), layout nodes 158, glyphs 376
+ok editing: new text ink on two lines at the click (187 + 104 px)
+ok editing: keep-text ink in place, right edge +3 px (caret)
+ok editing: nothing else on the canvas changed (no shape from the drag)
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 439 frames at 60 fps, gpu init 79.0 ms, first frame 62.99 ms, frame cpu mean 3.416 ms p50 2.217 p95 6.604 max 134.951, 601 instances
+rune: animating frames 283 (cpu p50 2.571 p95 8.798 ms), at-rest frames 155 (the window draws none; forced cpu p50 1.984 p95 3.504 ms), layout nodes 159, glyphs 377
+ok edited: new text ink on two lines at the click (187 + 104 px)
+ok edited: keep-text ink in place, right edge +4 px (longer)
+ok edited: nothing else on the canvas changed (no shape from the drag)
+rune: `init` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 472 frames at 60 fps, gpu init 79.0 ms, first frame 62.47 ms, frame cpu mean 3.404 ms p50 2.239 p95 6.125 max 136.109, 652 instances
+rune: animating frames 316 (cpu p50 2.552 p95 8.412 ms), at-rest frames 155 (the window draws none; forced cpu p50 1.996 p95 3.423 ms), layout nodes 160, glyphs 376
+ok undone: new text ink on two lines at the click (187 + 104 px)
+ok undone: keep-text ink in place, right edge -2 px (there)
+ok undone: nothing else on the canvas changed (no shape from the drag)
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 505 frames at 60 fps, gpu init 79.1 ms, first frame 63.17 ms, frame cpu mean 3.363 ms p50 2.243 p95 6.082 max 136.358, 651 instances
+rune: animating frames 349 (cpu p50 2.575 p95 8.128 ms), at-rest frames 155 (the window draws none; forced cpu p50 1.958 p95 3.293 ms), layout nodes 160, glyphs 377
+ok redone: new text ink on two lines at the click (187 + 104 px)
+ok redone: keep-text ink in place, right edge +4 px (longer)
+ok redone: nothing else on the canvas changed (no shape from the drag)
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 556 frames at 60 fps, gpu init 79.0 ms, first frame 62.58 ms, frame cpu mean 3.267 ms p50 2.157 p95 6.128 max 135.830, 637 instances
+rune: animating frames 387 (cpu p50 2.361 p95 7.356 ms), at-rest frames 168 (the window draws none; forced cpu p50 1.996 p95 3.392 ms), layout nodes 160, glyphs 363
+ok saved: new text ink on two lines at the click (187 + 104 px)
+ok saved: keep-text ink in place, right edge +4 px (longer)
+ok saved: nothing else on the canvas changed (no shape from the drag)
+ok the editor is open at typing and editing
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/text-committed.json: no board-text-editor
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/text-edited.json: no board-text-editor
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/text-committed.json: board-save-state says 'Unsaved · Ctrl+S saves'
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/text-saved.json: board-save-state says 'Saved'
+ok parses: the 5 elements in order and one new
+ok new text: 'r1 dü\nok' as text and originalText, at (200, 180), 44 × 50, Excalidraw's text fields
+ok keep-text: 'keep me!', version 4→7, wider (72.5→85); every other field kept
+ok keep-rect, keep-ellipse, keep-frame, gone and 6 top-level values are byte-identical to s1's save
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4916 bytes written
+ok negative control fails: new text on the before shot (FAIL typing: no new text ink at (795, 391, 969, 449) (0 px))
+ok negative control fails: the edit on the undone shot (FAIL edited: keep-text ink did not grow (by -2 px))
+ok negative control fails: the undo on the redone shot (FAIL undone: keep-text ink width changed by 4 px)
+ok negative control fails: the original file (FAIL elements ['keep-rect', 'keep-ellipse', 'keep-frame', 'keep-text', 'gone'], want ['keep-rect', 'keep-ellipse', 'keep-frame', 'keep-text', 'gone'] and one new element)
+ok negative control fails: a changed byte in an untouched element (FAIL untouched element keep-ellipse bytes differ from s1's save)
+ok negative control fails: originalText without the non-ASCII character (FAIL new text: originalText 'r1 du\nok', want 'r1 dü\nok')

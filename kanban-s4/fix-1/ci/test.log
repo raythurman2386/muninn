@@ -1,0 +1,924 @@
+   Compiling muninn-ui v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-ui)
+   Compiling muninn-app v0.7.1 (/home/ret/Development/muninn-kanban/crates/muninn-app)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 26s
+     Running unittests src/main.rs (target/debug/deps/muninn-e70152b3512d8f39)
+
+running 14 tests
+test cli_tests::cli_parses_check_list_links_help_and_trace ... ok
+test cli_tests::new_instance_is_a_run_flag ... ok
+test instance::tests::instance_child_probe ... ok
+test instance::tests::paths_follow_the_runtime_dir ... ok
+test instance::tests::bad_requests_are_dropped ... ok
+test instance::tests::a_dropped_primary_frees_the_lock ... ok
+test tests::the_last_public_scene_names_remain_stable ... ok
+test instance::tests::a_stale_socket_file_is_replaced_under_the_lock ... ok
+test tests::vault_flag_accepts_both_spellings ... ok
+test instance::tests::a_long_folder_gets_a_short_private_socket_path ... ok
+test instance::tests::the_second_claim_is_handed_to_the_first ... ok
+test instance::tests::another_process_holds_it_and_a_kill_frees_it_at_once ... ok
+test instance::tests::a_holder_that_never_answers_is_an_error_and_its_socket_is_left_alone ... ok
+test tests::close_flush_writes_a_dirty_buffer ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+
+     Running tests/cli.rs (target/debug/deps/cli-85e96530aeb70af6)
+
+running 9 tests
+test help_names_the_new_commands ... ok
+test a_missing_check_path_prints_our_usage ... ok
+test list_links_prints_sorted_referrer_target_lines ... ok
+test check_exit_zero_for_a_clean_vault ... ok
+test single_instance::a_second_launch_hands_over_its_vault_and_token_and_exits_0 ... ok
+test check_exit_two_for_a_missing_vault_and_creates_nothing ... ok
+test check_exit_one_reports_broken_links_and_duplicates ... ok
+test version_prints_the_crate_version_and_exits_without_a_window ... ok
+test single_instance::a_running_app_that_never_answers_makes_the_launch_exit_1 ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.01s
+
+     Running unittests src/lib.rs (target/debug/deps/muninn_core-0ff33b61706d4e51)
+
+running 137 tests
+test board::create::tests::ids_look_like_excalidraw_ids_and_seeds_fit_31_bits ... ok
+test board::create::tests::index_keys_count_up_like_fractional_indexing ... ok
+test board::create::tests::an_unindexed_board_gets_no_index ... ok
+test board::create::tests::a_new_id_never_collides_with_one_on_the_board ... ok
+test board::create::tests::a_drawn_rectangle_has_excalidraws_fields_and_normalised_box ... ok
+test board::create::tests::strokes_without_extent_add_nothing ... ok
+test board::edit::tests::a_drag_back_to_the_start_changes_nothing ... ok
+test board::create::tests::lines_arrows_and_strokes_keep_points_relative_to_their_start ... ok
+test board::edit::tests::locked_elements_are_neither_moved_nor_deleted ... ok
+test board::edit::tests::hits_outlines_of_transparent_shapes_and_lines_and_fills_inside ... ok
+test board::edit::tests::moving_keeps_the_precision_of_the_original_position ... ok
+test board::edit::tests::rotation_moves_the_hit_area ... ok
+test board::edit::tests::moves_and_deletes_bump_versions_and_undo_redo_bump_again ... ok
+test board::edit::tests::undoing_a_creation_leaves_a_tombstone_and_redo_brings_it_back ... ok
+test board::tests::a_new_board_is_an_empty_v2_scene ... ok
+test board::tests::deleted_elements_are_kept_but_not_live ... ok
+test board::edit::tests::groups_select_together ... ok
+test board::edit::tests::marquee_picks_only_whole_elements_and_skips_locked_deleted_raw ... ok
+test board::tests::an_older_excalidraw_export_keeps_its_legacy_fields ... ok
+test board::tests::numbers_are_written_like_json_stringify ... ok
+test board::tests::edits_keep_unknown_fields_elements_and_top_level_keys ... ok
+test board::tests::elements_muninn_cannot_represent_stay_raw ... ok
+test board::edit::tests::a_bound_label_selects_moves_and_deletes_with_its_container ... ok
+test board::text::tests::empty_text_adds_nothing_and_emptying_text_deletes_it ... ok
+test board::text::tests::editing_text_bumps_once_and_undo_redo_bump_again ... ok
+test board::create::tests::drawing_on_an_excalidraw_scene_appends_and_keeps_every_old_element ... ok
+test board::tests::only_excalidraw_scenes_load ... ok
+test kanban::tests::a_broken_footer_is_never_an_empty_board ... ok
+test kanban::tests::a_blank_line_then_an_indented_paragraph_stays_with_the_card ... ok
+test board::text::tests::locked_or_other_elements_are_not_edited ... ok
+test kanban::tests::a_column_zero_fence_is_not_board_structure ... ok
+test kanban::tests::a_column_zero_fence_line_is_not_part_of_the_card ... ok
+test kanban::tests::a_column_zero_card_after_a_closed_fence_is_its_own_card ... ok
+test kanban::tests::a_final_carriage_return_is_the_same_line_ending_for_detection_and_parse ... ok
+test kanban::tests::a_column_zero_task_while_an_indented_fence_is_open_starts_a_new_card ... ok
+test kanban::tests::a_deeper_first_continuation_does_not_change_later_lines ... ok
+test board::text::tests::undoing_placed_text_leaves_a_tombstone ... ok
+test board::tests::a_board_that_fails_to_parse_is_never_overwritten_by_load ... ok
+test kanban::tests::a_four_space_line_above_a_tab_line_is_rejected ... ok
+test kanban::tests::a_four_space_line_on_a_tab_card_stays_in_the_card ... ok
+test kanban::tests::a_longer_closing_fence_ends_the_fence ... ok
+test kanban::tests::a_one_space_card_indents_a_new_line_by_one_space ... ok
+test kanban::tests::a_tab_line_on_a_three_space_card_stays_in_the_card ... ok
+test kanban::tests::a_unicode_whitespace_line_survives_an_edit ... ok
+test kanban::tests::add_lane_on_a_file_with_no_final_newline_keeps_that_and_a_gap ... ok
+test kanban::tests::adding_a_card_on_a_one_space_board_uses_two_spaces ... ok
+test kanban::tests::adding_a_card_beside_an_ideographic_line_keeps_the_new_line_indented ... ok
+test kanban::tests::an_edit_that_would_change_the_card_text_is_rejected ... ok
+test kanban::tests::an_added_line_on_a_mixed_indent_card_moves_with_the_card ... ok
+test kanban::tests::an_ideographic_space_inside_a_fence_does_not_swallow_the_next_card ... ok
+test kanban::tests::an_ideographic_space_stays_inside_the_card ... ok
+test kanban::tests::an_unchanged_edit_keeps_mixed_continuation_indents ... ok
+test kanban::tests::an_unclosed_indented_fence_does_not_swallow_the_next_lane ... ok
+test kanban::tests::detection_edges ... ok
+test board::text::tests::placed_text_has_excalidraws_text_fields_and_round_trips ... ok
+test kanban::tests::editing_a_card_does_not_keep_a_stray_carriage_return ... ok
+test kanban::tests::every_listed_marker_language_round_trips ... ok
+test kanban::tests::card_wikilinks_stay_in_the_note_index ... ok
+test board::tests::an_excalidraw_scene_round_trips_without_losing_anything ... ok
+test kanban::tests::an_edit_round_trips_every_kind_of_new_line ... ok
+test kanban::tests::edits_change_only_their_lines ... ok
+test kanban::tests::heading_after_the_archive_is_not_dropped ... ok
+test kanban::tests::footer_edits_keep_nested_objects ... ok
+test kanban::tests::malformed_fixtures_are_invalid_data_and_still_detect ... ok
+test kanban::tests::every_valid_fixture_round_trips ... ok
+test kanban::tests::moving_a_card_onto_an_indented_note_is_rejected ... ok
+test kanban::tests::footer_edits_touch_one_key ... ok
+test kanban::tests::moving_an_open_fence_card_to_the_end_of_the_lane_keeps_its_text ... ok
+test kanban::tests::fixture_models_match_the_spec ... ok
+test kanban::tests::one_indented_continuation_keeps_its_indent ... ok
+test kanban::tests::open_points_keep_the_text ... ok
+test kanban::tests::set_setting_does_not_grow_a_file_that_ends_in_a_fence ... ok
+test kanban::tests::toggle_of_a_multibyte_mark_changes_that_character ... ok
+test kanban::tests::new_kanban_is_refused_in_a_folder_that_links_out_of_the_vault ... ok
+test preview::tests::a_board_embed_renders_a_board_placeholder ... ok
+test preview::tests::aliases_headings_and_self_links_resolve ... ok
+test preview::tests::attachment_embeds_render_a_placeholder_not_a_missing_link ... ok
+test preview::tests::nested_preview_uses_the_full_stem ... ok
+test preview::tests::preview_rewrites_only_real_links ... ok
+test search::tests::search_and_snippets_find_notes ... ok
+test board::edit::tests::history_is_bounded ... ok
+test testing::tests::a_scratch_dir_is_gone_once_its_thread_ends ... ok
+test kanban::tests::convert_refuses_a_note_with_text_and_writes_nothing ... ok
+test vault::atomic_write_tests::failed_write_keeps_in_memory_source ... ok
+test vault::board_create_tests::a_new_board_is_refused_in_a_folder_that_links_out_of_the_vault ... ok
+test board::tests::boards_are_listed_separately_from_notes ... ok
+test vault::board_create_tests::a_refused_board_folder_is_not_created_outside_the_vault ... ok
+test vault::board_rename_tests::a_board_is_renamed_in_place_with_its_bytes_and_the_extension_implicit ... ok
+test vault::board_rename_tests::a_board_outside_the_vault_or_behind_a_link_is_not_renamed ... ok
+test vault::board_rename_tests::a_board_rename_never_overwrites_another_file ... ok
+test kanban::tests::save_uses_the_atomic_writer ... ok
+test kanban::tests::new_kanban_folders_drop_dot_parts_and_stay_in_the_vault ... ok
+test vault::board_rename_tests::invalid_board_names_are_refused_not_rewritten ... ok
+test vault::board_rename_tests::multibyte_board_names_of_11_to_14_bytes_are_accepted_without_panicking ... ok
+test vault::load_error_tests::a_file_as_the_vault_root_is_an_error ... ok
+test vault::load_error_tests::a_missing_root_is_created_empty ... ok
+test vault::load_error_tests::an_unreadable_root_is_an_error_not_an_empty_vault ... ok
+test vault::load_error_tests::invalid_utf8_notes_are_skipped_and_counted ... ok
+test board::edit::tests::history_of_a_big_drawing_stays_within_its_byte_budget ... ok
+test vault::tests::chunked_scan_matches_a_full_load ... ok
+test vault::board_create_tests::a_new_board_stays_inside_the_vault ... ok
+test vault::atomic_write_tests::atomic_write_leaves_old_or_new_and_cleans_temp ... ok
+test vault::tests::duplicate_titles_resolve_deterministically_and_path_wins ... ok
+test vault::tests::folder_crud_create_rename_and_delete_empty_only ... ok
+test vault::atomic_write_tests::create_note_in_writes_atomically_and_leaves_no_temp ... ok
+test vault::board_create_tests::a_new_board_is_an_empty_scene_and_never_overwrites ... ok
+test vault::tests::broken_links_are_cached_grouped_and_update_after_create ... ok
+test kanban::tests::new_kanban_writes_the_spec_layout_under_unique_names ... ok
+test board::tests::seventeen_digit_coordinates_survive_load_and_save_exactly ... ok
+test board::tests::saving_is_atomic_and_leaves_no_temp_files ... ok
+test vault::tests::leaving_folder_links_alone_keeps_them_dangling ... ok
+test vault::tests::note_crud_rename_delete_and_move ... ok
+test vault::tests::links_resolve_by_title_path_and_case ... ok
+test vault::tests::self_links_stay_on_their_own_duplicate ... ok
+test vault::tests::suggestions_rank_titles_and_show_duplicates_by_folder ... ok
+test vault::tests::unicode_titles_search_resolve_and_duplicate_labels ... ok
+test vault::trash_budget_tests::empty_trash_clears_the_budget_without_touching_live_files ... ok
+test vault::trash_budget_tests::prune_keeps_the_byte_cap_and_drops_the_oldest_slot ... ok
+test vault::trash_tests::deleted_notes_go_to_hidden_trash_and_restore_with_links ... ok
+test vault::trash_tests::restore_refuses_to_overwrite_an_existing_note ... ok
+test vault::trash_tests::restore_rejects_paths_outside_the_trash ... ok
+test vault::trash_tests::trash_preserves_nested_paths_and_is_unique_per_delete ... ok
+test wikilink::completion_tests::headings_find_atx_lines_outside_fences_case_insensitively ... ok
+test wikilink::completion_tests::unclosed_link_detects_the_query_and_ignores_codes_and_closed_links ... ok
+test wikilink::tests::aliases_headings_and_self_links_are_parsed ... ok
+test wikilink::tests::code_spans_and_fences_keep_their_brackets ... ok
+test vault::trash_budget_tests::prune_keeps_the_entry_cap_and_drops_the_oldest_slots ... ok
+test vault::tests::duplicate_bare_title_is_rewritten_only_when_it_resolved_here ... ok
+test vault::tests::folder_rename_handles_nested_paths_and_respects_bare_duplicate_choice ... ok
+test vault::trash_budget_tests::an_over_budget_trash_never_fails_a_delete ... ok
+test vault::board_rename_tests::embeds_and_links_to_a_renamed_board_follow_it ... ok
+test kanban::tests::the_index_follows_a_new_kanban_and_a_convert ... ok
+test vault::tests::folder_rename_rewrites_qualified_heading_alias_and_bare_links ... ok
+test vault::tests::created_notes_get_unique_names ... ok
+test vault::board_rename_tests::multibyte_names_through_every_name_taking_path ... ok
+test vault::tests::rename_rewrite_preserves_alias_heading_and_duplicate_choice ... ok
+test vault::tests::folders_group_notes_and_creation_targets_a_folder ... ok
+
+test result: ok. 137 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running unittests examples/board_resave.rs (target/debug/examples/board_resave-38c17425abc8ec52)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/board_roundtrip.rs (target/debug/examples/board_roundtrip-a27479fa3811815a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/kanban_roundtrip.rs (target/debug/examples/kanban_roundtrip-ceeab7f2127f4e68)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/muninn_graph-2e60d705b1cc0767)
+
+running 11 tests
+test camera::tests::camera_round_trips_between_world_and_screen ... ok
+test camera::tests::camera_zoom_keeps_the_pointer_point ... ok
+test camera::tests::fitted_camera_matches_fit_and_centres_the_bounds ... ok
+test camera::tests::focused_camera_centres_the_point_and_never_zooms_out ... ok
+test layout::dense::dense_seeds_stay_inside_the_world ... ok
+test layout::tests::edges_are_undirected_and_deduplicated ... ok
+test layout::tests::bounds_and_visible_edges_follow_the_selection ... ok
+test layout::tests::layout_is_deterministic ... ok
+test layout::tests::layout_finishes_and_stays_in_the_world ... ok
+test layout::grid::grid_repulsion_matches_the_exhaustive_pass ... ok
+test layout::dense::dense_layout_goes_dormant_with_bounded_residual ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+
+     Running tests/perf.rs (target/debug/deps/perf-677c9be6a3176967)
+
+running 3 tests
+test real_vault_step_and_settle ... ignored, set MUNINN_BENCH_VAULT to a read-only vault copy
+test settle_time_at_2000_notes_is_reported ... ignored, manual measurement: 2000-note settle is slow in a debug test build
+test step_p95_fits_the_2000_note_budget ... ok
+
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 5.75s
+
+     Running unittests src/lib.rs (target/debug/deps/muninn_sync-57f7e1248e92bfba)
+
+running 88 tests
+test auth_tests::browser_opens_only_https_urls_without_a_shell ... ok
+test clients::tests::google_sends_the_bundled_secret_only_with_the_bundled_id ... ok
+test clients::tests::the_google_client_never_prints_its_secret ... ok
+test clients::tests::the_override_wins_then_the_bundled_id_then_a_clear_error ... ok
+test apply::tests::dirty_path_blocks_before_any_write ... ok
+test credentials::tests::native_backend_is_compiled_and_not_opened ... ok
+test error::tests::provider_reasons_that_name_a_field_stay_readable ... ok
+test error::tests::secret_and_token_values_are_still_redacted ... ok
+test auth_tests::keys_and_pkce_values_are_fresh_full_length_randomness ... ok
+test lease::tests::lease_child_probe ... ok
+test pathutil::tests::accepts_nested_note_and_attachment ... ok
+test pathutil::tests::rejects_non_nfc ... ok
+test pathutil::tests::rejects_traversal_and_windows_traps ... ok
+test credentials::tests::memory_store_round_trips_and_debug_does_not_apply ... ok
+test lease::tests::a_second_process_cannot_take_the_lease_and_drop_releases_it ... ok
+test plan::tests::divergent_renames_conflict ... ok
+test plan::tests::a_rename_onto_a_free_or_identical_target_is_still_a_rename ... ok
+test plan::tests::duplicate_then_edit_the_original_keeps_both ... ok
+test plan::tests::an_edit_beside_a_copy_of_the_old_bytes_is_not_a_rename ... ok
+test plan::tests::edit_edit_and_edit_delete_conflict ... ok
+test plan::tests::first_bind_same_path_disagreement_conflicts ... ok
+test plan::tests::exact_rename_is_detected_and_ambiguous_rename_is_not ... ok
+test plan::tests::first_bind_unions_and_does_not_delete ... ok
+test plan::tests::identical_edits_converge_without_transfer ... ok
+test plan::tests::keep_both_merge_never_drops_content ... ok
+test plan::tests::keep_both_keeps_one_sided_deletes_renames_and_edits_beside_a_conflict ... ok
+test plan::tests::local_delete_of_unchanged_remote_does_not_pull_it_back ... ok
+test plan::tests::keep_both_writes_a_remote_copy_name ... ok
+test plan::tests::keep_both_resolves_every_conflict_kind_without_dropping_content ... ok
+test plan::tests::noop_when_everyone_agrees ... ok
+test plan::tests::offline_client_does_not_resurrect_a_deleted_file ... ok
+test plan::tests::local_rename_onto_a_name_the_remote_just_created_keeps_both ... ok
+test plan::tests::one_sided_edit_transfers ... ok
+test plan::tests::planning_the_desired_tree_twice_is_a_noop ... ok
+test plan::tests::remote_rename_onto_a_name_this_side_just_created_keeps_both ... ok
+test plan::tests::rename_against_edit_conflicts ... ok
+test plan::tests::rename_against_an_edit_and_a_new_note_at_the_target_does_not_stick ... ok
+test plan::tests::rename_rename_onto_a_name_the_remote_just_created_keeps_both ... ok
+test plan::tests::rename_rename_onto_a_name_this_side_just_created_keeps_both ... ok
+test plan::tests::unchanged_remote_delete_removes_local_and_records_tombstone ... ok
+test auth_tests::google_sign_in_without_a_secret_fails_closed_before_the_browser ... ok
+test provider_tests::cancel_and_timeout_and_rate_limit ... ok
+test provider_tests::drive_oauth_state_and_scope_are_checked ... ok
+test auth_tests::github_device_code_that_expires_stops_polling ... ok
+test auth_tests::github_device_sign_in_polls_at_the_server_interval_and_records_the_login ... ok
+test auth_tests::google_exchange_failure_shows_a_failure_page_and_stores_nothing ... ok
+test auth_tests::google_store_failure_shows_a_failure_page ... ok
+test provider_tests::drive_refresh_without_a_google_client_fails_closed_and_sends_nothing ... ok
+test apply::tests::delete_keeps_a_checkpoint_outside_the_vault ... ok
+test apply::tests::apply_replaces_a_file_and_resume_finishes_after_a_crash ... ok
+test provider_tests::drive_refresh_keeps_the_refresh_token_google_did_not_resend ... ok
+test provider_tests::drive_pagination_concurrent_heads_and_traversal ... ok
+test provider_tests::each_binding_gets_its_own_private_state_dir_and_legacy_base_moves_once ... ok
+test auth_tests::google_sign_in_uses_pkce_the_consent_host_and_a_loopback_redirect ... ok
+test provider_tests::drive_store_lives_in_app_data_and_store_names_do_not_mix ... ok
+test provider_tests::github_bad_refresh_token_is_auth_and_keeps_the_stored_pair ... ok
+test provider_tests::github_device_flow_honors_pending_slow_down_and_denial ... ok
+test auth_tests::loopback_redirect_checks_state_and_ignores_other_paths ... ok
+test provider_tests::github_401_refreshes_once_then_retries ... ok
+test provider_tests::github_publish_is_force_false_and_round_trips_rename_delete ... ok
+test provider_tests::github_publish_refuses_a_tip_that_moved_after_the_plan ... ok
+test provider_tests::github_rejects_symlink_truncation_and_protected_branch ... ok
+test provider_tests::drive_devices_that_merge_a_stuck_store_at_once_converge ... ok
+test provider_tests::engine_pushes_and_pulls_between_two_synthetic_vaults ... ok
+test provider_tests::drive_two_device_race_keeps_both_changes ... ok
+test provider_tests::github_race_that_never_settles_fails_without_touching_the_vault ... ok
+test provider_tests::drive_two_devices_creating_the_store_at_once_do_not_split_it ... ok
+test secret::tests::debug_redacts_the_token ... ok
+test secret::tests::store_json_round_trips_without_debug_leaking ... ok
+test provider_tests::drive_writer_that_lands_during_blob_upload_is_merged_not_forked ... ok
+test tailnet_tests::tailnet_host_down_is_offline_and_leaves_the_vault_alone ... ok
+test tailnet_tests::tailnet_host_names_and_allowlist ... ok
+test provider_tests::github_token_near_expiry_is_refreshed_and_the_rotated_pair_is_stored ... ok
+test provider_tests::two_bindings_sync_without_sharing_a_base ... ok
+test provider_tests::drive_conflicting_heads_keep_both_versions_and_unstick_the_store ... ok
+test tailnet_tests::tailnet_server_requires_the_key_and_optional_login ... ok
+test provider_tests::drive_losing_head_device_keeps_both_edits_after_a_head_merge ... ok
+test provider_tests::github_two_device_race_keeps_both_changes ... ok
+test provider_tests::github_sync_reads_one_recursive_tree_and_reuses_known_blobs ... ok
+test tailnet_tests::tailnet_store_is_create_only_and_fast_forward_only ... ok
+test tailnet_tests::tailnet_two_device_race_through_the_engine_keeps_both_changes ... ok
+test provider_tests::github_same_note_edit_on_two_devices_keeps_both_and_does_not_stall ... ok
+test tailnet_tests::tailnet_engine_host_and_peer_converge_with_tombstones ... ok
+test provider_tests::drive_same_note_edit_on_two_devices_keeps_both_and_does_not_stall ... ok
+test tailnet_tests::tailnet_stale_peer_is_refused_and_edit_conflicts_use_the_planner ... ok
+test tailnet_tests::tailnet_same_note_edit_on_two_devices_keeps_both_and_does_not_stall ... ok
+test provider_tests::github_rename_onto_a_note_the_other_device_created_keeps_both ... ok
+test provider_tests::drive_rename_onto_a_note_the_other_device_created_keeps_both ... ok
+
+test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.13s
+
+     Running unittests src/lib.rs (target/debug/deps/muninn_ui-b24cac917c7fe31d)
+
+running 68 tests
+test board_camera::tests::a_drag_moves_the_content_by_the_drag ... ok
+test autostart::tests::windows_arguments_name_the_run_value ... ok
+test autostart::tests::exec_escapes_reserved_characters ... ok
+test autostart::tests::the_desktop_entry_launches_the_quoted_executable ... ok
+test board_camera::tests::a_fit_centres_the_bounds_with_the_margin ... ok
+test board_camera::tests::the_world_offset_matches_rune_scaling_about_the_centre ... ok
+test board_camera::tests::stored_views_must_be_finite_and_positive ... ok
+test board_camera::tests::zoom_is_clamped ... ok
+test board_camera::tests::zoom_keeps_the_point_under_the_pointer ... ok
+test board_camera::tests::screen_and_scene_round_trip ... ok
+test board_scene::tests::an_empty_board_has_no_bounds ... ok
+test board_scene::tests::colours_follow_the_file ... ok
+test board_scene::tests::bounds_cover_boxes_and_points_and_the_world_pads_them ... ok
+test board_safety::tests::plain_paths_inside_pass_and_dot_dot_or_absolute_fail ... ok
+test camera::tests::a_glide_moves_a_little_on_the_first_frame_and_lands_on_time ... ok
+test board_scene::tests::rotation_grows_the_bounds_and_tombstones_are_skipped ... ok
+test board_scene::tests::unmodelled_elements_with_a_box_are_outlined_and_others_ignored ... ok
+test camera::tests::a_glide_is_deterministic ... ok
+test kanban_edit::tests::split_keeps_each_line_in_order_without_its_lead ... ok
+test kanban_view::tests::a_lane_is_over_its_limit_only_past_it ... ok
+test board_safety::tests::a_symlinked_folder_pointing_out_of_the_vault_is_outside ... ok
+test kanban_edit::tests::history_keeps_the_newest_entries ... ok
+test omarchy::tests::settings_theme_omarchy_serializes_and_loads ... ok
+test omarchy::tests::missing_core_colours_have_no_kit ... ok
+test recovery::tests::sidecar_round_trips_paths_with_quotes_and_unicode ... ok
+test recovery::tests::sanitize_keeps_names_bounded_and_distinct ... ok
+test settings::tests::board_autosave_is_on_by_default_and_in_old_files ... ok
+test settings::tests::mode_keys_are_appended_and_each_loads_back ... ok
+test settings::tests::recent_vaults_are_mru_and_capped ... ok
+test settings::tests::note_template_is_empty_by_default_and_clamped ... ok
+test settings::tests::the_saved_board_loads_with_or_without_a_view ... ok
+test settings::tests::the_saved_kanban_is_a_non_empty_path ... ok
+test board_scene::tests::the_fixture_scene_draws_every_live_element ... ok
+test settings::tests::corrupt_settings_fall_back_to_defaults ... ok
+test settings::tests::tray_slice_two_switches_are_off_by_default_and_in_old_files ... ok
+test state::tests::reduced_motion_flag_accepts_documented_values ... ok
+test recovery::tests::records_in_the_old_shared_layout_still_restore_for_their_own_vault ... ok
+test autostart::tests::an_inherited_appimage_is_ignored ... ok
+test settings::tests::malformed_sync_disables_sync_and_settings_never_store_tokens ... ok
+test settings::tests::settings_round_trip_through_disk ... ok
+test sync_ui::tests::each_binding_runs_in_its_own_state_dir ... ok
+test sync_ui::tests::every_provider_run_keeps_both_versions_of_a_conflict_by_default ... ok
+test omarchy::tests::dark_palette_resolves_and_derives_a_dark_kit ... ok
+test omarchy::tests::faint_muted_is_kept_when_it_would_be_unreadable ... ok
+test omarchy::tests::light_palette_and_luminance_fallback_resolve ... ok
+test recovery::tests::an_old_layout_record_shadowed_by_a_newer_copy_is_never_offered_again ... ok
+test sync_ui::tests::leaving_the_sync_tab_drops_field_focus_and_hides_the_key ... ok
+test sync_ui::tests::drive_connect_with_a_custom_client_id_never_sends_the_official_secret ... ok
+test sync_ui::tests::drive_connect_without_a_built_in_secret_fails_closed ... ok
+test tray::tests::menu_ids_map_to_actions ... ok
+test tray::tests::status_labels_keep_the_first_sentence_and_cap_length ... ok
+test tray::tests::the_icon_is_64_square_rgba ... ok
+test tray::tests::sync_now_is_greyed_when_not_ready ... ok
+test tray::tests::the_menu_is_small_and_the_status_row_is_disabled ... ok
+test view::help_layout_tests::column_count_follows_the_main_column ... ok
+test view::help_layout_tests::diagnostics_split_keeps_the_log_tail_separate ... ok
+test view::help_layout_tests::shortcut_labels_keep_every_chord_and_context ... ok
+test watch::tests::missing_files_become_none_instead_of_failing ... ok
+test watch::tests::snapshot_tracks_content_and_new_entries ... ok
+test sync_ui::tests::sync_ready_needs_a_binding_and_an_idle_unblocked_sync ... ok
+test sync_ui::tests::drive_connect_is_not_connected_when_the_token_cannot_be_stored ... ok
+test sync_ui::tests::connect_drive_signs_in_through_the_browser_and_stores_the_token ... ok
+test sync_ui::tests::sync_now_keeps_the_sign_in_error_in_the_status ... ok
+test sync_ui::tests::tailscale_reconnect_deletes_the_old_key_and_stops_the_old_host ... ok
+test sync_ui::tests::poll_keeps_waking_while_a_sync_is_in_flight ... ok
+test recovery::tests::two_vaults_sharing_a_state_home_never_touch_each_others_copies ... ok
+test sync_ui::tests::connect_replaces_the_old_binding_only_after_sign_in_succeeds ... ok
+test sync_ui::tests::tailscale_host_and_peer_keep_the_key_out_of_settings ... ok
+
+test result: ok. 68 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/attachments.rs (target/debug/deps/attachments-3808234a72d5daf3)
+
+running 8 tests
+test reveal_and_open_use_xdg_open_on_an_absolute_path ... ok
+test attachment_metadata_resolves_size_and_refuses_escapes ... ok
+test opening_a_missing_path_reports_an_error_without_spawning ... ok
+test unsupported_drop_types_are_refused_with_a_reason ... ok
+test importing_never_overwrites_an_existing_file ... ok
+test images_are_imported_as_files_but_do_not_become_notes ... ok
+test dropping_markdown_copies_it_into_the_current_folder_and_reloads ... ok
+test the_reader_lists_attachments_with_an_open_button ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/board_canvas.rs (target/debug/deps/board_canvas-f60801586e7b06a1)
+
+running 12 tests
+test a_board_is_remembered_for_the_next_launch_only_once_a_frame_drew_it ... ok
+test opening_a_board_fits_its_drawing_in_the_canvas ... ok
+test switching_vaults_closes_the_open_board ... ok
+test a_drag_pans_and_the_wheel_zooms_about_the_pointer ... ok
+test leaving_board_keeps_the_view_and_rereads_the_file ... ok
+test keys_and_buttons_zoom_pan_and_fit ... ok
+test switching_to_a_vault_with_no_boards_lists_none_and_remembers_none ... ok
+test a_restart_reopens_the_last_board_at_its_view ... ok
+test each_board_keeps_its_view_for_the_session ... ok
+test a_big_vault_reopens_the_last_board_and_its_view_after_the_scan ... ok
+test a_big_vault_relaunched_in_write_keeps_the_board_it_would_restore ... ok
+test a_huge_font_size_opens_and_zooms_without_panicking ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.19s
+
+     Running tests/board_draw.rs (target/debug/deps/board_draw-92621119b9fbf801)
+
+running 11 tests
+test command_s_saves_atomically_and_keeps_every_old_element ... ok
+test a_board_from_another_vault_is_refused_by_save ... ok
+test a_file_changed_on_disk_is_never_overwritten ... ok
+test closing_the_app_saves_unsaved_drawing ... ok
+test a_click_draws_nothing_and_the_hand_pans ... ok
+test tool_keys_and_the_toolbar_pick_tools_and_esc_drops_them ... ok
+test switching_vaults_saves_into_the_old_vault_only ... ok
+test a_board_that_cannot_be_saved_refuses_a_vault_rescan ... ok
+test unsaved_drawing_survives_a_mode_switch_and_is_saved_before_another_board_opens ... ok
+test each_tool_draws_its_element_where_the_pointer_went ... ok
+test a_board_that_cannot_be_saved_refuses_a_large_chunked_rescan ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests/board_edit.rs (target/debug/deps/board_edit-c6377ed4e4ad53dd)
+
+running 16 tests
+test arrows_nudge_the_selection_and_pan_without_one ... ok
+test after_an_edit_a_resized_canvas_keeps_the_view_instead_of_refitting ... ok
+test a_drag_moves_the_selection_and_bumps_each_element_once ... ok
+test delete_and_backspace_leave_tombstones_and_never_touch_the_note ... ok
+test shift_clicking_a_label_deselects_its_shape_and_dragging_by_it_keeps_the_selection ... ok
+test a_shapes_bound_label_moves_deletes_and_undoes_with_it_and_never_orphans ... ok
+test a_press_on_a_resize_handle_does_nothing_until_resizing_exists ... ok
+test picking_a_tool_or_the_hand_clears_the_selection_and_the_hand_pans ... ok
+test a_click_selects_shift_click_adds_or_removes_and_esc_clears_first ... ok
+test a_marquee_picks_whole_elements_and_shift_adds ... ok
+test a_selected_thin_line_arrow_or_small_shape_still_drags_from_itself ... ok
+test typing_in_the_sidebar_search_never_deletes_selects_all_or_undoes_on_board ... ok
+test deletes_undos_and_moves_keep_the_recovery_copy_current_but_not_per_drag_frame ... ok
+test undo_and_redo_cover_drawing_moves_and_deletes_with_growing_versions ... ok
+test undo_after_a_save_makes_the_board_dirty_and_the_save_keeps_its_guards ... ok
+test the_watcher_seeing_muninns_own_save_neither_refits_nor_drops_the_history ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/board_links.rs (target/debug/deps/board_links-76bd806c11401e5b)
+
+running 3 tests
+test board_with_nothing_picked_says_no_board_selected_not_empty_board ... ok
+test a_board_embed_in_a_note_opens_that_board ... ok
+test the_sidebar_lists_boards_in_every_mode_and_opens_one_on_board ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/board_mode.rs (target/debug/deps/board_mode-d8ac2acc08014d1d)
+
+running 9 tests
+test settings_written_before_board_still_load ... ok
+test opening_a_note_from_the_sidebar_leaves_board_for_write ... ok
+test the_mode_button_and_the_palette_enter_board ... ok
+test a_fresh_scan_of_the_vault_resets_the_board_list_too ... ok
+test the_board_page_lists_vault_boards_with_element_counts ... ok
+test switching_vaults_drops_the_old_vaults_boards_and_selection ... ok
+test cmd_4_shows_the_board_page_and_esc_returns_to_the_last_note_mode ... ok
+test board_is_the_restored_mode_after_a_restart ... ok
+test moving_between_graph_board_and_the_note_modes_keeps_the_note_memory ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+     Running tests/board_rename.rs (target/debug/deps/board_rename-dc290ee1cec6d66f)
+
+running 11 tests
+test rename_from_the_notes_sidebar_boards_section ... ok
+test esc_cancels_a_board_rename_and_changes_nothing ... ok
+test double_click_the_board_title_renames_the_open_board ... ok
+test f2_on_a_board_with_no_panel_row_renames_in_the_title ... ok
+test hiding_the_sidebar_or_leaving_board_cancels_a_board_rename ... ok
+test rename_from_the_board_panel_row_menu ... ok
+test embeds_of_a_renamed_board_follow_it_in_the_open_note_too ... ok
+test a_taken_or_invalid_name_is_refused_and_the_field_stays_open ... ok
+test a_board_rename_never_has_the_keyboard_without_a_field ... ok
+test a_multibyte_name_renames_the_board_without_crashing ... ok
+test f2_renames_the_new_board_and_it_stays_open_unsaved_drawing_included ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/board_s8.rs (target/debug/deps/board_s8-279df24de692b16b)
+
+running 15 tests
+test board_mode_in_a_vault_with_no_boards_writes_nothing_and_offers_new_board ... ok
+test reopening_the_sidebar_on_board_is_kept_for_the_session ... ok
+test entering_board_collapses_the_sidebar_and_leaving_restores_it ... ok
+test new_board_creates_an_untitled_board_in_the_vault_and_opens_it ... ok
+test new_board_with_no_board_open_goes_in_the_current_notes_folder_like_new_note ... ok
+test new_board_goes_next_to_the_open_board ... ok
+test the_sidebar_shortcut_does_nothing_while_typing ... ok
+test new_board_names_never_collide ... ok
+test entering_board_from_search_gives_the_keyboard_to_the_board ... ok
+test entering_board_cancels_an_open_new_note_prompt ... ok
+test notes_create_rename_and_delete_still_work_beside_a_new_board ... ok
+test toggling_the_sidebar_on_board_moves_the_chrome_at_once_without_a_slide ... ok
+test search_and_new_note_on_board_show_the_sidebar_they_type_into ... ok
+test entering_board_cancels_the_rename_note_and_folder_prompts ... ok
+test hiding_the_sidebar_with_its_toggle_cancels_the_folder_prompts_too ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+     Running tests/board_safety.rs (target/debug/deps/board_safety-d0dfcfcdef9d57c0)
+
+running 11 tests
+test typing_in_the_sidebar_search_on_graph_never_fires_graph_keys ... ok
+test typing_in_the_sidebar_search_on_board_never_picks_a_tool_or_zooms ... ok
+test clicking_the_canvas_after_searching_gives_the_keys_back_to_the_board ... ok
+test quitting_is_refused_when_the_board_can_neither_be_saved_nor_copied ... ok
+test a_dirty_board_keeps_a_recovery_copy_until_it_is_saved ... ok
+test a_dirty_board_changed_on_disk_offers_keep_mine_save_copy_and_load_theirs ... ok
+test a_dirty_board_whose_file_is_renamed_can_be_saved_as_a_copy ... ok
+test quitting_with_an_unsaveable_board_keeps_a_recovery_copy_that_restores ... ok
+test restoring_a_board_over_a_changed_file_never_writes_without_keep_mine ... ok
+test a_dirty_board_whose_file_is_removed_stays_open_and_keep_mine_writes_it_back ... ok
+test a_tampered_recovery_record_never_writes_outside_the_vault ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+     Running tests/board_sync.rs (target/debug/deps/board_sync-9b97e730624a106b)
+
+running 16 tests
+test a_resting_window_on_board_still_wakes_for_the_watcher_and_autosave ... ok
+test holding_an_arrow_to_nudge_writes_the_recovery_copy_once_not_per_repeat ... ok
+test holding_an_arrow_to_pan_writes_settings_once_not_per_repeat ... ok
+test the_watcher_reloads_a_clean_open_board_changed_by_another_app ... ok
+test the_watcher_flags_a_dirty_open_board_changed_by_another_app_and_keeps_it ... ok
+test the_hint_bar_and_canvas_chrome_stay_put_when_the_selection_changes ... ok
+test autosave_never_writes_over_a_file_another_app_changed ... ok
+test autosave_writes_the_board_once_it_rests_and_not_mid_gesture ... ok
+test the_board_list_follows_other_apps_while_on_board ... ok
+test an_open_editor_with_nothing_typed_waits_and_then_shows_their_change ... ok
+test an_open_editor_with_nothing_typed_waits_and_then_shows_their_atomic_save ... ok
+test typing_in_a_label_another_app_changed_raises_the_conflict_and_never_overwrites_theirs ... ok
+test autosave_can_be_turned_off_in_settings ... ok
+test typing_in_a_label_another_app_deleted_keeps_the_typed_text ... ok
+test typing_in_a_label_another_app_deleted_atomically_keeps_the_typed_text ... ok
+test typing_in_a_label_another_app_saved_atomically_raises_the_conflict_and_never_overwrites_theirs ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+
+     Running tests/board_text.rs (target/debug/deps/board_text-70ffd0a94522f80a)
+
+running 17 tests
+test a_locked_box_and_its_label_are_neither_picked_nor_edited ... ok
+test committing_empty_text_adds_nothing ... ok
+test a_double_click_edits_existing_text_and_board_undo_redoes_the_commit ... ok
+test double_clicking_a_shape_or_its_label_edits_the_bound_label_in_place ... ok
+test focus_moving_elsewhere_commits_so_the_editor_never_strands_board_keys ... ok
+test leaving_board_or_saving_commits_the_open_editor ... ok
+test emptying_existing_text_deletes_it_and_undo_brings_it_back ... ok
+test quitting_mid_edit_on_a_board_that_cannot_be_saved_keeps_the_text_in_the_copy ... ok
+test more_typing_after_a_copy_rewrites_the_copy ... ok
+test saving_or_quitting_mid_edit_commits_the_typed_text_into_the_file ... ok
+test a_click_outside_commits_and_does_nothing_else ... ok
+test editing_existing_text_mid_way_also_reaches_the_recovery_copy ... ok
+test the_text_tool_places_typed_text_with_newlines_and_saves_excalidraw_fields ... ok
+test typing_counts_as_unsaved_and_blocks_quit_until_the_copy_has_it ... ok
+test whitespace_only_text_is_deleted_not_saved ... ok
+test typed_text_reaches_the_recovery_copy_while_the_window_rests ... ok
+test text_being_typed_reaches_the_recovery_copy_and_restores_after_a_crash ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+
+     Running tests/command_palette.rs (target/debug/deps/command_palette-43b90b55f2e2f922)
+
+running 4 tests
+test palette_empty_query_is_actions_and_recent_notes_only ... ok
+test palette_arrows_wrap_and_escape_restores_focus ... ok
+test palette_filters_notes_title_first_and_enter_opens ... ok
+test palette_runs_actions_and_closes_itself ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/conflict.rs (target/debug/deps/conflict-cb688530a6b984f3)
+
+running 6 tests
+test deleted_note_becomes_conflict_and_load_theirs_shows_empty ... ok
+test load_theirs_discards_the_buffer ... ok
+test save_copy_writes_a_sibling_and_loads_theirs ... ok
+test keep_mine_overwrites_disk_and_clears_conflict ... ok
+test io_error_is_visible_and_retry_resets_the_backoff ... ok
+test external_edit_blocks_autosave_and_pauses_polling ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/diagnostics.rs (target/debug/deps/diagnostics-8767882ad7d1a1e1)
+
+running 3 tests
+test reduced_motion_freezes_the_graph_layout ... ok
+test session_log_records_open_and_save_failure_without_note_bodies ... ok
+test trace_logs_autosave_ticks ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/graph_keyboard.rs (target/debug/deps/graph_keyboard-ce629ccb80e841ec)
+
+running 3 tests
+test arrows_move_the_focus_ring_and_enter_opens_the_focused_note ... ok
+test graph_zoom_fit_and_escape_are_keyboard_only ... ok
+test search_to_node_selects_centres_and_isolate_toggles ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/graph_motion.rs (target/debug/deps/graph_motion-27258a2a10040e57)
+
+running 4 tests
+test reduced_motion_snaps_the_camera_and_does_not_animate ... ok
+test enter_on_the_focused_open_note_glides_instead_of_jumping ... ok
+test clicking_a_node_glides_the_camera_over_frames ... ok
+test switching_scope_glides_to_the_new_fit ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.69s
+
+     Running tests/help_layout.rs (target/debug/deps/help_layout-a35d957538256bbe)
+
+running 4 tests
+test a_long_log_line_wraps_inside_the_diagnostics_block ... ok
+test help_keeps_every_shortcut_and_the_footer_actions ... ok
+test sections_share_rows_on_a_wide_window_and_stack_when_narrow ... ok
+test help_content_stays_inside_the_page_in_both_themes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests/kanban_edit.rs (target/debug/deps/kanban_edit-e26b8f9f6d424f58)
+
+running 13 tests
+test an_action_that_changes_nothing_is_not_recorded ... ok
+test a_file_changed_on_disk_refuses_the_save_and_keeps_the_edits ... ok
+test a_crlf_file_gets_crlf_cards ... ok
+test the_write_editor_shows_the_saved_text ... ok
+test multibyte_text_edits_by_whole_characters_and_esc_cancels ... ok
+test quitting_saves_unsaved_edits ... ok
+test a_refused_edit_changes_nothing_and_keeps_the_typed_text ... ok
+test undo_and_redo_restore_exact_bytes_and_a_save_after_undo_restores_the_file ... ok
+test switching_vaults_saves_the_kanban_first ... ok
+test done_lanes_make_done_cards_and_mark_all_marks_each_open_card ... ok
+test unsaved_edits_survive_leaving_the_page_and_save_before_another_kanban ... ok
+test each_action_changes_only_its_lines_and_nothing_is_written_before_save ... ok
+test actions_on_a_card_follow_it_past_the_card_an_open_editor_adds ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+
+     Running tests/kanban_open.rs (target/debug/deps/kanban_open-691ea1adc69ecab1)
+
+running 10 tests
+test kanban_rows_in_the_notes_list_carry_a_glyph ... ok
+test the_kanbans_section_lists_kanbans_and_opens_one_on_the_page ... ok
+test the_title_bar_names_the_kanban_shown_not_the_selected_note ... ok
+test the_palette_offers_new_kanban_and_each_kanban_by_name ... ok
+test on_the_kanban_page_a_kanban_pick_stays_and_a_note_pick_leaves ... ok
+test convert_is_offered_for_an_empty_note_only_and_refuses_text ... ok
+test a_kanban_opened_as_a_note_offers_open_as_kanban ... ok
+test new_kanban_writes_the_layout_in_the_selected_folder_and_never_overwrites ... ok
+test the_kanbans_section_follows_file_changes ... ok
+test a_kanban_picked_from_search_opens_on_the_kanban_page_from_any_mode ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+
+     Running tests/kanban_view.rs (target/debug/deps/kanban_view-54e5604bc1a8b27c)
+
+running 9 tests
+test settings_with_every_mode_key_still_load ... ok
+test the_palette_finds_kanban ... ok
+test an_unreadable_kanban_offers_open_as_markdown ... ok
+test lanes_show_counts_limits_over_limit_and_complete ... ok
+test cmd_5_shows_the_kanban_page_and_esc_returns_to_the_last_note_mode ... ok
+test the_page_shows_the_selected_kanban_else_the_last_one_else_nothing ... ok
+test another_vault_does_not_show_the_kanban ... ok
+test a_restart_reopens_kanban_on_the_last_kanban ... ok
+test viewing_never_writes_a_kanban_file ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+
+     Running tests/links.rs (target/debug/deps/links-7c79ad2ee59a0aa9)
+
+running 12 tests
+test rename_can_deliberately_leave_links_dangling ... ok
+test heading_deep_links_move_the_write_caret_and_queue_a_read_scroll ... ok
+test completion_does_not_fire_inside_fenced_or_inline_code ... ok
+test tab_reaches_the_rail_and_enter_opens_a_backlink ... ok
+test cmd_p_inserts_a_wikilink_without_typing_brackets ... ok
+test inline_completion_lists_duplicates_and_inserts_the_full_stem ... ok
+test escape_dismisses_then_typing_reopens_and_pointer_accepts ... ok
+test rename_rewrites_a_bare_duplicate_only_when_it_resolved_there ... ok
+test move_rewrites_inbound_links_to_the_new_stem ... ok
+test broken_links_dashboard_lists_creates_and_opens_referrers ... ok
+test rename_rewrites_two_referrers_preserving_alias_and_heading ... ok
+test tab_reaches_the_broken_chip_and_enter_opens_the_panel ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/navigation.rs (target/debug/deps/navigation-f9e8f35f09b8ac20)
+
+running 15 tests
+test a_never_edited_note_has_no_phantom_history ... ok
+test save_and_mode_switches_keep_the_note_history ... ok
+test reloading_a_changed_note_does_not_resurrect_the_old_history ... ok
+test switching_notes_preserves_each_notes_undo_stack ... ok
+test history_keeps_the_caret_and_dedupes_consecutive_visits ... ok
+test tab_indents_four_spaces_without_leaving_the_editor ... ok
+test history_back_forward_and_truncate_on_new_open ... ok
+test enter_closes_an_unclosed_wikilink_with_the_caret_inside ... ok
+test search_selection_wraps_and_clears_with_the_query ... ok
+test search_up_down_opens_the_highlighted_result ... ok
+test enter_on_an_empty_list_item_ends_the_list ... ok
+test enter_increments_numbered_lists ... ok
+test enter_continues_bullet_lists_keeping_the_indent ... ok
+test clearing_the_find_query_closes_the_bar ... ok
+test find_in_note_counts_wraps_and_escape_closes ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/note_template.rs (target/debug/deps/note_template-a257fc1116490226)
+
+running 2 tests
+test a_new_note_starts_with_the_configured_template ... ok
+test an_empty_template_keeps_the_original_note_body ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/omarchy.rs (target/debug/deps/omarchy-626e39333f41dc73)
+
+running 5 tests
+test pinned_theme_keeps_the_switcher_visible_with_a_palette_present ... ok
+test disabled_theme_never_watches_the_palette_file ... ok
+test missing_palette_file_falls_back_without_a_revision ... ok
+test theme_switch_in_the_palette_file_restarts_the_view_without_a_restart ... ok
+test theme_button_cycles_system_dark_light_and_persists_it ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/recovery_watch.rs (target/debug/deps/recovery_watch-ee2d25594188f517)
+
+running 9 tests
+test an_unchanged_vault_keeps_the_watcher_quiet ... ok
+test external_create_is_visible_on_the_next_watch_tick ... ok
+test external_edit_of_a_clean_open_note_reloads_its_content ... ok
+test external_edit_of_the_dirty_note_raises_a_conflict_and_keeps_the_buffer ... ok
+test external_delete_of_a_clean_note_reloads_the_vault ... ok
+test external_create_while_dirty_saves_then_reloads_without_losing_text ... ok
+test discard_removes_the_copy_without_touching_the_note ... ok
+test dirty_buffer_is_persisted_and_a_save_removes_it ... ok
+test restart_lists_the_recovery_and_restore_marks_the_editor_dirty ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/reduce_motion.rs (target/debug/deps/reduce_motion-f4597bf6c4db5e33)
+
+running 11 tests
+test legacy_and_unknown_values_load_as_system ... ok
+test every_choice_round_trips_through_settings_json ... ok
+test the_graph_tab_picker_persists_and_applies_immediately ... ok
+test reduced_motion_makes_ui_transitions_land_at_once ... ok
+test system_follows_the_os_and_on_off_override_it ... ok
+test reduced_motion_freezes_the_layout_and_off_lets_it_settle ... ok
+test the_environment_flag_forces_reduced_motion_even_over_off ... ok
+test an_os_flip_under_system_resumes_a_dense_layout ... ok
+test turning_reduce_motion_off_resumes_a_dense_layout ... ok
+test turning_it_on_mid_glide_lands_the_camera ... ok
+test reduced_motion_snaps_selection_instead_of_gliding ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.44s
+
+     Running tests/safety.rs (target/debug/deps/safety-2dec764e0175a966)
+
+running 7 tests
+test switching_modes_does_not_leave_stale_focus_flags ... ok
+test skipped_files_are_reported_without_failing_the_vault ... ok
+test opening_another_note_expires_the_undo_toast ... ok
+test escape_in_the_editor_blurs_and_reenables_f2_and_delete ... ok
+test unused_file_as_vault_shows_the_error_page_not_an_empty_vault ... ok
+test delete_moves_to_trash_and_undo_restores_content_and_links ... ok
+test help_shows_trash_usage_and_empty_trash_clears_it ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/scan_progress.rs (target/debug/deps/scan_progress-94142918b3a27951)
+
+running 3 tests
+test a_small_vault_still_loads_synchronously ... ok
+test chunked_startup_reads_the_same_vault_as_a_full_load ... ok
+test escape_cancels_a_chunked_scan_and_retry_recovers ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/settings.rs (target/debug/deps/settings-9e203cdfece27c17)
+
+running 9 tests
+test corrupt_settings_fall_back_to_defaults_without_failing_startup ... ok
+test a_missing_vault_is_created_and_shows_the_first_run_welcome ... ok
+test settings_round_trip_restores_theme_collapsed_note_and_mode ... ok
+test help_overlay_opens_with_command_question_and_escape_closes ... ok
+test toggles_and_note_opens_are_persisted_immediately ... ok
+test vaults_switch_by_path_and_recent_vaults_stay_mru ... ok
+test settings_modal_opens_by_shortcut_changes_persist_and_returns_focus ... ok
+test vault_prompt_text_stays_inside_the_dialog ... ok
+test settings_vaults_section_opens_and_creates_vaults ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/settings_tabs.rs (target/debug/deps/settings_tabs-6fec298196549e69)
+
+running 5 tests
+test tab_bar_lists_every_tab_in_order ... ok
+test leaving_the_vaults_tab_drops_path_field_focus ... ok
+test selected_tab_resets_on_reopen_and_is_not_persisted ... ok
+test each_tab_mounts_only_its_own_section ... ok
+test escape_closes_settings_from_any_tab ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/state_layers.rs (target/debug/deps/state_layers-6c75df9ccfc1d4d3)
+
+running 3 tests
+test escape_peels_layers_in_documented_order ... ok
+test dismissing_a_layer_does_not_close_others ... ok
+test typing_ownership_is_one_name ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tray.rs (target/debug/deps/tray-91cd05564f9a2fca)
+
+running 9 tests
+test off_by_default_and_old_files_load_as_off ... ok
+test the_menu_follows_the_sync_status ... ok
+test without_a_factory_no_tray_is_created ... ok
+test installing_the_factory_with_the_setting_on_creates_the_tray ... ok
+test quit_flushes_the_dirty_note ... ok
+test toggling_creates_and_drops_the_tray_and_persists ... ok
+test new_note_closes_settings_and_opens_the_name_field ... ok
+test the_switch_lives_on_the_appearance_tab_and_toggles ... ok
+test a_failed_tray_shows_its_error_and_is_not_retried_every_frame ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/tray_slice_two.rs (target/debug/deps/tray_slice_two-7ee5f13fbaca3a37)
+
+running 13 tests
+test the_desktop_entry_is_written_and_removed ... ok
+test start_at_login_is_off_and_untouched_by_default ... ok
+test startup_with_start_at_login_on_repoints_the_entry ... ok
+test a_failed_tray_never_closes_to_tray ... ok
+test tray_sync_now_is_greyed_without_a_provider_and_does_nothing ... ok
+test toggling_start_at_login_updates_the_os_entry_and_persists ... ok
+test without_ports_nothing_is_registered_or_written ... ok
+test the_shortcut_binds_once_and_unbinds_when_turned_off ... ok
+test a_failed_login_item_shows_its_error_until_the_switch_changes ... ok
+test a_late_success_after_turning_off_is_released ... ok
+test a_refused_shortcut_shows_why_and_retries_only_on_toggle ... ok
+test the_close_switch_is_on_the_appearance_tab_and_needs_the_tray ... ok
+test closing_hides_only_with_a_live_tray_and_the_setting_on ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/ui.rs (target/debug/deps/ui-8772ecf168b20680)
+
+running 23 tests
+test graph_poll_settles_and_stays_quiet ... ok
+test folder_rename_leave_option_keeps_links_dangling ... ok
+test command_k_focuses_the_search_field ... ok
+test graph_mode_mounts_nodes_and_local_mode_trims_them ... ok
+test graph_shortcut_round_trips_to_the_last_note_mode ... ok
+test graph_low_zoom_stays_interactive_and_culls_offscreen ... ok
+test clicking_a_missing_link_creates_the_note ... ok
+test command_n_creates_and_opens_a_note ... ok
+test folder_rename_rewrites_inbound_links_after_confirmation ... ok
+test editing_autosaves_after_an_idle ... ok
+test folder_new_button_creates_in_that_folder ... ok
+test poll_reports_no_change_while_dirty_before_autosave ... ok
+test duplicate_titles_open_by_path_and_create_by_path ... ok
+test keyboard_f2_renames_and_delete_asks ... ok
+test preview_rewrites_only_real_links ... ok
+test note_rows_open_notes_in_the_editor ... ok
+test graph_wheel_zooms_and_shift_wheel_pans ... ok
+test new_note_targets_the_selected_notes_folder ... ok
+test delete_note_and_folder_require_confirmation ... ok
+test rename_note_via_prompt_keeps_it_open ... ok
+test new_folder_then_create_note_inside_it ... ok
+test sidebar_groups_notes_by_folder_and_collapses ... ok
+test right_click_opens_note_menu_and_move_relocates ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests/welcome_status.rs (target/debug/deps/welcome_status-33a68f6d93bcbca1)
+
+running 3 tests
+test conflict_pending_uses_the_danger_tone_and_explicit_actions ... ok
+test saved_state_is_calm_and_error_state_is_danger_with_retry ... ok
+test welcome_banner_previews_links_and_opens_the_graph ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running unittests src/main.rs (target/debug/deps/xtask-f3031626908357f9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+test exit 0
