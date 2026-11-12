@@ -276,7 +276,7 @@ fn parse_heading(source: &str, line: &Line) -> Heading {
 
 /// `Doing (3)` → `("Doing", 3)`. The space before `(` is required. `0` is
 /// returned as `0`; callers treat it as no limit.
-fn limit_suffix(core: &str) -> Option<(&str, u32)> {
+pub(super) fn limit_suffix(core: &str) -> Option<(&str, u32)> {
     let open = core.rfind(" (")?;
     let inside = core[open + 2..].strip_suffix(')')?;
     if inside.is_empty() || !inside.bytes().all(|byte| byte.is_ascii_digit()) {

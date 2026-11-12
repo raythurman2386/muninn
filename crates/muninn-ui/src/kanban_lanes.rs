@@ -7,14 +7,21 @@
 //! - **Lanes** (a lane's menu, and **+ Add lane** after the last lane): Add
 //!   lane, Insert lane before / after and Rename lane open a title field;
 //!   Enter commits, Esc cancels, and a blank title changes nothing. A new
-//!   lane is `## Title`, a blank line, then two blank lines (spec section 4).
+//!   lane is `## Title`, a blank line, then two blank lines (spec section 4;
+//!   one after the last lane). A title ending in ` (N)` is refused: that is
+//!   the card limit.
 //!   Rename changes the title line and keeps a lane limit.
 //! - **Card limit…** opens a number field: a whole number writes
 //!   `## Title (N)`, and a blank field or `0` removes the suffix (`(0)` is
 //!   never written). Other text is refused.
 //! - **Mark as done lane** / **Mark as not done lane** add or remove the
 //!   done-lane marker line. Cards keep their done marks.
-//! - **Delete lane** removes the lane's lines; a lane with cards asks first.
+//! - **Delete lane** removes the lane's title, marker and cards. Its other
+//!   text (paragraphs, headings, comments the page doesn't show) stays in the
+//!   file (spec section 10.3). A lane with cards asks first; when that text
+//!   can't stay, any lane asks and says how many lines go.
+//! - Lane add and delete are refused while the note ends inside an open
+//!   fence, as a new settings footer is.
 //! - **Moves** (a card's menu, or Alt with the arrow keys on the selected
 //!   card): up or down one place (Alt+Up/Down), to the top or bottom of its
 //!   lane (Alt+Shift+Up/Down), to the previous or next lane at the same place
@@ -165,14 +172,30 @@ impl State {
         }
     }
 
-    /// Delete lane: at once when it is empty, else after the confirm menu.
+    /// Delete lane: at once when it has no cards and its note text can all
+    /// stay in the file; otherwise after a confirmation that says what goes.
     pub fn delete_lane(&mut self, lane: usize) {
         let Some(lane) = self.settle_lane_edit(lane) else {
             return;
         };
-        match self.kanban_lane(lane).map(|l| l.cards().is_empty()) {
-            Some(true) => self.delete_lane_now(lane),
-            Some(false) => {
+        let Some(board) = self.kanban_board() else {
+            return;
+        };
+        let empty = board.lanes().get(lane).map(|l| l.cards().is_empty());
+        let drops = match board.lane_delete_drops(lane) {
+            Ok(drops) => drops,
+            Err(error) => {
+                // Refused (an open fence): say why, as an edit would.
+                let message = format!("Could not delete the lane: {error}");
+                if let Some(shown) = &mut self.kanban {
+                    shown.error = Some(message);
+                }
+                return;
+            }
+        };
+        match empty {
+            Some(true) if drops.is_empty() => self.delete_lane_now(lane),
+            Some(_) => {
                 self.menu = Some(ContextMenu {
                     target: MenuTarget::DeleteLane(lane),
                     x: 0.0,
@@ -217,19 +240,9 @@ impl State {
         });
     }
 
-    /// Move a card to `to_index` in `to_lane` (its index after the move). A
-    /// card entering a done lane from another lane is marked done.
-    pub fn move_kanban_card(&mut self, lane: usize, index: usize, to_lane: usize, to_index: usize) {
-        let commit = self.commit_card_edit();
-        let (Some((lane, index)), Some((to_lane, to_index))) =
-            (commit.follow(lane, index), commit.follow(to_lane, to_index))
-        else {
-            return;
-        };
-        self.move_card_now(lane, index, to_lane, to_index);
-    }
-
-    /// The move itself, on indices that match the board as it is now.
+    /// Move a card to `to_index` in `to_lane` (its index after the move), on
+    /// indices that match the board as it is now. A card entering a done lane
+    /// from another lane is marked done.
     fn move_card_now(&mut self, lane: usize, index: usize, to_lane: usize, to_index: usize) {
         let Some(open) = self.kanban_card_at(lane, index).map(|c| !c.is_done()) else {
             return;
@@ -399,6 +412,89 @@ pub(crate) fn lane_items(s: &State, lane: usize) -> Vec<(&'static str, &'static 
         ("Sort by tags", "sort_tags"),
         ("Delete lane", "delete_lane"),
     ]
+}
+
+/// Delete lane's confirmation, under the lane's header: what goes, what
+/// stays, then Delete and Cancel.
+pub(crate) fn delete_lane_confirm(s: &State, k: &Kit, lane: usize) -> El {
+    let board = s.kanban_board();
+    let title = board
+        .and_then(|b| b.lanes().get(lane))
+        .map(|l| l.title().to_owned())
+        .unwrap_or_default();
+    let cards = board
+        .and_then(|b| b.lanes().get(lane))
+        .map_or(0, |l| l.cards().len());
+    let drops = board
+        .and_then(|b| b.lane_delete_drops(lane).ok())
+        .unwrap_or_default();
+    let (question, button) = delete_lane_words(&title, cards, &drops);
+    col()
+        .key("context-menu")
+        .w_full()
+        .px(10.0)
+        .pl(20.0)
+        .gap(2.0)
+        .py(4.0)
+        .radius(8.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .child(
+            text(question)
+                .key("kanban-delete-lane-question")
+                .font(k.ty.caption())
+                .color(k.c.text_base)
+                .wrap_anywhere()
+                .w_full()
+                .px(10.0)
+                .py(6.0),
+        )
+        .child(
+            row()
+                .key("menu-delete")
+                .w_full()
+                .h(30.0)
+                .px(10.0)
+                .radius(6.0)
+                .center_y()
+                .cursor(rune::Cursor::Pointer)
+                .hover(k.c.hover)
+                .press(k.c.pressed)
+                .role("button")
+                .label(button)
+                .child(text(button).font(k.ty.ui_compact).color(k.c.danger.fg))
+                .on_press(|s: &mut State| s.pick_menu("delete")),
+        )
+        .child(
+            menu_row(k, "menu-cancel".to_owned(), "Cancel".to_owned())
+                .on_press(|s: &mut State| s.close_menu()),
+        )
+}
+
+/// The confirmation's question and button. Note text the page doesn't show
+/// is named: kept, or (when it can't stay) counted and quoted.
+fn delete_lane_words(title: &str, cards: usize, drops: &[String]) -> (String, &'static str) {
+    let cards = match cards {
+        0 => String::new(),
+        1 => " and its card".to_owned(),
+        n => format!(" and its {n} cards"),
+    };
+    let Some(first) = drops.first() else {
+        let question = format!("Delete “{title}”{cards}? Any note text in it stays in the file.");
+        return (question, "Delete the lane and its cards");
+    };
+    let mut preview: String = first.chars().take(48).collect();
+    if preview.len() < first.len() {
+        preview.push('…');
+    }
+    let lines = match drops.len() {
+        1 => "1 line".to_owned(),
+        n => format!("{n} lines"),
+    };
+    let question = format!(
+        "Delete “{title}”{cards}? {lines} of note text the board doesn't show will be deleted too, starting “{preview}”."
+    );
+    (question, "Delete the lane and its note text")
 }
 
 /// Move to list…: every other lane, by title, under the card.

@@ -25,7 +25,6 @@ A note between lanes.
 ## Later
 
 
-
 %% kanban:settings
 ```
 {"kanban-plugin":"board","note-key":"kept as is","numbers":[1, 2, 3],"list-collapse":[false,false,true,false]}

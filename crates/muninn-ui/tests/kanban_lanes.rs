@@ -30,6 +30,10 @@ fn vault() -> TempVault {
     TempVault::new(&[("Agenda.md", "# Agenda\n"), ("Board.md", BOARD)])
 }
 
+fn vault_with(board: &str) -> TempVault {
+    TempVault::new(&[("Agenda.md", "# Agenda\n"), ("Board.md", board)])
+}
+
 /// The app on `Board.md`'s Kanban page.
 fn on_board(tmp: &TempVault) -> Runtime<State> {
     let config = unique_dir("config");
@@ -197,7 +201,7 @@ fn lane_actions_change_only_their_lines_and_wait_for_save() {
         &mut want,
         &rt,
         "\n%% kanban",
-        "\n## Later\n\n\n\n%% kanban",
+        "\n## Later\n\n\n%% kanban",
         "add lane",
     );
 
@@ -543,4 +547,149 @@ fn moves_sorts_and_collapse_follow_their_target_after_a_commit() {
     // Nothing is written before ⌘S, and undo walks back every edit.
     assert_eq!(on_disk(&tmp), BOARD);
     undo_to_start_and_save(&mut rt, &tmp, 8);
+}
+
+const NOTED: &str = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n\n## Notes\n\nA paragraph the page doesn't show.\n### A sub-heading\n%% a comment %%\n\n\n## Doing\n\n- [ ] b\n\nParagraph after Doing's cards.\n\n\n## Done\n\n- [x] d\n";
+
+/// Delete lane never drops note text the page doesn't show without saying
+/// so: a lane with only note text goes at once and its text stays; a lane
+/// with cards asks first and says its note text stays.
+#[test]
+fn deleting_a_lane_keeps_its_note_text() {
+    let tmp = vault_with(NOTED);
+    let mut rt = on_board(&tmp);
+    // Notes has no cards: deleted at once, its text left in place.
+    menu(&mut rt, "kanban-lane-1-menu", "delete_lane");
+    assert!(
+        rt.state.menu.is_none(),
+        "no confirmation for a card-less lane"
+    );
+    let kept = NOTED.replacen("## Notes\n\n", "", 1);
+    assert_eq!(source(&rt), kept);
+    assert_eq!(titles(&rt), ["To do", "Doing", "Done"]);
+    // Doing has a card and a paragraph: it asks, and says the text stays.
+    menu(&mut rt, "kanban-lane-1-menu", "delete_lane");
+    let question = text_of(&rt, "kanban-delete-lane-question").unwrap_or_default();
+    assert!(question.contains("“Doing” and its card"), "{question:?}");
+    assert!(question.contains("note text in it stays"), "{question:?}");
+    click(&mut rt, "menu-delete");
+    assert_eq!(source(&rt), kept.replacen("## Doing\n\n- [ ] b\n\n", "", 1));
+    assert!(source(&rt).contains("Paragraph after Doing's cards.\n"));
+    assert_eq!(on_disk(&tmp), NOTED, "nothing written before ⌘S");
+    rt.key(command('z', false));
+    frame(&mut rt);
+    rt.key(command('z', false));
+    frame(&mut rt);
+    assert_eq!(source(&rt), NOTED);
+}
+
+/// When note text can't stay (here an indented line would join the card
+/// above), even a lane with no cards asks, counts the lines and quotes the
+/// first.
+#[test]
+fn a_lane_whose_note_text_must_go_asks_and_names_it() {
+    let board = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n## B\n\n  indented note\nsecond line\n";
+    let tmp = vault_with(board);
+    let mut rt = on_board(&tmp);
+    menu(&mut rt, "kanban-lane-1-menu", "delete_lane");
+    let question = text_of(&rt, "kanban-delete-lane-question").unwrap_or_default();
+    assert!(
+        question.contains("2 lines of note text") && question.contains("“indented note”"),
+        "{question:?}"
+    );
+    assert_eq!(
+        source(&rt),
+        board,
+        "nothing changes before the confirmation"
+    );
+    click(&mut rt, "menu-delete");
+    assert_eq!(
+        source(&rt),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n"
+    );
+}
+
+/// Lane add and delete in a note that ends inside an open fence are
+/// refused, with the reason on the page, and change nothing.
+#[test]
+fn lane_add_and_delete_are_refused_in_an_open_fence() {
+    let board = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n```\nnever closed\n";
+    let tmp = vault_with(board);
+    let mut rt = on_board(&tmp);
+    menu(&mut rt, "kanban-lane-0-menu", "delete_lane");
+    assert_eq!(source(&rt), board);
+    let error = text_of(&rt, "kanban-error").unwrap_or_default();
+    assert!(error.contains("unclosed code fence"), "{error:?}");
+    click(&mut rt, "kanban-add-lane");
+    type_text(&mut rt, "Later");
+    press(&mut rt, Key::Enter, false, false);
+    assert_eq!(source(&rt), board);
+    assert_eq!(
+        rt.state.kanban_lane_field.text, "Later",
+        "the field keeps it"
+    );
+    let error = text_of(&rt, "kanban-error").unwrap_or_default();
+    assert!(error.starts_with("Could not add the lane"), "{error:?}");
+    // ⌘S names the lane, not a card.
+    rt.key(command('s', false));
+    frame(&mut rt);
+    assert_eq!(
+        text_of(&rt, "kanban-status").as_deref(),
+        Some("Not saved: the lane being edited was refused")
+    );
+    assert_eq!(on_disk(&tmp), board);
+}
+
+/// A title that would read back as a card limit is refused in the field.
+#[test]
+fn a_title_ending_in_a_number_in_brackets_stays_in_the_field() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    menu(&mut rt, "kanban-lane-0-menu", "rename_lane");
+    act(&mut rt, |s| s.kanban_lane_field.replace_text("Sprint (2)"));
+    press(&mut rt, Key::Enter, false, false);
+    assert_eq!(source(&rt), BOARD);
+    assert_eq!(rt.state.kanban_lane_field.text, "Sprint (2)");
+    let error = text_of(&rt, "kanban-error").unwrap_or_default();
+    assert!(error.contains("card limit"), "{error:?}");
+}
+
+/// Undo and redo close an open menu or confirmation: they name lanes and
+/// cards by place, and the undo may have moved them.
+#[test]
+fn undo_and_redo_close_menus_and_confirmations() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.sort_lane(0, muninn_core::CardOrder::Text));
+    menu(&mut rt, "kanban-lane-2-menu", "delete_lane");
+    assert!(rt.state.menu.is_some(), "Done has a card: it asks");
+    rt.key(command('z', false));
+    frame(&mut rt);
+    assert!(rt.state.menu.is_none(), "undo closed the confirmation");
+    click(&mut rt, "kanban-card-0-0-menu");
+    assert!(rt.state.menu.is_some());
+    rt.key(command('z', true));
+    frame(&mut rt);
+    assert!(rt.state.menu.is_none(), "redo closed the card menu");
+    assert_eq!(titles(&rt), ["To do", "Doing", "Done"]);
+}
+
+/// A click that selects a card while an editor is open takes the keyboard
+/// back: Alt+Down then commits the editor and moves the card clicked.
+#[test]
+fn a_select_click_gives_the_keyboard_back() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-0-0-menu");
+    click(&mut rt, "menu-insert_before");
+    type_text(&mut rt, "New first");
+    assert!(rt.state.is_typing());
+    click(&mut rt, "kanban-card-0-2");
+    assert!(!rt.state.is_typing(), "the keyboard is the page's again");
+    press(&mut rt, Key::Down, true, false);
+    assert_eq!(
+        cards(&rt, 0),
+        ["New first", "Write the", "Fix the", "Ask about", "Book the"]
+    );
+    assert_eq!(rt.state.kanban_selected, Some((0, 4)));
 }

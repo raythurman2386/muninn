@@ -101,8 +101,11 @@ impl Kanban {
     /// archive or footer).
     ///
     /// The new text is `## Title` or `## Title (N)`, a blank line, the
-    /// English done-lane marker when `done` is set, then two blank lines. A
-    /// limit of `0` is not written. Existing lanes are not re-spaced. A
+    /// English done-lane marker when `done` is set, then two blank lines (one
+    /// for a lane appended after the last, so the file ends as New Kanban's
+    /// does). A limit of `0` is not written. A title that ends in ` (N)` is
+    /// refused, and so is a note that ends inside an open fence. Existing
+    /// lanes are not re-spaced. A
     /// `list-collapse` setting gains a `false` at `index`, so later lanes keep
     /// their entries.
     pub fn add_lane(
@@ -112,16 +115,16 @@ impl Kanban {
         limit: Option<u32>,
         done: bool,
     ) -> io::Result<()> {
-        if title.contains(['\n', '\r']) {
-            return Err(invalid_input("a lane title is one line"));
-        }
+        check_lane_title(title)?;
+        self.refuse_open_fence()?;
         if index > self.lanes.len() {
             return Err(invalid_input("lane index out of range"));
         }
         let at = self.lane_insert_offset(index)?;
         let open_ended =
             at == self.source.len() && !self.source.is_empty() && !self.source.ends_with('\n');
-        let block = lane_block(self.nl, title, limit, done, open_ended);
+        let last = index == self.lanes.len();
+        let block = lane_block(self.nl, title, limit, done, open_ended, last);
         let next = if open_ended {
             splice(&self.source, at..at, &block)
         } else {
@@ -132,19 +135,110 @@ impl Kanban {
 
     /// Replace the lane title. A ` (N)` limit on the same line stays.
     pub fn rename_lane(&mut self, index: usize, title: &str) -> io::Result<()> {
-        if title.contains(['\n', '\r']) {
-            return Err(invalid_input("a lane title is one line"));
-        }
+        check_lane_title(title)?;
         let span = self.lane(index)?.title_span.clone();
         self.commit(splice(&self.source, span, title))
     }
 
-    /// Remove a lane, from its title line up to the next lane, the archive,
-    /// or the footer. Other lanes' bytes are unchanged, and a `list-collapse`
-    /// setting loses the lane's entry.
+    /// Remove a lane: its title line, its done-lane marker and its cards.
+    /// Other text in the lane (paragraphs, other headings, comments: what the
+    /// page doesn't show) stays where it was, now after the lane before, as
+    /// spec section 10.3 asks; only the blank lines that led into it go.
+    /// When keeping that text would change another lane (an indented line
+    /// that would join the previous lane's last card, say) the whole lane
+    /// goes instead, and [`Kanban::lane_delete_drops`] counts what is lost.
+    /// Other lanes' bytes are unchanged, and a `list-collapse` setting loses
+    /// the lane's entry. Refused while the note ends inside an open fence.
     pub fn delete_lane(&mut self, index: usize) -> io::Result<()> {
-        let span = self.lane(index)?.span.clone();
-        self.commit_lanes(splice(&self.source, span, ""), index, false)
+        let (next, _) = self.lane_deletion(index)?;
+        self.commit_lanes(next, index, false)
+    }
+
+    /// The non-blank lines of note text (not cards) that deleting lane
+    /// `index` would remove, trimmed: none when all of it can stay.
+    pub fn lane_delete_drops(&self, index: usize) -> io::Result<Vec<String>> {
+        Ok(self.lane_deletion(index)?.1)
+    }
+
+    /// The text after deleting lane `index`, and the note lines it drops.
+    fn lane_deletion(&self, index: usize) -> io::Result<(String, Vec<String>)> {
+        self.refuse_open_fence()?;
+        let lane = self.lane(index)?;
+        let span = lane.span.clone();
+        let mut cut: Vec<Range<usize>> = vec![lane.title_line.clone()];
+        cut.extend(lane.marker.clone());
+        cut.extend(lane.cards.iter().map(|card| card.span.clone()));
+        cut.sort_by_key(|range| range.start);
+        let mut kept = String::new();
+        let mut at = span.start;
+        for range in cut {
+            kept.push_str(&self.source[at..range.start]);
+            at = range.end;
+        }
+        kept.push_str(&self.source[at..span.end]);
+        let notes: Vec<String> = kept
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned)
+            .collect();
+        let whole = splice(&self.source, span.clone(), "");
+        if notes.is_empty() {
+            return Ok((whole, notes));
+        }
+        let lead: usize = kept
+            .split_inclusive('\n')
+            .take_while(|line| line.trim().is_empty())
+            .map(str::len)
+            .sum();
+        let next = splice(&self.source, span, &kept[lead..]);
+        if self.only_lane_removed(&next, index) {
+            Ok((next, Vec::new()))
+        } else {
+            Ok((whole, notes))
+        }
+    }
+
+    /// Whether `next` is this board less lane `index`: every other lane, the
+    /// archive and the footer read back the same.
+    fn only_lane_removed(&self, next: &str, index: usize) -> bool {
+        let Ok(parsed) = Kanban::parse(next) else {
+            return false;
+        };
+        let same_cards = |a: &[Card], b: &[Card]| {
+            a.len() == b.len()
+                && a.iter()
+                    .zip(b)
+                    .all(|(a, b)| a.text == b.text && a.mark == b.mark && a.block_id == b.block_id)
+        };
+        let others = self
+            .lanes
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != index)
+            .map(|(_, lane)| lane);
+        parsed.lanes.len() + 1 == self.lanes.len()
+            && others.zip(&parsed.lanes).all(|(a, b)| {
+                a.title == b.title
+                    && a.written_limit == b.written_limit
+                    && a.done_word == b.done_word
+                    && same_cards(&a.cards, &b.cards)
+            })
+            && match (&self.archive, &parsed.archive) {
+                (Some(a), Some(b)) => a.word == b.word && same_cards(&a.cards, &b.cards),
+                (None, None) => true,
+                _ => false,
+            }
+            && self.footer_json() == parsed.footer_json()
+    }
+
+    /// Lane add and delete would act inside a fence that never closes, so
+    /// they are refused, as a new settings footer is.
+    fn refuse_open_fence(&self) -> io::Result<()> {
+        if self.ends_in_fence {
+            return Err(invalid_data("the note ends inside an unclosed code fence"));
+        }
+        Ok(())
     }
 
     /// Add or remove the lane's done-lane marker: one line either way. A new
@@ -212,8 +306,10 @@ impl Kanban {
             if let Some(number) = lane.limit_number.clone() {
                 splice(&self.source, number, &limit.to_string())
             } else {
-                let at = content_end(&self.source, lane.title_line.clone());
-                splice(&self.source, at..at, &format!(" ({limit})"))
+                // After the title, in place of any trailing spaces.
+                let end = content_end(&self.source, lane.title_line.clone());
+                let at = lane.title_span.end.min(end);
+                splice(&self.source, at..end, &format!(" ({limit})"))
             }
         } else if let Some(suffix) = lane.limit_suffix.clone() {
             splice(&self.source, suffix, "")
@@ -339,10 +435,13 @@ impl Kanban {
         if let Some(last) = lane.cards.last() {
             return Ok(last.span.end);
         }
-        let after = lane
-            .marker
-            .as_ref()
-            .map_or(lane.title_line.end, |marker| marker.end);
+        // Spec section 4: the title, one blank line, the marker if any, then
+        // the cards; so a card goes after the title's blank line, or right
+        // under the marker.
+        if let Some(marker) = &lane.marker {
+            return Ok(marker.end);
+        }
+        let after = lane.title_line.end;
         if self.source[after..lane.span.end].starts_with(self.nl) {
             Ok(after + self.nl.len())
         } else {
@@ -374,9 +473,32 @@ impl Kanban {
     }
 }
 
+/// A lane title is one line and doesn't end in ` (N)`, which would read
+/// back as a card limit (a limit is set with `set_lane_limit`).
+fn check_lane_title(title: &str) -> io::Result<()> {
+    if title.contains(['\n', '\r']) {
+        return Err(invalid_input("a lane title is one line"));
+    }
+    if super::parse::limit_suffix(title.trim_end()).is_some() {
+        return Err(invalid_input(
+            "a lane title can't end in a number in brackets; that is the card limit",
+        ));
+    }
+    Ok(())
+}
+
 /// The bytes of a new lane. `open_ended` is a file with no final newline:
-/// two blank lines before the heading, and no new final newline.
-fn lane_block(nl: &str, title: &str, limit: Option<u32>, done: bool, open_ended: bool) -> String {
+/// two blank lines before the heading, and no new final newline. A lane
+/// appended after the last one (`last`) ends like New Kanban's last lane,
+/// with two blank lines rather than three.
+fn lane_block(
+    nl: &str,
+    title: &str,
+    limit: Option<u32>,
+    done: bool,
+    open_ended: bool,
+    last: bool,
+) -> String {
     let mut block = String::new();
     if open_ended {
         block.push_str(nl);
@@ -403,7 +525,9 @@ fn lane_block(nl: &str, title: &str, limit: Option<u32>, done: bool, open_ended:
         block.push_str(nl);
     }
     block.push_str(nl);
-    block.push_str(nl);
+    if !last {
+        block.push_str(nl);
+    }
     block
 }
 
