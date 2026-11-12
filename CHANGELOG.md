@@ -79,8 +79,9 @@ All notable changes to Muninn are documented here. The format is based on
   a note from the card text, in the folder New note uses and with the note
   template, then replaces the card with a link to it. Opening `[[Note#^id]]`
   jumps to that block, in a kanban card or in an ordinary note. Renaming a
-  linked note updates a clean kanban and reloads it; a kanban with unsaved
-  edits is not rewritten, and the page names it. Renaming the kanban itself
+  linked note, or a folder a card links into, updates a clean kanban and
+  reloads it; a kanban with unsaved edits is not rewritten, and the page
+  names it. Renaming the kanban itself
   updates the path remembered in settings.
 
 ### Fixed

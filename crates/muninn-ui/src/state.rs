@@ -4006,6 +4006,20 @@ impl State {
     fn apply_rename_folder(&mut self, folder: &str, name: &str, rewrite: bool) {
         let folder = folder.trim_matches('/');
         let old_path = self.selected_path.clone();
+        // Same rule as a note rename: a kanban with unsaved edits is not
+        // rewritten, or the write would replace the file the page is editing.
+        let skipped = rewrite.then(|| {
+            self.unsaved_kanban_id()
+                .filter(|kid| self.vault.link_referrers_for_folder(folder).contains(kid))
+        });
+        let skipped = skipped.flatten();
+        let skipped_name = skipped.and_then(|skipped_id| {
+            self.vault
+                .notes
+                .get(skipped_id)
+                .map(|note| note.title.clone())
+                .filter(|title| !title.is_empty())
+        });
         match self.vault.rename_folder(folder, name) {
             Ok(path) => {
                 self.error = None;
@@ -4015,7 +4029,7 @@ impl State {
                     .unwrap_or_default();
                 let failures = if rewrite && !new_folder.is_empty() {
                     self.vault
-                        .rewrite_inbound_links_for_folder(folder, &new_folder)
+                        .rewrite_inbound_links_for_folder(folder, &new_folder, skipped)
                 } else {
                     Vec::new()
                 };
@@ -4044,6 +4058,10 @@ impl State {
                     )
                 });
                 self.reload(select);
+                if skipped.is_some() {
+                    let name = skipped_name.unwrap_or_else(|| "the kanban".to_owned());
+                    self.notice = Some(format!("Links in {name} were not updated"));
+                }
                 if failure_message.is_some() {
                     self.error = failure_message;
                 }
