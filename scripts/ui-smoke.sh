@@ -196,6 +196,9 @@
 #                   order, counts, n/N, Over limit, Complete, card text, no
 #                   passthrough, the unreadable message. Screenshots kanban-empty.png,
 #                   kanban-readonly.png, kanban-wip-over.png, kanban-unreadable.png.
+#                   Then its own vault $work/kanban-links-vault: Cmd+K, "links", Enter
+#                   opens Links.md in Kanban mode, and in kanban-links.png the card
+#                   [[Nowhere]] (no such note) is drawn dimmed, [[Agenda]] in the accent.
 #                   Every file's sha256 is unchanged.
 #   headless_kanban_restart  Release in Kanban, then Ctrl+[ back to Agenda (the page
 #                   keeps Release); settings.json says kanban / Release.md / Agenda.md;
@@ -228,6 +231,8 @@
 #                   Open as kanban: kanban-open-button.png), click Open as kanban (Kanban on
 #                   Release), Open as markdown (Write on Release: kanban-as-markdown.png),
 #                   each shot matched against a headless run of the same clicks; then
+#                   Ctrl+K, "release", Enter (a pick from the note search) opens Release
+#                   in Kanban mode (kanban-open-search.png) and Esc leaves it; then
 #                   Ctrl+K, Ctrl+Shift+P, "overloaded", Down, Enter opens the Overloaded
 #                   kanban in Kanban mode, and Esc leaves it (the page had the keyboard,
 #                   not the search field). Every file's sha256 unchanged, exit 0
@@ -2243,7 +2248,53 @@ if "kanban-page" in keyed or "kanban:settings" not in every:
     raise SystemExit("FAIL write: Torn is not open as markdown")
 print("ok write: Torn open in Write")
 PY
-  kanban_view_unchanged "the headless kanban runs"
+  kanban_view_unchanged "the headless kanban runs" || return 1
+  kanban_links
+}
+
+# A card's wikilink to no note reads dimmed (Read's missing-link style), one to a
+# note in the accent: Links.md has a card [[Agenda]] and a card [[Nowhere]], opened
+# with Cmd+K, "links", Enter; the ink in each card is measured in the screenshot.
+kanban_links() {
+  local v="$work/kanban-links-vault" t="$out/trees" m="$work/kanban-links"
+  rm -rf "$v" "$m"; mkdir -p "$v" "$m"
+  printf '# Agenda\n\nA plain note.\n' >"$v/Agenda.md"
+  printf -- '---\nkanban-plugin: board\n---\n\n## Links\n\n- [ ] [[Agenda]]\n- [ ] [[Nowhere]]\n' >"$v/Links.md"
+  printf '{"events":[{"t":0.6,"type":"key","name":"k","cmd":true},{"t":1.0,"type":"type","text":"links"},{"t":1.6,"type":"key","name":"Enter"},{"t":2.2,"type":"mark","name":"links"}]}' \
+    >"$m/links.json"
+  export XDG_CONFIG_HOME="$work/config-kanban-links"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$v" --script "$m/links.json" --at "mark:links+0.6" --scale 1 \
+    --snap "$out/screens/kanban-links.png" --tree "$t/kanban-links.json" || return 1
+  python3 "$harness" tree-mode "$t/kanban-links.json" kanban || return 1
+  local found missing
+  found="$(python3 "$harness" tree-rect "$t/kanban-links.json" kanban-card-0-0)" || return 1
+  missing="$(python3 "$harness" tree-rect "$t/kanban-links.json" kanban-card-0-1)" || return 1
+  # shellcheck disable=SC2086
+  python3 - "$out/screens/kanban-links.png" $found $missing <<'PY'
+import sys
+from collections import Counter
+from PIL import Image
+img = Image.open(sys.argv[1]).convert("RGB")
+r = [int(v) for v in sys.argv[2:]]
+
+def ink(x, y, w, h):
+    """The mean colour of the card's text pixels, right of its checkbox."""
+    box = [img.getpixel((i, j)) for i in range(x + 30, x + w - 4) for j in range(y + 4, y + h - 4)]
+    bg = Counter(box).most_common(1)[0][0]
+    far = [p for p in box if sum(abs(a - b) for a, b in zip(p, bg)) > 90]
+    if not far:
+        raise SystemExit("no text in the card")
+    return tuple(sum(c[i] for c in far) / len(far) for i in range(3))
+
+found, missing = ink(*r[:4]), ink(*r[4:])
+tint = lambda c: max(c) - min(c)
+print(f"[[Agenda]] ink {tuple(round(c) for c in found)}, [[Nowhere]] ink {tuple(round(c) for c in missing)}")
+if tint(found) < 40:
+    raise SystemExit("the link to a note is not drawn in the accent")
+if tint(missing) > 20 or sum(missing) >= sum(found) + 60:
+    raise SystemExit("the link to no note is not dimmed")
+print("ok a card's link to no note is dimmed, one to a note is the accent")
+PY
 }
 
 step_headless_kanban_restart() {
@@ -2646,7 +2697,18 @@ PY
   import -window "$wid" "$out/screens/kanban-as-markdown.png" || return 1
   saved editor Release.md Release.md || return 1
   like "$out/screens/kanban-open-headless-markdown.png" "$out/screens/kanban-as-markdown.png" || return 1
-  # 4. Cmd+K first (the search field takes the keyboard), then the palette, the
+  # 4. B1: Ctrl+K, "release", Enter picks the Release kanban from the note search:
+  #    Kanban mode on it, from Write, with the keyboard on the page (Esc leaves it;
+  #    had the search field kept the keyboard, Esc would only have let go of it).
+  python3 "$harness" x11-chord "$wid" ctrl+k && sleep 0.5 || return 1
+  python3 "$harness" x11-type "$wid" release && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" enter && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-open-search.png" || return 1
+  saved kanban Release.md Release.md || return 1
+  python3 "$harness" x11-chord "$wid" esc && sleep "$pause" || return 1
+  saved editor Release.md Release.md || return 1
+  echo "ok a kanban picked from Ctrl+K search opened in Kanban mode with the keyboard"
+  # 5. Cmd+K first (the search field takes the keyboard), then the palette, the
   #    Overloaded kanban (Down past its note row), Enter: Kanban mode on it.
   python3 "$harness" x11-chord "$wid" ctrl+k && sleep 0.5 || return 1
   python3 "$harness" x11-chord "$wid" ctrl+shift+p || return 1
@@ -2655,7 +2717,7 @@ PY
   python3 "$harness" x11-chord "$wid" Down && python3 "$harness" x11-chord "$wid" enter && sleep "$pause" || return 1
   import -window "$wid" "$out/screens/kanban-open-from-palette.png" || return 1
   saved kanban Overloaded.md Overloaded.md || return 1
-  # 5. A key the Kanban page handles: Esc leaves it. Had the search field kept the
+  # 6. A key the Kanban page handles: Esc leaves it. Had the search field kept the
   #    keyboard, Esc would only have let go of it and the mode would stay kanban.
   python3 "$harness" x11-chord "$wid" esc && sleep "$pause" || return 1
   import -window "$wid" "$out/screens/kanban-open-esc.png" || return 1

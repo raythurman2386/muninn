@@ -537,7 +537,14 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
         .cursor(Cursor::Pointer)
         .focusable(true)
         .focus_ring(2.0, 1.0, accent)
-        .on_press(move |s: &mut State| s.open_from_list(id))
+        // A row shown for a search query is a search result.
+        .on_press(move |s: &mut State| {
+            if s.search.text.trim().is_empty() {
+                s.open_from_list(id);
+            } else {
+                s.open_from_search(id);
+            }
+        })
         .on_secondary_press(move |s: &mut State, press, _| {
             s.open_note_menu(id, press.x, press.y);
         })

@@ -22,10 +22,11 @@ All notable changes to Muninn are documented here. The format is based on
   each kanban by name, **New Kanban** (writes `Untitled Kanban.md`, then
   `Untitled Kanban 2.md`…, in the selected note's folder, never over an
   existing file) and, on an empty note, **Convert empty note to Kanban**. A
-  kanban note opened any other way (the notes list, a link, search) opens as
-  a note with an **Open as kanban** button, and the Kanban page's **Open as
-  markdown** returns to Write on that note. On the Kanban page, picking
-  another kanban note keeps the page.
+  kanban note picked from the sidebar search (`⌘K` / `Ctrl+K`) opens in
+  Kanban mode from any mode. A kanban note opened any other way (the notes
+  list, a link, a backlink) opens as a note with an **Open as kanban**
+  button, and the Kanban page's **Open as markdown** returns to Write on that
+  note. On the Kanban page, picking another kanban note keeps the page.
 
 ## [0.7.1] - 2026-11-11
 

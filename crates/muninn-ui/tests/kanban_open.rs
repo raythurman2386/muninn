@@ -224,7 +224,7 @@ fn a_kanban_opened_as_a_note_offers_open_as_kanban() {
     assert_eq!(rt.state.mode, Mode::Editor, "a link opens the note");
     assert!(rt.find("open-as-kanban").is_some());
 
-    // Search (⌘K), Enter.
+    // Search (⌘K), Enter: a kanban note opens on the Kanban page (B1).
     rt.state.open_from_list(agenda);
     rt.key(command('k'));
     frame(&mut rt);
@@ -233,7 +233,17 @@ fn a_kanban_opened_as_a_note_offers_open_as_kanban() {
     rt.key(key(Key::Enter));
     frame(&mut rt);
     assert_eq!(rt.state.selected, Some(id(&rt, "Busy")));
-    assert_eq!(rt.state.mode, Mode::Editor, "search opens the note");
+    assert_eq!(rt.state.mode, Mode::Kanban, "search opens the kanban");
+    rt.state.search.replace_text("");
+    frame(&mut rt);
+
+    // The notes list, outside the Kanban page, opens the note.
+    rt.key(command('1'));
+    frame(&mut rt);
+    rt.state.open_from_list(id(&rt, "Busy"));
+    frame(&mut rt);
+    assert_eq!(rt.state.mode, Mode::Editor, "the list opens the note");
+    assert!(rt.find("open-as-kanban").is_some());
 
     // Read keeps the button too; it switches to Kanban on that note.
     rt.key(command('2'));
@@ -429,4 +439,61 @@ fn the_title_bar_names_the_kanban_shown_not_the_selected_note() {
     rt.key(key(Key::Escape));
     frame(&mut rt);
     assert_eq!(text_of(&rt, "topbar-title").as_deref(), Some("Agenda"));
+}
+
+/// B1 (slice 3 review): a kanban note picked from the sidebar search
+/// opens on the Kanban page from any mode, with the keyboard on the page. A
+/// plain note picked there opens as before.
+#[test]
+fn a_kanban_picked_from_search_opens_on_the_kanban_page_from_any_mode() {
+    let tmp = kanban_vault();
+    let mut rt = fresh(&tmp);
+    let before = snapshot(tmp.path());
+    let (agenda, busy) = (id(&rt, "Agenda"), id(&rt, "Busy"));
+    for start in ['1', '2', '3', '4'] {
+        rt.state.open_from_list(agenda);
+        rt.key(command(start));
+        frame(&mut rt);
+        let mode = rt.state.mode;
+        rt.key(command('k'));
+        frame(&mut rt);
+        type_text(&mut rt, "Busy");
+        rt.key(key(Key::Enter));
+        frame(&mut rt);
+        assert_eq!(rt.state.mode, Mode::Kanban, "from {mode:?}");
+        assert_eq!(shown(&rt), Some("Busy.md"));
+        assert_eq!(rt.state.selected, Some(busy));
+        assert!(!rt.state.is_typing(), "the page has the keyboard");
+        // The page's own key reaches it: Esc leaves Kanban.
+        rt.key(key(Key::Escape));
+        frame(&mut rt);
+        assert_ne!(rt.state.mode, Mode::Kanban, "Esc from {mode:?}");
+        rt.state.search.replace_text("");
+        frame(&mut rt);
+    }
+
+    // A click on a search result is a pick from search too.
+    rt.state.open_from_list(agenda);
+    frame(&mut rt);
+    rt.key(command('k'));
+    frame(&mut rt);
+    type_text(&mut rt, "Busy");
+    click(&mut rt, &format!("note-row-{busy}"));
+    assert_eq!(rt.state.mode, Mode::Kanban);
+    assert_eq!(shown(&rt), Some("Busy.md"));
+    rt.key(key(Key::Escape));
+    frame(&mut rt);
+
+    // A plain note from search opens in Write, as before.
+    rt.state.search.replace_text("");
+    rt.key(command('1'));
+    frame(&mut rt);
+    rt.key(command('k'));
+    frame(&mut rt);
+    type_text(&mut rt, "Agenda");
+    rt.key(key(Key::Enter));
+    frame(&mut rt);
+    assert_eq!(rt.state.mode, Mode::Editor);
+    assert_eq!(rt.state.selected, Some(agenda));
+    assert_eq!(snapshot(tmp.path()), before, "picking writes nothing");
 }
