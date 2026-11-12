@@ -375,7 +375,7 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
 }
 
 fn is_indented(text: &str) -> bool {
-    !text.trim().is_empty() && text.starts_with(char::is_whitespace)
+    !text.trim().is_empty() && text.starts_with([' ', '\t'])
 }
 
 /// The indent `render_card` adds back. Both sides measure a lead with
@@ -440,7 +440,7 @@ pub(super) fn indent_columns(lead: &str) -> usize {
 /// so the writer prefixes `indent` and the reader strips it back off.
 pub(super) fn line_keeps_lead(line: &str, indent: &str) -> bool {
     let lead = leading_ws(line);
-    !lead.is_empty() && !lead.starts_with(indent) && indent_columns(lead) >= indent_columns(indent)
+    !lead.starts_with(indent) && indent_columns(lead) >= indent_columns(indent)
 }
 
 /// A fence opener: optional indent, then three or more `` ` `` or `~`.
