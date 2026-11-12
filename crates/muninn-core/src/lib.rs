@@ -7,10 +7,15 @@
 //! Whiteboards are `.excalidraw` files ([`Board`]). They live in the vault
 //! but are not notes: [`Vault::boards`] lists them separately.
 //!
+//! Kanban notes ([`Kanban`]) are notes. A `kanban-plugin` frontmatter key
+//! marks one; [`Vault::kanbans`] lists those notes without taking them out of
+//! the link index.
+//!
 //! This crate has no UI or runtime dependencies, so it is cheap to test and reusable from
 //! tools, benchmarks and future front ends.
 
 mod board;
+mod kanban;
 mod note;
 mod preview;
 mod search;
@@ -25,6 +30,7 @@ pub use board::{
     IdSource, MUNINN_SOURCE, SCENE_VERSION, Shape, ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE,
     TEXT_LINE_HEIGHT, TextBody, index_after, list_boards,
 };
+pub use kanban::{Archive, Card, Kanban, KanbanFile, Lane, is_kanban};
 pub use note::Note;
 pub use preview::Attachment;
 pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy, board_name};

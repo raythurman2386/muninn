@@ -1,6 +1,6 @@
 [package]
 name = "muninn-core"
-description = "Vault scanning, wikilink parsing, link indexing and board files for Muninn."
+description = "Vault scanning, wikilink parsing, link indexing, board files and kanban notes for Muninn."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
