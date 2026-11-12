@@ -1,0 +1,4125 @@
+{
+  "accessibility": {
+    "bounds": [
+      0.0,
+      0.0,
+      1180.0,
+      780.0
+    ],
+    "children": [
+      {
+        "bounds": [
+          0.0,
+          0.0,
+          1180.0,
+          780.0
+        ],
+        "children": [
+          {
+            "bounds": [
+              0.0,
+              0.0,
+              1180.0,
+              780.0
+            ],
+            "children": [
+              {
+                "bounds": [
+                  320.0,
+                  120.0,
+                  540.0,
+                  540.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      320.0,
+                      120.0,
+                      540.0,
+                      76.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          336.0,
+                          136.0,
+                          490.0,
+                          20.0
+                        ],
+                        "name": "Settings",
+                        "role": "label"
+                      },
+                      {
+                        "bounds": [
+                          336.0,
+                          160.0,
+                          490.0,
+                          20.0
+                        ],
+                        "name": "Preferences are saved as you change them.",
+                        "role": "label"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus"
+                        ],
+                        "bounds": [
+                          826.0,
+                          134.0,
+                          20.0,
+                          20.0
+                        ],
+                        "key": "close",
+                        "name": "Close",
+                        "role": "button",
+                        "states": [
+                          "focused"
+                        ]
+                      }
+                    ],
+                    "key": "header",
+                    "role": "group"
+                  },
+                  {
+                    "bounds": [
+                      320.0,
+                      196.0,
+                      540.0,
+                      464.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          320.0,
+                          196.0,
+                          540.0,
+                          464.0
+                        ],
+                        "children": [
+                          {
+                            "bounds": [
+                              336.0,
+                              212.0,
+                              508.0,
+                              28.0
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "click",
+                                  "focus"
+                                ],
+                                "bounds": [
+                                  336.0,
+                                  212.0,
+                                  101.6,
+                                  28.0
+                                ],
+                                "key": "segment0",
+                                "name": "Vaults",
+                                "position": 1,
+                                "role": "radio-button",
+                                "states": [
+                                  "unchecked"
+                                ]
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "focus"
+                                ],
+                                "bounds": [
+                                  437.6,
+                                  212.0,
+                                  101.6,
+                                  28.0
+                                ],
+                                "key": "segment1",
+                                "name": "Editor",
+                                "position": 2,
+                                "role": "radio-button",
+                                "states": [
+                                  "unchecked"
+                                ]
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "focus"
+                                ],
+                                "bounds": [
+                                  539.2,
+                                  212.0,
+                                  101.6,
+                                  28.0
+                                ],
+                                "key": "segment2",
+                                "name": "Appearance",
+                                "position": 3,
+                                "role": "radio-button",
+                                "states": [
+                                  "checked"
+                                ]
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "focus"
+                                ],
+                                "bounds": [
+                                  640.8,
+                                  212.0,
+                                  101.6,
+                                  28.0
+                                ],
+                                "key": "segment3",
+                                "name": "Graph",
+                                "position": 4,
+                                "role": "radio-button",
+                                "states": [
+                                  "unchecked"
+                                ]
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "focus"
+                                ],
+                                "bounds": [
+                                  742.4,
+                                  212.0,
+                                  101.6,
+                                  28.0
+                                ],
+                                "key": "segment4",
+                                "name": "Sync",
+                                "position": 5,
+                                "role": "radio-button",
+                                "states": [
+                                  "unchecked"
+                                ]
+                              }
+                            ],
+                            "key": "settings-tabs",
+                            "name": "Settings section",
+                            "role": "radio-group",
+                            "setSize": 5
+                          },
+                          {
+                            "bounds": [
+                              336.0,
+                              256.0,
+                              508.0,
+                              348.0
+                            ],
+                            "children": [
+                              {
+                                "bounds": [
+                                  336.0,
+                                  256.0,
+                                  508.0,
+                                  348.0
+                                ],
+                                "children": [
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      256.0,
+                                      508.0,
+                                      20.0
+                                    ],
+                                    "name": "Theme",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      284.0,
+                                      508.0,
+                                      28.0
+                                    ],
+                                    "children": [
+                                      {
+                                        "actions": [
+                                          "click",
+                                          "focus"
+                                        ],
+                                        "bounds": [
+                                          336.0,
+                                          284.0,
+                                          127.0,
+                                          28.0
+                                        ],
+                                        "key": "segment0",
+                                        "name": "Omarchy",
+                                        "position": 1,
+                                        "role": "radio-button",
+                                        "states": [
+                                          "checked"
+                                        ]
+                                      },
+                                      {
+                                        "actions": [
+                                          "click",
+                                          "focus"
+                                        ],
+                                        "bounds": [
+                                          463.0,
+                                          284.0,
+                                          127.0,
+                                          28.0
+                                        ],
+                                        "key": "segment1",
+                                        "name": "System",
+                                        "position": 2,
+                                        "role": "radio-button",
+                                        "states": [
+                                          "unchecked"
+                                        ]
+                                      },
+                                      {
+                                        "actions": [
+                                          "click",
+                                          "focus"
+                                        ],
+                                        "bounds": [
+                                          590.0,
+                                          284.0,
+                                          127.0,
+                                          28.0
+                                        ],
+                                        "key": "segment2",
+                                        "name": "Dark",
+                                        "position": 3,
+                                        "role": "radio-button",
+                                        "states": [
+                                          "unchecked"
+                                        ]
+                                      },
+                                      {
+                                        "actions": [
+                                          "click",
+                                          "focus"
+                                        ],
+                                        "bounds": [
+                                          717.0,
+                                          284.0,
+                                          127.0,
+                                          28.0
+                                        ],
+                                        "key": "segment3",
+                                        "name": "Light",
+                                        "position": 4,
+                                        "role": "radio-button",
+                                        "states": [
+                                          "unchecked"
+                                        ]
+                                      }
+                                    ],
+                                    "key": "settings-theme",
+                                    "name": "Theme",
+                                    "role": "radio-group",
+                                    "setSize": 4
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      330.0,
+                                      508.0,
+                                      20.0
+                                    ],
+                                    "name": "Tray icon",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      358.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "name": "A tray icon with Show Muninn, New note, Sync now, the sync status and Quit.",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "focus"
+                                    ],
+                                    "bounds": [
+                                      336.0,
+                                      382.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "key": "settings-tray-icon",
+                                    "name": "Show tray icon",
+                                    "role": "switch",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      406.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "key": "settings-tray-status",
+                                    "name": "Off.",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      430.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "key": "settings-close-to-tray",
+                                    "name": "Close to tray",
+                                    "role": "switch",
+                                    "states": [
+                                      "disabled",
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      454.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "key": "settings-close-to-tray-status",
+                                    "name": "Needs the tray icon. Closing the window quits Muninn.",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      488.0,
+                                      508.0,
+                                      20.0
+                                    ],
+                                    "name": "Startup and shortcut",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "focus"
+                                    ],
+                                    "bounds": [
+                                      336.0,
+                                      516.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "key": "settings-auto-start",
+                                    "name": "Start Muninn at login",
+                                    "role": "switch",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      540.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "key": "settings-auto-start-status",
+                                    "name": "Off.",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "focus"
+                                    ],
+                                    "bounds": [
+                                      336.0,
+                                      564.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "key": "settings-show-shortcut",
+                                    "name": "Show Muninn with Ctrl+Alt+M",
+                                    "role": "switch",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "bounds": [
+                                      336.0,
+                                      588.0,
+                                      508.0,
+                                      16.0
+                                    ],
+                                    "key": "settings-show-shortcut-status",
+                                    "name": "Off.",
+                                    "role": "label"
+                                  }
+                                ],
+                                "key": "settings-tab-appearance",
+                                "role": "group"
+                              }
+                            ],
+                            "key": "settings-tab-content",
+                            "role": "group"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "focus"
+                            ],
+                            "bounds": [
+                              784.0,
+                              620.0,
+                              60.0,
+                              24.0
+                            ],
+                            "key": "settings-close",
+                            "name": "Close",
+                            "role": "button"
+                          }
+                        ],
+                        "key": "settings-body",
+                        "role": "group"
+                      }
+                    ],
+                    "key": "body",
+                    "role": "group"
+                  }
+                ],
+                "description": "Preferences are saved as you change them.",
+                "key": "settings-dialog",
+                "name": "Settings",
+                "role": "dialog",
+                "states": [
+                  "modal"
+                ]
+              }
+            ],
+            "key": "settings-layer",
+            "role": "group"
+          }
+        ],
+        "key": "kit-root",
+        "role": "group"
+      }
+    ],
+    "name": "Muninn",
+    "role": "window"
+  },
+  "anim_t": 0.0,
+  "animating": true,
+  "dark_system": true,
+  "elements": [
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "kit-root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#161616ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#080808ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar",
+      "rect": [
+        0.0,
+        0.0,
+        258.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0",
+      "rect": [
+        0.0,
+        0.0,
+        258.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#12141aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "brand-logo",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/brand-logo",
+      "rect": [
+        16.0,
+        17.0,
+        24.0,
+        24.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/brand-logo/#0",
+      "rect": [
+        16.0,
+        17.0,
+        24.0,
+        24.0
+      ],
+      "role": "image",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/#1",
+      "rect": [
+        49.0,
+        19.0,
+        82.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Muninn"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "Keyboard shortcuts",
+      "inert": true,
+      "key": "help-open",
+      "label": "Keyboard shortcuts",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/help-open",
+      "rect": [
+        140.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/help-open/#0",
+      "rect": [
+        150.0,
+        20.0,
+        8.0,
+        18.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "?"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "Settings (Ctrl+,)",
+      "inert": true,
+      "key": "settings-open",
+      "label": "Settings",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/settings-open",
+      "rect": [
+        177.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/settings-open/#0",
+      "rect": [
+        183.5,
+        21.5,
+        15.0,
+        15.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "Theme: Omarchy — click to cycle (System, Dark, Light)",
+      "inert": true,
+      "key": "theme",
+      "label": "Theme: Omarchy — click to cycle (System, Dark, Light)",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/theme",
+      "rect": [
+        214.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#0/theme/#0",
+      "rect": [
+        221.5,
+        20.0,
+        13.0,
+        18.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "◐"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "search-box",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/search-box",
+      "rect": [
+        12.0,
+        58.0,
+        234.0,
+        34.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/search-box/#0",
+      "rect": [
+        21.0,
+        68.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "search",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/search-box/search",
+      "rect": [
+        42.0,
+        67.0,
+        195.0,
+        16.0
+      ],
+      "role": "textbox",
+      "scale": 1.0,
+      "text": ""
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "new-note",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/new-note",
+      "rect": [
+        12.0,
+        100.0,
+        234.0,
+        34.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/new-note/#0",
+      "rect": [
+        22.0,
+        110.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/new-note/#1",
+      "rect": [
+        43.0,
+        109.0,
+        59.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "New note"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#3",
+      "rect": [
+        0.0,
+        142.0,
+        258.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "note-scroll",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll",
+      "rect": [
+        0.0,
+        143.0,
+        258.0,
+        592.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "note-list",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list",
+      "rect": [
+        0.0,
+        143.0,
+        258.0,
+        88.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "folder-header-root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/folder-header-root",
+      "rect": [
+        8.0,
+        143.0,
+        242.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/folder-header-root/#0",
+      "rect": [
+        14.0,
+        151.5,
+        6.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "▾"
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/folder-header-root/#1",
+      "rect": [
+        26.0,
+        152.0,
+        151.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Vault root"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/folder-header-root/#2",
+      "rect": [
+        183.0,
+        150.0,
+        5.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "New note in the vault root",
+      "inert": true,
+      "key": "folder-new-root",
+      "label": "New note in the vault root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/folder-header-root/folder-new-root",
+      "rect": [
+        194.0,
+        147.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/folder-header-root/folder-new-root/#0",
+      "rect": [
+        199.0,
+        152.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "New folder in the vault root",
+      "inert": true,
+      "key": "folder-create-root",
+      "label": "New folder in the vault root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/folder-header-root/folder-create-root",
+      "rect": [
+        222.0,
+        147.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/folder-header-root/folder-create-root/#0",
+      "rect": [
+        227.0,
+        152.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcff1a",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "note-row-0",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/note-row-0",
+      "rect": [
+        8.0,
+        175.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/note-row-0/#0",
+      "rect": [
+        28.0,
+        196.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/note-row-0/#1",
+      "rect": [
+        43.0,
+        180.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/note-row-0/#1/#0",
+      "rect": [
+        43.0,
+        180.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Alpha"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/note-list/note-row-0/#1/#1",
+      "rect": [
+        43.0,
+        202.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "no links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/note-scroll/#1",
+      "rect": [
+        0.0,
+        235.0,
+        258.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#5",
+      "rect": [
+        0.0,
+        735.0,
+        258.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#6",
+      "rect": [
+        0.0,
+        736.0,
+        258.0,
+        44.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#6/#0",
+      "rect": [
+        15.0,
+        750.0,
+        75.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1 note · 0 links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#6/#1",
+      "rect": [
+        98.0,
+        758.0,
+        57.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "broken-chip",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#6/broken-chip",
+      "rect": [
+        163.0,
+        747.0,
+        53.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#6/broken-chip/#0",
+      "rect": [
+        169.0,
+        750.0,
+        41.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "links ok"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/sidebar/#6/#3",
+      "rect": [
+        224.0,
+        750.0,
+        19.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "⌘K"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/#1",
+      "rect": [
+        258.0,
+        0.0,
+        1.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "main",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main",
+      "rect": [
+        259.0,
+        0.0,
+        921.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0",
+      "rect": [
+        259.0,
+        0.0,
+        921.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "sidebar-toggle",
+      "label": "Hide sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/sidebar-toggle",
+      "rect": [
+        279.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/sidebar-toggle/#0",
+      "rect": [
+        285.0,
+        22.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "history-back",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/history-back",
+      "rect": [
+        317.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/history-back/#0",
+      "rect": [
+        326.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "‹"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "history-forward",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/history-forward",
+      "rect": [
+        355.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/history-forward/#0",
+      "rect": [
+        364.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "›"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#3",
+      "rect": [
+        393.0,
+        10.0,
+        474.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#3/#0",
+      "rect": [
+        393.0,
+        10.0,
+        474.0,
+        20.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#3/#0/#0",
+      "rect": [
+        393.0,
+        10.0,
+        36.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Alpha"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#3/#0/#1",
+      "rect": [
+        437.0,
+        20.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#3/#1",
+      "rect": [
+        393.0,
+        32.0,
+        474.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Alpha.md"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4",
+      "rect": [
+        879.0,
+        13.0,
+        281.0,
+        32.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#3a3a3aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "mode-editor",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-editor",
+      "rect": [
+        882.0,
+        16.0,
+        66.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-editor/#0",
+      "rect": [
+        891.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-editor/#1",
+      "rect": [
+        910.0,
+        23.0,
+        29.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Write"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "mode-preview",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-preview",
+      "rect": [
+        950.0,
+        16.0,
+        64.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-preview/#0",
+      "rect": [
+        959.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-preview/#1",
+      "rect": [
+        978.0,
+        23.0,
+        27.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Read"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "mode-graph",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-graph",
+      "rect": [
+        1016.0,
+        16.0,
+        70.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-graph/#0",
+      "rect": [
+        1025.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-graph/#1",
+      "rect": [
+        1044.0,
+        23.0,
+        33.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Graph"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "mode-board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-board",
+      "rect": [
+        1088.0,
+        16.0,
+        69.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-board/#0",
+      "rect": [
+        1097.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#0/#4/mode-board/#1",
+      "rect": [
+        1116.0,
+        23.0,
+        32.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/#1",
+      "rect": [
+        259.0,
+        58.0,
+        921.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "note-body",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body",
+      "rect": [
+        259.0,
+        59.0,
+        921.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "page",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page",
+      "rect": [
+        259.0,
+        59.0,
+        634.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "editor-pane",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/editor-pane",
+      "rect": [
+        259.0,
+        59.0,
+        634.0,
+        685.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "editor-scroll",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/editor-pane/editor-scroll",
+      "rect": [
+        259.0,
+        59.0,
+        634.0,
+        685.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/editor-pane/editor-scroll/#0",
+      "rect": [
+        259.0,
+        59.0,
+        634.0,
+        172.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "editor",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/editor-pane/editor-scroll/#0/editor",
+      "rect": [
+        311.0,
+        95.0,
+        530.0,
+        100.0
+      ],
+      "role": "textbox",
+      "scale": 1.0,
+      "text": "# Alpha\n\nVault A of the single-instance step.\n"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "status-bar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/status-bar",
+      "rect": [
+        259.0,
+        744.0,
+        634.0,
+        36.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "status-state-autosave",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/status-bar/status-state-autosave",
+      "rect": [
+        279.0,
+        754.0,
+        79.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "status-dot",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/status-bar/status-state-autosave/status-dot",
+      "rect": [
+        279.0,
+        759.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "status-text",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/status-bar/status-state-autosave/status-text",
+      "rect": [
+        292.0,
+        754.0,
+        66.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Autosave on"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/status-bar/#1",
+      "rect": [
+        365.0,
+        762.0,
+        345.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/page/status-bar/#2",
+      "rect": [
+        717.0,
+        754.0,
+        156.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "8 words · 0 links · 0 backlinks"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/#1",
+      "rect": [
+        893.0,
+        59.0,
+        1.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#080808ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "rail",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail",
+      "rect": [
+        894.0,
+        59.0,
+        286.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/#0",
+      "rect": [
+        894.0,
+        59.0,
+        286.0,
+        48.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/#0/#0",
+      "rect": [
+        909.0,
+        76.5,
+        35.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "LINKS"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/#0/#1",
+      "rect": [
+        952.0,
+        83.0,
+        213.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/#1",
+      "rect": [
+        894.0,
+        107.0,
+        286.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "rail-scroll",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll",
+      "rect": [
+        894.0,
+        108.0,
+        286.0,
+        672.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#0",
+      "rect": [
+        905.0,
+        120.0,
+        264.0,
+        50.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#0/#0",
+      "rect": [
+        905.0,
+        120.0,
+        264.0,
+        13.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#0/#0/#0",
+      "rect": [
+        909.0,
+        120.0,
+        62.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "OUTGOING"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#0/#1",
+      "rect": [
+        905.0,
+        138.0,
+        264.0,
+        32.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#0/#1/#0",
+      "rect": [
+        905.0,
+        138.0,
+        264.0,
+        32.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "No outgoing links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#1",
+      "rect": [
+        905.0,
+        188.0,
+        264.0,
+        50.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#1/#0",
+      "rect": [
+        905.0,
+        188.0,
+        264.0,
+        13.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#1/#0/#0",
+      "rect": [
+        909.0,
+        188.0,
+        66.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "BACKLINKS"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#1/#1",
+      "rect": [
+        905.0,
+        206.0,
+        264.0,
+        32.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#1/#1/#0",
+      "rect": [
+        905.0,
+        206.0,
+        264.0,
+        32.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "No backlinks yet"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2",
+      "rect": [
+        905.0,
+        256.0,
+        264.0,
+        74.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2/#0",
+      "rect": [
+        905.0,
+        256.0,
+        264.0,
+        51.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2/#0/#0",
+      "rect": [
+        905.0,
+        256.0,
+        264.0,
+        13.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2/#0/#0/#0",
+      "rect": [
+        909.0,
+        256.0,
+        40.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "GRAPH"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2/#0/#1",
+      "rect": [
+        905.0,
+        274.0,
+        264.0,
+        33.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "open-local-graph",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2/#0/#1/open-local-graph",
+      "rect": [
+        905.0,
+        274.0,
+        264.0,
+        33.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2/#0/#1/open-local-graph/#0",
+      "rect": [
+        914.0,
+        284.0,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2/#0/#1/open-local-graph/#1",
+      "rect": [
+        934.0,
+        282.5,
+        105.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Open local graph"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/root/main/note-body/rail/rail-scroll/#2/#1",
+      "rect": [
+        905.0,
+        314.0,
+        264.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "See this note and everything it touches."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000099",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "settings-scrim",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-scrim",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": true,
+      "key": "settings-layer",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-dialog",
+      "label": "Settings",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog",
+      "rect": [
+        320.0,
+        120.0,
+        540.0,
+        540.0
+      ],
+      "role": "dialog",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "header",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/header",
+      "rect": [
+        320.0,
+        120.0,
+        540.0,
+        76.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/header/#0",
+      "rect": [
+        336.0,
+        136.0,
+        490.0,
+        44.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/header/#0/#0",
+      "rect": [
+        336.0,
+        136.0,
+        490.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Settings"
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/header/#0/#1",
+      "rect": [
+        336.0,
+        160.0,
+        490.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Preferences are saved as you change them."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": true,
+      "inert": false,
+      "key": "close",
+      "label": "Close",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/header/close",
+      "rect": [
+        826.0,
+        134.0,
+        20.0,
+        20.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "icon",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/header/close/icon",
+      "rect": [
+        828.0,
+        136.0,
+        16.0,
+        16.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "body",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body",
+      "rect": [
+        320.0,
+        196.0,
+        540.0,
+        464.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-body",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body",
+      "rect": [
+        320.0,
+        196.0,
+        540.0,
+        464.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-tabs",
+      "label": "Settings section",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs",
+      "rect": [
+        336.0,
+        212.0,
+        508.0,
+        28.0
+      ],
+      "role": "radiogroup",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#161616ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "indicator",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/indicator",
+      "rect": [
+        539.2,
+        212.0,
+        101.59,
+        28.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "segment0",
+      "label": "Vaults",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment0",
+      "rect": [
+        336.0,
+        212.0,
+        101.59,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment0/label",
+      "rect": [
+        367.8,
+        219.5,
+        38.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Vaults"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "segment1",
+      "label": "Editor",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment1",
+      "rect": [
+        437.59,
+        212.0,
+        101.59,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment1/label",
+      "rect": [
+        470.41,
+        219.5,
+        36.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Editor"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "itemSelected": true,
+      "key": "segment2",
+      "label": "Appearance",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment2",
+      "rect": [
+        539.2,
+        212.0,
+        101.59,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment2/label",
+      "rect": [
+        552.5,
+        219.5,
+        75.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Appearance"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "segment3",
+      "label": "Graph",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment3",
+      "rect": [
+        640.8,
+        212.0,
+        101.59,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment3/label",
+      "rect": [
+        672.59,
+        219.5,
+        38.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Graph"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "segment4",
+      "label": "Sync",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment4",
+      "rect": [
+        742.41,
+        212.0,
+        101.59,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tabs/segment4/label",
+      "rect": [
+        777.7,
+        219.5,
+        31.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Sync"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-tab-content",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content",
+      "rect": [
+        336.0,
+        256.0,
+        508.0,
+        348.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-tab-appearance",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance",
+      "rect": [
+        336.0,
+        256.0,
+        508.0,
+        348.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0",
+      "rect": [
+        336.0,
+        256.0,
+        508.0,
+        56.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/#0",
+      "rect": [
+        336.0,
+        256.0,
+        508.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Theme"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-theme",
+      "label": "Theme",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme",
+      "rect": [
+        336.0,
+        284.0,
+        508.0,
+        28.0
+      ],
+      "role": "radiogroup",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#161616ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "indicator",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/indicator",
+      "rect": [
+        336.0,
+        284.0,
+        127.0,
+        28.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "itemSelected": true,
+      "key": "segment0",
+      "label": "Omarchy",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/segment0",
+      "rect": [
+        336.0,
+        284.0,
+        127.0,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/segment0/label",
+      "rect": [
+        371.5,
+        291.5,
+        56.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Omarchy"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "segment1",
+      "label": "System",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/segment1",
+      "rect": [
+        463.0,
+        284.0,
+        127.0,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/segment1/label",
+      "rect": [
+        503.5,
+        291.5,
+        46.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "System"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "segment2",
+      "label": "Dark",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/segment2",
+      "rect": [
+        590.0,
+        284.0,
+        127.0,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/segment2/label",
+      "rect": [
+        639.0,
+        291.5,
+        29.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Dark"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "segment3",
+      "label": "Light",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/segment3",
+      "rect": [
+        717.0,
+        284.0,
+        127.0,
+        28.0
+      ],
+      "role": "radio",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#0/settings-theme/segment3/label",
+      "rect": [
+        765.0,
+        291.5,
+        31.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Light"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1",
+      "rect": [
+        336.0,
+        330.0,
+        508.0,
+        140.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#0",
+      "rect": [
+        336.0,
+        330.0,
+        508.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Tray icon"
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#1",
+      "rect": [
+        336.0,
+        358.0,
+        508.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "A tray icon with Show Muninn, New note, Sync now, the sync status and Quit."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2",
+      "rect": [
+        336.0,
+        382.0,
+        508.0,
+        88.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "settings-tray-icon",
+      "label": "Show tray icon",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-tray-icon",
+      "rect": [
+        336.0,
+        382.0,
+        508.0,
+        16.0
+      ],
+      "role": "switch",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-tray-icon/label",
+      "rect": [
+        336.0,
+        382.0,
+        79.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Show tray icon"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#5c5c5cff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "control",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-tray-icon/control",
+      "rect": [
+        423.0,
+        382.0,
+        36.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#f2f2f2ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "thumb",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-tray-icon/control/thumb",
+      "rect": [
+        424.0,
+        383.0,
+        21.0,
+        14.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-tray-status",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-tray-status",
+      "rect": [
+        336.0,
+        406.0,
+        508.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Off."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-close-to-tray",
+      "label": "Close to tray",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-close-to-tray",
+      "rect": [
+        336.0,
+        430.0,
+        508.0,
+        16.0
+      ],
+      "role": "switch",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-close-to-tray/label",
+      "rect": [
+        336.0,
+        430.0,
+        67.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Close to tray"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#5c5c5cff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "control",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-close-to-tray/control",
+      "rect": [
+        411.0,
+        430.0,
+        36.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#f2f2f2ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "thumb",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-close-to-tray/control/thumb",
+      "rect": [
+        412.0,
+        431.0,
+        21.0,
+        14.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-close-to-tray-status",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#1/#2/settings-close-to-tray-status",
+      "rect": [
+        336.0,
+        454.0,
+        508.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Needs the tray icon. Closing the window quits Muninn."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2",
+      "rect": [
+        336.0,
+        488.0,
+        508.0,
+        116.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#0",
+      "rect": [
+        336.0,
+        488.0,
+        508.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Startup and shortcut"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1",
+      "rect": [
+        336.0,
+        516.0,
+        508.0,
+        88.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "settings-auto-start",
+      "label": "Start Muninn at login",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-auto-start",
+      "rect": [
+        336.0,
+        516.0,
+        508.0,
+        16.0
+      ],
+      "role": "switch",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-auto-start/label",
+      "rect": [
+        336.0,
+        516.0,
+        110.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Start Muninn at login"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#5c5c5cff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "control",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-auto-start/control",
+      "rect": [
+        454.0,
+        516.0,
+        36.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#f2f2f2ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "thumb",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-auto-start/control/thumb",
+      "rect": [
+        455.0,
+        517.0,
+        21.0,
+        14.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-auto-start-status",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-auto-start-status",
+      "rect": [
+        336.0,
+        540.0,
+        508.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Off."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "settings-show-shortcut",
+      "label": "Show Muninn with Ctrl+Alt+M",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-show-shortcut",
+      "rect": [
+        336.0,
+        564.0,
+        508.0,
+        16.0
+      ],
+      "role": "switch",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-show-shortcut/label",
+      "rect": [
+        336.0,
+        564.0,
+        158.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Show Muninn with Ctrl+Alt+M"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#5c5c5cff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "control",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-show-shortcut/control",
+      "rect": [
+        502.0,
+        564.0,
+        36.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#f2f2f2ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "thumb",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-show-shortcut/control/thumb",
+      "rect": [
+        503.0,
+        565.0,
+        21.0,
+        14.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "settings-show-shortcut-status",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/settings-tab-content/settings-tab-appearance/#2/#1/settings-show-shortcut-status",
+      "rect": [
+        336.0,
+        588.0,
+        508.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Off."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/#2",
+      "rect": [
+        336.0,
+        620.0,
+        508.0,
+        24.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "settings-close",
+      "label": "Close",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/#2/settings-close",
+      "rect": [
+        784.0,
+        620.0,
+        60.0,
+        24.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "label",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "kit-root/settings-layer/settings-dialog/body/settings-body/#2/settings-close/label",
+      "rect": [
+        796.0,
+        622.0,
+        36.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Close"
+    }
+  ],
+  "reduced_motion": false,
+  "scale": 1.0,
+  "t": 0.0,
+  "time_scale": 1.0,
+  "title": "Muninn",
+  "viewport": [
+    1180.0,
+    780.0
+  ],
+  "warnings": []
+}

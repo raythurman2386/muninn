@@ -1,0 +1,35 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+Xvfb on :90
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+3 on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode graph
+ok pressed ctrl+2 on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode preview
+ok pressed ctrl+1 on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode editor
+ok pressed ctrl+4 on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode board
+ok pressed esc on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode editor
+ok clicked 1122,29 in 0x200002 (button 1 x1)
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode board
+ok pressed ctrl+3 on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode graph
+ok pressed ctrl+shift+p on 0x200002
+ok typed 'whiteboard' on 0x200002
+ok pressed enter on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode board
+ok pressed ctrl+2 on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode preview
+ok pressed ctrl+1 on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode editor
+ok pressed ctrl+4 on 0x200002
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode board
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+window 0x200002 'Muninn' 1180x780
+ok /agent/repos/muninn/target/ui-smoke/work/config-x11/muninn/settings.json: mode board
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0

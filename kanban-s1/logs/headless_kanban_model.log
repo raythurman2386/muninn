@@ -1,0 +1,69 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.4 (LLVM 20.1.2)
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/archive-de.md: 1 lanes, 1 cards, archive Archiv, footer no, 111 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/archive-en.md: 1 lanes, 1 cards, archive Archive, footer no, 89 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/archive-ja.md: 1 lanes, 1 cards, archive アーカイブ, footer no, 122 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/block-ids.md: 1 lanes, 2 cards, archive -, footer no, 101 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/bom.md: 1 lanes, 1 cards, archive -, footer no, 76 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/card-text.md: 1 lanes, 5 cards, archive -, footer no, 272 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/crlf.md: 1 lanes, 1 cards, archive -, footer no, 62 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/done-lane.md: 1 lanes, 2 cards, archive -, footer no, 101 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/frontmatter-extra.md: 1 lanes, 1 cards, archive -, footer no, 166 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/lanes-and-limits.md: 4 lanes, 5 cards, archive -, footer no, 195 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/multibyte.md: 1 lanes, 2 cards, archive -, footer no, 92 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/multiline-cards.md: 1 lanes, 2 cards, archive -, footer no, 132 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/new-kanban.md: 3 lanes, 0 cards, archive -, footer no, 66 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/no-final-newline.md: 1 lanes, 1 cards, archive -, footer no, 54 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/passthrough.md: 2 lanes, 2 cards, archive -, footer no, 122 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/plain-list.md: 1 lanes, 2 cards, archive -, footer no, 114 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/settings-footer.md: 1 lanes, 1 cards, archive -, footer yes, 144 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/spec-example.md: 3 lanes, 4 cards, archive Archive, footer yes, 323 bytes
+ok rename-lane diff matches
+notes: 20
+broken links: 0
+duplicates: 0
+skipped: 0
+card-text.md -> 2026-11-11.md
+card-text.md -> Roadmap.md
+spec-example.md -> Roadmap.md
+card-text id 6, Roadmap id 17
+rune: 97 frames at 60 fps, gpu init 94.3 ms, first frame 76.77 ms, frame cpu mean 6.942 ms p50 4.879 p95 8.746 max 175.460, 708 instances
+rune: animating frames 42 (cpu p50 5.797 p95 8.972 ms), at-rest frames 54 (the window draws none; forced cpu p50 4.267 p95 5.844 ms), layout nodes 211, glyphs 644
+ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-write.json: active mode mode-editor
+rune: 181 frames at 60 fps, gpu init 95.1 ms, first frame 79.12 ms, frame cpu mean 7.634 ms p50 5.094 p95 13.887 max 170.559, 678 instances
+rune: animating frames 84 (cpu p50 8.158 p95 14.642 ms), at-rest frames 96 (the window draws none; forced cpu p50 4.436 p95 6.567 ms), layout nodes 241, glyphs 606
+ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-read.json: active mode mode-preview
+rune: 289 frames at 60 fps, gpu init 94.9 ms, first frame 77.81 ms, frame cpu mean 6.391 ms p50 5.135 p95 11.370 max 170.694, 580 instances
+rune: animating frames 131 (cpu p50 6.681 p95 13.236 ms), at-rest frames 157 (the window draws none; forced cpu p50 4.409 p95 5.997 ms), layout nodes 216, glyphs 518
+ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-backlinks.json: active mode mode-preview
+ok write tree has 'card-text'
+ok write tree has 'kanban-plugin'
+ok write tree has '[[Roadmap]]'
+ok read tree has 'To do'
+ok read tree has 'Roadmap'
+ok read tree has 'card-text'
+ok write: rail-link-1-17 mentions Roadmap
+ok backlinks: rail-link-0-6 mentions card-text
+./2026-11-11.md: OK
+./archive-de.md: OK
+./archive-en.md: OK
+./archive-ja.md: OK
+./block-ids.md: OK
+./bom.md: OK
+./card-text.md: OK
+./crlf.md: OK
+./done-lane.md: OK
+./frontmatter-extra.md: OK
+./lanes-and-limits.md: OK
+./multibyte.md: OK
+./multiline-cards.md: OK
+./new-kanban.md: OK
+./no-final-newline.md: OK
+./passthrough.md: OK
+./plain-list.md: OK
+./Roadmap.md: OK
+./settings-footer.md: OK
+./spec-example.md: OK
+ok kanban files unchanged

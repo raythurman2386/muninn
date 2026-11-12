@@ -1,0 +1,35 @@
+rune: 115 frames at 60 fps, gpu init 92.1 ms, first frame 50.93 ms, frame cpu mean 8.100 ms p50 3.734 p95 20.905 max 153.667, 217 instances
+rune: animating frames 42 (cpu p50 9.674 p95 32.996 ms), at-rest frames 72 (the window draws none; forced cpu p50 3.556 p95 4.158 ms), layout nodes 52, glyphs 199
+ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: active mode mode-board
+ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: board-new-empty says 'New board'
+ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: board-list-empty says 'No boards in this vault yet'
+ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: board-surface-title says 'No boards yet'
+ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: no search-box
+ok entering Board on a vault with no boards wrote nothing
+rune: 175 frames at 60 fps, gpu init 91.9 ms, first frame 50.78 ms, frame cpu mean 7.558 ms p50 4.191 p95 18.591 max 154.382, 256 instances
+rune: animating frames 90 (cpu p50 8.481 p95 24.071 ms), at-rest frames 84 (the window draws none; forced cpu p50 3.708 p95 4.415 ms), layout nodes 81, glyphs 224
+ok /agent/repos/muninn/target/ui-smoke/trees/new-created.json: board-surface-title says 'Untitled board'
+ok empty scene /agent/repos/muninn/target/ui-smoke/work/empty-vault/Ideas/Untitled board.excalidraw
+ok /agent/repos/muninn/target/ui-smoke/work/empty-vault/Ideas/Untitled board.excalidraw: 0 elements (0 modelled, 0 kept raw), 0 files, 115 bytes written
+ok negative control fails: the empty-state tree as a created board (FAIL /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: board-surface-title does not say 'Untitled board')
+rune: 175 frames at 60 fps, gpu init 91.9 ms, first frame 52.70 ms, frame cpu mean 7.781 ms p50 4.180 p95 18.267 max 154.364, 282 instances
+rune: animating frames 90 (cpu p50 9.095 p95 30.718 ms), at-rest frames 84 (the window draws none; forced cpu p50 3.903 p95 5.008 ms), layout nodes 84, glyphs 250
+ok /agent/repos/muninn/target/ui-smoke/trees/new-second.json: board-surface-title says 'Untitled board 2'
+rune: 85 frames at 60 fps, gpu init 93.0 ms, first frame 54.07 ms, frame cpu mean 9.748 ms p50 4.172 p95 28.383 max 154.774, 261 instances
+rune: animating frames 42 (cpu p50 9.753 p95 33.256 ms), at-rest frames 42 (the window draws none; forced cpu p50 3.646 p95 4.298 ms), layout nodes 57, glyphs 243
+rune: 169 frames at 60 fps, gpu init 118.8 ms, first frame 54.25 ms, frame cpu mean 6.869 ms p50 3.952 p95 17.430 max 154.606, 421 instances
+rune: animating frames 42 (cpu p50 9.704 p95 32.353 ms), at-rest frames 126 (the window draws none; forced cpu p50 3.722 p95 5.058 ms), layout nodes 123, glyphs 365
+rune: 277 frames at 60 fps, gpu init 91.8 ms, first frame 53.63 ms, frame cpu mean 7.650 ms p50 4.271 p95 17.851 max 155.821, 1425 instances
+rune: animating frames 103 (cpu p50 11.899 p95 25.440 ms), at-rest frames 173 (the window draws none; forced cpu p50 3.762 p95 4.857 ms), layout nodes 142, glyphs 335
+ok /agent/repos/muninn/target/ui-smoke/trees/new-shut.json: no search-box
+129 75
+ok /agent/repos/muninn/target/ui-smoke/trees/new-left.json: active mode mode-graph
+129 75
+/agent/repos/muninn/target/ui-smoke/work/empty-vault:
+Ideas
+Start.md
+
+/agent/repos/muninn/target/ui-smoke/work/empty-vault/Ideas:
+Idea.md
+Untitled board 2.excalidraw
+Untitled board.excalidraw

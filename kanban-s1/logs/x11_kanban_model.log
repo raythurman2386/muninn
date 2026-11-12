@@ -1,0 +1,30 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.4 (LLVM 20.1.2)
+Xvfb on :90, vulkan icd /usr/share/vulkan/icd.d/lvp_icd.json
+window 0x200002 'Muninn' 1180x780
+ok clicked 129,499 in 0x200002 (button 1 x1)
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+./2026-11-11.md: OK
+./archive-de.md: OK
+./archive-en.md: OK
+./archive-ja.md: OK
+./block-ids.md: OK
+./bom.md: OK
+./card-text.md: OK
+./crlf.md: OK
+./done-lane.md: OK
+./frontmatter-extra.md: OK
+./lanes-and-limits.md: OK
+./multibyte.md: OK
+./multiline-cards.md: OK
+./new-kanban.md: OK
+./no-final-newline.md: OK
+./passthrough.md: OK
+./plain-list.md: OK
+./Roadmap.md: OK
+./settings-footer.md: OK
+./spec-example.md: OK
+ok x11 kanban note opened and the file is unchanged
