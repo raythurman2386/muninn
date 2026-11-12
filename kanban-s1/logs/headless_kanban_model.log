@@ -13,11 +13,14 @@ ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/card-paragraph.m
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/card-text.md: 1 lanes, 5 cards, archive -, footer no, 272 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/crlf.md: 1 lanes, 1 cards, archive -, footer no, 62 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/done-lane.md: 1 lanes, 2 cards, archive -, footer no, 101 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/fence-column0-card.md: 1 lanes, 1 cards, archive -, footer no, 95 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/fence-longer-close.md: 2 lanes, 1 cards, archive -, footer no, 68 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/fence-opaque.md: 1 lanes, 1 cards, archive -, footer no, 182 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/fence-unclosed.md: 1 lanes, 0 cards, archive -, footer no, 92 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/footer-nested.md: 1 lanes, 1 cards, archive -, footer yes, 196 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/frontmatter-extra.md: 1 lanes, 1 cards, archive -, footer no, 166 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/indent-deep-line.md: 1 lanes, 1 cards, archive -, footer no, 56 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/indent-mixed.md: 1 lanes, 1 cards, archive -, footer no, 81 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/lanes-and-limits.md: 4 lanes, 5 cards, archive -, footer no, 195 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/multibyte.md: 1 lanes, 2 cards, archive -, footer no, 92 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/multiline-cards.md: 1 lanes, 2 cards, archive -, footer no, 132 bytes
@@ -27,25 +30,26 @@ ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/passthrough.md: 
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/plain-list.md: 1 lanes, 2 cards, archive -, footer no, 114 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/settings-footer.md: 1 lanes, 1 cards, archive -, footer yes, 144 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/spec-example.md: 3 lanes, 4 cards, archive Archive, footer yes, 323 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/task-open-fence.md: 2 lanes, 3 cards, archive -, footer no, 80 bytes
 ok rename-lane diff matches
-notes: 27
+notes: 31
 broken links: 0
 duplicates: 0
 skipped: 0
 card-text.md -> 2026-11-11.md
 card-text.md -> Roadmap.md
 spec-example.md -> Roadmap.md
-rune: 67 frames at 60 fps, gpu init 95.1 ms, first frame 85.08 ms, frame cpu mean 4.042 ms p50 3.550 p95 5.004 max 85.084, 537 instances
-rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 3.550 p95 4.960 ms), layout nodes 243, glyphs 474
-card-text id 9, Roadmap id 24
-rune: 97 frames at 60 fps, gpu init 95.1 ms, first frame 80.49 ms, frame cpu mean 6.540 ms p50 4.092 p95 9.715 max 192.983, 709 instances
-rune: animating frames 42 (cpu p50 4.458 p95 9.715 ms), at-rest frames 54 (the window draws none; forced cpu p50 3.903 p95 5.110 ms), layout nodes 246, glyphs 645
+rune: 67 frames at 60 fps, gpu init 92.2 ms, first frame 81.31 ms, frame cpu mean 4.735 ms p50 4.437 p95 6.063 max 81.307, 537 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 4.437 p95 6.049 ms), layout nodes 263, glyphs 474
+card-text id 9, Roadmap id 27
+rune: 97 frames at 60 fps, gpu init 94.2 ms, first frame 82.77 ms, frame cpu mean 7.022 ms p50 4.976 p95 9.011 max 170.231, 709 instances
+rune: animating frames 42 (cpu p50 5.418 p95 9.011 ms), at-rest frames 54 (the window draws none; forced cpu p50 4.546 p95 6.471 ms), layout nodes 266, glyphs 645
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-write.json: active mode mode-editor
-rune: 181 frames at 60 fps, gpu init 102.4 ms, first frame 85.85 ms, frame cpu mean 6.649 ms p50 4.776 p95 11.488 max 173.853, 679 instances
-rune: animating frames 84 (cpu p50 6.891 p95 12.898 ms), at-rest frames 96 (the window draws none; forced cpu p50 3.989 p95 6.047 ms), layout nodes 276, glyphs 607
+rune: 181 frames at 60 fps, gpu init 93.0 ms, first frame 81.18 ms, frame cpu mean 7.461 ms p50 5.112 p95 14.663 max 169.141, 679 instances
+rune: animating frames 84 (cpu p50 8.665 p95 15.173 ms), at-rest frames 96 (the window draws none; forced cpu p50 4.502 p95 5.975 ms), layout nodes 296, glyphs 607
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-read.json: active mode mode-preview
-rune: 289 frames at 60 fps, gpu init 97.9 ms, first frame 86.16 ms, frame cpu mean 6.037 ms p50 4.622 p95 11.304 max 175.089, 598 instances
-rune: animating frames 131 (cpu p50 6.149 p95 11.942 ms), at-rest frames 157 (the window draws none; forced cpu p50 3.795 p95 5.753 ms), layout nodes 251, glyphs 536
+rune: 289 frames at 60 fps, gpu init 94.4 ms, first frame 81.33 ms, frame cpu mean 6.847 ms p50 5.322 p95 12.749 max 170.765, 600 instances
+rune: animating frames 131 (cpu p50 6.860 p95 14.130 ms), at-rest frames 157 (the window draws none; forced cpu p50 4.631 p95 6.589 ms), layout nodes 271, glyphs 538
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-backlinks.json: active mode mode-preview
 ok write tree has 'card-text'
 ok write tree has 'kanban-plugin'
@@ -53,7 +57,7 @@ ok write tree has '[[Roadmap]]'
 ok read tree has 'To do'
 ok read tree has 'Roadmap'
 ok read tree has 'card-text'
-ok write: rail-link-1-24 mentions Roadmap
+ok write: rail-link-1-27 mentions Roadmap
 ok backlinks: rail-link-0-9 mentions card-text
 ./2026-11-11.md: OK
 ./archive-de.md: OK
@@ -67,11 +71,14 @@ ok backlinks: rail-link-0-9 mentions card-text
 ./card-text.md: OK
 ./crlf.md: OK
 ./done-lane.md: OK
+./fence-column0-card.md: OK
 ./fence-longer-close.md: OK
 ./fence-opaque.md: OK
 ./fence-unclosed.md: OK
 ./footer-nested.md: OK
 ./frontmatter-extra.md: OK
+./indent-deep-line.md: OK
+./indent-mixed.md: OK
 ./lanes-and-limits.md: OK
 ./multibyte.md: OK
 ./multiline-cards.md: OK
@@ -82,4 +89,5 @@ ok backlinks: rail-link-0-9 mentions card-text
 ./Roadmap.md: OK
 ./settings-footer.md: OK
 ./spec-example.md: OK
+./task-open-fence.md: OK
 ok kanban files unchanged

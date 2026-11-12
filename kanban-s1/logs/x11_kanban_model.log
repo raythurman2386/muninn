@@ -21,11 +21,14 @@ app exit status: 0
 ./card-text.md: OK
 ./crlf.md: OK
 ./done-lane.md: OK
+./fence-column0-card.md: OK
 ./fence-longer-close.md: OK
 ./fence-opaque.md: OK
 ./fence-unclosed.md: OK
 ./footer-nested.md: OK
 ./frontmatter-extra.md: OK
+./indent-deep-line.md: OK
+./indent-mixed.md: OK
 ./lanes-and-limits.md: OK
 ./multibyte.md: OK
 ./multiline-cards.md: OK
@@ -36,4 +39,5 @@ app exit status: 0
 ./Roadmap.md: OK
 ./settings-footer.md: OK
 ./spec-example.md: OK
+./task-open-fence.md: OK
 ok x11 kanban note opened and the file is unchanged

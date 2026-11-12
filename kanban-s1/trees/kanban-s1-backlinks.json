@@ -201,9 +201,9 @@
                     ],
                     "bounds": [
                       0.0,
-                      -545.0,
+                      -695.0,
                       258.0,
-                      1388.0
+                      1588.0
                     ],
                     "children": [
                       {
@@ -214,7 +214,7 @@
                         ],
                         "bounds": [
                           8.0,
-                          -545.0,
+                          -695.0,
                           242.0,
                           30.0
                         ],
@@ -225,7 +225,7 @@
                             ],
                             "bounds": [
                               14.0,
-                              -536.5,
+                              -686.5,
                               6.0,
                               13.0
                             ],
@@ -238,8 +238,8 @@
                             ],
                             "bounds": [
                               26.0,
-                              -536.0,
-                              142.0,
+                              -686.0,
+                              144.0,
                               12.0
                             ],
                             "name": "Vault root",
@@ -250,12 +250,12 @@
                               "scroll-into-view"
                             ],
                             "bounds": [
-                              174.0,
-                              -538.0,
-                              14.0,
+                              176.0,
+                              -688.0,
+                              12.0,
                               16.0
                             ],
-                            "name": "27",
+                            "name": "31",
                             "role": "label"
                           },
                           {
@@ -265,7 +265,7 @@
                             ],
                             "bounds": [
                               194.0,
-                              -541.0,
+                              -691.0,
                               22.0,
                               22.0
                             ],
@@ -280,7 +280,7 @@
                             ],
                             "bounds": [
                               222.0,
-                              -541.0,
+                              -691.0,
                               22.0,
                               22.0
                             ],
@@ -290,7 +290,142 @@
                           }
                         ],
                         "key": "folder-header-root",
-                        "name": "▾ Vault root 27",
+                        "name": "▾ Vault root 31",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          -663.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              -658.0,
+                              197.0,
+                              20.0
+                            ],
+                            "name": "2026-11-11",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              -636.0,
+                              197.0,
+                              16.0
+                            ],
+                            "name": "1 backlink",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-0",
+                        "name": "2026-11-11 1 backlink",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          -613.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              -608.0,
+                              197.0,
+                              20.0
+                            ],
+                            "name": "archive-de",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              -586.0,
+                              197.0,
+                              16.0
+                            ],
+                            "name": "no links",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-1",
+                        "name": "archive-de no links",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          -563.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              -558.0,
+                              197.0,
+                              20.0
+                            ],
+                            "name": "archive-en",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              -536.0,
+                              197.0,
+                              16.0
+                            ],
+                            "name": "no links",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-2",
+                        "name": "archive-en no links",
                         "role": "button"
                       },
                       {
@@ -317,7 +452,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "2026-11-11",
+                            "name": "archive-ja",
                             "role": "label"
                           },
                           {
@@ -330,12 +465,12 @@
                               197.0,
                               16.0
                             ],
-                            "name": "1 backlink",
+                            "name": "no links",
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-0",
-                        "name": "2026-11-11 1 backlink",
+                        "key": "note-row-3",
+                        "name": "archive-ja no links",
                         "role": "button"
                       },
                       {
@@ -362,7 +497,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "archive-de",
+                            "name": "block-ids",
                             "role": "label"
                           },
                           {
@@ -379,8 +514,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-1",
-                        "name": "archive-de no links",
+                        "key": "note-row-4",
+                        "name": "block-ids no links",
                         "role": "button"
                       },
                       {
@@ -407,7 +542,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "archive-en",
+                            "name": "bom",
                             "role": "label"
                           },
                           {
@@ -424,8 +559,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-2",
-                        "name": "archive-en no links",
+                        "key": "note-row-5",
+                        "name": "bom no links",
                         "role": "button"
                       },
                       {
@@ -452,7 +587,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "archive-ja",
+                            "name": "card-closed-fence",
                             "role": "label"
                           },
                           {
@@ -469,8 +604,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-3",
-                        "name": "archive-ja no links",
+                        "key": "note-row-6",
+                        "name": "card-closed-fence no links",
                         "role": "button"
                       },
                       {
@@ -497,7 +632,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "block-ids",
+                            "name": "card-open-fence",
                             "role": "label"
                           },
                           {
@@ -514,8 +649,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-4",
-                        "name": "block-ids no links",
+                        "key": "note-row-7",
+                        "name": "card-open-fence no links",
                         "role": "button"
                       },
                       {
@@ -542,7 +677,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "bom",
+                            "name": "card-paragraph",
                             "role": "label"
                           },
                           {
@@ -559,8 +694,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-5",
-                        "name": "bom no links",
+                        "key": "note-row-8",
+                        "name": "card-paragraph no links",
                         "role": "button"
                       },
                       {
@@ -587,7 +722,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "card-closed-fence",
+                            "name": "card-text",
                             "role": "label"
                           },
                           {
@@ -600,12 +735,12 @@
                               197.0,
                               16.0
                             ],
-                            "name": "no links",
+                            "name": "2 links",
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-6",
-                        "name": "card-closed-fence no links",
+                        "key": "note-row-9",
+                        "name": "card-text 2 links",
                         "role": "button"
                       },
                       {
@@ -632,7 +767,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "card-open-fence",
+                            "name": "crlf",
                             "role": "label"
                           },
                           {
@@ -649,8 +784,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-7",
-                        "name": "card-open-fence no links",
+                        "key": "note-row-10",
+                        "name": "crlf no links",
                         "role": "button"
                       },
                       {
@@ -677,7 +812,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "card-paragraph",
+                            "name": "done-lane",
                             "role": "label"
                           },
                           {
@@ -694,8 +829,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-8",
-                        "name": "card-paragraph no links",
+                        "key": "note-row-11",
+                        "name": "done-lane no links",
                         "role": "button"
                       },
                       {
@@ -722,7 +857,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "card-text",
+                            "name": "fence-column0-card",
                             "role": "label"
                           },
                           {
@@ -735,12 +870,12 @@
                               197.0,
                               16.0
                             ],
-                            "name": "2 links",
+                            "name": "no links",
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-9",
-                        "name": "card-text 2 links",
+                        "key": "note-row-12",
+                        "name": "fence-column0-card no links",
                         "role": "button"
                       },
                       {
@@ -767,7 +902,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "crlf",
+                            "name": "fence-longer-close",
                             "role": "label"
                           },
                           {
@@ -784,8 +919,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-10",
-                        "name": "crlf no links",
+                        "key": "note-row-13",
+                        "name": "fence-longer-close no links",
                         "role": "button"
                       },
                       {
@@ -812,7 +947,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "done-lane",
+                            "name": "fence-opaque",
                             "role": "label"
                           },
                           {
@@ -829,8 +964,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-11",
-                        "name": "done-lane no links",
+                        "key": "note-row-14",
+                        "name": "fence-opaque no links",
                         "role": "button"
                       },
                       {
@@ -857,7 +992,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "fence-longer-close",
+                            "name": "fence-unclosed",
                             "role": "label"
                           },
                           {
@@ -874,8 +1009,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-12",
-                        "name": "fence-longer-close no links",
+                        "key": "note-row-15",
+                        "name": "fence-unclosed no links",
                         "role": "button"
                       },
                       {
@@ -902,7 +1037,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "fence-opaque",
+                            "name": "footer-nested",
                             "role": "label"
                           },
                           {
@@ -919,8 +1054,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-13",
-                        "name": "fence-opaque no links",
+                        "key": "note-row-16",
+                        "name": "footer-nested no links",
                         "role": "button"
                       },
                       {
@@ -947,7 +1082,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "fence-unclosed",
+                            "name": "frontmatter-extra",
                             "role": "label"
                           },
                           {
@@ -964,8 +1099,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-14",
-                        "name": "fence-unclosed no links",
+                        "key": "note-row-17",
+                        "name": "frontmatter-extra no links",
                         "role": "button"
                       },
                       {
@@ -992,7 +1127,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "footer-nested",
+                            "name": "indent-deep-line",
                             "role": "label"
                           },
                           {
@@ -1009,8 +1144,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-15",
-                        "name": "footer-nested no links",
+                        "key": "note-row-18",
+                        "name": "indent-deep-line no links",
                         "role": "button"
                       },
                       {
@@ -1037,7 +1172,7 @@
                               197.0,
                               20.0
                             ],
-                            "name": "frontmatter-extra",
+                            "name": "indent-mixed",
                             "role": "label"
                           },
                           {
@@ -1054,8 +1189,8 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-16",
-                        "name": "frontmatter-extra no links",
+                        "key": "note-row-19",
+                        "name": "indent-mixed no links",
                         "role": "button"
                       },
                       {
@@ -1099,7 +1234,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-17",
+                        "key": "note-row-20",
                         "name": "lanes-and-limits no links",
                         "role": "button"
                       },
@@ -1144,7 +1279,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-18",
+                        "key": "note-row-21",
                         "name": "multibyte no links",
                         "role": "button"
                       },
@@ -1189,7 +1324,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-19",
+                        "key": "note-row-22",
                         "name": "multiline-cards no links",
                         "role": "button"
                       },
@@ -1234,7 +1369,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-20",
+                        "key": "note-row-23",
                         "name": "new-kanban no links",
                         "role": "button"
                       },
@@ -1279,7 +1414,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-21",
+                        "key": "note-row-24",
                         "name": "no-final-newline no links",
                         "role": "button"
                       },
@@ -1324,7 +1459,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-22",
+                        "key": "note-row-25",
                         "name": "passthrough no links",
                         "role": "button"
                       },
@@ -1369,7 +1504,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-23",
+                        "key": "note-row-26",
                         "name": "plain-list no links",
                         "role": "button"
                       },
@@ -1414,7 +1549,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-24",
+                        "key": "note-row-27",
                         "name": "Roadmap 2 backlinks",
                         "role": "button"
                       },
@@ -1459,7 +1594,7 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-25",
+                        "key": "note-row-28",
                         "name": "settings-footer no links",
                         "role": "button"
                       },
@@ -1504,8 +1639,53 @@
                             "role": "label"
                           }
                         ],
-                        "key": "note-row-26",
+                        "key": "note-row-29",
                         "name": "spec-example 1 link",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          837.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              842.0,
+                              197.0,
+                              20.0
+                            ],
+                            "name": "task-open-fence",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              864.0,
+                              197.0,
+                              16.0
+                            ],
+                            "name": "no links",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-30",
+                        "name": "task-open-fence no links",
                         "role": "button"
                       }
                     ],
@@ -1517,8 +1697,8 @@
                 "role": "scroll-view",
                 "scroll": [
                   0.0,
-                  688.0,
-                  800.0
+                  838.0,
+                  1000.0
                 ],
                 "states": [
                   "clips"
@@ -1528,10 +1708,10 @@
                 "bounds": [
                   15.0,
                   750.0,
-                  89.0,
+                  88.0,
                   16.0
                 ],
-                "name": "27 notes · 3 links",
+                "name": "31 notes · 3 links",
                 "role": "label"
               },
               {
@@ -1847,7 +2027,7 @@
                                     "role": "label"
                                   }
                                 ],
-                                "key": "preview-24",
+                                "key": "preview-27",
                                 "role": "group"
                               }
                             ],
@@ -2092,7 +2272,7 @@
                                 "role": "label"
                               }
                             ],
-                            "key": "rail-link-1-26",
+                            "key": "rail-link-1-29",
                             "name": "spec-example Review Roadmap with the team",
                             "role": "button"
                           },
@@ -2610,9 +2790,9 @@
       "path": "root/sidebar/note-scroll/note-list",
       "rect": [
         0.0,
-        -545.0,
+        -695.0,
         258.0,
-        1388.0
+        1588.0
       ],
       "role": "list",
       "scale": 1.0,
@@ -2620,7 +2800,7 @@
         0.0,
         143.0,
         258.0,
-        1388.0
+        1588.0
       ]
     },
     {
@@ -2636,7 +2816,7 @@
       "path": "root/sidebar/note-scroll/note-list/folder-header-root",
       "rect": [
         8.0,
-        -545.0,
+        -695.0,
         242.0,
         30.0
       ],
@@ -2662,7 +2842,7 @@
       "path": "root/sidebar/note-scroll/note-list/folder-header-root/#0",
       "rect": [
         14.0,
-        -536.5,
+        -686.5,
         6.0,
         13.0
       ],
@@ -2689,8 +2869,8 @@
       "path": "root/sidebar/note-scroll/note-list/folder-header-root/#1",
       "rect": [
         26.0,
-        -536.0,
-        142.0,
+        -686.0,
+        144.0,
         12.0
       ],
       "role": "text",
@@ -2698,7 +2878,7 @@
       "target": [
         26.0,
         152.0,
-        142.0,
+        144.0,
         12.0
       ],
       "text": "Vault root"
@@ -2715,20 +2895,20 @@
       "opacity": 1.0,
       "path": "root/sidebar/note-scroll/note-list/folder-header-root/#2",
       "rect": [
-        174.0,
-        -538.0,
-        14.0,
+        176.0,
+        -688.0,
+        12.0,
         16.0
       ],
       "role": "text",
       "scale": 1.0,
       "target": [
-        174.0,
+        176.0,
         150.0,
-        14.0,
+        12.0,
         16.0
       ],
-      "text": "27"
+      "text": "31"
     },
     {
       "blur": 0.0,
@@ -2745,7 +2925,7 @@
       "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-new-root",
       "rect": [
         194.0,
-        -541.0,
+        -691.0,
         22.0,
         22.0
       ],
@@ -2771,7 +2951,7 @@
       "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-new-root/#0",
       "rect": [
         199.0,
-        -536.0,
+        -686.0,
         12.0,
         12.0
       ],
@@ -2799,7 +2979,7 @@
       "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-create-root",
       "rect": [
         222.0,
-        -541.0,
+        -691.0,
         22.0,
         22.0
       ],
@@ -2825,7 +3005,7 @@
       "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-create-root/#0",
       "rect": [
         227.0,
-        -536.0,
+        -686.0,
         12.0,
         12.0
       ],
@@ -2851,7 +3031,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-0",
       "rect": [
         8.0,
-        -513.0,
+        -663.0,
         242.0,
         48.0
       ],
@@ -2876,7 +3056,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-0/#0",
       "rect": [
         28.0,
-        -492.0,
+        -642.0,
         6.0,
         6.0
       ],
@@ -2901,7 +3081,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-0/#1",
       "rect": [
         43.0,
-        -508.0,
+        -658.0,
         197.0,
         38.0
       ],
@@ -2927,7 +3107,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-0/#1/#0",
       "rect": [
         43.0,
-        -508.0,
+        -658.0,
         197.0,
         20.0
       ],
@@ -2954,7 +3134,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-0/#1/#1",
       "rect": [
         43.0,
-        -486.0,
+        -636.0,
         197.0,
         16.0
       ],
@@ -2981,7 +3161,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-1",
       "rect": [
         8.0,
-        -463.0,
+        -613.0,
         242.0,
         48.0
       ],
@@ -3006,7 +3186,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-1/#0",
       "rect": [
         28.0,
-        -442.0,
+        -592.0,
         6.0,
         6.0
       ],
@@ -3031,7 +3211,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-1/#1",
       "rect": [
         43.0,
-        -458.0,
+        -608.0,
         197.0,
         38.0
       ],
@@ -3057,7 +3237,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-1/#1/#0",
       "rect": [
         43.0,
-        -458.0,
+        -608.0,
         197.0,
         20.0
       ],
@@ -3084,7 +3264,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-1/#1/#1",
       "rect": [
         43.0,
-        -436.0,
+        -586.0,
         197.0,
         16.0
       ],
@@ -3111,7 +3291,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-2",
       "rect": [
         8.0,
-        -413.0,
+        -563.0,
         242.0,
         48.0
       ],
@@ -3136,7 +3316,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-2/#0",
       "rect": [
         28.0,
-        -392.0,
+        -542.0,
         6.0,
         6.0
       ],
@@ -3161,7 +3341,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-2/#1",
       "rect": [
         43.0,
-        -408.0,
+        -558.0,
         197.0,
         38.0
       ],
@@ -3187,7 +3367,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-2/#1/#0",
       "rect": [
         43.0,
-        -408.0,
+        -558.0,
         197.0,
         20.0
       ],
@@ -3214,7 +3394,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-2/#1/#1",
       "rect": [
         43.0,
-        -386.0,
+        -536.0,
         197.0,
         16.0
       ],
@@ -3241,7 +3421,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-3",
       "rect": [
         8.0,
-        -363.0,
+        -513.0,
         242.0,
         48.0
       ],
@@ -3266,7 +3446,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-3/#0",
       "rect": [
         28.0,
-        -342.0,
+        -492.0,
         6.0,
         6.0
       ],
@@ -3291,7 +3471,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-3/#1",
       "rect": [
         43.0,
-        -358.0,
+        -508.0,
         197.0,
         38.0
       ],
@@ -3317,7 +3497,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-3/#1/#0",
       "rect": [
         43.0,
-        -358.0,
+        -508.0,
         197.0,
         20.0
       ],
@@ -3344,7 +3524,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-3/#1/#1",
       "rect": [
         43.0,
-        -336.0,
+        -486.0,
         197.0,
         16.0
       ],
@@ -3371,7 +3551,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-4",
       "rect": [
         8.0,
-        -313.0,
+        -463.0,
         242.0,
         48.0
       ],
@@ -3396,7 +3576,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-4/#0",
       "rect": [
         28.0,
-        -292.0,
+        -442.0,
         6.0,
         6.0
       ],
@@ -3421,7 +3601,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-4/#1",
       "rect": [
         43.0,
-        -308.0,
+        -458.0,
         197.0,
         38.0
       ],
@@ -3447,7 +3627,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-4/#1/#0",
       "rect": [
         43.0,
-        -308.0,
+        -458.0,
         197.0,
         20.0
       ],
@@ -3474,7 +3654,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-4/#1/#1",
       "rect": [
         43.0,
-        -286.0,
+        -436.0,
         197.0,
         16.0
       ],
@@ -3501,7 +3681,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-5",
       "rect": [
         8.0,
-        -263.0,
+        -413.0,
         242.0,
         48.0
       ],
@@ -3526,7 +3706,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-5/#0",
       "rect": [
         28.0,
-        -242.0,
+        -392.0,
         6.0,
         6.0
       ],
@@ -3551,7 +3731,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-5/#1",
       "rect": [
         43.0,
-        -258.0,
+        -408.0,
         197.0,
         38.0
       ],
@@ -3577,7 +3757,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-5/#1/#0",
       "rect": [
         43.0,
-        -258.0,
+        -408.0,
         197.0,
         20.0
       ],
@@ -3604,7 +3784,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-5/#1/#1",
       "rect": [
         43.0,
-        -236.0,
+        -386.0,
         197.0,
         16.0
       ],
@@ -3631,7 +3811,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-6",
       "rect": [
         8.0,
-        -213.0,
+        -363.0,
         242.0,
         48.0
       ],
@@ -3656,7 +3836,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-6/#0",
       "rect": [
         28.0,
-        -192.0,
+        -342.0,
         6.0,
         6.0
       ],
@@ -3681,7 +3861,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-6/#1",
       "rect": [
         43.0,
-        -208.0,
+        -358.0,
         197.0,
         38.0
       ],
@@ -3707,7 +3887,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-6/#1/#0",
       "rect": [
         43.0,
-        -208.0,
+        -358.0,
         197.0,
         20.0
       ],
@@ -3734,7 +3914,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-6/#1/#1",
       "rect": [
         43.0,
-        -186.0,
+        -336.0,
         197.0,
         16.0
       ],
@@ -3761,7 +3941,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-7",
       "rect": [
         8.0,
-        -163.0,
+        -313.0,
         242.0,
         48.0
       ],
@@ -3786,7 +3966,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-7/#0",
       "rect": [
         28.0,
-        -142.0,
+        -292.0,
         6.0,
         6.0
       ],
@@ -3811,7 +3991,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-7/#1",
       "rect": [
         43.0,
-        -158.0,
+        -308.0,
         197.0,
         38.0
       ],
@@ -3837,7 +4017,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-7/#1/#0",
       "rect": [
         43.0,
-        -158.0,
+        -308.0,
         197.0,
         20.0
       ],
@@ -3864,7 +4044,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-7/#1/#1",
       "rect": [
         43.0,
-        -136.0,
+        -286.0,
         197.0,
         16.0
       ],
@@ -3891,7 +4071,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-8",
       "rect": [
         8.0,
-        -113.0,
+        -263.0,
         242.0,
         48.0
       ],
@@ -3916,7 +4096,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-8/#0",
       "rect": [
         28.0,
-        -92.0,
+        -242.0,
         6.0,
         6.0
       ],
@@ -3941,7 +4121,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-8/#1",
       "rect": [
         43.0,
-        -108.0,
+        -258.0,
         197.0,
         38.0
       ],
@@ -3967,7 +4147,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-8/#1/#0",
       "rect": [
         43.0,
-        -108.0,
+        -258.0,
         197.0,
         20.0
       ],
@@ -3994,7 +4174,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-8/#1/#1",
       "rect": [
         43.0,
-        -86.0,
+        -236.0,
         197.0,
         16.0
       ],
@@ -4021,7 +4201,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-9",
       "rect": [
         8.0,
-        -63.0,
+        -213.0,
         242.0,
         48.0
       ],
@@ -4046,7 +4226,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-9/#0",
       "rect": [
         28.0,
-        -42.0,
+        -192.0,
         6.0,
         6.0
       ],
@@ -4071,7 +4251,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-9/#1",
       "rect": [
         43.0,
-        -58.0,
+        -208.0,
         197.0,
         38.0
       ],
@@ -4097,7 +4277,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-9/#1/#0",
       "rect": [
         43.0,
-        -58.0,
+        -208.0,
         197.0,
         20.0
       ],
@@ -4124,7 +4304,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-9/#1/#1",
       "rect": [
         43.0,
-        -36.0,
+        -186.0,
         197.0,
         16.0
       ],
@@ -4151,7 +4331,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-10",
       "rect": [
         8.0,
-        -13.0,
+        -163.0,
         242.0,
         48.0
       ],
@@ -4176,7 +4356,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-10/#0",
       "rect": [
         28.0,
-        8.0,
+        -142.0,
         6.0,
         6.0
       ],
@@ -4201,7 +4381,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-10/#1",
       "rect": [
         43.0,
-        -8.0,
+        -158.0,
         197.0,
         38.0
       ],
@@ -4227,7 +4407,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-10/#1/#0",
       "rect": [
         43.0,
-        -8.0,
+        -158.0,
         197.0,
         20.0
       ],
@@ -4254,7 +4434,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-10/#1/#1",
       "rect": [
         43.0,
-        14.0,
+        -136.0,
         197.0,
         16.0
       ],
@@ -4281,7 +4461,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-11",
       "rect": [
         8.0,
-        37.0,
+        -113.0,
         242.0,
         48.0
       ],
@@ -4306,7 +4486,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-11/#0",
       "rect": [
         28.0,
-        58.0,
+        -92.0,
         6.0,
         6.0
       ],
@@ -4331,7 +4511,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-11/#1",
       "rect": [
         43.0,
-        42.0,
+        -108.0,
         197.0,
         38.0
       ],
@@ -4357,7 +4537,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-11/#1/#0",
       "rect": [
         43.0,
-        42.0,
+        -108.0,
         197.0,
         20.0
       ],
@@ -4384,7 +4564,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-11/#1/#1",
       "rect": [
         43.0,
-        64.0,
+        -86.0,
         197.0,
         16.0
       ],
@@ -4411,7 +4591,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-12",
       "rect": [
         8.0,
-        87.0,
+        -63.0,
         242.0,
         48.0
       ],
@@ -4436,7 +4616,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-12/#0",
       "rect": [
         28.0,
-        108.0,
+        -42.0,
         6.0,
         6.0
       ],
@@ -4461,7 +4641,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-12/#1",
       "rect": [
         43.0,
-        92.0,
+        -58.0,
         197.0,
         38.0
       ],
@@ -4487,7 +4667,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-12/#1/#0",
       "rect": [
         43.0,
-        92.0,
+        -58.0,
         197.0,
         20.0
       ],
@@ -4499,7 +4679,7 @@
         197.0,
         20.0
       ],
-      "text": "fence-longer-close"
+      "text": "fence-column0-card"
     },
     {
       "blur": 0.0,
@@ -4514,7 +4694,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-12/#1/#1",
       "rect": [
         43.0,
-        114.0,
+        -36.0,
         197.0,
         16.0
       ],
@@ -4541,7 +4721,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-13",
       "rect": [
         8.0,
-        137.0,
+        -13.0,
         242.0,
         48.0
       ],
@@ -4566,7 +4746,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-13/#0",
       "rect": [
         28.0,
-        158.0,
+        8.0,
         6.0,
         6.0
       ],
@@ -4591,7 +4771,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-13/#1",
       "rect": [
         43.0,
-        142.0,
+        -8.0,
         197.0,
         38.0
       ],
@@ -4617,7 +4797,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-13/#1/#0",
       "rect": [
         43.0,
-        142.0,
+        -8.0,
         197.0,
         20.0
       ],
@@ -4629,7 +4809,7 @@
         197.0,
         20.0
       ],
-      "text": "fence-opaque"
+      "text": "fence-longer-close"
     },
     {
       "blur": 0.0,
@@ -4644,7 +4824,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-13/#1/#1",
       "rect": [
         43.0,
-        164.0,
+        14.0,
         197.0,
         16.0
       ],
@@ -4671,7 +4851,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-14",
       "rect": [
         8.0,
-        187.0,
+        37.0,
         242.0,
         48.0
       ],
@@ -4696,7 +4876,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-14/#0",
       "rect": [
         28.0,
-        208.0,
+        58.0,
         6.0,
         6.0
       ],
@@ -4721,7 +4901,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-14/#1",
       "rect": [
         43.0,
-        192.0,
+        42.0,
         197.0,
         38.0
       ],
@@ -4747,7 +4927,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-14/#1/#0",
       "rect": [
         43.0,
-        192.0,
+        42.0,
         197.0,
         20.0
       ],
@@ -4759,7 +4939,7 @@
         197.0,
         20.0
       ],
-      "text": "fence-unclosed"
+      "text": "fence-opaque"
     },
     {
       "blur": 0.0,
@@ -4774,7 +4954,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-14/#1/#1",
       "rect": [
         43.0,
-        214.0,
+        64.0,
         197.0,
         16.0
       ],
@@ -4801,7 +4981,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-15",
       "rect": [
         8.0,
-        237.0,
+        87.0,
         242.0,
         48.0
       ],
@@ -4826,7 +5006,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-15/#0",
       "rect": [
         28.0,
-        258.0,
+        108.0,
         6.0,
         6.0
       ],
@@ -4851,7 +5031,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-15/#1",
       "rect": [
         43.0,
-        242.0,
+        92.0,
         197.0,
         38.0
       ],
@@ -4877,7 +5057,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-15/#1/#0",
       "rect": [
         43.0,
-        242.0,
+        92.0,
         197.0,
         20.0
       ],
@@ -4889,7 +5069,7 @@
         197.0,
         20.0
       ],
-      "text": "footer-nested"
+      "text": "fence-unclosed"
     },
     {
       "blur": 0.0,
@@ -4904,7 +5084,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-15/#1/#1",
       "rect": [
         43.0,
-        264.0,
+        114.0,
         197.0,
         16.0
       ],
@@ -4931,7 +5111,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-16",
       "rect": [
         8.0,
-        287.0,
+        137.0,
         242.0,
         48.0
       ],
@@ -4956,7 +5136,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-16/#0",
       "rect": [
         28.0,
-        308.0,
+        158.0,
         6.0,
         6.0
       ],
@@ -4981,7 +5161,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-16/#1",
       "rect": [
         43.0,
-        292.0,
+        142.0,
         197.0,
         38.0
       ],
@@ -5007,7 +5187,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-16/#1/#0",
       "rect": [
         43.0,
-        292.0,
+        142.0,
         197.0,
         20.0
       ],
@@ -5019,7 +5199,7 @@
         197.0,
         20.0
       ],
-      "text": "frontmatter-extra"
+      "text": "footer-nested"
     },
     {
       "blur": 0.0,
@@ -5034,7 +5214,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-16/#1/#1",
       "rect": [
         43.0,
-        314.0,
+        164.0,
         197.0,
         16.0
       ],
@@ -5061,7 +5241,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-17",
       "rect": [
         8.0,
-        337.0,
+        187.0,
         242.0,
         48.0
       ],
@@ -5086,7 +5266,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-17/#0",
       "rect": [
         28.0,
-        358.0,
+        208.0,
         6.0,
         6.0
       ],
@@ -5111,7 +5291,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-17/#1",
       "rect": [
         43.0,
-        342.0,
+        192.0,
         197.0,
         38.0
       ],
@@ -5137,7 +5317,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-17/#1/#0",
       "rect": [
         43.0,
-        342.0,
+        192.0,
         197.0,
         20.0
       ],
@@ -5149,7 +5329,7 @@
         197.0,
         20.0
       ],
-      "text": "lanes-and-limits"
+      "text": "frontmatter-extra"
     },
     {
       "blur": 0.0,
@@ -5164,7 +5344,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-17/#1/#1",
       "rect": [
         43.0,
-        364.0,
+        214.0,
         197.0,
         16.0
       ],
@@ -5191,7 +5371,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-18",
       "rect": [
         8.0,
-        387.0,
+        237.0,
         242.0,
         48.0
       ],
@@ -5216,7 +5396,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-18/#0",
       "rect": [
         28.0,
-        408.0,
+        258.0,
         6.0,
         6.0
       ],
@@ -5241,7 +5421,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-18/#1",
       "rect": [
         43.0,
-        392.0,
+        242.0,
         197.0,
         38.0
       ],
@@ -5267,7 +5447,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-18/#1/#0",
       "rect": [
         43.0,
-        392.0,
+        242.0,
         197.0,
         20.0
       ],
@@ -5279,7 +5459,7 @@
         197.0,
         20.0
       ],
-      "text": "multibyte"
+      "text": "indent-deep-line"
     },
     {
       "blur": 0.0,
@@ -5294,7 +5474,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-18/#1/#1",
       "rect": [
         43.0,
-        414.0,
+        264.0,
         197.0,
         16.0
       ],
@@ -5321,7 +5501,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-19",
       "rect": [
         8.0,
-        437.0,
+        287.0,
         242.0,
         48.0
       ],
@@ -5346,7 +5526,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-19/#0",
       "rect": [
         28.0,
-        458.0,
+        308.0,
         6.0,
         6.0
       ],
@@ -5371,7 +5551,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-19/#1",
       "rect": [
         43.0,
-        442.0,
+        292.0,
         197.0,
         38.0
       ],
@@ -5397,7 +5577,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-19/#1/#0",
       "rect": [
         43.0,
-        442.0,
+        292.0,
         197.0,
         20.0
       ],
@@ -5409,7 +5589,7 @@
         197.0,
         20.0
       ],
-      "text": "multiline-cards"
+      "text": "indent-mixed"
     },
     {
       "blur": 0.0,
@@ -5424,7 +5604,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-19/#1/#1",
       "rect": [
         43.0,
-        464.0,
+        314.0,
         197.0,
         16.0
       ],
@@ -5451,7 +5631,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-20",
       "rect": [
         8.0,
-        487.0,
+        337.0,
         242.0,
         48.0
       ],
@@ -5476,7 +5656,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-20/#0",
       "rect": [
         28.0,
-        508.0,
+        358.0,
         6.0,
         6.0
       ],
@@ -5501,7 +5681,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-20/#1",
       "rect": [
         43.0,
-        492.0,
+        342.0,
         197.0,
         38.0
       ],
@@ -5527,7 +5707,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-20/#1/#0",
       "rect": [
         43.0,
-        492.0,
+        342.0,
         197.0,
         20.0
       ],
@@ -5539,7 +5719,7 @@
         197.0,
         20.0
       ],
-      "text": "new-kanban"
+      "text": "lanes-and-limits"
     },
     {
       "blur": 0.0,
@@ -5554,7 +5734,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-20/#1/#1",
       "rect": [
         43.0,
-        514.0,
+        364.0,
         197.0,
         16.0
       ],
@@ -5581,7 +5761,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-21",
       "rect": [
         8.0,
-        537.0,
+        387.0,
         242.0,
         48.0
       ],
@@ -5606,7 +5786,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-21/#0",
       "rect": [
         28.0,
-        558.0,
+        408.0,
         6.0,
         6.0
       ],
@@ -5631,7 +5811,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-21/#1",
       "rect": [
         43.0,
-        542.0,
+        392.0,
         197.0,
         38.0
       ],
@@ -5657,7 +5837,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-21/#1/#0",
       "rect": [
         43.0,
-        542.0,
+        392.0,
         197.0,
         20.0
       ],
@@ -5669,7 +5849,7 @@
         197.0,
         20.0
       ],
-      "text": "no-final-newline"
+      "text": "multibyte"
     },
     {
       "blur": 0.0,
@@ -5684,7 +5864,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-21/#1/#1",
       "rect": [
         43.0,
-        564.0,
+        414.0,
         197.0,
         16.0
       ],
@@ -5711,7 +5891,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-22",
       "rect": [
         8.0,
-        587.0,
+        437.0,
         242.0,
         48.0
       ],
@@ -5736,7 +5916,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-22/#0",
       "rect": [
         28.0,
-        608.0,
+        458.0,
         6.0,
         6.0
       ],
@@ -5761,7 +5941,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-22/#1",
       "rect": [
         43.0,
-        592.0,
+        442.0,
         197.0,
         38.0
       ],
@@ -5787,7 +5967,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-22/#1/#0",
       "rect": [
         43.0,
-        592.0,
+        442.0,
         197.0,
         20.0
       ],
@@ -5799,7 +5979,7 @@
         197.0,
         20.0
       ],
-      "text": "passthrough"
+      "text": "multiline-cards"
     },
     {
       "blur": 0.0,
@@ -5814,7 +5994,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-22/#1/#1",
       "rect": [
         43.0,
-        614.0,
+        464.0,
         197.0,
         16.0
       ],
@@ -5841,7 +6021,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-23",
       "rect": [
         8.0,
-        637.0,
+        487.0,
         242.0,
         48.0
       ],
@@ -5866,7 +6046,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-23/#0",
       "rect": [
         28.0,
-        658.0,
+        508.0,
         6.0,
         6.0
       ],
@@ -5891,7 +6071,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-23/#1",
       "rect": [
         43.0,
-        642.0,
+        492.0,
         197.0,
         38.0
       ],
@@ -5917,7 +6097,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-23/#1/#0",
       "rect": [
         43.0,
-        642.0,
+        492.0,
         197.0,
         20.0
       ],
@@ -5929,7 +6109,7 @@
         197.0,
         20.0
       ],
-      "text": "plain-list"
+      "text": "new-kanban"
     },
     {
       "blur": 0.0,
@@ -5944,7 +6124,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-23/#1/#1",
       "rect": [
         43.0,
-        664.0,
+        514.0,
         197.0,
         16.0
       ],
@@ -5960,7 +6140,7 @@
     },
     {
       "blur": 0.0,
-      "fill": "#a2bcff1a",
+      "fill": "#00000000",
       "focusVisible": false,
       "focusable": true,
       "focused": false,
@@ -5971,7 +6151,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-24",
       "rect": [
         8.0,
-        687.0,
+        537.0,
         242.0,
         48.0
       ],
@@ -5996,7 +6176,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-24/#0",
       "rect": [
         28.0,
-        708.0,
+        558.0,
         6.0,
         6.0
       ],
@@ -6021,7 +6201,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-24/#1",
       "rect": [
         43.0,
-        692.0,
+        542.0,
         197.0,
         38.0
       ],
@@ -6036,7 +6216,7 @@
     },
     {
       "blur": 0.0,
-      "color": "#a2bcffff",
+      "color": "#fafafaff",
       "fill": "#00000000",
       "focusVisible": false,
       "focusable": false,
@@ -6047,7 +6227,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-24/#1/#0",
       "rect": [
         43.0,
-        692.0,
+        542.0,
         197.0,
         20.0
       ],
@@ -6059,7 +6239,7 @@
         197.0,
         20.0
       ],
-      "text": "Roadmap"
+      "text": "no-final-newline"
     },
     {
       "blur": 0.0,
@@ -6074,7 +6254,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-24/#1/#1",
       "rect": [
         43.0,
-        714.0,
+        564.0,
         197.0,
         16.0
       ],
@@ -6086,7 +6266,7 @@
         197.0,
         16.0
       ],
-      "text": "2 backlinks"
+      "text": "no links"
     },
     {
       "blur": 0.0,
@@ -6101,7 +6281,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-25",
       "rect": [
         8.0,
-        737.0,
+        587.0,
         242.0,
         48.0
       ],
@@ -6126,7 +6306,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-25/#0",
       "rect": [
         28.0,
-        758.0,
+        608.0,
         6.0,
         6.0
       ],
@@ -6151,7 +6331,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-25/#1",
       "rect": [
         43.0,
-        742.0,
+        592.0,
         197.0,
         38.0
       ],
@@ -6177,7 +6357,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-25/#1/#0",
       "rect": [
         43.0,
-        742.0,
+        592.0,
         197.0,
         20.0
       ],
@@ -6189,7 +6369,7 @@
         197.0,
         20.0
       ],
-      "text": "settings-footer"
+      "text": "passthrough"
     },
     {
       "blur": 0.0,
@@ -6204,7 +6384,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-25/#1/#1",
       "rect": [
         43.0,
-        764.0,
+        614.0,
         197.0,
         16.0
       ],
@@ -6231,7 +6411,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-26",
       "rect": [
         8.0,
-        787.0,
+        637.0,
         242.0,
         48.0
       ],
@@ -6246,7 +6426,7 @@
     },
     {
       "blur": 0.0,
-      "fill": "#a2bcff8c",
+      "fill": "#808080ff",
       "focusVisible": false,
       "focusable": false,
       "focused": false,
@@ -6256,7 +6436,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-26/#0",
       "rect": [
         28.0,
-        808.0,
+        658.0,
         6.0,
         6.0
       ],
@@ -6281,7 +6461,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-26/#1",
       "rect": [
         43.0,
-        792.0,
+        642.0,
         197.0,
         38.0
       ],
@@ -6307,7 +6487,7 @@
       "path": "root/sidebar/note-scroll/note-list/note-row-26/#1/#0",
       "rect": [
         43.0,
-        792.0,
+        642.0,
         197.0,
         20.0
       ],
@@ -6316,6 +6496,396 @@
       "target": [
         43.0,
         1480.0,
+        197.0,
+        20.0
+      ],
+      "text": "plain-list"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-26/#1/#1",
+      "rect": [
+        43.0,
+        664.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1502.0,
+        197.0,
+        16.0
+      ],
+      "text": "no links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcff1a",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-27",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-27",
+      "rect": [
+        8.0,
+        687.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0,
+      "target": [
+        8.0,
+        1525.0,
+        242.0,
+        48.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-27/#0",
+      "rect": [
+        28.0,
+        708.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        28.0,
+        1546.0,
+        6.0,
+        6.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-27/#1",
+      "rect": [
+        43.0,
+        692.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1530.0,
+        197.0,
+        38.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-27/#1/#0",
+      "rect": [
+        43.0,
+        692.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1530.0,
+        197.0,
+        20.0
+      ],
+      "text": "Roadmap"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-27/#1/#1",
+      "rect": [
+        43.0,
+        714.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1552.0,
+        197.0,
+        16.0
+      ],
+      "text": "2 backlinks"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-28",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-28",
+      "rect": [
+        8.0,
+        737.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0,
+      "target": [
+        8.0,
+        1575.0,
+        242.0,
+        48.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-28/#0",
+      "rect": [
+        28.0,
+        758.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        28.0,
+        1596.0,
+        6.0,
+        6.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-28/#1",
+      "rect": [
+        43.0,
+        742.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1580.0,
+        197.0,
+        38.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-28/#1/#0",
+      "rect": [
+        43.0,
+        742.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1580.0,
+        197.0,
+        20.0
+      ],
+      "text": "settings-footer"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-28/#1/#1",
+      "rect": [
+        43.0,
+        764.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1602.0,
+        197.0,
+        16.0
+      ],
+      "text": "no links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-29",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-29",
+      "rect": [
+        8.0,
+        787.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0,
+      "target": [
+        8.0,
+        1625.0,
+        242.0,
+        48.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcff8c",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-29/#0",
+      "rect": [
+        28.0,
+        808.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        28.0,
+        1646.0,
+        6.0,
+        6.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-29/#1",
+      "rect": [
+        43.0,
+        792.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1630.0,
+        197.0,
+        38.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-29/#1/#0",
+      "rect": [
+        43.0,
+        792.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1630.0,
         197.0,
         20.0
       ],
@@ -6331,7 +6901,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/sidebar/note-scroll/note-list/note-row-26/#1/#1",
+      "path": "root/sidebar/note-scroll/note-list/note-row-29/#1/#1",
       "rect": [
         43.0,
         814.0,
@@ -6342,11 +6912,141 @@
       "scale": 1.0,
       "target": [
         43.0,
-        1502.0,
+        1652.0,
         197.0,
         16.0
       ],
       "text": "1 link"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-30",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-30",
+      "rect": [
+        8.0,
+        837.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0,
+      "target": [
+        8.0,
+        1675.0,
+        242.0,
+        48.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-30/#0",
+      "rect": [
+        28.0,
+        858.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        28.0,
+        1696.0,
+        6.0,
+        6.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-30/#1",
+      "rect": [
+        43.0,
+        842.0,
+        197.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1680.0,
+        197.0,
+        38.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-30/#1/#0",
+      "rect": [
+        43.0,
+        842.0,
+        197.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1680.0,
+        197.0,
+        20.0
+      ],
+      "text": "task-open-fence"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-30/#1/#1",
+      "rect": [
+        43.0,
+        864.0,
+        197.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        43.0,
+        1702.0,
+        197.0,
+        16.0
+      ],
+      "text": "no links"
     },
     {
       "blur": 0.0,
@@ -6360,7 +7060,7 @@
       "path": "root/sidebar/note-scroll/#1",
       "rect": [
         0.0,
-        847.0,
+        897.0,
         258.0,
         0.0
       ],
@@ -6368,7 +7068,7 @@
       "scale": 1.0,
       "target": [
         0.0,
-        1535.0,
+        1735.0,
         258.0,
         0.0
       ]
@@ -6425,12 +7125,12 @@
       "rect": [
         15.0,
         750.0,
-        89.0,
+        88.0,
         16.0
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "27 notes · 3 links"
+      "text": "31 notes · 3 links"
     },
     {
       "blur": 0.0,
@@ -6443,9 +7143,9 @@
       "opacity": 1.0,
       "path": "root/sidebar/#6/#1",
       "rect": [
-        112.0,
+        111.0,
         758.0,
-        43.0,
+        44.0,
         0.0
       ],
       "role": "group",
@@ -7181,10 +7881,10 @@
       "focusable": false,
       "focused": false,
       "inert": false,
-      "key": "preview-24",
+      "key": "preview-27",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-24",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-27",
       "rect": [
         311.0,
         95.0,
@@ -7206,7 +7906,7 @@
       "level": 1,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-24/heading-0",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-27/heading-0",
       "rect": [
         311.0,
         95.0,
@@ -7228,7 +7928,7 @@
       "key": "b1",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-24/b1",
+      "path": "root/main/note-body/page/preview-pane/preview-scroll/#0/preview-27/b1",
       "rect": [
         311.0,
         131.0,
@@ -7823,10 +8523,10 @@
       "focusable": true,
       "focused": false,
       "inert": false,
-      "key": "rail-link-1-26",
+      "key": "rail-link-1-29",
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-26",
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-29",
       "rect": [
         905.0,
         260.0,
@@ -7846,7 +8546,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-26/#0",
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-29/#0",
       "rect": [
         913.0,
         278.0,
@@ -7865,7 +8565,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-26/#1",
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-29/#1",
       "rect": [
         934.0,
         267.0,
@@ -7885,7 +8585,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-26/#1/#0",
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-29/#1/#0",
       "rect": [
         934.0,
         267.0,
@@ -7906,7 +8606,7 @@
       "inert": false,
       "loopPhase": null,
       "opacity": 1.0,
-      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-26/#1/#1",
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-29/#1/#1",
       "rect": [
         934.0,
         286.0,
