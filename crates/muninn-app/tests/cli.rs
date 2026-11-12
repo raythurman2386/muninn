@@ -96,16 +96,19 @@ mod single_instance {
     use std::os::unix::net::UnixListener;
     use std::path::PathBuf;
     use std::process::Command;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
+    /// A fresh runtime folder in the temp folder (`TMPDIR`). The name is
+    /// short so the socket stays beside the lock under macOS's long
+    /// per-user temp folder rather than moving to the short fallback.
     fn runtime(tag: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        // `/tmp`, not macOS's long temp folder: the app would move a long
-        // socket path to its short fallback.
-        let dir = PathBuf::from("/tmp").join(format!("muninn-cli-{tag}-{nanos}"));
+        let dir = std::env::temp_dir().join(format!("mc-{tag}-{}", std::process::id()));
+        let socket = dir.join("muninn/instance.sock");
+        assert!(
+            socket.as_os_str().len() <= 100,
+            "TMPDIR is too long for the socket to stay beside the lock: {}",
+            socket.display()
+        );
+        let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("muninn")).unwrap();
         dir
     }
