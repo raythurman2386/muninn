@@ -31,9 +31,11 @@
 //!   [`muninn_core::HISTORY_LIMIT`] entries and about
 //!   [`muninn_core::HISTORY_BYTES`] per open kanban, as on Board.
 //! - **Saving**: `⌘S` / `Ctrl+S` writes the note once through
-//!   `Vault::write_note_if_unmodified` (the vault's atomic writer), and only
-//!   inside the open vault. A file that changed on disk since it was read is
-//!   not written over: the save is refused and the page flags it (slice 7,
+//!   `Vault::write_note` (the vault's atomic writer), and only inside the
+//!   open vault. The file's text is compared with what the page last read or
+//!   wrote, not just its `(mtime, len)`: a file that changed on disk since it
+//!   was read is not written over, even when another app kept its length and
+//!   modified time. The save is refused and the page flags it (slice 7,
 //!   `kanban_sync.rs`, which also adds autosave; with `"kanban_autosave":
 //!   false` nothing is written until `⌘S`).
 //! - **Unsaved edits are never dropped**, as on Board: leaving the page keeps
@@ -427,31 +429,43 @@ impl State {
         let Some(board) = shown.board.as_ref().filter(|_| shown.dirty()) else {
             return true;
         };
-        let (rel, source, disk) = (shown.rel.clone(), board.source().to_owned(), shown.disk);
+        let (rel, source, disk, saved) = (
+            shown.rel.clone(),
+            board.source().to_owned(),
+            shown.disk,
+            shown.saved.clone(),
+        );
         let path = self.vault.root.join(&rel);
         // Slice 7, the shared disk rule: only inside the open vault, and only
-        // over the file as it was read. `flag`: the refusal is about the
-        // file on disk, so the page flags it for the conflict bar.
+        // over the file as it was read. The bytes are compared, not just
+        // `(mtime, len)`: another app's edit can keep both and still change
+        // the text. `flag`: the refusal is about the file on disk, so the
+        // page flags it for the conflict bar.
         let written = match (self.note_id(&rel), disk) {
             _ if !inside_vault(&self.vault.root, &path) => {
                 Err(("the kanban is not inside the open vault".to_owned(), false))
             }
             (None, _) => Err(("the note is no longer in the vault".to_owned(), true)),
             (Some(_), None) => Err(("the file could not be checked".to_owned(), true)),
-            (Some(id), Some(expected)) => {
-                match self.vault.write_note_if_unmodified(id, &source, expected) {
-                    Ok(true) => Ok(id),
-                    Ok(false) => Err(("the file changed on disk".to_owned(), true)),
+            (Some(id), Some(_)) => match std::fs::read_to_string(&path) {
+                Ok(text) if text == saved => match self.vault.write_note(id, &source) {
+                    Ok(()) => Ok(id),
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
                         Err(("the file was removed".to_owned(), true))
                     }
                     Err(e) => Err((e.to_string(), false)),
+                },
+                Ok(_) => Err(("the file changed on disk".to_owned(), true)),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    Err(("the file was removed".to_owned(), true))
                 }
-            }
+                Err(e) => Err((e.to_string(), false)),
+            },
         };
         let status = match written {
             Ok(id) => {
                 self.kanban_written(id, source);
+                self.forget_kanban_recovery(&rel);
                 self.log_event("kanban", &format!("saved {rel}"));
                 BoardStatus::Saved
             }

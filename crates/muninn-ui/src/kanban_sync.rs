@@ -117,10 +117,15 @@ impl State {
             DiskRule::Later => false,
             DiskRule::Flag => {
                 if let Some(rel) = renamed {
+                    let old = shown.rel.clone();
                     shown.disk = file_state(&root.join(&rel));
                     shown.rel.clone_from(&rel);
                     shown.conflict = None;
+                    // The copy was keyed by the old path; the next recovery
+                    // tick writes one under the new name.
+                    shown.recovered = None;
                     self.kanban_rel = Some(rel);
+                    self.forget_kanban_recovery(&old);
                     self.log_event("watch", "followed the shown kanban's rename");
                     return true;
                 }
@@ -154,18 +159,22 @@ impl State {
     }
 
     /// The vault-relative path the shown kanban was renamed to outside
-    /// Muninn: its own file is gone and exactly one other note in the vault
-    /// holds the text the page last read or wrote.
+    /// Muninn: its own file is gone and exactly one other kanban note in the
+    /// vault holds the text the page last read or wrote. A page restored from
+    /// a recovery copy over a missing file has no such text, so nothing
+    /// matches (an unrelated empty note must not become its new home).
     pub(crate) fn kanban_renamed(&self) -> Option<String> {
         let shown = self.kanban.as_ref()?;
+        if shown.saved.trim().is_empty() {
+            return None;
+        }
         if self.vault.root.join(&shown.rel).exists() {
             return None;
         }
-        let mut same = self
-            .vault
-            .notes
-            .iter()
-            .filter(|note| note.rel != shown.rel && note.source == shown.saved);
+        let mut same =
+            self.vault.notes.iter().filter(|note| {
+                note.rel != shown.rel && note.is_kanban() && note.source == shown.saved
+            });
         let found = same.next()?;
         same.next().is_none().then(|| found.rel.clone())
     }
@@ -281,8 +290,19 @@ impl State {
                 return Ok(());
             }
             let rel = shown.rel.clone();
-            let Some(text) = self.kanban_pending_text()? else {
-                return Ok(());
+            // A field the model refuses has no text to copy, but edits
+            // committed before it still do: copy the committed board's own
+            // text rather than fail the tick (the refused text stays in the
+            // field, and quitting is refused while it is there). A clean
+            // board has nothing to recover, so it writes no copy.
+            let text = match self.kanban_pending_text() {
+                Ok(Some(text)) => text,
+                Ok(None) => return Ok(()),
+                Err(_) if shown.dirty() => match self.kanban_board() {
+                    Some(board) => board.source().to_owned(),
+                    None => return Ok(()),
+                },
+                Err(_) => return Ok(()),
             };
             self.recovery.save(&rel, &text)?;
             if let Some(shown) = &mut self.kanban {
@@ -298,6 +318,20 @@ impl State {
             self.recovered.retain(|entry| entry.rel != rel);
         }
         Ok(())
+    }
+
+    /// Forget the recovery copy for `rel`: the store's file, the startup
+    /// banner's entry, and the page's record when it names that rel. A save,
+    /// Keep mine and a followed rename all leave no copy behind, as Board
+    /// does, even when the shown kanban is not the selected note.
+    pub(crate) fn forget_kanban_recovery(&mut self, rel: &str) {
+        self.recovery.clear(rel);
+        self.recovered.retain(|entry| entry.rel != rel);
+        if let Some(shown) = &mut self.kanban
+            && shown.rel == rel
+        {
+            shown.recovered = None;
+        }
     }
 
     /// Per frame: the recovery copy, once the edits rest. Returns when
@@ -422,6 +456,7 @@ impl State {
         if let Some(shown) = &mut self.kanban {
             shown.status = BoardStatus::Saved;
         }
+        self.forget_kanban_recovery(&rel);
         let _ = self.kanban_recovery_tick();
         self.log_event("kanban", "kept mine over the file on disk");
         true
@@ -457,10 +492,17 @@ impl State {
         shown.status = BoardStatus::Saved;
         shown.conflict = None;
         shown.recovered = None;
-        self.kanban_rel = Some(new);
-        self.recovery.clear(&old);
-        self.recovered.retain(|entry| entry.rel != old);
+        self.kanban_rel = Some(new.clone());
+        self.forget_kanban_recovery(&old);
         self.refresh_index_only();
+        // As Board's Save copy makes the copy the open board, this page makes
+        // it the selected note too: otherwise the next vault reload reads the
+        // original back onto the page and leaves the copy behind.
+        if let Some(id) = self.note_id(&new) {
+            self.selected = Some(id);
+            self.selected_path = Some(root.join(&new));
+            let _ = self.load_disk_into_editor(id);
+        }
         self.log_event("kanban", "saved a conflict copy");
         self.save_settings();
         true

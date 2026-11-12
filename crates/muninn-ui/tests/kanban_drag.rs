@@ -566,3 +566,33 @@ fn opening_another_kanban_mid_drag_ends_the_drag() {
     let other = fs::read_to_string(tmp.path().join("Other.md")).expect("Other.md");
     assert_eq!(other, BOARD);
 }
+
+/// P2-6: a refresh that arrives while a press is held does not replace the
+/// board under it (the shared disk rule says `Later`); the next refresh after
+/// the release applies what was deferred.
+#[test]
+fn a_vault_refresh_does_not_replace_the_board_under_a_held_drag() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    let card = rect(&mut rt, "kanban-card-0-0");
+    let from = centre(card);
+    // A real drag that would drop the card back where it is: past the click
+    // distance, and the same slot on release, so the board stays clean.
+    let to = (from.0, from.1 + 6.0);
+    hold(&mut rt, from, to);
+    assert!(has(&mut rt, "kanban-drop"), "the drag is held");
+    let theirs = BOARD.replace("Short card", "Short card, edited");
+    fs::write(tmp.path().join("Board.md"), &theirs).unwrap();
+    // The vault watcher's reload asks for a refresh: the press defers it.
+    rt.update(|s, _| s.refresh_kanban());
+    frame(&mut rt);
+    assert_eq!(source(&rt), BOARD, "the board under the drag is kept");
+    assert!(has(&mut rt, "kanban-drop"), "and the drag is still held");
+    drop_at(&mut rt, to);
+    assert_eq!(source(&rt), BOARD, "dropping over itself changes nothing");
+    // The next refresh, after the release, applies what is on disk.
+    rt.update(|s, _| s.refresh_kanban());
+    frame(&mut rt);
+    assert_eq!(source(&rt), theirs);
+    assert!(!dirty(&rt));
+}

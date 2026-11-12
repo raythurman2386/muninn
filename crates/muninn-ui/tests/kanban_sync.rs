@@ -430,3 +430,231 @@ fn text_typed_in_write_is_handed_to_the_kanban() {
     assert_ne!(s.rt.state.editor.text, typed2, "Write gave the text up");
     assert_eq!(read(&tmp), theirs());
 }
+
+/// P1-1: the watcher compares `(mtime, len)`, but a save compares the bytes:
+/// another app's same-length edit with the old modified time is not written
+/// over, and the page flags it.
+#[test]
+fn a_same_length_change_that_keeps_the_mtime_is_not_written_over() {
+    let tmp = vault();
+    let mut s = on_board(&tmp, false);
+    let path = file(&tmp);
+    let before = fs::metadata(&path).unwrap().modified().unwrap();
+    let theirs = BOARD.replace("Fix the sync bug", "Fix the sync BUG");
+    assert_eq!(theirs.len(), BOARD.len(), "same length");
+    assert_ne!(theirs, BOARD);
+    fs::write(&path, &theirs).unwrap();
+    let handle = fs::File::options().write(true).open(&path).unwrap();
+    handle
+        .set_times(fs::FileTimes::new().set_modified(before))
+        .unwrap();
+    drop(handle);
+    // Their edit is invisible to the watcher: the page still holds what it read.
+    wait(&mut s.rt);
+    assert_eq!(shown(&s.rt), BOARD);
+    assert_eq!(conflict(&s.rt), None, "the watcher cannot see it");
+
+    act(&mut s.rt, |s| s.toggle_card_done(1, 0));
+    let mut saved = true;
+    act(&mut s.rt, |s| saved = s.save_kanban());
+    assert!(!saved, "the save is refused");
+    assert_eq!(read(&tmp), theirs, "their bytes survive");
+    assert_eq!(
+        conflict(&s.rt),
+        Some(DocConflict::Changed),
+        "the page flags the change"
+    );
+    assert_eq!(shown(&s.rt), mine(), "my edits stay on the page");
+}
+
+/// P1-2: text the model refuses in a lane field must not stop the committed
+/// edits' recovery copy, nor leave the persistence error on the page.
+#[test]
+fn a_refused_lane_field_does_not_stop_the_committed_edits_recovery_copy() {
+    let tmp = vault();
+    let mut s = on_board(&tmp, false);
+    act(&mut s.rt, |s| s.toggle_card_done(1, 0));
+    act(&mut s.rt, |s| s.begin_lane_limit(1));
+    act(&mut s.rt, |s| s.kanban_lane_field.replace_text("abc"));
+    frames(&mut s.rt, 90);
+    let copy = s.rt.state.recovery_path("Board.md");
+    assert_eq!(
+        fs::read_to_string(&copy).unwrap(),
+        mine(),
+        "the copy holds the committed edit"
+    );
+    assert_eq!(
+        s.rt.state.kanban_lane_field.text, "abc",
+        "the field keeps it"
+    );
+    assert!(
+        s.rt.state
+            .error
+            .as_deref()
+            .is_none_or(|e| !e.contains("persist kanban recovery copy")),
+        "no persistence error: {:?}",
+        s.rt.state.error
+    );
+    // The refused field still blocks the quit, as slice 4 says.
+    assert!(!s.rt.state.flush_before_quit());
+
+    // A clean board with only the refused field has nothing to recover.
+    let tmp = vault();
+    let mut s = on_board(&tmp, false);
+    act(&mut s.rt, |s| s.begin_lane_limit(1));
+    act(&mut s.rt, |s| s.kanban_lane_field.replace_text("abc"));
+    frames(&mut s.rt, 90);
+    assert!(
+        !s.rt.state.recovery_path("Board.md").exists(),
+        "no copy for an unchanged board"
+    );
+    assert!(s.rt.state.error.is_none(), "{:?}", s.rt.state.error);
+}
+
+/// P1-3: a restore over a removed file has no saved text, so an unrelated
+/// empty note must not be taken for its rename (and autosave must not write
+/// the recovered board into it).
+#[test]
+fn a_restored_kanban_is_not_renamed_onto_an_empty_note() {
+    let tmp = TempVault::new(&[
+        ("Agenda.md", "# Agenda\n"),
+        ("Board.md", BOARD),
+        ("Empty.md", ""),
+    ]);
+    let mut s = on_board(&tmp, false);
+    act(&mut s.rt, |s| s.toggle_card_done(1, 0));
+    frames(&mut s.rt, 60);
+    assert!(
+        s.rt.state.recovery_path("Board.md").exists(),
+        "copy written"
+    );
+    drop(s.rt);
+
+    fs::remove_file(tmp.path().join("Board.md")).unwrap();
+    let mut rt = launch_with(tmp.path(), &s.config, &s.state_home);
+    frames(&mut rt, 2);
+    assert!(
+        rt.state.recovered.iter().any(|r| r.rel == "Board.md"),
+        "listed"
+    );
+    rt.update(|s, _| assert!(s.restore_recovery("Board.md")));
+    frames(&mut rt, 200);
+    assert_eq!(
+        rt.state.kanban.as_ref().unwrap().rel,
+        "Board.md",
+        "the page stays on the missing note"
+    );
+    assert_eq!(conflict(&rt), Some(DocConflict::Missing));
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Empty.md")).unwrap(),
+        "",
+        "the empty note is untouched"
+    );
+}
+
+/// P2-4: Save copy makes the copy the selected note, so a later vault reload
+/// keeps the page on it instead of reading the original back.
+#[test]
+fn save_copy_keeps_the_copy_selected_through_a_vault_reload() {
+    let tmp = vault();
+    let mut s = on_board(&tmp, false);
+    act(&mut s.rt, |s| s.toggle_card_done(1, 0));
+    atomic_write(&file(&tmp), &theirs());
+    wait(&mut s.rt);
+    assert_eq!(conflict(&s.rt), Some(DocConflict::Changed));
+    let mut copied = false;
+    act(&mut s.rt, |s| copied = s.kanban_save_copy());
+    assert!(copied);
+    let copy = s.rt.state.kanban.as_ref().unwrap().rel.clone();
+    let id =
+        s.rt.state
+            .vault
+            .resolve(copy.trim_end_matches(".md"))
+            .expect("the copy is indexed");
+    assert_eq!(s.rt.state.selected, Some(id), "the copy is selected");
+    assert_eq!(
+        s.rt.state.selected_path,
+        Some(tmp.path().join(&copy)),
+        "and its path"
+    );
+
+    // Another file changes: the vault watcher reloads and selects the copy.
+    fs::write(tmp.path().join("Agenda.md"), "# Agenda v2\n").unwrap();
+    wait(&mut s.rt);
+    assert_eq!(s.rt.state.kanban.as_ref().unwrap().rel, copy);
+    assert_eq!(s.rt.state.selected, Some(id));
+    assert_eq!(shown(&s.rt), mine());
+    assert_eq!(fs::read_to_string(tmp.path().join(&copy)).unwrap(), mine());
+}
+
+/// P2-5a: saving a shown kanban that is not the selected note still clears
+/// its recovery copy, so a later vault switch does not strand it.
+#[test]
+fn saving_a_shown_kanban_that_is_not_selected_clears_its_recovery_copy() {
+    let tmp = vault();
+    let other = TempVault::new(&[("B.md", "# B\n")]);
+    let mut s = on_board(&tmp, false);
+    act(&mut s.rt, |s| s.toggle_card_done(1, 0));
+    frames(&mut s.rt, 60);
+    let copy = s.rt.state.recovery_path("Board.md");
+    assert_eq!(fs::read_to_string(&copy).unwrap(), mine());
+    // Select a plain note: the page keeps showing the kanban.
+    let agenda = s.rt.state.vault.resolve("Agenda").unwrap();
+    act(&mut s.rt, |s| s.load_note(agenda, false));
+    let board_id =
+        s.rt.state
+            .vault
+            .notes
+            .iter()
+            .find(|n| n.rel == "Board.md")
+            .map(|n| n.id);
+    assert_ne!(s.rt.state.selected, board_id, "the kanban is not selected");
+    assert_eq!(s.rt.state.kanban.as_ref().unwrap().rel, "Board.md");
+    let mut saved = false;
+    act(&mut s.rt, |s| saved = s.save_kanban());
+    assert!(saved);
+    assert_eq!(read(&tmp), mine());
+    assert!(!copy.exists(), "the saved kanban's recovery copy goes");
+    assert!(s.rt.state.recovered.iter().all(|r| r.rel != "Board.md"));
+
+    let mut switched = false;
+    act(&mut s.rt, |s| {
+        switched = s.switch_vault(other.path().to_path_buf())
+    });
+    assert!(switched);
+    assert!(
+        !copy.exists(),
+        "nothing is left to offer on the next launch"
+    );
+}
+
+/// P2-5b: following a rename clears the old path's recovery copy; the save
+/// leaves none under the new name either.
+#[test]
+fn following_a_rename_clears_the_old_paths_recovery_copy() {
+    let tmp = vault();
+    let mut s = on_board(&tmp, false);
+    act(&mut s.rt, |s| s.toggle_card_done(1, 0));
+    frames(&mut s.rt, 60);
+    let old = s.rt.state.recovery_path("Board.md");
+    assert!(old.exists(), "old copy written");
+    fs::rename(file(&tmp), tmp.path().join("Renamed.md")).unwrap();
+    wait(&mut s.rt);
+    assert_eq!(
+        s.rt.state.kanban.as_ref().unwrap().rel,
+        "Renamed.md",
+        "the rename is followed"
+    );
+    assert!(!old.exists(), "the old path's copy goes with the rename");
+    assert!(s.rt.state.recovered.iter().all(|r| r.rel != "Board.md"));
+    assert!(s.rt.state.save_kanban());
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Renamed.md")).unwrap(),
+        mine()
+    );
+    assert!(
+        !s.rt.state.recovery_path("Renamed.md").exists(),
+        "a save leaves no copy"
+    );
+    assert!(s.rt.state.recovered.is_empty());
+}
