@@ -347,6 +347,31 @@ fn undo_and_redo_restore_exact_bytes_and_a_save_after_undo_restores_the_file() {
     assert_eq!(on_disk(&tmp), BOARD, "the original bytes, exactly");
 }
 
+/// A split writes each later line literally, so a line that ends in a block
+/// id shape can never become an id or duplicate another card's id. The whole
+/// split is refused rather than losing that text.
+#[test]
+fn splitting_a_card_whose_second_line_ends_in_a_block_id_changes_nothing() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.begin_edit_card(0, 0));
+    press(&mut rt, Key::Enter, true);
+    type_text(&mut rt, "see ^card-2a");
+    press(&mut rt, Key::Enter, false);
+    let before = source(&rt);
+    assert!(
+        before.contains("- [ ] Write the release notes\n  see ^card-2a\n"),
+        "{before}"
+    );
+    act(&mut rt, |s| s.split_card(0, 0));
+    assert_eq!(source(&rt), before, "the split is refused whole");
+    assert!(text_of(&rt, "kanban-error").is_some());
+    assert!(
+        !source(&rt).contains("- [ ] see ^card-2a"),
+        "no card was given the id"
+    );
+}
+
 /// A card added to, duplicated in or split inside a done lane is born done,
 /// and Mark all cards done marks every open card, one character each.
 #[test]
@@ -442,20 +467,21 @@ fn multibyte_text_edits_by_whole_characters_and_esc_cancels() {
 fn a_refused_edit_changes_nothing_and_keeps_the_typed_text() {
     let tmp = vault();
     let mut rt = on_board(&tmp);
-    // A line of only spaces cannot be read back as the same card text.
+    // A trailing blank line is not part of a card (the reader ends the card
+    // there), so the add is refused.
     click(&mut rt, "kanban-lane-0-add");
-    type_text(&mut rt, "Call Ana\n ");
+    type_text(&mut rt, "Call Ana\n\n");
     press(&mut rt, Key::Enter, false);
     assert_eq!(source(&rt), BOARD);
     assert!(rt.state.is_typing(), "the editor stays open");
-    assert_eq!(rt.state.kanban_card_field.text, "Call Ana\n ");
+    assert_eq!(rt.state.kanban_card_field.text, "Call Ana\n\n");
     let error = text_of(&rt, "kanban-error").unwrap_or_default();
     assert!(error.starts_with("Could not add the card"), "{error:?}");
     // ⌘S can't save text the model refuses: the file and the text stay.
     rt.key(command('s', false));
     frame(&mut rt);
     assert_eq!(on_disk(&tmp), BOARD);
-    assert_eq!(rt.state.kanban_card_field.text, "Call Ana\n ");
+    assert_eq!(rt.state.kanban_card_field.text, "Call Ana\n\n");
     assert_eq!(
         text_of(&rt, "kanban-status").as_deref(),
         Some("Not saved: the card being edited was refused")
@@ -479,9 +505,11 @@ fn a_refused_edit_changes_nothing_and_keeps_the_typed_text() {
     assert!(text_of(&rt, "kanban-error").is_none());
     // A refused edit of a card keeps its text too, and Esc lets it go.
     act(&mut rt, |s| s.begin_edit_card(0, 0));
-    act(&mut rt, |s| s.kanban_card_field.replace_text("Reworded\n "));
+    act(&mut rt, |s| {
+        s.kanban_card_field.replace_text("Reworded\n\n")
+    });
     press(&mut rt, Key::Enter, false);
-    assert_eq!(rt.state.kanban_card_field.text, "Reworded\n ");
+    assert_eq!(rt.state.kanban_card_field.text, "Reworded\n\n");
     assert!(text_of(&rt, "kanban-error").is_some());
     press(&mut rt, Key::Escape, false);
     assert!(!rt.state.is_typing());

@@ -1019,9 +1019,21 @@ kanban-plugin: board
     );
 }
 
-/// The text `edit_card` stores: carriage returns dropped, one trailing newline trimmed.
+/// The text `edit_card` stores: carriage returns dropped, a line of spaces or
+/// tabs made blank, one trailing newline trimmed.
 fn normalised_edit(text: &str) -> String {
-    let mut text = text.replace('\r', "");
+    let text = text.replace('\r', "");
+    let mut text = text
+        .split('\n')
+        .map(|line| {
+            if line.chars().all(|ch| ch == ' ' || ch == '\t') {
+                ""
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     if text.ends_with('\n') {
         text.pop();
     }
@@ -2147,19 +2159,31 @@ kanban-plugin: board
 }
 
 #[test]
-fn moving_a_lane_to_the_end_of_a_file_without_a_final_newline_keeps_its_bytes() {
+fn moving_a_lane_to_the_end_of_a_file_without_a_final_newline_keeps_that() {
     let source = "---\nkanban-plugin: board\n---\n\n## A\n\n- [ ] a\n\n## B\n\n- [ ] b";
     let mut board = parse(source);
     assert_eq!(board.source(), source);
     assert!(!board.source().ends_with('\n'));
     board.move_lane(0, 1).expect("A last");
-    // The moved lane keeps its trailing blank line: the file now ends with
-    // that line, and no byte of the lane is dropped.
+    // The moved block's trailing blank lines go, so the file still ends
+    // without a newline (spec section 10 rule 5).
     assert_eq!(
         board.source(),
-        "---\nkanban-plugin: board\n---\n\n## B\n\n- [ ] b\n## A\n\n- [ ] a\n\n"
+        "---\nkanban-plugin: board\n---\n\n## B\n\n- [ ] b\n## A\n\n- [ ] a"
     );
+    assert!(!board.source().ends_with('\n'));
     assert_eq!(board.lanes()[1].cards()[0].text(), "a");
+
+    let crlf =
+        "---\r\nkanban-plugin: board\r\n---\r\n\r\n## A\r\n\r\n- [ ] a\r\n\r\n## B\r\n\r\n- [ ] b";
+    let mut board = parse(crlf);
+    assert!(!board.source().ends_with('\n'));
+    board.move_lane(0, 1).expect("A last");
+    assert_eq!(
+        board.source(),
+        "---\r\nkanban-plugin: board\r\n---\r\n\r\n## B\r\n\r\n- [ ] b\r\n## A\r\n\r\n- [ ] a"
+    );
+    assert!(!board.source().ends_with('\n'));
 }
 
 #[test]
@@ -2174,7 +2198,7 @@ fn a_card_added_at_the_end_of_a_file_without_a_final_newline_keeps_that() {
 }
 
 #[test]
-fn duplicate_footer_keys_edit_the_effective_member() {
+fn duplicate_footer_keys_edit_and_remove_every_copy() {
     let source = "\
 ---
 kanban-plugin: board
@@ -2186,19 +2210,177 @@ kanban-plugin: board
 
 %% kanban:settings
 ```
-{\"b\":0,\"a\":1,\"a\":2}
+{\"b\":0,\"a\":1,\"a\":2,\"a\":3}
 ```
 %%
 ";
     let mut board = parse(source);
-    assert_eq!(board.footer_json(), Some("{\"b\":0,\"a\":1,\"a\":2}"));
+    assert_eq!(
+        board.footer_json(),
+        Some("{\"b\":0,\"a\":1,\"a\":2,\"a\":3}")
+    );
     // JSON readers use the last member, so setting `a` changes that one.
-    board.set_setting("a", &json!(3)).expect("set");
-    assert_eq!(board.footer_json(), Some("{\"b\":0,\"a\":1,\"a\":3}"));
-    // Removing `a` removes the effective member; the shadowed first copy is
-    // now the value every reader sees.
+    board.set_setting("a", &json!(9)).expect("set");
+    assert_eq!(
+        board.footer_json(),
+        Some("{\"b\":0,\"a\":1,\"a\":2,\"a\":9}")
+    );
+    // Removing `a` takes every copy, so no earlier copy becomes effective.
     board.remove_setting("a").expect("remove");
-    assert_eq!(board.footer_json(), Some("{\"b\":0,\"a\":1}"));
+    assert_eq!(board.footer_json(), Some("{\"b\":0}"));
+    let error = board.remove_setting("a").unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidInput);
+}
+
+/// Two cards with one block id would make `[[Note#^id]]` point at whichever
+/// comes first, so a new or changed id another card uses is refused whole.
+#[test]
+fn a_block_id_already_on_another_card_is_refused() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] first
+- [ ] second ^card-1
+
+## Doing
+
+- [ ] third
+
+***
+
+## Archive
+
+- [x] old ^card-9
+";
+    let mut board = parse(source);
+    assert_eq!(board.archive().expect("archive").cards().len(), 1);
+
+    for (lane, index, text) in [(0, 0, "new ^card-1"), (0, 0, "new ^card-9")] {
+        let error = board.add_card(lane, index, text).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidInput, "{text}");
+        assert!(error.to_string().contains("already used"), "{error}");
+        assert_eq!(board.source(), source, "{text}");
+    }
+    for (lane, index, text) in [
+        (0, 0, "seen ^card-1"),
+        (1, 0, "seen ^card-1"),
+        (0, 0, "seen ^card-9"),
+    ] {
+        let error = board.edit_card(lane, index, text).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidInput, "{text}");
+        assert_eq!(board.source(), source, "{text}");
+    }
+}
+
+#[test]
+fn a_card_keeps_its_own_block_id() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] keep ^card-1\n- [ ] other\n";
+    let mut board = parse(source);
+    // The card's own id is not a collision.
+    board.edit_card(0, 0, "kept ^card-1").expect("own id");
+    assert_eq!(board.lanes()[0].cards()[0].text(), "kept");
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), Some("card-1"));
+    // Repeating the same text and id is still a no-op.
+    let written = board.source().to_owned();
+    board.edit_card(0, 0, "kept ^card-1").expect("again");
+    assert_eq!(board.source(), written);
+}
+
+/// Literal card text (Split card, Duplicate) never reads an id out of a
+/// trailing ` ^id`. The file cannot store that ending as text, so it is
+/// refused rather than losing it or assigning an id.
+#[test]
+fn literal_card_text_with_a_trailing_block_id_is_refused() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] keep\n";
+    let mut board = parse(source);
+    let error = board.add_card_text(0, 0, "see ^card-1").unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidInput);
+    assert_eq!(board.source(), source);
+
+    // A continuation line is not the card's id, so it stays literal text.
+    board
+        .add_card_text(0, 0, "head\nsee ^card-1")
+        .expect("literal");
+    assert_eq!(board.lanes()[0].cards()[0].text(), "head\nsee ^card-1");
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), None);
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] head\n  see ^card-1\n- [ ] keep\n"
+    );
+}
+
+/// A text edit keeps the card's id, so `[[Note#^id]]` still points here.
+/// Only an explicit new id in the edited text changes the target.
+#[test]
+fn a_text_edit_keeps_the_block_link_target_and_only_a_new_id_changes_it() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Write ^card-1
+- [ ] See [[Board#^card-1]]
+
+## Done
+
+**Complete**
+- [x] Shipped ^card-2
+";
+    let mut board = parse(source);
+    board
+        .edit_card(0, 0, "Write the release notes")
+        .expect("text");
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), Some("card-1"));
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Write the release notes ^card-1\n\
+         - [ ] See [[Board#^card-1]]\n\n## Done\n\n**Complete**\n- [x] Shipped ^card-2\n"
+    );
+    // Only a new id in the text changes the target; the old one is gone.
+    board
+        .edit_card(0, 0, "Write the release notes ^card-3")
+        .expect("id");
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), Some("card-3"));
+    assert!(!board.source().contains("^card-1\n"));
+}
+
+#[test]
+fn adding_a_card_with_only_a_block_id_is_refused() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n";
+    let mut board = parse(source);
+    for text in [" ^abc", "", "  ", " \n\t"] {
+        let error = board.add_card(0, 1, text).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidInput, "{text:?}");
+        assert_eq!(board.source(), source, "{text:?}");
+    }
+}
+
+/// The spec stores a blank continuation as blank: spaces or tabs on a line by
+/// themselves are not text.
+#[test]
+fn a_blank_continuation_is_stored_blank() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n";
+    let mut added = parse(source);
+    added.add_card(0, 1, "new\n \n  tail").expect("add");
+    assert_eq!(added.lanes()[0].cards()[1].text(), "new\n\n  tail");
+    assert_eq!(
+        added.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n- [ ] new\n\n    tail\n"
+    );
+
+    let mut edited = parse(source);
+    edited.edit_card(0, 0, "a\n\t\n b").expect("edit");
+    assert_eq!(edited.lanes()[0].cards()[0].text(), "a\n\n b");
+    assert_eq!(
+        edited.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n   b\n"
+    );
 }
 
 #[test]

@@ -314,7 +314,8 @@ impl State {
         let text = card.text().to_owned();
         let done = card.is_done() || self.kanban_lane_is_done(lane);
         self.edit_kanban("duplicate the card", |board| {
-            board.add_card(lane, index + 1, &text)?;
+            // The text is literal: no trailing ` ^id` is read out of it.
+            board.add_card_text(lane, index + 1, &text)?;
             if done {
                 board.toggle_done(lane, index + 1)?;
             }
@@ -342,7 +343,8 @@ impl State {
             board.edit_card(lane, index, first)?;
             for (n, line) in rest.iter().enumerate() {
                 let at = index + 1 + n;
-                board.add_card(lane, at, line)?;
+                // The line is literal: a trailing ` ^id` is not a new id.
+                board.add_card_text(lane, at, line)?;
                 if done {
                     board.toggle_done(lane, at)?;
                 }
