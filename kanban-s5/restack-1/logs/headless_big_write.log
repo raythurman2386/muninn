@@ -1,0 +1,13 @@
+rune: `poll` blocked 11 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 193 frames at 60 fps, gpu init 84.1 ms, first frame 46.30 ms, frame cpu mean 5.741 ms p50 4.314 p95 6.068 max 135.810, 435 instances
+rune: animating frames 43 (cpu p50 5.350 p95 12.884 ms), at-rest frames 149 (the window draws none; forced cpu p50 4.136 p95 5.031 ms), layout nodes 1086, glyphs 371
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/config-big-write/muninn/settings.json: mode preview
+saved board after the scan in Write {'eye': [-145.0443115234375, -246.50299072265625], 'rel': 'Smoke.excalidraw', 'zoom': 1.1179945468902588}
+rune: `init` blocked 21 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 43 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 289 frames at 60 fps, gpu init 85.7 ms, first frame 46.01 ms, frame cpu mean 6.456 ms p50 4.419 p95 14.614 max 137.139, 587 instances
+rune: animating frames 44 (cpu p50 7.730 p95 38.030 ms), at-rest frames 244 (the window draws none; forced cpu p50 4.275 p95 5.847 ms), layout nodes 1096, glyphs 347
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/big-write-board.json: active mode mode-board
+ok same: rect-red [704, 434, 885, 547] (off 0.0)
+ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)
+ok same: line-green [703, 623, 931, 671] (off 0.0)
