@@ -7,8 +7,8 @@
 //!
 //! With no script the example parses `FILE` and checks that the unedited
 //! model writes the original bytes. It also saves through the atomic writer
-//! to a hidden scratch file next to `FILE` (removed afterwards) and checks
-//! the reloaded bytes. The original file is only read.
+//! to a scratch file in the temp directory (removed afterwards) and checks
+//! the reloaded bytes. The original file is only read. The diff is `diff -u`.
 //!
 //! `--edit SCRIPT` does that check first, then applies the script and prints
 //! a unified diff of the result against the original. The script is one
@@ -116,7 +116,7 @@ fn check(path: &Path, script: Option<&Path>) -> Result<(), String> {
         return Err("edited output does not round-trip".into());
     }
     scratch_reload(path, &edited)?;
-    print!("{}", unified("kanban", &text, edited.source()));
+    print!("{}", unified("kanban", &text, edited.source())?);
     Ok(())
 }
 
@@ -129,7 +129,10 @@ fn scratch_reload(path: &Path, kanban: &Kanban) -> Result<(), String> {
     let name = path
         .file_name()
         .map_or_else(Default::default, |name| name.to_string_lossy().into_owned());
-    let scratch = path.with_file_name(format!(".roundtrip-{}-{name}", std::process::id()));
+    let scratch = std::env::temp_dir().join(format!(
+        "muninn-kanban-roundtrip-{}-{name}",
+        std::process::id()
+    ));
     let saved = kanban.save(&scratch);
     let reloaded = saved
         .and_then(|()| std::fs::read(&scratch))
@@ -319,110 +322,32 @@ fn unescape(text: &str) -> String {
     out
 }
 
-/// A small unified diff. Lines keep their `\n`; a missing final newline is a
-/// line of its own so it still shows up.
-fn unified(label: &str, before: &str, after: &str) -> String {
-    let left = split_keep(before);
-    let right = split_keep(after);
-    let mut out = format!("--- {label}\n+++ {label}\n");
-    for hunk in hunks(&left, &right) {
-        out.push_str(&format!(
-            "@@ -{},{} +{},{} @@\n",
-            hunk.left_start,
-            hunk.left.len(),
-            hunk.right_start,
-            hunk.right.len()
-        ));
-        for line in &hunk.left {
-            out.push('-');
-            out.push_str(line);
-        }
-        for line in &hunk.right {
-            out.push('+');
-            out.push_str(line);
-        }
+/// Unified diff from `diff -u`. A hand-rolled LCS is quadratic in the line
+/// counts and is the wrong tool for a long note.
+fn unified(label: &str, before: &str, after: &str) -> Result<String, String> {
+    let dir = std::env::temp_dir().join(format!("muninn-kanban-diff-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    let left = dir.join("before");
+    let right = dir.join("after");
+    let wrote = std::fs::write(&left, before)
+        .and_then(|()| std::fs::write(&right, after))
+        .map_err(|error| error.to_string());
+    let output = wrote.and_then(|()| {
+        std::process::Command::new("diff")
+            .args(["-u", "--label", label, "--label", label])
+            .arg(&left)
+            .arg(&right)
+            .output()
+            .map_err(|error| error.to_string())
+    });
+    let _ = std::fs::remove_dir_all(&dir);
+    let output = output?;
+    match output.status.code() {
+        Some(0) => Ok(String::new()),
+        Some(1) => String::from_utf8(output.stdout).map_err(|error| error.to_string()),
+        _ => Err(format!(
+            "diff failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )),
     }
-    out
-}
-
-struct Hunk<'a> {
-    left_start: usize,
-    right_start: usize,
-    left: Vec<&'a str>,
-    right: Vec<&'a str>,
-}
-
-fn hunks<'a>(left: &'a [&'a str], right: &'a [&'a str]) -> Vec<Hunk<'a>> {
-    let matches = lcs(left, right);
-    let mut hunks = Vec::new();
-    let mut li = 0;
-    let mut ri = 0;
-    for (lm, rm) in matches {
-        if li < lm || ri < rm {
-            hunks.push(Hunk {
-                left_start: li + 1,
-                right_start: ri + 1,
-                left: left[li..lm].to_vec(),
-                right: right[ri..rm].to_vec(),
-            });
-        }
-        li = lm + 1;
-        ri = rm + 1;
-    }
-    if li < left.len() || ri < right.len() {
-        hunks.push(Hunk {
-            left_start: li + 1,
-            right_start: ri + 1,
-            left: left[li..].to_vec(),
-            right: right[ri..].to_vec(),
-        });
-    }
-    hunks
-}
-
-fn lcs(left: &[&str], right: &[&str]) -> Vec<(usize, usize)> {
-    let rows = left.len() + 1;
-    let cols = right.len() + 1;
-    let mut score = vec![0u32; rows * cols];
-    let at = |row: usize, col: usize| row * cols + col;
-    for row in (0..left.len()).rev() {
-        for col in (0..right.len()).rev() {
-            score[at(row, col)] = if left[row] == right[col] {
-                score[at(row + 1, col + 1)] + 1
-            } else {
-                score[at(row + 1, col)].max(score[at(row, col + 1)])
-            };
-        }
-    }
-    let mut out = Vec::new();
-    let mut row = 0;
-    let mut col = 0;
-    while row < left.len() && col < right.len() {
-        if left[row] == right[col] {
-            out.push((row, col));
-            row += 1;
-            col += 1;
-        } else if score[at(row + 1, col)] >= score[at(row, col + 1)] {
-            row += 1;
-        } else {
-            col += 1;
-        }
-    }
-    out
-}
-
-fn split_keep(source: &str) -> Vec<&str> {
-    let mut lines = Vec::new();
-    let mut start = 0;
-    let bytes = source.as_bytes();
-    for (index, byte) in bytes.iter().enumerate() {
-        if *byte == b'\n' {
-            lines.push(&source[start..=index]);
-            start = index + 1;
-        }
-    }
-    if start < source.len() {
-        lines.push(&source[start..]);
-    }
-    lines
 }

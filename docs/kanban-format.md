@@ -92,7 +92,7 @@ kanban-plugin: board
 - **Card line.** A card is a markdown task-list item at the start of a line: `- [ ] text` (open) or `- [x] text` (done).
 - **Done mark.** Any single character between the brackets other than a space counts as done, and Muninn keeps that exact character.
   - **Open point C-1:** whether characters other than `x` and `X` carry any extra meaning. Muninn treats them as done, displays them as done, and never rewrites them.
-- **Multi-line cards.** Continuation lines are indented under the first line and belong to the card. That includes nested lists and nested task items, which make up a card's checklist.
+- **Multi-line cards.** Continuation lines are indented under the first line and belong to the card. That includes nested lists and nested task items, which make up a card's checklist. A blank line that is followed by another indented continuation line belongs to the same card, so moving the card moves that paragraph too.
 - **Block id.** A card's first line may end with a space, a caret and an identifier, such as ` ^card-7f2`. This is the block id that Obsidian uses for block links (see Obsidian's public help on block references). It belongs to the card, moves with it, and is not shown as card text.
 - **Card text.** The text after the checkbox, plus its continuation lines, is markdown. It may contain wikilinks `[[Note]]`, embeds `![[Note]]`, tags, dates and times (section 7).
 - **List items without a checkbox** (`- text`).
@@ -170,9 +170,10 @@ The done-lane marker and the archive heading are written in the language of the 
 1. **Unedited means identical.** Reading a kanban note and writing it back without edits produces the exact original bytes. Muninn does not write an unedited board at all.
 2. **Minimal diffs.** An edit changes only the lines it is about. Moving a card removes its lines from one place and inserts the same lines in another. Renaming a lane changes one line. Toggling a done mark changes one character.
 3. **Passthrough.** Every line Muninn does not model is kept exactly and stays in place relative to the lane or card before it. That includes paragraphs between lanes, other headings, comments, HTML and anything unrecognised.
-4. **Whitespace is kept.** The file's line-ending style (LF or CRLF), a byte-order mark, the presence or absence of a final newline, indentation and blank-line runs are all kept. New lines use the file's line-ending style.
-5. **Never lose data.** A file that can't be read as a board is left untouched and shown as a normal note.
-6. **New file.** Muninn's "New Kanban" writes:
+4. **Fenced code.** A fence opens on a line whose first non-space characters are three or more backticks, or three or more tildes, and closes on a later line that is only that same mark (at least as many) and whitespace. Lines inside the fence are not lanes, cards, an archive or a settings footer, even when the text looks like those. A fence that starts on an indented continuation line belongs to that card and moves with it. Any other fence is passthrough. A fence that never closes runs through the end of the file, and Muninn still does not read a settings footer out of it.
+5. **Whitespace is kept.** The file's line-ending style (LF or CRLF), a byte-order mark, the presence or absence of a final newline, indentation and blank-line runs are all kept. New lines use the file's line-ending style.
+6. **Never lose data.** A file that can't be read as a board is left untouched and shown as a normal note.
+7. **New file.** Muninn's "New Kanban" writes:
 
    ```
    ---

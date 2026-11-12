@@ -1,5 +1,11 @@
 --- kanban
 +++ kanban
-@@ -9,1 +9,1 @@
+@@ -6,7 +6,7 @@
+ 
+ - [ ] Write the threat model
+ 
 -## Doing (3)
 +## Busy (3)
+ 
+ - [ ] Parser
+ - [ ] Writer
