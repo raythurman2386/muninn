@@ -16,7 +16,7 @@ use crate::{
     ThemeMode,
 };
 
-const SIDEBAR: f32 = 258.0;
+pub(crate) const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
 
 pub fn view(s: &State, cx: &mut Cx<State>) -> El {
@@ -327,7 +327,10 @@ fn sidebar(s: &State, k: &Kit) -> El {
                         }
                     });
             }
-            scroller.child(list).child(sidebar_boards(s, k, filtering))
+            scroller
+                .child(list)
+                .child(sidebar_kanbans(s, k, filtering))
+                .child(sidebar_boards(s, k, filtering))
         })
         .child(divider_h(k))
         .child(
@@ -557,6 +560,15 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
                         .truncate(),
                 ),
         )
+        // Kanban slice 3: a kanban note is still a note; the glyph says so.
+        .child(if note.is_kanban() {
+            icon(&ic::CHECKLIST, 13.0)
+                .key(format!("note-row-{id}-kanban"))
+                .color(k.c.icon_muted)
+                .label("Kanban")
+        } else {
+            el()
+        })
         .px(10.0)
         .pl(20.0)
 }
@@ -2376,6 +2388,17 @@ fn palette_row(s: &State, k: &Kit, index: usize, item: &PaletteItem, selected: b
             };
             (title, subtitle, String::new(), k.c.text_accent)
         }
+        PaletteItem::Kanban(id) => {
+            let note = s.vault.notes.get(*id);
+            let title = note.map_or_else(|| "Missing note".to_owned(), |n| n.title.clone());
+            let folder = note.map(|n| n.folder()).unwrap_or_default();
+            let subtitle = if folder.is_empty() {
+                "Kanban · Vault root".to_owned()
+            } else {
+                format!("Kanban · {folder}")
+            };
+            (title, subtitle, String::new(), k.c.text_accent)
+        }
         PaletteItem::Action(action) => (
             action.label().to_owned(),
             String::new(),
@@ -3272,10 +3295,21 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
 }
 
 fn topbar(s: &State, k: &Kit) -> El {
-    let (title, path) = match s.selected.and_then(|id| s.vault.notes.get(id)) {
+    // Kanban slice 3 (s2 review N4): on the Kanban page the title is the
+    // kanban shown, which may not be the selected note.
+    let note = match (s.mode, &s.kanban) {
+        (Mode::Kanban, Some(shown)) => s.note_id(&shown.rel),
+        _ => s.selected,
+    };
+    let (title, path) = match note.and_then(|id| s.vault.notes.get(id)) {
         Some(note) => (note.title.clone(), note.rel.clone()),
         None => ("No note selected".to_owned(), String::new()),
     };
+    // A kanban note opened as a note offers its board.
+    let open_as_kanban = s.mode.is_note_mode()
+        && s.selected
+            .and_then(|id| s.vault.notes.get(id))
+            .is_some_and(|note| note.is_kanban());
     let dirty = s.dirty();
     let title_col = col()
         .grow(1.0)
@@ -3287,6 +3321,7 @@ fn topbar(s: &State, k: &Kit) -> El {
                 .center_y()
                 .child(
                     text(title)
+                        .key("topbar-title")
                         .font(k.ty.ui_medium.lh(20.0))
                         .color(k.c.text_base)
                         .truncate(),
@@ -3324,6 +3359,17 @@ fn topbar(s: &State, k: &Kit) -> El {
             State::forward,
         ))
         .child(title_col)
+        .child(if open_as_kanban {
+            crate::kanban_view::header_button(
+                k,
+                "open-as-kanban",
+                &ic::CHECKLIST,
+                "Open as kanban",
+                |s: &mut State| s.set_mode(Mode::Kanban),
+            )
+        } else {
+            el()
+        })
         .child(mode_switch(s, k))
 }
 
@@ -3676,9 +3722,6 @@ fn preview(s: &State, k: &Kit) -> El {
     // (link rewriting changes byte lengths), matching `Markdown::block_keys`.
     let block_keys = heading_keys(&source);
     let accent = k.c.text_accent;
-    let faint = k.c.text_faint;
-    let faint_rule = k.alpha(faint, 0.5);
-    let faint_hover = k.alpha(faint, 0.6);
     // Palette identity in the memo version: a theme switch rebuilds the styled preview.
     let body = rune::memo(
         format!("preview-{id}"),
@@ -3692,14 +3735,7 @@ fn preview(s: &State, k: &Kit) -> El {
                 .style(style)
                 .block_keys(block_keys)
                 .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| s.open_link(url, tx))
-                .link_style(move |url| {
-                    url.strip_prefix("missing:").map(|_| {
-                        (
-                            Span::new(0, 0).color(faint).underline(faint_rule),
-                            LinkPaint::new().color(faint).underline(faint_hover),
-                        )
-                    })
-                })
+                .link_style(missing_link_style(k))
                 .build(k)
         },
     );
@@ -3730,12 +3766,106 @@ fn preview(s: &State, k: &Kit) -> El {
         )
 }
 
+/// A wikilink to no note (`Vault::preview_with_attachments` points it at
+/// `missing:`) reads dimmed, in Read and on kanban cards alike.
+pub(crate) fn missing_link_style(k: &Kit) -> impl Fn(&str) -> Option<(Span, LinkPaint)> + 'static {
+    let faint = k.c.text_faint;
+    let rule = k.alpha(faint, 0.5);
+    let hover = k.alpha(faint, 0.6);
+    move |url| {
+        url.strip_prefix("missing:").map(|_| {
+            (
+                Span::new(0, 0).color(faint).underline(rule),
+                LinkPaint::new().color(faint).underline(hover),
+            )
+        })
+    }
+}
+
 /// EDT-04: stable block keys for the preview's top-level headings.
 fn heading_keys(source: &str) -> Vec<(usize, String)> {
     headings(source)
         .into_iter()
         .map(|(offset, _)| (offset, format!("heading-{offset}")))
         .collect()
+}
+
+/// Kanban slice 3: the sidebar's Kanbans section, between the notes and the
+/// Boards. Every kanban note (cached in the index), by title; a row opens it
+/// in Kanban mode. Hidden while searching notes and in a vault with none.
+fn sidebar_kanbans(s: &State, k: &Kit, filtering: bool) -> El {
+    let kanbans: Vec<_> = s.vault.notes.iter().filter(|n| n.is_kanban()).collect();
+    if filtering || kanbans.is_empty() {
+        return el();
+    }
+    let shown = s
+        .kanban
+        .as_ref()
+        .filter(|_| s.mode == Mode::Kanban)
+        .map(|shown| shown.rel.as_str());
+    let mut list = col()
+        .key("sidebar-kanbans")
+        .w_full()
+        .px(8.0)
+        .pb(8.0)
+        .gap(2.0)
+        .role("list")
+        .child(sidebar_section_head(k, "KANBANS", kanbans.len()));
+    for note in kanbans {
+        let id = note.id;
+        let current = shown == Some(note.rel.as_str());
+        let mut body = row().grow(1.0).min_w(0.0).gap(6.0).center_y().child(
+            text(&note.title)
+                .key(format!("sidebar-kanban-title-{id}"))
+                .font(k.ty.ui_compact)
+                .color(if current {
+                    k.c.text_accent
+                } else {
+                    k.c.text_base
+                })
+                .truncate(),
+        );
+        if !note.folder().is_empty() {
+            body = body.child(
+                text(note.folder())
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint)
+                    .truncate(),
+            );
+        }
+        list = list.child(
+            pressable(k, format!("sidebar-kanban-{id}"))
+                .h(30.0)
+                .px(8.0)
+                .gap(8.0)
+                .center_y()
+                .role("button")
+                .label(note.title.clone())
+                .child(icon(&ic::CHECKLIST, 14.0).color(k.c.icon_muted))
+                .child(body)
+                .on_press(move |s: &mut State| s.open_kanban(id)),
+        );
+    }
+    list
+}
+
+/// A sidebar section's caps title and count (Kanbans, Boards).
+fn sidebar_section_head(k: &Kit, title: &'static str, count: usize) -> El {
+    row()
+        .h(28.0)
+        .px(8.0)
+        .gap(8.0)
+        .center_y()
+        .child(
+            text(title)
+                .font(TextStyle::new(10.0, 650.0).tracking(0.9))
+                .color(k.c.text_muted),
+        )
+        .child(
+            text(count.to_string())
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        )
 }
 
 /// Slice 7: the sidebar's Boards section, below the notes. A row opens the
@@ -3751,23 +3881,7 @@ fn sidebar_boards(s: &State, k: &Kit, filtering: bool) -> El {
         .pb(8.0)
         .gap(2.0)
         .role("list")
-        .child(
-            row()
-                .h(28.0)
-                .px(8.0)
-                .gap(8.0)
-                .center_y()
-                .child(
-                    text("BOARDS")
-                        .font(TextStyle::new(10.0, 650.0).tracking(0.9))
-                        .color(k.c.text_muted),
-                )
-                .child(
-                    text(s.sidebar_boards.len().to_string())
-                        .font(k.ty.caption())
-                        .color(k.c.text_faint),
-                ),
-        );
+        .child(sidebar_section_head(k, "BOARDS", s.sidebar_boards.len()));
     let open = s.board_open.as_ref().map(|open| open.path.as_path());
     for (i, board) in s.sidebar_boards.iter().enumerate() {
         let path = board.path.clone();

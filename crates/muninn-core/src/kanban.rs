@@ -32,11 +32,21 @@ mod parse;
 #[cfg(test)]
 mod tests;
 
+use std::fs::{self, OpenOptions};
 use std::io::{self, ErrorKind};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use crate::vault::{Vault, atomic_write};
+
+/// The name New Kanban starts with; `Untitled Kanban 2`… when it is taken.
+const NEW_KANBAN_TITLE: &str = "Untitled Kanban";
+
+/// What New Kanban writes: the "New file" layout in `docs/kanban-format.md`
+/// section 10, with no settings footer. Open point N-1 (the blank-line
+/// counts) stays open; this is the layout as the spec writes it.
+const NEW_KANBAN: &str =
+    "---\n\nkanban-plugin: board\n\n---\n\n## To do\n\n\n\n## Doing\n\n\n\n## Done\n\n\n";
 
 /// A `.md` note whose frontmatter marks it as a kanban.
 ///
@@ -251,20 +261,69 @@ impl Archive {
 impl Vault {
     /// Kanban notes in this vault, in the note index's path order.
     ///
-    /// Detection is [`is_kanban`] on each note's source. A note that detects
-    /// but does not parse (a broken footer) is still listed: it remains a
-    /// note either way.
+    /// Detection is [`is_kanban`] on each note's source, cached by the index
+    /// ([`crate::Note::is_kanban`]). A note that detects but does not parse
+    /// (a broken footer) is still listed: it remains a note either way.
     #[must_use]
     pub fn kanbans(&self) -> Vec<KanbanFile> {
         self.notes
             .iter()
-            .filter(|note| is_kanban(&note.source))
+            .filter(|note| note.is_kanban())
             .map(|note| KanbanFile {
                 path: note.path.clone(),
                 rel: note.rel.clone(),
                 title: note.title.clone(),
             })
             .collect()
+    }
+
+    /// New Kanban: write the spec's New-file layout (section 10 of
+    /// `docs/kanban-format.md`) as `Untitled Kanban.md` in `folder`,
+    /// or `Untitled Kanban 2.md`… when that name is taken, and return its
+    /// path. The folder is resolved as for a new board (`..` and hidden parts
+    /// dropped, a folder resolving outside the vault refused).
+    ///
+    /// Each name is claimed with an exclusive create, so a file that exists,
+    /// or appears while this runs, is never overwritten. The claimed file is
+    /// then filled through the atomic writer; if that fails, the empty claim
+    /// is removed. The index is not updated here: the caller reloads it.
+    pub fn create_kanban_in(&self, folder: &str) -> io::Result<PathBuf> {
+        let dir = self.new_file_dir(folder)?;
+        let mut n = 1;
+        loop {
+            let name = if n == 1 {
+                format!("{NEW_KANBAN_TITLE}.md")
+            } else {
+                format!("{NEW_KANBAN_TITLE} {n}.md")
+            };
+            let path = dir.join(name);
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(_) => {
+                    if let Err(e) = atomic_write(&path, NEW_KANBAN.as_bytes()) {
+                        let _ = fs::remove_file(&path);
+                        return Err(e);
+                    }
+                    return Ok(path);
+                }
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => n += 1,
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    /// Convert an empty note to a kanban: write the same New-file layout as
+    /// [`Vault::create_kanban_in`] into note `id`. Refused with [`ErrorKind::InvalidInput`], writing nothing,
+    /// unless both the indexed text and the file on disk are empty or only
+    /// whitespace.
+    pub fn convert_to_kanban(&mut self, id: usize) -> io::Result<()> {
+        let note = self
+            .notes
+            .get(id)
+            .ok_or_else(|| invalid_input("no such note"))?;
+        if !note.source.trim().is_empty() || !fs::read_to_string(&note.path)?.trim().is_empty() {
+            return Err(invalid_input("only an empty note can become a kanban"));
+        }
+        self.write_note(id, NEW_KANBAN)
     }
 }
 

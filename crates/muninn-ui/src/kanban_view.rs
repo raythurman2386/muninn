@@ -14,8 +14,16 @@
 //! Lanes are columns in file order. A lane header has the title and the card
 //! count, `n/N` against a lane limit with an over-limit flag, and Complete on
 //! a done lane. Cards show their done mark and their markdown through the
-//! reader's renderer. Passthrough text and the archive are not drawn. A note
-//! that detects but does not parse offers Open as markdown instead.
+//! reader's renderer, broken wikilinks dimmed as Read dims them. Passthrough
+//! text and the archive are not drawn. The header's Open as markdown returns
+//! to Write on the shown note; a note that detects but does not parse says
+//! so instead of drawing lanes.
+//!
+//! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
+//! kanban entries ([`State::open_kanban`]), New Kanban
+//! ([`State::new_kanban`]) and Convert empty note to Kanban
+//! ([`State::convert_to_kanban`]). Picking a kanban note in the notes list
+//! while the page is up keeps the page (`State::open_from_list`).
 
 use std::fs;
 use std::path::Path;
@@ -25,10 +33,12 @@ use rune::{El, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 use rune_theme_opencode::icons as ic;
 
+use crate::board_view::placeholder;
 use crate::{Mode, State};
 
-/// Width of a lane column, in points.
-const LANE_W: f32 = 272.0;
+/// Width of a lane column, in points: the notes sidebar's width, so a lane
+/// reads like the note list beside it.
+const LANE_W: f32 = crate::view::SIDEBAR;
 
 /// The kanban note on the Kanban page, as read from disk.
 #[derive(Clone, Debug)]
@@ -65,6 +75,72 @@ impl State {
         })
     }
 
+    /// Open note `id` on the Kanban page (the sidebar's Kanbans section, a
+    /// kanban in the palette). The keyboard goes to the page: no text field
+    /// keeps it (closing the palette hands back the field it took it from),
+    /// so the page's own keys (Esc) reach it.
+    pub fn open_kanban(&mut self, id: usize) {
+        self.load_note(id, false);
+        self.set_mode(Mode::Kanban);
+        self.set_text_focus(false, false);
+    }
+
+    /// New Kanban: write `Untitled Kanban.md` (never over an existing file)
+    /// in the folder New note would use, and open it on the Kanban page.
+    pub fn new_kanban(&mut self) {
+        self.flush();
+        let folder = self.current_folder();
+        match self.vault.create_kanban_in(&folder) {
+            Ok(path) => {
+                let rel = path
+                    .strip_prefix(&self.vault.root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                self.log_event("kanban", &format!("created {rel}"));
+                self.reload(Some(path));
+                self.set_mode(Mode::Kanban);
+                self.set_text_focus(false, false);
+            }
+            Err(e) => {
+                self.log_event("kanban", &format!("new kanban not created: {e}"));
+                self.notice = Some(format!("Could not create a kanban: {e}"));
+            }
+        }
+    }
+
+    /// The palette offers Convert empty note to Kanban only while the
+    /// selected note holds nothing but whitespace.
+    #[must_use]
+    pub fn can_convert_to_kanban(&self) -> bool {
+        self.selected.is_some() && self.editor.text.trim().is_empty()
+    }
+
+    /// Convert empty note to Kanban: write the New Kanban layout into the
+    /// selected note and show it on the Kanban page. A note with text is
+    /// refused and nothing is written.
+    pub fn convert_to_kanban(&mut self) {
+        let Some(id) = self.selected else {
+            return;
+        };
+        self.flush();
+        if let Err(e) = self
+            .vault
+            .convert_to_kanban(id)
+            .and_then(|()| self.load_disk_into_editor(id))
+        {
+            self.log_event("kanban", &format!("not converted: {e}"));
+            self.notice = Some(format!("Could not convert to a kanban: {e}"));
+            return;
+        }
+        if self.mode == Mode::Kanban {
+            self.refresh_kanban();
+        } else {
+            self.set_mode(Mode::Kanban);
+        }
+        self.set_text_focus(false, false);
+    }
+
     /// A kanban belongs to its vault: forget it on a vault switch.
     pub(crate) fn clear_kanban(&mut self) {
         self.kanban_rel = None;
@@ -84,7 +160,7 @@ impl State {
         self.load_note(id, true);
     }
 
-    fn note_id(&self, rel: &str) -> Option<usize> {
+    pub(crate) fn note_id(&self, rel: &str) -> Option<usize> {
         self.vault
             .notes
             .iter()
@@ -107,6 +183,8 @@ pub fn kanban(s: &State, k: &Kit) -> El {
     let body = match &s.kanban {
         None => placeholder(
             k,
+            "kanban-placeholder",
+            &ic::CHECKLIST,
             "No kanban open",
             "Select a kanban note, then press ⌘5 to see it as a board.",
         ),
@@ -116,10 +194,11 @@ pub fn kanban(s: &State, k: &Kit) -> El {
         }) => lanes(s, k, rel, board),
         Some(ShownKanban { board: None, .. }) => placeholder(
             k,
+            "kanban-placeholder",
+            &ic::CHECKLIST,
             "This note can't be shown as a kanban",
             "Its settings footer is unfinished or is not valid JSON. The file is left as it is.",
-        )
-        .child(open_as_markdown(k)),
+        ),
     };
     col()
         .key("kanban-page")
@@ -163,8 +242,16 @@ fn header(s: &State, k: &Kit) -> El {
             .key("kanban-detail")
             .font(k.ty.caption())
             .color(k.c.text_faint)
+            .grow(1.0)
             .truncate(),
     )
+    .child(header_button(
+        k,
+        "kanban-open-markdown",
+        &ic::EDIT,
+        "Open as markdown",
+        State::open_kanban_as_markdown,
+    ))
 }
 
 /// The lanes, side by side, scrolling both ways. Built again only when the
@@ -310,15 +397,24 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
             col().grow(1.0).min_w(0.0).child(
                 Markdown::new(source)
                     .style(MarkdownStyle::from_kit(k).link(k.c.text_accent))
+                    .link_style(crate::view::missing_link_style(k))
                     .tasks_read_only()
                     .build(k),
             ),
         )
 }
 
-fn open_as_markdown(k: &Kit) -> El {
+/// A small bordered button in a page header: Open as markdown here, Open as
+/// kanban in a kanban note's title bar.
+pub(crate) fn header_button(
+    k: &Kit,
+    key: &'static str,
+    glyph: &'static rune::Icon,
+    label: &'static str,
+    action: fn(&mut State),
+) -> El {
     row()
-        .key("kanban-open-markdown")
+        .key(key)
         .h(28.0)
         .px(10.0)
         .gap(6.0)
@@ -329,39 +425,10 @@ fn open_as_markdown(k: &Kit) -> El {
         .press(k.c.pressed)
         .cursor(rune::Cursor::Pointer)
         .role("button")
-        .label("Open as markdown")
-        .on_press(State::open_kanban_as_markdown)
-        .child(icon(&ic::EDIT, 12.0).color(k.c.text_accent))
-        .child(
-            text("Open as markdown")
-                .font(k.ty.ui_compact)
-                .color(k.c.text_base),
-        )
-}
-
-fn placeholder(k: &Kit, title: &str, detail: &str) -> El {
-    col()
-        .key("kanban-placeholder")
-        .w_full()
-        .grow(1.0)
-        .min_h(0.0)
-        .radius(10.0)
-        .fill(k.c.layer_01)
-        .border(1.0, k.c.border_muted)
-        .center()
-        .gap(8.0)
-        .child(icon(&ic::CHECKLIST, 22.0).color(k.c.icon_muted))
-        .child(
-            text(title.to_owned())
-                .key("kanban-placeholder-title")
-                .font(k.ty.ui_medium)
-                .color(k.c.text_base),
-        )
-        .child(
-            text(detail.to_owned())
-                .font(k.ty.caption())
-                .color(k.c.text_faint),
-        )
+        .label(label)
+        .on_press(action)
+        .child(icon(glyph, 12.0).color(k.c.text_accent))
+        .child(text(label).font(k.ty.ui_compact).color(k.c.text_base))
 }
 
 #[cfg(test)]

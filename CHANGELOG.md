@@ -16,6 +16,16 @@ All notable changes to Muninn are documented here. The format is based on
   else the last kanban shown (restored after a restart), else an empty state.
   A note whose settings footer can't be read offers **Open as markdown**.
   Viewing never writes the file; editing comes later.
+- **Finding, opening and making kanbans.** A **Kanbans** section in the
+  sidebar lists every kanban note and opens it in Kanban mode, and kanban
+  notes carry a checklist glyph in the notes list. The command palette has
+  each kanban by name, **New Kanban** (writes `Untitled Kanban.md`, then
+  `Untitled Kanban 2.md`…, in the selected note's folder, never over an
+  existing file) and, on an empty note, **Convert empty note to Kanban**. A
+  kanban note opened any other way (the notes list, a link, search) opens as
+  a note with an **Open as kanban** button, and the Kanban page's **Open as
+  markdown** returns to Write on that note. On the Kanban page, picking
+  another kanban note keeps the page.
 
 ## [0.7.1] - 2026-11-11
 

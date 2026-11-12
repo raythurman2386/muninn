@@ -1240,18 +1240,32 @@ impl State {
             return Vec::new();
         }
         let query = self.palette_field.text.trim().to_lowercase();
+        let mut actions = PaletteAction::ALL.to_vec();
+        if self.can_convert_to_kanban() {
+            actions.push(PaletteAction::ConvertToKanban);
+        }
+        // Kanban slice 3: every kanban note by name (the index caches which
+        // notes are kanbans), filtered by the query like the actions.
+        let kanbans = self
+            .vault
+            .notes
+            .iter()
+            .filter(|note| note.is_kanban() && note.title.to_lowercase().contains(&query))
+            .map(|note| PaletteItem::Kanban(note.id));
         let mut items = Vec::new();
         if query.is_empty() {
-            items.extend(PaletteAction::ALL.into_iter().map(PaletteItem::Action));
+            items.extend(actions.into_iter().map(PaletteItem::Action));
             items.extend(self.recent_note_ids().into_iter().map(PaletteItem::Recent));
+            items.extend(kanbans);
         } else {
             items.extend(
                 self.search_results_for(&query)
                     .into_iter()
                     .map(PaletteItem::Note),
             );
+            items.extend(kanbans);
             items.extend(
-                PaletteAction::ALL
+                actions
                     .into_iter()
                     .filter(|action| action.matches(&query))
                     .map(PaletteItem::Action),
@@ -1347,6 +1361,7 @@ impl State {
         match item {
             PaletteItem::Recent(id) | PaletteItem::Note(id) => self.open_note(id),
             PaletteItem::Action(action) => self.palette_run_action(action),
+            PaletteItem::Kanban(id) => self.open_kanban(id),
         }
     }
 
@@ -1363,6 +1378,8 @@ impl State {
             PaletteAction::ToggleGraph => self.toggle_graph(),
             PaletteAction::ToggleBoard => self.toggle_board(),
             PaletteAction::ToggleKanban => self.toggle_kanban(),
+            PaletteAction::NewKanban => self.new_kanban(),
+            PaletteAction::ConvertToKanban => self.convert_to_kanban(),
         }
     }
 
@@ -1515,6 +1532,18 @@ impl State {
     }
 
     pub fn open_from_list(&mut self, id: usize) {
+        // Kanban slice 3 (F6): on the Kanban page a kanban note picked from
+        // the list is shown there; any other note leaves it as below.
+        if self.mode == Mode::Kanban
+            && self
+                .vault
+                .notes
+                .get(id)
+                .is_some_and(|note| note.is_kanban())
+        {
+            self.open_kanban(id);
+            return;
+        }
         // A note picked from the sidebar while Graph or Board is up opens in
         // Write, as the graph always has.
         if !self.mode.is_note_mode() {
@@ -3040,7 +3069,7 @@ impl State {
 
     /// Read the note file back into the editor, replacing the buffer and the
     /// expected disk identity.
-    fn load_disk_into_editor(&mut self, note_id: usize) -> io::Result<()> {
+    pub(crate) fn load_disk_into_editor(&mut self, note_id: usize) -> io::Result<()> {
         let path = self
             .vault
             .notes
