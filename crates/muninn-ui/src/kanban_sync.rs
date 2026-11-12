@@ -117,17 +117,7 @@ impl State {
             DiskRule::Later => false,
             DiskRule::Flag => {
                 if let Some(rel) = renamed {
-                    let old = shown.rel.clone();
-                    shown.disk = file_state(&root.join(&rel));
-                    shown.rel.clone_from(&rel);
-                    shown.conflict = None;
-                    // The copy was keyed by the old path; the next recovery
-                    // tick writes one under the new name.
-                    shown.recovered = None;
-                    self.kanban_rel = Some(rel);
-                    self.forget_kanban_recovery(&old);
-                    self.log_event("watch", "followed the shown kanban's rename");
-                    return true;
+                    return self.follow_kanban_rename(rel);
                 }
                 let was = shown.conflict;
                 shown.check_disk(&path);
@@ -138,10 +128,16 @@ impl State {
                 flagged
             }
             DiskRule::Reload => {
-                // A removed file leaves with the vault watcher's rescan.
+                // A removed file leaves with the vault watcher's rescan,
+                // unless it was renamed: a held drag drops that rescan's
+                // refresh, so follow the new name here rather than wait for
+                // an event that already went by.
                 let rel = shown.rel.clone();
                 let Some(read) = self.read_kanban(rel) else {
-                    return false;
+                    return match renamed {
+                        Some(rel) => self.follow_kanban_rename(rel),
+                        None => false,
+                    };
                 };
                 let Some(shown) = &mut self.kanban else {
                     return false;
@@ -152,14 +148,50 @@ impl State {
                 }
                 let kept = self.selected_card();
                 self.kanban = Some(read);
-                // A menu names a place on the board that the re-read can
-                // move; the selected card is found again by its content.
-                self.menu = None;
-                self.restore_kanban_selection(kept);
+                // The re-read replaces the board: a menu or Delete lane
+                // confirmation closes with it, and the selected card is found
+                // again by its content.
+                self.kanban_board_installed(kept);
                 self.log_event("watch", "reloaded the shown kanban");
                 true
             }
         }
+    }
+
+    /// Follow the shown kanban to `rel`, the name the vault found it under
+    /// after it was renamed outside Muninn. The recovery copy is moved to the
+    /// new key before the old one is forgotten: a crash in between leaves the
+    /// edits under one of the two names, never under neither. A failed move
+    /// keeps the old copy and the next recovery tick writes the new one.
+    fn follow_kanban_rename(&mut self, rel: String) -> bool {
+        let root = self.vault.root.clone();
+        let Some(shown) = &mut self.kanban else {
+            return false;
+        };
+        let old = shown.rel.clone();
+        shown.disk = file_state(&root.join(&rel));
+        shown.rel.clone_from(&rel);
+        shown.conflict = None;
+        // The copy is keyed by the path; the move below updates the record.
+        shown.recovered = None;
+        self.kanban_rel = Some(rel.clone());
+        match self.recovery.load(&old) {
+            Ok(text) if self.recovery.save(&rel, &text).is_ok() => {
+                self.forget_kanban_recovery(&old);
+            }
+            Ok(_) => {
+                // The new copy could not be written: keep the old one (the
+                // edits stay recoverable) and let the next tick retry.
+                self.log_event("watch", "could not move the kanban recovery copy");
+            }
+            Err(_) => {
+                // The old copy could not be read (it is usually just gone):
+                // clearing its record would be safe only if nothing is there,
+                // so leave it. The new copy is written by the next tick.
+            }
+        }
+        self.log_event("watch", "followed the shown kanban's rename");
+        true
     }
 
     /// The vault-relative path the shown kanban was renamed to outside
@@ -327,9 +359,11 @@ impl State {
     /// Forget the recovery copy for `rel`: the store's file, the startup
     /// banner's entry, and the page's record when it names that rel. A save,
     /// Keep mine and a followed rename all leave no copy behind, as Board
-    /// does, even when the shown kanban is not the selected note.
+    /// does, even when the shown kanban is not the selected note. Write's
+    /// recovery record for the same note is reset too, so its next tick
+    /// rewrites a copy instead of trusting the one this just cleared.
     pub(crate) fn forget_kanban_recovery(&mut self, rel: &str) {
-        self.recovery.clear(rel);
+        self.clear_recovery(rel);
         self.recovered.retain(|entry| entry.rel != rel);
         if let Some(shown) = &mut self.kanban
             && shown.rel == rel
@@ -379,6 +413,12 @@ impl State {
             // refusal stands, and the editor keeps it.
             self.error = Some(FIELD_REFUSED.to_owned());
             return false;
+        }
+        if !saved && let Some(shown) = &mut self.kanban {
+            // MF1: a refused save proves the record may be stale (Write's save
+            // of the same note clears the shared copy). Force the tick below
+            // to write and validate a copy rather than trust `current`.
+            shown.recovered = None;
         }
         let copied = self.kanban_recovery_tick();
         let typed = self.kanban_typed();
@@ -498,14 +538,26 @@ impl State {
         shown.recovered = None;
         self.kanban_rel = Some(new.clone());
         self.forget_kanban_recovery(&old);
+        let selected_path = self.selected_path.clone();
         self.refresh_index_only();
+        // The rescan above rebuilt the vault, so the old ids no longer name
+        // the same notes (the new copy shifts them). Point the selection back
+        // at the note it named by path, so `load_note` flushes and stashes
+        // that note rather than an id the new scan may have reused.
+        self.selected = selected_path
+            .as_ref()
+            .and_then(|path| self.vault.notes.iter().find(|n| &n.path == path))
+            .map(|note| note.id);
         // As Board's Save copy makes the copy the open board, this page makes
         // it the selected note too: otherwise the next vault reload reads the
-        // original back onto the page and leaves the copy behind.
+        // original back onto the page and leaves the copy behind. This goes
+        // through the standard note load, not a bare editor reload: a dirty
+        // Write buffer for another note is flushed or stashed rather than
+        // dropped, and the editor's conflict bar is cleared with the note it
+        // named, so a later Keep mine cannot write this kanban's text into
+        // that note.
         if let Some(id) = self.note_id(&new) {
-            self.selected = Some(id);
-            self.selected_path = Some(root.join(&new));
-            let _ = self.load_disk_into_editor(id);
+            self.load_note(id, false);
         }
         self.log_event("kanban", "saved a conflict copy");
         self.save_settings();
@@ -575,7 +627,10 @@ impl State {
         shown.recovered = Some((shown.generation, None));
         self.kanban = Some(shown);
         self.kanban_rel = Some(rel.to_owned());
-        self.kanban_selected = None;
+        // The recovered board replaces whatever the page showed: a menu,
+        // Delete lane confirmation or press that named the old board ends
+        // with it, and nothing is selected on the restored one.
+        self.kanban_board_installed(None);
         self.recovered.retain(|entry| entry.rel != rel);
         self.log_event("recovery", &format!("restored kanban {rel}"));
         true

@@ -627,3 +627,42 @@ fn a_keyboard_lane_move_closes_an_open_lane_menu_so_delete_cannot_hit_a_neighbou
     );
     assert_eq!(on_disk(&tmp), BOARD, "nothing written before ⌘S");
 }
+
+// P2: a held drag defers the vault watcher's refresh. When the file was
+// renamed in the meantime, the page must follow the new name once the press
+// ends, without waiting for another vault event.
+
+#[test]
+fn a_rename_during_a_held_drag_is_followed_after_release() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    let from = centre(rect(&mut rt, "kanban-card-0-0"));
+    let to = (from.0, from.1 + 6.0);
+    hold(&mut rt, from, to);
+    assert!(has(&mut rt, "kanban-drop"), "the drag is held");
+    // Another app renames the file while the press is held.
+    fs::rename(tmp.path().join("Board.md"), tmp.path().join("Renamed.md")).unwrap();
+    // Long enough for the vault watcher: its reload is deferred by the press.
+    for _ in 0..120 {
+        frame(&mut rt);
+    }
+    assert_eq!(
+        rt.state.kanban.as_ref().unwrap().rel,
+        "Board.md",
+        "the press keeps the page where it is"
+    );
+    assert!(has(&mut rt, "kanban-drop"), "and the drag is still held");
+    drop_at(&mut rt, to);
+    // No other vault event comes: only the kanban watcher looks again.
+    for _ in 0..180 {
+        frame(&mut rt);
+    }
+    assert_eq!(
+        rt.state.kanban.as_ref().unwrap().rel,
+        "Renamed.md",
+        "the page follows the rename once the press ends"
+    );
+    assert_eq!(source(&rt), BOARD, "with its text");
+    assert!(!dirty(&rt));
+    assert!(!tmp.path().join("Board.md").exists());
+}

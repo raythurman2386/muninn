@@ -195,13 +195,10 @@ impl State {
         let selected_card = if same_rel { self.selected_card() } else { None };
         let reloaded = same_rel && shown.is_some();
         self.kanban = shown;
-        // Slice 6: replacing the board ends a press held on a card or lane.
-        self.kanban_drag = None;
-        // A menu or Delete lane confirmation names a card or lane by place,
-        // which the new board can have moved: it closes with the board it
-        // was opened on rather than act on another card or lane.
-        self.menu = None;
-        self.restore_kanban_selection(selected_card);
+        // A menu names a place on the board that a re-read can move; a press
+        // held on it ends with it. The selected card is found again by its
+        // content, or kept in place when its lane still holds the same cards.
+        self.kanban_board_installed(selected_card);
         if reloaded {
             self.log_event("watch", "reloaded the shown kanban");
         }

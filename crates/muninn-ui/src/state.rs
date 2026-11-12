@@ -1024,6 +1024,17 @@ impl State {
     /// autosave tick with the note key only, never its text.
     fn after_save(&mut self, rel: &str) {
         self.clear_recovery(rel);
+        // MF1: clearing the shared slot above also drops the Kanban page's
+        // copy for the same note, whose edits are still not in the file.
+        // Rewrite it now rather than at the page's next tick, so a crash just
+        // after this save cannot lose the card edit.
+        let kanban_pending = self
+            .kanban
+            .as_ref()
+            .is_some_and(|shown| shown.rel == rel && shown.dirty());
+        if kanban_pending && let Err(e) = self.kanban_recovery_tick() {
+            self.error = Some(format!("Could not persist kanban recovery copy: {e}"));
+        }
         self.trace_log("autosave", rel);
     }
 
@@ -2844,12 +2855,22 @@ impl State {
         Ok(())
     }
 
-    fn clear_recovery(&mut self, rel: &str) {
+    pub(crate) fn clear_recovery(&mut self, rel: &str) {
         self.recovery.clear(rel);
         self.recovered.retain(|entry| entry.rel != rel);
         if self.recovery_rel.as_deref() == Some(rel) {
             self.recovery_rel = None;
             self.recovery_text = None;
+        }
+        // MF1: Write and the Kanban page share one recovery slot per note.
+        // The page's edits are not in the file yet when Write saves (or Keep
+        // mine rewrites) the same note, so its record must not keep claiming
+        // a copy that just went: the next kanban tick writes the board's text
+        // again, and a quit cannot trust a record whose copy is gone.
+        if let Some(shown) = &mut self.kanban
+            && shown.rel == rel
+        {
+            shown.recovered = None;
         }
     }
 
