@@ -51,6 +51,13 @@
 //! - The page draws the cards as they were when it was built. An action on a
 //!   card commits an open editor first; when that adds a card at or above the
 //!   one clicked, the action follows the clicked card down one place.
+//! - **The selected card is named by content**, not place: a block id when it
+//!   has one, else its text and its copy in the lane. Undo, redo, a re-read
+//!   and the watcher's reload put the selection back on it; when its text
+//!   changed but its lane still holds the same cards, it keeps the place.
+//!   Known limit: two cards with the same text and no block id are told apart
+//!   only by lane order, so a re-read that reorders or retypes one can move
+//!   the selection to its twin. Copy link to card gives a card an id.
 
 use std::collections::VecDeque;
 use std::io;
@@ -105,21 +112,28 @@ impl CardCommit {
 /// A card named by what it is rather than by where it is, so the selection
 /// can be put back on it after the board is replaced by a re-read, an undo or
 /// a redo. A block id is unique; without one the card is its text, and `nth`
-/// picks between cards of the same text in its lane.
+/// picks between cards of the same text in its lane (the module docs give
+/// that duplicate-text limit).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CardRef {
     lane: usize,
+    /// Where the card was: the fallback when its content cannot be found.
+    index: usize,
+    /// Cards in the lane then; the fallback needs the lane unchanged.
+    count: usize,
     block_id: Option<String>,
     text: String,
     nth: usize,
 }
 
 impl CardRef {
+    /// Whether `card` is this one. When both sides have a block id that id
+    /// decides. When either side lacks one (Copy link just gave or lost it,
+    /// or another writer rewrote the card) the text still names the card.
     fn same_card(&self, card: &muninn_core::Card) -> bool {
         match (&self.block_id, card.block_id()) {
             (Some(id), Some(other)) => id == other,
-            (None, None) => card.text() == self.text,
-            _ => false,
+            _ => card.text() == self.text,
         }
     }
 }
@@ -584,22 +598,53 @@ impl State {
     /// replaced. `None` when no card is selected or it is not on the board.
     pub(crate) fn selected_card(&self) -> Option<CardRef> {
         let (lane, index) = self.kanban_selected?;
-        let cards = self.kanban_board()?.lanes().get(lane)?.cards();
+        let board = self.kanban_board()?;
+        let cards = board.lanes().get(lane)?.cards();
         let card = cards.get(index)?;
-        let mut want = CardRef {
+        let want = CardRef {
             lane,
+            index,
+            count: cards.len(),
             block_id: card.block_id().map(str::to_owned),
             text: card.text().to_owned(),
             nth: 0,
         };
-        want.nth = cards[..index].iter().filter(|c| want.same_card(c)).count();
-        Some(want)
+        // `restore_kanban_selection` searches in file order: a block id in
+        // every lane, a text-only card in its own lane. Count the cards
+        // before this one in exactly that order, so a duplicate id in an
+        // earlier lane cannot make the restore pick the first copy.
+        let mut nth = 0;
+        for (at, lane_cards) in board.lanes().iter().enumerate().take(lane + 1) {
+            let in_scope = want.block_id.is_some() || at == lane;
+            for (i, other) in lane_cards.cards().iter().enumerate() {
+                if at == lane && i == index {
+                    return Some(CardRef { nth, ..want });
+                }
+                if in_scope && want.same_card(other) {
+                    nth += 1;
+                }
+            }
+        }
+        None
+    }
+
+    /// A board (a different one, or the same one re-read) was put on the
+    /// page. A menu or Delete lane confirmation names a place on the old
+    /// board, and a press is held on it, so both end here; the selection
+    /// moves to the same card, or clears. Every board install goes through
+    /// this.
+    pub(crate) fn kanban_board_installed(&mut self, selected: Option<CardRef>) {
+        self.kanban_drag = None;
+        self.menu = None;
+        self.restore_kanban_selection(selected);
     }
 
     /// Put the selection back on `card` after the board was replaced, or
     /// clear it when that card is gone. A block id is looked for in every
     /// lane (a re-read can move a lane); a card known only by its text stays
-    /// in the lane it was selected in.
+    /// in the lane it was selected in. When its content cannot be found, the
+    /// old place is kept while that lane still has the same number of cards
+    /// (a typo fixed under the card, say), else the selection clears.
     pub(crate) fn restore_kanban_selection(&mut self, card: Option<CardRef>) {
         let found = card.and_then(|want| {
             let board = self.kanban_board()?;
@@ -619,7 +664,9 @@ impl State {
                     }
                 }
             }
-            None
+            let lane = board.lanes().get(want.lane)?;
+            (lane.cards().len() == want.count && want.index < want.count)
+                .then_some((want.lane, want.index))
         });
         self.kanban_selected = found;
     }

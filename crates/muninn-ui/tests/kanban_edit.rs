@@ -956,3 +956,73 @@ fn undo_and_redo_follow_the_selected_card_or_drop_it() {
     assert_eq!(rt.state.kanban_selected, None, "nothing was selected again");
     assert_eq!(on_disk(&tmp), BOARD);
 }
+
+// P2-2: a block id duplicated in an earlier lane must not capture the
+// selection: it is counted in the order the restore searches.
+
+#[test]
+fn a_duplicate_block_id_in_an_earlier_lane_keeps_the_selection_in_its_lane() {
+    let src = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] One ^dup\n- [ ] Two\n\n## Doing\n\n- [ ] Three ^dup\n- [ ] Four\n";
+    let tmp = TempVault::new(&[("Board.md", src)]);
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.select_kanban_card(1, 0));
+    act(&mut rt, |s| s.toggle_card_done(1, 0));
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((1, 0)),
+        "the toggle keeps the selected card"
+    );
+    act(&mut rt, |s| s.undo_kanban());
+    assert_eq!(source(&rt), src);
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((1, 0)),
+        "the undo does not move it to lane 0's copy"
+    );
+}
+
+// P2-3: Copy link gives a text-only card a block id, and its undo takes the
+// id away again; the selection stays on the card through both.
+
+#[test]
+fn copy_link_and_its_undo_keep_the_selected_card() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.select_kanban_card(0, 1));
+    let mut copied = None;
+    act(&mut rt, |s| copied = s.copy_card_link(0, 1));
+    assert!(copied.is_some(), "a link was copied");
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 1)),
+        "Copy link keeps the selected card"
+    );
+    act(&mut rt, |s| s.undo_kanban());
+    assert_eq!(source(&rt), BOARD, "the id is undone");
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 1)),
+        "and the undo keeps it too"
+    );
+}
+
+// P2-3: a typo fixed in the selected text-only card elsewhere keeps the
+// selection at the same place while the lane still holds the same cards.
+
+#[test]
+fn an_external_text_fix_keeps_the_selected_card_in_its_place() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.select_kanban_card(0, 0));
+    let fixed = BOARD.replace("Write the release notes", "Write the release note");
+    fs::write(tmp.path().join("Board.md"), &fixed).unwrap();
+    for _ in 0..120 {
+        frame(&mut rt);
+    }
+    assert_eq!(source(&rt), fixed, "the re-read is shown");
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 0)),
+        "the card keeps its place"
+    );
+}
