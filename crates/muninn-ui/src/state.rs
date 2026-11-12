@@ -28,6 +28,10 @@ pub enum MenuTarget {
     /// Kanban slice 4: a card (lane, index) and a lane on the Kanban page.
     Card(usize, usize),
     Lane(usize),
+    /// Kanban slice 5: Delete lane's confirmation, and Move to list…'s lane
+    /// picker for a card.
+    DeleteLane(usize),
+    MoveCard(usize, usize),
 }
 
 impl MenuTarget {
@@ -360,6 +364,11 @@ pub struct State {
     /// Kanban slice 4: where the card editor is open, and its field.
     pub kanban_card: Option<crate::CardSlot>,
     pub kanban_card_field: TextEdit,
+    /// Kanban slice 5: where the lane field is open, and its field.
+    pub kanban_lane_edit: Option<crate::LaneSlot>,
+    pub kanban_lane_field: TextEdit,
+    /// Kanban slice 5: the card (lane, index) the arrow keys act on.
+    pub kanban_selected: Option<(usize, usize)>,
     /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).
     pub board_tool: Option<crate::BoardTool>,
     /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
@@ -712,6 +721,9 @@ impl State {
             kanban: None,
             kanban_card: None,
             kanban_card_field: TextEdit::default(),
+            kanban_lane_edit: None,
+            kanban_lane_field: TextEdit::default(),
+            kanban_selected: None,
             board_tool: None,
             board_hand: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
@@ -3974,7 +3986,7 @@ impl State {
             (MenuTarget::Card(lane, index), "delete") => self.delete_card(lane, index),
             (MenuTarget::Lane(lane), "add_card") => self.begin_add_card(lane),
             (MenuTarget::Lane(lane), "mark_done") => self.mark_lane_done(lane),
-            _ => {}
+            (target, action) => self.pick_kanban_menu(target, action),
         }
     }
 

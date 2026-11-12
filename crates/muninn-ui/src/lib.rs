@@ -18,6 +18,7 @@ mod camera;
 mod global_shortcut;
 mod graph_view;
 mod kanban_edit;
+mod kanban_lanes;
 mod kanban_view;
 mod keys;
 mod mode;
@@ -48,6 +49,7 @@ pub use board_view::{
 };
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use kanban_edit::{CardSlot, KanbanHistory};
+pub use kanban_lanes::{CardStep, LaneField, LaneSlot};
 pub use kanban_view::ShownKanban;
 pub use keys::{on_key, shortcut};
 pub use mode::{Mode, Scope};

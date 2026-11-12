@@ -10,7 +10,7 @@ use std::ops::Range;
 use serde_json::Value;
 
 use super::parse::{indent_columns, line_keeps_lead};
-use super::{Card, Kanban, invalid_data, invalid_input};
+use super::{Card, Kanban, LIST_COLLAPSE, invalid_data, invalid_input};
 
 const ENGLISH_MARKER: &str = "**Complete**";
 
@@ -102,7 +102,9 @@ impl Kanban {
     ///
     /// The new text is `## Title` or `## Title (N)`, a blank line, the
     /// English done-lane marker when `done` is set, then two blank lines. A
-    /// limit of `0` is not written. Existing lanes are not re-spaced.
+    /// limit of `0` is not written. Existing lanes are not re-spaced. A
+    /// `list-collapse` setting gains a `false` at `index`, so later lanes keep
+    /// their entries.
     pub fn add_lane(
         &mut self,
         index: usize,
@@ -120,11 +122,12 @@ impl Kanban {
         let open_ended =
             at == self.source.len() && !self.source.is_empty() && !self.source.ends_with('\n');
         let block = lane_block(self.nl, title, limit, done, open_ended);
-        if open_ended {
-            self.commit(splice(&self.source, at..at, &block))
+        let next = if open_ended {
+            splice(&self.source, at..at, &block)
         } else {
-            self.commit(insert_block(&self.source, at, block, self.nl))
-        }
+            insert_block(&self.source, at, block, self.nl)
+        };
+        self.commit_lanes(next, index, true)
     }
 
     /// Replace the lane title. A ` (N)` limit on the same line stays.
@@ -137,10 +140,67 @@ impl Kanban {
     }
 
     /// Remove a lane, from its title line up to the next lane, the archive,
-    /// or the footer. Other lanes' bytes are unchanged.
+    /// or the footer. Other lanes' bytes are unchanged, and a `list-collapse`
+    /// setting loses the lane's entry.
     pub fn delete_lane(&mut self, index: usize) -> io::Result<()> {
         let span = self.lane(index)?.span.clone();
-        self.commit(splice(&self.source, span, ""))
+        self.commit_lanes(splice(&self.source, span, ""), index, false)
+    }
+
+    /// Add or remove the lane's done-lane marker: one line either way. A new
+    /// marker is the English `**Complete**`, after the blank line under the
+    /// title when there is one (as spec section 4 writes a new lane), else
+    /// right under the title; existing lanes are not re-spaced. Removing one
+    /// removes only its line, whatever its word. Cards keep their done marks.
+    pub fn set_lane_done(&mut self, index: usize, done: bool) -> io::Result<()> {
+        let lane = self.lane(index)?;
+        let nl = self.nl;
+        let next = match (lane.marker.clone(), done) {
+            (Some(_), true) | (None, false) => return Ok(()),
+            (Some(marker), false) => splice(&self.source, marker, ""),
+            (None, true) => {
+                let mut at = lane.title_line.end;
+                let block = if !self.source[..at].ends_with('\n') {
+                    format!("{nl}{ENGLISH_MARKER}")
+                } else {
+                    if self.source[at..lane.span.end].starts_with(nl) {
+                        at += nl.len();
+                    }
+                    format!("{ENGLISH_MARKER}{nl}")
+                };
+                splice(&self.source, at..at, &block)
+            }
+        };
+        let parsed = Kanban::parse(&next)?;
+        if parsed.lane(index)?.done_word.is_some() != done {
+            return Err(invalid_data(
+                "the done-lane marker did not stay with the lane",
+            ));
+        }
+        *self = parsed;
+        Ok(())
+    }
+
+    /// Show lane `index` collapsed or expanded. This writes the footer's
+    /// `list-collapse` key: one boolean per lane, in file order. Only that
+    /// key's value changes; when it is absent it is appended as the last key.
+    pub fn set_lane_collapsed(&mut self, index: usize, collapsed: bool) -> io::Result<()> {
+        if self.lane(index)?.collapsed == collapsed {
+            return Ok(());
+        }
+        let flags = self
+            .lanes
+            .iter()
+            .enumerate()
+            .map(|(i, lane)| {
+                Value::Bool(if i == index {
+                    collapsed
+                } else {
+                    lane.collapsed
+                })
+            })
+            .collect();
+        self.set_setting(LIST_COLLAPSE, &Value::Array(flags))
     }
 
     /// Set the lane limit. `None` and `Some(0)` both clear a written suffix
@@ -206,6 +266,28 @@ impl Kanban {
         self.commit(splice(&self.source, span, &json))
     }
 
+    /// Keep `next`, a lane added (`added`) or removed at `index`, with the
+    /// `list-collapse` entries after it moved to stay with their lanes.
+    fn commit_lanes(&mut self, next: String, index: usize, added: bool) -> io::Result<()> {
+        let mut parsed = Kanban::parse(&next)?;
+        let flags = parsed
+            .footer_json()
+            .and_then(|json| serde_json::from_str::<Value>(json).ok())
+            .and_then(|mut json| json.get_mut(LIST_COLLAPSE).map(Value::take));
+        if let Some(Value::Array(mut flags)) = flags
+            && index < flags.len()
+        {
+            if added {
+                flags.insert(index, Value::Bool(false));
+            } else {
+                flags.remove(index);
+            }
+            parsed.set_setting(LIST_COLLAPSE, &Value::Array(flags))?;
+        }
+        *self = parsed;
+        Ok(())
+    }
+
     fn commit(&mut self, next: String) -> io::Result<()> {
         let parsed = Kanban::parse(&next)?;
         *self = parsed;
@@ -228,7 +310,7 @@ impl Kanban {
         Ok(())
     }
 
-    fn lane(&self, index: usize) -> io::Result<&super::Lane> {
+    pub(super) fn lane(&self, index: usize) -> io::Result<&super::Lane> {
         self.lanes
             .get(index)
             .ok_or_else(|| invalid_input("no such lane"))
@@ -257,7 +339,10 @@ impl Kanban {
         if let Some(last) = lane.cards.last() {
             return Ok(last.span.end);
         }
-        let after = lane.marker_end.unwrap_or(lane.title_line.end);
+        let after = lane
+            .marker
+            .as_ref()
+            .map_or(lane.title_line.end, |marker| marker.end);
         if self.source[after..lane.span.end].starts_with(self.nl) {
             Ok(after + self.nl.len())
         } else {

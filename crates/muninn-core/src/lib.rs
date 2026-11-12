@@ -30,7 +30,7 @@ pub use board::{
     IdSource, MUNINN_SOURCE, SCENE_VERSION, Shape, ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE,
     TEXT_LINE_HEIGHT, TextBody, index_after, list_boards,
 };
-pub use kanban::{Archive, Card, Kanban, KanbanFile, Lane, is_kanban};
+pub use kanban::{Archive, Card, CardOrder, Kanban, KanbanFile, Lane, is_kanban};
 pub use note::Note;
 pub use preview::Attachment;
 pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy, board_name};

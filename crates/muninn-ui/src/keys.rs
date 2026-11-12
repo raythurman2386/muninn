@@ -64,6 +64,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     if !s.is_typing() && crate::kanban_edit::kanban_command(s, e) {
         return true;
     }
+    // Kanban slice 5: arrows pick a card, Alt+arrows move it.
+    if !s.is_typing() && crate::kanban_lanes::kanban_key(s, e) {
+        return true;
+    }
     // Board slice 3: zoom, fit and arrow-pan keys on the open board; slice 4
     // adds the tool letters, slice 5 Delete, arrows nudging and Esc.
     if !s.is_typing() && s.mode == Mode::Board && s.board_key(e) {

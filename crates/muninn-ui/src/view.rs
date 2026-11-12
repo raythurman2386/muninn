@@ -1613,13 +1613,22 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             if multi_line {
                 items.push(("Split card", "split"));
             }
+            items.extend(crate::kanban_lanes::card_move_items(s, *lane, *index));
             items.push(("Delete", "delete"));
             items
         }
-        MenuTarget::Lane(_) => vec![
-            ("Add card", "add_card"),
-            ("Mark all cards done", "mark_done"),
-        ],
+        MenuTarget::Lane(lane) => {
+            let mut items = vec![
+                ("Add card", "add_card"),
+                ("Mark all cards done", "mark_done"),
+            ];
+            items.extend(crate::kanban_lanes::lane_items(s, *lane));
+            items
+        }
+        MenuTarget::DeleteLane(_) => vec![("Delete the lane and its cards", "delete")],
+        MenuTarget::MoveCard(lane, index) => {
+            return crate::kanban_lanes::lane_picker(s, k, *lane, *index);
+        }
     };
     let mut col_menu = col()
         .key("context-menu")

@@ -31,6 +31,7 @@ A provenance line inside a `.md` fixture would sit in front of the frontmatter a
 | `indent-deep-line.md` | Hand-written from `docs/kanban-format.md`: one continuation line indented by more than two spaces. |
 | `indent-mixed.md` | Hand-written from `docs/kanban-format.md`: continuation lines that mix a tab indent and a two-space indent. |
 | `lanes-and-limits.md` | Hand-written from `docs/kanban-format.md`: several lanes, including limits and a written `(0)`. |
+| `lanes-board.md` | Hand-written from `docs/kanban-format.md`: dates, times and tags in cards, a multi-line card, a paragraph between lanes, a lane limit, a done lane and a settings footer, for lane edits, moves, sorting and collapse (slice 5). |
 | `multibyte.md` | Hand-written from `docs/kanban-format.md`: multibyte lane and card text. |
 | `multiline-cards.md` | Hand-written from `docs/kanban-format.md`: a multi-line card and a nested checklist. |
 | `new-kanban.md` | Hand-written from `docs/kanban-format.md`: the New Kanban layout. |

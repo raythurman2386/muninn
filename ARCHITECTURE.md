@@ -172,7 +172,10 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   note texts, so it restores exact bytes. Nothing is written before `⌘S`, which writes once
   through `Vault::write_note_if_unmodified` and refuses a file that changed on disk.
   Unsaved edits are never read over or dropped: leaving the page keeps them, and switching
-  kanban or vault and quitting save first, or are refused.
+  kanban or vault and quitting save first, or are refused. Lane edits, card moves, sorting
+  and collapse (`kanban_lanes.rs`) are more edits of the same kind: a sort moves whole card
+  blocks slot by slot, and collapse is the settings footer's `list-collapse` key, so it is
+  undone and saved with the rest.
   Which notes are kanbans is cached in the index (`Note::is_kanban`, refreshed by
   `Vault::reindex`), so the sidebar's Kanbans section, the notes-list glyph and the palette
   never re-detect per frame. `Vault::create_kanban_in` claims each candidate name with an

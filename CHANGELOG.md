@@ -39,6 +39,16 @@ All notable changes to Muninn are documented here. The format is based on
   picking another kanban, switching vaults or quitting saves them first, and
   a file that changed on disk is not written over. Text the file format
   can't hold stays in the open editor, and the page says why.
+- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
+  lane's menu: Insert lane before / after, Rename lane, Card limit… (written
+  as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
+  Sort by text, date or tags, and Delete lane (a lane with cards asks first).
+  A card's menu moves it up, down, to the top or bottom of its lane, to the
+  previous or next lane, or to a lane picked by name; a click selects a card
+  and `Alt+↑/↓`, `Alt+Shift+↑/↓` and `Alt+←/→` move it. A card moved into a
+  done lane becomes done. A lane's `‹` collapses it to a narrow strip with
+  its title and count, kept in the note's settings. All of it is undoable and
+  saved by `⌘S`.
 
 ## [0.7.1] - 2026-11-11
 

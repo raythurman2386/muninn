@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use serde_json::json;
 
-use super::{Kanban, is_kanban};
+use super::{CardOrder, Kanban, Lane, is_kanban};
 use crate::Vault;
 use crate::testing::TempVault;
 
@@ -1549,5 +1549,182 @@ fn convert_refuses_a_note_with_text_and_writes_nothing() {
     assert_eq!(
         fs::read_to_string(dir.path().join("Late.md")).unwrap(),
         "theirs\n"
+    );
+}
+
+const LANES: &str = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] b\n- [ ] A\n\n## Doing\n- [ ] c\n\n## Fertig\n\n**Fertiggestellt**\n- [x] d\n";
+
+#[test]
+fn a_done_lane_marker_is_one_line_in_or_out() {
+    let mut board = parse(LANES);
+    board.set_lane_done(0, true).expect("mark To do");
+    assert!(
+        board
+            .source()
+            .contains("## To do\n\n**Complete**\n- [ ] b\n")
+    );
+    assert_eq!(board.lanes()[0].done_word(), Some("Complete"));
+    // No blank line under the title: the marker goes right under it.
+    board.set_lane_done(1, true).expect("mark Doing");
+    assert!(board.source().contains("## Doing\n**Complete**\n- [ ] c\n"));
+    // Removing keeps every other byte, whatever the word.
+    board.set_lane_done(2, false).expect("unmark Fertig");
+    assert!(board.source().ends_with("## Fertig\n\n- [x] d\n"));
+    assert_eq!(
+        board.lanes()[2].cards()[0].mark(),
+        'x',
+        "cards keep their marks"
+    );
+    board.set_lane_done(0, false).expect("unmark");
+    board.set_lane_done(1, false).expect("unmark");
+    board.set_lane_done(2, true).expect("mark again");
+    assert_eq!(
+        board.source(),
+        LANES.replace("**Fertiggestellt**", "**Complete**"),
+        "only the marker lines changed"
+    );
+    // A no-op changes nothing; a title on the unterminated last line gets a marker too.
+    board.set_lane_done(2, true).expect("again");
+    let mut open = parse("---\nkanban-plugin: board\n---\n\n## Last");
+    open.set_lane_done(0, true).expect("mark last");
+    assert_eq!(
+        open.source(),
+        "---\nkanban-plugin: board\n---\n\n## Last\n**Complete**"
+    );
+    assert!(open.lanes()[0].done_word().is_some());
+}
+
+#[test]
+fn sorting_moves_whole_cards_and_keeps_passthrough_in_place() {
+    let source = "---\nkanban-plugin: board\n---\n\n## L\n\n- [ ] beta #ops @{2026-03-01}\n  more beta\n- [x] Alpha\npassthrough between\n- [ ] gamma #api @{2026-01-05} @@{09:00}\n- [ ] delta @{2026-01-05} @@{08:00}\n- [ ] epsilon";
+    let mut board = parse(source);
+    board.sort_cards(0, CardOrder::Text).expect("text");
+    let texts = |b: &Kanban| -> Vec<String> {
+        b.lanes()[0]
+            .cards()
+            .iter()
+            .map(|c| c.text().lines().next().unwrap_or_default().to_owned())
+            .collect()
+    };
+    assert_eq!(
+        texts(&board),
+        [
+            "Alpha",
+            "beta #ops @{2026-03-01}",
+            "delta @{2026-01-05} @@{08:00}",
+            "epsilon",
+            "gamma #api @{2026-01-05} @@{09:00}"
+        ]
+    );
+    assert!(
+        board
+            .source()
+            .contains("- [ ] beta #ops @{2026-03-01}\n  more beta\npassthrough between\n")
+    );
+    // The card that moved off the unterminated last line gained a newline; the one moved there has none.
+    assert!(
+        board
+            .source()
+            .ends_with("- [ ] gamma #api @{2026-01-05} @@{09:00}")
+    );
+    // Date: by day, then time; a card with no date last, in its original order.
+    board.sort_cards(0, CardOrder::Date).expect("date");
+    assert_eq!(
+        texts(&board),
+        [
+            "delta @{2026-01-05} @@{08:00}",
+            "gamma #api @{2026-01-05} @@{09:00}",
+            "beta #ops @{2026-03-01}",
+            "Alpha",
+            "epsilon"
+        ]
+    );
+    board.sort_cards(0, CardOrder::Tags).expect("tags");
+    assert_eq!(
+        texts(&board),
+        [
+            "gamma #api @{2026-01-05} @@{09:00}",
+            "beta #ops @{2026-03-01}",
+            "delta @{2026-01-05} @@{08:00}",
+            "Alpha",
+            "epsilon"
+        ]
+    );
+    // Every line is still there once: the sort only reordered card blocks.
+    let mut before: Vec<&str> = source.lines().collect();
+    let mut after: Vec<&str> = board.source().lines().collect();
+    before.sort_unstable();
+    after.sort_unstable();
+    assert_eq!(before, after);
+    // An ordered lane is not rewritten.
+    let sorted = board.source().to_owned();
+    board.sort_cards(0, CardOrder::Tags).expect("again");
+    assert_eq!(board.source(), sorted);
+}
+
+#[test]
+fn collapse_writes_only_its_key() {
+    let footer =
+        "%% kanban:settings\n```\n{\"kanban-plugin\":\"board\", \"lane-width\": 300}\n```\n%%\n";
+    let mut board = parse(&format!("{LANES}\n{footer}"));
+    assert!(board.lanes().iter().all(|lane| !lane.collapsed()));
+    board.set_lane_collapsed(1, true).expect("collapse");
+    assert_eq!(
+        board.footer_json(),
+        Some(
+            "{\"kanban-plugin\":\"board\", \"lane-width\": 300,\"list-collapse\":[false,true,false]}"
+        )
+    );
+    assert!(board.lanes()[1].collapsed());
+    board.set_lane_collapsed(0, true).expect("collapse");
+    assert_eq!(
+        board.footer_json(),
+        Some(
+            "{\"kanban-plugin\":\"board\", \"lane-width\": 300,\"list-collapse\":[true,true,false]}"
+        )
+    );
+    assert!(
+        board.source().starts_with(LANES),
+        "the lanes' bytes are unchanged"
+    );
+    // A board with no footer gains one holding only the key.
+    let mut bare = parse(LANES);
+    bare.set_lane_collapsed(2, true).expect("collapse");
+    assert_eq!(
+        bare.footer_json(),
+        Some("{\"list-collapse\":[false,false,true]}")
+    );
+    // A short array, or an entry that is not a boolean, is not collapsed.
+    let short = parse(&format!(
+        "{LANES}\n%% kanban:settings\n```\n{{\"list-collapse\":[1,true]}}\n```\n%%\n"
+    ));
+    let flags: Vec<bool> = short.lanes().iter().map(Lane::collapsed).collect();
+    assert_eq!(flags, [false, true, false]);
+}
+
+#[test]
+fn adding_or_deleting_a_lane_keeps_collapse_aligned() {
+    let footer =
+        "%% kanban:settings\n```\n{\"list-collapse\":[false,true,true],\"x\":1}\n```\n%%\n";
+    let mut board = parse(&format!("{LANES}\n{footer}"));
+    board.add_lane(1, "New", None, false).expect("add");
+    assert_eq!(
+        board.footer_json(),
+        Some("{\"list-collapse\":[false,false,true,true],\"x\":1}")
+    );
+    let flags: Vec<bool> = board.lanes().iter().map(Lane::collapsed).collect();
+    assert_eq!(flags, [false, false, true, true]);
+    board.delete_lane(2).expect("delete Doing");
+    assert_eq!(
+        board.footer_json(),
+        Some("{\"list-collapse\":[false,false,true],\"x\":1}")
+    );
+    assert_eq!(board.lanes()[2].title(), "Fertig");
+    assert!(board.lanes()[2].collapsed());
+    // Past the end of the array there is nothing to move.
+    board.add_lane(3, "Later", None, false).expect("append");
+    assert_eq!(
+        board.footer_json(),
+        Some("{\"list-collapse\":[false,false,true],\"x\":1}")
     );
 }
