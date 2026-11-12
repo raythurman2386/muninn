@@ -1879,7 +1879,9 @@ step_headless_kanban_model() {
   echo "card-text id $id, Roadmap id $road"
   printf '%s\n' "$id" >"$work/kanban-note-id"
   printf '%s\n' "$road" >"$work/kanban-road-id"
-  printf '{"events":[{"t":0.6,"type":"tap","key":"note-row-%s"},{"t":1.2,"type":"mark","name":"write"},{"t":2.0,"type":"key","name":"2","cmd":true},{"t":2.6,"type":"mark","name":"read"},{"t":3.4,"type":"tap","key":"note-row-%s"},{"t":4.2,"type":"mark","name":"backlinks"}]}' \
+  # Roadmap's row sits below the sidebar fold. Open it from the card's
+  # outgoing rail link, which is on screen, so the kanban shows in its backlinks.
+  printf '{"events":[{"t":0.6,"type":"tap","key":"note-row-%s"},{"t":1.2,"type":"mark","name":"write"},{"t":2.0,"type":"key","name":"2","cmd":true},{"t":2.6,"type":"mark","name":"read"},{"t":3.4,"type":"tap","key":"rail-link-1-%s"},{"t":4.4,"type":"mark","name":"backlinks"}]}' \
     "$id" "$road" >"$work/kanban-model.json"
   kanban_hashes "$kvault" "$work/kanban.sha256"
   local mark mode
@@ -1914,9 +1916,11 @@ def blob(name):
     return json.dumps(load(name))
 
 def rail_has(name, needle):
-    for node in walk(load(name).get("elements", [])):
-        key = node.get("key") or ""
-        if str(key).startswith("rail-link-") and needle in json.dumps(node):
+    for node in walk(load(name)):
+        if not isinstance(node, dict):
+            continue
+        key = str(node.get("key") or "")
+        if key.startswith("rail-link-") and needle in json.dumps(node):
             print(f"ok {name}: {key} mentions {needle}")
             return
     raise SystemExit(f"FAIL {name}: no rail link mentions {needle}")
