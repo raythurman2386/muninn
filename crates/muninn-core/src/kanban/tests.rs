@@ -974,6 +974,12 @@ fn an_unchanged_edit_keeps_mixed_continuation_indents() {
     assert_eq!(kanban.source(), source);
     let text = kanban.lanes()[0].cards()[0].text().to_owned();
     assert_eq!(text, "a\n\t```\n\t## X\n\t```\ntwo-space line");
+    // An unchanged edit returns before rendering, so render the card the way
+    // an edit does and check the exact lines the writer makes.
+    assert_eq!(
+        kanban.render_card_for_test(0, 0).expect("render"),
+        "- [ ] a\n\t```\n\t## X\n\t```\n  two-space line\n"
+    );
     kanban.edit_card(0, 0, &text).unwrap();
     assert_eq!(kanban.source(), source);
 }
@@ -1084,9 +1090,10 @@ kanban-plugin: board
 
 #[test]
 fn an_edit_that_would_change_the_card_text_is_rejected() {
-    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n  l1\n";
+    // A one-space indent cannot store a line with a wider all-space lead.
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n l1\n";
     let mut kanban = parse(source);
-    let error = kanban.edit_card(0, 0, "a ^abc\nl1").unwrap_err();
+    let error = kanban.edit_card(0, 0, "a\n  l1").unwrap_err();
     assert_eq!(error.kind(), ErrorKind::InvalidData);
     assert_eq!(kanban.source(), source);
 }
@@ -1330,8 +1337,10 @@ kanban-plugin: board
     assert_eq!(kanban.source(), source);
 }
 
+/// An empty lane can hold indented passthrough text. A card put above that
+/// text would take it as a continuation, so the card goes after it.
 #[test]
-fn moving_a_card_onto_an_indented_note_is_rejected() {
+fn a_card_moved_into_an_empty_lane_goes_after_its_indented_note() {
     let source = "\
 ---
 kanban-plugin: board
@@ -1347,9 +1356,57 @@ kanban-plugin: board
   indented note
 ";
     let mut kanban = parse(source);
-    let error = kanban.move_card(0, 0, 1, 0).unwrap_err();
-    assert_eq!(error.kind(), ErrorKind::InvalidData);
-    assert_eq!(kanban.source(), source);
+    kanban.move_card(0, 0, 1, 0).expect("move");
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+
+## Done
+
+  indented note
+- [ ] a
+  l1
+"
+    );
+    assert_eq!(kanban.lanes()[1].cards()[0].text(), "a\nl1");
+}
+
+#[test]
+fn a_card_added_to_an_empty_lane_goes_after_its_leading_indented_text() {
+    let source = "---\nkanban-plugin: board\n---\n\n## A\n\n  an indented note\n\n## B\n";
+    let mut board = parse(source);
+    board.add_card(0, 0, "new").expect("add");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## A\n\n  an indented note\n- [ ] new\n\n## B\n"
+    );
+    assert_eq!(board.lanes()[0].cards()[0].text(), "new");
+
+    // A blank line inside the note does not split it from the card.
+    let source = "---\nkanban-plugin: board\n---\n\n## A\n\n  one\n\n  two\n\n## B\n";
+    let mut board = parse(source);
+    board.add_card(0, 0, "new").expect("add");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## A\n\n  one\n\n  two\n- [ ] new\n\n## B\n"
+    );
+    assert_eq!(board.lanes()[0].cards()[0].text(), "new");
+
+    // A done-lane marker keeps its place above the note.
+    let source = "---\nkanban-plugin: board\n---\n\n## Done\n**Complete**\n  note\n";
+    let mut board = parse(source);
+    board.add_card(0, 0, "new").expect("add");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## Done\n**Complete**\n  note\n- [ ] new\n"
+    );
+    assert_eq!(board.lanes()[0].cards()[0].text(), "new");
 }
 
 #[test]
@@ -1429,12 +1486,22 @@ fn one_indented_continuation_keeps_its_indent() {
     let mut kanban = parse(&source);
     assert_eq!(kanban.source(), source);
     assert_eq!(kanban.lanes()[0].cards()[0].text(), "x\n\n\n  y");
+    // An unchanged edit returns before rendering, so render the card the way
+    // an edit does and check the exact lines the writer makes.
+    assert_eq!(
+        kanban.render_card_for_test(0, 0).expect("render"),
+        "- [ ] x\n\n\n    y\n"
+    );
     let text = kanban.lanes()[0].cards()[0].text().to_owned();
     kanban.edit_card(0, 0, &text).unwrap();
     assert_eq!(kanban.source(), source);
     let mut fresh = parse("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] keep\n");
     fresh.edit_card(0, 0, "x\n\n\n  y").unwrap();
     assert_eq!(fresh.lanes()[0].cards()[0].text(), "x\n\n\n  y");
+    assert_eq!(
+        fresh.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] x\n\n\n    y\n"
+    );
 }
 
 #[test]
@@ -2005,6 +2072,133 @@ fn a_block_id_is_written_once_and_then_left_alone() {
         "{}",
         board.source()
     );
+}
+
+/// New text is read the way a file is: a trailing ` ^id` on its first line is
+/// the card's block id, not text.
+#[test]
+fn a_trailing_block_id_in_new_text_is_the_card_id() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] keep
+- [ ] old ^card-1
+";
+    let mut board = parse(source);
+    board.add_card(0, 0, "Fix login ^abc").expect("add");
+    assert_eq!(board.lanes()[0].cards()[0].text(), "Fix login");
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), Some("abc"));
+    assert_eq!(
+        board.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Fix login ^abc
+- [ ] keep
+- [ ] old ^card-1
+"
+    );
+
+    // An edit sets an id that was absent and replaces one that was there.
+    board.edit_card(0, 1, "seed ^seed-1").expect("seed");
+    assert_eq!(board.lanes()[0].cards()[1].text(), "seed");
+    assert_eq!(board.lanes()[0].cards()[1].block_id(), Some("seed-1"));
+    board.edit_card(0, 2, "replaced ^new-2").expect("replace");
+    assert_eq!(board.lanes()[0].cards()[2].text(), "replaced");
+    assert_eq!(board.lanes()[0].cards()[2].block_id(), Some("new-2"));
+    assert_eq!(
+        board.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Fix login ^abc
+- [ ] seed ^seed-1
+- [ ] replaced ^new-2
+"
+    );
+
+    // A caret that is not a trailing id stays text, and so does the id that
+    // was there.
+    board
+        .edit_card(0, 0, "Fix ^login now")
+        .expect("caret in text");
+    assert_eq!(board.lanes()[0].cards()[0].text(), "Fix ^login now");
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), Some("abc"));
+    board.edit_card(0, 0, "Fix login ^abc").expect("same id");
+    assert_eq!(board.lanes()[0].cards()[0].text(), "Fix login");
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), Some("abc"));
+
+    // Only the first line can carry the id.
+    board.add_card(0, 3, "first\nsecond ^abc").expect("add");
+    assert_eq!(board.lanes()[0].cards()[3].text(), "first\nsecond ^abc");
+    assert_eq!(board.lanes()[0].cards()[3].block_id(), None);
+}
+
+#[test]
+fn moving_a_lane_to_the_end_of_a_file_without_a_final_newline_keeps_its_bytes() {
+    let source = "---\nkanban-plugin: board\n---\n\n## A\n\n- [ ] a\n\n## B\n\n- [ ] b";
+    let mut board = parse(source);
+    assert_eq!(board.source(), source);
+    assert!(!board.source().ends_with('\n'));
+    board.move_lane(0, 1).expect("A last");
+    // The moved lane keeps its trailing blank line: the file now ends with
+    // that line, and no byte of the lane is dropped.
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## B\n\n- [ ] b\n## A\n\n- [ ] a\n\n"
+    );
+    assert_eq!(board.lanes()[1].cards()[0].text(), "a");
+}
+
+#[test]
+fn a_card_added_at_the_end_of_a_file_without_a_final_newline_keeps_that() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a";
+    let mut board = parse(source);
+    board.add_card(0, 1, "b").expect("add");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n- [ ] b"
+    );
+}
+
+#[test]
+fn duplicate_footer_keys_edit_the_effective_member() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Alpha
+
+%% kanban:settings
+```
+{\"b\":0,\"a\":1,\"a\":2}
+```
+%%
+";
+    let mut board = parse(source);
+    assert_eq!(board.footer_json(), Some("{\"b\":0,\"a\":1,\"a\":2}"));
+    // JSON readers use the last member, so setting `a` changes that one.
+    board.set_setting("a", &json!(3)).expect("set");
+    assert_eq!(board.footer_json(), Some("{\"b\":0,\"a\":1,\"a\":3}"));
+    // Removing `a` removes the effective member; the shadowed first copy is
+    // now the value every reader sees.
+    board.remove_setting("a").expect("remove");
+    assert_eq!(board.footer_json(), Some("{\"b\":0,\"a\":1}"));
 }
 
 #[test]
