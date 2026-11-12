@@ -1,0 +1,24 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
+rune: 181 frames at 60 fps, gpu init 92.0 ms, first frame 53.59 ms, frame cpu mean 6.674 ms p50 3.997 p95 14.209 max 161.396, 402 instances
+rune: animating frames 70 (cpu p50 9.298 p95 19.043 ms), at-rest frames 110 (the window draws none; forced cpu p50 3.916 p95 4.811 ms), layout nodes 170, glyphs 330
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-x11-open.json: active mode mode-kanban
+Xvfb on :90
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+1 on 0x200002
+ok pressed ctrl+k on 0x200002
+ok typed 'board' on 0x200002
+ok pressed enter on 0x200002
+ok /tmp/ui-smoke-s8-full/work/config-x11-kanban-lanes/muninn/settings.json: mode kanban
+ok clicked 1146,134 in 0x200002 (button 1 x1)
+ok typed 'Later' on 0x200002
+ok pressed enter on 0x200002
+ok clicked 416,190 in 0x200002 (button 1 x1)
+ok pressed alt+Right on 0x200002
+ok clicked 1034,138 in 0x200002 (button 1 x1)
+ok Board.md unchanged before Ctrl+S
+ok pressed ctrl+s on 0x200002
+ok Board.md after Ctrl+S is kanban-lanes-x11.md byte for byte
+ok footer keeps its keys and order; only list-collapse was added: {"kanban-plugin":"board","note-key":"kept as is","numbers":[1, 2, 3],"list-collapse":[false,false,true,false]}
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok closing left the saved bytes

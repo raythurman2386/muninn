@@ -1,0 +1,25 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
+rune: 181 frames at 60 fps, gpu init 93.1 ms, first frame 53.61 ms, frame cpu mean 6.633 ms p50 3.907 p95 13.887 max 160.593, 363 instances
+rune: animating frames 70 (cpu p50 9.596 p95 22.130 ms), at-rest frames 110 (the window draws none; forced cpu p50 3.747 p95 4.470 ms), layout nodes 175, glyphs 291
+ok /tmp/ui-smoke-s8-full/trees/kanban-drag-x11-open.json: active mode mode-kanban
+Xvfb on :90
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+1 on 0x200002
+ok pressed ctrl+k on 0x200002
+ok typed 'board' on 0x200002
+ok pressed enter on 0x200002
+ok /tmp/ui-smoke-s8-full/work/config-x11-kanban-drag/muninn/settings.json: mode kanban
+ok dragged 416,178 by 270,4 in 0x200002 (Esc before the release)
+ok /tmp/ui-smoke-s8-full/work/config-x11-kanban-drag/muninn/settings.json: mode kanban
+ok pressed ctrl+s on 0x200002
+ok an Esc-cancelled drag + Ctrl+S leaves Board.md byte-identical
+ok dragged 416,376 by 0,-98 in 0x200002
+ok dragged 378,138 by 558,0 in 0x200002
+ok Board.md unchanged before Ctrl+S
+ok pressed ctrl+s on 0x200002
+ok Board.md after Ctrl+S is kanban-drag-x11.md byte for byte
+ok lanes in order: Doing | Waiting | To do | Done
+ok list-collapse follows Waiting to the second lane; the footer's keys keep their order
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok closing left the saved bytes

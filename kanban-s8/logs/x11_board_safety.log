@@ -1,0 +1,56 @@
+Xvfb on :90, vulkan icd /usr/share/vulkan/icd.d/lvp_icd.json
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok pressed ctrl+backslash on 0x200002
+ok clicked 407,245 in 0x200002 (button 1 x1)
+ok pressed r on 0x200002
+ok dragged 843,489 by 90,60 in 0x200002
+ok pressed v on 0x200002
+ok 787465be5870a6b7~Tools.excalidraw.txt: 6 elements
+ok the vault-keyed recovery copy for Tools.excalidraw holds the drawing
+ok pressed ctrl+1 on 0x200002
+ok pressed ctrl+4 on 0x200002
+ok the canvas matches (0 pixels differ)
+ok the drawing is still on the canvas after the file was removed
+ok negative control fails: the drawn and the open shots (FAIL 616 canvas pixels differ between /tmp/ui-smoke-s8-full/screens/x11-safety-1-open.png and /tmp/ui-smoke-s8-full/screens/x11-safety-3-removed.png)
+ok clicked 976,135 in 0x200002 (button 1 x1)
+ok Tools.excalidraw: 6 elements
+ok /tmp/ui-smoke-s8-full/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4694 bytes written
+ok no recovery copy for Tools.excalidraw
+ok pressed r on 0x200002
+ok dragged 963,489 by 90,60 in 0x200002
+ok pressed v on 0x200002
+ok pressed ctrl+1 on 0x200002
+ok pressed ctrl+4 on 0x200002
+ok the canvas matches (0 pixels differ)
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok quitting left their file alone
+ok 787465be5870a6b7~Tools.excalidraw.txt: 7 elements
+ok the vault-keyed recovery copy for Tools.excalidraw holds the drawing
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+backslash on 0x200002
+ok clicked 612,78 in 0x200002 (button 1 x1)
+ok pressed ctrl+backslash on 0x200002
+ok /tmp/ui-smoke-s8-full/work/config-x11-safety/muninn/settings.json: mode board
+ok clicked 1036,135 in 0x200002 (button 1 x1)
+ok Tools (conflict 20261112-210230).excalidraw: 7 elements
+ok /tmp/ui-smoke-s8-full/work/vault/Tools (conflict 20261112-210230).excalidraw: 7 elements (6 modelled, 1 kept raw), 0 files, 5411 bytes written
+ok no recovery copy for Tools.excalidraw
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok pressed ctrl+backslash on 0x200002
+ok clicked 407,245 in 0x200002 (button 1 x1)
+ok pressed r on 0x200002
+ok dragged 843,489 by 90,60 in 0x200002
+ok pressed v on 0x200002
+ok sent WM_DELETE_WINDOW to 0x200002
+ok the close was refused: the app is still running
+window 0x200002 'Muninn' 1180x780
+ok the window came back
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok 787465be5870a6b7~Tools.excalidraw.txt: 6 elements
+ok the vault-keyed recovery copy for Tools.excalidraw holds the drawing

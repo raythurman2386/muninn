@@ -1,0 +1,87 @@
+rune: 136 frames at 60 fps, gpu init 96.5 ms, first frame 62.84 ms, frame cpu mean 9.028 ms p50 5.449 p95 24.945 max 153.755, 424 instances
+rune: animating frames 78 (cpu p50 9.394 p95 27.613 ms), at-rest frames 57 (the window draws none; forced cpu p50 3.915 p95 5.197 ms), layout nodes 91, glyphs 239
+ok /tmp/ui-smoke-s8-full/trees/edit-before.json: board-surface-title says 'Tools'
+ok wrote /tmp/ui-smoke-s8-full/work/edit/edit.json: 50 events, zoom 1.0000
+ok before: rectangle fill where planned (1344/1344 px)
+ok before: text ink moved by (0, 0) (want 0.00, 0.00)
+ok before: no selection drawn (0 px)
+ok before: nothing else on the canvas changed
+rune: 188 frames at 60 fps, gpu init 95.8 ms, first frame 62.95 ms, frame cpu mean 7.974 ms p50 5.482 p95 16.102 max 156.283, 476 instances
+rune: animating frames 120 (cpu p50 6.650 p95 20.996 ms), at-rest frames 67 (the window draws none; forced cpu p50 3.847 p95 5.280 ms), layout nodes 92, glyphs 239
+ok selected: rectangle fill where planned (1344/1344 px)
+ok selected: text ink moved by (0, 0) (want 0.00, 0.00)
+ok selected: rect outlined [12, 12, 5, 5, 12, 12, 5, 5]
+ok selected: nothing else on the canvas changed
+rune: 249 frames at 60 fps, gpu init 96.4 ms, first frame 62.87 ms, frame cpu mean 7.020 ms p50 5.126 p95 16.336 max 157.902, 495 instances
+rune: animating frames 160 (cpu p50 6.149 p95 19.872 ms), at-rest frames 88 (the window draws none; forced cpu p50 3.670 p95 5.572 ms), layout nodes 94, glyphs 258
+ok moved: rectangle fill where planned (1344/1344 px)
+ok moved: no fill where the rectangle was (0 px)
+ok moved: text ink moved by (0, 0) (want 0.00, 0.00)
+ok moved: rect outlined [12, 12, 5, 5, 12, 12, 5, 5]
+ok moved: nothing else on the canvas changed
+rune: 319 frames at 60 fps, gpu init 97.6 ms, first frame 62.86 ms, frame cpu mean 6.446 ms p50 4.519 p95 14.389 max 153.570, 495 instances
+rune: animating frames 172 (cpu p50 6.320 p95 16.700 ms), at-rest frames 146 (the window draws none; forced cpu p50 4.238 p95 5.155 ms), layout nodes 94, glyphs 258
+ok marquee: rectangle fill where planned (1344/1344 px)
+ok marquee: no fill where the rectangle was (0 px)
+ok marquee: text ink moved by (0, 0) (want 0.00, 0.00)
+ok marquee: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
+ok marquee: nothing else on the canvas changed
+rune: 379 frames at 60 fps, gpu init 97.5 ms, first frame 63.54 ms, frame cpu mean 6.527 ms p50 5.229 p95 13.554 max 155.346, 495 instances
+rune: animating frames 220 (cpu p50 5.741 p95 14.960 ms), at-rest frames 158 (the window draws none; forced cpu p50 4.412 p95 6.010 ms), layout nodes 94, glyphs 258
+ok nudged: rectangle fill where planned (1344/1344 px)
+ok nudged: no fill where the rectangle was (0 px)
+ok nudged: text ink moved by (11, 5) (want 11.00, 5.00)
+ok nudged: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
+ok nudged: nothing else on the canvas changed
+rune: 412 frames at 60 fps, gpu init 98.4 ms, first frame 62.92 ms, frame cpu mean 6.026 ms p50 4.405 p95 12.900 max 153.676, 437 instances
+rune: animating frames 245 (cpu p50 5.383 p95 14.342 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.257 p95 5.201 ms), layout nodes 91, glyphs 252
+ok deleted: rectangle fill where planned (1344/1344 px)
+ok deleted: no fill where the rectangle was (0 px)
+ok deleted: the text is gone (0 px)
+ok deleted: no selection drawn (0 px)
+ok deleted: nothing else on the canvas changed
+rune: 445 frames at 60 fps, gpu init 98.2 ms, first frame 63.19 ms, frame cpu mean 6.032 ms p50 4.484 p95 12.805 max 155.682, 499 instances
+rune: animating frames 278 (cpu p50 5.444 p95 14.926 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.285 p95 5.105 ms), layout nodes 94, glyphs 258
+ok undone: rectangle fill where planned (1344/1344 px)
+ok undone: no fill where the rectangle was (0 px)
+ok undone: text ink moved by (11, 5) (want 11.00, 5.00)
+ok undone: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
+ok undone: nothing else on the canvas changed
+rune: 478 frames at 60 fps, gpu init 100.2 ms, first frame 62.60 ms, frame cpu mean 6.168 ms p50 4.879 p95 11.239 max 153.056, 437 instances
+rune: animating frames 311 (cpu p50 5.585 p95 14.855 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.291 p95 7.673 ms), layout nodes 91, glyphs 252
+ok redone: rectangle fill where planned (1344/1344 px)
+ok redone: no fill where the rectangle was (0 px)
+ok redone: the text is gone (0 px)
+ok redone: no selection drawn (0 px)
+ok redone: nothing else on the canvas changed
+rune: 562 frames at 60 fps, gpu init 97.7 ms, first frame 63.73 ms, frame cpu mean 5.939 ms p50 4.621 p95 9.878 max 156.453, 499 instances
+rune: animating frames 380 (cpu p50 5.323 p95 13.244 ms), at-rest frames 181 (the window draws none; forced cpu p50 4.303 p95 5.388 ms), layout nodes 94, glyphs 258
+ok dirty: rectangle fill where planned (1344/1344 px)
+ok dirty: no fill where the rectangle was (0 px)
+ok dirty: text ink moved by (11, 5) (want 11.00, 5.00)
+ok dirty: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
+ok dirty: nothing else on the canvas changed
+rune: 529 frames at 60 fps, gpu init 98.8 ms, first frame 63.74 ms, frame cpu mean 5.898 ms p50 4.589 p95 10.775 max 153.976, 423 instances
+rune: animating frames 355 (cpu p50 5.259 p95 13.872 ms), at-rest frames 173 (the window draws none; forced cpu p50 4.291 p95 5.161 ms), layout nodes 91, glyphs 238
+ok saved: rectangle fill where planned (1344/1344 px)
+ok saved: no fill where the rectangle was (0 px)
+ok saved: the text is gone (0 px)
+ok saved: no selection drawn (0 px)
+ok saved: nothing else on the canvas changed
+ok /tmp/ui-smoke-s8-full/trees/edit-nudged.json: board-save-state says 'Unsaved · Ctrl+S saves'
+ok /tmp/ui-smoke-s8-full/trees/edit-saved.json: board-save-state says 'Saved'
+ok /tmp/ui-smoke-s8-full/trees/edit-dirty.json: board-save-state says 'Unsaved · Ctrl+S saves'
+ok parses: the same 5 elements in order
+ok keep-rect: at (100.000, 80.000), version 12→13, new nonce, updated 1794517171690, isDeleted False; every other field kept
+ok keep-text: at (11.000, 455.123), version 4→11, new nonce, updated 1794517172862, isDeleted True; every other field kept
+ok keep-ellipse, keep-frame, gone and 6 top-level values are byte-identical to s1's save
+ok /tmp/ui-smoke-s8-full/work/vault/Tools.excalidraw: 5 elements (4 modelled, 1 kept raw), 0 files, 3987 bytes written
+ok negative control fails: outline on the unselected shot (FAIL selected: the rect outline is missing on a side [0, 0, 0, 0, 0, 0, 0, 0])
+ok negative control fails: move on the selected shot (FAIL moved: rectangle fill at (576, 301, 624, 329) is 0/1344 px)
+ok negative control fails: nudge on the marquee shot (FAIL nudged: text ink moved by (0, 0), want (11.0, 5.0))
+ok negative control fails: delete on the undone shot (FAIL deleted: text ink is still drawn (196 px at (483, 675, 555, 692)))
+ok negative control fails: undo on the redone shot (FAIL undone: no text ink (0 px))
+ok negative control fails: the original file (FAIL keep-rect: at 0, 0, want 100.000, 80.000 (±1.5))
+ok negative control fails: the tombstone check on the saved file (FAIL keep-text: version 11, want 12)
+ok negative control fails: a changed byte in an untouched element (FAIL untouched element keep-ellipse bytes differ from s1's save)
+ok negative control fails: an unbumped version (FAIL keep-rect: version 12, want 13)

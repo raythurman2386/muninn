@@ -1,0 +1,64 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json (WGPU_BACKEND=vulkan)
+rune: 64 frames at 60 fps, gpu init 91.1 ms, first frame 68.12 ms, frame cpu mean 4.031 ms p50 4.106 p95 4.348 max 68.123, 584 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 63 (the window draws none; forced cpu p50 4.105 p95 4.306 ms), layout nodes 123, glyphs 527
+rune: 124 frames at 60 fps, gpu init 98.9 ms, first frame 68.08 ms, frame cpu mean 8.494 ms p50 4.267 p95 15.040 max 167.770, 318 instances
+rune: animating frames 42 (cpu p50 12.363 p95 30.593 ms), at-rest frames 81 (the window draws none; forced cpu p50 3.949 p95 4.989 ms), layout nodes 128, glyphs 269
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-open.json: active mode mode-kanban
+rune: 232 frames at 60 fps, gpu init 90.8 ms, first frame 66.54 ms, frame cpu mean 6.211 ms p50 4.127 p95 14.738 max 161.138, 358 instances
+rune: animating frames 129 (cpu p50 4.506 p95 15.686 ms), at-rest frames 102 (the window draws none; forced cpu p50 3.754 p95 4.478 ms), layout nodes 139, glyphs 301
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-added.json: active mode mode-kanban
+rune: 532 frames at 60 fps, gpu init 91.3 ms, first frame 67.69 ms, frame cpu mean 5.143 ms p50 4.107 p95 11.669 max 159.258, 364 instances
+rune: animating frames 421 (cpu p50 4.204 p95 12.031 ms), at-rest frames 110 (the window draws none; forced cpu p50 3.624 p95 5.152 ms), layout nodes 142, glyphs 308
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-edited.json: active mode mode-kanban
+rune: 664 frames at 60 fps, gpu init 91.9 ms, first frame 67.99 ms, frame cpu mean 4.962 ms p50 4.102 p95 11.132 max 155.705, 375 instances
+rune: animating frames 551 (cpu p50 4.152 p95 11.201 ms), at-rest frames 112 (the window draws none; forced cpu p50 3.742 p95 5.218 ms), layout nodes 153, glyphs 315
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-inserted.json: active mode mode-kanban
+rune: 748 frames at 60 fps, gpu init 90.9 ms, first frame 66.36 ms, frame cpu mean 4.963 ms p50 4.056 p95 10.976 max 158.386, 368 instances
+rune: animating frames 629 (cpu p50 4.095 p95 11.113 ms), at-rest frames 118 (the window draws none; forced cpu p50 3.660 p95 5.485 ms), layout nodes 142, glyphs 308
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-deleted.json: active mode mode-kanban
+rune: 820 frames at 60 fps, gpu init 90.3 ms, first frame 66.56 ms, frame cpu mean 4.826 ms p50 4.059 p95 9.603 max 157.947, 362 instances
+rune: animating frames 686 (cpu p50 4.096 p95 9.964 ms), at-rest frames 133 (the window draws none; forced cpu p50 3.738 p95 5.676 ms), layout nodes 142, glyphs 308
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-moved-down.json: active mode mode-kanban
+rune: 868 frames at 60 fps, gpu init 91.4 ms, first frame 67.19 ms, frame cpu mean 4.886 ms p50 4.126 p95 9.583 max 160.842, 366 instances
+rune: animating frames 726 (cpu p50 4.184 p95 9.791 ms), at-rest frames 141 (the window draws none; forced cpu p50 3.816 p95 5.603 ms), layout nodes 142, glyphs 308
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-moved-right.json: active mode mode-kanban
+rune: 988 frames at 60 fps, gpu init 92.2 ms, first frame 67.03 ms, frame cpu mean 4.823 ms p50 4.087 p95 9.359 max 158.142, 367 instances
+rune: animating frames 840 (cpu p50 4.131 p95 9.806 ms), at-rest frames 147 (the window draws none; forced cpu p50 3.766 p95 5.673 ms), layout nodes 143, glyphs 308
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-moved-across.json: active mode mode-kanban
+rune: 1072 frames at 60 fps, gpu init 91.6 ms, first frame 66.71 ms, frame cpu mean 4.784 ms p50 4.091 p95 8.501 max 158.791, 363 instances
+rune: animating frames 923 (cpu p50 4.139 p95 9.216 ms), at-rest frames 148 (the window draws none; forced cpu p50 3.687 p95 6.747 ms), layout nodes 143, glyphs 308
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-sorted.json: active mode mode-kanban
+rune: 1120 frames at 60 fps, gpu init 91.0 ms, first frame 66.73 ms, frame cpu mean 4.751 ms p50 4.092 p95 8.760 max 158.971, 305 instances
+rune: animating frames 969 (cpu p50 4.158 p95 9.325 ms), at-rest frames 150 (the window draws none; forced cpu p50 3.746 p95 6.401 ms), layout nodes 123, glyphs 258
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-collapsed.json: active mode mode-kanban
+rune: 1420 frames at 60 fps, gpu init 91.4 ms, first frame 67.67 ms, frame cpu mean 4.574 ms p50 3.990 p95 7.695 max 158.565, 338 instances
+rune: animating frames 1200 (cpu p50 4.070 p95 7.976 ms), at-rest frames 219 (the window draws none; forced cpu p50 3.635 p95 5.219 ms), layout nodes 128, glyphs 288
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-start.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-open.json: lane 0 ['Open: Write the docs #docs @{2026-12-01}', 'Open: Fix the parser #bug @{2026-11-20}', 'Open: Book the room', 'Open: Ask about the budget #admin @{2026-11-20}']
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-added.json: kanban-lane-3-title says 'Later'
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-edited.json: kanban-lane-3-title says 'Later on'
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-edited.json: kanban-lane-3-count says '0/2'
+ok Later on shows Complete
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-inserted.json: kanban-lane-1-title says 'Soon'
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-lane-deleted.json: kanban-lane-1-title says 'Doing'
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-moved-down.json: lane 0 ['Open: Fix the parser #bug @{2026-11-20}', 'Open: Write the docs #docs @{2026-12-01}', 'Open: Book the room', 'Open: Ask about the budget #admin @{2026-11-20}']
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-moved-right.json: lane 1 ['Open: Review the PR #review', 'Open: Write the docs #docs @{2026-12-01}']
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-moved-across.json: lane 0 ['Open: Book the room', 'Open: Ask about the budget #admin @{2026-11-20}']
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-moved-across.json: lane 3 ['Done: Fix the parser #bug @{2026-11-20}']
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-sorted.json: lane 0 ['Open: Ask about the budget #admin @{2026-11-20}', 'Open: Book the room']
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-collapsed.json: kanban-lane-1-count says '2/3'
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-start.json: lane 0 ['Open: Write the docs #docs @{2026-12-01}', 'Open: Fix the parser #bug @{2026-11-20}', 'Open: Book the room', 'Open: Ask about the budget #admin @{2026-11-20}']
+ok Doing is a collapsed strip 52.0 wide, with its count and title
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-collapsed.json: kanban-status says 'Unsaved · Ctrl+S saves'
+rune: 1132 frames at 60 fps, gpu init 91.1 ms, first frame 66.65 ms, frame cpu mean 4.713 ms p50 4.059 p95 8.080 max 156.810, 305 instances
+rune: animating frames 976 (cpu p50 4.099 p95 8.664 ms), at-rest frames 155 (the window draws none; forced cpu p50 3.637 p95 5.551 ms), layout nodes 123, glyphs 258
+ok sha256 before Cmd+S: de2effacfdb347dc6c4f37101b7b0dcdf75f7b8deba1642a029790aca657e628 (the fixture's)
+rune: 1192 frames at 60 fps, gpu init 102.8 ms, first frame 96.17 ms, frame cpu mean 4.781 ms p50 4.104 p95 8.196 max 158.721, 291 instances
+rune: animating frames 988 (cpu p50 4.241 p95 9.561 ms), at-rest frames 203 (the window draws none; forced cpu p50 3.446 p95 5.316 ms), layout nodes 123, glyphs 244
+ok /tmp/ui-smoke-s8-full/trees/kanban-lanes-saved.json: kanban-status says 'Saved'
+ok Board.md after Cmd+S is kanban-lanes-saved.md byte for byte
+ok the lane limit is written as '## Later on (2)'
+ok footer keeps its keys and order; only list-collapse was added: {"kanban-plugin":"board","note-key":"kept as is","numbers":[1, 2, 3],"list-collapse":[false,true,false,false]}
+rune: 1480 frames at 60 fps, gpu init 92.3 ms, first frame 67.90 ms, frame cpu mean 4.583 ms p50 4.033 p95 7.525 max 160.897, 324 instances
+rune: animating frames 1212 (cpu p50 4.121 p95 8.350 ms), at-rest frames 267 (the window draws none; forced cpu p50 3.667 p95 5.074 ms), layout nodes 128, glyphs 274
+ok undo to the start + Cmd+S restores the fixture's bytes
