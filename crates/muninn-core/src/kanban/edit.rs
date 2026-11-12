@@ -9,6 +9,7 @@ use std::ops::Range;
 
 use serde_json::Value;
 
+use super::parse::line_keeps_lead;
 use super::{Card, Kanban, invalid_data, invalid_input};
 
 const ENGLISH_MARKER: &str = "**Complete**";
@@ -30,15 +31,20 @@ impl Kanban {
     /// stay. Continuation lines are indented like the rest of the file.
     pub fn edit_card(&mut self, lane: usize, index: usize, text: &str) -> io::Result<()> {
         let card = self.card(lane, index)?;
-        let text = text.replace('\r', "");
+        let mut text = text.replace('\r', "");
+        if text.ends_with('\n') {
+            text.pop();
+        }
         if text == card.text {
             return Ok(());
         }
-        let stored = card.indent.clone().filter(|indent| !indent.is_empty());
         let mark = card.mark;
         let block_id = card.block_id.clone();
         let span = card.span.clone();
-        let indent = stored.unwrap_or_else(|| self.continuation_indent());
+        let indent = card
+            .indent
+            .clone()
+            .unwrap_or_else(|| self.continuation_indent());
         let block = render_card(self.nl, mark, &text, block_id.as_deref(), &indent);
         let block = keep_open_ending(&self.source, span.end, block, self.nl);
         let next = splice(&self.source, span, &block);
@@ -264,12 +270,7 @@ impl Kanban {
             .iter()
             .flat_map(|lane| lane.cards.iter())
             .chain(self.archive.iter().flat_map(|archive| archive.cards.iter()))
-            .find_map(|card| {
-                card.indent
-                    .as_ref()
-                    .filter(|indent| !indent.is_empty())
-                    .cloned()
-            });
+            .find_map(|card| card.indent.clone());
         found.unwrap_or_else(|| "  ".to_owned())
     }
 }
@@ -319,25 +320,13 @@ fn render_card(nl: &str, mark: char, text: &str, block_id: Option<&str>, indent:
     }
     out.push_str(nl);
     for line in lines {
-        if !line.is_empty() && !carries_other_indent(line, indent) {
+        if !line.is_empty() && !line_keeps_lead(line, indent) {
             out.push_str(indent);
         }
         out.push_str(line);
         out.push_str(nl);
     }
     out
-}
-
-/// A continuation already holding some other indent is written as it is.
-/// Extra spaces past a shared space indent still take `indent` in front.
-fn carries_other_indent(line: &str, indent: &str) -> bool {
-    let bytes = line
-        .chars()
-        .take_while(|ch| ch.is_whitespace())
-        .map(char::len_utf8)
-        .sum();
-    let lead = &line[..bytes];
-    !lead.is_empty() && !lead.starts_with(indent)
 }
 
 fn splice(source: &str, range: Range<usize>, with: &str) -> String {

@@ -89,9 +89,9 @@ pub struct Lane {
 
 /// One task-list card. `text` is the markdown after the checkbox, without the
 /// block id. Continuation lines are stored without the indent `render_card`
-/// adds back. A space indent longer than two spaces keeps two of them as that
-/// indent, so the extra spaces stay in the text. A continuation whose leading
-/// whitespace is a different indent keeps that whitespace in the text.
+/// adds back. A space run wider than two columns keeps two as that indent, so
+/// the extra columns stay in the text. A lead stays in the text only when it
+/// is at least as wide as that indent and is not a longer copy of it.
 #[derive(Clone, Debug)]
 pub struct Card {
     text: String,
@@ -99,8 +99,8 @@ pub struct Card {
     block_id: Option<String>,
     span: Range<usize>,
     mark_at: usize,
-    /// Whitespace `render_card` adds back onto a continuation that does not
-    /// already carry a different indent.
+    /// Whitespace `render_card` adds back, in the same columns the reader uses.
+    /// A wider different lead is not given another copy.
     indent: Option<String>,
 }
 

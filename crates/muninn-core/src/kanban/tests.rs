@@ -923,7 +923,7 @@ fn an_unchanged_edit_keeps_mixed_continuation_indents() {
     let mut kanban = parse(&source);
     assert_eq!(kanban.source(), source);
     let text = kanban.lanes()[0].cards()[0].text().to_owned();
-    assert_eq!(text, "a\n```\n## X\n```\n  two-space line");
+    assert_eq!(text, "a\n\t```\n\t## X\n\t```\ntwo-space line");
     kanban.edit_card(0, 0, &text).unwrap();
     assert_eq!(kanban.source(), source);
 }
@@ -936,7 +936,7 @@ fn an_added_line_on_a_mixed_indent_card_moves_with_the_card() {
     kanban.edit_card(0, 0, &(text + "\nadded")).unwrap();
     assert_eq!(
         kanban.lanes()[0].cards()[0].text(),
-        "a\n```\n## X\n```\n  two-space line\nadded"
+        "a\n\t```\n\t## X\n\t```\ntwo-space line\nadded"
     );
     kanban.add_lane(1, "Done", None, true).unwrap();
     kanban.move_card(0, 0, 1, 0).unwrap();
@@ -958,10 +958,88 @@ kanban-plugin: board
 	## X
 	```
   two-space line
-	added
+  added
 
 "
     );
+}
+
+/// The text `edit_card` stores: carriage returns dropped, one trailing newline trimmed.
+fn normalised_edit(text: &str) -> String {
+    let mut text = text.replace('\r', "");
+    if text.ends_with('\n') {
+        text.pop();
+    }
+    text
+}
+
+#[test]
+fn an_edit_round_trips_every_kind_of_new_line() {
+    let two_space = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  l1
+- [ ] b
+";
+    let mixed = read_fixture("indent-mixed.md");
+    // The third column is the line as it must appear in the file.
+    let rows = [
+        ("tab", "\n\tx", "\tx"),
+        ("one-space", "\n x", "   x"),
+        ("ideographic", "\n\u{3000}全角", "\u{3000}全角"),
+        ("nbsp", "\n\u{a0}x", "  \u{a0}x"),
+        ("four-spaces", "\n    deep", "      deep"),
+        ("fence", "\n```", "  ```"),
+        ("task", "\n- [ ] sub", "  - [ ] sub"),
+        ("heading", "\n## Next", "  ## Next"),
+        ("crlf", "\r\ncrlf line\r\n", "  crlf line"),
+    ];
+    for (name, addition, file_line) in rows {
+        for (label, source, after) in [
+            ("two-space", two_space, "  l1\n"),
+            ("mixed", mixed.as_str(), "  two-space line\n"),
+        ] {
+            let mut kanban = parse(source);
+            let current = kanban.lanes()[0].cards()[0].text().to_owned();
+            let requested = format!("{current}{addition}");
+            kanban
+                .edit_card(0, 0, &requested)
+                .unwrap_or_else(|error| panic!("{label}/{name}: {error}"));
+            let stored = normalised_edit(&requested);
+            assert_eq!(
+                kanban.lanes()[0].cards()[0].text(),
+                stored,
+                "{label}/{name} text"
+            );
+            let again = parse(kanban.source());
+            assert_eq!(
+                again.lanes()[0].cards()[0].text(),
+                stored,
+                "{label}/{name} re-parse"
+            );
+            let at = source.find(after).expect(label) + after.len();
+            let mut expected = String::new();
+            expected.push_str(&source[..at]);
+            expected.push_str(file_line);
+            expected.push('\n');
+            expected.push_str(&source[at..]);
+            assert_eq!(kanban.source(), expected, "{label}/{name} file");
+        }
+    }
+}
+
+#[test]
+fn an_edit_that_would_change_the_card_text_is_rejected() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n  l1\n";
+    let mut kanban = parse(source);
+    let error = kanban.edit_card(0, 0, "a ^abc\nl1").unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidData);
+    assert_eq!(kanban.source(), source);
 }
 
 #[test]
