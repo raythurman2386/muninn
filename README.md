@@ -263,6 +263,8 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | A card's `⋯` (kanban) | Move it up, down, to the top or bottom, to the previous or next lane, or **Move to list…** |
 | Click a card, then arrows / `Alt+↑↓` / `Alt+Shift+↑↓` / `Alt+←→` (kanban) | Select a card; move it one place, to the top or bottom, or to the previous or next lane |
 | A lane's `‹` / `›` (kanban) | Collapse it to a narrow strip, or expand it |
+| Drag a card, or a lane by its header (kanban) | Move it where the bar shows (`Esc` cancels); a lane's `⋯` has **Move lane left / right** |
+| `Alt+Shift+←→` (kanban) | Move the selected card's lane left or right |
 | `⌘S` / `Ctrl+S` (kanban) | Save the kanban's edits (nothing is written before; no autosave yet) |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |

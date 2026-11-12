@@ -369,6 +369,10 @@ pub struct State {
     pub kanban_lane_field: TextEdit,
     /// Kanban slice 5: the card (lane, index) the arrow keys act on.
     pub kanban_selected: Option<(usize, usize)>,
+    /// Kanban slice 6: the card or lane being dragged, and where lanes and
+    /// cards were laid out (the drop spot is measured against them).
+    pub(crate) kanban_drag: Option<crate::kanban_drag::KanbanDrag>,
+    pub(crate) kanban_rects: crate::kanban_drag::KanbanRects,
     /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).
     pub board_tool: Option<crate::BoardTool>,
     /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
@@ -724,6 +728,8 @@ impl State {
             kanban_lane_edit: None,
             kanban_lane_field: TextEdit::default(),
             kanban_selected: None,
+            kanban_drag: None,
+            kanban_rects: crate::kanban_drag::KanbanRects::default(),
             board_tool: None,
             board_hand: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),

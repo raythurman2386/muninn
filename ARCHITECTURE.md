@@ -175,7 +175,10 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   kanban or vault and quitting save first, or are refused. Lane edits, card moves, sorting
   and collapse (`kanban_lanes.rs`) are more edits of the same kind: a sort moves whole card
   blocks slot by slot, and collapse is the settings footer's `list-collapse` key, so it is
-  undone and saved with the rest.
+  undone and saved with the rest. Dragging (`kanban_drag.rs`) adds no new edit: a card drop
+  is the same card move, and a lane drop is `Kanban::move_lane`, which moves the lane's
+  lines whole and keeps `list-collapse` aligned. Drop slots come from the rects each card and
+  lane reports as it is laid out, so they match what is drawn whatever the card heights.
   Which notes are kanbans is cached in the index (`Note::is_kanban`, refreshed by
   `Vault::reindex`), so the sidebar's Kanbans section, the notes-list glyph and the palette
   never re-detect per frame. `Vault::create_kanban_in` claims each candidate name with an

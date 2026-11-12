@@ -51,6 +51,14 @@ All notable changes to Muninn are documented here. The format is based on
   done lane becomes done. A lane's `‹` collapses it to a narrow strip with
   its title and count, kept in the note's settings. All of it is undoable and
   saved by `⌘S`.
+- **Dragging cards and lanes.** On the Kanban page a card drags within its
+  lane or into another, with a bar showing exactly where it will land; a
+  collapsed lane takes it at its end and a done lane marks it done. A lane
+  drags by its header (a collapsed lane by its strip) and its collapse state
+  moves with it. `Esc` cancels a drag and a drop in place changes nothing.
+  Each drop is one undo step, saved by `⌘S`. Without a mouse, a lane's menu
+  has **Move lane left / right**, and `Alt+Shift+←/→` moves the selected
+  card's lane.
 
 ## [0.7.1] - 2026-11-11
 

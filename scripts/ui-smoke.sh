@@ -271,6 +271,29 @@
 #                   Ctrl+S: Board.md equals ui-smoke/kanban-lanes-x11.md and only
 #                   list-collapse joined the footer (kanban-lanes-saved-x11.png); close
 #                   through WM_DELETE_WINDOW (exit 0), bytes still the saved ones
+#   headless_kanban_drag  slice 6, offscreen on its own vault (drag-board.md as Board.md),
+#                   sidebar hidden, with Rune down/move/up and key events at points taken
+#                   from the page's own rects: a card dragged into Doing and Esc (the bar
+#                   shows, then goes; nothing moved; Cmd+S keeps the bytes;
+#                   kanban-drag-cancel.png); the last card dropped low on the tall card
+#                   (the bar is drawn between the tall card and the next,
+#                   kanban-drag-mid.png; it lands third, kanban-drag-dropped.png); a card
+#                   onto the collapsed Waiting strip (last there), one into Done (marked
+#                   done); To do dragged by its header to third (kanban-lane-dragged.png),
+#                   back to second by Alt+Shift+Left, Done left by its menu's Move lane
+#                   left, and a drop in place (nothing); Board.md byte-identical before
+#                   Cmd+S, equal to ui-smoke/kanban-drag-saved.md after it, lanes in the
+#                   new order and list-collapse following Waiting, the footer's keys in
+#                   order; six undos to the start + Cmd+S write the fixture's bytes again
+#   x11_kanban_drag  windowed (`--new-instance`) on the private Xvfb with lavapipe, with
+#                   real pointer drags (XTEST press, moves, release; xdotool's mechanism):
+#                   Ctrl+K "board" Enter; a card dragged into Doing with Esc before the
+#                   release (kanban-drag-cancel-x11.png), then Ctrl+S: bytes unchanged; the
+#                   last card up under the tall card (kanban-drag-mid-x11.png mid-drag), To
+#                   do by its header to third (kanban-lane-dragged-x11.png): file
+#                   unchanged; Ctrl+S: Board.md equals ui-smoke/kanban-drag-x11.md with
+#                   list-collapse [false,true,false,false]; close through WM_DELETE_WINDOW
+#                   (exit 0), bytes still the saved ones
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -289,7 +312,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit headless_kanban_lanes x11_kanban_lanes board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit headless_kanban_lanes x11_kanban_lanes headless_kanban_drag x11_kanban_drag board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -3165,6 +3188,284 @@ JSON
   cmp "$v/Board.md" "$saved" || { diff "$saved" "$v/Board.md"; return 1; }
   echo "ok Board.md after Ctrl+S is kanban-lanes-x11.md byte for byte"
   kanban_footer_check "$original" "$v/Board.md" '[false,false,true,false]' || return 1
+  python3 "$harness" x11-close "$wid" || return 1
+  local status=124
+  for i in $(seq 100); do
+    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+    sleep 0.1
+  done
+  app_pid=
+  echo "app exit status: $status"
+  [ "$status" = 0 ] || return 1
+  cmp "$v/Board.md" "$saved" || { echo "closing changed Board.md"; return 1; }
+  echo "ok closing left the saved bytes"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+# Slice 6: dragging cards and lanes on drag-board.md. As slice 5: each run starts from
+# the fixture's bytes, with its own settings, and stops at its mark.
+kanban_drag_run() { # kanban_drag_run VAULT SCRIPT MARK [SHOT]
+  cp "$kanban_fixtures/drag-board.md" "$1/Board.md"
+  export XDG_CONFIG_HOME="$work/config-kanban-drag-$3" XDG_STATE_HOME="$work/state-kanban-drag-$3"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --vault "$1" --script "$2" --at "mark:$3+0.25" --scale 1 \
+    ${4:+--snap "$out/screens/$4.png"} --tree "$out/trees/kanban-drag-$3.json"
+}
+
+kanban_drag_points() { # kanban_drag_points TREE IN OUT: fill the drag targets from TREE's rects
+  python3 - "$@" <<'PY'
+import json, sys
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from walk(v)
+rects = {e["key"]: e["rect"] for e in walk(json.load(open(sys.argv[1]))["elements"])
+         if isinstance(e, dict) and e.get("key") and isinstance(e.get("rect"), list)}
+mid = lambda k: (rects[k][0] + rects[k][2] / 2, rects[k][1] + rects[k][3] / 2)
+tall, shipped = rects["kanban-card-0-1"], rects["kanban-card-3-0"]
+points = {
+    # Into Doing, then Esc.
+    "DOING": mid("kanban-lane-1"),
+    # Low in the tall card (below its middle): the slot after it, before Another short card.
+    "TALL": (tall[0] + tall[2] / 2, tall[1] + tall[3] * 0.8),
+    # The collapsed Waiting strip.
+    "STRIP": mid("kanban-lane-2"),
+    # Under Done's last card.
+    "DONE": (mid("kanban-lane-3")[0], shipped[1] + shipped[3] + 30),
+    # Between the Waiting strip's middle and Done's: To do lands third.
+    "LANE": ((mid("kanban-lane-2")[0] + mid("kanban-lane-3")[0]) / 2, mid("kanban-lane-0-title")[1]),
+}
+text = open(sys.argv[2]).read()
+for name, (x, y) in points.items():
+    text = text.replace(f'"@{name}_X@"', str(round(x))).replace(f'"@{name}_Y@"', str(round(y)))
+    print(f"{name.lower()} at {round(x)},{round(y)}")
+assert "@" not in text.replace("@BOARD@", ""), "a drag target was not filled"
+open(sys.argv[3], "w").write(text)
+PY
+}
+
+kanban_has() { # kanban_has TREE KEY yes|no: whether KEY is drawn
+  python3 - "$@" <<'PY'
+import json, sys
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from walk(v)
+keys = {e.get("key") for e in walk(json.load(open(sys.argv[1]))["elements"]) if isinstance(e, dict)}
+want = sys.argv[3] == "yes"
+if (sys.argv[2] in keys) != want:
+    raise SystemExit(f"{sys.argv[1]}: {sys.argv[2]} {'missing' if want else 'still drawn'}")
+print(f"ok {sys.argv[2]} {'drawn' if want else 'gone'} ({sys.argv[1].rsplit('/', 1)[-1]})")
+PY
+}
+
+kanban_lane_titles() { # kanban_lane_titles FILE "A|B|...": the lanes' headings, in order
+  python3 - "$@" <<'PY'
+import sys
+got = [l[3:] for l in open(sys.argv[1], encoding="utf-8").read().split("\n") if l.startswith("## ")]
+want = sys.argv[2].split("|")
+if got != want:
+    raise SystemExit(f"lanes are {got}, not {want}")
+print(f"ok lanes in order: {' | '.join(got)}")
+PY
+}
+
+step_headless_kanban_drag() {
+  isolate
+  kanban_gpu
+  local v="$work/kanban-drag-vault" t="$out/trees" m="$work/kanban-drag" original="$kanban_fixtures/drag-board.md"
+  local saved="$root/scripts/ui-smoke/kanban-drag-saved.md"
+  rm -rf "$v" "$m"; mkdir -p "$v" "$m"
+  printf '{"events":[{"t":0.8,"type":"mark","name":"list"}]}' >"$m/list.json"
+  kanban_drag_run "$v" "$m/list.json" list || return 1
+  local board
+  board="$(kanban_row_ids "$t/kanban-drag-list.json" Board)"
+  [ -n "$board" ] || { echo "no Board row"; return 1; }
+  sed "s/@BOARD@/$board/" "$root/scripts/ui-smoke/kanban-drag.json" >"$m/drag.in.json"
+  # Where to drag to, from the page as the script opens it (the open mark comes before
+  # the first drag, so the unfilled targets are never read).
+  python3 - "$m/drag.in.json" "$m/open.json" <<'PY' || return 1
+import json, re, sys
+text = re.sub(r'"@[A-Z]+_[XY]@"', "0", open(sys.argv[1]).read())
+script = json.loads(text)
+script["events"] = [e for e in script["events"] if e["t"] <= 1.8]
+json.dump(script, open(sys.argv[2], "w"))
+PY
+  kanban_drag_run "$v" "$m/open.json" open || return 1
+  kanban_drag_points "$t/kanban-drag-open.json" "$m/drag.in.json" "$m/drag.json" || return 1
+  local pair mark shot
+  for pair in open: cancel-mid: cancel:kanban-drag-cancel cancel-saved: drag-mid:kanban-drag-mid \
+    dropped:kanban-drag-dropped collapsed-drop: done-drop: lane-mid: lane-dragged:kanban-lane-dragged \
+    key-lane: menu-lane: noop: start:; do
+    mark="${pair%%:*}" shot="${pair#*:}"
+    kanban_drag_run "$v" "$m/drag.json" "$mark" "$shot" || return 1
+    python3 "$harness" tree-mode "$t/kanban-drag-$mark.json" kanban || return 1
+  done
+  local c="kanban_cards $t/kanban-drag" k="kanban_has $t/kanban-drag"
+  local todo="Open: Short card|Open: A tall card|Open: Another short card|Open: Last short card"
+  $c-open.json 0 "$todo" && $k-open.json kanban-drop no || return 1
+  # Esc mid-drag: the bar goes, nothing moved, nothing to save; Cmd+S keeps the bytes.
+  $k-cancel-mid.json kanban-drop yes && $k-cancel.json kanban-drop no &&
+    $c-cancel.json 0 "$todo" && $c-cancel.json 1 "Open: In progress" || return 1
+  kanban_drag_run "$v" "$m/drag.json" cancel-saved || return 1
+  cmp "$v/Board.md" "$original" || { diff "$original" "$v/Board.md"; return 1; }
+  echo "ok a cancelled drag + Cmd+S leaves Board.md byte-identical"
+  # The bar sits exactly between the tall card and the next, whatever their heights.
+  python3 - "$t/kanban-drag-drag-mid.json" <<'PY' || return 1
+import json, sys
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from walk(v)
+r = {e.get("key"): e.get("rect") for e in walk(json.load(open(sys.argv[1]))["elements"]) if isinstance(e, dict)}
+bar, tall, nxt = r["kanban-drop"], r["kanban-card-0-1"], r["kanban-card-0-2"]
+assert tall[1] + tall[3] <= bar[1] and bar[1] + bar[3] <= nxt[1], (tall, bar, nxt)
+assert abs(bar[0] - tall[0]) < 1 and abs(bar[2] - tall[2]) < 1, (bar, tall)
+print(f"ok the bar is drawn between the tall card (h {tall[3]:.0f}) and the next (h {nxt[3]:.0f}): y {bar[1]:.0f}")
+PY
+  $c-dropped.json 0 "Open: Short card|Open: A tall card|Open: Last short card|Open: Another short card" &&
+    $k-dropped.json kanban-drop no &&
+    $c-collapsed-drop.json 0 "Open: A tall card|Open: Last short card|Open: Another short card" &&
+    $c-done-drop.json 1 "" && $c-done-drop.json 3 "Done: Shipped|Done: In progress" &&
+    $k-lane-mid.json kanban-lane-drop yes && $k-lane-dragged.json kanban-lane-drop no &&
+    python3 "$harness" tree-text "$t/kanban-drag-lane-dragged.json" kanban-lane-2-title "To do" &&
+    $k-lane-dragged.json kanban-lane-1-expand yes &&
+    python3 "$harness" tree-text "$t/kanban-drag-key-lane.json" kanban-lane-1-title "To do" &&
+    python3 "$harness" tree-text "$t/kanban-drag-menu-lane.json" kanban-lane-2-title "Done" &&
+    $k-menu-lane.json kanban-lane-3-expand yes &&
+    $c-noop.json 1 "Open: A tall card|Open: Last short card|Open: Another short card" &&
+    python3 "$harness" tree-text "$t/kanban-drag-noop.json" kanban-status Unsaved &&
+    $c-start.json 0 "$todo" || return 1
+  # Nothing is written before Cmd+S.
+  kanban_drag_run "$v" "$m/drag.json" presave || return 1
+  cmp "$v/Board.md" "$original" || { echo "Board.md changed before Cmd+S"; return 1; }
+  echo "ok sha256 before Cmd+S: $(sha256sum <"$v/Board.md" | cut -d' ' -f1) (the fixture's)"
+  kanban_drag_run "$v" "$m/drag.json" saved || return 1
+  python3 "$harness" tree-text "$t/kanban-drag-saved.json" kanban-status Saved || return 1
+  cp "$v/Board.md" "$out/logs/kanban-drag-saved.md"
+  cmp "$v/Board.md" "$saved" || { diff "$saved" "$v/Board.md"; return 1; }
+  echo "ok Board.md after Cmd+S is kanban-drag-saved.md byte for byte"
+  kanban_lane_titles "$v/Board.md" "Doing|To do|Done|Waiting" || return 1
+  python3 - "$original" "$v/Board.md" <<'PY' || return 1
+import sys
+footer = lambda p: (l := open(p, encoding="utf-8").read().split("\n"))[l.index("%% kanban:settings") + 2]
+before, after = footer(sys.argv[1]), footer(sys.argv[2])
+want = before.replace('"list-collapse":[false,false,true,false]', '"list-collapse":[false,false,false,true]')
+assert want != before and after == want, (before, after)
+print(f"ok the footer keeps its keys and order; list-collapse follows Waiting to the end: {after}")
+PY
+  # Undo back to the start (six drops and moves: the cancel and the drop in place left
+  # nothing to undo) and Cmd+S: the original bytes again.
+  kanban_drag_run "$v" "$m/drag.json" restored || return 1
+  cmp "$v/Board.md" "$original" || { diff "$original" "$v/Board.md"; return 1; }
+  echo "ok undo to the start + Cmd+S restores the fixture's bytes"
+}
+
+step_x11_kanban_drag() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd" WGPU_BACKEND=vulkan
+  echo "vulkan icd: $icd"
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  local v="$work/kanban-drag-x11-vault" t="$out/trees" m="$work/kanban-drag-x11" original="$kanban_fixtures/drag-board.md"
+  local saved="$root/scripts/ui-smoke/kanban-drag-x11.md"
+  rm -rf "$v" "$m"; mkdir -p "$v" "$m"
+  printf '# Agenda\n\nA plain note.\n' >"$v/Agenda.md"
+  cp "$original" "$v/Board.md"
+  # Where to press and where to let go, from a headless run in the same 1180x780 window:
+  # the page as Ctrl+K "board" Enter opens it. A card dropped within To do moves no lane.
+  cat >"$m/steps.json" <<'JSON'
+{"events":[
+  {"t":0.6,"type":"key","name":"1","cmd":true},
+  {"t":1.0,"type":"key","name":"k","cmd":true},
+  {"t":1.4,"type":"type","text":"board"},
+  {"t":2.0,"type":"key","name":"Enter"},
+  {"t":2.6,"type":"mark","name":"open"}
+]}
+JSON
+  export XDG_CONFIG_HOME="$work/config-kanban-drag-x11-open"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$v" --script "$m/steps.json" --at "mark:open+0.4" --scale 1 \
+    --snap "$out/screens/kanban-drag-headless-open.png" --tree "$t/kanban-drag-x11-open.json" || return 1
+  python3 "$harness" tree-mode "$t/kanban-drag-x11-open.json" kanban || return 1
+  cmp "$v/Board.md" "$original" || { echo "a headless run wrote Board.md"; return 1; }
+  local first last doing tall head lane
+  first="$(python3 "$harness" tree-center "$t/kanban-drag-x11-open.json" kanban-card-0-0)" || return 1
+  last="$(python3 "$harness" tree-center "$t/kanban-drag-x11-open.json" kanban-card-0-3)" || return 1
+  doing="$(python3 "$harness" tree-center "$t/kanban-drag-x11-open.json" kanban-lane-1)" || return 1
+  head="$(python3 "$harness" tree-center "$t/kanban-drag-x11-open.json" kanban-lane-0-title)" || return 1
+  # Low in the tall card: the slot after it. Between the Waiting strip's middle and
+  # Done's: To do goes third.
+  tall="$(python3 "$harness" tree-rect "$t/kanban-drag-x11-open.json" kanban-card-0-1 | awk '{print int($1 + $3 / 2), int($2 + $4 * 0.8)}')" || return 1
+  lane="$(paste -d' ' <(python3 "$harness" tree-center "$t/kanban-drag-x11-open.json" kanban-lane-2) \
+    <(python3 "$harness" tree-center "$t/kanban-drag-x11-open.json" kanban-lane-3) | awk '{print int(($1 + $3) / 2)}')" || return 1
+  by() { echo $(( $3 - $1 )) $(( $4 - $2 )); } # by X0 Y0 X1 Y1: the drag from one point to the other
+
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n i
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-drag.log" 2>&1 &
+  xvfb_pid=$!
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY"
+  export XDG_CONFIG_HOME="$work/config-x11-kanban-drag" XDG_STATE_HOME="$work/state-x11-kanban-drag"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  local settings="$XDG_CONFIG_HOME/muninn/settings.json"
+  "$bin" --new-instance --vault "$v" >>"$out/logs/x11-kanban-drag-app.log" 2>&1 &
+  app_pid=$!
+  local wid pause
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  pause="$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  sleep 2
+  python3 "$harness" x11-chord "$wid" ctrl+1 && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+k && sleep 0.5 || return 1
+  python3 "$harness" x11-type "$wid" board && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" enter && sleep "$pause" || return 1
+  python3 "$harness" settings-mode "$settings" kanban || return 1
+  # 1. Short card into Doing, Esc before the release: nothing moves; Ctrl+S keeps the bytes.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-drag "$wid" $first $(by $first $doing) "$out/screens/kanban-drag-cancel-mid-x11.png" esc && sleep 0.5 || return 1
+  import -window "$wid" "$out/screens/kanban-drag-cancel-x11.png" || return 1
+  python3 "$harness" settings-mode "$settings" kanban || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+s && sleep "$pause" || return 1
+  cmp "$v/Board.md" "$original" || { diff "$original" "$v/Board.md"; return 1; }
+  echo "ok an Esc-cancelled drag + Ctrl+S leaves Board.md byte-identical"
+  # 2. Last short card up into the slot under the tall card (shot mid-drag, bar showing).
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-drag "$wid" $last $(by $last $tall) "$out/screens/kanban-drag-mid-x11.png" && sleep 0.5 || return 1
+  import -window "$wid" "$out/screens/kanban-drag-dropped-x11.png" || return 1
+  # 3. To do by its header to between Waiting and Done.
+  local hx hy
+  read -r hx hy <<<"$head"
+  python3 "$harness" x11-drag "$wid" "$hx" "$hy" $(( lane - hx )) 0 && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-lane-dragged-x11.png" || return 1
+  cmp "$v/Board.md" "$original" || { echo "Board.md written before Ctrl+S"; return 1; }
+  echo "ok Board.md unchanged before Ctrl+S"
+  python3 "$harness" x11-chord "$wid" ctrl+s && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-drag-saved-x11.png" || return 1
+  cp "$v/Board.md" "$out/logs/x11-kanban-drag-saved.md"
+  cmp "$v/Board.md" "$saved" || { diff "$saved" "$v/Board.md"; return 1; }
+  echo "ok Board.md after Ctrl+S is kanban-drag-x11.md byte for byte"
+  kanban_lane_titles "$v/Board.md" "Doing|Waiting|To do|Done" || return 1
+  grep -qxF '{"kanban-plugin":"board","list-collapse":[false,true,false,false],"note-key":"kept as is"}' "$v/Board.md" ||
+    { echo "the footer did not follow Waiting"; return 1; }
+  echo "ok list-collapse follows Waiting to the second lane; the footer's keys keep their order"
   python3 "$harness" x11-close "$wid" || return 1
   local status=124
   for i in $(seq 100); do

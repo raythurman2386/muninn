@@ -15,7 +15,11 @@
   harness.py tree-rect TREE.json KEY           print "X Y W H", KEY's rect
   harness.py tree-center TREE.json KEY         print "X Y", the centre of KEY's rect
   harness.py tree-text TREE.json KEY TEXT      assert KEY shows text containing TEXT
-  harness.py x11-drag WINDOW X Y DX DY         button-1 drag from window point X,Y by DX,DY
+  harness.py x11-drag WINDOW X Y DX DY [SHOT] [esc]
+                                               button-1 drag from window point X,Y by DX,DY;
+                                               with SHOT, a screenshot (ImageMagick import)
+                                               while the button is still down; with esc,
+                                               Escape is pressed before the release
   harness.py x11-wheel WINDOW X Y BUTTON N     N wheel notches (button 4 up, 5 down) at X,Y
   harness.py sidebar-open IN.json OUT.json [T] slice 8: SCRIPT with Cmd+\\ (reopen the notes
                                                sidebar) 0.2 s after its first Cmd+4, or at T
@@ -30,6 +34,7 @@ Later slices add board editing steps (shapes, select, move, text).
 
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -335,9 +340,10 @@ def to_root(d, w, x, y):
     return -origin.x + int(x), -origin.y + int(y)
 
 
-def x11_drag(wid, x, y, dx, dy):
-    """Button-1 drag from window point x,y by dx,dy, in small steps."""
-    from Xlib import X
+def x11_drag(wid, x, y, dx, dy, shot=None, esc=None):
+    """Button-1 drag from window point x,y by dx,dy, in small steps. With shot, the
+    window is captured mid-drag; with esc, Escape goes down and up before the release."""
+    from Xlib import X, XK
     from Xlib.ext import xtest
 
     d = display()
@@ -354,10 +360,20 @@ def x11_drag(wid, x, y, dx, dy):
         xtest.fake_input(d, X.MotionNotify, x=rx + round(int(dx) * i / steps), y=ry + round(int(dy) * i / steps))
         d.sync()
     time.sleep(0.1 * SLOW)
+    if shot:
+        time.sleep(0.4 * SLOW)
+        subprocess.run(["import", "-window", wid, shot], check=True)
+    if esc == "esc":
+        code = d.keysym_to_keycode(XK.string_to_keysym("Escape"))
+        for kind in (X.KeyPress, X.KeyRelease):
+            xtest.fake_input(d, kind, code)
+            d.sync()
+            time.sleep(0.05)
+        time.sleep(0.2 * SLOW)
     xtest.fake_input(d, X.ButtonRelease, 1)
     d.sync()
     settle()
-    print(f"ok dragged {x},{y} by {dx},{dy} in {wid}")
+    print(f"ok dragged {x},{y} by {dx},{dy} in {wid}" + (" (Esc before the release)" if esc == "esc" else ""))
 
 
 def x11_wheel(wid, x, y, button, notches):
