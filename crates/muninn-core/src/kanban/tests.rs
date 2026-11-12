@@ -837,9 +837,53 @@ kanban-plugin: board
 
 ## A
 
+
 ## B
 
 - [ ] b
+"
+    );
+}
+
+#[test]
+fn moving_an_open_fence_card_to_the_end_of_the_lane_keeps_its_text() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  ```
+  code
+- [ ] b
+
+## Done
+
+- [ ] d
+";
+    let mut kanban = parse(source);
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\n```\ncode");
+    kanban.move_card(0, 0, 0, 1).unwrap();
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "a\n```\ncode");
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] b
+- [ ] a
+  ```
+  code
+
+## Done
+
+- [ ] d
 "
     );
 }
