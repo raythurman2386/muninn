@@ -378,11 +378,8 @@ fn is_indented(text: &str) -> bool {
     !text.trim().is_empty() && text.starts_with(char::is_whitespace)
 }
 
-/// The indent `render_card` adds back. Lines that share a whitespace prefix
-/// use the shortest one, except a run of more than two spaces keeps two as
-/// the prefix so extra spaces stay in the text. Lines that do not share a
-/// prefix use the shortest non-empty lead for a new line; a line with a
-/// different indent keeps that whitespace in the text.
+/// The indent `render_card` adds back. Both sides measure a lead with
+/// [`indent_columns`] and decide with [`line_keeps_lead`].
 fn logical_continuations(first: &str, lines: &[&str]) -> (String, Option<String>) {
     let leads: Vec<&str> = lines
         .iter()
@@ -397,26 +394,39 @@ fn logical_continuations(first: &str, lines: &[&str]) -> (String, Option<String>
             continue;
         }
         text.push_str(match &indent {
-            Some(indent) => line.strip_prefix(indent.as_str()).unwrap_or(line),
-            None => line,
+            Some(indent) if !line_keeps_lead(line, indent) => {
+                line.strip_prefix(indent.as_str()).unwrap_or(line)
+            }
+            _ => line,
         });
     }
     (text, indent)
 }
 
+/// Narrowest continuation lead, in columns. A space run wider than two
+/// columns stays two when every lead is at least two spaces, so the extra
+/// columns remain in the text. A tie prefers a run of regular spaces, so a
+/// foreign lead of the same width does not take over.
 fn structural_indent(leads: &[&str]) -> Option<String> {
-    let shortest = leads
+    let narrowest = leads
         .iter()
         .copied()
-        .filter(|lead| !lead.is_empty())
-        .min_by_key(|lead| lead.chars().count())?;
-    if shortest.chars().all(|ch| ch == ' ')
-        && shortest.len() > 2
+        .min_by_key(|lead| indent_columns(lead))?;
+    let width = indent_columns(narrowest);
+    if width > 2
+        && narrowest.chars().all(|ch| ch == ' ')
         && leads.iter().all(|lead| lead.starts_with("  "))
     {
         return Some("  ".to_owned());
     }
-    Some(shortest.to_owned())
+    if let Some(spaces) = leads
+        .iter()
+        .copied()
+        .find(|lead| indent_columns(lead) == width && lead.chars().all(|ch| ch == ' '))
+    {
+        return Some(spaces.to_owned());
+    }
+    Some(narrowest.to_owned())
 }
 
 fn leading_ws(line: &str) -> &str {
@@ -426,6 +436,28 @@ fn leading_ws(line: &str) -> &str {
         .map(char::len_utf8)
         .sum();
     &line[..bytes]
+}
+
+/// Columns of a leading indent. A tab advances to the next multiple of four.
+/// U+3000 is two columns. Every other whitespace character is one.
+pub(super) fn indent_columns(lead: &str) -> usize {
+    let mut column = 0;
+    for ch in lead.chars() {
+        column += match ch {
+            '\t' => 4 - (column % 4),
+            '\u{3000}' => 2,
+            _ => 1,
+        };
+    }
+    column
+}
+
+/// A lead stays as written when it is at least as wide as `indent` and is
+/// not a longer copy of that indent. The writer then does not prefix it, and
+/// the reader keeps it in the card text.
+pub(super) fn line_keeps_lead(line: &str, indent: &str) -> bool {
+    let lead = leading_ws(line);
+    !lead.is_empty() && !lead.starts_with(indent) && indent_columns(lead) >= indent_columns(indent)
 }
 
 /// A fence opener: optional indent, then three or more `` ` `` or `~`.
