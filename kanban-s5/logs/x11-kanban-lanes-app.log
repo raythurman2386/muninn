@@ -1,0 +1,4 @@
+rune: `init` blocked 3497 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: first frame took 3698 ms (setup 0 ms, init 3497 ms, first view 31 ms, window and GPU 171 ms); the slowest is `init`: start slow work from `on_ready`. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 221 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: an `update` closure blocked 1682 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)

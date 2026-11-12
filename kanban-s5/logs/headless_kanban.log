@@ -1,0 +1,52 @@
+vulkan icd: /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json (WGPU_BACKEND=vulkan)
+	deviceName         = llvmpipe (LLVM 23.1.3, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 26.2.5-arch1.1 (LLVM 23.1.3)
+rune: `init` blocked 25 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 67 frames at 60 fps, gpu init 79.0 ms, first frame 54.91 ms, frame cpu mean 1.885 ms p50 1.716 p95 2.534 max 54.908, 392 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 1.716 p95 2.367 ms), layout nodes 147, glyphs 330
+rows: Release note-row-2, Overloaded note-row-1, Torn note-row-3
+rune: `init` blocked 11 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 85 frames at 60 fps, gpu init 85.2 ms, first frame 56.25 ms, frame cpu mean 5.239 ms p50 4.150 p95 10.103 max 134.326, 294 instances
+rune: animating frames 42 (cpu p50 4.635 p95 10.103 ms), at-rest frames 42 (the window draws none; forced cpu p50 1.923 p95 3.058 ms), layout nodes 117, glyphs 237
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-empty.json: active mode mode-kanban
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 175 frames at 60 fps, gpu init 79.9 ms, first frame 57.73 ms, frame cpu mean 7.298 ms p50 3.055 p95 31.734 max 199.312, 397 instances
+rune: animating frames 84 (cpu p50 4.881 p95 35.030 ms), at-rest frames 90 (the window draws none; forced cpu p50 1.802 p95 2.737 ms), layout nodes 203, glyphs 311
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-readonly.json: active mode mode-kanban
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 265 frames at 60 fps, gpu init 78.2 ms, first frame 55.97 ms, frame cpu mean 3.580 ms p50 2.217 p95 5.947 max 129.417, 459 instances
+rune: animating frames 131 (cpu p50 3.577 p95 8.248 ms), at-rest frames 133 (the window draws none; forced cpu p50 1.804 p95 2.407 ms), layout nodes 196, glyphs 371
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-wip-over.json: active mode mode-kanban
+rune: `init` blocked 22 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 23 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 355 frames at 60 fps, gpu init 77.4 ms, first frame 55.23 ms, frame cpu mean 3.475 ms p50 2.293 p95 5.494 max 140.203, 349 instances
+rune: animating frames 178 (cpu p50 3.569 p95 7.115 ms), at-rest frames 176 (the window draws none; forced cpu p50 1.837 p95 2.679 ms), layout nodes 122, glyphs 290
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-unreadable.json: active mode mode-kanban
+rune: `init` blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-2" blocked 25 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/kanban-page/#0/kanban-open-markdown" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 421 frames at 60 fps, gpu init 78.4 ms, first frame 54.92 ms, frame cpu mean 3.769 ms p50 2.567 p95 6.997 max 132.232, 449 instances
+rune: animating frames 225 (cpu p50 3.980 p95 8.662 ms), at-rest frames 195 (the window draws none; forced cpu p50 1.875 p95 2.607 ms), layout nodes 149, glyphs 385
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-write.json: active mode mode-editor
+ok empty: No kanban open
+ok readonly: lanes ['Backlog', 'Doing', 'Review', 'Done'], counts ['1', '2/3', '1', '1'], over [], complete []
+ok wip-over: lanes ['Ideas', 'Doing', 'Shipped'], counts ['1', '3/2', '1'], over [1], complete [2]
+ok unreadable: message and Open as markdown
+ok write: Torn open in Write
+./Agenda.md: OK
+./Overloaded.md: OK
+./Release.md: OK
+./Torn.md: OK
+ok every file unchanged after the headless kanban runs
+rune: `init` blocked 28 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 31 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 169 frames at 60 fps, gpu init 79.4 ms, first frame 50.59 ms, frame cpu mean 3.379 ms p50 1.492 p95 6.865 max 147.331, 214 instances
+rune: animating frames 70 (cpu p50 3.595 p95 9.086 ms), at-rest frames 98 (the window draws none; forced cpu p50 1.437 p95 2.491 ms), layout nodes 115, glyphs 162
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/kanban-links.json: active mode mode-kanban
+[[Agenda]] ink (118, 133, 173), [[Nowhere]] ink (103, 103, 103)
+ok a card's link to no note is dimmed, one to a note is the accent

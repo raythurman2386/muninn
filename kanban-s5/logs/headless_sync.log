@@ -1,0 +1,36 @@
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 26 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 136 frames at 60 fps, gpu init 81.1 ms, first frame 63.26 ms, frame cpu mean 5.044 ms p50 2.488 p95 12.604 max 147.747, 424 instances
+rune: animating frames 78 (cpu p50 4.002 p95 15.123 ms), at-rest frames 57 (the window draws none; forced cpu p50 1.802 p95 2.822 ms), layout nodes 91, glyphs 239
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/sync-before.json: board-surface-title says 'Tools'
+ok wrote /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/sync/sync.json: 11 events, zoom 1.0000
+rune: `init` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 22 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 18 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 238 frames at 60 fps, gpu init 79.5 ms, first frame 62.97 ms, frame cpu mean 3.841 ms p50 2.002 p95 10.284 max 134.213, 445 instances
+rune: animating frames 163 (cpu p50 2.400 p95 11.143 ms), at-rest frames 74 (the window draws none; forced cpu p50 1.799 p95 2.551 ms), layout nodes 95, glyphs 258
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/sync-typed.json: board-save-state says 'Unsaved · ⌘S saves'
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/s5-wt/crates/muninn-core/tests/fixtures/board/draw.excalidraw
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 21 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 406 frames at 60 fps, gpu init 80.9 ms, first frame 63.59 ms, frame cpu mean 3.157 ms p50 1.883 p95 6.592 max 139.382, 433 instances
+rune: animating frames 177 (cpu p50 2.404 p95 10.821 ms), at-rest frames 228 (the window draws none; forced cpu p50 1.807 p95 2.684 ms), layout nodes 95, glyphs 248
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/sync-autosaved.json: board-save-state says 'Saved'
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/vault/Tools.excalidraw: 5 elements kept exactly, 'auto' appended
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4899 bytes written
+ok negative control fails: the original file as the autosave (FAIL 5 elements, expected 5 + 1)
+ok negative control fails: Saved on the typed tree (FAIL /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/sync-typed.json: board-save-state does not say 'Saved')
+rune: `init` blocked 9 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 421 frames at 60 fps, gpu init 79.2 ms, first frame 62.29 ms, frame cpu mean 3.068 ms p50 1.873 p95 6.471 max 137.282, 443 instances
+rune: animating frames 177 (cpu p50 2.287 p95 10.898 ms), at-rest frames 243 (the window draws none; forced cpu p50 1.812 p95 2.764 ms), layout nodes 95, glyphs 258
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/trees/sync-off.json: board-save-state says 'Unsaved · ⌘S saves'
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/s5-wt/crates/muninn-core/tests/fixtures/board/draw.excalidraw
+ok with board_autosave off the file is untouched

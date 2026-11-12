@@ -1,0 +1,24 @@
+Xvfb on :90, vulkan icd /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 718,498 in 0x200002 (button 1 x1)
+ok clicked 33,29 in 0x200002 (button 1 x1)
+ok pressed ctrl+backslash on 0x200002
+ok pressed ctrl+3 on 0x200002
+ok pressed ctrl+k on 0x200002
+ok pressed ctrl+4 on 0x200002
+ok pressed r on 0x200002
+ok dragged 584,459 by 120,80 in 0x200002
+ok pressed v on 0x200002
+ok pressed ctrl+s on 0x200002
+ok R drew a rectangle after leaving search for Board
+ok sent WM_DELETE_WINDOW to 0x200002
+ok /home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/empty-vault/Ideas/Untitled board.excalidraw: 1 elements (1 modelled, 0 kept raw), 0 files, 837 bytes written
+/home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/empty-vault:
+Ideas
+Start.md
+
+/home/ret/Development/muninn-kanban/target/s5-wt/target/ui-smoke/work/empty-vault/Ideas:
+Idea.md
+Untitled board.excalidraw
+ok New board under X11 made and opened Untitled board; the sidebar toggled by button and Ctrl+\
