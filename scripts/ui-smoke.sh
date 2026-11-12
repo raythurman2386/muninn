@@ -236,6 +236,22 @@
 #                   Ctrl+K, Ctrl+Shift+P, "overloaded", Down, Enter opens the Overloaded
 #                   kanban in Kanban mode, and Esc leaves it (the page had the keyboard,
 #                   not the search field). Every file's sha256 unchanged, exit 0
+#   headless_kanban_edit  slice 4, offscreen on its own vault (edit-board.md as Board.md):
+#                   + Add card, Edit from the card menu (multibyte text, Shift+Enter, a
+#                   second line), Duplicate, Insert card before/after, Split card, Delete,
+#                   the checkbox, a card added in the Done lane (born done), Mark all cards
+#                   done, Cmd+Z, Cmd+Shift+Z; each lane checked from the trees
+#                   (kanban-card-new.png, kanban-card-editing.png, kanban-card-split.png,
+#                   kanban-undo.png); Board.md byte-identical before Cmd+S, equal to
+#                   ui-smoke/kanban-edit-saved.md after it (kanban-saved.png), and undo
+#                   back to the start + Cmd+S writes the fixture's bytes again
+#   x11_kanban_edit  windowed (`--new-instance`) on the private Xvfb with lavapipe: from
+#                   Write, Ctrl+K, "board", Enter opens the Board kanban in Kanban mode
+#                   (kanban-cmdk.png, settings.json says kanban / Board.md) with the
+#                   keyboard on the page (Esc leaves it; Ctrl+5 returns); + Add card,
+#                   type, Enter, the card menu, Edit, type, Enter: file unchanged; Ctrl+S:
+#                   Board.md equals ui-smoke/kanban-edit-x11.md (kanban-saved-x11.png);
+#                   close through WM_DELETE_WINDOW (exit 0), bytes still the saved ones
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -254,7 +270,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -1589,7 +1605,7 @@ empty_vault="$work/empty-vault"
 empty_run() { # empty_run NAME SCRIPT MARK
   export XDG_CONFIG_HOME="$work/config-new-$1" XDG_STATE_HOME="$work/state-new-$1"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
-  "$bin" --vault "$empty_vault" --script "$2" --at "mark:$3+0.4" --scale 1 \
+  "$bin" --vault "$empty_vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
     --snap "$out/screens/new-$1.png" --tree "$out/trees/new-$1.json"
 }
 
@@ -2416,7 +2432,7 @@ seed_kanban_new_vault() {
 kanban_new_run() { # kanban_new_run NAME SCRIPT MARK: a fresh launch on the slice 3 vault, to MARK
   export XDG_CONFIG_HOME="$work/config-kanban-new-$1" XDG_STATE_HOME="$work/state-kanban-new-$1"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
-  "$bin" --vault "$kanban_new_vault" --script "$2" --at "mark:$3+0.4" --scale 1 \
+  "$bin" --vault "$kanban_new_vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
     --snap "$out/screens/kanban-new-$1.png" --tree "$out/trees/kanban-new-$1.json"
 }
 
@@ -2734,6 +2750,231 @@ PY
   [ "$status" = 0 ] || return 1
   (cd "$v" && sha256sum -c "$work/kanban-open.sha256") || { echo "a kanban file changed"; return 1; }
   echo "ok every kanban file unchanged"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+# Slice 4: card edits on edit-board.md. Each run starts from the fixture's bytes,
+# with its own settings, and stops at its mark (before the script's later keys).
+kanban_edit_run() { # kanban_edit_run VAULT SCRIPT MARK [SHOT]
+  cp "$kanban_fixtures/edit-board.md" "$1/Board.md"
+  export XDG_CONFIG_HOME="$work/config-kanban-edit-$3" XDG_STATE_HOME="$work/state-kanban-edit-$3"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --vault "$1" --script "$2" --at "mark:$3+0.25" --scale 1 \
+    ${4:+--snap "$out/screens/$4.png"} --tree "$out/trees/kanban-edit-$3.json"
+}
+
+kanban_cards() { # kanban_cards TREE LANE "Open: A|Done: B|...": the lane's cards, in order
+  python3 - "$@" <<'PY'
+import json, re, sys, unicodedata
+path, lane, want = sys.argv[1], sys.argv[2], sys.argv[3].split("|") if sys.argv[3] else []
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from walk(v)
+tree = json.load(open(path))
+card = re.compile(rf"kanban-card-{lane}-(\d+)$")
+got = {}
+for n in walk(tree.get("accessibility")):
+    m = card.match(str(n.get("key") or ""))
+    if m:
+        got[int(m.group(1))] = unicodedata.normalize("NFC", n.get("name") or "")
+got = [got[i] for i in sorted(got)]
+want = [unicodedata.normalize("NFC", w) for w in want]
+if got != want:
+    raise SystemExit(f"{path}: lane {lane} is {got}, not {want}")
+print(f"ok {path}: lane {lane} {got}")
+PY
+}
+
+step_headless_kanban_edit() {
+  isolate
+  kanban_gpu
+  local v="$work/kanban-edit-vault" t="$out/trees" m="$work/kanban-edit" original="$kanban_fixtures/edit-board.md"
+  rm -rf "$v" "$m"; mkdir -p "$v" "$m"
+  printf '# Roadmap\n\nThe plan the cards link to.\n' >"$v/Roadmap.md"
+  printf '{"events":[{"t":0.8,"type":"mark","name":"list"}]}' >"$m/list.json"
+  kanban_edit_run "$v" "$m/list.json" list || return 1
+  local board
+  board="$(kanban_row_ids "$t/kanban-edit-list.json" Board)"
+  [ -n "$board" ] || { echo "no Board row"; return 1; }
+  sed "s/@BOARD@/$board/" "$root/scripts/ui-smoke/kanban-edit.json" >"$m/edit.json"
+  local pair mark shot
+  for pair in open: card-new:kanban-card-new edited: card-editing:kanban-card-editing duplicated: \
+    inserted-before: inserted-after: card-split:kanban-card-split deleted: toggled: born-done: \
+    all-done: undo:kanban-undo redo: start:; do
+    mark="${pair%%:*}" shot="${pair#*:}"
+    kanban_edit_run "$v" "$m/edit.json" "$mark" "$shot" || return 1
+    python3 "$harness" tree-mode "$t/kanban-edit-$mark.json" kanban || return 1
+  done
+  local todo="Open: Write the release notes|Open: Review [[Roadmap]]"
+  local split="Open: First|Open: Second|Open: Write the release notes|Open: Write the release notes|Open: Review [[Roadmap]]|Open: with the team|Open: Plan the demo 漢字 🎉 é"
+  local after="Open: First|Open: Write the release notes|Open: Write the release notes|Open: Review [[Roadmap]]|Open: with the team|Open: Plan the demo 漢字 🎉 é"
+  local c="kanban_cards $t/kanban-edit"
+  $c-open.json 0 "$todo" && $c-open.json 2 "Done: Ship 0.7.1|Open: Tag the release" &&
+    $c-card-new.json 0 "$todo|Open: Plan the demo" &&
+    $c-edited.json 0 "$todo|Open: Plan the demo 漢字 🎉 é" &&
+    $c-duplicated.json 0 "Open: Write the release notes|$todo|Open: Plan the demo 漢字 🎉 é" &&
+    $c-inserted-before.json 0 "Open: First|Open: Write the release notes|$todo|Open: Plan the demo 漢字 🎉 é" &&
+    $c-inserted-after.json 0 "Open: First|Open: Second|Open: Write the release notes|$todo|Open: Plan the demo 漢字 🎉 é" &&
+    $c-card-split.json 0 "$split" && $c-deleted.json 0 "$after" &&
+    $c-deleted.json 1 "Open: Fix the sync bug" && $c-toggled.json 1 "Done: Fix the sync bug" &&
+    $c-born-done.json 2 "Done: Ship 0.7.1|Open: Tag the release|Done: Write the notes" &&
+    $c-all-done.json 2 "Done: Ship 0.7.1|Done: Tag the release|Done: Write the notes" &&
+    $c-undo.json 2 "Done: Ship 0.7.1|Open: Tag the release|Done: Write the notes" &&
+    $c-redo.json 2 "Done: Ship 0.7.1|Done: Tag the release|Done: Write the notes" &&
+    $c-redo.json 0 "$after" && $c-start.json 0 "$todo" &&
+    $c-start.json 2 "Done: Ship 0.7.1|Open: Tag the release" || return 1
+  python3 - "$t/kanban-edit-card-editing.json" <<'PY' || return 1
+import json, sys
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from walk(v)
+values = [n.get("value") for n in walk(json.load(open(sys.argv[1])).get("accessibility"))
+          if n.get("role") == "multiline-text-input" and n.get("name") == "Card text"]
+want = "Plan the demo \u6f22\u5b57 \U0001f389 e\u0301\nsecond line"
+if values != [want]:
+    raise SystemExit(f"the card editor holds {values!r}, not {want!r}")
+print(f"ok the card editor holds {want!r} (Shift+Enter made the line break)")
+PY
+  python3 "$harness" tree-text "$t/kanban-edit-redo.json" kanban-status Unsaved || return 1
+  python3 -c 'import json,sys; s=[e.get("text") for e in json.load(open(sys.argv[1]))["elements"] if e.get("key")=="kanban-status"]; assert s==[""], s; print("ok no unsaved indicator on open")' \
+    "$t/kanban-edit-open.json" || return 1
+  # After the save, undoing back to the start differs from the file on disk again.
+  python3 "$harness" tree-text "$t/kanban-edit-start.json" kanban-status Unsaved || return 1
+  # Nothing is written before Cmd+S: the run to "presave" leaves the fixture's bytes.
+  kanban_edit_run "$v" "$m/edit.json" presave || return 1
+  cmp "$v/Board.md" "$original" || { echo "Board.md changed before Cmd+S"; return 1; }
+  echo "ok sha256 before Cmd+S: $(sha256sum <"$v/Board.md" | cut -d' ' -f1) (the fixture's)"
+  # Cmd+S writes every edit, byte for byte.
+  kanban_edit_run "$v" "$m/edit.json" saved kanban-saved || return 1
+  python3 "$harness" tree-text "$t/kanban-edit-saved.json" kanban-status Saved || return 1
+  cp "$v/Board.md" "$out/logs/kanban-edit-saved.md"
+  cmp "$v/Board.md" "$root/scripts/ui-smoke/kanban-edit-saved.md" || { diff "$root/scripts/ui-smoke/kanban-edit-saved.md" "$v/Board.md"; return 1; }
+  echo "ok Board.md after Cmd+S is kanban-edit-saved.md byte for byte"
+  # Undo back to the start and Cmd+S: the original bytes again.
+  kanban_edit_run "$v" "$m/edit.json" restored || return 1
+  cmp "$v/Board.md" "$original" || { diff "$original" "$v/Board.md"; return 1; }
+  echo "ok undo to the start + Cmd+S restores the fixture's bytes"
+}
+
+step_x11_kanban_edit() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd" WGPU_BACKEND=vulkan
+  echo "vulkan icd: $icd"
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  local v="$work/kanban-edit-x11-vault" t="$out/trees" m="$work/kanban-edit-x11"
+  rm -rf "$v" "$m"; mkdir -p "$v" "$m"
+  printf '# Agenda\n\nA plain note.\n' >"$v/Agenda.md"
+  printf '# Roadmap\n\nThe plan the cards link to.\n' >"$v/Roadmap.md"
+  cp "$kanban_fixtures/edit-board.md" "$v/Board.md"
+  # Where to click, from a headless run of the same steps in the same 1180x780 window:
+  # Write, Cmd+K, "board", Enter (a kanban picked from the note search opens in
+  # Kanban mode), + Add card, the new card's menu, Edit.
+  cat >"$m/steps.json" <<'JSON'
+{"events":[
+  {"t":0.6,"type":"key","name":"1","cmd":true},
+  {"t":1.0,"type":"key","name":"k","cmd":true},
+  {"t":1.4,"type":"type","text":"board"},
+  {"t":2.0,"type":"key","name":"Enter"},
+  {"t":2.6,"type":"mark","name":"cmdk"},
+  {"t":3.0,"type":"tap","key":"kanban-lane-0-add"},
+  {"t":3.4,"type":"type","text":"Plan the demo"},
+  {"t":4.2,"type":"key","name":"Enter"},
+  {"t":4.6,"type":"mark","name":"added"},
+  {"t":5.0,"type":"tap","key":"kanban-card-0-2-menu"},
+  {"t":5.6,"type":"mark","name":"menu"}
+]}
+JSON
+  local mark
+  for mark in cmdk added menu; do
+    export XDG_CONFIG_HOME="$work/config-kanban-edit-x11-$mark"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+    "$bin" --vault "$v" --script "$m/steps.json" --at "mark:$mark+0.4" --scale 1 \
+      --snap "$out/screens/kanban-edit-headless-$mark.png" --tree "$t/kanban-edit-x11-$mark.json" || return 1
+    python3 "$harness" tree-mode "$t/kanban-edit-x11-$mark.json" kanban || return 1
+  done
+  python3 "$harness" tree-text "$t/kanban-edit-x11-cmdk.json" kanban-title Board || return 1
+  cmp "$v/Board.md" "$kanban_fixtures/edit-board.md" || { echo "a headless run wrote Board.md"; return 1; }
+  local add_xy menu_xy edit_xy
+  add_xy="$(python3 "$harness" tree-center "$t/kanban-edit-x11-cmdk.json" kanban-lane-0-add)" || return 1
+  menu_xy="$(python3 "$harness" tree-center "$t/kanban-edit-x11-added.json" kanban-card-0-2-menu)" || return 1
+  edit_xy="$(python3 "$harness" tree-center "$t/kanban-edit-x11-menu.json" menu-edit)" || return 1
+
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n i
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-edit.log" 2>&1 &
+  xvfb_pid=$!
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY"
+  export XDG_CONFIG_HOME="$work/config-x11-kanban-edit" XDG_STATE_HOME="$work/state-x11-kanban-edit"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  local settings="$XDG_CONFIG_HOME/muninn/settings.json"
+  "$bin" --new-instance --vault "$v" >>"$out/logs/x11-kanban-edit-app.log" 2>&1 &
+  app_pid=$!
+  local wid pause
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  pause="$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  sleep 2
+  # 1. Write, then Ctrl+K, "board", Enter: the kanban opens in Kanban mode, with the
+  #    keyboard on the page (Esc would leave it; here Ctrl+S must reach it).
+  python3 "$harness" x11-chord "$wid" ctrl+1 && sleep 0.5 || return 1
+  python3 "$harness" settings-mode "$settings" editor || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+k && sleep 0.5 || return 1
+  python3 "$harness" x11-type "$wid" board && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" enter && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-cmdk.png" || return 1
+  python3 "$harness" settings-mode "$settings" kanban || return 1
+  python3 -c 'import json,sys; v=json.load(open(sys.argv[1])); assert v.get("kanban")=="Board.md", v.get("kanban"); print("saved kanban", v.get("kanban"))' "$settings" || return 1
+  #    Esc leaves the page (had the search field kept the keyboard, Esc would only
+  #    have let go of it), and Ctrl+5 comes back to the same kanban.
+  python3 "$harness" x11-chord "$wid" esc && sleep "$pause" || return 1
+  python3 "$harness" settings-mode "$settings" editor || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+5 && sleep "$pause" || return 1
+  python3 "$harness" settings-mode "$settings" kanban || return 1
+  # 2. + Add card, type, Enter; its menu, Edit, type, Enter; Ctrl+S.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $add_xy && sleep 0.5 || return 1
+  python3 "$harness" x11-type "$wid" "Plan the demo" && python3 "$harness" x11-chord "$wid" enter && sleep 0.5 || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $menu_xy && sleep "$pause" || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $edit_xy && sleep 0.5 || return 1
+  python3 "$harness" x11-type "$wid" " edited" && sleep 0.3 || return 1
+  import -window "$wid" "$out/screens/kanban-card-editing-x11.png" || return 1
+  python3 "$harness" x11-chord "$wid" enter && sleep 0.5 || return 1
+  cmp "$v/Board.md" "$kanban_fixtures/edit-board.md" || { echo "Board.md written before Ctrl+S"; return 1; }
+  echo "ok Board.md unchanged before Ctrl+S"
+  python3 "$harness" x11-chord "$wid" ctrl+s && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-saved-x11.png" || return 1
+  cp "$v/Board.md" "$out/logs/x11-kanban-edit-saved.md"
+  cmp "$v/Board.md" "$root/scripts/ui-smoke/kanban-edit-x11.md" || { diff "$root/scripts/ui-smoke/kanban-edit-x11.md" "$v/Board.md"; return 1; }
+  echo "ok Board.md after Ctrl+S is kanban-edit-x11.md byte for byte"
+  python3 "$harness" x11-close "$wid" || return 1
+  local status=124
+  for i in $(seq 100); do
+    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+    sleep 0.1
+  done
+  app_pid=
+  echo "app exit status: $status"
+  [ "$status" = 0 ] || return 1
+  cmp "$v/Board.md" "$root/scripts/ui-smoke/kanban-edit-x11.md" || { echo "closing changed Board.md"; return 1; }
+  echo "ok closing left the saved bytes"
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 

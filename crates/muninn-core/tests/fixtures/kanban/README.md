@@ -21,6 +21,7 @@ A provenance line inside a `.md` fixture would sit in front of the frontmatter a
 | `card-text.md` | Hand-written from `docs/kanban-format.md`: wikilinks, an embed, dates, a time, a tag and an inline field. |
 | `crlf.md` | Hand-written from `docs/kanban-format.md`: CRLF line endings. |
 | `done-lane.md` | Hand-written from `docs/kanban-format.md`: a done lane. |
+| `edit-board.md` | Hand-written from `docs/kanban-format.md`: lanes with a multi-line card, a block id, a paragraph between lanes, a lane limit and a done lane, for editing (slice 4). |
 | `fence-column0-card.md` | Hand-written from `docs/kanban-format.md`: an indented fence still open when a column-0 fence line appears. |
 | `fence-longer-close.md` | Hand-written from `docs/kanban-format.md`: a fence closed by a longer run of the same mark, then another lane. |
 | `fence-opaque.md` | Hand-written from `docs/kanban-format.md`: fenced code that looks like lanes, cards and a settings footer. |

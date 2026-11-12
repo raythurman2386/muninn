@@ -1597,6 +1597,29 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             ("Delete", "delete"),
         ],
         MenuTarget::Board(..) => vec![("Rename", "rename")],
+        MenuTarget::Card(lane, index) => {
+            let mut items = vec![
+                ("Edit", "edit"),
+                ("Insert card before", "insert_before"),
+                ("Insert card after", "insert_after"),
+                ("Duplicate", "duplicate"),
+            ];
+            let multi_line = s
+                .kanban
+                .as_ref()
+                .and_then(|shown| shown.board.as_ref())
+                .and_then(|board| board.lanes().get(*lane)?.cards().get(*index))
+                .is_some_and(|card| card.text().contains('\n'));
+            if multi_line {
+                items.push(("Split card", "split"));
+            }
+            items.push(("Delete", "delete"));
+            items
+        }
+        MenuTarget::Lane(_) => vec![
+            ("Add card", "add_card"),
+            ("Mark all cards done", "mark_done"),
+        ],
     };
     let mut col_menu = col()
         .key("context-menu")
