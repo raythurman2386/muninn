@@ -39,17 +39,17 @@ skipped: 0
 card-text.md -> 2026-11-11.md
 card-text.md -> Roadmap.md
 spec-example.md -> Roadmap.md
-rune: 67 frames at 60 fps, gpu init 92.2 ms, first frame 81.31 ms, frame cpu mean 4.735 ms p50 4.437 p95 6.063 max 81.307, 537 instances
-rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 4.437 p95 6.049 ms), layout nodes 263, glyphs 474
+rune: 67 frames at 60 fps, gpu init 97.3 ms, first frame 82.61 ms, frame cpu mean 3.891 ms p50 3.387 p95 5.362 max 82.606, 537 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 3.387 p95 5.126 ms), layout nodes 263, glyphs 474
 card-text id 9, Roadmap id 27
-rune: 97 frames at 60 fps, gpu init 94.2 ms, first frame 82.77 ms, frame cpu mean 7.022 ms p50 4.976 p95 9.011 max 170.231, 709 instances
-rune: animating frames 42 (cpu p50 5.418 p95 9.011 ms), at-rest frames 54 (the window draws none; forced cpu p50 4.546 p95 6.471 ms), layout nodes 266, glyphs 645
+rune: 97 frames at 60 fps, gpu init 93.1 ms, first frame 80.66 ms, frame cpu mean 6.157 ms p50 4.031 p95 8.290 max 168.826, 709 instances
+rune: animating frames 42 (cpu p50 4.358 p95 8.740 ms), at-rest frames 54 (the window draws none; forced cpu p50 3.663 p95 5.347 ms), layout nodes 266, glyphs 645
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-write.json: active mode mode-editor
-rune: 181 frames at 60 fps, gpu init 93.0 ms, first frame 81.18 ms, frame cpu mean 7.461 ms p50 5.112 p95 14.663 max 169.141, 679 instances
-rune: animating frames 84 (cpu p50 8.665 p95 15.173 ms), at-rest frames 96 (the window draws none; forced cpu p50 4.502 p95 5.975 ms), layout nodes 296, glyphs 607
+rune: 181 frames at 60 fps, gpu init 92.9 ms, first frame 81.95 ms, frame cpu mean 6.324 ms p50 4.139 p95 11.555 max 169.054, 679 instances
+rune: animating frames 84 (cpu p50 6.654 p95 14.119 ms), at-rest frames 96 (the window draws none; forced cpu p50 3.679 p95 5.502 ms), layout nodes 296, glyphs 607
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-read.json: active mode mode-preview
-rune: 289 frames at 60 fps, gpu init 94.4 ms, first frame 81.33 ms, frame cpu mean 6.847 ms p50 5.322 p95 12.749 max 170.765, 600 instances
-rune: animating frames 131 (cpu p50 6.860 p95 14.130 ms), at-rest frames 157 (the window draws none; forced cpu p50 4.631 p95 6.589 ms), layout nodes 271, glyphs 538
+rune: 289 frames at 60 fps, gpu init 98.9 ms, first frame 81.12 ms, frame cpu mean 5.644 ms p50 4.200 p95 9.604 max 172.354, 600 instances
+rune: animating frames 131 (cpu p50 5.688 p95 10.937 ms), at-rest frames 157 (the window draws none; forced cpu p50 3.901 p95 5.459 ms), layout nodes 271, glyphs 538
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-backlinks.json: active mode mode-preview
 ok write tree has 'card-text'
 ok write tree has 'kanban-plugin'

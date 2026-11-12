@@ -1,25 +1,25 @@
 ok /agent/repos/muninn/target/ui-smoke/work/safety/search.json: Cmd+\ at 0.50 s
-rune: 136 frames at 60 fps, gpu init 94.5 ms, first frame 63.44 ms, frame cpu mean 8.950 ms p50 5.515 p95 23.102 max 158.997, 566 instances
-rune: animating frames 78 (cpu p50 9.107 p95 24.570 ms), at-rest frames 57 (the window draws none; forced cpu p50 4.116 p95 5.582 ms), layout nodes 147, glyphs 345
-rune: 220 frames at 60 fps, gpu init 100.0 ms, first frame 66.82 ms, frame cpu mean 7.148 ms p50 4.784 p95 15.905 max 163.422, 513 instances
-rune: animating frames 84 (cpu p50 7.786 p95 29.931 ms), at-rest frames 135 (the window draws none; forced cpu p50 4.161 p95 5.619 ms), layout nodes 117, glyphs 310
+rune: 136 frames at 60 fps, gpu init 92.5 ms, first frame 63.50 ms, frame cpu mean 8.861 ms p50 5.627 p95 22.953 max 158.647, 566 instances
+rune: animating frames 78 (cpu p50 8.589 p95 30.345 ms), at-rest frames 57 (the window draws none; forced cpu p50 4.352 p95 5.706 ms), layout nodes 147, glyphs 345
+rune: 220 frames at 60 fps, gpu init 93.6 ms, first frame 64.16 ms, frame cpu mean 7.114 ms p50 4.666 p95 15.011 max 158.387, 513 instances
+rune: animating frames 84 (cpu p50 7.898 p95 31.965 ms), at-rest frames 135 (the window draws none; forced cpu p50 4.131 p95 5.705 ms), layout nodes 117, glyphs 310
 ok /agent/repos/muninn/target/ui-smoke/trees/safety-search-typed.json: search says 'road1x+0'
 ok the canvas matches (0 pixels differ)
 ok negative control fails: the search text before typing (FAIL /agent/repos/muninn/target/ui-smoke/trees/safety-search-before.json: search does not say 'road1x+0')
 ok seeded a recovery copy for Tools.excalidraw: 6 elements
-rune: 76 frames at 60 fps, gpu init 93.8 ms, first frame 65.47 ms, frame cpu mean 3.761 ms p50 3.672 p95 4.578 max 65.466, 463 instances
-rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 75 (the window draws none; forced cpu p50 3.438 p95 4.452 ms), layout nodes 145, glyphs 404
+rune: 76 frames at 60 fps, gpu init 93.0 ms, first frame 65.95 ms, frame cpu mean 3.831 ms p50 3.717 p95 4.726 max 65.948, 463 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 75 (the window draws none; forced cpu p50 3.715 p95 4.622 ms), layout nodes 145, glyphs 404
 ok safety-banner.json: recovery-banner says 'Recovered unsaved edits for 1 board'
 ok safety-banner.json: recovery-banner says 'Tools.excalidraw'
-rune: 184 frames at 60 fps, gpu init 91.9 ms, first frame 65.00 ms, frame cpu mean 7.120 ms p50 4.155 p95 16.920 max 161.675, 437 instances
-rune: animating frames 48 (cpu p50 10.309 p95 38.163 ms), at-rest frames 135 (the window draws none; forced cpu p50 4.071 p95 4.904 ms), layout nodes 95, glyphs 247
+rune: 184 frames at 60 fps, gpu init 93.8 ms, first frame 66.16 ms, frame cpu mean 7.250 ms p50 4.194 p95 18.510 max 161.786, 437 instances
+rune: animating frames 48 (cpu p50 10.541 p95 37.031 ms), at-rest frames 135 (the window draws none; forced cpu p50 4.085 p95 4.890 ms), layout nodes 95, glyphs 247
 ok /agent/repos/muninn/target/ui-smoke/trees/safety-restored.json: active mode mode-board
 ok safety-restored.json: board-conflict says 'Removed or renamed on disk'
 ok /agent/repos/muninn/target/ui-smoke/trees/safety-restored.json: board-save-state says 'Unsaved · ⌘S saves'
 ok the recovered rectangle is drawn at the fit (7344/7344 px, zoom 1.000)
 ok restoring did not write the board
-rune: 256 frames at 60 fps, gpu init 92.7 ms, first frame 64.85 ms, frame cpu mean 6.300 ms p50 4.243 p95 15.581 max 162.064, 428 instances
-rune: animating frames 95 (cpu p50 5.693 p95 25.716 ms), at-rest frames 160 (the window draws none; forced cpu p50 4.081 p95 4.994 ms), layout nodes 89, glyphs 238
+rune: 256 frames at 60 fps, gpu init 100.0 ms, first frame 67.68 ms, frame cpu mean 6.735 ms p50 4.401 p95 17.213 max 177.951, 428 instances
+rune: animating frames 95 (cpu p50 5.639 p95 29.798 ms), at-rest frames 160 (the window draws none; forced cpu p50 4.238 p95 5.095 ms), layout nodes 89, glyphs 238
 ok Tools.excalidraw: 6 elements, with recovered-rect
 ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4610 bytes written
 ok no recovery copy for Tools.excalidraw
@@ -29,16 +29,16 @@ ok negative control fails: the drawing on the banner shot (FAIL the recovered re
 ok negative control fails: the rectangle as absent on the restored shot (FAIL the recovered rectangle is drawn (7344/7344 px) but should not be)
 ok negative control fails: the fixture as the kept file (FAIL /agent/repos/muninn/crates/muninn-core/tests/fixtures/board/draw.excalidraw: 5 elements, want 6)
 ok seeded a recovery copy for Tools.excalidraw: 6 elements
-rune: 256 frames at 60 fps, gpu init 91.4 ms, first frame 64.94 ms, frame cpu mean 6.379 ms p50 4.297 p95 15.259 max 160.635, 503 instances
-rune: animating frames 95 (cpu p50 5.393 p95 29.570 ms), at-rest frames 160 (the window draws none; forced cpu p50 4.134 p95 5.118 ms), layout nodes 89, glyphs 313
-ok Tools (conflict 20261112-050535).excalidraw: 6 elements, with recovered-rect
+rune: 256 frames at 60 fps, gpu init 97.4 ms, first frame 67.20 ms, frame cpu mean 6.644 ms p50 4.420 p95 14.264 max 167.144, 503 instances
+rune: animating frames 95 (cpu p50 5.423 p95 28.972 ms), at-rest frames 160 (the window draws none; forced cpu p50 4.228 p95 5.324 ms), layout nodes 89, glyphs 313
+ok Tools (conflict 20261112-055254).excalidraw: 6 elements, with recovered-rect
 ok no recovery copy for Tools.excalidraw
 ok seeded a recovery copy for Tools.excalidraw: 6 elements
-rune: 184 frames at 60 fps, gpu init 93.3 ms, first frame 67.15 ms, frame cpu mean 7.035 ms p50 4.163 p95 17.390 max 161.993, 490 instances
-rune: animating frames 48 (cpu p50 10.340 p95 36.034 ms), at-rest frames 135 (the window draws none; forced cpu p50 4.071 p95 4.777 ms), layout nodes 98, glyphs 299
+rune: 184 frames at 60 fps, gpu init 101.7 ms, first frame 69.38 ms, frame cpu mean 7.464 ms p50 4.422 p95 17.368 max 186.298, 490 instances
+rune: animating frames 48 (cpu p50 10.110 p95 39.690 ms), at-rest frames 135 (the window draws none; forced cpu p50 4.200 p95 5.113 ms), layout nodes 98, glyphs 299
 ok safety-changed.json: board-conflict says 'Changed on disk by another app'
-rune: 256 frames at 60 fps, gpu init 91.3 ms, first frame 66.36 ms, frame cpu mean 6.288 ms p50 4.230 p95 14.146 max 162.417, 417 instances
-rune: animating frames 70 (cpu p50 8.834 p95 28.883 ms), at-rest frames 185 (the window draws none; forced cpu p50 4.149 p95 5.121 ms), layout nodes 87, glyphs 233
+rune: 256 frames at 60 fps, gpu init 97.6 ms, first frame 67.57 ms, frame cpu mean 6.409 ms p50 4.346 p95 14.799 max 163.988, 417 instances
+rune: animating frames 70 (cpu p50 9.019 p95 33.010 ms), at-rest frames 185 (the window draws none; forced cpu p50 4.221 p95 5.091 ms), layout nodes 87, glyphs 233
 ok their file is untouched
 ok no recovery copy for Tools.excalidraw
 ok the recovered rectangle is not drawn (0 px)

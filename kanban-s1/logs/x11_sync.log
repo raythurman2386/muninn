@@ -11,7 +11,7 @@ ok clicked 670,395 in 0x200002 (button 1 x1)
 ok typed 'auto' on 0x200002
 ok pressed esc on 0x200002
 ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 5 elements kept exactly, 'auto' appended
-ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4952 bytes written
+ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4951 bytes written
 ok negative control fails: the fixture as the base of the autosave (FAIL element keep-text changed)
 ok sent WM_DELETE_WINDOW to 0x200002
 window 0x200002 'Muninn' 1180x780

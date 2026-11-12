@@ -1,26 +1,26 @@
-rune: 115 frames at 60 fps, gpu init 94.1 ms, first frame 51.40 ms, frame cpu mean 8.167 ms p50 3.786 p95 22.857 max 157.681, 217 instances
-rune: animating frames 42 (cpu p50 9.631 p95 29.078 ms), at-rest frames 72 (the window draws none; forced cpu p50 3.565 p95 4.285 ms), layout nodes 52, glyphs 199
+rune: 115 frames at 60 fps, gpu init 92.8 ms, first frame 51.62 ms, frame cpu mean 8.159 ms p50 3.793 p95 22.817 max 155.769, 217 instances
+rune: animating frames 42 (cpu p50 9.761 p95 30.490 ms), at-rest frames 72 (the window draws none; forced cpu p50 3.541 p95 4.229 ms), layout nodes 52, glyphs 199
 ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: active mode mode-board
 ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: board-new-empty says 'New board'
 ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: board-list-empty says 'No boards in this vault yet'
 ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: board-surface-title says 'No boards yet'
 ok /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: no search-box
 ok entering Board on a vault with no boards wrote nothing
-rune: 175 frames at 60 fps, gpu init 102.8 ms, first frame 53.41 ms, frame cpu mean 7.802 ms p50 4.658 p95 14.936 max 177.310, 256 instances
-rune: animating frames 90 (cpu p50 9.089 p95 20.549 ms), at-rest frames 84 (the window draws none; forced cpu p50 3.849 p95 4.745 ms), layout nodes 81, glyphs 224
+rune: 175 frames at 60 fps, gpu init 93.5 ms, first frame 52.40 ms, frame cpu mean 7.852 ms p50 4.326 p95 19.108 max 155.244, 256 instances
+rune: animating frames 90 (cpu p50 8.613 p95 27.681 ms), at-rest frames 84 (the window draws none; forced cpu p50 3.739 p95 4.377 ms), layout nodes 81, glyphs 224
 ok /agent/repos/muninn/target/ui-smoke/trees/new-created.json: board-surface-title says 'Untitled board'
 ok empty scene /agent/repos/muninn/target/ui-smoke/work/empty-vault/Ideas/Untitled board.excalidraw
 ok /agent/repos/muninn/target/ui-smoke/work/empty-vault/Ideas/Untitled board.excalidraw: 0 elements (0 modelled, 0 kept raw), 0 files, 115 bytes written
 ok negative control fails: the empty-state tree as a created board (FAIL /agent/repos/muninn/target/ui-smoke/trees/new-empty.json: board-surface-title does not say 'Untitled board')
-rune: 175 frames at 60 fps, gpu init 95.8 ms, first frame 54.87 ms, frame cpu mean 7.980 ms p50 4.384 p95 19.824 max 156.502, 282 instances
-rune: animating frames 90 (cpu p50 9.249 p95 27.849 ms), at-rest frames 84 (the window draws none; forced cpu p50 3.881 p95 4.624 ms), layout nodes 84, glyphs 250
+rune: 175 frames at 60 fps, gpu init 103.4 ms, first frame 55.08 ms, frame cpu mean 8.157 ms p50 4.909 p95 18.549 max 170.852, 282 instances
+rune: animating frames 90 (cpu p50 8.951 p95 23.205 ms), at-rest frames 84 (the window draws none; forced cpu p50 3.963 p95 5.167 ms), layout nodes 84, glyphs 250
 ok /agent/repos/muninn/target/ui-smoke/trees/new-second.json: board-surface-title says 'Untitled board 2'
-rune: 85 frames at 60 fps, gpu init 94.3 ms, first frame 55.62 ms, frame cpu mean 10.545 ms p50 4.344 p95 34.413 max 163.430, 261 instances
-rune: animating frames 42 (cpu p50 10.325 p95 35.175 ms), at-rest frames 42 (the window draws none; forced cpu p50 3.515 p95 4.765 ms), layout nodes 57, glyphs 243
-rune: 169 frames at 60 fps, gpu init 93.5 ms, first frame 55.13 ms, frame cpu mean 7.075 ms p50 4.004 p95 16.719 max 164.528, 421 instances
-rune: animating frames 42 (cpu p50 9.955 p95 32.518 ms), at-rest frames 126 (the window draws none; forced cpu p50 3.753 p95 5.005 ms), layout nodes 123, glyphs 365
-rune: 277 frames at 60 fps, gpu init 95.2 ms, first frame 56.22 ms, frame cpu mean 7.866 ms p50 4.308 p95 19.546 max 160.310, 1425 instances
-rune: animating frames 103 (cpu p50 12.323 p95 32.880 ms), at-rest frames 173 (the window draws none; forced cpu p50 3.650 p95 5.029 ms), layout nodes 142, glyphs 335
+rune: 85 frames at 60 fps, gpu init 128.1 ms, first frame 58.51 ms, frame cpu mean 9.785 ms p50 4.305 p95 21.689 max 155.388, 261 instances
+rune: animating frames 42 (cpu p50 10.389 p95 32.845 ms), at-rest frames 42 (the window draws none; forced cpu p50 3.237 p95 4.305 ms), layout nodes 57, glyphs 243
+rune: 169 frames at 60 fps, gpu init 92.7 ms, first frame 54.88 ms, frame cpu mean 7.001 ms p50 4.009 p95 16.216 max 158.930, 421 instances
+rune: animating frames 42 (cpu p50 9.786 p95 33.906 ms), at-rest frames 126 (the window draws none; forced cpu p50 3.796 p95 5.002 ms), layout nodes 123, glyphs 365
+rune: 277 frames at 60 fps, gpu init 93.5 ms, first frame 55.22 ms, frame cpu mean 7.810 ms p50 4.344 p95 20.589 max 156.224, 1425 instances
+rune: animating frames 103 (cpu p50 12.062 p95 30.744 ms), at-rest frames 173 (the window draws none; forced cpu p50 3.779 p95 4.912 ms), layout nodes 142, glyphs 335
 ok /agent/repos/muninn/target/ui-smoke/trees/new-shut.json: no search-box
 129 75
 ok /agent/repos/muninn/target/ui-smoke/trees/new-left.json: active mode mode-graph
