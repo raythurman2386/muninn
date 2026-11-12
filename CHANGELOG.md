@@ -42,7 +42,9 @@ All notable changes to Muninn are documented here. The format is based on
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
-  Sort by text, date or tags, and Delete lane (a lane with cards asks first).
+  Sort by text, date or tags, and Delete lane (a lane with cards asks first;
+  note text in the lane that the board doesn't show stays in the file, or the
+  confirmation says how much goes).
   A card's menu moves it up, down, to the top or bottom of its lane, to the
   previous or next lane, or to a lane picked by name; a click selects a card
   and `Alt+↑/↓`, `Alt+Shift+↑/↓` and `Alt+←/→` move it. A card moved into a

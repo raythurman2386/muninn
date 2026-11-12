@@ -1625,7 +1625,9 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             items.extend(crate::kanban_lanes::lane_items(s, *lane));
             items
         }
-        MenuTarget::DeleteLane(_) => vec![("Delete the lane and its cards", "delete")],
+        MenuTarget::DeleteLane(lane) => {
+            return crate::kanban_lanes::delete_lane_confirm(s, k, *lane);
+        }
         MenuTarget::MoveCard(lane, index) => {
             return crate::kanban_lanes::lane_picker(s, k, *lane, *index);
         }

@@ -23,7 +23,6 @@ A note between lanes.
 ## Later on (2)
 
 **Complete**
-
 - [x] Fix the parser #bug @{2026-11-20}
   with a second line
 

@@ -802,7 +802,9 @@ fn a_longer_closing_fence_ends_the_fence() {
     assert_eq!(kanban.lanes().len(), 2);
     assert_eq!(kanban.lanes()[1].title(), "B");
     assert_eq!(kanban.lanes()[1].cards()[0].text(), "b");
+    // Deleting lane A keeps its fenced note text (spec section 10.3).
     let mut deleted = kanban;
+    assert!(deleted.lane_delete_drops(0).unwrap().is_empty());
     deleted.delete_lane(0).unwrap();
     assert_eq!(
         deleted.source(),
@@ -810,6 +812,10 @@ fn a_longer_closing_fence_ends_the_fence() {
 ---
 kanban-plugin: board
 ---
+
+```
+hidden
+`````
 
 ## B
 
@@ -996,7 +1002,6 @@ kanban-plugin: board
 ## Done
 
 **Complete**
-
 - [ ] a
 	```
 	## X
@@ -1726,5 +1731,148 @@ fn adding_or_deleting_a_lane_keeps_collapse_aligned() {
     assert_eq!(
         board.footer_json(),
         Some("{\"list-collapse\":[false,false,true],\"x\":1}")
+    );
+}
+
+const NOTED: &str = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n\n## Notes\n\nA paragraph the page doesn't show.\n### A sub-heading\n%% a comment %%\n\n\n## Doing\n\n- [ ] b\n- [ ] c\n\nParagraph after Doing's cards.\n\n\n## Done\n\n- [x] d\n";
+
+#[test]
+fn deleting_a_lane_with_only_note_text_keeps_the_text() {
+    let mut board = parse(NOTED);
+    assert!(board.lane_delete_drops(1).unwrap().is_empty());
+    board.delete_lane(1).expect("delete Notes");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n\nA paragraph the page doesn't show.\n### A sub-heading\n%% a comment %%\n\n\n## Doing\n\n- [ ] b\n- [ ] c\n\nParagraph after Doing's cards.\n\n\n## Done\n\n- [x] d\n"
+    );
+    let titles: Vec<&str> = board.lanes().iter().map(Lane::title).collect();
+    assert_eq!(titles, ["To do", "Doing", "Done"]);
+    assert_eq!(board.lanes()[0].cards().len(), 1);
+}
+
+#[test]
+fn deleting_a_lane_with_cards_and_note_text_keeps_the_text() {
+    let mut board = parse(NOTED);
+    assert!(board.lane_delete_drops(2).unwrap().is_empty());
+    board.delete_lane(2).expect("delete Doing");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n\n## Notes\n\nA paragraph the page doesn't show.\n### A sub-heading\n%% a comment %%\n\n\nParagraph after Doing's cards.\n\n\n## Done\n\n- [x] d\n"
+    );
+    // A lane with nothing but cards and blank lines goes whole.
+    let mut plain = parse(NOTED);
+    plain.delete_lane(3).expect("delete Done");
+    assert!(
+        plain
+            .source()
+            .ends_with("Paragraph after Doing's cards.\n\n\n")
+    );
+}
+
+#[test]
+fn note_text_that_would_join_another_lane_goes_with_the_lane_and_is_counted() {
+    // Kept, the indented line would read as a continuation of card `a`.
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n## B\n\n  indented note\nsecond line\n- [ ] b\n";
+    let mut board = parse(source);
+    assert_eq!(
+        board.lane_delete_drops(1).unwrap(),
+        ["indented note", "second line"]
+    );
+    board.delete_lane(1).expect("delete B");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n"
+    );
+    assert_eq!(board.lanes()[0].cards()[0].text(), "a");
+}
+
+#[test]
+fn lane_add_and_delete_are_refused_inside_an_open_fence() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n## B\n\n- [ ] b\n\n```\nnever closed\n";
+    let mut board = parse(source);
+    for result in [
+        board.clone().add_lane(2, "Later", None, false),
+        board.clone().add_lane(0, "First", None, false),
+        board.delete_lane(0),
+        board.delete_lane(1),
+        board.lane_delete_drops(0).map(|_| ()),
+    ] {
+        let error = result.expect_err("refused");
+        assert_eq!(error.kind(), ErrorKind::InvalidData);
+        assert_eq!(
+            error.to_string(),
+            "the note ends inside an unclosed code fence"
+        );
+    }
+    assert_eq!(board.source(), source);
+}
+
+#[test]
+fn a_title_ending_in_a_number_in_brackets_is_refused() {
+    let mut board = parse(LANES);
+    for title in ["Sprint (2)", "Later (0)", "X (2) "] {
+        assert_eq!(
+            board.rename_lane(0, title).expect_err(title).kind(),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            board
+                .add_lane(0, title, None, false)
+                .expect_err(title)
+                .kind(),
+            ErrorKind::InvalidInput
+        );
+    }
+    assert_eq!(board.source(), LANES);
+    // Brackets that are not a limit are fine.
+    board.rename_lane(0, "Sprint (two)").expect("rename");
+    assert_eq!(board.lanes()[0].title(), "Sprint (two)");
+    assert_eq!(board.lanes()[0].limit(), None);
+}
+
+#[test]
+fn a_limit_replaces_trailing_spaces_after_the_title() {
+    let mut board = parse("---\nkanban-plugin: board\n---\n\n## Trail  \n\n- [ ] a\n");
+    board.set_lane_limit(0, Some(99)).expect("limit");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## Trail (99)\n\n- [ ] a\n"
+    );
+    assert_eq!(board.lanes()[0].title(), "Trail");
+}
+
+#[test]
+fn deleting_a_middle_lane_removes_its_own_collapse_entry() {
+    let footer =
+        "%% kanban:settings\n```\n{\"list-collapse\":[false,true,false],\"x\":1}\n```\n%%\n";
+    let mut board = parse(&format!("{LANES}\n{footer}"));
+    board.delete_lane(1).expect("delete Doing");
+    assert_eq!(
+        board.footer_json(),
+        Some("{\"list-collapse\":[false,false],\"x\":1}")
+    );
+    let flags: Vec<bool> = board.lanes().iter().map(Lane::collapsed).collect();
+    assert_eq!(flags, [false, false]);
+}
+
+#[test]
+fn removing_a_marker_that_would_expose_another_is_refused() {
+    // A second marker line under the first would make the lane done again.
+    let source =
+        "---\nkanban-plugin: board\n---\n\n## Done\n\n**Complete**\n**Complete**\n- [x] d\n";
+    let mut board = parse(source);
+    let error = board.set_lane_done(0, false).expect_err("refused");
+    assert_eq!(error.kind(), ErrorKind::InvalidData);
+    assert_eq!(board.source(), source);
+    assert_eq!(board.lanes()[0].done_word(), Some("Complete"));
+}
+
+#[test]
+fn an_appended_lane_ends_like_the_new_kanban_template() {
+    let mut board = parse("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n\n");
+    board.add_lane(1, "Later", None, false).expect("append");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n\n\n## Later\n\n\n"
     );
 }

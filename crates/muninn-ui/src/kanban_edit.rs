@@ -376,6 +376,9 @@ impl State {
         if self.commit_card_edit() == CardCommit::Refused {
             return;
         }
+        // A menu or confirmation names cards and lanes by place, and the
+        // undo can move them: it closes rather than act on another one.
+        self.menu = None;
         let Some(shown) = &mut self.kanban else {
             return;
         };
@@ -411,7 +414,12 @@ impl State {
     pub fn save_kanban(&mut self) -> bool {
         if self.commit_card_edit() == CardCommit::Refused {
             if let Some(shown) = &mut self.kanban {
-                shown.status = BoardStatus::Failed("the card being edited was refused".to_owned());
+                let what = if self.kanban_lane_edit.is_some() {
+                    "the lane being edited was refused"
+                } else {
+                    "the card being edited was refused"
+                };
+                shown.status = BoardStatus::Failed(what.to_owned());
             }
             return false;
         }
