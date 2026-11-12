@@ -88,8 +88,10 @@ pub struct Lane {
 }
 
 /// One task-list card. `text` is the markdown after the checkbox, without the
-/// block id; continuation lines are stored without the shared indent the file
-/// uses for them.
+/// block id. Continuation lines are stored without the indent `render_card`
+/// adds back. A space indent longer than two spaces keeps two of them as that
+/// indent, so the extra spaces stay in the text. A continuation whose leading
+/// whitespace is a different indent keeps that whitespace in the text.
 #[derive(Clone, Debug)]
 pub struct Card {
     text: String,
@@ -97,7 +99,8 @@ pub struct Card {
     block_id: Option<String>,
     span: Range<usize>,
     mark_at: usize,
-    /// Whitespace `render` adds back. Empty when the lines do not share a prefix.
+    /// Whitespace `render_card` adds back onto a continuation that does not
+    /// already carry a different indent.
     indent: Option<String>,
 }
 

@@ -378,10 +378,11 @@ fn is_indented(text: &str) -> bool {
     !text.trim().is_empty() && text.starts_with(char::is_whitespace)
 }
 
-/// The indent `render` adds back. Lines that share a whitespace prefix use
-/// the shortest one, except a single run of more than two spaces keeps two
-/// as the prefix so extra spaces stay in the text. Lines that do not share a
-/// prefix keep their own indent (`Some("")` means "do not add another").
+/// The indent `render_card` adds back. Lines that share a whitespace prefix
+/// use the shortest one, except a run of more than two spaces keeps two as
+/// the prefix so extra spaces stay in the text. Lines that do not share a
+/// prefix use the shortest non-empty lead for a new line; a line with a
+/// different indent keeps that whitespace in the text.
 fn logical_continuations(first: &str, lines: &[&str]) -> (String, Option<String>) {
     let leads: Vec<&str> = lines
         .iter()
@@ -407,11 +408,12 @@ fn structural_indent(leads: &[&str]) -> Option<String> {
     let shortest = leads
         .iter()
         .copied()
+        .filter(|lead| !lead.is_empty())
         .min_by_key(|lead| lead.chars().count())?;
-    if !leads.iter().all(|lead| lead.starts_with(shortest)) {
-        return Some(String::new());
-    }
-    if shortest.chars().all(|ch| ch == ' ') && shortest.len() > 2 {
+    if shortest.chars().all(|ch| ch == ' ')
+        && shortest.len() > 2
+        && leads.iter().all(|lead| lead.starts_with("  "))
+    {
         return Some("  ".to_owned());
     }
     Some(shortest.to_owned())
