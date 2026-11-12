@@ -56,7 +56,7 @@ exits `0` when clean, `1` when there are broken links or duplicate titles, and `
 the path is not a readable vault folder. It never creates a missing folder. `--list-links`
 prints one sorted `referrer -> target` line per wikilink, with unresolved targets
 prefixed `missing:`. `muninn --help` prints this usage without starting Rune, and
-`muninn --version` (or `-V`) prints `muninn <version>`, for example `muninn 0.7.0`.
+`muninn --version` (or `-V`) prints `muninn <version>`, the workspace version from `Cargo.toml`.
 
 ### Settings and vaults
 
