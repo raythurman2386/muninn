@@ -323,7 +323,7 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
         if let Some((marker, run)) = fence {
             // The card ends at the first non-blank column-0 line. That line
             // is not part of the card, even when it would close or open a fence.
-            if !continued.trim().is_empty() && !is_indented(continued) {
+            if !is_blank(continued) && !is_indented(continued) {
                 break;
             }
             raw.push(continued);
@@ -334,11 +334,11 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
             next += 1;
             continue;
         }
-        if continued.trim().is_empty() {
+        if is_blank(continued) {
             // A blank line stays with the card when an indented continuation
             // follows it. Otherwise it ends the card.
             let mut look = next + 1;
-            while look < lines.len() && content(source, &lines[look]).trim().is_empty() {
+            while look < lines.len() && is_blank(content(source, &lines[look])) {
                 look += 1;
             }
             let resumes = look < lines.len() && is_indented(content(source, &lines[look]));
@@ -374,8 +374,13 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
     (card, next)
 }
 
+/// Empty, or spaces and tabs only. Any other whitespace is text.
+fn is_blank(text: &str) -> bool {
+    text.chars().all(|ch| ch == ' ' || ch == '\t')
+}
+
 fn is_indented(text: &str) -> bool {
-    !text.trim().is_empty() && text.starts_with([' ', '\t'])
+    !is_blank(text) && text.starts_with([' ', '\t'])
 }
 
 /// The indent `render_card` adds back. Both sides measure a lead with
@@ -383,14 +388,14 @@ fn is_indented(text: &str) -> bool {
 fn logical_continuations(first: &str, lines: &[&str]) -> (String, Option<String>) {
     let leads: Vec<&str> = lines
         .iter()
-        .filter(|line| !line.trim().is_empty())
+        .filter(|line| !is_blank(line))
         .map(|line| leading_ws(line))
         .collect();
     let indent = structural_indent(&leads);
     let mut text = first.to_owned();
     for line in lines {
         text.push('\n');
-        if line.trim().is_empty() {
+        if is_blank(line) {
             continue;
         }
         text.push_str(match &indent {
