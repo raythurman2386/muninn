@@ -1893,16 +1893,27 @@ def walk(node):
         for value in node:
             yield from walk(value)
 
-def row_id(tree, title):
+def window_height(tree):
+    node = tree.get("accessibility") or tree
+    bounds = node.get("bounds") or [0, 0, 0, 0]
+    return bounds[3]
+
+def row_id(tree, title, on_screen=False):
+    height = window_height(tree)
     for node in walk(tree):
         key = str(node.get("key") or "")
         name = str(node.get("name") or "")
         if key.startswith("note-row-") and (name == title or name.startswith(title + " ")):
+            if on_screen:
+                bounds = node.get("bounds") or [0, 0, 0, 0]
+                y, h = bounds[1], bounds[3]
+                if y < 0 or y + h > height:
+                    raise SystemExit(f"{title} row is outside the window (y={y}, h={h}, window={height})")
             return key.removeprefix("note-row-")
     raise SystemExit(f"no note row titled {title!r}")
 
 tree = json.load(open(sys.argv[1]))
-print(row_id(tree, "card-text"), row_id(tree, "Roadmap"))
+print(row_id(tree, "card-text", True), row_id(tree, "Roadmap"))
 PY
 )"
   echo "card-text id $id, Roadmap id $road"

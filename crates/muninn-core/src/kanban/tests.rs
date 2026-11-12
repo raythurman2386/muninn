@@ -845,6 +845,49 @@ kanban-plugin: board
 }
 
 #[test]
+fn a_column_zero_fence_line_is_not_part_of_the_card() {
+    let source = read_fixture("fence-column0-card.md");
+    let kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert_eq!(kanban.lanes().len(), 1);
+    assert_eq!(kanban.lanes()[0].cards().len(), 1);
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\n```\ncode");
+    assert!(kanban.source().contains("## Still inside\n"));
+    assert!(!kanban.lanes()[0].cards()[0].text().contains("Still"));
+    let mut deleted = kanban;
+    deleted.delete_card(0, 0).unwrap();
+    assert_eq!(
+        deleted.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## A
+
+```
+## Still inside
+
+- [ ] not a card
+"
+    );
+}
+
+#[test]
+fn a_column_zero_task_while_an_indented_fence_is_open_starts_a_new_card() {
+    let source = read_fixture("task-open-fence.md");
+    let kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert_eq!(kanban.lanes().len(), 2);
+    assert_eq!(kanban.lanes()[0].cards().len(), 2);
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\n```\ncode");
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "b");
+    assert_eq!(kanban.lanes()[1].title(), "B");
+    assert_eq!(kanban.lanes()[1].cards().len(), 1);
+    assert_eq!(kanban.lanes()[1].cards()[0].text(), "c");
+}
+
+#[test]
 fn a_column_zero_card_after_a_closed_fence_is_its_own_card() {
     let source = read_fixture("card-closed-fence.md");
     let kanban = parse(&source);
@@ -872,6 +915,32 @@ fn set_setting_does_not_grow_a_file_that_ends_in_a_fence() {
     let again = kanban.set_setting("beta", &json!(2)).unwrap_err();
     assert_eq!(again.kind(), ErrorKind::InvalidData);
     assert_eq!(kanban.source(), source);
+}
+
+#[test]
+fn an_unchanged_edit_keeps_mixed_continuation_indents() {
+    let source = read_fixture("indent-mixed.md");
+    let mut kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    let text = kanban.lanes()[0].cards()[0].text().to_owned();
+    assert!(text.contains("\t```"));
+    assert!(text.contains("\n  two-space line"));
+    kanban.edit_card(0, 0, &text).unwrap();
+    assert_eq!(kanban.source(), source);
+}
+
+#[test]
+fn one_indented_continuation_keeps_its_indent() {
+    let source = read_fixture("indent-deep-line.md");
+    let mut kanban = parse(&source);
+    assert_eq!(kanban.source(), source);
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "x\n\n\n  y");
+    let text = kanban.lanes()[0].cards()[0].text().to_owned();
+    kanban.edit_card(0, 0, &text).unwrap();
+    assert_eq!(kanban.source(), source);
+    let mut fresh = parse("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] keep\n");
+    fresh.edit_card(0, 0, "x\n\n\n  y").unwrap();
+    assert_eq!(fresh.lanes()[0].cards()[0].text(), "x\n\n\n  y");
 }
 
 #[test]

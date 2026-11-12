@@ -70,9 +70,6 @@ pub(super) fn has_kanban_key(source: &str) -> bool {
         if frontmatter_key(body) == Some("kanban-plugin") {
             found = true;
         }
-        if line.next <= at {
-            break;
-        }
         at = line.next;
     }
     false
@@ -324,14 +321,9 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
     while next < lines.len() {
         let continued = content(source, &lines[next]);
         if let Some((marker, run)) = fence {
-            // A column-0 line ends the card even while the fence is open,
-            // unless that line is the fence's own closer.
+            // The card ends at the first non-blank column-0 line. That line
+            // is not part of the card, even when it would close or open a fence.
             if !continued.trim().is_empty() && !is_indented(continued) {
-                if fence_closes(continued, marker, run) {
-                    raw.push(continued);
-                    end_line = next;
-                    next += 1;
-                }
                 break;
             }
             raw.push(continued);
@@ -386,15 +378,17 @@ fn is_indented(text: &str) -> bool {
     !text.trim().is_empty() && text.starts_with(char::is_whitespace)
 }
 
-/// Shortest leading whitespace among the continuation lines. Later lines may
-/// be indented less than the first; rendering adds this prefix back.
+/// The indent `render` adds back. Lines that share a whitespace prefix use
+/// the shortest one, except a single run of more than two spaces keeps two
+/// as the prefix so extra spaces stay in the text. Lines that do not share a
+/// prefix keep their own indent (`Some("")` means "do not add another").
 fn logical_continuations(first: &str, lines: &[&str]) -> (String, Option<String>) {
-    let indent = lines
+    let leads: Vec<&str> = lines
         .iter()
         .filter(|line| !line.trim().is_empty())
         .map(|line| leading_ws(line))
-        .min_by_key(|ws| ws.chars().count())
-        .map(str::to_owned);
+        .collect();
+    let indent = structural_indent(&leads);
     let mut text = first.to_owned();
     for line in lines {
         text.push('\n');
@@ -402,11 +396,25 @@ fn logical_continuations(first: &str, lines: &[&str]) -> (String, Option<String>
             continue;
         }
         text.push_str(match &indent {
-            Some(indent) => strip_indent(line, indent),
+            Some(indent) => line.strip_prefix(indent.as_str()).unwrap_or(line),
             None => line,
         });
     }
     (text, indent)
+}
+
+fn structural_indent(leads: &[&str]) -> Option<String> {
+    let shortest = leads
+        .iter()
+        .copied()
+        .min_by_key(|lead| lead.chars().count())?;
+    if !leads.iter().all(|lead| lead.starts_with(shortest)) {
+        return Some(String::new());
+    }
+    if shortest.chars().all(|ch| ch == ' ') && shortest.len() > 2 {
+        return Some("  ".to_owned());
+    }
+    Some(shortest.to_owned())
 }
 
 fn leading_ws(line: &str) -> &str {
@@ -416,20 +424,6 @@ fn leading_ws(line: &str) -> &str {
         .map(char::len_utf8)
         .sum();
     &line[..bytes]
-}
-
-fn strip_indent<'a>(line: &'a str, indent: &str) -> &'a str {
-    if let Some(rest) = line.strip_prefix(indent) {
-        return rest;
-    }
-    let mut drop_bytes = 0;
-    for ch in line.chars().take(indent.chars().count()) {
-        if !ch.is_whitespace() {
-            break;
-        }
-        drop_bytes += ch.len_utf8();
-    }
-    &line[drop_bytes..]
 }
 
 /// A fence opener: optional indent, then three or more `` ` `` or `~`.
@@ -547,12 +541,8 @@ fn split_lines(source: &str) -> Vec<Line> {
         let Some(line) = next_line(bytes, at) else {
             break;
         };
-        let next = line.next;
+        at = line.next;
         lines.push(line);
-        if next <= at {
-            break;
-        }
-        at = next;
     }
     lines
 }
