@@ -167,6 +167,7 @@ The done-lane marker and the archive heading are written in the language of the 
   - Changing one key replaces only that key's value text, or appends the key at the end of the object, without reordering or reformatting the others.
   - Removing a key removes only that key and its separating comma.
 - **Open point S-1:** the meaning of each settings key. It will be specified per slice, from public user documentation and observed behaviour. Unknown keys are always kept.
+- **Settings key `list-collapse`.** The value is a JSON array of booleans with one entry per lane, in file order. `true` means the lane is shown collapsed. A missing key, a short array, or a non-boolean entry means "not collapsed" for that lane. When Muninn changes collapse state, it writes only this key's value. It keeps every other key, and the key order, byte-for-byte. If the key was absent, it is appended as the last key. When a lane is added, deleted or moved, the array is kept aligned with the lanes.
 - **Malformed footer.** If the footer is unterminated or its JSON does not parse, the file is reported as unreadable as a board. It is never treated as an empty board, and Muninn never writes to it.
 
 ## 10. Round-trip and passthrough rules

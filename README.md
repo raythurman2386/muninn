@@ -259,6 +259,10 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | Double-click a card (kanban) | Edit it in place: `Enter` commits, `Shift+Enter` breaks the line, `Esc` cancels |
 | Click a card's checkbox (kanban) | Toggle its done mark; a lane's `⋯` has **Mark all cards done** |
 | `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
+| **+ Add lane**, a lane's `⋯` (kanban) | Add or insert a lane; rename it, set its card limit, mark it done or not done, sort its cards by text, date or tags, delete it |
+| A card's `⋯` (kanban) | Move it up, down, to the top or bottom, to the previous or next lane, or **Move to list…** |
+| Click a card, then arrows / `Alt+↑↓` / `Alt+Shift+↑↓` / `Alt+←→` (kanban) | Select a card; move it one place, to the top or bottom, or to the previous or next lane |
+| A lane's `‹` / `›` (kanban) | Collapse it to a narrow strip, or expand it |
 | `⌘S` / `Ctrl+S` (kanban) | Save the kanban's edits (nothing is written before; no autosave yet) |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |

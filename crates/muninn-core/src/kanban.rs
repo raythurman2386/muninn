@@ -28,6 +28,7 @@
 
 mod edit;
 mod parse;
+mod sort;
 
 #[cfg(test)]
 mod tests;
@@ -38,6 +39,12 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use crate::vault::{Vault, atomic_write};
+
+pub use self::sort::CardOrder;
+
+/// The settings key that says which lanes are shown collapsed
+/// (`docs/kanban-format.md` section 9).
+const LIST_COLLAPSE: &str = "list-collapse";
 
 /// The name New Kanban starts with; `Untitled Kanban 2`… when it is taken.
 const NEW_KANBAN_TITLE: &str = "Untitled Kanban";
@@ -93,8 +100,10 @@ pub struct Lane {
     limit_number: Option<Range<usize>>,
     /// The whole ` (N)` suffix, including the leading space.
     limit_suffix: Option<Range<usize>>,
-    /// End of the marker line (after its newline), when there is one.
-    marker_end: Option<usize>,
+    /// The done-lane marker line, with its line ending, when there is one.
+    marker: Option<Range<usize>>,
+    /// Shown collapsed: this lane's entry in the `list-collapse` setting.
+    collapsed: bool,
 }
 
 /// One task-list card. `text` is the markdown after the checkbox, without the
@@ -213,6 +222,14 @@ impl Lane {
     #[must_use]
     pub fn cards(&self) -> &[Card] {
         &self.cards
+    }
+
+    /// Whether the lane is shown collapsed: its entry in the footer's
+    /// `list-collapse` array is `true`. A missing key, a short array or an
+    /// entry that is not a boolean is not collapsed.
+    #[must_use]
+    pub fn collapsed(&self) -> bool {
+        self.collapsed
     }
 }
 

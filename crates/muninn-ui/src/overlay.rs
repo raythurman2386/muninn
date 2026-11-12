@@ -241,9 +241,10 @@ impl State {
             || self.rename_folder_prompt.is_some()
             || self.board_rename.is_some()
             || self.board_text.is_some()
-            // A card editor left open (its text refused) waits on the
-            // Kanban page; it doesn't hold the keyboard elsewhere.
-            || (self.kanban_card.is_some() && self.mode == crate::Mode::Kanban)
+            // A card editor or lane field left open (its text refused) waits
+            // on the Kanban page; it doesn't hold the keyboard elsewhere.
+            || ((self.kanban_card.is_some() || self.kanban_lane_edit.is_some())
+                && self.mode == crate::Mode::Kanban)
     }
 
     /// DES-01: help overlay.

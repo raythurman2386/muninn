@@ -74,6 +74,25 @@ pub(crate) enum CardCommit {
     Done(Option<CardSlot>),
     /// The model refused the text: the editor stays open with it.
     Refused,
+    /// Slice 5: the lane field closed after adding a lane at this index, so
+    /// lanes drawn at or after it moved right one.
+    LaneAdded(usize),
+}
+
+impl CardCommit {
+    /// Where the card drawn at `lane`/`index` before this commit is now:
+    /// down one when a card was added at or above it in its lane, right one
+    /// when a lane was added at or before its lane. `None` when refused.
+    pub(crate) fn follow(self, lane: usize, index: usize) -> Option<(usize, usize)> {
+        match self {
+            Self::Refused => None,
+            Self::Done(Some(added)) if added.lane == lane && added.index <= index => {
+                Some((lane, index + 1))
+            }
+            Self::LaneAdded(at) if at <= lane => Some((lane + 1, index)),
+            Self::Closed | Self::Done(_) | Self::LaneAdded(_) => Some((lane, index)),
+        }
+    }
 }
 
 /// Undo and redo for the kanban on the page: whole note texts, newest last.
@@ -99,17 +118,19 @@ impl KanbanHistory {
 
 impl State {
     /// Whether the kanban on the page holds edits that are not on disk, or
-    /// has its card editor open.
+    /// has its card editor or lane field open.
     #[must_use]
     pub fn kanban_dirty(&self) -> bool {
-        self.kanban_card.is_some() || self.kanban.as_ref().is_some_and(|k| k.dirty())
+        self.kanban_card.is_some()
+            || self.kanban_lane_edit.is_some()
+            || self.kanban.as_ref().is_some_and(|k| k.dirty())
     }
 
     /// + Add card: an editor at the end of `lane`.
     pub fn begin_add_card(&mut self, lane: usize) {
-        if self.commit_card_edit() == CardCommit::Refused {
+        let Some(lane) = self.settle_lane_edit(lane) else {
             return;
-        }
+        };
         let Some(len) = self.kanban_lane_len(lane) else {
             return;
         };
@@ -125,7 +146,7 @@ impl State {
 
     /// Insert card before / after: an editor that will add a card at `index`.
     pub fn begin_insert_card(&mut self, lane: usize, index: usize) {
-        let Some(index) = self.settle_card_edit(lane, index) else {
+        let Some((lane, index)) = self.settle_card_edit(lane, index) else {
             return;
         };
         if self.kanban_lane_len(lane).is_some_and(|len| index <= len) {
@@ -142,7 +163,7 @@ impl State {
 
     /// Edit: an editor on the card's markdown.
     pub fn begin_edit_card(&mut self, lane: usize, index: usize) {
-        let Some(index) = self.settle_card_edit(lane, index) else {
+        let Some((lane, index)) = self.settle_card_edit(lane, index) else {
             return;
         };
         let Some(text) = self
@@ -172,8 +193,12 @@ impl State {
     }
 
     /// Close the editor and apply its text as one edit. When the model
-    /// refuses the text the editor stays open, holding it.
+    /// refuses the text the editor stays open, holding it. Slice 5: an open
+    /// lane field is committed the same way (only one of them is open).
     pub(crate) fn commit_card_edit(&mut self) -> CardCommit {
+        if self.kanban_lane_edit.is_some() {
+            return self.commit_lane_edit();
+        }
         let Some(slot) = self.kanban_card else {
             return CardCommit::Closed;
         };
@@ -198,21 +223,25 @@ impl State {
             return CardCommit::Refused;
         }
         self.cancel_card_edit();
-        CardCommit::Done(added.then_some(slot))
+        let commit = CardCommit::Done(added.then_some(slot));
+        self.kanban_selected = self.kanban_selected.and_then(|(l, i)| commit.follow(l, i));
+        commit
     }
 
     /// Commit the editor before an action on the card drawn at `index` in
     /// `lane`, and find that card again: a card the commit added at or above
-    /// it in the same lane moves it down one. `None` when the commit was
-    /// refused, so the action waits.
-    pub(crate) fn settle_card_edit(&mut self, lane: usize, index: usize) -> Option<usize> {
-        match self.commit_card_edit() {
-            CardCommit::Refused => None,
-            CardCommit::Done(Some(added)) if added.lane == lane && added.index <= index => {
-                Some(index + 1)
-            }
-            CardCommit::Closed | CardCommit::Done(_) => Some(index),
-        }
+    /// it in the same lane moves it down one, and a lane added at or before
+    /// its lane moves it right one. `None` when the commit was refused, so
+    /// the action waits.
+    pub(crate) fn settle_card_edit(&mut self, lane: usize, index: usize) -> Option<(usize, usize)> {
+        self.commit_card_edit().follow(lane, index)
+    }
+
+    /// [`State::settle_card_edit`] for an action on a whole lane.
+    pub(crate) fn settle_lane_edit(&mut self, lane: usize) -> Option<usize> {
+        self.commit_card_edit()
+            .follow(lane, 0)
+            .map(|(lane, _)| lane)
     }
 
     /// Esc in the editor: close it, changing nothing.
@@ -274,7 +303,7 @@ impl State {
 
     /// The checkbox: flip the card's done mark.
     pub fn toggle_card_done(&mut self, lane: usize, index: usize) {
-        let Some(index) = self.settle_card_edit(lane, index) else {
+        let Some((lane, index)) = self.settle_card_edit(lane, index) else {
             return;
         };
         self.edit_kanban("change the done mark", |board| {
@@ -304,7 +333,11 @@ impl State {
     /// Run `op` on a copy of the board and keep the copy only when it
     /// succeeds and changed something: one history entry. A refusal leaves
     /// the board as it was, says why on the page and returns `false`.
-    fn edit_kanban(&mut self, what: &str, op: impl FnOnce(&mut Kanban) -> io::Result<()>) -> bool {
+    pub(crate) fn edit_kanban(
+        &mut self,
+        what: &str,
+        op: impl FnOnce(&mut Kanban) -> io::Result<()>,
+    ) -> bool {
         let Some(mut next) = self.kanban_board().cloned() else {
             return true;
         };
@@ -429,7 +462,7 @@ impl State {
         saved
     }
 
-    fn kanban_board(&self) -> Option<&Kanban> {
+    pub(crate) fn kanban_board(&self) -> Option<&Kanban> {
         self.kanban.as_ref()?.board.as_ref()
     }
 
@@ -437,13 +470,13 @@ impl State {
         Some(self.kanban_board()?.lanes().get(lane)?.cards().len())
     }
 
-    fn kanban_lane_is_done(&self, lane: usize) -> bool {
+    pub(crate) fn kanban_lane_is_done(&self, lane: usize) -> bool {
         self.kanban_board()
             .and_then(|board| board.lanes().get(lane))
             .is_some_and(|l| l.done_word().is_some())
     }
 
-    fn kanban_card_at(&self, lane: usize, index: usize) -> Option<&muninn_core::Card> {
+    pub(crate) fn kanban_card_at(&self, lane: usize, index: usize) -> Option<&muninn_core::Card> {
         self.kanban_board()?.lanes().get(lane)?.cards().get(index)
     }
 }

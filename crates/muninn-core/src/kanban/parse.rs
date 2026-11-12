@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use serde_json::Value;
 
-use super::{Archive, Card, Footer, Kanban, Lane, invalid_data};
+use super::{Archive, Card, Footer, Kanban, LIST_COLLAPSE, Lane, invalid_data};
 
 const BOM: char = '\u{feff}';
 
@@ -89,6 +89,7 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
     let mut lanes: Vec<Lane> = Vec::new();
     let mut archive: Option<Archive> = None;
     let mut footer: Option<Footer> = None;
+    let mut settings = None;
     let mut fence: Option<(u8, usize)> = None;
 
     while i < lines.len() {
@@ -108,9 +109,10 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
         }
         if text == "%% kanban:settings" {
             let start = line.start;
-            let (parsed, next) = parse_footer(source, &lines, i)?;
+            let (parsed, json, next) = parse_footer(source, &lines, i)?;
             close_open(&mut lanes, &mut archive, start);
             footer = Some(parsed);
+            settings = Some(json);
             i = next;
             break;
         }
@@ -144,7 +146,7 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
             close_open(&mut lanes, &mut archive, line.start);
             let heading = parse_heading(source, line);
             let marker = marker_line(source, &lines, i + 1);
-            let marker_end = marker.map(|index| lines[index].next);
+            let marker_line = marker.map(|index| lines[index].start..lines[index].next);
             let done_word = marker.map(|index| {
                 marker_word(content(source, &lines[index]))
                     .expect("marker line was just recognised")
@@ -161,7 +163,8 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
                 title_span: heading.title_span,
                 limit_number: heading.limit_number,
                 limit_suffix: heading.limit_suffix,
-                marker_end,
+                marker: marker_line,
+                collapsed: false,
             });
             i = next;
             continue;
@@ -199,6 +202,12 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
         }
         if text == "%% kanban:settings" {
             return Err(invalid_data("malformed settings footer"));
+        }
+    }
+
+    if let Some(Value::Array(flags)) = settings.as_ref().and_then(|json| json.get(LIST_COLLAPSE)) {
+        for (lane, flag) in lanes.iter_mut().zip(flags) {
+            lane.collapsed = *flag == Value::Bool(true);
         }
     }
 
@@ -515,7 +524,7 @@ fn split_block_id(body: &str) -> (String, Option<String>) {
     (body.to_owned(), None)
 }
 
-fn parse_footer(source: &str, lines: &[Line], index: usize) -> io::Result<(Footer, usize)> {
+fn parse_footer(source: &str, lines: &[Line], index: usize) -> io::Result<(Footer, Value, usize)> {
     if index + 4 >= lines.len() {
         return Err(invalid_data("unterminated settings footer"));
     }
@@ -528,16 +537,16 @@ fn parse_footer(source: &str, lines: &[Line], index: usize) -> io::Result<(Foote
     }
     let json_line = &lines[index + 2];
     let json = content(source, json_line);
-    match serde_json::from_str::<Value>(json) {
-        Ok(Value::Object(_)) => {}
+    let settings = match serde_json::from_str::<Value>(json) {
+        Ok(object @ Value::Object(_)) => object,
         Ok(_) => return Err(invalid_data("settings footer JSON must be an object")),
         Err(_) => return Err(invalid_data("settings footer JSON does not parse")),
-    }
+    };
     let footer = Footer {
         span: lines[index].start..lines[index + 4].next,
         json_span: json_line.start..json_line.end,
     };
-    Ok((footer, index + 5))
+    Ok((footer, settings, index + 5))
 }
 
 fn frontmatter_end(lines: &[Line], source: &str) -> Option<usize> {
