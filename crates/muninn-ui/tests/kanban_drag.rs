@@ -379,14 +379,16 @@ fn a_drag_commits_an_open_editor_first_and_waits_on_a_refused_one() {
         ["New first", "Short card", "Another short", "Last short"]
     );
     assert_eq!(cards(&rt, 1), ["In progress", "A tall"]);
-    // A refused editor holds the drag: nothing moves and its text stays.
+    // A refused editor holds the drag: nothing moves and its text stays. A
+    // line of only spaces cannot be written back as the same card text, so
+    // the add is refused.
     act(&mut rt, |s| s.begin_add_card(0));
-    rt.ime(Ime::Commit("Call Ana ^x1".to_owned()));
+    rt.ime(Ime::Commit("Call Ana\n ".to_owned()));
     let before = source(&rt);
     let short = centre(rect(&mut rt, "kanban-card-0-1"));
     drag(&mut rt, short, to);
     assert_eq!(source(&rt), before);
-    assert_eq!(rt.state.kanban_card_field.text, "Call Ana ^x1");
+    assert_eq!(rt.state.kanban_card_field.text, "Call Ana\n ");
     assert!(rt.state.kanban_card.is_some(), "the editor stays open");
     act(&mut rt, State::cancel_card_edit);
     assert_eq!(on_disk(&tmp), BOARD);

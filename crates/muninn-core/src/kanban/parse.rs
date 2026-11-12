@@ -393,11 +393,11 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
 }
 
 /// Empty, or spaces and tabs only. Any other whitespace is text.
-fn is_blank(text: &str) -> bool {
+pub(super) fn is_blank(text: &str) -> bool {
     text.chars().all(|ch| ch == ' ' || ch == '\t')
 }
 
-fn is_indented(text: &str) -> bool {
+pub(super) fn is_indented(text: &str) -> bool {
     !is_blank(text) && text.starts_with([' ', '\t'])
 }
 
@@ -467,7 +467,7 @@ pub(super) fn line_keeps_lead(line: &str, indent: &str) -> bool {
 }
 
 /// A fence opener: optional indent, then three or more `` ` `` or `~`.
-fn opens_fence(text: &str) -> Option<(u8, usize)> {
+pub(super) fn opens_fence(text: &str) -> Option<(u8, usize)> {
     let start = text.trim_start();
     let bytes = start.as_bytes();
     let marker = *bytes.first()?;
@@ -478,7 +478,7 @@ fn opens_fence(text: &str) -> Option<(u8, usize)> {
     (run >= 3).then_some((marker, run))
 }
 
-fn fence_closes(text: &str, marker: u8, run: usize) -> bool {
+pub(super) fn fence_closes(text: &str, marker: u8, run: usize) -> bool {
     let trimmed = text.trim();
     let bytes = trimmed.as_bytes();
     let closer = bytes.iter().take_while(|&&byte| byte == marker).count();
@@ -507,8 +507,9 @@ fn card_mark(source: &str, line: &Line) -> Option<(char, usize)> {
 
 /// Split a trailing ` ^identifier` off a card's first line. The identifier is
 /// letters, digits and dashes, which is the block-id shape Obsidian's help
-/// describes for block references.
-fn split_block_id(body: &str) -> (String, Option<String>) {
+/// describes for block references. The reader and the writer of new text use
+/// the same rule.
+pub(super) fn split_block_id(body: &str) -> (String, Option<String>) {
     let trimmed_len = body.trim_end().len();
     let trimmed = &body[..trimmed_len];
     if let Some(split) = trimmed.rfind(" ^") {
