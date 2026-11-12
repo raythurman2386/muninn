@@ -653,10 +653,14 @@ impl Vault {
     /// Files are written one at a time through [`Vault::write_note`] (atomic per
     /// file). A failure leaves the folder rename in place and is returned as
     /// `(referrer id, error)` for the caller to surface; there is no rollback.
+    ///
+    /// `skip` is a note left byte for byte as it is (an open kanban that still
+    /// has unsaved edits). Every other referrer is rewritten.
     pub fn rewrite_inbound_links_for_folder(
         &mut self,
         old_folder: &str,
         new_folder: &str,
+        skip: Option<usize>,
     ) -> Vec<(usize, io::Error)> {
         let old_folder = old_folder.trim_matches('/');
         let new_folder = new_folder.trim_matches('/');
@@ -685,6 +689,9 @@ impl Vault {
         // the live resolution this pass is deliberately replaying.
         let mut edits = Vec::new();
         for note in &self.notes {
+            if Some(note.id) == skip {
+                continue;
+            }
             let mut out = String::with_capacity(note.source.len());
             let mut last = 0;
             let mut changed = false;
@@ -2147,7 +2154,7 @@ mod tests {
         let referrers = v.link_referrers_for_folder("old");
         assert_eq!(referrers.len(), 1, "{referrers:?}");
         v.rename_folder("old", "new").expect("rename folder");
-        let failures = v.rewrite_inbound_links_for_folder("old", "new");
+        let failures = v.rewrite_inbound_links_for_folder("old", "new", None);
         assert!(failures.is_empty(), "{failures:?}");
         assert_eq!(
             fs::read_to_string(tmp.path().join("Home.md")).unwrap(),
@@ -2192,7 +2199,10 @@ mod tests {
             Some("elsewhere/deep.md")
         );
         v.rename_folder("old", "new").expect("rename folder");
-        assert!(v.rewrite_inbound_links_for_folder("old", "new").is_empty());
+        assert!(
+            v.rewrite_inbound_links_for_folder("old", "new", None)
+                .is_empty()
+        );
         assert_eq!(
             fs::read_to_string(tmp.path().join("Home.md")).unwrap(),
             "[[new/child/deep#Deep|d]] and bare [[deep]]"

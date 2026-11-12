@@ -263,6 +263,55 @@ fn renaming_a_linked_note_reloads_a_clean_kanban_and_spares_a_dirty_one() {
     );
 }
 
+#[test]
+fn renaming_a_folder_spares_a_dirty_kanban_that_links_into_it() {
+    let board = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] See [[plans/One]]
+";
+    let tmp = TempVault::new(&[
+        ("Board.md", board),
+        ("plans/One.md", "one\n"),
+        ("Welcome.md", "Also [[plans/One]]\n"),
+    ]);
+    let (mut rt, _) = runtime(&tmp);
+    rt.update(|s, _| s.toggle_card_done(0, 0));
+    rt.frame(1.0 / 60.0);
+    let edited = board_text(&rt);
+    assert!(edited.contains("- [x] See [[plans/One]]\n"), "{edited}");
+    let disk_before = fs::read_to_string(tmp.path().join("Board.md")).expect("board");
+    rt.update(|s, _| {
+        s.begin_rename_folder("plans");
+        s.rename_folder_field.replace_text("work");
+        s.submit_rename_folder();
+        s.confirm_folder_rename();
+    });
+    rt.frame(1.0 / 60.0);
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Board.md")).expect("board"),
+        disk_before,
+        "the dirty kanban's bytes stay"
+    );
+    let kept = board_text(&rt);
+    assert!(kept.contains("- [x] See [[plans/One]]\n"), "{kept}");
+    assert!(!kept.contains("work/One"), "{kept}");
+    assert_eq!(
+        rt.state.notice.as_deref(),
+        Some("Links in Board were not updated")
+    );
+    assert!(tmp.path().join("work/One.md").is_file());
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Welcome.md")).expect("welcome"),
+        "Also [[work/One]]\n",
+        "every other referrer is still rewritten"
+    );
+}
+
 fn rename_note(rt: &mut Runtime<State>, title: &str, name: &str) {
     let id = rt.state.vault.resolve(title).expect(title);
     let name = name.to_owned();
