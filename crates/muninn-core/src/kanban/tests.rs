@@ -1979,3 +1979,41 @@ fn a_card_entering_an_empty_lane_goes_after_its_text() {
         board.source()
     );
 }
+
+#[test]
+fn a_block_id_is_written_once_and_then_left_alone() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Write\n- [ ] Review [[Roadmap]] ^card-7f2\n  with the team\n";
+    let mut board = parse(source);
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), None);
+    let id = board.assign_block_id(0, 0).expect("assign");
+    assert_eq!(id, "card-1");
+    let written = board.source().to_owned();
+    assert_eq!(
+        written,
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Write ^card-1\n- [ ] Review [[Roadmap]] ^card-7f2\n  with the team\n"
+    );
+    // The existing id is not a candidate, and a second request does not rewrite.
+    assert_eq!(board.assign_block_id(0, 0).expect("again"), "card-1");
+    assert_eq!(board.source(), written);
+    assert_eq!(board.assign_block_id(0, 1).expect("kept"), "card-7f2");
+    assert_eq!(board.source(), written);
+    // The next new id skips both.
+    board.add_card(0, 2, "Another").expect("add");
+    assert_eq!(board.assign_block_id(0, 2).expect("third"), "card-2");
+    assert!(
+        board.source().contains("- [ ] Another ^card-2\n"),
+        "{}",
+        board.source()
+    );
+}
+
+#[test]
+fn a_block_id_on_a_crlf_card_keeps_the_line_ending() {
+    let source = "---\r\nkanban-plugin: board\r\n---\r\n\r\n## To do\r\n\r\n- [ ] Write\r\n";
+    let mut board = parse(source);
+    assert_eq!(board.assign_block_id(0, 0).expect("assign"), "card-1");
+    assert_eq!(
+        board.source(),
+        "---\r\nkanban-plugin: board\r\n---\r\n\r\n## To do\r\n\r\n- [ ] Write ^card-1\r\n"
+    );
+}

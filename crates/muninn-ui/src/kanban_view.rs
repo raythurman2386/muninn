@@ -23,7 +23,9 @@
 //! lane field, **+ Add lane**, the collapse control and collapsed strips, the
 //! selected card's outline, and the card and lane menus' new actions. Slice 6
 //! (`kanban_drag.rs`) makes cards and lane headers draggable and draws where
-//! a drag would drop.
+//! a drag would drop. Slice 8 (`kanban_links.rs`) follows a card's wikilink,
+//! completes `[[` in the card editor, copies a stable block id, makes a note
+//! from a card, and keeps a dirty kanban's bytes when a linked note is renamed.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -37,7 +39,7 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
-use muninn_core::{Card, Kanban, Lane, is_kanban};
+use muninn_core::{Card, Kanban, Lane, is_kanban, parse_links};
 use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
@@ -410,7 +412,8 @@ pub fn kanban(s: &State, k: &Kit) -> El {
 /// was: the Kanban page has no status bar, so it says so under its header.
 fn message(s: &State, k: &Kit) -> El {
     let card = s.kanban.as_ref().and_then(|shown| shown.error.as_deref());
-    if card.is_none() && s.error.is_none() {
+    let notice = s.notice.as_deref();
+    if card.is_none() && s.error.is_none() && notice.is_none() {
         return el();
     }
     let line = |key: &'static str, error: Option<&str>| match error {
@@ -423,6 +426,16 @@ fn message(s: &State, k: &Kit) -> El {
             .w_full(),
         None => el(),
     };
+    let notice = match notice {
+        Some(notice) => text(notice.to_owned())
+            .key("kanban-notice")
+            .role("status")
+            .font(k.ty.caption())
+            .color(k.c.text_accent)
+            .wrap_anywhere()
+            .w_full(),
+        None => el(),
+    };
     col()
         .px(28.0)
         .pb(8.0)
@@ -430,6 +443,7 @@ fn message(s: &State, k: &Kit) -> El {
         .w_full()
         .child(line("kanban-error", card))
         .child(line("kanban-app-error", s.error.as_deref()))
+        .child(notice)
 }
 
 fn header(s: &State, k: &Kit) -> El {
@@ -866,12 +880,10 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
         return card_editor(s, k);
     }
     let done = card.is_done();
-    // Wikilinks and embeds read as the reader shows them; following them
-    // from a card is slice 8.
-    let source = match note {
-        Some(id) => s.vault.preview_with_attachments(card.text(), id),
-        None => card.text().to_owned(),
-    };
+    // Wikilinks open the note. A note embed stays a link: the spec allows
+    // `![[Note]]` in a card and does not say to inline the note. An attachment
+    // embed keeps the reader's filename placeholder.
+    let source = card_markdown(&s.vault, note, card.text());
     let first = card.text().lines().next().unwrap_or_default();
     let mark = el()
         .key(format!("kanban-card-{i}-{j}-mark"))
@@ -935,6 +947,7 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
                 Markdown::new(source)
                     .style(MarkdownStyle::from_kit(k).link(k.c.text_accent))
                     .link_style(crate::view::missing_link_style(k))
+                    .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| s.open_card_link(url, tx))
                     .tasks_read_only()
                     .build(k),
             ),
@@ -947,7 +960,7 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
 
 /// The card editor: Enter commits, Shift+Enter breaks the line, Esc cancels.
 fn card_editor(s: &State, k: &Kit) -> El {
-    col().key("kanban-card-editor").w_full().child(
+    let mut editor = col().key("kanban-card-editor").w_full().child(
         TextArea::new(&s.kanban_card_field)
             .label("Card text")
             .placeholder("Card text")
@@ -956,12 +969,19 @@ fn card_editor(s: &State, k: &Kit) -> El {
             .wrap_anywhere()
             .on_edit(|s: &mut State| &mut s.kanban_card_field)
             .on_submit(|s: &mut State, tx: &mut Tx| {
-                // A refused text stays in the field, with the reason above.
+                // Enter is the completion's accept key while the list is open
+                // (`on_key` claims it). A refused text stays in the field.
+                if s.complete.is_some() {
+                    return;
+                }
                 if s.commit_card_edit() != CardCommit::Refused {
                     tx.blur();
                 }
             })
             .on_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                if s.complete_key(e) {
+                    return true;
+                }
                 if e.key == Key::Escape {
                     s.cancel_card_edit();
                     tx.blur();
@@ -970,7 +990,56 @@ fn card_editor(s: &State, k: &Kit) -> El {
                 false
             })
             .build(k),
-    )
+    );
+    if let Some(complete) = &s.complete
+        && complete.card
+        && !complete.items.is_empty()
+    {
+        editor = editor.child(crate::view::link_complete_list(s, k, complete));
+    }
+    editor
+}
+
+/// Card markdown for the reader. Note embeds lose the `!` so they render as
+/// links; attachment and board embeds keep it, and the reader's rewrite turns
+/// those into a filename placeholder. Dates, times and tags are left as text.
+fn card_markdown(vault: &muninn_core::Vault, note: Option<usize>, text: &str) -> String {
+    let text = plain_note_embeds(text);
+    match note {
+        Some(id) => vault.preview_with_attachments(&text, id),
+        None => text,
+    }
+}
+
+/// Drop the embed mark on `![[Note]]`. A target with a non-Markdown extension
+/// is a file embed and keeps the mark.
+fn plain_note_embeds(text: &str) -> String {
+    let links = parse_links(text);
+    if links.is_empty() {
+        return text.to_owned();
+    }
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut last = 0;
+    for link in links {
+        let bang = link.start > 0
+            && bytes[link.start - 1] == b'!'
+            && (link.start < 2 || bytes[link.start - 2] != b'\\');
+        if bang && !embed_is_file(&link.target) {
+            out.push_str(&text[last..link.start - 1]);
+            last = link.start;
+        }
+    }
+    out.push_str(&text[last..]);
+    out
+}
+
+fn embed_is_file(target: &str) -> bool {
+    let name = target.rsplit(['/', '\\']).next().unwrap_or(target);
+    match name.rsplit_once('.') {
+        Some((stem, ext)) => !stem.is_empty() && !ext.is_empty() && !ext.eq_ignore_ascii_case("md"),
+        None => false,
+    }
 }
 
 /// A small bordered button in a page header: Open as markdown here, Open as
@@ -1011,6 +1080,16 @@ mod tests {
             .iter()
             .map(lane_load)
             .collect()
+    }
+
+    #[test]
+    fn a_note_embed_becomes_a_link_and_a_file_embed_keeps_its_mark() {
+        let text = "see ![[Roadmap]] and ![[pic.png]] and \\![[Roadmap]] and @{2026-11-11}";
+        assert_eq!(
+            plain_note_embeds(text),
+            "see [[Roadmap]] and ![[pic.png]] and \\![[Roadmap]] and @{2026-11-11}"
+        );
+        assert_eq!(plain_note_embeds("plain [[Roadmap]]"), "plain [[Roadmap]]");
     }
 
     #[test]

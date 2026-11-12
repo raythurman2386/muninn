@@ -62,6 +62,69 @@ fn check_exit_two_for_a_missing_vault_and_creates_nothing() {
 }
 
 #[test]
+fn list_links_follows_a_rename_unless_the_kanban_is_dirty() {
+    let board = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Review [[Roadmap]]\n";
+    let tmp = TempVault::new(&[("Board.md", board), ("Roadmap.md", "plan\n")]);
+    let path = tmp.path().to_str().expect("utf8 path");
+    let before = stdout(&run(&["--list-links", path]));
+    assert_eq!(before, "Board.md -> Roadmap.md\n", "{before}");
+
+    let mut state = muninn_ui::State::with_state_home(
+        tmp.path().to_path_buf(),
+        tmp.path().with_extension("state"),
+    );
+    let board_id = state.vault.resolve("Board").expect("Board");
+    state.open_kanban(board_id);
+    let roadmap = state.vault.resolve("Roadmap").expect("Roadmap");
+    state.begin_rename_note(roadmap);
+    state.rename_field.replace_text("Plan");
+    state.submit_rename_note();
+    state.confirm_rename_note();
+    let after = stdout(&run(&["--list-links", path]));
+    assert_eq!(after, "Board.md -> Plan.md\n", "{after}");
+    let disk = std::fs::read_to_string(tmp.path().join("Board.md")).expect("board");
+    assert!(disk.contains("[[Plan]]"), "{disk}");
+
+    let dirty = TempVault::new(&[("Board.md", board), ("Roadmap.md", "plan\n")]);
+    let dirty_path = dirty.path().to_str().expect("utf8 path");
+    let original = std::fs::read_to_string(dirty.path().join("Board.md")).expect("board");
+    let before_dirty = stdout(&run(&["--list-links", dirty_path]));
+    assert_eq!(before_dirty, "Board.md -> Roadmap.md\n");
+    let mut state = muninn_ui::State::with_state_home(
+        dirty.path().to_path_buf(),
+        dirty.path().with_extension("state"),
+    );
+    let board_id = state.vault.resolve("Board").expect("Board");
+    state.open_kanban(board_id);
+    state.toggle_card_done(0, 0);
+    let roadmap = state.vault.resolve("Roadmap").expect("Roadmap");
+    state.begin_rename_note(roadmap);
+    state.rename_field.replace_text("Later");
+    state.submit_rename_note();
+    state.confirm_rename_note();
+    let still = stdout(&run(&["--list-links", dirty_path]));
+    assert_eq!(
+        still, "Board.md -> missing:Roadmap\n",
+        "the dirty kanban still names Roadmap, which was renamed: {still}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dirty.path().join("Board.md")).expect("board"),
+        original
+    );
+    let edited = state
+        .kanban
+        .as_ref()
+        .and_then(|shown| shown.board.as_ref())
+        .expect("board")
+        .source();
+    assert!(edited.contains("- [x] Review [[Roadmap]]"), "{edited}");
+    assert_eq!(
+        state.notice.as_deref(),
+        Some("Links in Board were not updated")
+    );
+}
+
+#[test]
 fn list_links_prints_sorted_referrer_target_lines() {
     let tmp = TempVault::new(&[
         ("Home.md", "[[Beta]] and [[Missing]]"),

@@ -365,6 +365,60 @@ impl Kanban {
         self.commit(splice(&self.source, at..at + len, replacement))
     }
 
+    /// The card's block id, writing ` ^card-N` on its first line when it has
+    /// none. An id already on the card is returned unchanged and the file is
+    /// not touched. `card-N` is the next number not used by a lane or archive
+    /// card. The spec fixes the id's shape (letters, digits, dashes) and that
+    /// it stays on the card; it does not fix how a new one is chosen.
+    pub fn assign_block_id(&mut self, lane: usize, index: usize) -> io::Result<String> {
+        let card = self.card(lane, index)?;
+        if let Some(id) = card.block_id.clone() {
+            return Ok(id);
+        }
+        let id = self.fresh_block_id();
+        let span = card.span.clone();
+        let mut at = self.source[span.start..span.end]
+            .find('\n')
+            .map_or(span.end, |i| span.start + i);
+        if at > span.start && self.source.as_bytes().get(at - 1) == Some(&b'\r') {
+            at -= 1;
+        }
+        let next = splice(&self.source, at..at, &format!(" ^{id}"));
+        let parsed = Kanban::parse(&next)?;
+        if parsed.card(lane, index)?.block_id.as_deref() != Some(id.as_str()) {
+            return Err(invalid_data("the block id did not stay on the card"));
+        }
+        *self = parsed;
+        Ok(id)
+    }
+
+    /// The next `card-N` that no card in this note already uses.
+    fn fresh_block_id(&self) -> String {
+        let mut used = Vec::new();
+        for lane in &self.lanes {
+            for card in &lane.cards {
+                if let Some(id) = &card.block_id {
+                    used.push(id.as_str());
+                }
+            }
+        }
+        if let Some(archive) = &self.archive {
+            for card in &archive.cards {
+                if let Some(id) = &card.block_id {
+                    used.push(id.as_str());
+                }
+            }
+        }
+        let mut n = 1u32;
+        loop {
+            let id = format!("card-{n}");
+            if !used.contains(&id.as_str()) {
+                return id;
+            }
+            n += 1;
+        }
+    }
+
     /// Set one footer key. An existing value is replaced in place; a new key
     /// is appended before the object's closing brace. Other keys keep their
     /// text and order. A file with no footer gains one.

@@ -9,7 +9,7 @@ use rune_kit::{
 };
 use rune_theme_opencode::icons as ic;
 
-use muninn_core::{Vault, headings};
+use muninn_core::{Vault, block_anchors, headings};
 
 use crate::{
     DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State,
@@ -1614,6 +1614,8 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                 items.push(("Split card", "split"));
             }
             items.extend(crate::kanban_lanes::card_move_items(s, *lane, *index));
+            items.push(("Copy link to card", "copy_link"));
+            items.push(("New note from card", "new_note"));
             items.push(("Delete", "delete"));
             items
         }
@@ -1663,7 +1665,15 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                             k.c.text_base
                         }),
                 )
-                .on_press(move |s: &mut State| s.pick_menu(action)),
+                .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+                    if action == "copy_link" {
+                        if let Some(link) = s.copy_open_card_link() {
+                            tx.copy(link);
+                        }
+                    } else {
+                        s.pick_menu(action);
+                    }
+                }),
         );
     }
     col_menu.child(
@@ -3707,7 +3717,7 @@ fn editor(s: &State, k: &Kit) -> El {
 /// EDT-03: the completion/picker list under the editor. The highlighted row is
 /// moved with Up/Down (and wraps); clicking a row accepts it. Duplicate titles
 /// show their folder through `display_label`.
-fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) -> El {
+pub(crate) fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) -> El {
     let mut list = col()
         .key("link-complete")
         .mt(8.0)
@@ -3823,12 +3833,19 @@ pub(crate) fn missing_link_style(k: &Kit) -> impl Fn(&str) -> Option<(Span, Link
     }
 }
 
-/// EDT-04: stable block keys for the preview's top-level headings.
+/// EDT-04: stable block keys for the preview's headings and `^id` blocks.
 fn heading_keys(source: &str) -> Vec<(usize, String)> {
-    headings(source)
+    let mut keys: Vec<(usize, String)> = headings(source)
         .into_iter()
         .map(|(offset, _)| (offset, format!("heading-{offset}")))
-        .collect()
+        .collect();
+    for (offset, _) in block_anchors(source) {
+        let key = format!("heading-{offset}");
+        if keys.iter().all(|(_, existing)| existing != &key) {
+            keys.push((offset, key));
+        }
+    }
+    keys
 }
 
 /// Kanban slice 3: the sidebar's Kanbans section, between the notes and the
