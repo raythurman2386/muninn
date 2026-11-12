@@ -1,0 +1,16 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json (WGPU_BACKEND=vulkan)
+rune: 169 frames at 60 fps, gpu init 91.7 ms, first frame 57.08 ms, frame cpu mean 6.839 ms p50 3.966 p95 14.269 max 161.251, 398 instances
+rune: animating frames 88 (cpu p50 5.665 p95 15.740 ms), at-rest frames 80 (the window draws none; forced cpu p50 3.341 p95 4.826 ms), layout nodes 204, glyphs 311
+ok /tmp/ui-smoke-s8-fix/trees/kanban-restart-left.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-fix/trees/kanban-restart-left.json: kanban-title says 'Release'
+saved ('kanban', 'Release.md', 'Agenda.md')
+rune: 61 frames at 60 fps, gpu init 90.6 ms, first frame 55.08 ms, frame cpu mean 3.636 ms p50 3.174 p95 4.661 max 55.078, 397 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 60 (the window draws none; forced cpu p50 3.174 p95 4.313 ms), layout nodes 204, glyphs 311
+ok /tmp/ui-smoke-s8-fix/trees/kanban-restart.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-fix/trees/kanban-restart.json: kanban-title says 'Release'
+ok /tmp/ui-smoke-s8-fix/trees/kanban-restart.json: kanban-lane-1-count says '2/3'
+./Agenda.md: OK
+./Overloaded.md: OK
+./Release.md: OK
+./Torn.md: OK
+ok every file unchanged after the restart

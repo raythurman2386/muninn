@@ -1,0 +1,7 @@
+   Compiling muninn-core v0.7.1 (/agent/repos/muninn/crates/muninn-core)
+   Compiling muninn-graph v0.7.1 (/agent/repos/muninn/crates/muninn-graph)
+   Compiling muninn-ui v0.7.1 (/agent/repos/muninn/crates/muninn-ui)
+   Compiling muninn-app v0.7.1 (/agent/repos/muninn/crates/muninn-app)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.83s
+   Compiling muninn-core v0.7.1 (/agent/repos/muninn/crates/muninn-core)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.73s

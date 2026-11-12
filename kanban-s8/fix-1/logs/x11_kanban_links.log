@@ -1,0 +1,37 @@
+backend: /usr/share/vulkan/icd.d/lvp_icd.json WGPU_BACKEND=vulkan
+rune: 67 frames at 60 fps, gpu init 91.2 ms, first frame 55.29 ms, frame cpu mean 3.580 ms p50 3.496 p95 4.424 max 55.294, 354 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 3.496 p95 4.231 ms), layout nodes 133, glyphs 297
+rune: 145 frames at 60 fps, gpu init 90.2 ms, first frame 57.47 ms, frame cpu mean 7.336 ms p50 4.304 p95 13.187 max 158.504, 434 instances
+rune: animating frames 104 (cpu p50 5.401 p95 13.404 ms), at-rest frames 40 (the window draws none; forced cpu p50 3.100 p95 4.851 ms), layout nodes 174, glyphs 358
+ok /tmp/ui-smoke-s8-fix/trees/kanban-links-menu.json: active mode mode-kanban
+rune: 294 frames at 60 fps, gpu init 91.1 ms, first frame 54.89 ms, frame cpu mean 6.638 ms p50 4.223 p95 13.228 max 156.682, 408 instances
+rune: animating frames 192 (cpu p50 5.452 p95 13.494 ms), at-rest frames 101 (the window draws none; forced cpu p50 3.921 p95 5.471 ms), layout nodes 148, glyphs 349
+Xvfb on :90
+window 0x200002 'Muninn' 1180x780
+ok clicked 129,249 in 0x200002 (button 1 x1)
+ok pressed ctrl+5 on 0x200002
+ok /tmp/ui-smoke-s8-fix/work/config-x11-kanban-links/muninn/settings.json: mode kanban
+ok clicked 784,178 in 0x200002 (button 1 x1)
+ok clicked 691,419 in 0x200002 (button 1 x1)
+ok Board.md unchanged before Ctrl+S
+ok pressed ctrl+s on 0x200002
+ok Board.md after Ctrl+S is kanban-links-saved.md byte for byte
+ok clicked 129,299 in 0x200002 (button 1 x1)
+ok pressed Escape on 0x200002
+ok pressed F2 on 0x200002
+ok pressed BackSpace on 0x200002
+ok pressed BackSpace on 0x200002
+ok pressed BackSpace on 0x200002
+ok pressed BackSpace on 0x200002
+ok pressed BackSpace on 0x200002
+ok pressed BackSpace on 0x200002
+ok pressed BackSpace on 0x200002
+ok typed 'Plan' on 0x200002
+ok pressed Return on 0x200002
+ok clicked 58,392 in 0x200002 (button 1 x1)
+ok pressed ctrl+5 on 0x200002
+Board.md -> Plan.md
+ok --list-links follows the windowed rename
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+ok closing left the rewritten kanban

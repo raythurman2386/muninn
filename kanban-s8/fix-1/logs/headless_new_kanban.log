@@ -1,0 +1,57 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json (WGPU_BACKEND=vulkan)
+rune: 64 frames at 60 fps, gpu init 91.0 ms, first frame 58.08 ms, frame cpu mean 3.717 ms p50 3.608 p95 4.712 max 58.076, 401 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 63 (the window draws none; forced cpu p50 3.511 p95 4.697 ms), layout nodes 153, glyphs 340
+rows: Agenda note-row-0, Blank note-row-1, Notes note-row-2
+rune: 220 frames at 60 fps, gpu init 89.7 ms, first frame 56.87 ms, frame cpu mean 8.504 ms p50 5.233 p95 17.779 max 158.706, 409 instances
+rune: animating frames 84 (cpu p50 12.492 p95 27.771 ms), at-rest frames 135 (the window draws none; forced cpu p50 4.005 p95 6.336 ms), layout nodes 173, glyphs 336
+ok /tmp/ui-smoke-s8-fix/work/kanban-new-vault/Untitled Kanban.md is the New Kanban layout byte for byte
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-first.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-first.json: kanban-title says 'Untitled Kanban'
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-first.json: kanban-lane-2-title says 'Done'
+rune: 220 frames at 60 fps, gpu init 93.4 ms, first frame 62.23 ms, frame cpu mean 8.413 ms p50 5.361 p95 18.778 max 159.688, 453 instances
+rune: animating frames 84 (cpu p50 11.621 p95 25.228 ms), at-rest frames 135 (the window draws none; forced cpu p50 4.082 p95 7.223 ms), layout nodes 183, glyphs 377
+ok /tmp/ui-smoke-s8-fix/work/kanban-new-vault/Untitled Kanban 2.md is the New Kanban layout byte for byte
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-second.json: kanban-title says 'Untitled Kanban 2'
+rune: 220 frames at 60 fps, gpu init 90.6 ms, first frame 61.39 ms, frame cpu mean 8.629 ms p50 5.489 p95 20.672 max 159.593, 512 instances
+rune: animating frames 113 (cpu p50 10.288 p95 24.124 ms), at-rest frames 106 (the window draws none; forced cpu p50 4.263 p95 7.840 ms), layout nodes 194, glyphs 433
+ok /tmp/ui-smoke-s8-fix/work/kanban-new-vault/Plans/Untitled Kanban 2.md is the New Kanban layout byte for byte
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-plans.json: kanban-detail says 'Plans/Untitled Kanban 2.md'
+rune: 148 frames at 60 fps, gpu init 90.6 ms, first frame 62.09 ms, frame cpu mean 7.931 ms p50 5.218 p95 19.117 max 162.710, 645 instances
+rune: animating frames 73 (cpu p50 9.051 p95 19.898 ms), at-rest frames 74 (the window draws none; forced cpu p50 4.700 p95 7.114 ms), layout nodes 203, glyphs 528
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-convert-offered.json: palette-item-0 says 'Convert empty note to Kanban'
+rune: 220 frames at 60 fps, gpu init 91.4 ms, first frame 62.42 ms, frame cpu mean 8.754 ms p50 5.473 p95 21.624 max 160.804, 450 instances
+rune: animating frames 115 (cpu p50 10.819 p95 22.363 ms), at-rest frames 104 (the window draws none; forced cpu p50 4.596 p95 7.635 ms), layout nodes 198, glyphs 371
+ok /tmp/ui-smoke-s8-fix/work/kanban-new-vault/Blank.md is the New Kanban layout byte for byte
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-convert.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-convert.json: kanban-title says 'Blank'
+rune: 148 frames at 60 fps, gpu init 91.2 ms, first frame 62.72 ms, frame cpu mean 7.720 ms p50 5.079 p95 13.944 max 160.732, 602 instances
+rune: animating frames 42 (cpu p50 11.894 p95 25.890 ms), at-rest frames 105 (the window draws none; forced cpu p50 4.296 p95 6.734 ms), layout nodes 202, glyphs 523
+rune: 220 frames at 60 fps, gpu init 90.4 ms, first frame 62.68 ms, frame cpu mean 7.269 ms p50 5.449 p95 13.233 max 160.999, 602 instances
+rune: animating frames 42 (cpu p50 12.036 p95 20.961 ms), at-rest frames 177 (the window draws none; forced cpu p50 5.208 p95 7.622 ms), layout nodes 202, glyphs 523
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-refuse-typed.json: no palette-item-0
+ok the palette shows 0 results for convert on Agenda
+ok /tmp/ui-smoke-s8-fix/trees/kanban-new-refuse.json: active mode mode-editor
+rune: 64 frames at 60 fps, gpu init 91.0 ms, first frame 62.29 ms, frame cpu mean 3.774 ms p50 3.311 p95 4.955 max 62.294, 532 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 63 (the window draws none; forced cpu p50 3.309 p95 4.930 ms), layout nodes 188, glyphs 462
+rune: 124 frames at 60 fps, gpu init 89.9 ms, first frame 62.44 ms, frame cpu mean 8.211 ms p50 4.412 p95 13.676 max 160.024, 737 instances
+rune: animating frames 42 (cpu p50 12.043 p95 20.088 ms), at-rest frames 81 (the window draws none; forced cpu p50 3.746 p95 7.284 ms), layout nodes 281, glyphs 628
+Kanbans section: ['Blank', 'Untitled Kanban 2', 'Release', 'Untitled Kanban 2', 'Untitled Kanban']
+ok five notes-list rows carry the kanban glyph
+palette kanbans: ['Blank', 'Release', 'Untitled Kanban', 'Untitled Kanban 2', 'Untitled Kanban 2']
+ok the palette has New Kanban and every kanban by name
+running 3 tests
+...
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 155 filtered out; finished in 0.00s
+
+Agenda.md: OK
+Release.md: OK
+Plans/Notes.md: OK
+Plans/Untitled Kanban.md: OK
+./Agenda.md
+./Blank.md
+./Plans/Notes.md
+./Plans/Untitled Kanban 2.md
+./Plans/Untitled Kanban.md
+./Release.md
+./Untitled Kanban 2.md
+./Untitled Kanban.md

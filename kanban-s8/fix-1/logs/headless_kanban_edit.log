@@ -1,0 +1,383 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json (WGPU_BACKEND=vulkan)
+rune: 64 frames at 60 fps, gpu init 94.0 ms, first frame 65.50 ms, frame cpu mean 3.801 ms p50 3.450 p95 4.806 max 65.505, 517 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 63 (the window draws none; forced cpu p50 3.429 p95 4.707 ms), layout nodes 133, glyphs 458
+rune: 124 frames at 60 fps, gpu init 94.9 ms, first frame 64.59 ms, frame cpu mean 7.996 ms p50 4.258 p95 14.685 max 156.418, 365 instances
+rune: animating frames 42 (cpu p50 11.230 p95 27.357 ms), at-rest frames 81 (the window draws none; forced cpu p50 4.053 p95 5.075 ms), layout nodes 176, glyphs 282
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-open.json: active mode mode-kanban
+rune: 244 frames at 60 fps, gpu init 91.9 ms, first frame 64.46 ms, frame cpu mean 6.101 ms p50 4.118 p95 12.599 max 158.331, 402 instances
+rune: animating frames 129 (cpu p50 5.269 p95 14.109 ms), at-rest frames 114 (the window draws none; forced cpu p50 3.655 p95 5.033 ms), layout nodes 183, glyphs 312
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-card-new.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 454 frames at 60 fps, gpu init 92.5 ms, first frame 65.10 ms, frame cpu mean 5.381 ms p50 4.189 p95 11.708 max 157.391, 417 instances
+rune: animating frames 269 (cpu p50 4.550 p95 12.338 ms), at-rest frames 184 (the window draws none; forced cpu p50 3.782 p95 5.029 ms), layout nodes 183, glyphs 326
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-edited.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 412 frames at 60 fps, gpu init 91.1 ms, first frame 63.90 ms, frame cpu mean 5.470 ms p50 4.215 p95 11.505 max 154.237, 413 instances
+rune: animating frames 235 (cpu p50 4.653 p95 13.212 ms), at-rest frames 176 (the window draws none; forced cpu p50 3.935 p95 5.032 ms), layout nodes 180, glyphs 326
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-card-editing.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 526 frames at 60 fps, gpu init 91.9 ms, first frame 65.09 ms, frame cpu mean 5.366 ms p50 4.212 p95 11.716 max 160.500, 439 instances
+rune: animating frames 341 (cpu p50 4.604 p95 12.180 ms), at-rest frames 184 (the window draws none; forced cpu p50 3.676 p95 5.245 ms), layout nodes 190, glyphs 346
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-duplicated.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 658 frames at 60 fps, gpu init 92.2 ms, first frame 65.38 ms, frame cpu mean 5.352 ms p50 4.451 p95 10.085 max 159.128, 447 instances
+rune: animating frames 460 (cpu p50 4.875 p95 11.011 ms), at-rest frames 197 (the window draws none; forced cpu p50 3.960 p95 5.367 ms), layout nodes 197, glyphs 351
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-inserted-before.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 790 frames at 60 fps, gpu init 106.0 ms, first frame 75.34 ms, frame cpu mean 5.337 ms p50 4.499 p95 9.759 max 157.602, 456 instances
+rune: animating frames 579 (cpu p50 4.749 p95 10.251 ms), at-rest frames 210 (the window draws none; forced cpu p50 4.115 p95 5.717 ms), layout nodes 204, glyphs 357
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-inserted-after.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 880 frames at 60 fps, gpu init 92.3 ms, first frame 64.95 ms, frame cpu mean 5.237 ms p50 4.410 p95 9.934 max 158.923, 455 instances
+rune: animating frames 664 (cpu p50 4.575 p95 10.592 ms), at-rest frames 215 (the window draws none; forced cpu p50 4.059 p95 5.602 ms), layout nodes 211, glyphs 357
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-card-split.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 958 frames at 60 fps, gpu init 92.2 ms, first frame 64.28 ms, frame cpu mean 5.310 ms p50 4.529 p95 9.239 max 158.936, 446 instances
+rune: animating frames 734 (cpu p50 4.776 p95 9.683 ms), at-rest frames 223 (the window draws none; forced cpu p50 4.021 p95 5.732 ms), layout nodes 204, glyphs 351
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-deleted.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 994 frames at 60 fps, gpu init 95.1 ms, first frame 66.26 ms, frame cpu mean 5.293 ms p50 4.514 p95 9.785 max 163.705, 447 instances
+rune: animating frames 770 (cpu p50 4.662 p95 10.236 ms), at-rest frames 223 (the window draws none; forced cpu p50 3.840 p95 5.966 ms), layout nodes 205, glyphs 351
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-toggled.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1102 frames at 60 fps, gpu init 91.9 ms, first frame 64.97 ms, frame cpu mean 5.179 ms p50 4.473 p95 8.726 max 159.696, 468 instances
+rune: animating frames 853 (cpu p50 4.649 p95 9.180 ms), at-rest frames 248 (the window draws none; forced cpu p50 4.094 p95 5.655 ms), layout nodes 213, glyphs 364
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-born-done.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1174 frames at 60 fps, gpu init 92.4 ms, first frame 65.30 ms, frame cpu mean 5.155 ms p50 4.475 p95 8.678 max 159.466, 465 instances
+rune: animating frames 925 (cpu p50 4.618 p95 9.133 ms), at-rest frames 248 (the window draws none; forced cpu p50 3.910 p95 5.389 ms), layout nodes 214, glyphs 364
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-all-done.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1210 frames at 60 fps, gpu init 93.7 ms, first frame 65.99 ms, frame cpu mean 5.156 ms p50 4.483 p95 8.753 max 155.748, 464 instances
+rune: animating frames 955 (cpu p50 4.607 p95 9.118 ms), at-rest frames 254 (the window draws none; forced cpu p50 3.895 p95 5.593 ms), layout nodes 213, glyphs 364
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-undo.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1246 frames at 60 fps, gpu init 92.4 ms, first frame 65.05 ms, frame cpu mean 5.105 ms p50 4.462 p95 8.410 max 160.782, 465 instances
+rune: animating frames 989 (cpu p50 4.589 p95 8.943 ms), at-rest frames 256 (the window draws none; forced cpu p50 3.995 p95 5.468 ms), layout nodes 214, glyphs 364
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-redo.json: active mode mode-kanban
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1540 frames at 60 fps, gpu init 92.1 ms, first frame 64.89 ms, frame cpu mean 5.040 ms p50 4.443 p95 7.930 max 158.703, 384 instances
+rune: animating frames 1205 (cpu p50 4.557 p95 8.694 ms), at-rest frames 334 (the window draws none; forced cpu p50 3.990 p95 5.487 ms), layout nodes 176, glyphs 301
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-start.json: active mode mode-kanban
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-open.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-open.json: lane 2 ['Done: Ship 0.7.1', 'Open: Tag the release']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-card-new.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-edited.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo 漢字 🎉 é']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-duplicated.json: lane 0 ['Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo 漢字 🎉 é']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-inserted-before.json: lane 0 ['Open: First', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo 漢字 🎉 é']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-inserted-after.json: lane 0 ['Open: First', 'Open: Second', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: Plan the demo 漢字 🎉 é']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-card-split.json: lane 0 ['Open: First', 'Open: Second', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: with the team', 'Open: Plan the demo 漢字 🎉 é']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-deleted.json: lane 0 ['Open: First', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: with the team', 'Open: Plan the demo 漢字 🎉 é']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-deleted.json: lane 1 ['Open: Fix the sync bug']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-toggled.json: lane 1 ['Done: Fix the sync bug']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-born-done.json: lane 2 ['Done: Ship 0.7.1', 'Open: Tag the release', 'Done: Write the notes']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-all-done.json: lane 2 ['Done: Ship 0.7.1', 'Done: Tag the release', 'Done: Write the notes']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-undo.json: lane 2 ['Done: Ship 0.7.1', 'Open: Tag the release', 'Done: Write the notes']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-redo.json: lane 2 ['Done: Ship 0.7.1', 'Done: Tag the release', 'Done: Write the notes']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-redo.json: lane 0 ['Open: First', 'Open: Write the release notes', 'Open: Write the release notes', 'Open: Review [[Roadmap]]', 'Open: with the team', 'Open: Plan the demo 漢字 🎉 é']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-start.json: lane 0 ['Open: Write the release notes', 'Open: Review [[Roadmap]]']
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-start.json: lane 2 ['Done: Ship 0.7.1', 'Open: Tag the release']
+ok the card editor holds 'Plan the demo 漢字 🎉 é\nsecond line' (Shift+Enter made the line break)
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-redo.json: kanban-status says 'Unsaved · Ctrl+S saves'
+ok no unsaved indicator on open
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-start.json: kanban-status says 'Unsaved · Ctrl+S saves'
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1264 frames at 60 fps, gpu init 92.8 ms, first frame 66.60 ms, frame cpu mean 5.220 ms p50 4.573 p95 7.860 max 160.503, 465 instances
+rune: animating frames 997 (cpu p50 4.755 p95 8.930 ms), at-rest frames 266 (the window draws none; forced cpu p50 4.178 p95 5.825 ms), layout nodes 214, glyphs 364
+ok sha256 before Cmd+S: 8fe9ecb7bde0f99e1cb6ce1c3280979e238330c394a08e2bf427e134be4713cb (the fixture's)
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1324 frames at 60 fps, gpu init 91.6 ms, first frame 64.67 ms, frame cpu mean 5.019 ms p50 4.339 p95 8.359 max 160.032, 451 instances
+rune: animating frames 1009 (cpu p50 4.484 p95 8.989 ms), at-rest frames 314 (the window draws none; forced cpu p50 4.038 p95 5.548 ms), layout nodes 214, glyphs 350
+ok /tmp/ui-smoke-s8-fix/trees/kanban-edit-saved.json: kanban-status says 'Saved'
+ok Board.md after Cmd+S is kanban-edit-saved.md byte for byte
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+ICU4X data error: No segmentation model for complex script: Chinese/Japanese
+rune: 1600 frames at 60 fps, gpu init 92.6 ms, first frame 66.20 ms, frame cpu mean 4.938 ms p50 4.363 p95 7.572 max 159.134, 370 instances
+rune: animating frames 1217 (cpu p50 4.534 p95 8.120 ms), at-rest frames 382 (the window draws none; forced cpu p50 3.893 p95 5.308 ms), layout nodes 176, glyphs 287
+ok undo to the start + Cmd+S restores the fixture's bytes

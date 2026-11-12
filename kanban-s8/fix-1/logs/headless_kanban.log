@@ -1,0 +1,34 @@
+vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json (WGPU_BACKEND=vulkan)
+rune: 67 frames at 60 fps, gpu init 91.7 ms, first frame 58.50 ms, frame cpu mean 3.682 ms p50 3.378 p95 4.512 max 58.495, 392 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 3.378 p95 4.503 ms), layout nodes 147, glyphs 330
+rows: Release note-row-2, Overloaded note-row-1, Torn note-row-3
+rune: 85 frames at 60 fps, gpu init 91.4 ms, first frame 56.92 ms, frame cpu mean 9.726 ms p50 8.066 p95 12.930 max 204.644, 294 instances
+rune: animating frames 42 (cpu p50 9.895 p95 18.612 ms), at-rest frames 42 (the window draws none; forced cpu p50 4.024 p95 5.823 ms), layout nodes 118, glyphs 237
+ok /tmp/ui-smoke-s8-fix/trees/kanban-empty.json: active mode mode-kanban
+rune: 175 frames at 60 fps, gpu init 89.9 ms, first frame 56.75 ms, frame cpu mean 7.687 ms p50 5.297 p95 12.691 max 148.667, 397 instances
+rune: animating frames 84 (cpu p50 8.819 p95 17.709 ms), at-rest frames 90 (the window draws none; forced cpu p50 3.755 p95 5.339 ms), layout nodes 204, glyphs 311
+ok /tmp/ui-smoke-s8-fix/trees/kanban-readonly.json: active mode mode-kanban
+rune: 265 frames at 60 fps, gpu init 90.2 ms, first frame 56.24 ms, frame cpu mean 6.497 ms p50 4.413 p95 12.364 max 153.331, 459 instances
+rune: animating frames 131 (cpu p50 7.667 p95 16.582 ms), at-rest frames 133 (the window draws none; forced cpu p50 3.810 p95 5.077 ms), layout nodes 197, glyphs 371
+ok /tmp/ui-smoke-s8-fix/trees/kanban-wip-over.json: active mode mode-kanban
+rune: 355 frames at 60 fps, gpu init 90.7 ms, first frame 56.08 ms, frame cpu mean 6.293 ms p50 4.605 p95 11.582 max 152.219, 349 instances
+rune: animating frames 178 (cpu p50 7.531 p95 13.139 ms), at-rest frames 176 (the window draws none; forced cpu p50 3.878 p95 5.331 ms), layout nodes 123, glyphs 290
+ok /tmp/ui-smoke-s8-fix/trees/kanban-unreadable.json: active mode mode-kanban
+rune: 421 frames at 60 fps, gpu init 91.8 ms, first frame 56.90 ms, frame cpu mean 6.811 ms p50 4.838 p95 13.555 max 152.750, 449 instances
+rune: animating frames 225 (cpu p50 8.390 p95 14.948 ms), at-rest frames 195 (the window draws none; forced cpu p50 3.897 p95 5.404 ms), layout nodes 149, glyphs 385
+ok /tmp/ui-smoke-s8-fix/trees/kanban-write.json: active mode mode-editor
+ok empty: No kanban open
+ok readonly: lanes ['Backlog', 'Doing', 'Review', 'Done'], counts ['1', '2/3', '1', '1'], over [], complete []
+ok wip-over: lanes ['Ideas', 'Doing', 'Shipped'], counts ['1', '3/2', '1'], over [1], complete [2]
+ok unreadable: message and Open as markdown
+ok write: Torn open in Write
+./Agenda.md: OK
+./Overloaded.md: OK
+./Release.md: OK
+./Torn.md: OK
+ok every file unchanged after the headless kanban runs
+rune: 169 frames at 60 fps, gpu init 90.6 ms, first frame 53.54 ms, frame cpu mean 6.153 ms p50 3.797 p95 12.140 max 154.512, 214 instances
+rune: animating frames 70 (cpu p50 8.061 p95 17.217 ms), at-rest frames 98 (the window draws none; forced cpu p50 3.532 p95 4.364 ms), layout nodes 116, glyphs 162
+ok /tmp/ui-smoke-s8-fix/trees/kanban-links.json: active mode mode-kanban
+[[Agenda]] ink (118, 133, 173), [[Nowhere]] ink (103, 103, 103)
+ok a card's link to no note is dimmed, one to a note is the accent
