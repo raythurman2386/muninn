@@ -38,7 +38,11 @@ fn on_board(tmp: &TempVault) -> Runtime<State> {
         tmp.path().to_path_buf(),
         state_home,
         config.clone(),
-        Settings::load_from(&config),
+        // These tests pin slice 4's explicit save; slice 7 tests autosave.
+        Settings {
+            kanban_autosave: false,
+            ..Settings::load_from(&config)
+        },
     );
     let mut rt = Runtime::new(state, view, (1600.0, 900.0), Env::new(true, 2.0));
     rt.poll = Some(poll);

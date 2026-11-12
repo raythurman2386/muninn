@@ -478,12 +478,23 @@ impl Kanban {
         }
         // Spec section 4: the title, one blank line, the marker if any, then
         // the cards; so a card goes after the title's blank line, or right
-        // under the marker.
-        if let Some(marker) = &lane.marker {
-            return Ok(marker.end);
+        // under the marker. An empty lane's passthrough text at column 0
+        // (a line right under the title, or after the marker, a paragraph)
+        // stays above the first card, in place relative to the title before
+        // it (spec section 10 rule 3).
+        let after = if let Some(marker) = &lane.marker {
+            marker.end
+        } else {
+            lane.title_line.end
+        };
+        let body = &self.source[after..lane.span.end];
+        if let Some(end) = last_text_line_end(body) {
+            return Ok(after + end);
         }
-        let after = lane.title_line.end;
-        if self.source[after..lane.span.end].starts_with(self.nl) {
+        if lane.marker.is_some() {
+            return Ok(after);
+        }
+        if body.starts_with(self.nl) {
             Ok(after + self.nl.len())
         } else {
             Ok(after)
@@ -633,6 +644,22 @@ fn insert_block(source: &str, at: usize, mut block: String, nl: &str) -> String 
         block.truncate(block.len() - nl.len());
     }
     splice(source, at..at, &block)
+}
+
+/// When `body` holds a line of text at column 0, the end (after its line
+/// ending) of its last line that is not blank.
+fn last_text_line_end(body: &str) -> Option<usize> {
+    let mut end = None;
+    let mut column_zero = false;
+    let mut at = 0;
+    for line in body.split_inclusive('\n') {
+        at += line.len();
+        if !line.trim_matches([' ', '\t', '\r', '\n']).is_empty() {
+            end = Some(at);
+            column_zero |= !line.starts_with([' ', '\t']);
+        }
+    }
+    end.filter(|_| column_zero)
 }
 
 /// A card that was the unterminated last line stays unterminated when rewritten.

@@ -1947,3 +1947,35 @@ fn moving_a_lane_keeps_collapse_aligned_and_the_footer_order() {
     past.move_lane(2, 1).expect("move");
     assert_eq!(past.footer_json(), Some("{\"list-collapse\":[true]}"));
 }
+
+/// Kanban slice 7: a card moved or added into an empty lane goes after the
+/// lane's own text (a line at column 0 right under the title, or a later
+/// paragraph), so that text stays where it was relative to the title.
+#[test]
+fn a_card_entering_an_empty_lane_goes_after_its_text() {
+    let source = "---\nkanban-plugin: board\n---\n\n## Doing\n\n- [ ] Ship it\n\n\n\
+                  ## Notes\nPlain text under the title\n\n\n## Later\n\n\n";
+    let mut board = parse(source);
+    board.move_card(0, 0, 1, 0).expect("move");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## Doing\n\n\n\n\
+         ## Notes\nPlain text under the title\n- [ ] Ship it\n\n\n## Later\n\n\n"
+    );
+    assert_eq!(board.lanes()[1].cards()[0].text(), "Ship it");
+    // Blank lines first, then a paragraph: still after the text.
+    let mut board = parse("---\nkanban-plugin: board\n---\n\n## Notes\n\nA paragraph\n\n## B\n");
+    board.add_card(0, 0, "New").expect("add");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## Notes\n\nA paragraph\n- [ ] New\n\n## B\n"
+    );
+    // A lane with nothing under its title keeps the blank line after it.
+    let mut board = parse(source);
+    board.add_card(2, 0, "Soon").expect("add");
+    assert!(
+        board.source().ends_with("## Later\n\n- [ ] Soon\n\n"),
+        "{:?}",
+        board.source()
+    );
+}

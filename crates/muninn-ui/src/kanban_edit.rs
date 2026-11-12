@@ -30,10 +30,12 @@
 //!   it, so undo puts back the exact previous bytes. Up to
 //!   [`muninn_core::HISTORY_LIMIT`] entries and about
 //!   [`muninn_core::HISTORY_BYTES`] per open kanban, as on Board.
-//! - **Saving**: nothing is written until `⌘S` / `Ctrl+S`, which writes the
-//!   note once through `Vault::write_note_if_unmodified` (the vault's atomic
-//!   writer). A file that changed on disk since it was read is not written
-//!   over: the save is refused and says so. There is no autosave yet.
+//! - **Saving**: `⌘S` / `Ctrl+S` writes the note once through
+//!   `Vault::write_note_if_unmodified` (the vault's atomic writer), and only
+//!   inside the open vault. A file that changed on disk since it was read is
+//!   not written over: the save is refused and the page flags it (slice 7,
+//!   `kanban_sync.rs`, which also adds autosave; with `"kanban_autosave":
+//!   false` nothing is written until `⌘S`).
 //! - **Unsaved edits are never dropped**, as on Board: leaving the page keeps
 //!   them in memory, and coming back does not re-read the file over them.
 //!   Picking another kanban saves first; when that save fails the page stays
@@ -53,6 +55,7 @@ use muninn_core::{HISTORY_BYTES, HISTORY_LIMIT, Kanban};
 use rune::{KeyEvent, TextEdit};
 
 use crate::board_view::BoardStatus;
+use crate::doc_sync::inside_vault;
 use crate::{Mode, State};
 
 /// Where the card editor is open.
@@ -203,22 +206,14 @@ impl State {
             return CardCommit::Closed;
         };
         let text = self.kanban_card_field.text.clone();
-        let CardSlot { lane, index, new } = slot;
-        let added = new && !text.trim().is_empty();
-        let applied = if text.trim().is_empty() {
-            true
-        } else if new {
-            let done = self.kanban_lane_is_done(lane);
-            self.edit_kanban("add the card", |board| {
-                board.add_card(lane, index, &text)?;
-                if done {
-                    board.toggle_done(lane, index)?;
-                }
-                Ok(())
-            })
+        let added = slot.new && !text.trim().is_empty();
+        let what = if slot.new {
+            "add the card"
         } else {
-            self.edit_kanban("edit the card", |board| board.edit_card(lane, index, &text))
+            "edit the card"
         };
+        let applied = text.trim().is_empty()
+            || self.edit_kanban(what, |board| apply_card_field(board, slot, &text));
         if !applied {
             return CardCommit::Refused;
         }
@@ -433,36 +428,38 @@ impl State {
             return true;
         };
         let (rel, source, disk) = (shown.rel.clone(), board.source().to_owned(), shown.disk);
+        let path = self.vault.root.join(&rel);
+        // Slice 7, the shared disk rule: only inside the open vault, and only
+        // over the file as it was read. `flag`: the refusal is about the
+        // file on disk, so the page flags it for the conflict bar.
         let written = match (self.note_id(&rel), disk) {
-            (None, _) => Err("the note is no longer in the vault".to_owned()),
-            (Some(_), None) => Err("the file could not be checked".to_owned()),
+            _ if !inside_vault(&self.vault.root, &path) => {
+                Err(("the kanban is not inside the open vault".to_owned(), false))
+            }
+            (None, _) => Err(("the note is no longer in the vault".to_owned(), true)),
+            (Some(_), None) => Err(("the file could not be checked".to_owned(), true)),
             (Some(id), Some(expected)) => {
                 match self.vault.write_note_if_unmodified(id, &source, expected) {
                     Ok(true) => Ok(id),
-                    Ok(false) => Err("the file changed on disk".to_owned()),
-                    Err(e) => Err(e.to_string()),
+                    Ok(false) => Err(("the file changed on disk".to_owned(), true)),
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                        Err(("the file was removed".to_owned(), true))
+                    }
+                    Err(e) => Err((e.to_string(), false)),
                 }
             }
         };
         let status = match written {
             Ok(id) => {
-                // The note's editor, links and watcher follow the new file.
-                if self.selected == Some(id) {
-                    let _ = self.load_disk_into_editor(id);
-                } else {
-                    self.graph.sync(&self.vault);
-                    self.refresh_watch();
-                }
+                self.kanban_written(id, source);
                 self.log_event("kanban", &format!("saved {rel}"));
-                let disk = self.vault.disk_state(id).ok();
-                if let Some(shown) = &mut self.kanban {
-                    shown.saved = source;
-                    shown.disk = disk;
-                }
                 BoardStatus::Saved
             }
-            Err(e) => {
+            Err((e, flag)) => {
                 self.log_event("kanban", &format!("{rel} not saved: {e}"));
+                if flag && let Some(shown) = &mut self.kanban {
+                    shown.check_disk(&path);
+                }
                 BoardStatus::Failed(e)
             }
         };
@@ -471,6 +468,25 @@ impl State {
             shown.status = status;
         }
         saved
+    }
+
+    /// After `source` was written to note `id`: the page holds it as the
+    /// file's text, and the note's editor, links and watcher follow the new
+    /// file. Text typed in Write and not saved is left as it is (its own
+    /// guarded save then finds the file changed), never dropped.
+    pub(crate) fn kanban_written(&mut self, id: usize, source: String) {
+        if self.selected == Some(id) && self.editor.text == self.saved {
+            let _ = self.load_disk_into_editor(id);
+        } else {
+            self.graph.sync(&self.vault);
+            self.refresh_watch();
+        }
+        let disk = self.vault.disk_state(id).ok();
+        if let Some(shown) = &mut self.kanban {
+            shown.saved = source;
+            shown.disk = disk;
+            shown.conflict = None;
+        }
     }
 
     pub(crate) fn kanban_board(&self) -> Option<&Kanban> {
@@ -490,6 +506,28 @@ impl State {
     pub(crate) fn kanban_card_at(&self, lane: usize, index: usize) -> Option<&muninn_core::Card> {
         self.kanban_board()?.lanes().get(lane)?.cards().get(index)
     }
+}
+
+/// The card editor's `text` applied to `board` at `slot`, as committing it
+/// does: a new card (born done in a done lane), or the card's new text.
+/// Blank text changes nothing.
+pub(crate) fn apply_card_field(board: &mut Kanban, slot: CardSlot, text: &str) -> io::Result<()> {
+    let CardSlot { lane, index, new } = slot;
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+    if !new {
+        return board.edit_card(lane, index, text);
+    }
+    let done = board
+        .lanes()
+        .get(lane)
+        .is_some_and(|l| l.done_word().is_some());
+    board.add_card(lane, index, text)?;
+    if done {
+        board.toggle_done(lane, index)?;
+    }
+    Ok(())
 }
 
 /// A card's lines for Split card: each line without its leading spaces and

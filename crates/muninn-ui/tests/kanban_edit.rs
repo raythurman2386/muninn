@@ -52,7 +52,11 @@ fn on_board(tmp: &TempVault) -> Runtime<State> {
         tmp.path().to_path_buf(),
         state_home,
         config.clone(),
-        Settings::load_from(&config),
+        // These tests pin slice 4's explicit save; slice 7 tests autosave.
+        Settings {
+            kanban_autosave: false,
+            ..Settings::load_from(&config)
+        },
     );
     let mut rt = Runtime::new(state, view, (1400.0, 900.0), Env::new(true, 2.0));
     rt.poll = Some(poll);
@@ -708,7 +712,8 @@ fn unsaved_edits_survive_leaving_the_page_and_save_before_another_kanban() {
 }
 
 /// A file another app changed is not written over: the save is refused, the
-/// edits stay, and the page does not switch away from them.
+/// edits stay, and the page does not switch away from them. Quitting keeps
+/// them in the recovery copy (slice 7).
 #[test]
 fn a_file_changed_on_disk_refuses_the_save_and_keeps_the_edits() {
     let tmp = vault();
@@ -728,11 +733,10 @@ fn a_file_changed_on_disk_refuses_the_save_and_keeps_the_edits() {
     act(&mut rt, |s| s.open_kanban(sprint));
     assert_eq!(rt.state.kanban.as_ref().unwrap().rel, "Board.md");
     assert_eq!(source(&rt), edited);
-    assert!(
-        !rt.state.flush_before_quit(),
-        "the quit is refused, with the reason"
-    );
-    assert!(rt.state.error.is_some());
+    // Slice 7: the quit goes ahead with the edits in the recovery copy.
+    assert!(rt.state.flush_before_quit(), "kept in the recovery copy");
+    let copy = rt.state.recovery_path("Board.md");
+    assert_eq!(fs::read_to_string(copy).unwrap(), edited);
     assert_eq!(on_disk(&tmp), theirs);
 }
 

@@ -122,6 +122,13 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.board_autosave_tick(t) {
         changed = true;
     }
+    // Kanban slice 7: the same for the Kanban page.
+    if s.kanban_watch_tick(t) {
+        changed = true;
+    }
+    if s.kanban_autosave_tick(t) {
+        changed = true;
+    }
 
     // Slice 7: a view change asked for a settings write; do it once the
     // view rests (one write per held key or stroke, not per event).
@@ -135,7 +142,9 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     // slice 7 keeps the board watcher, autosave and settings write on time:
     // a resting window polls only at a wake it asked for.
     let recovery = s.board_recovery_poll(t);
-    if let Some(wake) = [recovery, s.board_wake(t)].into_iter().flatten().min() {
+    let kanban_recovery = s.kanban_recovery_poll(t);
+    let wakes = [recovery, s.board_wake(t), kanban_recovery, s.kanban_wake(t)];
+    if let Some(wake) = wakes.into_iter().flatten().min() {
         tx.wake_after(wake);
     }
 

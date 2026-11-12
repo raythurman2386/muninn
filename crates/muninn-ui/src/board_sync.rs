@@ -1,8 +1,8 @@
 //! Board slice 7: autosave and the board watcher.
 //!
 //! - **Autosave.** An open board with unsaved drawing is written once it has
-//!   rested for the autosave delay (at least [`BOARD_AUTOSAVE_MIN`]; a board
-//!   file can be megabytes), or at most every [`BOARD_AUTOSAVE_MAX_AGE`]
+//!   rested for the autosave delay (at least `doc_sync::AUTOSAVE_MIN`; a board
+//!   file can be megabytes), or at most every `doc_sync::AUTOSAVE_MAX_AGE`
 //!   while it keeps changing. It goes through the same guarded, atomic save
 //!   as `⌘S` (`State::save_board`), so a file that another app changed or
 //!   removed is never written over: the save is refused and the conflict bar
@@ -23,55 +23,28 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::board_view::BoardStatus;
+use crate::doc_sync::{AUTOSAVE_MAX_AGE, AUTOSAVE_MIN, DiskRule, Rest, file_state};
 use crate::watch::FileState;
 use crate::{Mode, State};
 
-/// The shortest rest before a board is autosaved.
-pub(crate) const BOARD_AUTOSAVE_MIN: f64 = 1.0;
-/// While the drawing never rests, it is still saved this often.
-pub(crate) const BOARD_AUTOSAVE_MAX_AGE: f64 = 10.0;
-
-/// A file's `(modified, length)`, or `None` when it cannot be read.
-pub(crate) fn file_state(path: &Path) -> Option<FileState> {
-    let meta = std::fs::metadata(path).ok()?;
-    Some((meta.modified().ok(), meta.len()))
-}
-
-/// What a watcher may do with the open board when its file changed on disk.
-/// Both watchers (the board watcher and the vault watcher's
-/// `refresh_boards`) ask [`State::open_board_disk_rule`], so they cannot
-/// drift apart (#41 review GK2b: an atomic save reaches the vault watcher
-/// first, and it used to reload under the open text editor).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum OpenBoardDiskRule {
-    /// Unsaved drawing, or text typed into the editor and not committed:
-    /// flag their change (`check_disk`), never reload.
-    Flag,
-    /// A gesture, a draft or an open editor with nothing typed: do not
-    /// reload under it (the editor's commit would write the old text back
-    /// over theirs); look again once it is over.
-    Later,
-    /// Clean and idle: re-read the file.
-    Reload,
-}
-
 impl State {
-    /// The rule for the open board, if one is open. See [`OpenBoardDiskRule`].
-    pub(crate) fn open_board_disk_rule(&self) -> Option<OpenBoardDiskRule> {
+    /// What a watcher may do with the open board, if one is open, when its
+    /// file changed on disk. Both watchers (the board watcher and the vault
+    /// watcher's `refresh_boards`) ask this, so they cannot drift apart.
+    /// Unsaved drawing, or text typed into the editor and not committed, is
+    /// flagged; a gesture, a draft or an open editor with nothing typed waits.
+    pub(crate) fn open_board_disk_rule(&self) -> Option<DiskRule> {
         let open = self.board_open.as_ref()?;
-        Some(if open.dirty() || self.board_text_pending().is_some() {
-            OpenBoardDiskRule::Flag
-        } else if open.edit.gesture.is_some() || open.draft.is_some() || self.board_text.is_some() {
-            OpenBoardDiskRule::Later
-        } else {
-            OpenBoardDiskRule::Reload
-        })
+        Some(DiskRule::of(
+            open.dirty() || self.board_text_pending().is_some(),
+            open.edit.gesture.is_some() || open.draft.is_some() || self.board_text.is_some(),
+        ))
     }
 
     /// Per frame: autosave the open board once its drawing has rested.
     /// `true` when the status line changed (saved or failed).
     pub(crate) fn board_autosave_tick(&mut self, t: f64) -> bool {
-        let delay = self.autosave_delay().max(BOARD_AUTOSAVE_MIN);
+        let delay = self.autosave_delay().max(AUTOSAVE_MIN);
         let busy = self.board_text.is_some() || !self.settings.board_autosave;
         let Some(open) = &self.board_open else {
             self.board_autosave_wait = None;
@@ -90,12 +63,15 @@ impl State {
             return false;
         }
         let generation = open.generation;
-        let wait = self.board_autosave_wait.get_or_insert((generation, t, t));
-        if wait.0 != generation {
-            wait.0 = generation;
-            wait.2 = t;
-        }
-        if t - wait.2 < delay && t - wait.1 < BOARD_AUTOSAVE_MAX_AGE {
+        if Rest::wait(
+            &mut self.board_autosave_wait,
+            generation,
+            t,
+            delay,
+            AUTOSAVE_MAX_AGE,
+        )
+        .is_some()
+        {
             return false;
         }
         self.board_autosave_wait = None;
@@ -157,7 +133,7 @@ impl State {
         for path in changed {
             let open = self.board_open.as_mut().filter(|open| open.path == path);
             if let Some(open) = open {
-                if rule == Some(OpenBoardDiskRule::Flag) {
+                if rule == Some(DiskRule::Flag) {
                     let was = open.conflict;
                     open.check_disk();
                     if open.conflict != was {
@@ -166,7 +142,7 @@ impl State {
                     }
                     continue;
                 }
-                if rule == Some(OpenBoardDiskRule::Later) {
+                if rule == Some(DiskRule::Later) {
                     // Look again next time, once the gesture is over or the
                     // editor has closed.
                     self.board_stats.remove(&path);
