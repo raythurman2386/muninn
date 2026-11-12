@@ -220,7 +220,7 @@ pub enum Claim {
 
 /// The lock and listener of the running app. Dropping it releases both.
 pub struct Primary {
-    _lock: File,
+    lock: File,
     listener: Listener,
     secret: String,
     #[cfg(unix)]
@@ -301,7 +301,7 @@ fn listen(paths: &Paths, lock: File) -> Result<Primary, Error> {
     let listener = Listener::bind(&socket).map_err(|e| io("could not listen on", &socket, e))?;
     write_info(paths, &format!("{}\n", std::process::id()))?;
     Ok(Primary {
-        _lock: lock,
+        lock,
         listener,
         secret: String::new(),
         socket,
@@ -322,7 +322,7 @@ fn listen(paths: &Paths, lock: File) -> Result<Primary, Error> {
         &format!("{}\n{port}\n{secret}\n", std::process::id()),
     )?;
     Ok(Primary {
-        _lock: lock,
+        lock,
         listener,
         secret,
     })
@@ -451,12 +451,15 @@ impl Primary {
     }
 }
 
-#[cfg(unix)]
 impl Drop for Primary {
     fn drop(&mut self) {
-        // Still holding the lock (fields drop after this), so the socket
-        // file is ours to remove.
+        // Still holding the lock, so the socket file is ours to remove.
+        #[cfg(unix)]
         let _ = fs::remove_file(&self.socket);
+        // Unlock now rather than when the file closes: a process being
+        // spawned at this moment holds a copy of every open file until it
+        // execs, and the lock would last until that copy closes too.
+        let _ = self.lock.unlock();
     }
 }
 
@@ -464,25 +467,16 @@ impl Drop for Primary {
 mod tests {
     use super::*;
     use std::process::Command;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::mpsc;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
+    /// A fresh folder in the temp folder (`TMPDIR`), one per test. The name
+    /// is short so the socket still fits beside the lock under macOS's long
+    /// per-user temp folder.
     fn scratch(name: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        // `/tmp` on Unix: macOS's per-user temp folder is long enough to
-        // push every socket onto the short-path fallback.
-        let base = if cfg!(unix) {
-            PathBuf::from("/tmp")
-        } else {
-            std::env::temp_dir()
-        };
-        let path = base.join(format!(
-            "muninn-instance-{name}-{}-{nanos}",
-            std::process::id()
-        ));
+        static NEXT: AtomicU32 = AtomicU32::new(0);
+        let n = NEXT.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("mi-{name}-{}-{n}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
         path
     }
@@ -528,6 +522,21 @@ mod tests {
         drop(first);
         let again = primary(claim(&paths, &Request::default(), ANSWER_WAIT).unwrap());
         drop(again);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_dropped_primary_frees_the_lock_while_a_copy_of_its_file_is_open() {
+        // What a process being spawned holds until it execs.
+        let dir = scratch("copy");
+        let paths = Paths::at(&dir);
+        let first = primary(claim(&paths, &Request::default(), ANSWER_WAIT).unwrap());
+        let copy = first.lock.try_clone().unwrap();
+        drop(first);
+        let again =
+            primary(claim(&paths, &Request::default(), Duration::from_millis(300)).unwrap());
+        drop(again);
+        drop(copy);
         let _ = fs::remove_dir_all(&dir);
     }
 
