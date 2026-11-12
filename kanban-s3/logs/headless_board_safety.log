@@ -1,0 +1,67 @@
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/safety/search.json: Cmd+\ at 0.50 s
+rune: `init` blocked 26 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 11 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 20 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 136 frames at 60 fps, gpu init 82.9 ms, first frame 67.35 ms, frame cpu mean 5.513 ms p50 3.161 p95 13.922 max 142.266, 573 instances
+rune: animating frames 78 (cpu p50 4.143 p95 16.276 ms), at-rest frames 57 (the window draws none; forced cpu p50 2.191 p95 4.128 ms), layout nodes 154, glyphs 351
+rune: `init` blocked 20 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 220 frames at 60 fps, gpu init 83.6 ms, first frame 66.09 ms, frame cpu mean 4.283 ms p50 2.409 p95 11.602 max 142.125, 520 instances
+rune: animating frames 84 (cpu p50 4.028 p95 16.296 ms), at-rest frames 135 (the window draws none; forced cpu p50 2.119 p95 4.196 ms), layout nodes 122, glyphs 316
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/safety-search-typed.json: search says 'road1x+0'
+ok the canvas matches (0 pixels differ)
+ok negative control fails: the search text before typing (FAIL /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/safety-search-before.json: search does not say 'road1x+0')
+ok seeded a recovery copy for Tools.excalidraw: 6 elements
+rune: 76 frames at 60 fps, gpu init 83.6 ms, first frame 68.86 ms, frame cpu mean 1.905 ms p50 1.701 p95 2.459 max 68.865, 470 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 75 (the window draws none; forced cpu p50 1.687 p95 2.441 ms), layout nodes 152, glyphs 410
+ok safety-banner.json: recovery-banner says 'Recovered unsaved edits for 1 board'
+ok safety-banner.json: recovery-banner says 'Tools.excalidraw'
+rune: `init` blocked 28 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/recovery-banner/#2/recovery-restore-0" blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 184 frames at 60 fps, gpu init 83.4 ms, first frame 68.34 ms, frame cpu mean 4.317 ms p50 1.990 p95 13.693 max 148.177, 444 instances
+rune: animating frames 48 (cpu p50 5.217 p95 20.524 ms), at-rest frames 135 (the window draws none; forced cpu p50 1.891 p95 3.055 ms), layout nodes 99, glyphs 253
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/safety-restored.json: active mode mode-board
+ok safety-restored.json: board-conflict says 'Removed or renamed on disk'
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/safety-restored.json: board-save-state says 'Unsaved · ⌘S saves'
+ok the recovered rectangle is drawn at the fit (7344/7344 px, zoom 1.000)
+ok restoring did not write the board
+rune: `init` blocked 31 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/recovery-banner/#2/recovery-restore-0" blocked 22 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 15 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-surface/#0/board-conflict/board-keep-mine" blocked 32 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 256 frames at 60 fps, gpu init 84.4 ms, first frame 68.27 ms, frame cpu mean 3.921 ms p50 2.155 p95 10.241 max 155.114, 435 instances
+rune: animating frames 95 (cpu p50 3.120 p95 16.134 ms), at-rest frames 160 (the window draws none; forced cpu p50 1.983 p95 3.102 ms), layout nodes 93, glyphs 244
+ok Tools.excalidraw: 6 elements, with recovered-rect
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4610 bytes written
+ok no recovery copy for Tools.excalidraw
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/safety-kept.json: board-save-state says 'Saved'
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/safety-kept.json: no board-conflict
+ok negative control fails: the drawing on the banner shot (FAIL the recovered rectangle is not drawn where planned (0/7344 px))
+ok negative control fails: the rectangle as absent on the restored shot (FAIL the recovered rectangle is drawn (7344/7344 px) but should not be)
+ok negative control fails: the fixture as the kept file (FAIL /home/ret/Development/muninn-kanban/crates/muninn-core/tests/fixtures/board/draw.excalidraw: 5 elements, want 6)
+ok seeded a recovery copy for Tools.excalidraw: 6 elements
+rune: `on_press` on "root/main/recovery-banner/#2/recovery-restore-0" blocked 22 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 11 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-surface/#0/board-conflict/board-save-copy" blocked 20 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 256 frames at 60 fps, gpu init 83.0 ms, first frame 66.70 ms, frame cpu mean 3.756 ms p50 2.074 p95 10.767 max 153.346, 510 instances
+rune: animating frames 95 (cpu p50 3.114 p95 16.269 ms), at-rest frames 160 (the window draws none; forced cpu p50 1.880 p95 2.960 ms), layout nodes 93, glyphs 319
+ok Tools (conflict 20261112-122816).excalidraw: 6 elements, with recovered-rect
+ok no recovery copy for Tools.excalidraw
+ok seeded a recovery copy for Tools.excalidraw: 6 elements
+rune: `on_press` on "root/main/recovery-banner/#2/recovery-restore-0" blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 11 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 184 frames at 60 fps, gpu init 84.7 ms, first frame 69.81 ms, frame cpu mean 4.232 ms p50 2.003 p95 12.319 max 146.811, 497 instances
+rune: animating frames 48 (cpu p50 5.354 p95 17.378 ms), at-rest frames 135 (the window draws none; forced cpu p50 1.918 p95 3.035 ms), layout nodes 102, glyphs 305
+ok safety-changed.json: board-conflict says 'Changed on disk by another app'
+rune: `init` blocked 15 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/recovery-banner/#2/recovery-restore-0" blocked 19 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 256 frames at 60 fps, gpu init 83.3 ms, first frame 70.18 ms, frame cpu mean 3.674 ms p50 1.985 p95 10.395 max 154.055, 424 instances
+rune: animating frames 70 (cpu p50 4.626 p95 17.510 ms), at-rest frames 185 (the window draws none; forced cpu p50 1.899 p95 2.831 ms), layout nodes 91, glyphs 239
+ok their file is untouched
+ok no recovery copy for Tools.excalidraw
+ok the recovered rectangle is not drawn (0 px)

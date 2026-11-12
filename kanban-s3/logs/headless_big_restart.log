@@ -1,0 +1,9 @@
+rune: `init` blocked 30 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 39 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 151 frames at 60 fps, gpu init 82.9 ms, first frame 32.24 ms, frame cpu mean 5.645 ms p50 4.700 p95 5.777 max 84.471, 587 instances
+rune: animating frames 7 (cpu p50 5.036 p95 84.471 ms), at-rest frames 143 (the window draws none; forced cpu p50 4.687 p95 5.627 ms), layout nodes 1096, glyphs 347
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/big-restart.json: active mode mode-board
+ok same: rect-red [704, 434, 885, 547] (off 0.0)
+ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)
+ok same: line-green [703, 623, 931, 671] (off 0.0)
+saved board after the scan {'eye': [-145.0443115234375, -246.50299072265625], 'rel': 'Smoke.excalidraw', 'zoom': 1.1179945468902588}

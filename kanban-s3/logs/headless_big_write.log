@@ -1,0 +1,16 @@
+rune: `init` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 33 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 11 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 193 frames at 60 fps, gpu init 83.7 ms, first frame 45.99 ms, frame cpu mean 5.893 ms p50 4.258 p95 5.979 max 140.833, 435 instances
+rune: animating frames 43 (cpu p50 5.232 p95 12.692 ms), at-rest frames 149 (the window draws none; forced cpu p50 4.147 p95 5.215 ms), layout nodes 1086, glyphs 371
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/config-big-write/muninn/settings.json: mode preview
+saved board after the scan in Write {'eye': [-145.0443115234375, -246.50299072265625], 'rel': 'Smoke.excalidraw', 'zoom': 1.1179945468902588}
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 35 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 289 frames at 60 fps, gpu init 84.2 ms, first frame 44.81 ms, frame cpu mean 6.479 ms p50 4.451 p95 15.226 max 142.983, 587 instances
+rune: animating frames 44 (cpu p50 7.663 p95 37.402 ms), at-rest frames 244 (the window draws none; forced cpu p50 4.300 p95 5.660 ms), layout nodes 1096, glyphs 347
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/big-write-board.json: active mode mode-board
+ok same: rect-red [704, 434, 885, 547] (off 0.0)
+ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)
+ok same: line-green [703, 623, 931, 671] (off 0.0)

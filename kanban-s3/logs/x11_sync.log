@@ -1,0 +1,71 @@
+Xvfb on :90, vulkan icd /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 148,245 in 0x200002 (button 1 x1)
+ok another app wrote /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw in place: keep-text reads 'keep me, changed by another app'
+ok keep-text ink 75 -> 310 px: their text is shown
+ok negative control fails: their text on the before shot (FAIL keep-text ink 75 px wide, before 75 px: not their longer text)
+ok the clean board was re-read from the other app's write
+ok typed 't' on 0x200002
+ok clicked 670,395 in 0x200002 (button 1 x1)
+ok typed 'auto' on 0x200002
+ok pressed esc on 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw: 5 elements kept exactly, 'auto' appended
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4952 bytes written
+ok negative control fails: the fixture as the base of the autosave (FAIL element keep-text changed)
+ok sent WM_DELETE_WINDOW to 0x200002
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 148,245 in 0x200002 (button 1 x1)
+ok clicked 500,235 in 0x200002 (button 1 x1)
+ok pressed Right on 0x200002
+ok another app wrote /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw in place: keep-text reads 'keep me, changed by another app'
+ok pressed ctrl+s on 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-dirty.excalidraw
+ok sent WM_DELETE_WINDOW to 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-dirty.excalidraw
+ok the dirty board was flagged, their file was never written over, and the drawing has a recovery copy
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 148,245 in 0x200002 (button 1 x1)
+ok double-clicked 506,678 in 0x200002
+ok typed ' LOCAL' on 0x200002
+ok another app wrote /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw in place: keep-text reads 'keep me, changed by another app'
+ok pressed esc on 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-text.excalidraw
+ok sent WM_DELETE_WINDOW to 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-text.excalidraw
+ok typing under another app's change to the same text: flagged, theirs never written over, mine in the recovery copy
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 148,245 in 0x200002 (button 1 x1)
+ok double-clicked 506,678 in 0x200002
+ok typed ' LOCAL' on 0x200002
+ok another app saved /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw atomically (temp + rename): keep-text changed
+ok pressed esc on 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-atomic.excalidraw
+ok sent WM_DELETE_WINDOW to 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-atomic.excalidraw
+ok (a:change:typed) their atomic save: never reloaded under the editor, never written over, mine in the recovery copy
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 148,245 in 0x200002 (button 1 x1)
+ok double-clicked 506,678 in 0x200002
+ok typed ' LOCAL' on 0x200002
+ok another app saved /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw atomically (temp + rename): keep-text deleted
+ok pressed esc on 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-atomic.excalidraw
+ok sent WM_DELETE_WINDOW to 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-atomic.excalidraw
+ok (b:delete:typed) their atomic save: never reloaded under the editor, never written over, mine in the recovery copy
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 148,245 in 0x200002 (button 1 x1)
+ok double-clicked 506,678 in 0x200002
+ok another app saved /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw atomically (temp + rename): keep-text changed
+ok pressed esc on 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-atomic.excalidraw
+ok keep-text ink 75 -> 310 px: their text is shown
+ok sent WM_DELETE_WINDOW to 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/vault/Tools.excalidraw is byte-identical to /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/sync-x11/theirs-atomic.excalidraw
+ok (c:change:open) their atomic save: never reloaded under the editor, never written over, shown once the editor closed

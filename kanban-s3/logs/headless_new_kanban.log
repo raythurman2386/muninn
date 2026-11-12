@@ -1,0 +1,77 @@
+vulkan icd: /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json (WGPU_BACKEND=vulkan)
+	deviceName         = llvmpipe (LLVM 23.1.3, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 26.2.5-arch1.1 (LLVM 23.1.3)
+rune: `init` blocked 19 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 73 frames at 60 fps, gpu init 85.1 ms, first frame 59.67 ms, frame cpu mean 1.801 ms p50 1.634 p95 2.109 max 59.672, 401 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 72 (the window draws none; forced cpu p50 1.634 p95 2.044 ms), layout nodes 153, glyphs 340
+rows: Agenda note-row-0, Blank note-row-1, Notes note-row-2
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 38 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 229 frames at 60 fps, gpu init 84.5 ms, first frame 58.73 ms, frame cpu mean 4.844 ms p50 2.645 p95 12.952 max 135.062, 383 instances
+rune: animating frames 84 (cpu p50 6.047 p95 20.911 ms), at-rest frames 144 (the window draws none; forced cpu p50 1.826 p95 3.413 ms), layout nodes 147, glyphs 321
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/kanban-new-vault/Untitled Kanban.md is the New Kanban layout byte for byte
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-first.json: active mode mode-kanban
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-first.json: kanban-title says 'Untitled Kanban'
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-first.json: kanban-lane-2-title says 'Done'
+rune: `init` blocked 24 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 41 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 229 frames at 60 fps, gpu init 85.3 ms, first frame 61.55 ms, frame cpu mean 4.932 ms p50 2.727 p95 12.880 max 138.132, 427 instances
+rune: animating frames 84 (cpu p50 6.117 p95 23.251 ms), at-rest frames 144 (the window draws none; forced cpu p50 1.869 p95 3.785 ms), layout nodes 157, glyphs 362
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/kanban-new-vault/Untitled Kanban 2.md is the New Kanban layout byte for byte
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-second.json: kanban-title says 'Untitled Kanban 2'
+rune: `init` blocked 24 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 37 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 229 frames at 60 fps, gpu init 81.8 ms, first frame 62.88 ms, frame cpu mean 5.184 ms p50 2.688 p95 16.303 max 140.678, 486 instances
+rune: animating frames 113 (cpu p50 5.193 p95 17.959 ms), at-rest frames 115 (the window draws none; forced cpu p50 2.076 p95 4.035 ms), layout nodes 168, glyphs 418
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/kanban-new-vault/Plans/Untitled Kanban 2.md is the New Kanban layout byte for byte
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-plans.json: kanban-detail says 'Plans/Untitled Kanban 2.md · Read only'
+rune: `init` blocked 20 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-1" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 157 frames at 60 fps, gpu init 86.8 ms, first frame 66.98 ms, frame cpu mean 4.900 ms p50 2.686 p95 13.053 max 138.797, 645 instances
+rune: animating frames 73 (cpu p50 5.445 p95 15.615 ms), at-rest frames 83 (the window draws none; forced cpu p50 2.557 p95 3.706 ms), layout nodes 203, glyphs 528
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-convert-offered.json: palette-item-0 says 'Convert empty note to Kanban'
+rune: `init` blocked 33 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-1" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 229 frames at 60 fps, gpu init 82.6 ms, first frame 65.43 ms, frame cpu mean 4.913 ms p50 2.750 p95 13.048 max 140.187, 424 instances
+rune: animating frames 115 (cpu p50 4.932 p95 17.829 ms), at-rest frames 113 (the window draws none; forced cpu p50 2.017 p95 4.106 ms), layout nodes 172, glyphs 356
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/work/kanban-new-vault/Blank.md is the New Kanban layout byte for byte
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-convert.json: active mode mode-kanban
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-convert.json: kanban-title says 'Blank'
+rune: `init` blocked 32 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 157 frames at 60 fps, gpu init 82.3 ms, first frame 63.64 ms, frame cpu mean 4.736 ms p50 2.757 p95 11.267 max 137.758, 602 instances
+rune: animating frames 42 (cpu p50 6.516 p95 17.287 ms), at-rest frames 114 (the window draws none; forced cpu p50 2.275 p95 4.018 ms), layout nodes 202, glyphs 523
+rune: `init` blocked 19 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 229 frames at 60 fps, gpu init 84.6 ms, first frame 65.03 ms, frame cpu mean 4.190 ms p50 2.761 p95 7.973 max 139.028, 602 instances
+rune: animating frames 42 (cpu p50 6.661 p95 17.152 ms), at-rest frames 186 (the window draws none; forced cpu p50 2.629 p95 3.807 ms), layout nodes 202, glyphs 523
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-refuse-typed.json: no palette-item-0
+ok the palette shows 0 results for convert on Agenda
+ok /home/ret/Development/muninn-kanban/target/ui-smoke-s3/trees/kanban-new-refuse.json: active mode mode-editor
+rune: `init` blocked 20 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 73 frames at 60 fps, gpu init 82.3 ms, first frame 64.20 ms, frame cpu mean 4.023 ms p50 1.837 p95 2.795 max 140.815, 602 instances
+rune: animating frames 1 (cpu p50 140.815 p95 140.815 ms), at-rest frames 71 (the window draws none; forced cpu p50 1.820 p95 2.574 ms), layout nodes 281, glyphs 496
+rune: `init` blocked 23 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 133 frames at 60 fps, gpu init 82.8 ms, first frame 64.80 ms, frame cpu mean 4.856 ms p50 2.473 p95 7.930 max 139.134, 737 instances
+rune: animating frames 42 (cpu p50 6.183 p95 14.419 ms), at-rest frames 90 (the window draws none; forced cpu p50 1.910 p95 3.469 ms), layout nodes 281, glyphs 628
+Kanbans section: ['Blank', 'Untitled Kanban 2', 'Release', 'Untitled Kanban 2', 'Untitled Kanban']
+ok five notes-list rows carry the kanban glyph
+palette kanbans: ['Blank', 'Release', 'Untitled Kanban', 'Untitled Kanban 2', 'Untitled Kanban 2']
+ok the palette has New Kanban and every kanban by name
+running 3 tests
+...
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 134 filtered out; finished in 0.00s
+
+Agenda.md: OK
+Release.md: OK
+Plans/Notes.md: OK
+'Plans/Untitled Kanban.md': OK
+./Agenda.md
+./Blank.md
+./Plans/Notes.md
+./Plans/Untitled Kanban 2.md
+./Plans/Untitled Kanban.md
+./Release.md
+./Untitled Kanban 2.md
+./Untitled Kanban.md
