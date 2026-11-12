@@ -1,9 +1,9 @@
-rune: 193 frames at 60 fps, gpu init 95.1 ms, first frame 44.01 ms, frame cpu mean 6.324 ms p50 4.105 p95 10.827 max 161.267, 428 instances
-rune: animating frames 43 (cpu p50 7.491 p95 23.057 ms), at-rest frames 149 (the window draws none; forced cpu p50 3.775 p95 5.809 ms), layout nodes 921, glyphs 365
+rune: 193 frames at 60 fps, gpu init 94.3 ms, first frame 44.16 ms, frame cpu mean 6.236 ms p50 4.091 p95 9.239 max 167.413, 428 instances
+rune: animating frames 43 (cpu p50 7.384 p95 20.802 ms), at-rest frames 149 (the window draws none; forced cpu p50 3.747 p95 5.869 ms), layout nodes 921, glyphs 365
 ok /agent/repos/muninn/target/ui-smoke/work/config-big-write/muninn/settings.json: mode preview
 saved board after the scan in Write {'eye': [-145.0443115234375, -246.50299072265625], 'rel': 'Smoke.excalidraw', 'zoom': 1.1179945468902588}
-rune: 289 frames at 60 fps, gpu init 103.6 ms, first frame 45.67 ms, frame cpu mean 7.231 ms p50 4.211 p95 18.479 max 165.301, 580 instances
-rune: animating frames 44 (cpu p50 12.867 p95 69.875 ms), at-rest frames 244 (the window draws none; forced cpu p50 3.981 p95 7.180 ms), layout nodes 931, glyphs 341
+rune: 289 frames at 60 fps, gpu init 96.6 ms, first frame 45.25 ms, frame cpu mean 7.288 ms p50 4.123 p95 19.127 max 175.722, 580 instances
+rune: animating frames 44 (cpu p50 13.349 p95 66.563 ms), at-rest frames 244 (the window draws none; forced cpu p50 3.857 p95 7.298 ms), layout nodes 931, glyphs 341
 ok /agent/repos/muninn/target/ui-smoke/trees/big-write-board.json: active mode mode-board
 ok same: rect-red [704, 434, 885, 547] (off 0.0)
 ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)

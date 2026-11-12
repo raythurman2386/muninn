@@ -1,20 +1,20 @@
 ok /agent/repos/muninn/target/ui-smoke/work/board-open.json: Cmd+\ at 0.50 s
-rune: 133 frames at 60 fps, gpu init 94.9 ms, first frame 63.86 ms, frame cpu mean 9.064 ms p50 5.947 p95 22.801 max 159.330, 569 instances
-rune: animating frames 85 (cpu p50 7.920 p95 27.692 ms), at-rest frames 47 (the window draws none; forced cpu p50 4.215 p95 6.718 ms), layout nodes 147, glyphs 338
-rune: 217 frames at 60 fps, gpu init 95.2 ms, first frame 64.05 ms, frame cpu mean 7.434 ms p50 5.317 p95 18.052 max 159.654, 569 instances
-rune: animating frames 121 (cpu p50 6.322 p95 22.042 ms), at-rest frames 95 (the window draws none; forced cpu p50 4.736 p95 6.024 ms), layout nodes 147, glyphs 338
-rune: 277 frames at 60 fps, gpu init 117.2 ms, first frame 63.74 ms, frame cpu mean 7.021 ms p50 5.125 p95 17.607 max 159.810, 564 instances
-rune: animating frames 134 (cpu p50 5.970 p95 20.181 ms), at-rest frames 142 (the window draws none; forced cpu p50 4.829 p95 6.008 ms), layout nodes 147, glyphs 333
-rune: 337 frames at 60 fps, gpu init 96.7 ms, first frame 63.31 ms, frame cpu mean 6.629 ms p50 5.166 p95 13.070 max 157.861, 560 instances
-rune: animating frames 141 (cpu p50 5.869 p95 24.574 ms), at-rest frames 195 (the window draws none; forced cpu p50 5.016 p95 6.489 ms), layout nodes 147, glyphs 329
-rune: 397 frames at 60 fps, gpu init 100.2 ms, first frame 68.72 ms, frame cpu mean 6.436 ms p50 5.232 p95 12.540 max 172.048, 559 instances
-rune: animating frames 147 (cpu p50 5.917 p95 19.476 ms), at-rest frames 249 (the window draws none; forced cpu p50 5.115 p95 6.395 ms), layout nodes 147, glyphs 328
-rune: 463 frames at 60 fps, gpu init 96.9 ms, first frame 63.50 ms, frame cpu mean 7.005 ms p50 5.289 p95 14.532 max 170.769, 397 instances
-rune: animating frames 189 (cpu p50 6.658 p95 21.177 ms), at-rest frames 273 (the window draws none; forced cpu p50 5.071 p95 6.427 ms), layout nodes 137, glyphs 339
-rune: 541 frames at 60 fps, gpu init 96.6 ms, first frame 69.96 ms, frame cpu mean 7.159 ms p50 5.282 p95 14.573 max 161.244, 559 instances
-rune: animating frames 232 (cpu p50 8.726 p95 19.148 ms), at-rest frames 308 (the window draws none; forced cpu p50 5.019 p95 6.288 ms), layout nodes 147, glyphs 328
-rune: 601 frames at 60 fps, gpu init 93.6 ms, first frame 62.66 ms, frame cpu mean 6.985 ms p50 5.287 p95 15.514 max 157.626, 569 instances
-rune: animating frames 238 (cpu p50 8.694 p95 18.778 ms), at-rest frames 362 (the window draws none; forced cpu p50 5.086 p95 6.300 ms), layout nodes 147, glyphs 338
+rune: 133 frames at 60 fps, gpu init 95.6 ms, first frame 64.05 ms, frame cpu mean 9.263 ms p50 5.906 p95 27.158 max 157.164, 569 instances
+rune: animating frames 85 (cpu p50 7.660 p95 29.037 ms), at-rest frames 47 (the window draws none; forced cpu p50 4.311 p95 5.923 ms), layout nodes 147, glyphs 338
+rune: 217 frames at 60 fps, gpu init 96.1 ms, first frame 64.94 ms, frame cpu mean 7.420 ms p50 5.147 p95 17.197 max 162.286, 569 instances
+rune: animating frames 121 (cpu p50 5.844 p95 26.550 ms), at-rest frames 95 (the window draws none; forced cpu p50 5.031 p95 5.795 ms), layout nodes 147, glyphs 338
+rune: 277 frames at 60 fps, gpu init 94.2 ms, first frame 63.15 ms, frame cpu mean 6.864 ms p50 5.117 p95 14.322 max 158.405, 564 instances
+rune: animating frames 134 (cpu p50 5.869 p95 21.462 ms), at-rest frames 142 (the window draws none; forced cpu p50 4.879 p95 5.827 ms), layout nodes 147, glyphs 333
+rune: 337 frames at 60 fps, gpu init 99.0 ms, first frame 64.46 ms, frame cpu mean 6.945 ms p50 5.377 p95 13.316 max 162.051, 560 instances
+rune: animating frames 141 (cpu p50 6.389 p95 23.899 ms), at-rest frames 195 (the window draws none; forced cpu p50 5.136 p95 7.059 ms), layout nodes 147, glyphs 329
+rune: 397 frames at 60 fps, gpu init 123.9 ms, first frame 67.06 ms, frame cpu mean 7.547 ms p50 6.064 p95 15.645 max 165.136, 559 instances
+rune: animating frames 147 (cpu p50 6.303 p95 29.678 ms), at-rest frames 249 (the window draws none; forced cpu p50 5.979 p95 7.457 ms), layout nodes 147, glyphs 328
+rune: 463 frames at 60 fps, gpu init 95.9 ms, first frame 62.91 ms, frame cpu mean 7.770 ms p50 5.989 p95 15.966 max 163.579, 397 instances
+rune: animating frames 189 (cpu p50 8.210 p95 22.077 ms), at-rest frames 273 (the window draws none; forced cpu p50 5.472 p95 7.118 ms), layout nodes 137, glyphs 339
+rune: 541 frames at 60 fps, gpu init 95.0 ms, first frame 64.09 ms, frame cpu mean 7.236 ms p50 5.401 p95 15.539 max 159.588, 559 instances
+rune: animating frames 232 (cpu p50 9.007 p95 19.915 ms), at-rest frames 308 (the window draws none; forced cpu p50 5.132 p95 6.322 ms), layout nodes 147, glyphs 328
+rune: 601 frames at 60 fps, gpu init 97.3 ms, first frame 63.81 ms, frame cpu mean 7.303 ms p50 5.413 p95 15.753 max 159.167, 569 instances
+rune: animating frames 238 (cpu p50 8.941 p95 20.876 ms), at-rest frames 362 (the window draws none; forced cpu p50 5.137 p95 6.286 ms), layout nodes 147, glyphs 338
 ok /agent/repos/muninn/target/ui-smoke/trees/board-fit.json: active mode mode-board
 canvas [543.0, 159.0, 609.0, 597.0], fit zoom 0.7100, eye (-78.87, -315.42)
 ok fit: rect-red [599, 382, 713, 454] (off 0.7)
@@ -49,8 +49,8 @@ ok same: freedraw-orange [895, 388, 984, 449] (off 0.0)
 ok same: line-green [598, 503, 742, 533] (off 0.0)
 ok /agent/repos/muninn/target/ui-smoke/work/config-board-back/muninn/settings.json: mode board
 saved board {'eye': [-145.0443115234375, -246.50299072265625], 'rel': 'Smoke.excalidraw', 'zoom': 1.1179945468902588}
-rune: 91 frames at 60 fps, gpu init 95.6 ms, first frame 44.61 ms, frame cpu mean 5.072 ms p50 4.815 p95 6.605 max 44.611, 559 instances
-rune: animating frames 6 (cpu p50 4.655 p95 16.441 ms), at-rest frames 84 (the window draws none; forced cpu p50 4.823 p95 6.185 ms), layout nodes 147, glyphs 328
+rune: 91 frames at 60 fps, gpu init 99.6 ms, first frame 45.13 ms, frame cpu mean 5.688 ms p50 5.303 p95 7.190 max 45.129, 559 instances
+rune: animating frames 6 (cpu p50 6.035 p95 21.712 ms), at-rest frames 84 (the window draws none; forced cpu p50 5.168 p95 6.973 ms), layout nodes 147, glyphs 328
 ok /agent/repos/muninn/target/ui-smoke/trees/board-restart.json: active mode mode-board
 ok same: rect-red [704, 434, 885, 547] (off 0.0)
 ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)

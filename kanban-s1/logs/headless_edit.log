@@ -1,68 +1,68 @@
-rune: 136 frames at 60 fps, gpu init 94.7 ms, first frame 63.71 ms, frame cpu mean 9.081 ms p50 5.201 p95 25.188 max 155.993, 417 instances
-rune: animating frames 78 (cpu p50 9.273 p95 33.991 ms), at-rest frames 57 (the window draws none; forced cpu p50 3.743 p95 4.876 ms), layout nodes 87, glyphs 233
+rune: 136 frames at 60 fps, gpu init 96.1 ms, first frame 63.85 ms, frame cpu mean 9.047 ms p50 5.290 p95 24.030 max 163.779, 417 instances
+rune: animating frames 78 (cpu p50 8.525 p95 34.337 ms), at-rest frames 57 (the window draws none; forced cpu p50 4.108 p95 5.213 ms), layout nodes 87, glyphs 233
 ok /agent/repos/muninn/target/ui-smoke/trees/edit-before.json: board-surface-title says 'Tools'
 ok wrote /agent/repos/muninn/target/ui-smoke/work/edit/edit.json: 50 events, zoom 1.0000
 ok before: rectangle fill where planned (1344/1344 px)
 ok before: text ink moved by (0, 0) (want 0.00, 0.00)
 ok before: no selection drawn (0 px)
 ok before: nothing else on the canvas changed
-rune: 188 frames at 60 fps, gpu init 98.2 ms, first frame 64.77 ms, frame cpu mean 8.396 ms p50 5.740 p95 19.294 max 179.160, 469 instances
-rune: animating frames 120 (cpu p50 6.756 p95 23.519 ms), at-rest frames 67 (the window draws none; forced cpu p50 3.914 p95 5.534 ms), layout nodes 88, glyphs 233
+rune: 188 frames at 60 fps, gpu init 112.4 ms, first frame 65.23 ms, frame cpu mean 8.337 ms p50 6.064 p95 18.985 max 169.150, 469 instances
+rune: animating frames 120 (cpu p50 7.151 p95 22.290 ms), at-rest frames 67 (the window draws none; forced cpu p50 3.911 p95 4.791 ms), layout nodes 88, glyphs 233
 ok selected: rectangle fill where planned (1344/1344 px)
 ok selected: text ink moved by (0, 0) (want 0.00, 0.00)
 ok selected: rect outlined [12, 12, 5, 5, 12, 12, 5, 5]
 ok selected: nothing else on the canvas changed
-rune: 249 frames at 60 fps, gpu init 97.6 ms, first frame 63.73 ms, frame cpu mean 7.150 ms p50 5.046 p95 15.120 max 158.401, 484 instances
-rune: animating frames 160 (cpu p50 6.396 p95 16.327 ms), at-rest frames 88 (the window draws none; forced cpu p50 4.149 p95 5.458 ms), layout nodes 90, glyphs 248
+rune: 249 frames at 60 fps, gpu init 95.8 ms, first frame 65.26 ms, frame cpu mean 7.278 ms p50 5.219 p95 15.508 max 160.016, 484 instances
+rune: animating frames 160 (cpu p50 6.529 p95 17.497 ms), at-rest frames 88 (the window draws none; forced cpu p50 4.215 p95 5.272 ms), layout nodes 90, glyphs 248
 ok moved: rectangle fill where planned (1344/1344 px)
 ok moved: no fill where the rectangle was (0 px)
 ok moved: text ink moved by (0, 0) (want 0.00, 0.00)
 ok moved: rect outlined [12, 12, 5, 5, 12, 12, 5, 5]
 ok moved: nothing else on the canvas changed
-rune: 319 frames at 60 fps, gpu init 95.6 ms, first frame 65.36 ms, frame cpu mean 6.535 ms p50 4.438 p95 14.513 max 156.843, 484 instances
-rune: animating frames 172 (cpu p50 6.164 p95 18.992 ms), at-rest frames 146 (the window draws none; forced cpu p50 4.209 p95 5.064 ms), layout nodes 90, glyphs 248
+rune: 319 frames at 60 fps, gpu init 99.5 ms, first frame 67.17 ms, frame cpu mean 6.669 ms p50 4.666 p95 14.268 max 159.500, 484 instances
+rune: animating frames 172 (cpu p50 6.382 p95 17.321 ms), at-rest frames 146 (the window draws none; forced cpu p50 4.328 p95 5.773 ms), layout nodes 90, glyphs 248
 ok marquee: rectangle fill where planned (1344/1344 px)
 ok marquee: no fill where the rectangle was (0 px)
 ok marquee: text ink moved by (0, 0) (want 0.00, 0.00)
 ok marquee: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
 ok marquee: nothing else on the canvas changed
-rune: 379 frames at 60 fps, gpu init 97.4 ms, first frame 63.57 ms, frame cpu mean 6.387 ms p50 4.696 p95 13.493 max 170.295, 484 instances
-rune: animating frames 220 (cpu p50 5.344 p95 15.904 ms), at-rest frames 158 (the window draws none; forced cpu p50 4.329 p95 5.376 ms), layout nodes 90, glyphs 248
+rune: 379 frames at 60 fps, gpu init 96.8 ms, first frame 64.24 ms, frame cpu mean 6.340 ms p50 4.508 p95 13.654 max 159.746, 484 instances
+rune: animating frames 220 (cpu p50 5.488 p95 15.395 ms), at-rest frames 158 (the window draws none; forced cpu p50 4.280 p95 5.357 ms), layout nodes 90, glyphs 248
 ok nudged: rectangle fill where planned (1344/1344 px)
 ok nudged: no fill where the rectangle was (0 px)
 ok nudged: text ink moved by (11, 5) (want 11.00, 5.00)
 ok nudged: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
 ok nudged: nothing else on the canvas changed
-rune: 412 frames at 60 fps, gpu init 97.1 ms, first frame 64.04 ms, frame cpu mean 6.149 ms p50 4.436 p95 13.271 max 157.908, 426 instances
-rune: animating frames 245 (cpu p50 5.360 p95 16.001 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.209 p95 5.132 ms), layout nodes 87, glyphs 242
+rune: 412 frames at 60 fps, gpu init 95.9 ms, first frame 65.12 ms, frame cpu mean 6.208 ms p50 4.539 p95 13.087 max 156.337, 426 instances
+rune: animating frames 245 (cpu p50 5.445 p95 15.458 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.311 p95 5.505 ms), layout nodes 87, glyphs 242
 ok deleted: rectangle fill where planned (1344/1344 px)
 ok deleted: no fill where the rectangle was (0 px)
 ok deleted: the text is gone (0 px)
 ok deleted: no selection drawn (0 px)
 ok deleted: nothing else on the canvas changed
-rune: 445 frames at 60 fps, gpu init 106.0 ms, first frame 64.99 ms, frame cpu mean 6.193 ms p50 4.476 p95 13.892 max 164.082, 488 instances
-rune: animating frames 278 (cpu p50 5.605 p95 15.794 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.205 p95 5.222 ms), layout nodes 90, glyphs 248
+rune: 445 frames at 60 fps, gpu init 97.7 ms, first frame 64.82 ms, frame cpu mean 6.212 ms p50 4.571 p95 13.940 max 165.380, 488 instances
+rune: animating frames 278 (cpu p50 5.563 p95 14.764 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.291 p95 5.417 ms), layout nodes 90, glyphs 248
 ok undone: rectangle fill where planned (1344/1344 px)
 ok undone: no fill where the rectangle was (0 px)
 ok undone: text ink moved by (11, 5) (want 11.00, 5.00)
 ok undone: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
 ok undone: nothing else on the canvas changed
-rune: 478 frames at 60 fps, gpu init 97.2 ms, first frame 63.24 ms, frame cpu mean 6.111 ms p50 4.622 p95 12.972 max 160.560, 426 instances
-rune: animating frames 311 (cpu p50 5.522 p95 15.011 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.222 p95 5.202 ms), layout nodes 87, glyphs 242
+rune: 478 frames at 60 fps, gpu init 100.1 ms, first frame 66.89 ms, frame cpu mean 6.144 ms p50 4.894 p95 10.982 max 160.079, 426 instances
+rune: animating frames 311 (cpu p50 5.398 p95 14.208 ms), at-rest frames 166 (the window draws none; forced cpu p50 4.327 p95 5.524 ms), layout nodes 87, glyphs 242
 ok redone: rectangle fill where planned (1344/1344 px)
 ok redone: no fill where the rectangle was (0 px)
 ok redone: the text is gone (0 px)
 ok redone: no selection drawn (0 px)
 ok redone: nothing else on the canvas changed
-rune: 562 frames at 60 fps, gpu init 95.1 ms, first frame 64.14 ms, frame cpu mean 6.559 ms p50 4.976 p95 12.941 max 159.140, 488 instances
-rune: animating frames 379 (cpu p50 5.591 p95 17.902 ms), at-rest frames 182 (the window draws none; forced cpu p50 4.325 p95 5.803 ms), layout nodes 90, glyphs 248
+rune: 562 frames at 60 fps, gpu init 99.0 ms, first frame 64.80 ms, frame cpu mean 5.996 ms p50 4.657 p95 10.110 max 161.496, 488 instances
+rune: animating frames 379 (cpu p50 5.449 p95 14.176 ms), at-rest frames 182 (the window draws none; forced cpu p50 4.259 p95 5.470 ms), layout nodes 90, glyphs 248
 ok dirty: rectangle fill where planned (1344/1344 px)
 ok dirty: no fill where the rectangle was (0 px)
 ok dirty: text ink moved by (11, 5) (want 11.00, 5.00)
 ok dirty: text outlined [10, 10, 5, 10, 10, 10, 5, 10]
 ok dirty: nothing else on the canvas changed
-rune: 529 frames at 60 fps, gpu init 95.7 ms, first frame 63.42 ms, frame cpu mean 5.918 ms p50 4.468 p95 10.668 max 158.940, 416 instances
-rune: animating frames 354 (cpu p50 5.306 p95 14.384 ms), at-rest frames 174 (the window draws none; forced cpu p50 4.266 p95 5.380 ms), layout nodes 87, glyphs 232
+rune: 529 frames at 60 fps, gpu init 95.4 ms, first frame 65.23 ms, frame cpu mean 5.927 ms p50 4.469 p95 11.944 max 161.160, 416 instances
+rune: animating frames 354 (cpu p50 5.356 p95 14.375 ms), at-rest frames 174 (the window draws none; forced cpu p50 4.191 p95 5.296 ms), layout nodes 87, glyphs 232
 ok saved: rectangle fill where planned (1344/1344 px)
 ok saved: no fill where the rectangle was (0 px)
 ok saved: the text is gone (0 px)
@@ -72,8 +72,8 @@ ok /agent/repos/muninn/target/ui-smoke/trees/edit-nudged.json: board-save-state 
 ok /agent/repos/muninn/target/ui-smoke/trees/edit-saved.json: board-save-state says 'Saved'
 ok /agent/repos/muninn/target/ui-smoke/trees/edit-dirty.json: board-save-state says 'Unsaved · ⌘S saves'
 ok parses: the same 5 elements in order
-ok keep-rect: at (100.000, 80.000), version 12→13, new nonce, updated 1794474956644, isDeleted False; every other field kept
-ok keep-text: at (11.000, 455.123), version 4→11, new nonce, updated 1794474957808, isDeleted True; every other field kept
+ok keep-rect: at (100.000, 80.000), version 12→13, new nonce, updated 1794477904510, isDeleted False; every other field kept
+ok keep-text: at (11.000, 455.123), version 4→11, new nonce, updated 1794477905670, isDeleted True; every other field kept
 ok keep-ellipse, keep-frame, gone and 6 top-level values are byte-identical to s1's save
 ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 5 elements (4 modelled, 1 kept raw), 0 files, 3987 bytes written
 ok negative control fails: outline on the unselected shot (FAIL selected: the rect outline is missing on a side [0, 0, 0, 0, 0, 0, 0, 0])

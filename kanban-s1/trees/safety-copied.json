@@ -382,7 +382,7 @@
                                   220.0,
                                   16.0
                                 ],
-                                "name": "Tools (conflict 20261112-091520)",
+                                "name": "Tools (conflict 20261112-100428)",
                                 "role": "label"
                               },
                               {
@@ -397,7 +397,7 @@
                               }
                             ],
                             "key": "board-row-2",
-                            "name": "Tools (conflict 20261112-091520) 5 elements · 1 kept as-is",
+                            "name": "Tools (conflict 20261112-100428) 5 elements · 1 kept as-is",
                             "role": "button"
                           }
                         ],
@@ -431,7 +431,7 @@
                               16.0
                             ],
                             "key": "board-surface-detail",
-                            "name": "Tools (conflict 20261112-091520).excalidraw · 5 elements · 1 kept as-is",
+                            "name": "Tools (conflict 20261112-100428).excalidraw · 5 elements · 1 kept as-is",
                             "role": "label"
                           },
                           {
@@ -1709,7 +1709,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "Tools (conflict 20261112-091520)"
+      "text": "Tools (conflict 20261112-100428)"
     },
     {
       "blur": 0.0,
@@ -1792,7 +1792,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "Tools (conflict 20261112-091520)"
+      "text": "Tools (conflict 20261112-100428)"
     },
     {
       "blur": 0.0,
@@ -1814,7 +1814,7 @@
       ],
       "role": "text",
       "scale": 1.0,
-      "text": "Tools (conflict 20261112-091520).excalidraw · 5 elements · 1 kept as-is"
+      "text": "Tools (conflict 20261112-100428).excalidraw · 5 elements · 1 kept as-is"
     },
     {
       "blur": 0.0,

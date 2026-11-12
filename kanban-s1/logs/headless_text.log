@@ -1,44 +1,44 @@
 ok /agent/repos/muninn/target/ui-smoke/work/text/open.json: Cmd+\ at 0.50 s
-rune: 136 frames at 60 fps, gpu init 94.7 ms, first frame 62.92 ms, frame cpu mean 8.839 ms p50 5.760 p95 21.896 max 157.683, 566 instances
-rune: animating frames 78 (cpu p50 8.702 p95 25.578 ms), at-rest frames 57 (the window draws none; forced cpu p50 4.014 p95 5.613 ms), layout nodes 147, glyphs 345
+rune: 136 frames at 60 fps, gpu init 101.4 ms, first frame 65.71 ms, frame cpu mean 8.809 ms p50 5.413 p95 24.138 max 157.376, 566 instances
+rune: animating frames 78 (cpu p50 8.283 p95 30.593 ms), at-rest frames 57 (the window draws none; forced cpu p50 4.175 p95 5.606 ms), layout nodes 147, glyphs 345
 ok /agent/repos/muninn/target/ui-smoke/trees/text-before.json: board-surface-title says 'Tools'
 ok wrote /agent/repos/muninn/target/ui-smoke/work/text/text.json: 39 events, zoom 1.0000
 ok /agent/repos/muninn/target/ui-smoke/work/text/text.json: Cmd+\ at 0.50 s
 ok before: nothing at the click yet (0 px)
 ok before: keep-text ink in place, right edge +0 px (there)
 ok before: nothing else on the canvas changed (no shape from the drag)
-rune: 250 frames at 60 fps, gpu init 90.9 ms, first frame 63.46 ms, frame cpu mean 6.853 ms p50 4.913 p95 16.212 max 158.022, 588 instances
-rune: animating frames 164 (cpu p50 5.082 p95 16.741 ms), at-rest frames 85 (the window draws none; forced cpu p50 4.030 p95 5.763 ms), layout nodes 150, glyphs 366
+rune: 250 frames at 60 fps, gpu init 91.8 ms, first frame 62.64 ms, frame cpu mean 6.974 ms p50 5.013 p95 15.964 max 164.140, 588 instances
+rune: animating frames 164 (cpu p50 5.571 p95 20.082 ms), at-rest frames 85 (the window draws none; forced cpu p50 4.141 p95 5.624 ms), layout nodes 150, glyphs 366
 ok typing: new text ink on two lines at the click (187 + 146 px)
 ok typing: keep-text ink in place, right edge +0 px (there)
 ok typing: nothing else on the canvas changed (no shape from the drag)
-rune: 332 frames at 60 fps, gpu init 96.5 ms, first frame 64.11 ms, frame cpu mean 6.368 ms p50 4.904 p95 13.255 max 157.635, 587 instances
-rune: animating frames 206 (cpu p50 5.107 p95 17.973 ms), at-rest frames 125 (the window draws none; forced cpu p50 4.134 p95 5.930 ms), layout nodes 152, glyphs 366
+rune: 332 frames at 60 fps, gpu init 95.0 ms, first frame 64.37 ms, frame cpu mean 6.523 ms p50 4.984 p95 13.433 max 159.487, 587 instances
+rune: animating frames 206 (cpu p50 5.370 p95 16.897 ms), at-rest frames 125 (the window draws none; forced cpu p50 4.588 p95 5.996 ms), layout nodes 152, glyphs 366
 ok committed: new text ink on two lines at the click (187 + 104 px)
 ok committed: keep-text ink in place, right edge +0 px (there)
 ok committed: nothing else on the canvas changed (no shape from the drag)
-rune: 391 frames at 60 fps, gpu init 96.1 ms, first frame 63.73 ms, frame cpu mean 6.384 ms p50 4.981 p95 12.549 max 160.303, 588 instances
-rune: animating frames 256 (cpu p50 5.263 p95 14.773 ms), at-rest frames 134 (the window draws none; forced cpu p50 4.567 p95 5.952 ms), layout nodes 151, glyphs 366
+rune: 391 frames at 60 fps, gpu init 94.3 ms, first frame 64.83 ms, frame cpu mean 6.434 ms p50 4.985 p95 12.661 max 159.519, 588 instances
+rune: animating frames 256 (cpu p50 5.477 p95 14.517 ms), at-rest frames 134 (the window draws none; forced cpu p50 4.646 p95 5.881 ms), layout nodes 151, glyphs 366
 ok editing: new text ink on two lines at the click (187 + 104 px)
 ok editing: keep-text ink in place, right edge +3 px (caret)
 ok editing: nothing else on the canvas changed (no shape from the drag)
-rune: 439 frames at 60 fps, gpu init 101.4 ms, first frame 67.58 ms, frame cpu mean 6.170 ms p50 4.951 p95 12.554 max 157.829, 590 instances
-rune: animating frames 283 (cpu p50 5.233 p95 13.633 ms), at-rest frames 155 (the window draws none; forced cpu p50 4.675 p95 5.886 ms), layout nodes 152, glyphs 367
+rune: 439 frames at 60 fps, gpu init 95.2 ms, first frame 64.22 ms, frame cpu mean 6.235 ms p50 5.010 p95 12.393 max 159.796, 590 instances
+rune: animating frames 283 (cpu p50 5.404 p95 14.979 ms), at-rest frames 155 (the window draws none; forced cpu p50 4.584 p95 6.068 ms), layout nodes 152, glyphs 367
 ok edited: new text ink on two lines at the click (187 + 104 px)
 ok edited: keep-text ink in place, right edge +4 px (longer)
 ok edited: nothing else on the canvas changed (no shape from the drag)
-rune: 472 frames at 60 fps, gpu init 93.9 ms, first frame 62.82 ms, frame cpu mean 6.098 ms p50 4.959 p95 11.327 max 160.043, 641 instances
-rune: animating frames 316 (cpu p50 5.288 p95 12.902 ms), at-rest frames 155 (the window draws none; forced cpu p50 4.164 p95 5.798 ms), layout nodes 153, glyphs 366
+rune: 472 frames at 60 fps, gpu init 96.1 ms, first frame 64.58 ms, frame cpu mean 6.239 ms p50 5.054 p95 11.264 max 163.264, 641 instances
+rune: animating frames 316 (cpu p50 5.413 p95 12.243 ms), at-rest frames 155 (the window draws none; forced cpu p50 4.414 p95 5.817 ms), layout nodes 153, glyphs 366
 ok undone: new text ink on two lines at the click (187 + 104 px)
 ok undone: keep-text ink in place, right edge -2 px (there)
 ok undone: nothing else on the canvas changed (no shape from the drag)
-rune: 505 frames at 60 fps, gpu init 93.7 ms, first frame 62.77 ms, frame cpu mean 6.010 ms p50 4.981 p95 11.269 max 157.787, 640 instances
-rune: animating frames 349 (cpu p50 5.171 p95 13.129 ms), at-rest frames 155 (the window draws none; forced cpu p50 4.440 p95 5.696 ms), layout nodes 153, glyphs 367
+rune: 505 frames at 60 fps, gpu init 104.9 ms, first frame 73.29 ms, frame cpu mean 6.233 ms p50 5.108 p95 11.181 max 178.114, 640 instances
+rune: animating frames 349 (cpu p50 5.453 p95 12.836 ms), at-rest frames 155 (the window draws none; forced cpu p50 4.288 p95 6.097 ms), layout nodes 153, glyphs 367
 ok redone: new text ink on two lines at the click (187 + 104 px)
 ok redone: keep-text ink in place, right edge +4 px (longer)
 ok redone: nothing else on the canvas changed (no shape from the drag)
-rune: 556 frames at 60 fps, gpu init 94.1 ms, first frame 63.24 ms, frame cpu mean 5.891 ms p50 4.954 p95 10.397 max 157.574, 630 instances
-rune: animating frames 386 (cpu p50 5.176 p95 12.691 ms), at-rest frames 169 (the window draws none; forced cpu p50 4.293 p95 5.703 ms), layout nodes 153, glyphs 357
+rune: 556 frames at 60 fps, gpu init 101.0 ms, first frame 65.44 ms, frame cpu mean 6.201 ms p50 5.106 p95 10.819 max 163.543, 630 instances
+rune: animating frames 386 (cpu p50 5.398 p95 12.927 ms), at-rest frames 169 (the window draws none; forced cpu p50 4.872 p95 6.024 ms), layout nodes 153, glyphs 357
 ok saved: new text ink on two lines at the click (187 + 104 px)
 ok saved: keep-text ink in place, right edge +4 px (longer)
 ok saved: nothing else on the canvas changed (no shape from the drag)
@@ -51,7 +51,7 @@ ok parses: the 5 elements in order and one new
 ok new text: 'r1 dü\nok' as text and originalText, at (200, 180), 44 × 50, Excalidraw's text fields
 ok keep-text: 'keep me!', version 4→7, wider (72.5→85); every other field kept
 ok keep-rect, keep-ellipse, keep-frame, gone and 6 top-level values are byte-identical to s1's save
-ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4918 bytes written
+ok /agent/repos/muninn/target/ui-smoke/work/vault/Tools.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4917 bytes written
 ok negative control fails: new text on the before shot (FAIL typing: no new text ink at (795, 391, 969, 449) (0 px))
 ok negative control fails: the edit on the undone shot (FAIL edited: keep-text ink did not grow (by -2 px))
 ok negative control fails: the undo on the redone shot (FAIL undone: keep-text ink width changed by 4 px)

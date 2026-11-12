@@ -43,7 +43,7 @@ ok parses: the 5 elements in order and one new
 ok new text: 'r1 dü\nok' as text and originalText, at (200, 180), 44 × 50, Excalidraw's text fields
 ok keep-text: 'keep me!', version 4→7, wider (72.5→85); every other field kept
 ok keep-rect, keep-ellipse, keep-frame, gone and 6 top-level values are byte-identical to s1's save
-ok /agent/repos/muninn/target/ui-smoke/logs/x11-text-saved.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4918 bytes written
+ok /agent/repos/muninn/target/ui-smoke/logs/x11-text-saved.excalidraw: 6 elements (5 modelled, 1 kept raw), 0 files, 4919 bytes written
 ok negative control fails: new text on the before shot (FAIL typing: no new text ink at (795, 391, 969, 449) (0 px))
 ok negative control fails: the edit on the undone shot (FAIL edited: keep-text ink did not grow (by -2 px))
 ok negative control fails: the undo on the redone shot (FAIL undone: keep-text ink width changed by 4 px)
