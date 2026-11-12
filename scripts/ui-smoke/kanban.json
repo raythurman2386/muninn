@@ -1,0 +1,8 @@
+{"events":[
+  {"t":0.5,"type":"key","name":"5","cmd":true},{"t":1.0,"type":"mark","name":"empty"},
+  {"t":1.5,"type":"tap","key":"@RELEASE@"},{"t":2.0,"type":"key","name":"5","cmd":true},{"t":2.5,"type":"mark","name":"readonly"},
+  {"t":3.0,"type":"tap","key":"@OVERLOADED@"},{"t":3.5,"type":"key","name":"5","cmd":true},{"t":4.0,"type":"mark","name":"wip-over"},
+  {"t":4.5,"type":"tap","key":"@TORN@"},{"t":5.0,"type":"key","name":"5","cmd":true},{"t":5.5,"type":"mark","name":"unreadable"},
+  {"t":6.0,"type":"tap","key":"kanban-open-markdown"},{"t":6.6,"type":"mark","name":"write"},
+  {"t":7.2,"type":"mark","name":"end"}
+]}
