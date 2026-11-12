@@ -1,0 +1,71 @@
+vulkan icd: /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+	deviceName         = llvmpipe (LLVM 23.1.3, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 26.2.5-arch1.1 (LLVM 23.1.3)
+rune: `init` blocked 17 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 67 frames at 60 fps, gpu init 85.2 ms, first frame 58.27 ms, frame cpu mean 1.972 ms p50 1.750 p95 3.218 max 58.270, 374 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 1.750 p95 2.356 ms), layout nodes 137, glyphs 315
+rune: `init` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 97 frames at 60 fps, gpu init 82.0 ms, first frame 55.18 ms, frame cpu mean 3.327 ms p50 1.817 p95 3.110 max 137.900, 517 instances
+rune: animating frames 43 (cpu p50 1.872 p95 4.685 ms), at-rest frames 53 (the window draws none; forced cpu p50 1.497 p95 2.246 ms), layout nodes 139, glyphs 457
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-note.json: active mode mode-editor
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-2" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/open-as-kanban" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 169 frames at 60 fps, gpu init 84.8 ms, first frame 60.49 ms, frame cpu mean 4.661 ms p50 2.336 p95 9.989 max 150.489, 379 instances
+rune: animating frames 90 (cpu p50 3.439 p95 17.867 ms), at-rest frames 78 (the window draws none; forced cpu p50 2.055 p95 3.389 ms), layout nodes 194, glyphs 296
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-kanban.json: active mode mode-kanban
+rune: `init` blocked 19 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-2" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/open-as-kanban" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/kanban-page/#0/kanban-open-markdown" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 241 frames at 60 fps, gpu init 103.2 ms, first frame 67.52 ms, frame cpu mean 4.441 ms p50 2.178 p95 9.316 max 141.984, 518 instances
+rune: animating frames 136 (cpu p50 4.865 p95 12.260 ms), at-rest frames 104 (the window draws none; forced cpu p50 1.785 p95 2.461 ms), layout nodes 139, glyphs 457
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-markdown.json: active mode mode-editor
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-note.json: open-as-kanban says 'Open as kanban'
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-kanban.json: kanban-title says 'Release'
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-kanban.json: no open-as-kanban
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-markdown.json: no kanban-page
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-markdown.json: open-as-kanban says 'Open as kanban'
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/kanban-open-list.json: no open-as-kanban
+Xvfb on :90
+window 0x200002 'Muninn' 1180x780
+ok clicked 129,299 in 0x200002 (button 1 x1)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/config-x11-kanban-open/muninn/settings.json: mode editor
+saved ('Release.md', None)
+/home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/screens/kanban-open-button.png vs headless mean abs diff 0.00
+ok clicked 718,29 in 0x200002 (button 1 x1)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/config-x11-kanban-open/muninn/settings.json: mode kanban
+saved ('Release.md', 'Release.md')
+/home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/screens/kanban-open-kanban.png vs headless mean abs diff 0.00
+ok clicked 1074,88 in 0x200002 (button 1 x1)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/config-x11-kanban-open/muninn/settings.json: mode editor
+saved ('Release.md', 'Release.md')
+/home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/screens/kanban-as-markdown.png vs headless mean abs diff 0.00
+ok pressed ctrl+k on 0x200002
+ok typed 'release' on 0x200002
+ok pressed enter on 0x200002
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/config-x11-kanban-open/muninn/settings.json: mode kanban
+saved ('Release.md', 'Release.md')
+ok pressed esc on 0x200002
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/config-x11-kanban-open/muninn/settings.json: mode editor
+saved ('Release.md', 'Release.md')
+ok a kanban picked from Ctrl+K search opened in Kanban mode with the keyboard
+ok pressed ctrl+k on 0x200002
+ok pressed ctrl+shift+p on 0x200002
+ok typed 'overloaded' on 0x200002
+ok pressed Down on 0x200002
+ok pressed enter on 0x200002
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/config-x11-kanban-open/muninn/settings.json: mode kanban
+saved ('Overloaded.md', 'Overloaded.md')
+ok pressed esc on 0x200002
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/config-x11-kanban-open/muninn/settings.json: mode editor
+saved ('Overloaded.md', 'Overloaded.md')
+ok focus landed on the Kanban page after the palette pick
+ok sent WM_DELETE_WINDOW to 0x200002
+app exit status: 0
+Agenda.md: OK
+Release.md: OK
+Overloaded.md: OK
+ok every kanban file unchanged

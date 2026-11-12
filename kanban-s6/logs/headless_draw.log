@@ -1,0 +1,81 @@
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/draw/open.json: Cmd+\ at 0.50 s
+rune: `on_key` blocked 13 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 136 frames at 60 fps, gpu init 83.1 ms, first frame 66.46 ms, frame cpu mean 5.527 ms p50 2.935 p95 13.813 max 146.125, 573 instances
+rune: animating frames 78 (cpu p50 4.034 p95 16.323 ms), at-rest frames 57 (the window draws none; forced cpu p50 2.249 p95 5.529 ms), layout nodes 154, glyphs 351
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/draw-before.json: board-surface-title says 'Tools'
+ok wrote /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/draw/draw.json: 137 events
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/draw/draw.json: Cmd+\ at 0.50 s
+rune: `init` blocked 8 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 470 frames at 60 fps, gpu init 84.0 ms, first frame 64.44 ms, frame cpu mean 4.000 ms p50 2.848 p95 10.426 max 143.194, 732 instances
+rune: animating frames 347 (cpu p50 3.064 p95 10.814 ms), at-rest frames 122 (the window draws none; forced cpu p50 2.346 p95 4.813 ms), layout nodes 156, glyphs 370
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/draw-drawn.json: board-save-state says 'Unsaved · Ctrl+S saves'
+ok rectangle edge at (170, 140): ink (10)
+ok rectangle edge at (230, 190): ink (10)
+ok rectangle edge at (170, 240): ink (10)
+ok rectangle edge at (110, 190): ink (10)
+ok rectangle inside at (170, 190): paper (0)
+ok rectangle rounded corner at (110, 140): paper (0)
+ok ellipse extreme at (320, 140): ink (10)
+ok ellipse extreme at (380, 190): ink (10)
+ok ellipse extreme at (320, 240): ink (10)
+ok ellipse extreme at (260, 190): ink (10)
+ok ellipse 45° at (362, 155): ink (12)
+ok ellipse box corner at (263, 143): paper (0)
+ok ellipse inside at (350, 165): paper (0)
+ok diamond edge at (470, 140): ink (14)
+ok diamond edge at (530, 190): ink (11)
+ok diamond edge at (470, 240): ink (11)
+ok diamond edge at (410, 190): ink (14)
+ok diamond edge at (500, 165): ink (13)
+ok diamond outside at ellipse 45° at (512, 155): paper (0)
+ok diamond inside at (470, 190): paper (0)
+ok line at (140, 325): ink (13)
+ok beside line at (132, 334): paper (0)
+ok line at (170, 350): ink (13)
+ok beside line at (162, 359): paper (0)
+ok line at (200, 375): ink (13)
+ok beside line at (192, 384): paper (0)
+ok no arrowhead on the line at (226, 391): paper (0)
+ok no arrowhead on the line at (220, 398): paper (0)
+ok arrow shaft at (290, 350): ink (10)
+ok arrow shaft at (320, 350): ink (10)
+ok arrow shaft at (350, 350): ink (10)
+ok arrowhead barb at (371, 346): ink (13)
+ok arrowhead barb at (371, 354): ink (13)
+ok above the arrow at (320, 336): paper (0)
+ok freehand at (425, 350): ink (17)
+ok freehand at (455, 350): ink (17)
+ok freehand at (485, 350): ink (17)
+ok freehand at (515, 350): ink (17)
+ok between freehand peaks at (440, 312): paper (0)
+ok under freehand valley at (470, 390): paper (0)
+ok nothing outside the strokes changed (old elements included)
+rune: `init` blocked 10 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 14 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/board-page/board-body/board-list/board-row-2" blocked 12 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 11 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 530 frames at 60 fps, gpu init 86.1 ms, first frame 65.69 ms, frame cpu mean 3.791 ms p50 2.764 p95 9.913 max 144.325, 720 instances
+rune: animating frames 383 (cpu p50 2.998 p95 10.448 ms), at-rest frames 146 (the window draws none; forced cpu p50 2.287 p95 4.698 ms), layout nodes 156, glyphs 358
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/draw-saved.json: board-save-state says 'Saved'
+ok parses: 5 old + 6 new elements
+ok every old element and top-level key keeps its values
+ok 5 old elements and 6 top-level values are byte-identical to s1's save
+ok the new elements carry Excalidraw's fields, unique ids and increasing indexes
+ok rectangle: (54, 84, 120, 100) (off 0.00)
+ok ellipse: (204, 84, 120, 100) (off 0.00)
+ok diamond: (354, 84, 120, 100) (off 0.00)
+ok line: (54, 244, 120, 100) (off 0.00)
+ok arrow: (204, 294, 120, 0) (off 0.00)
+ok freedraw: (354, 244, 120, 100) (off 0.00)
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/vault/Tools.excalidraw: 11 elements (10 modelled, 1 kept raw), 0 files, 10533 bytes written
+rune: `init` blocked 13 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 91 frames at 60 fps, gpu init 86.0 ms, first frame 47.02 ms, frame cpu mean 2.782 ms p50 2.257 p95 5.456 max 47.021, 715 instances
+rune: animating frames 1 (cpu p50 18.311 p95 18.311 ms), at-rest frames 89 (the window draws none; forced cpu p50 2.242 p95 3.942 ms), layout nodes 154, glyphs 353
+ok /home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/trees/draw-reloaded.json: board-surface-title says 'Tools'
+ok the canvas matches (0 pixels differ)

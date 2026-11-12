@@ -1,0 +1,28 @@
+{
+  "auto_start": false,
+  "autosave_delay": 0.55,
+  "board": null,
+  "board_autosave": true,
+  "close_to_tray": false,
+  "collapsed": [],
+  "kanban": null,
+  "last_vault": "/home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/vault",
+  "mode": "board",
+  "note_template": "",
+  "recent_vaults": [
+    "/home/ret/Development/muninn-kanban/target/s6-wt/target/smoke-run1/work/vault"
+  ],
+  "reduce_motion": "system",
+  "scope": "global",
+  "selected_rel": "Second.md",
+  "show_shortcut": false,
+  "sync": {
+    "disabled_reason": null,
+    "github_client_id": "",
+    "google_client_id": "",
+    "vaults": [],
+    "version": 1
+  },
+  "theme": "omarchy",
+  "tray_icon": false
+}

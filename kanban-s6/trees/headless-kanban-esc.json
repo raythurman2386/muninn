@@ -1,0 +1,4107 @@
+{
+  "accessibility": {
+    "bounds": [
+      0.0,
+      0.0,
+      1180.0,
+      780.0
+    ],
+    "children": [
+      {
+        "bounds": [
+          0.0,
+          0.0,
+          1180.0,
+          780.0
+        ],
+        "children": [
+          {
+            "bounds": [
+              0.0,
+              0.0,
+              258.0,
+              780.0
+            ],
+            "children": [
+              {
+                "bounds": [
+                  16.0,
+                  17.0,
+                  24.0,
+                  24.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      16.0,
+                      17.0,
+                      24.0,
+                      24.0
+                    ],
+                    "role": "image"
+                  }
+                ],
+                "key": "brand-logo",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  49.0,
+                  19.0,
+                  82.0,
+                  20.0
+                ],
+                "name": "Muninn",
+                "role": "label"
+              },
+              {
+                "actions": [
+                  "click",
+                  "focus"
+                ],
+                "bounds": [
+                  140.0,
+                  15.0,
+                  28.0,
+                  28.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      150.0,
+                      20.0,
+                      8.0,
+                      18.0
+                    ],
+                    "name": "?",
+                    "role": "label"
+                  }
+                ],
+                "key": "help-open",
+                "name": "Keyboard shortcuts",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click",
+                  "focus"
+                ],
+                "bounds": [
+                  177.0,
+                  15.0,
+                  28.0,
+                  28.0
+                ],
+                "key": "settings-open",
+                "name": "Settings",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  214.0,
+                  15.0,
+                  28.0,
+                  28.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      222.0,
+                      20.0,
+                      12.0,
+                      18.0
+                    ],
+                    "name": "◐",
+                    "role": "label"
+                  }
+                ],
+                "key": "theme",
+                "name": "Theme: Omarchy — click to cycle (System, Dark, Light)",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  12.0,
+                  58.0,
+                  234.0,
+                  34.0
+                ],
+                "children": [
+                  {
+                    "actions": [
+                      "click",
+                      "focus",
+                      "set-value",
+                      "replace-selected-text",
+                      "set-text-selection"
+                    ],
+                    "bounds": [
+                      42.0,
+                      67.0,
+                      195.0,
+                      16.0
+                    ],
+                    "key": "search",
+                    "placeholder": "Search notes",
+                    "role": "text-input",
+                    "value": ""
+                  }
+                ],
+                "key": "search-box",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  12.0,
+                  100.0,
+                  234.0,
+                  34.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      43.0,
+                      109.0,
+                      59.0,
+                      16.0
+                    ],
+                    "name": "New note",
+                    "role": "label"
+                  }
+                ],
+                "key": "new-note",
+                "name": "New note",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "scroll-up",
+                  "scroll-down",
+                  "set-scroll-offset"
+                ],
+                "bounds": [
+                  0.0,
+                  143.0,
+                  258.0,
+                  592.0
+                ],
+                "children": [
+                  {
+                    "actions": [
+                      "scroll-into-view"
+                    ],
+                    "bounds": [
+                      0.0,
+                      143.0,
+                      258.0,
+                      138.0
+                    ],
+                    "children": [
+                      {
+                        "actions": [
+                          "click",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          143.0,
+                          242.0,
+                          30.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              14.0,
+                              151.5,
+                              5.0,
+                              13.0
+                            ],
+                            "name": "▾",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              25.0,
+                              152.0,
+                              150.0,
+                              12.0
+                            ],
+                            "name": "Vault root",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              181.0,
+                              150.0,
+                              7.0,
+                              16.0
+                            ],
+                            "name": "2",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              194.0,
+                              147.0,
+                              22.0,
+                              22.0
+                            ],
+                            "key": "folder-new-root",
+                            "name": "New note in the vault root",
+                            "role": "button"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              222.0,
+                              147.0,
+                              22.0,
+                              22.0
+                            ],
+                            "key": "folder-create-root",
+                            "name": "New folder in the vault root",
+                            "role": "button"
+                          }
+                        ],
+                        "key": "folder-header-root",
+                        "name": "▾ Vault root 2",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          175.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              180.0,
+                              188.0,
+                              20.0
+                            ],
+                            "name": "Second",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              202.0,
+                              188.0,
+                              16.0
+                            ],
+                            "name": "1 link · 1 backlink",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-0",
+                        "name": "Second 1 link · 1 backlink",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          225.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              230.0,
+                              188.0,
+                              20.0
+                            ],
+                            "name": "Welcome",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              252.0,
+                              188.0,
+                              16.0
+                            ],
+                            "name": "1 link · 1 backlink",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-1",
+                        "name": "Welcome 1 link · 1 backlink",
+                        "role": "button"
+                      }
+                    ],
+                    "key": "note-list",
+                    "role": "list"
+                  },
+                  {
+                    "actions": [
+                      "scroll-into-view"
+                    ],
+                    "bounds": [
+                      0.0,
+                      289.0,
+                      258.0,
+                      132.0
+                    ],
+                    "children": [
+                      {
+                        "actions": [
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          16.0,
+                          296.5,
+                          47.0,
+                          13.0
+                        ],
+                        "name": "BOARDS",
+                        "role": "label"
+                      },
+                      {
+                        "actions": [
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          71.0,
+                          295.0,
+                          7.0,
+                          16.0
+                        ],
+                        "name": "3",
+                        "role": "label"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          319.0,
+                          242.0,
+                          30.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              38.0,
+                              326.0,
+                              27.0,
+                              16.0
+                            ],
+                            "key": "sidebar-board-title-0",
+                            "name": "Plan",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "sidebar-board-0",
+                        "name": "Plan",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          351.0,
+                          242.0,
+                          30.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              38.0,
+                              358.0,
+                              42.0,
+                              16.0
+                            ],
+                            "key": "sidebar-board-title-1",
+                            "name": "Smoke",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "sidebar-board-1",
+                        "name": "Smoke",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          383.0,
+                          242.0,
+                          30.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              38.0,
+                              390.0,
+                              33.0,
+                              16.0
+                            ],
+                            "key": "sidebar-board-title-2",
+                            "name": "Tools",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "sidebar-board-2",
+                        "name": "Tools",
+                        "role": "button"
+                      }
+                    ],
+                    "key": "sidebar-boards",
+                    "role": "list"
+                  }
+                ],
+                "key": "note-scroll",
+                "role": "scroll-view",
+                "scroll": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "states": [
+                  "clips"
+                ]
+              },
+              {
+                "bounds": [
+                  15.0,
+                  750.0,
+                  83.0,
+                  16.0
+                ],
+                "name": "2 notes · 2 links",
+                "role": "label"
+              },
+              {
+                "actions": [
+                  "click",
+                  "focus"
+                ],
+                "bounds": [
+                  163.0,
+                  747.0,
+                  53.0,
+                  22.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      169.0,
+                      750.0,
+                      41.0,
+                      16.0
+                    ],
+                    "name": "links ok",
+                    "role": "label"
+                  }
+                ],
+                "key": "broken-chip",
+                "name": "links ok",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  224.0,
+                  750.0,
+                  19.0,
+                  16.0
+                ],
+                "name": "⌘K",
+                "role": "label"
+              }
+            ],
+            "key": "sidebar",
+            "role": "group"
+          },
+          {
+            "bounds": [
+              259.0,
+              0.0,
+              921.0,
+              780.0
+            ],
+            "children": [
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  279.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "key": "sidebar-toggle",
+                "name": "Hide sidebar",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  317.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      326.5,
+                      19.5,
+                      7.0,
+                      19.0
+                    ],
+                    "name": "‹",
+                    "role": "label"
+                  }
+                ],
+                "key": "history-back",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  355.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      364.5,
+                      19.5,
+                      7.0,
+                      19.0
+                    ],
+                    "name": "›",
+                    "role": "label"
+                  }
+                ],
+                "key": "history-forward",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  393.0,
+                  10.0,
+                  48.0,
+                  20.0
+                ],
+                "key": "topbar-title",
+                "name": "Second",
+                "role": "label"
+              },
+              {
+                "bounds": [
+                  393.0,
+                  32.0,
+                  382.0,
+                  16.0
+                ],
+                "name": "Second.md",
+                "role": "label"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  802.0,
+                  16.0,
+                  66.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      830.0,
+                      23.0,
+                      29.0,
+                      12.0
+                    ],
+                    "name": "Write",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-editor",
+                "name": "Write",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  870.0,
+                  16.0,
+                  64.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      898.0,
+                      23.0,
+                      27.0,
+                      12.0
+                    ],
+                    "name": "Read",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-preview",
+                "name": "Read",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  936.0,
+                  16.0,
+                  70.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      964.0,
+                      23.0,
+                      33.0,
+                      12.0
+                    ],
+                    "name": "Graph",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-graph",
+                "name": "Graph",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  1008.0,
+                  16.0,
+                  69.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      1036.0,
+                      23.0,
+                      32.0,
+                      12.0
+                    ],
+                    "name": "Board",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-board",
+                "name": "Board",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  1079.0,
+                  16.0,
+                  78.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      1107.0,
+                      23.0,
+                      41.0,
+                      12.0
+                    ],
+                    "name": "Kanban",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-kanban",
+                "name": "Kanban",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  259.0,
+                  59.0,
+                  921.0,
+                  721.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      259.0,
+                      59.0,
+                      634.0,
+                      721.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          259.0,
+                          59.0,
+                          634.0,
+                          685.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-up",
+                              "scroll-down",
+                              "set-scroll-offset"
+                            ],
+                            "bounds": [
+                              259.0,
+                              59.0,
+                              634.0,
+                              685.0
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "click",
+                                  "focus",
+                                  "set-value",
+                                  "replace-selected-text",
+                                  "set-text-selection",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  311.0,
+                                  95.0,
+                                  530.0,
+                                  175.0
+                                ],
+                                "key": "editor",
+                                "placeholder": "Start writing. Type [[ to link another note.",
+                                "role": "multiline-text-input",
+                                "selection": [
+                                  1,
+                                  0,
+                                  1,
+                                  0
+                                ],
+                                "states": [
+                                  "focused"
+                                ],
+                                "value": "# Second\n\nBack to [[Welcome]].\n\n- one\n- two\n"
+                              }
+                            ],
+                            "key": "editor-scroll",
+                            "role": "scroll-view",
+                            "scroll": [
+                              0.0,
+                              0.0,
+                              0.0
+                            ],
+                            "states": [
+                              "clips"
+                            ]
+                          }
+                        ],
+                        "key": "editor-pane",
+                        "role": "group"
+                      },
+                      {
+                        "bounds": [
+                          259.0,
+                          744.0,
+                          634.0,
+                          36.0
+                        ],
+                        "children": [
+                          {
+                            "bounds": [
+                              279.0,
+                              754.0,
+                              79.0,
+                              16.0
+                            ],
+                            "children": [
+                              {
+                                "bounds": [
+                                  279.0,
+                                  759.0,
+                                  6.0,
+                                  6.0
+                                ],
+                                "key": "status-dot",
+                                "role": "group"
+                              },
+                              {
+                                "bounds": [
+                                  292.0,
+                                  754.0,
+                                  66.0,
+                                  16.0
+                                ],
+                                "key": "status-text",
+                                "name": "Autosave on",
+                                "role": "label"
+                              }
+                            ],
+                            "key": "status-state-autosave",
+                            "role": "group"
+                          },
+                          {
+                            "bounds": [
+                              734.0,
+                              754.0,
+                              139.0,
+                              16.0
+                            ],
+                            "name": "9 words · 1 link · 1 backlink",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "status-bar",
+                        "role": "group"
+                      }
+                    ],
+                    "key": "page",
+                    "role": "group"
+                  },
+                  {
+                    "bounds": [
+                      894.0,
+                      59.0,
+                      286.0,
+                      721.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          909.0,
+                          76.5,
+                          35.0,
+                          13.0
+                        ],
+                        "name": "LINKS",
+                        "role": "label"
+                      },
+                      {
+                        "actions": [
+                          "scroll-up",
+                          "scroll-down",
+                          "set-scroll-offset"
+                        ],
+                        "bounds": [
+                          894.0,
+                          108.0,
+                          286.0,
+                          672.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              909.0,
+                              121.5,
+                              62.0,
+                              13.0
+                            ],
+                            "name": "OUTGOING",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              978.0,
+                              120.0,
+                              5.0,
+                              16.0
+                            ],
+                            "name": "1",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "focus",
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              905.0,
+                              141.0,
+                              264.0,
+                              28.0
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  934.0,
+                                  147.0,
+                                  227.0,
+                                  16.0
+                                ],
+                                "name": "Welcome",
+                                "role": "label"
+                              }
+                            ],
+                            "key": "rail-link-0-1",
+                            "name": "Welcome",
+                            "role": "button"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              909.0,
+                              188.5,
+                              66.0,
+                              13.0
+                            ],
+                            "name": "BACKLINKS",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              982.0,
+                              187.0,
+                              5.0,
+                              16.0
+                            ],
+                            "name": "1",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "focus",
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              905.0,
+                              208.0,
+                              264.0,
+                              49.0
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  934.0,
+                                  215.0,
+                                  227.0,
+                                  16.0
+                                ],
+                                "name": "Welcome",
+                                "role": "label"
+                              },
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  934.0,
+                                  234.0,
+                                  227.0,
+                                  16.0
+                                ],
+                                "name": "This vault is a UI smoke fixture. See Second and the Plan board.",
+                                "role": "label"
+                              }
+                            ],
+                            "key": "rail-link-1-1",
+                            "name": "Welcome This vault is a UI smoke fixture. See Second and the Plan board.",
+                            "role": "button"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              909.0,
+                              275.0,
+                              40.0,
+                              13.0
+                            ],
+                            "name": "GRAPH",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              905.0,
+                              293.0,
+                              264.0,
+                              33.0
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  934.0,
+                                  301.5,
+                                  105.0,
+                                  16.0
+                                ],
+                                "name": "Open local graph",
+                                "role": "label"
+                              }
+                            ],
+                            "key": "open-local-graph",
+                            "name": "Open local graph",
+                            "role": "button"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              905.0,
+                              333.0,
+                              264.0,
+                              16.0
+                            ],
+                            "name": "See this note and everything it touches.",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "rail-scroll",
+                        "role": "list",
+                        "scroll": [
+                          0.0,
+                          0.0,
+                          0.0
+                        ],
+                        "states": [
+                          "clips"
+                        ]
+                      }
+                    ],
+                    "key": "rail",
+                    "role": "group"
+                  }
+                ],
+                "key": "note-body",
+                "role": "group"
+              }
+            ],
+            "key": "main",
+            "role": "group"
+          }
+        ],
+        "key": "root",
+        "role": "group"
+      }
+    ],
+    "name": "Muninn",
+    "role": "window"
+  },
+  "anim_t": 16.700000000000333,
+  "animating": false,
+  "dark_system": true,
+  "elements": [
+    {
+      "blur": 0.0,
+      "fill": "#161616ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#080808ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar",
+      "rect": [
+        0.0,
+        0.0,
+        258.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0",
+      "rect": [
+        0.0,
+        0.0,
+        258.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#12141aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "brand-logo",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/brand-logo",
+      "rect": [
+        16.0,
+        17.0,
+        24.0,
+        24.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/brand-logo/#0",
+      "rect": [
+        16.0,
+        17.0,
+        24.0,
+        24.0
+      ],
+      "role": "image",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/#1",
+      "rect": [
+        49.0,
+        19.0,
+        82.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Muninn"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "help": "Keyboard shortcuts",
+      "inert": false,
+      "key": "help-open",
+      "label": "Keyboard shortcuts",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/help-open",
+      "rect": [
+        140.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/help-open/#0",
+      "rect": [
+        150.0,
+        20.0,
+        8.0,
+        18.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "?"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "help": "Settings (Ctrl+,)",
+      "inert": false,
+      "key": "settings-open",
+      "label": "Settings",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/settings-open",
+      "rect": [
+        177.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/settings-open/#0",
+      "rect": [
+        183.5,
+        21.5,
+        15.0,
+        15.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "Theme: Omarchy — click to cycle (System, Dark, Light)",
+      "inert": false,
+      "key": "theme",
+      "label": "Theme: Omarchy — click to cycle (System, Dark, Light)",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/theme",
+      "rect": [
+        214.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/theme/#0",
+      "rect": [
+        222.0,
+        20.0,
+        12.0,
+        18.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "◐"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "search-box",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/search-box",
+      "rect": [
+        12.0,
+        58.0,
+        234.0,
+        34.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/search-box/#0",
+      "rect": [
+        21.0,
+        68.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "search",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/search-box/search",
+      "rect": [
+        42.0,
+        67.0,
+        195.0,
+        16.0
+      ],
+      "role": "textbox",
+      "scale": 1.0,
+      "text": ""
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "new-note",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/new-note",
+      "rect": [
+        12.0,
+        100.0,
+        234.0,
+        34.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/new-note/#0",
+      "rect": [
+        22.0,
+        110.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/new-note/#1",
+      "rect": [
+        43.0,
+        109.0,
+        59.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "New note"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#3",
+      "rect": [
+        0.0,
+        142.0,
+        258.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "note-scroll",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll",
+      "rect": [
+        0.0,
+        143.0,
+        258.0,
+        592.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "note-list",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list",
+      "rect": [
+        0.0,
+        143.0,
+        258.0,
+        138.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "folder-header-root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root",
+      "rect": [
+        8.0,
+        143.0,
+        242.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/#0",
+      "rect": [
+        14.0,
+        151.5,
+        5.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "▾"
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/#1",
+      "rect": [
+        25.0,
+        152.0,
+        150.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Vault root"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/#2",
+      "rect": [
+        181.0,
+        150.0,
+        7.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "2"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "New note in the vault root",
+      "inert": false,
+      "key": "folder-new-root",
+      "label": "New note in the vault root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-new-root",
+      "rect": [
+        194.0,
+        147.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-new-root/#0",
+      "rect": [
+        199.0,
+        152.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "New folder in the vault root",
+      "inert": false,
+      "key": "folder-create-root",
+      "label": "New folder in the vault root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-create-root",
+      "rect": [
+        222.0,
+        147.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-create-root/#0",
+      "rect": [
+        227.0,
+        152.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcff1a",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-0",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0",
+      "rect": [
+        8.0,
+        175.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcffff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#0",
+      "rect": [
+        28.0,
+        196.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#1",
+      "rect": [
+        43.0,
+        180.0,
+        188.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#1/#0",
+      "rect": [
+        43.0,
+        180.0,
+        188.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Second"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#1/#1",
+      "rect": [
+        43.0,
+        202.0,
+        188.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1 link · 1 backlink"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#2",
+      "rect": [
+        240.0,
+        199.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-1",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1",
+      "rect": [
+        8.0,
+        225.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcff8c",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#0",
+      "rect": [
+        28.0,
+        246.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#1",
+      "rect": [
+        43.0,
+        230.0,
+        188.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#1/#0",
+      "rect": [
+        43.0,
+        230.0,
+        188.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Welcome"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#1/#1",
+      "rect": [
+        43.0,
+        252.0,
+        188.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1 link · 1 backlink"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#2",
+      "rect": [
+        240.0,
+        249.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/#1",
+      "rect": [
+        0.0,
+        285.0,
+        258.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-boards",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards",
+      "rect": [
+        0.0,
+        289.0,
+        258.0,
+        132.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/#0",
+      "rect": [
+        8.0,
+        289.0,
+        242.0,
+        28.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/#0/#0",
+      "rect": [
+        16.0,
+        296.5,
+        47.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "BOARDS"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/#0/#1",
+      "rect": [
+        71.0,
+        295.0,
+        7.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "3"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-board-0",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-0",
+      "rect": [
+        8.0,
+        319.0,
+        242.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-0/#0",
+      "rect": [
+        16.0,
+        327.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-0/#1",
+      "rect": [
+        38.0,
+        326.0,
+        204.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-board-title-0",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-0/#1/sidebar-board-title-0",
+      "rect": [
+        38.0,
+        326.0,
+        27.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Plan"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-board-1",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-1",
+      "rect": [
+        8.0,
+        351.0,
+        242.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-1/#0",
+      "rect": [
+        16.0,
+        359.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-1/#1",
+      "rect": [
+        38.0,
+        358.0,
+        204.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-board-title-1",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-1/#1/sidebar-board-title-1",
+      "rect": [
+        38.0,
+        358.0,
+        42.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Smoke"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-board-2",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-2",
+      "rect": [
+        8.0,
+        383.0,
+        242.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-2/#0",
+      "rect": [
+        16.0,
+        391.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-2/#1",
+      "rect": [
+        38.0,
+        390.0,
+        204.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-board-title-2",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-boards/sidebar-board-2/#1/sidebar-board-title-2",
+      "rect": [
+        38.0,
+        390.0,
+        33.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Tools"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#5",
+      "rect": [
+        0.0,
+        735.0,
+        258.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6",
+      "rect": [
+        0.0,
+        736.0,
+        258.0,
+        44.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/#0",
+      "rect": [
+        15.0,
+        750.0,
+        83.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "2 notes · 2 links"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/#1",
+      "rect": [
+        106.0,
+        758.0,
+        49.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "broken-chip",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/broken-chip",
+      "rect": [
+        163.0,
+        747.0,
+        53.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/broken-chip/#0",
+      "rect": [
+        169.0,
+        750.0,
+        41.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "links ok"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/#3",
+      "rect": [
+        224.0,
+        750.0,
+        19.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "⌘K"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/#1",
+      "rect": [
+        258.0,
+        0.0,
+        1.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "main",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main",
+      "rect": [
+        259.0,
+        0.0,
+        921.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0",
+      "rect": [
+        259.0,
+        0.0,
+        921.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-toggle",
+      "label": "Hide sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/sidebar-toggle",
+      "rect": [
+        279.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/sidebar-toggle/#0",
+      "rect": [
+        285.0,
+        22.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "history-back",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-back",
+      "rect": [
+        317.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-back/#0",
+      "rect": [
+        326.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "‹"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "history-forward",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-forward",
+      "rect": [
+        355.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-forward/#0",
+      "rect": [
+        364.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "›"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3",
+      "rect": [
+        393.0,
+        10.0,
+        382.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0",
+      "rect": [
+        393.0,
+        10.0,
+        382.0,
+        20.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "topbar-title",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0/topbar-title",
+      "rect": [
+        393.0,
+        10.0,
+        48.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Second"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0/#1",
+      "rect": [
+        449.0,
+        20.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#1",
+      "rect": [
+        393.0,
+        32.0,
+        382.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Second.md"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#4",
+      "rect": [
+        787.0,
+        29.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5",
+      "rect": [
+        799.0,
+        13.0,
+        361.0,
+        32.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#3a3a3aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-editor",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor",
+      "rect": [
+        802.0,
+        16.0,
+        66.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor/#0",
+      "rect": [
+        811.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor/#1",
+      "rect": [
+        830.0,
+        23.0,
+        29.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Write"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-preview",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview",
+      "rect": [
+        870.0,
+        16.0,
+        64.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview/#0",
+      "rect": [
+        879.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview/#1",
+      "rect": [
+        898.0,
+        23.0,
+        27.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Read"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-graph",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph",
+      "rect": [
+        936.0,
+        16.0,
+        70.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph/#0",
+      "rect": [
+        945.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph/#1",
+      "rect": [
+        964.0,
+        23.0,
+        33.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Graph"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board",
+      "rect": [
+        1008.0,
+        16.0,
+        69.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board/#0",
+      "rect": [
+        1017.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board/#1",
+      "rect": [
+        1036.0,
+        23.0,
+        32.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-kanban",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban",
+      "rect": [
+        1079.0,
+        16.0,
+        78.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban/#0",
+      "rect": [
+        1088.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban/#1",
+      "rect": [
+        1107.0,
+        23.0,
+        41.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Kanban"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#1",
+      "rect": [
+        259.0,
+        58.0,
+        921.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "note-body",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body",
+      "rect": [
+        259.0,
+        59.0,
+        921.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "page",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page",
+      "rect": [
+        259.0,
+        59.0,
+        634.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "editor-pane",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/editor-pane",
+      "rect": [
+        259.0,
+        59.0,
+        634.0,
+        685.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "editor-scroll",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/editor-pane/editor-scroll",
+      "rect": [
+        259.0,
+        59.0,
+        634.0,
+        685.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/editor-pane/editor-scroll/#0",
+      "rect": [
+        259.0,
+        59.0,
+        634.0,
+        247.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": true,
+      "inert": false,
+      "key": "editor",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/editor-pane/editor-scroll/#0/editor",
+      "rect": [
+        311.0,
+        95.0,
+        530.0,
+        175.0
+      ],
+      "role": "textbox",
+      "scale": 1.0,
+      "text": "# Second\n\nBack to [[Welcome]].\n\n- one\n- two\n"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "status-bar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/status-bar",
+      "rect": [
+        259.0,
+        744.0,
+        634.0,
+        36.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "status-state-autosave",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/status-bar/status-state-autosave",
+      "rect": [
+        279.0,
+        754.0,
+        79.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "status-dot",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/status-bar/status-state-autosave/status-dot",
+      "rect": [
+        279.0,
+        759.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "status-text",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/status-bar/status-state-autosave/status-text",
+      "rect": [
+        292.0,
+        754.0,
+        66.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Autosave on"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/status-bar/#1",
+      "rect": [
+        365.0,
+        762.0,
+        362.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/page/status-bar/#2",
+      "rect": [
+        734.0,
+        754.0,
+        139.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "9 words · 1 link · 1 backlink"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/#1",
+      "rect": [
+        893.0,
+        59.0,
+        1.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#080808ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "rail",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail",
+      "rect": [
+        894.0,
+        59.0,
+        286.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/#0",
+      "rect": [
+        894.0,
+        59.0,
+        286.0,
+        48.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/#0/#0",
+      "rect": [
+        909.0,
+        76.5,
+        35.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "LINKS"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/#0/#1",
+      "rect": [
+        952.0,
+        83.0,
+        213.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/#1",
+      "rect": [
+        894.0,
+        107.0,
+        286.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "rail-scroll",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll",
+      "rect": [
+        894.0,
+        108.0,
+        286.0,
+        672.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0",
+      "rect": [
+        905.0,
+        120.0,
+        264.0,
+        49.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0/#0",
+      "rect": [
+        905.0,
+        120.0,
+        264.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0/#0/#0",
+      "rect": [
+        909.0,
+        121.5,
+        62.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "OUTGOING"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0/#0/#1",
+      "rect": [
+        978.0,
+        120.0,
+        5.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1",
+      "rect": [
+        905.0,
+        141.0,
+        264.0,
+        28.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "rail-link-0-1",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-0-1",
+      "rect": [
+        905.0,
+        141.0,
+        264.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#5c5c5cff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-0-1/#0",
+      "rect": [
+        913.0,
+        148.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-0-1/#1",
+      "rect": [
+        934.0,
+        147.0,
+        227.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#0/#1/rail-link-0-1/#1/#0",
+      "rect": [
+        934.0,
+        147.0,
+        227.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Welcome"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1",
+      "rect": [
+        905.0,
+        187.0,
+        264.0,
+        70.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#0",
+      "rect": [
+        905.0,
+        187.0,
+        264.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#0/#0",
+      "rect": [
+        909.0,
+        188.5,
+        66.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "BACKLINKS"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#0/#1",
+      "rect": [
+        982.0,
+        187.0,
+        5.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1",
+      "rect": [
+        905.0,
+        208.0,
+        264.0,
+        49.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "rail-link-1-1",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-1",
+      "rect": [
+        905.0,
+        208.0,
+        264.0,
+        49.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#5c5c5cff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-1/#0",
+      "rect": [
+        913.0,
+        226.0,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-1/#1",
+      "rect": [
+        934.0,
+        215.0,
+        227.0,
+        35.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-1/#1/#0",
+      "rect": [
+        934.0,
+        215.0,
+        227.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Welcome"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#1/#1/rail-link-1-1/#1/#1",
+      "rect": [
+        934.0,
+        234.0,
+        227.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "This vault is a UI smoke fixture. See Second and the Plan board."
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2",
+      "rect": [
+        905.0,
+        275.0,
+        264.0,
+        74.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2/#0",
+      "rect": [
+        905.0,
+        275.0,
+        264.0,
+        51.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2/#0/#0",
+      "rect": [
+        905.0,
+        275.0,
+        264.0,
+        13.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2/#0/#0/#0",
+      "rect": [
+        909.0,
+        275.0,
+        40.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "GRAPH"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2/#0/#1",
+      "rect": [
+        905.0,
+        293.0,
+        264.0,
+        33.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "open-local-graph",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2/#0/#1/open-local-graph",
+      "rect": [
+        905.0,
+        293.0,
+        264.0,
+        33.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2/#0/#1/open-local-graph/#0",
+      "rect": [
+        914.0,
+        303.0,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2/#0/#1/open-local-graph/#1",
+      "rect": [
+        934.0,
+        301.5,
+        105.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Open local graph"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/note-body/rail/rail-scroll/#2/#1",
+      "rect": [
+        905.0,
+        333.0,
+        264.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "See this note and everything it touches."
+    }
+  ],
+  "reduced_motion": false,
+  "scale": 1.0,
+  "t": 16.7,
+  "time_scale": 1.0,
+  "title": "Muninn",
+  "viewport": [
+    1180.0,
+    780.0
+  ],
+  "warnings": []
+}

@@ -1,0 +1,4 @@
+rune: `init` blocked 18 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: first frame took 280 ms (setup 10 ms, init 18 ms, first view 72 ms, window and GPU 180 ms); the slowest is the first `view`: start slow work from `on_ready`. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/sidebar/note-scroll/note-list/note-row-9" blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: an `update` closure blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)

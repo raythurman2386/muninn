@@ -1,0 +1,6633 @@
+{
+  "accessibility": {
+    "bounds": [
+      0.0,
+      0.0,
+      1180.0,
+      780.0
+    ],
+    "children": [
+      {
+        "bounds": [
+          0.0,
+          0.0,
+          1180.0,
+          780.0
+        ],
+        "children": [
+          {
+            "bounds": [
+              0.0,
+              0.0,
+              258.0,
+              780.0
+            ],
+            "children": [
+              {
+                "bounds": [
+                  16.0,
+                  17.0,
+                  24.0,
+                  24.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      16.0,
+                      17.0,
+                      24.0,
+                      24.0
+                    ],
+                    "role": "image"
+                  }
+                ],
+                "key": "brand-logo",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  49.0,
+                  19.0,
+                  82.0,
+                  20.0
+                ],
+                "name": "Muninn",
+                "role": "label"
+              },
+              {
+                "actions": [
+                  "click",
+                  "focus"
+                ],
+                "bounds": [
+                  140.0,
+                  15.0,
+                  28.0,
+                  28.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      150.0,
+                      20.0,
+                      8.0,
+                      18.0
+                    ],
+                    "name": "?",
+                    "role": "label"
+                  }
+                ],
+                "key": "help-open",
+                "name": "Keyboard shortcuts",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click",
+                  "focus"
+                ],
+                "bounds": [
+                  177.0,
+                  15.0,
+                  28.0,
+                  28.0
+                ],
+                "key": "settings-open",
+                "name": "Settings",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  214.0,
+                  15.0,
+                  28.0,
+                  28.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      222.0,
+                      20.0,
+                      12.0,
+                      18.0
+                    ],
+                    "name": "◐",
+                    "role": "label"
+                  }
+                ],
+                "key": "theme",
+                "name": "Theme: Omarchy — click to cycle (System, Dark, Light)",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  12.0,
+                  58.0,
+                  234.0,
+                  34.0
+                ],
+                "children": [
+                  {
+                    "actions": [
+                      "click",
+                      "focus",
+                      "set-value",
+                      "replace-selected-text",
+                      "set-text-selection"
+                    ],
+                    "bounds": [
+                      42.0,
+                      67.0,
+                      195.0,
+                      16.0
+                    ],
+                    "key": "search",
+                    "placeholder": "Search notes",
+                    "role": "text-input",
+                    "value": ""
+                  }
+                ],
+                "key": "search-box",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  12.0,
+                  100.0,
+                  234.0,
+                  34.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      43.0,
+                      109.0,
+                      59.0,
+                      16.0
+                    ],
+                    "name": "New note",
+                    "role": "label"
+                  }
+                ],
+                "key": "new-note",
+                "name": "New note",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "scroll-up",
+                  "scroll-down",
+                  "set-scroll-offset"
+                ],
+                "bounds": [
+                  0.0,
+                  143.0,
+                  258.0,
+                  592.0
+                ],
+                "children": [
+                  {
+                    "actions": [
+                      "scroll-into-view"
+                    ],
+                    "bounds": [
+                      0.0,
+                      143.0,
+                      258.0,
+                      138.0
+                    ],
+                    "children": [
+                      {
+                        "actions": [
+                          "click",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          143.0,
+                          242.0,
+                          30.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              14.0,
+                              151.5,
+                              5.0,
+                              13.0
+                            ],
+                            "name": "▾",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              25.0,
+                              152.0,
+                              150.0,
+                              12.0
+                            ],
+                            "name": "Vault root",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              181.0,
+                              150.0,
+                              7.0,
+                              16.0
+                            ],
+                            "name": "2",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              194.0,
+                              147.0,
+                              22.0,
+                              22.0
+                            ],
+                            "key": "folder-new-root",
+                            "name": "New note in the vault root",
+                            "role": "button"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              222.0,
+                              147.0,
+                              22.0,
+                              22.0
+                            ],
+                            "key": "folder-create-root",
+                            "name": "New folder in the vault root",
+                            "role": "button"
+                          }
+                        ],
+                        "key": "folder-header-root",
+                        "name": "▾ Vault root 2",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          175.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              180.0,
+                              175.0,
+                              20.0
+                            ],
+                            "name": "Board",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              202.0,
+                              175.0,
+                              16.0
+                            ],
+                            "name": "1 link",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              227.0,
+                              192.5,
+                              13.0,
+                              13.0
+                            ],
+                            "key": "note-row-0-kanban",
+                            "name": "Kanban",
+                            "role": "image"
+                          }
+                        ],
+                        "key": "note-row-0",
+                        "name": "Board 1 link Kanban",
+                        "role": "button"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "focus",
+                          "context-menu",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          225.0,
+                          242.0,
+                          48.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              230.0,
+                              188.0,
+                              20.0
+                            ],
+                            "name": "Roadmap",
+                            "role": "label"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              43.0,
+                              252.0,
+                              188.0,
+                              16.0
+                            ],
+                            "name": "1 backlink",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "note-row-1",
+                        "name": "Roadmap 1 backlink",
+                        "role": "button"
+                      }
+                    ],
+                    "key": "note-list",
+                    "role": "list"
+                  },
+                  {
+                    "actions": [
+                      "scroll-into-view"
+                    ],
+                    "bounds": [
+                      0.0,
+                      285.0,
+                      258.0,
+                      68.0
+                    ],
+                    "children": [
+                      {
+                        "actions": [
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          16.0,
+                          292.5,
+                          57.0,
+                          13.0
+                        ],
+                        "name": "KANBANS",
+                        "role": "label"
+                      },
+                      {
+                        "actions": [
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          81.0,
+                          291.0,
+                          5.0,
+                          16.0
+                        ],
+                        "name": "1",
+                        "role": "label"
+                      },
+                      {
+                        "actions": [
+                          "click",
+                          "scroll-into-view"
+                        ],
+                        "bounds": [
+                          8.0,
+                          315.0,
+                          242.0,
+                          30.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              38.0,
+                              322.0,
+                              37.0,
+                              16.0
+                            ],
+                            "key": "sidebar-kanban-title-0",
+                            "name": "Board",
+                            "role": "label"
+                          }
+                        ],
+                        "key": "sidebar-kanban-0",
+                        "name": "Board",
+                        "role": "button"
+                      }
+                    ],
+                    "key": "sidebar-kanbans",
+                    "role": "list"
+                  }
+                ],
+                "key": "note-scroll",
+                "role": "scroll-view",
+                "scroll": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "states": [
+                  "clips"
+                ]
+              },
+              {
+                "bounds": [
+                  15.0,
+                  750.0,
+                  75.0,
+                  16.0
+                ],
+                "name": "2 notes · 1 link",
+                "role": "label"
+              },
+              {
+                "actions": [
+                  "click",
+                  "focus"
+                ],
+                "bounds": [
+                  163.0,
+                  747.0,
+                  53.0,
+                  22.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      169.0,
+                      750.0,
+                      41.0,
+                      16.0
+                    ],
+                    "name": "links ok",
+                    "role": "label"
+                  }
+                ],
+                "key": "broken-chip",
+                "name": "links ok",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  224.0,
+                  750.0,
+                  19.0,
+                  16.0
+                ],
+                "name": "⌘K",
+                "role": "label"
+              }
+            ],
+            "key": "sidebar",
+            "role": "group"
+          },
+          {
+            "bounds": [
+              259.0,
+              0.0,
+              921.0,
+              780.0
+            ],
+            "children": [
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  279.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "key": "sidebar-toggle",
+                "name": "Hide sidebar",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  317.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      326.5,
+                      19.5,
+                      7.0,
+                      19.0
+                    ],
+                    "name": "‹",
+                    "role": "label"
+                  }
+                ],
+                "key": "history-back",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  355.0,
+                  16.0,
+                  26.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      364.5,
+                      19.5,
+                      7.0,
+                      19.0
+                    ],
+                    "name": "›",
+                    "role": "label"
+                  }
+                ],
+                "key": "history-forward",
+                "role": "group"
+              },
+              {
+                "bounds": [
+                  393.0,
+                  10.0,
+                  37.0,
+                  20.0
+                ],
+                "key": "topbar-title",
+                "name": "Board",
+                "role": "label"
+              },
+              {
+                "bounds": [
+                  393.0,
+                  32.0,
+                  382.0,
+                  16.0
+                ],
+                "name": "Board.md",
+                "role": "label"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  802.0,
+                  16.0,
+                  66.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      830.0,
+                      23.0,
+                      29.0,
+                      12.0
+                    ],
+                    "name": "Write",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-editor",
+                "name": "Write",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  870.0,
+                  16.0,
+                  64.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      898.0,
+                      23.0,
+                      27.0,
+                      12.0
+                    ],
+                    "name": "Read",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-preview",
+                "name": "Read",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  936.0,
+                  16.0,
+                  70.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      964.0,
+                      23.0,
+                      33.0,
+                      12.0
+                    ],
+                    "name": "Graph",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-graph",
+                "name": "Graph",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  1008.0,
+                  16.0,
+                  69.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      1036.0,
+                      23.0,
+                      32.0,
+                      12.0
+                    ],
+                    "name": "Board",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-board",
+                "name": "Board",
+                "role": "button"
+              },
+              {
+                "actions": [
+                  "click"
+                ],
+                "bounds": [
+                  1079.0,
+                  16.0,
+                  78.0,
+                  26.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      1107.0,
+                      23.0,
+                      41.0,
+                      12.0
+                    ],
+                    "name": "Kanban",
+                    "role": "label"
+                  }
+                ],
+                "key": "mode-kanban",
+                "name": "Kanban",
+                "role": "button"
+              },
+              {
+                "bounds": [
+                  259.0,
+                  59.0,
+                  921.0,
+                  721.0
+                ],
+                "children": [
+                  {
+                    "bounds": [
+                      287.0,
+                      78.0,
+                      37.0,
+                      20.0
+                    ],
+                    "key": "kanban-title",
+                    "name": "Board",
+                    "role": "label"
+                  },
+                  {
+                    "bounds": [
+                      334.0,
+                      80.0,
+                      51.0,
+                      16.0
+                    ],
+                    "key": "kanban-detail",
+                    "name": "Board.md",
+                    "role": "label"
+                  },
+                  {
+                    "bounds": [
+                      395.0,
+                      80.0,
+                      590.0,
+                      16.0
+                    ],
+                    "key": "kanban-status",
+                    "name": "Unsaved · Ctrl+S saves",
+                    "role": "label"
+                  },
+                  {
+                    "actions": [
+                      "click"
+                    ],
+                    "bounds": [
+                      995.0,
+                      74.0,
+                      157.0,
+                      28.0
+                    ],
+                    "children": [
+                      {
+                        "bounds": [
+                          1023.0,
+                          80.0,
+                          119.0,
+                          16.0
+                        ],
+                        "name": "Open as markdown",
+                        "role": "label"
+                      }
+                    ],
+                    "key": "kanban-open-markdown",
+                    "name": "Open as markdown",
+                    "role": "button"
+                  },
+                  {
+                    "bounds": [
+                      259.0,
+                      117.0,
+                      921.0,
+                      663.0
+                    ],
+                    "children": [
+                      {
+                        "actions": [
+                          "scroll-up",
+                          "scroll-down",
+                          "scroll-left",
+                          "set-scroll-offset"
+                        ],
+                        "bounds": [
+                          287.0,
+                          117.0,
+                          865.0,
+                          639.0
+                        ],
+                        "children": [
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              287.0,
+                              117.0,
+                              258.0,
+                              408.0
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  297.0,
+                                  127.0,
+                                  238.0,
+                                  22.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      297.0,
+                                      128.0,
+                                      163.0,
+                                      20.0
+                                    ],
+                                    "key": "kanban-lane-0-title",
+                                    "name": "To do",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      468.0,
+                                      130.0,
+                                      7.0,
+                                      16.0
+                                    ],
+                                    "key": "kanban-lane-0-count",
+                                    "name": "6",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      483.0,
+                                      127.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-lane-0-collapse",
+                                    "name": "Collapse lane",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      513.0,
+                                      127.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-lane-0-menu",
+                                    "name": "Lane actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-lane-0-head",
+                                "name": "To do 6",
+                                "role": "button"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  297.0,
+                                  157.0,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      307.0,
+                                      172.0,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-0-0-mark",
+                                    "name": "Open",
+                                    "role": "check-box",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      329.0,
+                                      167.0,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "First",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      503.0,
+                                      167.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-0-0-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-0-0",
+                                "name": "Open: First",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  297.0,
+                                  208.0,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      307.0,
+                                      223.0,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-0-1-mark",
+                                    "name": "Open",
+                                    "role": "check-box",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      329.0,
+                                      218.0,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "Write the release notes",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      503.0,
+                                      218.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-0-1-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-0-1",
+                                "name": "Open: Write the release notes",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  297.0,
+                                  259.0,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      307.0,
+                                      274.0,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-0-2-mark",
+                                    "name": "Open",
+                                    "role": "check-box",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      329.0,
+                                      269.0,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "Write the release notes",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      503.0,
+                                      269.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-0-2-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-0-2",
+                                "name": "Open: Write the release notes",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  297.0,
+                                  310.0,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      307.0,
+                                      325.0,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-0-3-mark",
+                                    "name": "Open",
+                                    "role": "check-box",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      329.0,
+                                      320.0,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "Review Roadmap",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      503.0,
+                                      320.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-0-3-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-0-3",
+                                "name": "Open: Review [[Roadmap]]",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  297.0,
+                                  361.0,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      307.0,
+                                      376.0,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-0-4-mark",
+                                    "name": "Open",
+                                    "role": "check-box",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      329.0,
+                                      371.0,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "with the team",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      503.0,
+                                      371.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-0-4-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-0-4",
+                                "name": "Open: with the team",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  297.0,
+                                  412.0,
+                                  238.0,
+                                  65.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      307.0,
+                                      427.0,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-0-5-mark",
+                                    "name": "Open",
+                                    "role": "check-box",
+                                    "states": [
+                                      "unchecked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      329.0,
+                                      422.0,
+                                      166.0,
+                                      45.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "Plan the demo 漢字 🎉 é second line",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      503.0,
+                                      422.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-0-5-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-0-5",
+                                "name": "Open: Plan the demo 漢字 🎉 é",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  297.0,
+                                  485.0,
+                                  238.0,
+                                  30.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      323.0,
+                                      492.0,
+                                      56.0,
+                                      16.0
+                                    ],
+                                    "name": "Add card",
+                                    "role": "label"
+                                  }
+                                ],
+                                "key": "kanban-lane-0-add",
+                                "name": "Add card",
+                                "role": "button"
+                              }
+                            ],
+                            "key": "kanban-lane-0",
+                            "name": "To do, 6 cards",
+                            "role": "list"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              557.0,
+                              117.0,
+                              258.0,
+                              131.0
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  567.0,
+                                  127.0,
+                                  238.0,
+                                  22.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      567.0,
+                                      128.0,
+                                      154.0,
+                                      20.0
+                                    ],
+                                    "key": "kanban-lane-1-title",
+                                    "name": "Doing",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      729.0,
+                                      130.0,
+                                      16.0,
+                                      16.0
+                                    ],
+                                    "key": "kanban-lane-1-count",
+                                    "name": "1/2",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      753.0,
+                                      127.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-lane-1-collapse",
+                                    "name": "Collapse lane",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      783.0,
+                                      127.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-lane-1-menu",
+                                    "name": "Lane actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-lane-1-head",
+                                "name": "Doing 1/2",
+                                "role": "button"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  567.0,
+                                  157.0,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      577.0,
+                                      172.0,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-1-0-mark",
+                                    "name": "Done",
+                                    "role": "check-box",
+                                    "states": [
+                                      "checked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      599.0,
+                                      167.0,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "Fix the sync bug",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      773.0,
+                                      167.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-1-0-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-1-0",
+                                "name": "Done: Fix the sync bug",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  567.0,
+                                  208.0,
+                                  238.0,
+                                  30.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      593.0,
+                                      215.0,
+                                      56.0,
+                                      16.0
+                                    ],
+                                    "name": "Add card",
+                                    "role": "label"
+                                  }
+                                ],
+                                "key": "kanban-lane-1-add",
+                                "name": "Add card",
+                                "role": "button"
+                              }
+                            ],
+                            "key": "kanban-lane-1",
+                            "name": "Doing, 1/2 cards",
+                            "role": "list"
+                          },
+                          {
+                            "actions": [
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              827.0,
+                              117.0,
+                              258.0,
+                              257.2
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  837.0,
+                                  127.0,
+                                  238.0,
+                                  22.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      837.0,
+                                      128.0,
+                                      163.0,
+                                      20.0
+                                    ],
+                                    "key": "kanban-lane-2-title",
+                                    "name": "Done",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      1008.0,
+                                      130.0,
+                                      7.0,
+                                      16.0
+                                    ],
+                                    "key": "kanban-lane-2-count",
+                                    "name": "3",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      1023.0,
+                                      127.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-lane-2-collapse",
+                                    "name": "Collapse lane",
+                                    "role": "button"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      1053.0,
+                                      127.0,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-lane-2-menu",
+                                    "name": "Lane actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-lane-2-head",
+                                "name": "Done 3",
+                                "role": "button"
+                              },
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  837.0,
+                                  157.2,
+                                  238.0,
+                                  16.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      855.0,
+                                      157.2,
+                                      51.0,
+                                      16.0
+                                    ],
+                                    "name": "Complete",
+                                    "role": "label"
+                                  }
+                                ],
+                                "key": "kanban-lane-2-complete",
+                                "role": "group"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  837.0,
+                                  181.2,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      847.0,
+                                      196.2,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-2-0-mark",
+                                    "name": "Done",
+                                    "role": "check-box",
+                                    "states": [
+                                      "checked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      869.0,
+                                      191.2,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "Ship 0.7.1",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      1043.0,
+                                      191.2,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-2-0-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-2-0",
+                                "name": "Done: Ship 0.7.1",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  837.0,
+                                  232.2,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      847.0,
+                                      247.2,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-2-1-mark",
+                                    "name": "Done",
+                                    "role": "check-box",
+                                    "states": [
+                                      "checked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      869.0,
+                                      242.2,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "Tag the release",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      1043.0,
+                                      242.2,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-2-1-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-2-1",
+                                "name": "Done: Tag the release",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "context-menu",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  837.0,
+                                  283.2,
+                                  238.0,
+                                  43.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      847.0,
+                                      298.2,
+                                      14.0,
+                                      14.0
+                                    ],
+                                    "key": "kanban-card-2-2-mark",
+                                    "name": "Done",
+                                    "role": "check-box",
+                                    "states": [
+                                      "checked"
+                                    ]
+                                  },
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      869.0,
+                                      293.2,
+                                      166.0,
+                                      23.0
+                                    ],
+                                    "key": "b0",
+                                    "name": "Write the notes",
+                                    "role": "label"
+                                  },
+                                  {
+                                    "actions": [
+                                      "click",
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      1043.0,
+                                      293.2,
+                                      22.0,
+                                      22.0
+                                    ],
+                                    "key": "kanban-card-2-2-menu",
+                                    "name": "Card actions",
+                                    "role": "button"
+                                  }
+                                ],
+                                "key": "kanban-card-2-2",
+                                "name": "Done: Write the notes",
+                                "role": "list-item"
+                              },
+                              {
+                                "actions": [
+                                  "click",
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  837.0,
+                                  334.2,
+                                  238.0,
+                                  30.0
+                                ],
+                                "children": [
+                                  {
+                                    "actions": [
+                                      "scroll-into-view"
+                                    ],
+                                    "bounds": [
+                                      863.0,
+                                      341.2,
+                                      56.0,
+                                      16.0
+                                    ],
+                                    "name": "Add card",
+                                    "role": "label"
+                                  }
+                                ],
+                                "key": "kanban-lane-2-add",
+                                "name": "Add card",
+                                "role": "button"
+                              }
+                            ],
+                            "key": "kanban-lane-2",
+                            "name": "Done, 3 cards",
+                            "role": "list"
+                          },
+                          {
+                            "actions": [
+                              "click",
+                              "scroll-into-view"
+                            ],
+                            "bounds": [
+                              1097.0,
+                              117.0,
+                              97.0,
+                              34.0
+                            ],
+                            "children": [
+                              {
+                                "actions": [
+                                  "scroll-into-view"
+                                ],
+                                "bounds": [
+                                  1127.0,
+                                  126.0,
+                                  55.0,
+                                  16.0
+                                ],
+                                "name": "Add lane",
+                                "role": "label"
+                              }
+                            ],
+                            "key": "kanban-add-lane",
+                            "name": "Add lane",
+                            "role": "button"
+                          }
+                        ],
+                        "key": "kanban-scroll",
+                        "role": "scroll-view",
+                        "scroll": [
+                          0.0,
+                          0.0,
+                          0.0
+                        ],
+                        "states": [
+                          "clips"
+                        ]
+                      }
+                    ],
+                    "key": "kanban-body",
+                    "role": "group"
+                  }
+                ],
+                "key": "kanban-page",
+                "role": "group"
+              }
+            ],
+            "key": "main",
+            "role": "group"
+          }
+        ],
+        "key": "root",
+        "role": "group"
+      }
+    ],
+    "name": "Muninn",
+    "role": "window"
+  },
+  "anim_t": 19.55000000000017,
+  "animating": true,
+  "dark_system": true,
+  "elements": [
+    {
+      "blur": 0.0,
+      "fill": "#161616ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root",
+      "rect": [
+        0.0,
+        0.0,
+        1180.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#080808ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar",
+      "rect": [
+        0.0,
+        0.0,
+        258.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0",
+      "rect": [
+        0.0,
+        0.0,
+        258.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#12141aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "brand-logo",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/brand-logo",
+      "rect": [
+        16.0,
+        17.0,
+        24.0,
+        24.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/brand-logo/#0",
+      "rect": [
+        16.0,
+        17.0,
+        24.0,
+        24.0
+      ],
+      "role": "image",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/#1",
+      "rect": [
+        49.0,
+        19.0,
+        82.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Muninn"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "help": "Keyboard shortcuts",
+      "inert": false,
+      "key": "help-open",
+      "label": "Keyboard shortcuts",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/help-open",
+      "rect": [
+        140.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/help-open/#0",
+      "rect": [
+        150.0,
+        20.0,
+        8.0,
+        18.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "?"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "help": "Settings (Ctrl+,)",
+      "inert": false,
+      "key": "settings-open",
+      "label": "Settings",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/settings-open",
+      "rect": [
+        177.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/settings-open/#0",
+      "rect": [
+        183.5,
+        21.5,
+        15.0,
+        15.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "Theme: Omarchy — click to cycle (System, Dark, Light)",
+      "inert": false,
+      "key": "theme",
+      "label": "Theme: Omarchy — click to cycle (System, Dark, Light)",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/theme",
+      "rect": [
+        214.0,
+        15.0,
+        28.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#0/theme/#0",
+      "rect": [
+        222.0,
+        20.0,
+        12.0,
+        18.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "◐"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "search-box",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/search-box",
+      "rect": [
+        12.0,
+        58.0,
+        234.0,
+        34.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/search-box/#0",
+      "rect": [
+        21.0,
+        68.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "search",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/search-box/search",
+      "rect": [
+        42.0,
+        67.0,
+        195.0,
+        16.0
+      ],
+      "role": "textbox",
+      "scale": 1.0,
+      "text": ""
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "new-note",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/new-note",
+      "rect": [
+        12.0,
+        100.0,
+        234.0,
+        34.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/new-note/#0",
+      "rect": [
+        22.0,
+        110.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/new-note/#1",
+      "rect": [
+        43.0,
+        109.0,
+        59.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "New note"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#3",
+      "rect": [
+        0.0,
+        142.0,
+        258.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "note-scroll",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll",
+      "rect": [
+        0.0,
+        143.0,
+        258.0,
+        592.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "note-list",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list",
+      "rect": [
+        0.0,
+        143.0,
+        258.0,
+        138.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "folder-header-root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root",
+      "rect": [
+        8.0,
+        143.0,
+        242.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/#0",
+      "rect": [
+        14.0,
+        151.5,
+        5.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "▾"
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/#1",
+      "rect": [
+        25.0,
+        152.0,
+        150.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Vault root"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/#2",
+      "rect": [
+        181.0,
+        150.0,
+        7.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "2"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "New note in the vault root",
+      "inert": false,
+      "key": "folder-new-root",
+      "label": "New note in the vault root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-new-root",
+      "rect": [
+        194.0,
+        147.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-new-root/#0",
+      "rect": [
+        199.0,
+        152.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "help": "New folder in the vault root",
+      "inert": false,
+      "key": "folder-create-root",
+      "label": "New folder in the vault root",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-create-root",
+      "rect": [
+        222.0,
+        147.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/folder-header-root/folder-create-root/#0",
+      "rect": [
+        227.0,
+        152.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcff1a",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-0",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0",
+      "rect": [
+        8.0,
+        175.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#a2bcffff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#0",
+      "rect": [
+        28.0,
+        196.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#1",
+      "rect": [
+        43.0,
+        180.0,
+        175.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#1/#0",
+      "rect": [
+        43.0,
+        180.0,
+        175.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/#1/#1",
+      "rect": [
+        43.0,
+        202.0,
+        175.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1 link"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-0-kanban",
+      "label": "Kanban",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-0/note-row-0-kanban",
+      "rect": [
+        227.0,
+        192.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "note-row-1",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1",
+      "rect": [
+        8.0,
+        225.0,
+        242.0,
+        48.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#808080ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#0",
+      "rect": [
+        28.0,
+        246.0,
+        6.0,
+        6.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#1",
+      "rect": [
+        43.0,
+        230.0,
+        188.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#1/#0",
+      "rect": [
+        43.0,
+        230.0,
+        188.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Roadmap"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#1/#1",
+      "rect": [
+        43.0,
+        252.0,
+        188.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1 backlink"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/note-list/note-row-1/#2",
+      "rect": [
+        240.0,
+        249.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-kanbans",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-kanbans",
+      "rect": [
+        0.0,
+        285.0,
+        258.0,
+        68.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-kanbans/#0",
+      "rect": [
+        8.0,
+        285.0,
+        242.0,
+        28.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-kanbans/#0/#0",
+      "rect": [
+        16.0,
+        292.5,
+        57.0,
+        13.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "KANBANS"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-kanbans/#0/#1",
+      "rect": [
+        81.0,
+        291.0,
+        5.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-kanban-0",
+      "label": "Board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-kanbans/sidebar-kanban-0",
+      "rect": [
+        8.0,
+        315.0,
+        242.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-kanbans/sidebar-kanban-0/#0",
+      "rect": [
+        16.0,
+        323.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-kanbans/sidebar-kanban-0/#1",
+      "rect": [
+        38.0,
+        322.0,
+        204.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-kanban-title-0",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/sidebar-kanbans/sidebar-kanban-0/#1/sidebar-kanban-title-0",
+      "rect": [
+        38.0,
+        322.0,
+        37.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/note-scroll/#2",
+      "rect": [
+        0.0,
+        357.0,
+        258.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#5",
+      "rect": [
+        0.0,
+        735.0,
+        258.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6",
+      "rect": [
+        0.0,
+        736.0,
+        258.0,
+        44.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/#0",
+      "rect": [
+        15.0,
+        750.0,
+        75.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "2 notes · 1 link"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/#1",
+      "rect": [
+        98.0,
+        758.0,
+        57.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": true,
+      "focused": false,
+      "inert": false,
+      "key": "broken-chip",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/broken-chip",
+      "rect": [
+        163.0,
+        747.0,
+        53.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/broken-chip/#0",
+      "rect": [
+        169.0,
+        750.0,
+        41.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "links ok"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/sidebar/#6/#3",
+      "rect": [
+        224.0,
+        750.0,
+        19.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "⌘K"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/#1",
+      "rect": [
+        258.0,
+        0.0,
+        1.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "main",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main",
+      "rect": [
+        259.0,
+        0.0,
+        921.0,
+        780.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0",
+      "rect": [
+        259.0,
+        0.0,
+        921.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "sidebar-toggle",
+      "label": "Hide sidebar",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/sidebar-toggle",
+      "rect": [
+        279.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/sidebar-toggle/#0",
+      "rect": [
+        285.0,
+        22.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "history-back",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-back",
+      "rect": [
+        317.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-back/#0",
+      "rect": [
+        326.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "‹"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "history-forward",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-forward",
+      "rect": [
+        355.0,
+        16.0,
+        26.0,
+        26.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#80808066",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/history-forward/#0",
+      "rect": [
+        364.5,
+        19.5,
+        7.0,
+        19.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "›"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3",
+      "rect": [
+        393.0,
+        10.0,
+        382.0,
+        38.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0",
+      "rect": [
+        393.0,
+        10.0,
+        382.0,
+        20.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "topbar-title",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0/topbar-title",
+      "rect": [
+        393.0,
+        10.0,
+        37.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#0/#1",
+      "rect": [
+        438.0,
+        20.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#3/#1",
+      "rect": [
+        393.0,
+        32.0,
+        382.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board.md"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#4",
+      "rect": [
+        787.0,
+        29.0,
+        0.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5",
+      "rect": [
+        799.0,
+        13.0,
+        361.0,
+        32.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-editor",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor",
+      "rect": [
+        802.0,
+        16.0,
+        66.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor/#0",
+      "rect": [
+        811.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-editor/#1",
+      "rect": [
+        830.0,
+        23.0,
+        29.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Write"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-preview",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview",
+      "rect": [
+        870.0,
+        16.0,
+        64.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview/#0",
+      "rect": [
+        879.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-preview/#1",
+      "rect": [
+        898.0,
+        23.0,
+        27.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Read"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-graph",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph",
+      "rect": [
+        936.0,
+        16.0,
+        70.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph/#0",
+      "rect": [
+        945.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-graph/#1",
+      "rect": [
+        964.0,
+        23.0,
+        33.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Graph"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-board",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board",
+      "rect": [
+        1008.0,
+        16.0,
+        69.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board/#0",
+      "rect": [
+        1017.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#aeaeaeff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-board/#1",
+      "rect": [
+        1036.0,
+        23.0,
+        32.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#3a3a3aff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "mode-kanban",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban",
+      "rect": [
+        1079.0,
+        16.0,
+        78.0,
+        26.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban/#0",
+      "rect": [
+        1088.0,
+        22.5,
+        13.0,
+        13.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#0/#5/mode-kanban/#1",
+      "rect": [
+        1107.0,
+        23.0,
+        41.0,
+        12.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Kanban"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#ffffff14",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/#1",
+      "rect": [
+        259.0,
+        58.0,
+        921.0,
+        1.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-page",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page",
+      "rect": [
+        259.0,
+        59.0,
+        921.0,
+        721.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/#0",
+      "rect": [
+        259.0,
+        59.0,
+        921.0,
+        58.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-title",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/#0/kanban-title",
+      "rect": [
+        287.0,
+        78.0,
+        37.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-detail",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/#0/kanban-detail",
+      "rect": [
+        334.0,
+        80.0,
+        51.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Board.md"
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-status",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/#0/kanban-status",
+      "rect": [
+        395.0,
+        80.0,
+        590.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Unsaved · Ctrl+S saves"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-open-markdown",
+      "label": "Open as markdown",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/#0/kanban-open-markdown",
+      "rect": [
+        995.0,
+        74.0,
+        157.0,
+        28.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/#0/kanban-open-markdown/#0",
+      "rect": [
+        1005.0,
+        82.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/#0/kanban-open-markdown/#1",
+      "rect": [
+        1023.0,
+        80.0,
+        119.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Open as markdown"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/#1",
+      "rect": [
+        259.0,
+        117.0,
+        921.0,
+        0.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-body",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body",
+      "rect": [
+        259.0,
+        117.0,
+        921.0,
+        663.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-scroll",
+      "loopPhase": null,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll",
+      "rect": [
+        287.0,
+        117.0,
+        865.0,
+        639.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0",
+      "rect": [
+        287.0,
+        117.0,
+        907.0,
+        408.13
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        287.0,
+        117.0,
+        907.0,
+        408.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-0",
+      "label": "To do, 6 cards",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0",
+      "rect": [
+        287.0,
+        117.0,
+        258.0,
+        408.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-0-head",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-head",
+      "rect": [
+        297.0,
+        127.0,
+        238.0,
+        22.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-0-title",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-head/kanban-lane-0-title",
+      "rect": [
+        297.0,
+        128.0,
+        163.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "To do"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-0-count",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-head/kanban-lane-0-count",
+      "rect": [
+        468.0,
+        130.0,
+        7.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "6"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-0-collapse",
+      "label": "Collapse lane",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-head/kanban-lane-0-collapse",
+      "rect": [
+        483.0,
+        127.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-head/kanban-lane-0-collapse/#0",
+      "rect": [
+        488.0,
+        132.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-0-menu",
+      "label": "Lane actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-head/kanban-lane-0-menu",
+      "rect": [
+        513.0,
+        127.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-head/kanban-lane-0-menu/#0",
+      "rect": [
+        517.0,
+        131.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-0",
+      "label": "Open: First",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-0",
+      "rect": [
+        297.0,
+        157.0,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-0-mark",
+      "label": "Open",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-0/kanban-card-0-0-mark",
+      "rect": [
+        307.0,
+        172.0,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-0/#1",
+      "rect": [
+        329.0,
+        167.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-0/#1/#0",
+      "rect": [
+        329.0,
+        167.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-0/#1/#0/b0",
+      "rect": [
+        329.0,
+        167.0,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "First"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-0-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-0/kanban-card-0-0-menu",
+      "rect": [
+        503.0,
+        167.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-0/kanban-card-0-0-menu/#0",
+      "rect": [
+        507.0,
+        171.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-1",
+      "label": "Open: Write the release notes",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-1",
+      "rect": [
+        297.0,
+        208.0,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-1-mark",
+      "label": "Open",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-1/kanban-card-0-1-mark",
+      "rect": [
+        307.0,
+        223.0,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-1/#1",
+      "rect": [
+        329.0,
+        218.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-1/#1/#0",
+      "rect": [
+        329.0,
+        218.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-1/#1/#0/b0",
+      "rect": [
+        329.0,
+        218.0,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Write the release notes"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-1-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-1/kanban-card-0-1-menu",
+      "rect": [
+        503.0,
+        218.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-1/kanban-card-0-1-menu/#0",
+      "rect": [
+        507.0,
+        222.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-2",
+      "label": "Open: Write the release notes",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-2",
+      "rect": [
+        297.0,
+        259.0,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-2-mark",
+      "label": "Open",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-2/kanban-card-0-2-mark",
+      "rect": [
+        307.0,
+        274.0,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-2/#1",
+      "rect": [
+        329.0,
+        269.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-2/#1/#0",
+      "rect": [
+        329.0,
+        269.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-2/#1/#0/b0",
+      "rect": [
+        329.0,
+        269.0,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Write the release notes"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-2-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-2/kanban-card-0-2-menu",
+      "rect": [
+        503.0,
+        269.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-2/kanban-card-0-2-menu/#0",
+      "rect": [
+        507.0,
+        273.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-3",
+      "label": "Open: Review [[Roadmap]]",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-3",
+      "rect": [
+        297.0,
+        310.0,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-3-mark",
+      "label": "Open",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-3/kanban-card-0-3-mark",
+      "rect": [
+        307.0,
+        325.0,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-3/#1",
+      "rect": [
+        329.0,
+        320.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-3/#1/#0",
+      "rect": [
+        329.0,
+        320.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-3/#1/#0/b0",
+      "rect": [
+        329.0,
+        320.0,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Review Roadmap"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-3-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-3/kanban-card-0-3-menu",
+      "rect": [
+        503.0,
+        320.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-3/kanban-card-0-3-menu/#0",
+      "rect": [
+        507.0,
+        324.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-4",
+      "label": "Open: with the team",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-4",
+      "rect": [
+        297.0,
+        361.0,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-4-mark",
+      "label": "Open",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-4/kanban-card-0-4-mark",
+      "rect": [
+        307.0,
+        376.0,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-4/#1",
+      "rect": [
+        329.0,
+        371.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-4/#1/#0",
+      "rect": [
+        329.0,
+        371.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-4/#1/#0/b0",
+      "rect": [
+        329.0,
+        371.0,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "with the team"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-4-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-4/kanban-card-0-4-menu",
+      "rect": [
+        503.0,
+        371.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-4/kanban-card-0-4-menu/#0",
+      "rect": [
+        507.0,
+        375.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-5",
+      "label": "Open: Plan the demo 漢字 🎉 é",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-5",
+      "rect": [
+        297.0,
+        412.0,
+        238.0,
+        65.0
+      ],
+      "role": "listitem",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-5-mark",
+      "label": "Open",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-5/kanban-card-0-5-mark",
+      "rect": [
+        307.0,
+        427.0,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-5/#1",
+      "rect": [
+        329.0,
+        422.0,
+        166.0,
+        45.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-5/#1/#0",
+      "rect": [
+        329.0,
+        422.0,
+        166.0,
+        45.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-5/#1/#0/b0",
+      "rect": [
+        329.0,
+        422.0,
+        166.0,
+        45.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Plan the demo 漢字 🎉 é second line"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-0-5-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-5/kanban-card-0-5-menu",
+      "rect": [
+        503.0,
+        422.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-card-0-5/kanban-card-0-5-menu/#0",
+      "rect": [
+        507.0,
+        426.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-0-add",
+      "label": "Add card",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-add",
+      "rect": [
+        297.0,
+        485.0,
+        238.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-add/#0",
+      "rect": [
+        305.0,
+        494.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-0/kanban-lane-0-add/#1",
+      "rect": [
+        323.0,
+        492.0,
+        56.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Add card"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-1",
+      "label": "Doing, 1/2 cards",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1",
+      "rect": [
+        557.0,
+        117.0,
+        258.0,
+        131.0
+      ],
+      "role": "list",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-1-head",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-head",
+      "rect": [
+        567.0,
+        127.0,
+        238.0,
+        22.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-1-title",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-head/kanban-lane-1-title",
+      "rect": [
+        567.0,
+        128.0,
+        154.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Doing"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-1-count",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-head/kanban-lane-1-count",
+      "rect": [
+        729.0,
+        130.0,
+        16.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "1/2"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-1-collapse",
+      "label": "Collapse lane",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-head/kanban-lane-1-collapse",
+      "rect": [
+        753.0,
+        127.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-head/kanban-lane-1-collapse/#0",
+      "rect": [
+        758.0,
+        132.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-1-menu",
+      "label": "Lane actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-head/kanban-lane-1-menu",
+      "rect": [
+        783.0,
+        127.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-head/kanban-lane-1-menu/#0",
+      "rect": [
+        787.0,
+        131.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-1-0",
+      "label": "Done: Fix the sync bug",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-card-1-0",
+      "rect": [
+        567.0,
+        157.0,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-1-0-mark",
+      "label": "Done",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-card-1-0/kanban-card-1-0-mark",
+      "rect": [
+        577.0,
+        172.0,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-card-1-0/kanban-card-1-0-mark/#0",
+      "rect": [
+        579.0,
+        174.0,
+        10.0,
+        10.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-card-1-0/#1",
+      "rect": [
+        599.0,
+        167.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-card-1-0/#1/#0",
+      "rect": [
+        599.0,
+        167.0,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-card-1-0/#1/#0/b0",
+      "rect": [
+        599.0,
+        167.0,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Fix the sync bug"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-1-0-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-card-1-0/kanban-card-1-0-menu",
+      "rect": [
+        773.0,
+        167.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-card-1-0/kanban-card-1-0-menu/#0",
+      "rect": [
+        777.0,
+        171.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-1-add",
+      "label": "Add card",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-add",
+      "rect": [
+        567.0,
+        208.0,
+        238.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-add/#0",
+      "rect": [
+        575.0,
+        217.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-1/kanban-lane-1-add/#1",
+      "rect": [
+        593.0,
+        215.0,
+        56.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Add card"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#242424ff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-2",
+      "label": "Done, 3 cards",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2",
+      "rect": [
+        827.0,
+        117.0,
+        258.0,
+        257.19
+      ],
+      "role": "list",
+      "scale": 1.0,
+      "target": [
+        827.0,
+        117.0,
+        258.0,
+        257.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-2-head",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-head",
+      "rect": [
+        837.0,
+        127.0,
+        238.0,
+        22.0
+      ],
+      "role": "group",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-2-title",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-head/kanban-lane-2-title",
+      "rect": [
+        837.0,
+        128.0,
+        163.0,
+        20.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Done"
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-2-count",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-head/kanban-lane-2-count",
+      "rect": [
+        1008.0,
+        130.0,
+        7.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "3"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-2-collapse",
+      "label": "Collapse lane",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-head/kanban-lane-2-collapse",
+      "rect": [
+        1023.0,
+        127.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-head/kanban-lane-2-collapse/#0",
+      "rect": [
+        1028.0,
+        132.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-2-menu",
+      "label": "Lane actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-head/kanban-lane-2-menu",
+      "rect": [
+        1053.0,
+        127.0,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-head/kanban-lane-2-menu/#0",
+      "rect": [
+        1057.0,
+        131.0,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-2-complete",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-complete",
+      "rect": [
+        837.0,
+        157.19,
+        238.0,
+        16.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        837.0,
+        157.0,
+        238.0,
+        16.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#6bd586ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-complete/#0",
+      "rect": [
+        837.0,
+        159.19,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0,
+      "target": [
+        837.0,
+        159.0,
+        12.0,
+        12.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#6bd586ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-complete/#1",
+      "rect": [
+        855.0,
+        157.19,
+        51.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        855.0,
+        157.0,
+        51.0,
+        16.0
+      ],
+      "text": "Complete"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-0",
+      "label": "Done: Ship 0.7.1",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-0",
+      "rect": [
+        837.0,
+        181.19,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0,
+      "target": [
+        837.0,
+        181.0,
+        238.0,
+        43.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-0-mark",
+      "label": "Done",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-0/kanban-card-2-0-mark",
+      "rect": [
+        847.0,
+        196.19,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0,
+      "target": [
+        847.0,
+        196.0,
+        14.0,
+        14.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-0/kanban-card-2-0-mark/#0",
+      "rect": [
+        849.0,
+        198.19,
+        10.0,
+        10.0
+      ],
+      "role": "icon",
+      "scale": 1.0,
+      "target": [
+        849.0,
+        198.0,
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-0/#1",
+      "rect": [
+        869.0,
+        191.19,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        191.0,
+        166.0,
+        23.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-0/#1/#0",
+      "rect": [
+        869.0,
+        191.19,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        191.0,
+        166.0,
+        23.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-0/#1/#0/b0",
+      "rect": [
+        869.0,
+        191.19,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        191.0,
+        166.0,
+        23.0
+      ],
+      "text": "Ship 0.7.1"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-0-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-0/kanban-card-2-0-menu",
+      "rect": [
+        1043.0,
+        191.19,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0,
+      "target": [
+        1043.0,
+        191.0,
+        22.0,
+        22.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-0/kanban-card-2-0-menu/#0",
+      "rect": [
+        1047.0,
+        195.19,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0,
+      "target": [
+        1047.0,
+        195.0,
+        14.0,
+        14.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-1",
+      "label": "Done: Tag the release",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-1",
+      "rect": [
+        837.0,
+        232.19,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0,
+      "target": [
+        837.0,
+        232.0,
+        238.0,
+        43.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-1-mark",
+      "label": "Done",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-1/kanban-card-2-1-mark",
+      "rect": [
+        847.0,
+        247.19,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0,
+      "target": [
+        847.0,
+        247.0,
+        14.0,
+        14.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-1/kanban-card-2-1-mark/#0",
+      "rect": [
+        849.0,
+        249.19,
+        10.0,
+        10.0
+      ],
+      "role": "icon",
+      "scale": 1.0,
+      "target": [
+        849.0,
+        249.0,
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-1/#1",
+      "rect": [
+        869.0,
+        242.19,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        242.0,
+        166.0,
+        23.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-1/#1/#0",
+      "rect": [
+        869.0,
+        242.19,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        242.0,
+        166.0,
+        23.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-1/#1/#0/b0",
+      "rect": [
+        869.0,
+        242.19,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        242.0,
+        166.0,
+        23.0
+      ],
+      "text": "Tag the release"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-1-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-1/kanban-card-2-1-menu",
+      "rect": [
+        1043.0,
+        242.19,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0,
+      "target": [
+        1043.0,
+        242.0,
+        22.0,
+        22.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-1/kanban-card-2-1-menu/#0",
+      "rect": [
+        1047.0,
+        246.19,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0,
+      "target": [
+        1047.0,
+        246.0,
+        14.0,
+        14.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#2e2e2eff",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-2",
+      "label": "Done: Write the notes",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-2",
+      "rect": [
+        837.0,
+        283.19,
+        238.0,
+        43.0
+      ],
+      "role": "listitem",
+      "scale": 1.0,
+      "target": [
+        837.0,
+        283.0,
+        238.0,
+        43.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-2-mark",
+      "label": "Done",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-2/kanban-card-2-2-mark",
+      "rect": [
+        847.0,
+        298.19,
+        14.0,
+        14.0
+      ],
+      "role": "checkbox",
+      "scale": 1.0,
+      "target": [
+        847.0,
+        298.0,
+        14.0,
+        14.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#a2bcffff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-2/kanban-card-2-2-mark/#0",
+      "rect": [
+        849.0,
+        300.19,
+        10.0,
+        10.0
+      ],
+      "role": "icon",
+      "scale": 1.0,
+      "target": [
+        849.0,
+        300.0,
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-2/#1",
+      "rect": [
+        869.0,
+        293.19,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        293.0,
+        166.0,
+        23.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-2/#1/#0",
+      "rect": [
+        869.0,
+        293.19,
+        166.0,
+        23.0
+      ],
+      "role": "group",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        293.0,
+        166.0,
+        23.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#fafafaff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "b0",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-2/#1/#0/b0",
+      "rect": [
+        869.0,
+        293.19,
+        166.0,
+        23.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        869.0,
+        293.0,
+        166.0,
+        23.0
+      ],
+      "text": "Write the notes"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-card-2-2-menu",
+      "label": "Card actions",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-2/kanban-card-2-2-menu",
+      "rect": [
+        1043.0,
+        293.19,
+        22.0,
+        22.0
+      ],
+      "role": "button",
+      "scale": 1.0,
+      "target": [
+        1043.0,
+        293.0,
+        22.0,
+        22.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-card-2-2/kanban-card-2-2-menu/#0",
+      "rect": [
+        1047.0,
+        297.19,
+        14.0,
+        14.0
+      ],
+      "role": "icon",
+      "scale": 1.0,
+      "target": [
+        1047.0,
+        297.0,
+        14.0,
+        14.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-lane-2-add",
+      "label": "Add card",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-add",
+      "rect": [
+        837.0,
+        334.19,
+        238.0,
+        30.0
+      ],
+      "role": "button",
+      "scale": 1.0,
+      "target": [
+        837.0,
+        334.0,
+        238.0,
+        30.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-add/#0",
+      "rect": [
+        845.0,
+        343.19,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0,
+      "target": [
+        845.0,
+        343.0,
+        12.0,
+        12.0
+      ]
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-lane-2/kanban-lane-2-add/#1",
+      "rect": [
+        863.0,
+        341.19,
+        56.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "target": [
+        863.0,
+        341.0,
+        56.0,
+        16.0
+      ],
+      "text": "Add card"
+    },
+    {
+      "blur": 0.0,
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "key": "kanban-add-lane",
+      "label": "Add lane",
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-add-lane",
+      "rect": [
+        1097.0,
+        117.0,
+        97.0,
+        34.0
+      ],
+      "role": "button",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-add-lane/#0",
+      "rect": [
+        1109.0,
+        128.0,
+        12.0,
+        12.0
+      ],
+      "role": "icon",
+      "scale": 1.0
+    },
+    {
+      "blur": 0.0,
+      "color": "#808080ff",
+      "fill": "#00000000",
+      "focusVisible": false,
+      "focusable": false,
+      "focused": false,
+      "inert": false,
+      "loopPhase": null,
+      "moving": true,
+      "opacity": 1.0,
+      "path": "root/main/kanban-page/kanban-body/kanban-scroll/#0/kanban-add-lane/#1",
+      "rect": [
+        1127.0,
+        126.0,
+        55.0,
+        16.0
+      ],
+      "role": "text",
+      "scale": 1.0,
+      "text": "Add lane"
+    }
+  ],
+  "reduced_motion": false,
+  "scale": 1.0,
+  "t": 19.55,
+  "time_scale": 1.0,
+  "title": "Muninn",
+  "viewport": [
+    1180.0,
+    780.0
+  ],
+  "warnings": []
+}
