@@ -112,11 +112,17 @@ pub enum PaletteAction {
     ToggleBoard,
     /// Enter Kanban, or go back to the last note mode. Its hint is ⌘5.
     ToggleKanban,
+    /// Write `Untitled Kanban.md` and open it on the Kanban page.
+    NewKanban,
+    /// Write the New Kanban layout into the selected note. Offered only
+    /// while that note is empty, so it is not in [`PaletteAction::ALL`].
+    ConvertToKanban,
 }
 
 impl PaletteAction {
-    /// Every action, in the order shown before a query is typed.
-    pub const ALL: [PaletteAction; 8] = [
+    /// Every action always offered, in the order shown before a query is
+    /// typed. [`PaletteAction::ConvertToKanban`] follows them when offered.
+    pub const ALL: [PaletteAction; 9] = [
         PaletteAction::OpenLocalGraph,
         PaletteAction::SwitchVault,
         PaletteAction::OpenSettings,
@@ -125,6 +131,7 @@ impl PaletteAction {
         PaletteAction::ToggleGraph,
         PaletteAction::ToggleBoard,
         PaletteAction::ToggleKanban,
+        PaletteAction::NewKanban,
     ];
 
     /// The row's main label.
@@ -139,6 +146,8 @@ impl PaletteAction {
             PaletteAction::ToggleGraph => "Toggle Graph",
             PaletteAction::ToggleBoard => "Toggle Board",
             PaletteAction::ToggleKanban => "Toggle Kanban",
+            PaletteAction::NewKanban => "New Kanban",
+            PaletteAction::ConvertToKanban => "Convert empty note to Kanban",
         }
     }
 
@@ -154,6 +163,7 @@ impl PaletteAction {
             PaletteAction::ToggleGraph => "⌘G",
             PaletteAction::ToggleBoard => "⌘4",
             PaletteAction::ToggleKanban => "⌘5",
+            PaletteAction::NewKanban | PaletteAction::ConvertToKanban => "Kanban",
         }
     }
 
@@ -169,6 +179,8 @@ impl PaletteAction {
             PaletteAction::ToggleGraph => "graph global local mode",
             PaletteAction::ToggleBoard => "board whiteboard excalidraw drawing canvas sketch mode",
             PaletteAction::ToggleKanban => "kanban lanes cards tasks mode",
+            PaletteAction::NewKanban => "kanban create add lanes cards tasks",
+            PaletteAction::ConvertToKanban => "kanban empty blank turn lanes cards tasks",
         }
     }
 
@@ -188,6 +200,8 @@ pub enum PaletteItem {
     /// A note matching the typed query (title-first, via `Vault::search`).
     Note(usize),
     Action(PaletteAction),
+    /// A kanban note by name; it opens on the Kanban page.
+    Kanban(usize),
 }
 
 impl PaletteItem {
@@ -198,6 +212,7 @@ impl PaletteItem {
             PaletteItem::Recent(_) => "Recent",
             PaletteItem::Note(_) => "Notes",
             PaletteItem::Action(_) => "Actions",
+            PaletteItem::Kanban(_) => "Kanbans",
         }
     }
 }

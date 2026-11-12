@@ -15,9 +15,19 @@ pub struct Note {
     pub links: Vec<usize>,
     /// Notes that link here, unique and sorted.
     pub backlinks: Vec<usize>,
+    /// [`crate::is_kanban`] of `source`, cached by [`crate::Vault::reindex`]
+    /// so a frame never re-detects it.
+    pub(crate) kanban: bool,
 }
 
 impl Note {
+    /// Whether this note is a kanban note (its frontmatter has
+    /// `kanban-plugin`), as of the last index rebuild.
+    #[must_use]
+    pub fn is_kanban(&self) -> bool {
+        self.kanban
+    }
+
     /// Vault-relative folder (e.g. `projects/alpha`), or
     /// empty when the note is at the vault root.
     #[must_use]

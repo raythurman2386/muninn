@@ -235,6 +235,9 @@ impl Vault {
 
     /// Rebuild the title index and every note's link lists.
     pub fn reindex(&mut self) {
+        for note in &mut self.notes {
+            note.kanban = crate::is_kanban(&note.source);
+        }
         self.by_path.clear();
         self.by_title.clear();
         for note in &self.notes {
@@ -867,6 +870,28 @@ impl Vault {
     /// outside the vault (a symlink) is refused.
     pub fn create_board_in(&self, title: &str, folder: &str) -> io::Result<PathBuf> {
         let title = sanitise_title(title);
+        let dir = self.new_file_dir(folder)?;
+        let body = crate::Board::new().to_json();
+        let mut n = 1;
+        loop {
+            let name = if n == 1 {
+                format!("{title}.excalidraw")
+            } else {
+                format!("{title} {n}.excalidraw")
+            };
+            let path = dir.join(name);
+            if !path.exists() {
+                atomic_write(&path, body.as_bytes())?;
+                return Ok(path);
+            }
+            n += 1;
+        }
+    }
+
+    /// The folder a new board or kanban goes in, made if missing. `folder`
+    /// is resolved like a note's (`..` and hidden parts dropped), and a
+    /// folder that resolves outside the vault (a symlink) is refused.
+    pub(crate) fn new_file_dir(&self, folder: &str) -> io::Result<PathBuf> {
         let dir = folder_dir(&self.root, folder);
         let root = fs::canonicalize(&self.root)?;
         let outside = || {
@@ -887,21 +912,7 @@ impl Vault {
         if !fs::canonicalize(&dir)?.starts_with(&root) {
             return Err(outside());
         }
-        let body = crate::Board::new().to_json();
-        let mut n = 1;
-        loop {
-            let name = if n == 1 {
-                format!("{title}.excalidraw")
-            } else {
-                format!("{title} {n}.excalidraw")
-            };
-            let path = dir.join(name);
-            if !path.exists() {
-                atomic_write(&path, body.as_bytes())?;
-                return Ok(path);
-            }
-            n += 1;
-        }
+        Ok(dir)
     }
 
     /// Board rename: rename the board at `path` to `new_name` in its own
@@ -1615,6 +1626,7 @@ fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
         source,
         links: Vec::new(),
         backlinks: Vec::new(),
+        kanban: false,
     })
 }
 

@@ -922,11 +922,12 @@ fn surface(s: &State, k: &Kit) -> El {
     let body = match s.board_open.as_ref() {
         Some(open) => match &open.scene {
             Ok(scene) => board_canvas(s, k, open, scene),
-            Err(e) => placeholder(k, &ic::DOT_GRID, "This board could not be read", e),
+            Err(e) => placeholder(k, "board-placeholder", &ic::DOT_GRID, "This board could not be read", e),
         },
         // Slice 8: an empty Board offers a way in, not just a message.
         None if s.boards.is_empty() => placeholder(
             k,
+            "board-placeholder",
             &ic::DOT_GRID,
             "No boards in this vault yet",
             "A board is an Excalidraw file in your vault. Make one to start drawing.",
@@ -934,6 +935,7 @@ fn surface(s: &State, k: &Kit) -> El {
         .child(new_board_button(k, "board-new-empty")),
         None => placeholder(
             k,
+            "board-placeholder",
             &ic::DOT_GRID,
             "No board open",
             "Pick a board on the left, or make a new one. Boards are Excalidraw files in your vault.",
@@ -1002,9 +1004,17 @@ fn choice(k: &Kit, label: &str, key: &str, action: fn(&mut State) -> bool) -> El
         })
 }
 
-fn placeholder(k: &Kit, glyph: &'static rune::Icon, title: &str, detail: &str) -> El {
+/// An empty or error state filling the page: a glyph, a title (keyed
+/// `{key}-title`) and a detail line. Board and Kanban both use it.
+pub(crate) fn placeholder(
+    k: &Kit,
+    key: &str,
+    glyph: &'static rune::Icon,
+    title: &str,
+    detail: &str,
+) -> El {
     col()
-        .key("board-placeholder")
+        .key(key)
         .w_full()
         .grow(1.0)
         .min_h(0.0)
@@ -1016,6 +1026,7 @@ fn placeholder(k: &Kit, glyph: &'static rune::Icon, title: &str, detail: &str) -
         .child(icon(glyph, 22.0).color(k.c.icon_muted))
         .child(
             text(title.to_owned())
+                .key(format!("{key}-title"))
                 .font(k.ty.ui_medium)
                 .color(k.c.text_base),
         )

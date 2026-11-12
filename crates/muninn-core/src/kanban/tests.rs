@@ -1453,3 +1453,101 @@ fn a_final_carriage_return_is_the_same_line_ending_for_detection_and_parse() {
     assert!(is_kanban(source));
     assert_eq!(parse(source).source(), source);
 }
+
+/// Slice 3: New Kanban names, bytes, never-overwrite and folder rules.
+#[test]
+fn new_kanban_writes_the_spec_layout_under_unique_names() {
+    let dir = TempVault::new(&[("Untitled Kanban 2.md", "keep\n")]);
+    let vault = Vault::load(dir.path()).unwrap();
+    let first = vault.create_kanban_in("").unwrap();
+    let next = vault.create_kanban_in("").unwrap();
+    assert_eq!(first, dir.path().join("Untitled Kanban.md"));
+    assert_eq!(next, dir.path().join("Untitled Kanban 3.md"), "2 is taken");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("Untitled Kanban 2.md")).unwrap(),
+        "keep\n",
+        "an existing file is never overwritten"
+    );
+    let layout = read_fixture("new-kanban.md");
+    for path in [&first, &next] {
+        assert_eq!(fs::read_to_string(path).unwrap(), layout, "{path:?}");
+    }
+    assert!(is_kanban(&layout) && parse(&layout).footer_json().is_none());
+    let hidden: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().starts_with('.'))
+        .collect();
+    assert!(hidden.is_empty(), "no temp file left: {hidden:?}");
+}
+
+#[test]
+fn new_kanban_folders_drop_dot_parts_and_stay_in_the_vault() {
+    let dir = TempVault::new(&[]);
+    let vault = Vault::load(dir.path()).unwrap();
+    let path = vault.create_kanban_in("../../Plans/./.hidden/Q4").unwrap();
+    assert_eq!(path, dir.path().join("Plans/Q4/Untitled Kanban.md"));
+}
+
+#[cfg(unix)]
+#[test]
+fn new_kanban_is_refused_in_a_folder_that_links_out_of_the_vault() {
+    let dir = TempVault::new(&[]);
+    let outside = TempVault::new(&[]);
+    std::os::unix::fs::symlink(outside.path(), dir.path().join("Link")).unwrap();
+    let vault = Vault::load(dir.path()).unwrap();
+    for folder in ["Link", "Link/Deeper"] {
+        let error = vault.create_kanban_in(folder).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied, "{folder}");
+    }
+    assert!(
+        fs::read_dir(outside.path()).unwrap().next().is_none(),
+        "nothing written or made outside the vault"
+    );
+}
+
+#[test]
+fn the_index_follows_a_new_kanban_and_a_convert() {
+    let dir = TempVault::new(&[("Blank.md", " \n\t\n"), ("Plain.md", "# Plain\n")]);
+    let vault = Vault::load(dir.path()).unwrap();
+    assert!(vault.kanbans().is_empty());
+    vault.create_kanban_in("").unwrap();
+    let mut vault = Vault::load(dir.path()).unwrap();
+    let titles = |v: &Vault| v.kanbans().into_iter().map(|k| k.title).collect::<Vec<_>>();
+    assert_eq!(titles(&vault), ["Untitled Kanban"]);
+    let blank = vault.resolve("Blank").unwrap();
+    assert!(!vault.notes[blank].is_kanban());
+    vault.convert_to_kanban(blank).unwrap();
+    assert!(vault.notes[blank].is_kanban(), "the index caches the write");
+    assert_eq!(titles(&vault), ["Blank", "Untitled Kanban"]);
+    assert_eq!(
+        fs::read_to_string(dir.path().join("Blank.md")).unwrap(),
+        read_fixture("new-kanban.md")
+    );
+    // Writing the frontmatter away makes it a plain note again.
+    vault.write_note(blank, "# Blank\n").unwrap();
+    assert_eq!(titles(&vault), ["Untitled Kanban"]);
+}
+
+#[test]
+fn convert_refuses_a_note_with_text_and_writes_nothing() {
+    let dir = TempVault::new(&[("Plain.md", "# Plain\n"), ("Late.md", "")]);
+    let mut vault = Vault::load(dir.path()).unwrap();
+    let plain = vault.resolve("Plain").unwrap();
+    let error = vault.convert_to_kanban(plain).unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidInput);
+    assert_eq!(
+        fs::read_to_string(dir.path().join("Plain.md")).unwrap(),
+        "# Plain\n"
+    );
+    assert!(!vault.notes[plain].is_kanban());
+    // Empty in the index, but another app wrote to it since: refused too.
+    let late = vault.resolve("Late").unwrap();
+    fs::write(dir.path().join("Late.md"), "theirs\n").unwrap();
+    let error = vault.convert_to_kanban(late).unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidInput);
+    assert_eq!(
+        fs::read_to_string(dir.path().join("Late.md")).unwrap(),
+        "theirs\n"
+    );
+}

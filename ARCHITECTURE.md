@@ -168,6 +168,11 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   and is left untouched, never read as an empty board. The format is `docs/kanban-format.md`.
   `Mode::Kanban` (`kanban_view.rs`) shows one as a read-only board: the file is read and
   parsed when the mode, the selection or the vault changes, and viewing never writes it.
+  Which notes are kanbans is cached in the index (`Note::is_kanban`, refreshed by
+  `Vault::reindex`), so the sidebar's Kanbans section, the notes-list glyph and the palette
+  never re-detect per frame. `Vault::create_kanban_in` claims each candidate name with an
+  exclusive create before filling it through the atomic writer, so New Kanban never
+  overwrites a file.
 - **Boards are files, not notes.** A whiteboard is an Excalidraw `.excalidraw` JSON file in
   the vault (`muninn_core::Board`). `Vault::boards` lists them with the note scan's own walk
   (same depth limit, dot-entries skipped) but never adds them to the note index, links or
