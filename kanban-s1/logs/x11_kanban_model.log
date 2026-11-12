@@ -4,7 +4,9 @@ vulkan icd: /usr/share/vulkan/icd.d/lvp_icd.json
 	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.4 (LLVM 20.1.2)
 Xvfb on :90, vulkan icd /usr/share/vulkan/icd.d/lvp_icd.json
 window 0x200002 'Muninn' 1180x780
-ok clicked 129,499 in 0x200002 (button 1 x1)
+ok clicked 129,549 in 0x200002 (button 1 x1)
+x11 vs headless write mean abs diff 0.00
+ok x11 screenshot matches the headless Write shot
 ok sent WM_DELETE_WINDOW to 0x200002
 app exit status: 0
 ./2026-11-11.md: OK
@@ -13,9 +15,12 @@ app exit status: 0
 ./archive-ja.md: OK
 ./block-ids.md: OK
 ./bom.md: OK
+./card-paragraph.md: OK
 ./card-text.md: OK
 ./crlf.md: OK
 ./done-lane.md: OK
+./fence-opaque.md: OK
+./footer-nested.md: OK
 ./frontmatter-extra.md: OK
 ./lanes-and-limits.md: OK
 ./multibyte.md: OK

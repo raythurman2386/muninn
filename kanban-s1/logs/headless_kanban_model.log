@@ -7,9 +7,12 @@ ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/archive-en.md: 1
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/archive-ja.md: 1 lanes, 1 cards, archive アーカイブ, footer no, 122 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/block-ids.md: 1 lanes, 2 cards, archive -, footer no, 101 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/bom.md: 1 lanes, 1 cards, archive -, footer no, 76 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/card-paragraph.md: 1 lanes, 2 cards, archive -, footer no, 92 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/card-text.md: 1 lanes, 5 cards, archive -, footer no, 272 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/crlf.md: 1 lanes, 1 cards, archive -, footer no, 62 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/done-lane.md: 1 lanes, 2 cards, archive -, footer no, 101 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/fence-opaque.md: 1 lanes, 1 cards, archive -, footer no, 182 bytes
+ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/footer-nested.md: 1 lanes, 1 cards, archive -, footer yes, 196 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/frontmatter-extra.md: 1 lanes, 1 cards, archive -, footer no, 166 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/lanes-and-limits.md: 4 lanes, 5 cards, archive -, footer no, 195 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/multibyte.md: 1 lanes, 2 cards, archive -, footer no, 92 bytes
@@ -21,22 +24,24 @@ ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/plain-list.md: 1
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/settings-footer.md: 1 lanes, 1 cards, archive -, footer yes, 144 bytes
 ok /agent/repos/muninn/crates/muninn-core/tests/fixtures/kanban/spec-example.md: 3 lanes, 4 cards, archive Archive, footer yes, 323 bytes
 ok rename-lane diff matches
-notes: 20
+notes: 23
 broken links: 0
 duplicates: 0
 skipped: 0
 card-text.md -> 2026-11-11.md
 card-text.md -> Roadmap.md
 spec-example.md -> Roadmap.md
-card-text id 6, Roadmap id 17
-rune: 97 frames at 60 fps, gpu init 94.3 ms, first frame 76.77 ms, frame cpu mean 6.942 ms p50 4.879 p95 8.746 max 175.460, 708 instances
-rune: animating frames 42 (cpu p50 5.797 p95 8.972 ms), at-rest frames 54 (the window draws none; forced cpu p50 4.267 p95 5.844 ms), layout nodes 211, glyphs 644
+rune: 67 frames at 60 fps, gpu init 93.7 ms, first frame 77.51 ms, frame cpu mean 4.650 ms p50 4.235 p95 6.025 max 77.514, 528 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 66 (the window draws none; forced cpu p50 4.235 p95 5.805 ms), layout nodes 223, glyphs 465
+card-text id 7, Roadmap id 20
+rune: 97 frames at 60 fps, gpu init 96.4 ms, first frame 77.54 ms, frame cpu mean 6.854 ms p50 4.743 p95 8.140 max 171.798, 700 instances
+rune: animating frames 42 (cpu p50 5.273 p95 8.798 ms), at-rest frames 54 (the window draws none; forced cpu p50 4.250 p95 6.472 ms), layout nodes 226, glyphs 636
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-write.json: active mode mode-editor
-rune: 181 frames at 60 fps, gpu init 95.1 ms, first frame 79.12 ms, frame cpu mean 7.634 ms p50 5.094 p95 13.887 max 170.559, 678 instances
-rune: animating frames 84 (cpu p50 8.158 p95 14.642 ms), at-rest frames 96 (the window draws none; forced cpu p50 4.436 p95 6.567 ms), layout nodes 241, glyphs 606
+rune: 181 frames at 60 fps, gpu init 97.5 ms, first frame 80.16 ms, frame cpu mean 8.010 ms p50 5.314 p95 15.473 max 170.191, 670 instances
+rune: animating frames 84 (cpu p50 9.958 p95 16.902 ms), at-rest frames 96 (the window draws none; forced cpu p50 4.720 p95 6.631 ms), layout nodes 256, glyphs 598
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-read.json: active mode mode-preview
-rune: 289 frames at 60 fps, gpu init 94.9 ms, first frame 77.81 ms, frame cpu mean 6.391 ms p50 5.135 p95 11.370 max 170.694, 580 instances
-rune: animating frames 131 (cpu p50 6.681 p95 13.236 ms), at-rest frames 157 (the window draws none; forced cpu p50 4.409 p95 5.997 ms), layout nodes 216, glyphs 518
+rune: 289 frames at 60 fps, gpu init 96.5 ms, first frame 78.03 ms, frame cpu mean 7.217 ms p50 5.520 p95 13.286 max 167.074, 593 instances
+rune: animating frames 131 (cpu p50 7.036 p95 15.199 ms), at-rest frames 157 (the window draws none; forced cpu p50 4.775 p95 6.453 ms), layout nodes 231, glyphs 531
 ok /agent/repos/muninn/target/ui-smoke/trees/kanban-s1-backlinks.json: active mode mode-preview
 ok write tree has 'card-text'
 ok write tree has 'kanban-plugin'
@@ -44,17 +49,20 @@ ok write tree has '[[Roadmap]]'
 ok read tree has 'To do'
 ok read tree has 'Roadmap'
 ok read tree has 'card-text'
-ok write: rail-link-1-17 mentions Roadmap
-ok backlinks: rail-link-0-6 mentions card-text
+ok write: rail-link-1-20 mentions Roadmap
+ok backlinks: rail-link-0-7 mentions card-text
 ./2026-11-11.md: OK
 ./archive-de.md: OK
 ./archive-en.md: OK
 ./archive-ja.md: OK
 ./block-ids.md: OK
 ./bom.md: OK
+./card-paragraph.md: OK
 ./card-text.md: OK
 ./crlf.md: OK
 ./done-lane.md: OK
+./fence-opaque.md: OK
+./footer-nested.md: OK
 ./frontmatter-extra.md: OK
 ./lanes-and-limits.md: OK
 ./multibyte.md: OK

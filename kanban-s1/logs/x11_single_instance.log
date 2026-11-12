@@ -1,13 +1,13 @@
-rune: 1 frames at 60 fps, gpu init 102.6 ms, first frame 70.78 ms, frame cpu mean 70.781 ms p50 70.781 p95 70.781 max 70.781, 592 instances
+rune: 1 frames at 60 fps, gpu init 96.4 ms, first frame 72.30 ms, frame cpu mean 72.302 ms p50 72.302 p95 72.302 max 72.302, 592 instances
 rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 0 (the window draws none; forced cpu p50 0.000 p95 0.000 ms), layout nodes 154, glyphs 515
-rune: 1 frames at 60 fps, gpu init 97.0 ms, first frame 74.19 ms, frame cpu mean 74.192 ms p50 74.192 p95 74.192 max 74.192, 685 instances
+rune: 1 frames at 60 fps, gpu init 93.9 ms, first frame 73.95 ms, frame cpu mean 73.953 ms p50 73.953 p95 73.953 max 73.953, 685 instances
 rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 0 (the window draws none; forced cpu p50 0.000 p95 0.000 ms), layout nodes 176, glyphs 583
-Xvfb on :90, vulkan icd /usr/share/vulkan/icd.d/lvp_icd.json, runtime dir /agent/repos/muninn/target/ui-smoke/work/runtime/29612
-private bus: unix:path=/tmp/dbus-UCrfJujwJE,guid=4c0461fd7d3f0f7a6d7793de6af51f61
+Xvfb on :90, vulkan icd /usr/share/vulkan/icd.d/lvp_icd.json, runtime dir /agent/repos/muninn/target/ui-smoke/work/runtime/49804
+private bus: unix:path=/tmp/dbus-nNqYK18Rca,guid=da2c95dcc8282875664f395f6af52e5a
 window 0x200002 'Muninn' 1180x780
-dbus-daemon[29662]: [session uid=1000 pid=29662] Activating service name='org.a11y.Bus' requested by ':1.3' (uid=1000 pid=29675 comm="/agent/repos/muninn/target/debug/muninn --vault /a" label="kernel")
-dbus-daemon[29662]: [session uid=1000 pid=29662] Successfully activated service 'org.a11y.Bus'
-ok   1 SNI item(s): after launch (pid 29675) [:1.1 ] windows=1 processes=1
+dbus-daemon[49854]: [session uid=1000 pid=49854] Activating service name='org.a11y.Bus' requested by ':1.3' (uid=1000 pid=49867 comm="/agent/repos/muninn/target/debug/muninn --vault /a" label="kernel")
+dbus-daemon[49854]: [session uid=1000 pid=49854] Successfully activated service 'org.a11y.Bus'
+ok   1 SNI item(s): after launch (pid 49867) [:1.1 ] windows=1 processes=1
 ok sent WM_DELETE_WINDOW to 0x200002
 ok   closing hides the window (close to tray)
 ok   the app keeps running in the tray
@@ -37,6 +37,6 @@ ok   1 SNI item(s): after a vault switch [:1.15 ] windows=1 processes=1
 ok   0 SNI item(s): after kill -9 [] windows=0 processes=0
 window 0x200002 'Muninn' 1180x780
 ok   the relaunch is a new process
-ok   1 SNI item(s): after kill -9 and relaunch (pid 30048) [:1.32 ] windows=1 processes=1
+ok   1 SNI item(s): after kill -9 and relaunch (pid 50240) [:1.32 ] windows=1 processes=1
 ok   0 SNI item(s): after a normal quit [] windows=0 processes=0
 single instance: 21/21 checks passed

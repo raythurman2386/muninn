@@ -1,5 +1,5 @@
-rune: 151 frames at 60 fps, gpu init 92.5 ms, first frame 29.99 ms, frame cpu mean 6.154 ms p50 5.057 p95 8.274 max 79.515, 580 instances
-rune: animating frames 7 (cpu p50 5.696 p95 79.515 ms), at-rest frames 143 (the window draws none; forced cpu p50 5.016 p95 7.606 ms), layout nodes 931, glyphs 341
+rune: 151 frames at 60 fps, gpu init 92.0 ms, first frame 29.30 ms, frame cpu mean 6.519 ms p50 5.265 p95 10.076 max 78.492, 580 instances
+rune: animating frames 7 (cpu p50 8.483 p95 78.492 ms), at-rest frames 143 (the window draws none; forced cpu p50 5.259 p95 8.454 ms), layout nodes 931, glyphs 341
 ok /agent/repos/muninn/target/ui-smoke/trees/big-restart.json: active mode mode-board
 ok same: rect-red [704, 434, 885, 547] (off 0.0)
 ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)
