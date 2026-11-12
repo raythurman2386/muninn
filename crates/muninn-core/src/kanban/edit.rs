@@ -106,38 +106,12 @@ impl Kanban {
         let at = self.lane_insert_offset(index)?;
         let open_ended =
             at == self.source.len() && !self.source.is_empty() && !self.source.ends_with('\n');
+        let block = lane_block(self.nl, title, limit, done, open_ended);
         if open_ended {
-            // Finish the previous line, leave two blank lines (L-2), then the
-            // new heading. Do not give the file a final newline it did not have.
-            let mut block = String::new();
-            block.push_str(self.nl);
-            block.push_str(self.nl);
-            block.push_str(self.nl);
-            block.push_str("## ");
-            block.push_str(title);
-            if let Some(limit) = limit.filter(|n| *n > 0) {
-                block.push_str(&format!(" ({limit})"));
-            }
-            if done {
-                block.push_str(self.nl);
-                block.push_str(self.nl);
-                block.push_str(ENGLISH_MARKER);
-            }
-            return self.commit(splice(&self.source, at..at, &block));
+            self.commit(splice(&self.source, at..at, &block))
+        } else {
+            self.commit(insert_block(&self.source, at, block, self.nl))
         }
-        let mut block = format!("## {title}");
-        if let Some(limit) = limit.filter(|n| *n > 0) {
-            block.push_str(&format!(" ({limit})"));
-        }
-        block.push_str(self.nl);
-        block.push_str(self.nl);
-        if done {
-            block.push_str(ENGLISH_MARKER);
-            block.push_str(self.nl);
-        }
-        block.push_str(self.nl);
-        block.push_str(self.nl);
-        self.commit(insert_block(&self.source, at, block, self.nl))
     }
 
     /// Replace the lane title. A ` (N)` limit on the same line stays.
@@ -192,6 +166,9 @@ impl Kanban {
     pub fn set_setting(&mut self, key: &str, value: &Value) -> io::Result<()> {
         if key.is_empty() {
             return Err(invalid_input("a setting key is not empty"));
+        }
+        if self.ends_in_fence && self.footer.is_none() {
+            return Err(invalid_data("the note ends inside an unclosed code fence"));
         }
         if let Some(span) = self.footer.as_ref().map(|footer| footer.json_span.clone()) {
             let json = set_json_key(&self.source[span.clone()], key, value)?;
@@ -281,6 +258,39 @@ impl Kanban {
             .find_map(|card| card.indent.clone());
         found.unwrap_or_else(|| "  ".to_owned())
     }
+}
+
+/// The bytes of a new lane. `open_ended` is a file with no final newline:
+/// two blank lines before the heading, and no new final newline.
+fn lane_block(nl: &str, title: &str, limit: Option<u32>, done: bool, open_ended: bool) -> String {
+    let mut block = String::new();
+    if open_ended {
+        block.push_str(nl);
+        block.push_str(nl);
+        block.push_str(nl);
+    }
+    block.push_str("## ");
+    block.push_str(title);
+    if let Some(limit) = limit.filter(|n| *n > 0) {
+        block.push_str(&format!(" ({limit})"));
+    }
+    if open_ended {
+        if done {
+            block.push_str(nl);
+            block.push_str(nl);
+            block.push_str(ENGLISH_MARKER);
+        }
+        return block;
+    }
+    block.push_str(nl);
+    block.push_str(nl);
+    if done {
+        block.push_str(ENGLISH_MARKER);
+        block.push_str(nl);
+    }
+    block.push_str(nl);
+    block.push_str(nl);
+    block
 }
 
 fn render_card(nl: &str, mark: char, text: &str, block_id: Option<&str>, indent: &str) -> String {

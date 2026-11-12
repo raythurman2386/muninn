@@ -48,24 +48,32 @@ struct Line {
 }
 
 pub(super) fn has_kanban_key(source: &str) -> bool {
-    // Only the frontmatter is read. A nested or indented key is not the marker.
-    let source = source.strip_prefix(BOM).unwrap_or(source);
-    let mut lines = source.split_inclusive('\n');
-    let Some(first) = lines.next() else {
+    // Same line breaks as [`split_lines`], and only through the closing `---`.
+    // A nested or indented key is not the marker.
+    let bytes = source.as_bytes();
+    let Some(first) = next_line(bytes, 0) else {
         return false;
     };
-    if line_body(first) != "---" {
+    if content(source, &first) != "---" {
         return false;
     }
+    let mut at = first.next;
     let mut found = false;
-    for raw in lines {
-        let body = line_body(raw);
+    while at < bytes.len() {
+        let Some(line) = next_line(bytes, at) else {
+            break;
+        };
+        let body = content(source, &line);
         if body == "---" {
             return found;
         }
         if frontmatter_key(body) == Some("kanban-plugin") {
             found = true;
         }
+        if line.next <= at {
+            break;
+        }
+        at = line.next;
     }
     false
 }
@@ -207,6 +215,7 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
         lanes,
         archive,
         footer,
+        ends_in_fence: fence.is_some(),
     })
 }
 
@@ -310,13 +319,22 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
     let (first, block_id) = split_block_id(&source[body_at..line.end]);
     let mut end_line = index;
     let mut next = index + 1;
-    let mut indent = None;
-    let mut text = first;
+    let mut raw: Vec<&str> = Vec::new();
     let mut fence: Option<(u8, usize)> = None;
     while next < lines.len() {
         let continued = content(source, &lines[next]);
         if let Some((marker, run)) = fence {
-            push_logical(&mut text, &mut indent, continued);
+            // A column-0 line ends the card even while the fence is open,
+            // unless that line is the fence's own closer.
+            if !continued.trim().is_empty() && !is_indented(continued) {
+                if fence_closes(continued, marker, run) {
+                    raw.push(continued);
+                    end_line = next;
+                    next += 1;
+                }
+                break;
+            }
+            raw.push(continued);
             if fence_closes(continued, marker, run) {
                 fence = None;
             }
@@ -336,7 +354,7 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
                 break;
             }
             while next < look {
-                text.push('\n');
+                raw.push(content(source, &lines[next]));
                 end_line = next;
                 next += 1;
             }
@@ -348,10 +366,11 @@ fn parse_card(source: &str, lines: &[Line], index: usize) -> (Card, usize) {
         if let Some(opened) = opens_fence(continued) {
             fence = Some(opened);
         }
-        push_logical(&mut text, &mut indent, continued);
+        raw.push(continued);
         end_line = next;
         next += 1;
     }
+    let (text, indent) = logical_continuations(&first, &raw);
     let card = Card {
         text,
         mark,
@@ -367,14 +386,50 @@ fn is_indented(text: &str) -> bool {
     !text.trim().is_empty() && text.starts_with(char::is_whitespace)
 }
 
-fn push_logical(text: &mut String, indent: &mut Option<String>, line: &str) {
-    text.push('\n');
-    if line.trim().is_empty() {
-        return;
+/// Shortest leading whitespace among the continuation lines. Later lines may
+/// be indented less than the first; rendering adds this prefix back.
+fn logical_continuations(first: &str, lines: &[&str]) -> (String, Option<String>) {
+    let indent = lines
+        .iter()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| leading_ws(line))
+        .min_by_key(|ws| ws.chars().count())
+        .map(str::to_owned);
+    let mut text = first.to_owned();
+    for line in lines {
+        text.push('\n');
+        if line.trim().is_empty() {
+            continue;
+        }
+        text.push_str(match &indent {
+            Some(indent) => strip_indent(line, indent),
+            None => line,
+        });
     }
-    let leading: String = line.chars().take_while(|ch| ch.is_whitespace()).collect();
-    let indent = indent.get_or_insert(leading);
-    text.push_str(line.strip_prefix(indent.as_str()).unwrap_or(line));
+    (text, indent)
+}
+
+fn leading_ws(line: &str) -> &str {
+    let bytes = line
+        .chars()
+        .take_while(|ch| ch.is_whitespace())
+        .map(char::len_utf8)
+        .sum();
+    &line[..bytes]
+}
+
+fn strip_indent<'a>(line: &'a str, indent: &str) -> &'a str {
+    if let Some(rest) = line.strip_prefix(indent) {
+        return rest;
+    }
+    let mut drop_bytes = 0;
+    for ch in line.chars().take(indent.chars().count()) {
+        if !ch.is_whitespace() {
+            break;
+        }
+        drop_bytes += ch.len_utf8();
+    }
+    &line[drop_bytes..]
 }
 
 /// A fence opener: optional indent, then three or more `` ` `` or `~`.
@@ -392,10 +447,8 @@ fn opens_fence(text: &str) -> Option<(u8, usize)> {
 fn fence_closes(text: &str, marker: u8, run: usize) -> bool {
     let trimmed = text.trim();
     let bytes = trimmed.as_bytes();
-    if bytes.len() < run || !bytes.iter().take(run).all(|byte| *byte == marker) {
-        return false;
-    }
-    bytes[run..].iter().all(u8::is_ascii_whitespace)
+    let closer = bytes.iter().take_while(|&&byte| byte == marker).count();
+    closer >= run && bytes[closer..].iter().all(u8::is_ascii_whitespace)
 }
 
 /// A task item at column 0: `- [`, one character, `]`, then the end or a space.
@@ -486,38 +539,55 @@ fn frontmatter_key(line: &str) -> Option<&str> {
     Some(key)
 }
 
-fn line_body(raw: &str) -> &str {
-    raw.trim_end_matches(['\n', '\r'])
-}
-
 fn split_lines(source: &str) -> Vec<Line> {
     let bytes = source.as_bytes();
     let mut lines = Vec::new();
-    let mut start = 0;
-    let mut index = 0;
+    let mut at = 0;
+    while at < bytes.len() {
+        let Some(line) = next_line(bytes, at) else {
+            break;
+        };
+        let next = line.next;
+        lines.push(line);
+        if next <= at {
+            break;
+        }
+        at = next;
+    }
+    lines
+}
+
+/// One line, using the same ending for detection and parsing: `\n`, an
+/// optional `\r` before that `\n`, or a final `\r` when the file has no
+/// newline at the end.
+fn next_line(bytes: &[u8], start: usize) -> Option<Line> {
+    if start >= bytes.len() {
+        return None;
+    }
+    let mut index = start;
     while index < bytes.len() {
         if bytes[index] == b'\n' {
             let mut end = index;
             if end > start && bytes[end - 1] == b'\r' {
                 end -= 1;
             }
-            lines.push(Line {
+            return Some(Line {
                 start,
                 end,
                 next: index + 1,
             });
-            start = index + 1;
         }
         index += 1;
     }
-    if start < bytes.len() {
-        lines.push(Line {
-            start,
-            end: bytes.len(),
-            next: bytes.len(),
-        });
+    let mut end = bytes.len();
+    if end > start && bytes[end - 1] == b'\r' {
+        end -= 1;
     }
-    lines
+    Some(Line {
+        start,
+        end,
+        next: bytes.len(),
+    })
 }
 
 fn content<'a>(source: &'a str, line: &Line) -> &'a str {

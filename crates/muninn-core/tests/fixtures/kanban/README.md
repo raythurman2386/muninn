@@ -15,11 +15,15 @@ A provenance line inside a `.md` fixture would sit in front of the frontmatter a
 | `bad-unterminated.md` | Hand-written from `docs/kanban-format.md`: a settings footer with no closing `%%`. |
 | `block-ids.md` | Hand-written from `docs/kanban-format.md`: cards with block ids. |
 | `bom.md` | Hand-written from `docs/kanban-format.md`: a UTF-8 byte-order mark and a quoted value. |
+| `card-closed-fence.md` | Hand-written from `docs/kanban-format.md`: a closed indented fence, then a column-0 card. |
+| `card-open-fence.md` | Hand-written from `docs/kanban-format.md`: an unclosed indented fence, then the next lane. |
 | `card-paragraph.md` | Hand-written from `docs/kanban-format.md`: a blank line and an indented paragraph that belong to the card. |
 | `card-text.md` | Hand-written from `docs/kanban-format.md`: wikilinks, an embed, dates, a time, a tag and an inline field. |
 | `crlf.md` | Hand-written from `docs/kanban-format.md`: CRLF line endings. |
 | `done-lane.md` | Hand-written from `docs/kanban-format.md`: a done lane. |
+| `fence-longer-close.md` | Hand-written from `docs/kanban-format.md`: a fence closed by a longer run of the same mark, then another lane. |
 | `fence-opaque.md` | Hand-written from `docs/kanban-format.md`: fenced code that looks like lanes, cards and a settings footer. |
+| `fence-unclosed.md` | Hand-written from `docs/kanban-format.md`: a column-0 fence that never closes. |
 | `footer-nested.md` | Hand-written from `docs/kanban-format.md`: a settings object with nested objects and an array of objects. |
 | `frontmatter-extra.md` | Hand-written from `docs/kanban-format.md`: extra frontmatter keys and a quoted `kanban-plugin` value. |
 | `lanes-and-limits.md` | Hand-written from `docs/kanban-format.md`: several lanes, including limits and a written `(0)`. |
