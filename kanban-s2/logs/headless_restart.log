@@ -1,0 +1,9 @@
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 73 frames at 60 fps, gpu init 778.1 ms, first frame 65.65 ms, frame cpu mean 2.529 ms p50 1.186 p95 3.610 max 65.650, 284 instances
+rune: animating frames 42 (cpu p50 1.529 p95 4.906 ms), at-rest frames 30 (the window draws none; forced cpu p50 1.073 p95 1.787 ms), layout nodes 63, glyphs 265
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/config-restart/muninn/settings.json: mode board
+rune: `init` blocked 24 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 61 frames at 60 fps, gpu init 718.1 ms, first frame 44.40 ms, frame cpu mean 0.742 ms p50 0.683 p95 1.102 max 44.402, 284 instances
+rune: animating frames 0 (cpu p50 0.000 p95 0.000 ms), at-rest frames 60 (the window draws none; forced cpu p50 0.683 p95 0.889 ms), layout nodes 63, glyphs 265
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/restart-relaunch.json: active mode mode-board

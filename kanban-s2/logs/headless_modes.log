@@ -1,0 +1,96 @@
+	deviceName         = AMD Radeon 760M Graphics (RADV PHOENIX)
+	driverName         = radv
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 85 frames at 60 fps, gpu init 753.1 ms, first frame 69.41 ms, frame cpu mean 3.821 ms p50 3.248 p95 5.143 max 76.968, 1420 instances
+rune: animating frames 55 (cpu p50 3.707 p95 5.143 ms), at-rest frames 29 (the window draws none; forced cpu p50 1.088 p95 1.722 ms), layout nodes 139, glyphs 329
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-graph.json: active mode mode-graph
+rune: `init` blocked 22 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 175 frames at 60 fps, gpu init 731.4 ms, first frame 60.48 ms, frame cpu mean 2.475 ms p50 2.365 p95 3.968 max 60.483, 399 instances
+rune: animating frames 119 (cpu p50 2.548 p95 3.993 ms), at-rest frames 55 (the window draws none; forced cpu p50 1.101 p95 1.391 ms), layout nodes 152, glyphs 340
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-preview.json: active mode mode-preview
+rune: `init` blocked 31 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 235 frames at 60 fps, gpu init 732.4 ms, first frame 67.75 ms, frame cpu mean 2.560 ms p50 1.586 p95 4.316 max 74.524, 404 instances
+rune: animating frames 132 (cpu p50 2.924 p95 4.723 ms), at-rest frames 102 (the window draws none; forced cpu p50 1.191 p95 1.587 ms), layout nodes 140, glyphs 345
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-editor.json: active mode mode-editor
+rune: `init` blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 295 frames at 60 fps, gpu init 710.9 ms, first frame 64.45 ms, frame cpu mean 2.426 ms p50 1.390 p95 4.616 max 74.811, 284 instances
+rune: animating frames 174 (cpu p50 2.514 p95 4.808 ms), at-rest frames 120 (the window draws none; forced cpu p50 1.177 p95 1.436 ms), layout nodes 63, glyphs 265
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-board-shortcut.json: active mode mode-board
+rune: `init` blocked 27 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 355 frames at 60 fps, gpu init 728.5 ms, first frame 45.36 ms, frame cpu mean 2.756 ms p50 1.694 p95 5.297 max 88.792, 404 instances
+rune: animating frames 216 (cpu p50 3.008 p95 5.640 ms), at-rest frames 138 (the window draws none; forced cpu p50 1.197 p95 1.790 ms), layout nodes 140, glyphs 345
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-board-esc.json: active mode mode-editor
+rune: `init` blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 415 frames at 60 fps, gpu init 737.2 ms, first frame 65.54 ms, frame cpu mean 2.440 ms p50 1.551 p95 4.456 max 73.069, 284 instances
+rune: animating frames 263 (cpu p50 2.430 p95 4.749 ms), at-rest frames 151 (the window draws none; forced cpu p50 1.159 p95 1.725 ms), layout nodes 63, glyphs 265
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-board-button.json: active mode mode-board
+rune: `init` blocked 35 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 15 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 475 frames at 60 fps, gpu init 727.0 ms, first frame 43.54 ms, frame cpu mean 2.499 ms p50 1.407 p95 5.323 max 89.466, 364 instances
+rune: animating frames 318 (cpu p50 2.323 p95 5.621 ms), at-rest frames 156 (the window draws none; forced cpu p50 1.179 p95 1.554 ms), layout nodes 90, glyphs 238
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-board-selected.json: active mode mode-board
+rune: `init` blocked 23 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 24 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 535 frames at 60 fps, gpu init 745.4 ms, first frame 45.38 ms, frame cpu mean 2.826 ms p50 1.705 p95 5.921 max 78.062, 1420 instances
+rune: animating frames 326 (cpu p50 3.099 p95 6.343 ms), at-rest frames 208 (the window draws none; forced cpu p50 1.088 p95 1.744 ms), layout nodes 139, glyphs 329
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-graph-after.json: active mode mode-graph
+rune: `init` blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 703 frames at 60 fps, gpu init 732.7 ms, first frame 60.48 ms, frame cpu mean 2.726 ms p50 2.262 p95 5.316 max 60.477, 364 instances
+rune: animating frames 477 (cpu p50 2.698 p95 5.740 ms), at-rest frames 225 (the window draws none; forced cpu p50 1.093 p95 2.306 ms), layout nodes 90, glyphs 238
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-board-palette.json: active mode mode-board
+rune: `init` blocked 29 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 763 frames at 60 fps, gpu init 753.9 ms, first frame 45.80 ms, frame cpu mean 2.990 ms p50 2.489 p95 5.841 max 76.982, 399 instances
+rune: animating frames 521 (cpu p50 3.269 p95 6.113 ms), at-rest frames 241 (the window draws none; forced cpu p50 1.133 p95 1.938 ms), layout nodes 152, glyphs 340
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-preview-after.json: active mode mode-preview
+rune: `init` blocked 26 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 823 frames at 60 fps, gpu init 732.6 ms, first frame 68.23 ms, frame cpu mean 2.745 ms p50 2.158 p95 5.275 max 74.021, 404 instances
+rune: animating frames 563 (cpu p50 3.029 p95 5.487 ms), at-rest frames 259 (the window draws none; forced cpu p50 1.173 p95 1.862 ms), layout nodes 140, glyphs 345
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-editor-after.json: active mode mode-editor
+rune: `init` blocked 25 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 883 frames at 60 fps, gpu init 743.2 ms, first frame 66.40 ms, frame cpu mean 2.713 ms p50 2.038 p95 5.403 max 75.276, 364 instances
+rune: animating frames 606 (cpu p50 2.971 p95 5.677 ms), at-rest frames 276 (the window draws none; forced cpu p50 1.155 p95 2.038 ms), layout nodes 90, glyphs 238
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-end-in-board.json: active mode mode-board
+rune: `init` blocked 30 ms (CPU 3 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 19 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 943 frames at 60 fps, gpu init 731.8 ms, first frame 46.79 ms, frame cpu mean 2.784 ms p50 1.962 p95 5.498 max 80.215, 269 instances
+rune: animating frames 648 (cpu p50 2.825 p95 5.685 ms), at-rest frames 294 (the window draws none; forced cpu p50 1.145 p95 1.937 ms), layout nodes 101, glyphs 217
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-kanban-shortcut.json: active mode mode-kanban
+rune: `init` blocked 21 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 21 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 18 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 1003 frames at 60 fps, gpu init 731.2 ms, first frame 48.82 ms, frame cpu mean 2.731 ms p50 2.198 p95 5.140 max 75.074, 404 instances
+rune: animating frames 690 (cpu p50 2.825 p95 5.586 ms), at-rest frames 312 (the window draws none; forced cpu p50 1.123 p95 1.965 ms), layout nodes 140, glyphs 345
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-kanban-esc.json: active mode mode-editor
+rune: `init` blocked 17 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-board" blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_press` on "root/main/#0/#4/mode-kanban" blocked 18 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 1063 frames at 60 fps, gpu init 732.8 ms, first frame 65.45 ms, frame cpu mean 2.598 ms p50 1.891 p95 5.027 max 73.222, 269 instances
+rune: animating frames 737 (cpu p50 2.636 p95 5.383 ms), at-rest frames 325 (the window draws none; forced cpu p50 1.113 p95 1.673 ms), layout nodes 101, glyphs 217
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/headless-kanban-button.json: active mode mode-kanban

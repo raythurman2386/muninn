@@ -1,0 +1,48 @@
+fetched vulkan-swrast-1:26.2.5-1-x86_64.pkg.tar.zst (sha256 e14837dfe51c29d8bdb29422b40daaafc2291908c4a6349a0e63addd09fa546b) into /home/ret/Development/muninn-kanban/target/ui-smoke/tools
+Xvfb on :90, vulkan icd /home/ret/Development/muninn-kanban/target/ui-smoke/tools/lvp_icd.json
+window 0x200002 'Muninn' 1180x780
+ok pressed ctrl+4 on 0x200002
+ok clicked 718,498 in 0x200002 (button 1 x1)
+ok pressed r on 0x200002
+ok dragged 544,419 by 110,70 in 0x200002
+ok pressed v on 0x200002
+ok pressed F2 on 0x200002
+ok typed 'Roadmap' on 0x200002
+ok pressed enter on 0x200002
+ok F2 renamed Ideas/Untitled board.excalidraw to Ideas/Roadmap.excalidraw (drawing saved first; embed followed)
+ok pressed r on 0x200002
+ok dragged 704,419 by 110,70 in 0x200002
+ok pressed v on 0x200002
+ok pressed ctrl+s on 0x200002
+ok the renamed board stayed open, and Ctrl+S saved 2 rectangles to Roadmap.excalidraw
+ok clicked 296,135 in 0x200002 (button 1 x2)
+ok typed 'Sketch' on 0x200002
+ok pressed enter on 0x200002
+ok a double click on the title renamed Roadmap to Sketch
+ok clicked 148,141 in 0x200002 (button 3 x1)
+ok clicked 148,186 in 0x200002 (button 1 x1)
+ok typed 'Plan' on 0x200002
+ok pressed enter on 0x200002
+ok Rename in the row's right-click menu renamed Sketch to Plan
+ok pressed F2 on 0x200002
+ok typed 'é ünïcode' on 0x200002 (keycode 8)
+ok pressed enter on 0x200002
+ok F2 renamed Plan to 'é ünïcode' (12 bytes) without a crash; embed followed
+ok pressed F2 on 0x200002
+ok typed 'Plan' on 0x200002
+ok pressed enter on 0x200002
+ok sent WM_DELETE_WINDOW to 0x200002
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/empty-vault/Ideas/Plan.excalidraw: 2 elements (2 modelled, 0 kept raw), 0 files, 1559 bytes written
+20261112-112352 board renamed Ideas/Untitled board.excalidraw to Ideas/Roadmap.excalidraw
+20261112-112406 board renamed Ideas/Roadmap.excalidraw to Ideas/Sketch.excalidraw
+20261112-112414 board renamed Ideas/Sketch.excalidraw to Ideas/Plan.excalidraw
+20261112-112419 board renamed Ideas/Plan.excalidraw to Ideas/é ünïcode.excalidraw
+20261112-112423 board renamed Ideas/é ünïcode.excalidraw to Ideas/Plan.excalidraw
+/home/ret/Development/muninn-kanban/target/ui-smoke/work/empty-vault:
+Ideas
+Start.md
+
+/home/ret/Development/muninn-kanban/target/ui-smoke/work/empty-vault/Ideas:
+Idea.md
+Plan.excalidraw
+ok board rename under X11: F2, title double click and row menu; the file moved each time and the board stayed open

@@ -1,0 +1,16 @@
+rune: `init` blocked 16 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 32 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 12 ms (CPU 0 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 193 frames at 60 fps, gpu init 731.0 ms, first frame 45.21 ms, frame cpu mean 4.098 ms p50 3.068 p95 3.968 max 118.199, 435 instances
+rune: animating frames 43 (cpu p50 3.459 p95 6.957 ms), at-rest frames 149 (the window draws none; forced cpu p50 2.948 p95 3.648 ms), layout nodes 924, glyphs 371
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/work/config-big-write/muninn/settings.json: mode preview
+saved board after the scan in Write {'eye': [-145.0443115234375, -246.50299072265625], 'rel': 'Smoke.excalidraw', 'zoom': 1.1179945468902588}
+rune: `init` blocked 21 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `poll` blocked 25 ms (CPU 2 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: `on_key` blocked 13 ms (CPU 1 ms) on the main thread: move IO off it with `rune::Latest` or a thread. (debug builds only; RUNE_PERF_WARN=0 silences)
+rune: 289 frames at 60 fps, gpu init 733.2 ms, first frame 44.54 ms, frame cpu mean 4.138 ms p50 3.109 p95 5.995 max 110.798, 587 instances
+rune: animating frames 44 (cpu p50 4.789 p95 23.018 ms), at-rest frames 244 (the window draws none; forced cpu p50 3.011 p95 3.974 ms), layout nodes 934, glyphs 347
+ok /home/ret/Development/muninn-kanban/target/ui-smoke/trees/big-write-board.json: active mode mode-board
+ok same: rect-red [704, 434, 885, 547] (off 0.0)
+ok same: ellipse-blue [973, 445, 1131, 547] (off 0.0)
+ok same: line-green [703, 623, 931, 671] (off 0.0)
