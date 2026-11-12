@@ -72,6 +72,16 @@ All notable changes to Muninn are documented here. The format is based on
   refuses (with Save copy offered) when neither works. **Open as markdown**
   saves first, and text typed in Write that could not be saved comes back to
   the Kanban page as unsaved edits. Board and Kanban share one disk rule.
+- **Links and rename.** Clicking a `[[link]]` in a card opens that note.
+  Typing `[[` in the card editor offers notes. **Copy link to card** writes
+  a block id (`^card-N`) once, when the card has none, and copies
+  `[[Note#^id]]`; a later copy keeps that id. **New note from card** creates
+  a note from the card text, in the folder New note uses and with the note
+  template, then replaces the card with a link to it. Opening `[[Note#^id]]`
+  jumps to that block, in a kanban card or in an ordinary note. Renaming a
+  linked note updates a clean kanban and reloads it; a kanban with unsaved
+  edits is not rewritten, and the page names it. Renaming the kanban itself
+  updates the path remembered in settings.
 
 ### Fixed
 

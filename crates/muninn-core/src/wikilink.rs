@@ -151,6 +151,101 @@ pub fn heading_offset(source: &str, heading: &str) -> Option<usize> {
         .map(|(offset, _)| offset)
 }
 
+/// Where a `[[note#fragment]]` link lands.
+///
+/// A fragment that starts with `^` is a block id ([`block_offset`]). Anything
+/// else is a heading ([`heading_offset`]).
+#[must_use]
+pub fn jump_offset(source: &str, fragment: &str) -> Option<usize> {
+    let fragment = fragment.trim();
+    if let Some(id) = fragment.strip_prefix('^') {
+        return block_offset(source, id);
+    }
+    heading_offset(source, fragment)
+}
+
+/// Offset of the block named `id`, outside fenced code.
+///
+/// Obsidian's help on block references describes two shapes, and a kanban
+/// card uses the first: a line ending in ` ^id` (a paragraph, or one line of
+/// a list), or a line that is only `^id` (a structured block, whose id sits
+/// on its own line). The offset is the start of that line, or, for an id on
+/// its own line, the start of the previous non-blank line. `id` may be passed
+/// with or without the leading caret. Letters, digits and dashes only.
+#[must_use]
+pub fn block_offset(source: &str, id: &str) -> Option<usize> {
+    let id = id.trim().trim_start_matches('^').trim();
+    if !valid_block_id(id) {
+        return None;
+    }
+    block_anchors(source)
+        .into_iter()
+        .find(|(_, found)| found == id)
+        .map(|(offset, _)| offset)
+}
+
+/// Every block id outside fenced code, as `(anchor offset, id)`.
+///
+/// The anchor is where a link to that id jumps: the line that ends with
+/// ` ^id`, or the content line before a line that is only `^id`.
+#[must_use]
+pub fn block_anchors(source: &str) -> Vec<(usize, String)> {
+    let mut outside = Vec::new();
+    let mut fence: Option<(u8, usize)> = None;
+    let mut offset = 0;
+    for raw in source.split_inclusive('\n') {
+        let line = raw
+            .strip_suffix('\n')
+            .unwrap_or(raw)
+            .strip_suffix('\r')
+            .unwrap_or(raw);
+        let before = fence;
+        fence_step(&mut fence, line);
+        if before.is_none() && fence.is_none() {
+            outside.push((offset, line.to_owned()));
+        }
+        offset += raw.len();
+    }
+    let mut out = Vec::new();
+    for (index, (line_at, line)) in outside.iter().enumerate() {
+        if let Some(id) = standalone_block_id(line) {
+            let anchor = outside[..index]
+                .iter()
+                .rev()
+                .find(|(_, earlier)| !earlier.trim().is_empty())
+                .map(|(at, _)| *at)
+                .unwrap_or(*line_at);
+            out.push((anchor, id));
+            continue;
+        }
+        if let Some(id) = trailing_block_id(line.trim_end()) {
+            out.push((*line_at, id));
+        }
+    }
+    out
+}
+
+/// Letters, digits and dashes, the block-id shape Obsidian's help describes.
+fn valid_block_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+}
+
+/// A line whose only text is `^id`.
+fn standalone_block_id(line: &str) -> Option<String> {
+    let id = line.trim().strip_prefix('^')?;
+    valid_block_id(id).then(|| id.to_owned())
+}
+
+/// The ` ^id` at the end of a line, when `id` is a whole block id.
+fn trailing_block_id(trimmed: &str) -> Option<String> {
+    let split = trimmed.rfind(" ^")?;
+    let id = &trimmed[split + 2..];
+    valid_block_id(id).then(|| id.to_owned())
+}
+
 /// Every top-level ATX heading in `source` as `(line offset, heading text)`,
 /// skipping fenced code blocks. The text has its leading hashes and any closing
 /// hashes removed; it is not case-folded.
@@ -396,5 +491,31 @@ mod completion_tests {
         // A trailing hash that is not a closing sequence is part of the title.
         assert_eq!(headings("## C#\n")[0].1, "C#");
         assert_eq!(headings("#\n"), Vec::new());
+    }
+
+    #[test]
+    fn block_ids_jump_to_the_line_and_skip_fences() {
+        let src =
+            "A paragraph ^alpha\n\n- [ ] Fix the sync bug ^card-7f2\n\nquoted line\n\n^alone\n";
+        assert_eq!(block_offset(src, "alpha"), Some(0));
+        assert_eq!(block_offset(src, "^alpha"), Some(0));
+        let card = src.find("- [ ]").unwrap();
+        assert_eq!(block_offset(src, "card-7f2"), Some(card));
+        assert_eq!(jump_offset(src, "^card-7f2"), Some(card));
+        // An id on its own line names the block before it.
+        let quoted = src.find("quoted line").unwrap();
+        assert_eq!(block_offset(src, "alone"), Some(quoted));
+        assert_eq!(block_offset(src, "card"), None, "a prefix is not the id");
+        assert_eq!(block_offset(src, "nope"), None);
+        assert_eq!(block_offset(src, ""), None);
+        // The same id inside a fence is not a block; the one after it is.
+        let fenced = "```\ntext ^hidden\n```\nreal ^hidden\n";
+        assert_eq!(
+            block_offset(fenced, "hidden"),
+            Some(fenced.find("real").unwrap())
+        );
+        // A heading fragment still resolves as a heading.
+        assert_eq!(jump_offset("# Top\n", "Top"), Some(0));
+        assert_eq!(jump_offset("# Top\n", "^missing"), None);
     }
 }

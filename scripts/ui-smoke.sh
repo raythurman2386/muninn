@@ -323,6 +323,19 @@
 #   false (kanban_explicit_save; slice 7 turned kanban autosave on by default).
 #   x11 steps take UI_SMOKE_DISPLAY (a display number) if set, else the first free
 #   display from :90.
+#   headless_kanban_links  slice 8, offscreen, on its own vault (kanban-links-board.md as
+#                   Board.md, plus Roadmap.md), with kanban autosave off. The card
+#                   editor's [[ offers Roadmap (kanban-link-complete.png). Copy link
+#                   to card writes ^card-1 once; a second copy and Ctrl+S leave
+#                   kanban-links-saved.md. Renaming Roadmap to Plan rewrites the
+#                   kanban and --list-links follows; with an unsaved done-mark the
+#                   file and the edit stay and the page says the links were not
+#                   updated. Renaming the kanban to Sprint updates settings.json's
+#                   kanban path.
+#   x11_kanban_links  windowed (--new-instance) on the private Xvfb with lavapipe:
+#                   copy the link, Ctrl+S (bytes match, and not before), then rename
+#                   Roadmap to Plan and return to Kanban (kanban-links-renamed-x11.png).
+#                   --list-links shows Plan. Close through WM_DELETE_WINDOW (exit 0).
 #   board_untouched the app left the boards it did not edit (Plan, Smoke) byte-identical,
 #                   and no hidden temp file in the vault (it only reads boards);
 #                   then the board_roundtrip example (load → compare → atomic save →
@@ -338,7 +351,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit headless_kanban_lanes x11_kanban_lanes headless_kanban_drag x11_kanban_drag headless_kanban_sync x11_kanban_sync x11_kanban_safety board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit headless_kanban_lanes x11_kanban_lanes headless_kanban_drag x11_kanban_drag headless_kanban_sync x11_kanban_sync x11_kanban_safety headless_kanban_links x11_kanban_links board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -3886,6 +3899,279 @@ step_x11_kanban_safety() {
   cmp "$v/Board.md" "$e/mine.md" || { echo "closing changed Board.md"; return 1; }
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
   rm -f "$v"/Board*.md; cp "$e/original.md" "$v/Board.md"
+}
+
+kanban_links_vault() { # kanban_links_vault DIR
+  rm -rf "$1"; mkdir -p "$1"
+  printf '# Agenda\n\nA plain note.\n' >"$1/Agenda.md"
+  printf '# Roadmap\n\nThe plan.\n' >"$1/Roadmap.md"
+  cp "$root/scripts/ui-smoke/kanban-links-board.md" "$1/Board.md"
+}
+
+kanban_links_run() { # kanban_links_run VAULT SCRIPT MARK [SHOT]
+  export XDG_CONFIG_HOME="$work/config-kanban-links-$3" XDG_STATE_HOME="$work/state-kanban-links-$3"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  kanban_explicit_save
+  "$bin" --vault "$1" --script "$2" --at "mark:$3+0.3" --scale 1 \
+    ${4:+--snap "$out/screens/$4.png"} --tree "$out/trees/kanban-links-$3.json"
+}
+
+# Backspace the current name, type the new one, confirm the link rewrite.
+kanban_links_rename_json() { # kanban_links_rename_json OUT BOARD ROADMAP OLD NEW MARK
+  # MARK is renamed, dirty, or self. A linked-note rename also has a "confirm"
+  # mark on the dialog, before the confirming tap.
+  python3 - "$1" "$2" "$3" "$4" "$5" "$6" <<'PY'
+import json, sys
+out, board, roadmap, old, new, mark = sys.argv[1:]
+events = [
+    {"t": 0.5, "type": "tap", "key": board},
+    {"t": 0.9, "type": "key", "name": "5", "cmd": True},
+    {"t": 1.3, "type": "mark", "name": "open"},
+]
+t = 1.6
+if mark == "dirty":
+    events.append({"t": t, "type": "tap", "key": "kanban-card-1-0-mark"})
+    t += 0.5
+if mark != "self":
+    events.append({"t": round(t, 2), "type": "tap", "key": roadmap})
+    events.append({"t": round(t + 0.4, 2), "type": "key", "name": "Escape"})
+    t += 0.9
+events.append({"t": round(t, 2), "type": "key", "name": "F2"})
+t += 0.35
+for _ in old:
+    events.append({"t": round(t, 2), "type": "key", "name": "Backspace"})
+    t += 0.12
+events.append({"t": round(t, 2), "type": "type", "text": new})
+events.append({"t": round(t + 0.45, 2), "type": "key", "name": "Enter"})
+t = round(t + 0.9, 2)
+if mark != "self":
+    events.append({"t": t, "type": "mark", "name": "confirm"})
+    events.append({"t": round(t + 0.4, 2), "type": "tap", "key": "rename-confirm-yes"})
+    t = round(t + 0.9, 2)
+events.append({"t": t, "type": "key", "name": "5", "cmd": True})
+events.append({"t": round(t + 0.6, 2), "type": "mark", "name": mark})
+json.dump({"events": events}, open(out, "w"))
+PY
+}
+
+step_headless_kanban_links() {
+  isolate
+  kanban_gpu
+  echo "backend: ${VK_DRIVER_FILES:-default} WGPU_BACKEND=${WGPU_BACKEND:-default}"
+  local v="$work/kanban-links-vault" t="$out/trees" m="$work/kanban-links"
+  local original="$root/scripts/ui-smoke/kanban-links-board.md"
+  local saved="$root/scripts/ui-smoke/kanban-links-saved.md"
+  kanban_links_vault "$v"
+  rm -rf "$m"; mkdir -p "$m"
+  printf '{"events":[{"t":0.6,"type":"mark","name":"list"}]}' >"$m/list.json"
+  kanban_links_run "$v" "$m/list.json" list || return 1
+  local board roadmap
+  board="$(kanban_row_ids "$t/kanban-links-list.json" Board)"
+  roadmap="$(kanban_row_ids "$t/kanban-links-list.json" Roadmap)"
+  [ -n "$board" ] && [ -n "$roadmap" ] || { echo "missing Board or Roadmap row"; return 1; }
+  sed -e "s/@BOARD@/$board/" "$root/scripts/ui-smoke/kanban-links.json" >"$m/links.json"
+  local pair mark shot
+  for pair in open: complete:kanban-link-complete closed: copied:; do
+    mark="${pair%%:*}" shot="${pair#*:}"
+    kanban_links_vault "$v"
+    kanban_links_run "$v" "$m/links.json" "$mark" "$shot" || return 1
+    python3 "$harness" tree-mode "$t/kanban-links-$mark.json" kanban || return 1
+  done
+  kanban_has "$t/kanban-links-complete.json" link-complete yes || return 1
+  python3 - "$t/kanban-links-complete.json" <<'PY' || return 1
+import json, sys
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from walk(v)
+names = [n.get("name") or n.get("text") or "" for n in walk(json.load(open(sys.argv[1])).get("elements", []))]
+if not any("Roadmap" in str(name) for name in names):
+    raise SystemExit("the completion list does not offer Roadmap")
+print("ok autocomplete offers Roadmap")
+PY
+  kanban_cards "$t/kanban-links-closed.json" 0 "Open: Write the release notes|Open: Review [[Roadmap]]" || return 1
+  kanban_cards "$t/kanban-links-copied.json" 1 "Open: Fix the sync bug" || return 1
+  python3 "$harness" tree-text "$t/kanban-links-copied.json" kanban-status Unsaved || return 1
+  # Each mark is its own run from the fixture. presave stops before Ctrl+S.
+  kanban_links_vault "$v"
+  kanban_links_run "$v" "$m/links.json" presave || return 1
+  cmp "$v/Board.md" "$original" || { echo "presave wrote Board.md"; diff "$original" "$v/Board.md"; return 1; }
+  kanban_links_vault "$v"
+  kanban_links_run "$v" "$m/links.json" saved || return 1
+  python3 "$harness" tree-text "$t/kanban-links-saved.json" kanban-status Saved || return 1
+  cmp "$v/Board.md" "$saved" || { diff "$saved" "$v/Board.md"; return 1; }
+  echo "ok Board.md after Ctrl+S is kanban-links-saved.md byte for byte"
+  cp "$v/Board.md" "$out/logs/kanban-links-saved.md"
+  kanban_links_vault "$v"
+  kanban_links_run "$v" "$m/links.json" stable || return 1
+  cmp "$v/Board.md" "$saved" || { echo "a second copy rewrote the block id"; diff "$saved" "$v/Board.md"; return 1; }
+  echo "ok the block id is unchanged after copying the link again"
+
+  # Clean rename: the rewrite lands and --list-links follows.
+  kanban_links_vault "$v"
+  kanban_links_rename_json "$m/rename.json" "$board" "$roadmap" Roadmap Plan renamed
+  local before after
+  before="$("$bin" --list-links "$v")"
+  echo "$before"
+  grep -qx 'Board.md -> Roadmap.md' <<<"$before" || { echo "list-links before rename"; return 1; }
+  kanban_links_run "$v" "$m/rename.json" renamed || return 1
+  python3 "$harness" tree-mode "$t/kanban-links-renamed.json" kanban || return 1
+  kanban_cards "$t/kanban-links-renamed.json" 0 "Open: Write the release notes|Open: Review [[Plan]]" || return 1
+  grep -q '\[\[Plan\]\]' "$v/Board.md" || { echo "the kanban was not rewritten"; return 1; }
+  after="$("$bin" --list-links "$v")"
+  echo "$after"
+  grep -qx 'Board.md -> Plan.md' <<<"$after" || { echo "list-links after rename"; return 1; }
+  echo "ok --list-links follows Roadmap to Plan"
+
+  # Dirty rename: bytes and the edit stay, and the page names the kanban.
+  kanban_links_vault "$v"
+  kanban_links_rename_json "$m/dirty.json" "$board" "$roadmap" Roadmap Later dirty
+  kanban_links_run "$v" "$m/dirty.json" dirty || return 1
+  python3 "$harness" tree-mode "$t/kanban-links-dirty.json" kanban || return 1
+  cmp "$v/Board.md" "$original" || { echo "a dirty kanban was rewritten"; diff "$original" "$v/Board.md"; return 1; }
+  kanban_cards "$t/kanban-links-dirty.json" 1 "Done: Fix the sync bug" || return 1
+  kanban_cards "$t/kanban-links-dirty.json" 0 "Open: Write the release notes|Open: Review [[Roadmap]]" || return 1
+  python3 "$harness" tree-text "$t/kanban-links-dirty.json" kanban-notice "Links in Board were not updated" || return 1
+  before="$("$bin" --list-links "$v")"
+  # The file still says [[Roadmap]], and that note is now Later.md, so the
+  # link is unresolved. That is the rewrite being skipped.
+  grep -qx 'Board.md -> missing:Roadmap' <<<"$before" || { echo "dirty list-links: $before"; return 1; }
+  echo "ok a dirty kanban kept its bytes and its edit; --list-links still sees Roadmap"
+
+  # Renaming the kanban itself updates the path saved in settings.
+  kanban_links_vault "$v"
+  kanban_links_rename_json "$m/self.json" "$board" "$roadmap" Board Sprint self
+  kanban_links_run "$v" "$m/self.json" self || return 1
+  [ -f "$v/Sprint.md" ] || { echo "Sprint.md was not created"; return 1; }
+  [ ! -f "$v/Board.md" ] || { echo "Board.md is still there"; return 1; }
+  python3 "$harness" tree-text "$t/kanban-links-self.json" kanban-title Sprint || return 1
+  python3 - "$XDG_CONFIG_HOME/muninn/settings.json" <<'PY' || return 1
+import json, sys
+settings = json.load(open(sys.argv[1]))
+assert settings.get("kanban") == "Sprint.md", settings.get("kanban")
+print("ok settings.json kanban is Sprint.md")
+PY
+}
+
+step_x11_kanban_links() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd" WGPU_BACKEND=vulkan
+  echo "backend: $icd WGPU_BACKEND=vulkan"
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  local v="$work/kanban-links-x11-vault" t="$out/trees" m="$work/kanban-links-x11"
+  local original="$root/scripts/ui-smoke/kanban-links-board.md"
+  local saved="$root/scripts/ui-smoke/kanban-links-saved.md"
+  kanban_links_vault "$v"
+  rm -rf "$m"; mkdir -p "$m"
+  # Coordinates come from the unfiltered sidebar, the same launch the window gets.
+  printf '{"events":[{"t":0.8,"type":"mark","name":"list"}]}' >"$m/list.json"
+  export XDG_CONFIG_HOME="$work/config-kanban-links-x11-list"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$v" --script "$m/list.json" --at "mark:list+0.3" --scale 1 \
+    --tree "$t/kanban-links-x11-list.json" || return 1
+  local board roadmap
+  board="$(kanban_row_ids "$t/kanban-links-x11-list.json" Board)"
+  roadmap="$(kanban_row_ids "$t/kanban-links-x11-list.json" Roadmap)"
+  [ -n "$board" ] && [ -n "$roadmap" ] || { echo "missing rows"; return 1; }
+  local board_xy road_xy menu_xy copy_xy yes_xy
+  board_xy="$(python3 "$harness" tree-center "$t/kanban-links-x11-list.json" "$board")" || return 1
+  road_xy="$(python3 "$harness" tree-center "$t/kanban-links-x11-list.json" "$roadmap")" || return 1
+  sed "s/@BOARD@/$board/" >"$m/menu.json" <<'JSON'
+{"events":[
+  {"t":0.5,"type":"tap","key":"@BOARD@"},
+  {"t":0.9,"type":"key","name":"5","cmd":true},
+  {"t":1.4,"type":"mark","name":"open"},
+  {"t":1.7,"type":"tap","key":"kanban-card-1-0-menu"},
+  {"t":2.1,"type":"mark","name":"menu"}
+]}
+JSON
+  kanban_links_vault "$v"
+  export XDG_CONFIG_HOME="$work/config-kanban-links-x11-menu"
+  kanban_links_run "$v" "$m/menu.json" menu || return 1
+  python3 "$harness" tree-mode "$t/kanban-links-menu.json" kanban || return 1
+  cmp "$v/Board.md" "$original" || { echo "a headless run wrote Board.md"; return 1; }
+  menu_xy="$(python3 "$harness" tree-center "$t/kanban-links-menu.json" kanban-card-1-0-menu)" || return 1
+  copy_xy="$(python3 "$harness" tree-center "$t/kanban-links-menu.json" menu-copy_link)" || return 1
+  kanban_links_rename_json "$m/confirm.json" "$board" "$roadmap" Roadmap Plan confirm
+  kanban_links_vault "$v"
+  kanban_links_run "$v" "$m/confirm.json" confirm || return 1
+  yes_xy="$(python3 "$harness" tree-center "$t/kanban-links-confirm.json" rename-confirm-yes)" || return 1
+  cmp "$v/Roadmap.md" <(printf '# Roadmap\n\nThe plan.\n') || { echo "confirm run renamed Roadmap"; return 1; }
+  kanban_links_vault "$v"
+
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n i
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-links.log" 2>&1 &
+  xvfb_pid=$!
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY"
+  export XDG_CONFIG_HOME="$work/config-x11-kanban-links" XDG_STATE_HOME="$work/state-x11-kanban-links"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  kanban_explicit_save
+  local settings="$XDG_CONFIG_HOME/muninn/settings.json"
+  "$bin" --new-instance --vault "$v" >>"$out/logs/x11-kanban-links-app.log" 2>&1 &
+  app_pid=$!
+  local wid pause
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  pause="$(python3 -c "print(1.2 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  sleep 2
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $board_xy && sleep 0.4 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+5 && sleep "$pause" || return 1
+  python3 "$harness" settings-mode "$settings" kanban || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $menu_xy && sleep 0.4 || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $copy_xy && sleep 0.4 || return 1
+  cmp "$v/Board.md" "$original" || { echo "Board.md written before Ctrl+S"; return 1; }
+  echo "ok Board.md unchanged before Ctrl+S"
+  python3 "$harness" x11-chord "$wid" ctrl+s && sleep "$pause" || return 1
+  cmp "$v/Board.md" "$saved" || { diff "$saved" "$v/Board.md"; return 1; }
+  echo "ok Board.md after Ctrl+S is kanban-links-saved.md byte for byte"
+  cp "$v/Board.md" "$out/logs/x11-kanban-links-saved.md"
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $road_xy && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" Escape && sleep 0.3 || return 1
+  python3 "$harness" x11-chord "$wid" F2 && sleep 0.3 || return 1
+  local b
+  for b in 1 2 3 4 5 6 7; do
+    python3 "$harness" x11-chord "$wid" BackSpace && sleep 0.05 || return 1
+  done
+  python3 "$harness" x11-type "$wid" Plan && sleep 0.3 || return 1
+  python3 "$harness" x11-chord "$wid" Return && sleep 0.5 || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $yes_xy && sleep "$pause" || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+5 && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-links-renamed-x11.png" || return 1
+  grep -q '\[\[Plan\]\]' "$v/Board.md" || { echo "the windowed rename did not rewrite the kanban"; return 1; }
+  local listed
+  listed="$("$bin" --list-links "$v")"
+  echo "$listed"
+  grep -qx 'Board.md -> Plan.md' <<<"$listed" || { echo "x11 list-links"; return 1; }
+  echo "ok --list-links follows the windowed rename"
+  python3 "$harness" x11-close "$wid" || return 1
+  local status=124
+  for i in $(seq 100); do
+    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+    sleep 0.1
+  done
+  app_pid=
+  echo "app exit status: $status"
+  [ "$status" = 0 ] || return 1
+  grep -q '\[\[Plan\]\]' "$v/Board.md" || { echo "closing changed the kanban"; return 1; }
+  echo "ok closing left the rewritten kanban"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
 failed=0

@@ -39,6 +39,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                     query: String::new(),
                     items: Vec::new(),
                     index: 0,
+                    card: false,
                 });
             } else {
                 state.complete = None;

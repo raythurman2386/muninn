@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime};
 
-use muninn_core::{ScanJob, Vault, atomic_copy, heading_offset, unclosed_link};
+use muninn_core::{ScanJob, Vault, atomic_copy, jump_offset, unclosed_link};
 use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
@@ -197,6 +197,8 @@ pub struct LinkComplete {
     /// Candidate note ids, best first, capped at eight.
     pub items: Vec<usize>,
     pub index: usize,
+    /// The `[[` is in the kanban card editor. Otherwise it is in the Write editor.
+    pub card: bool,
 }
 
 /// How many recently opened notes the empty palette shows.
@@ -1897,24 +1899,46 @@ impl State {
 
     // ---- M2 EDT-03: wikilink completion -------------------------------------
 
+    /// The text and caret autocomplete should follow: the kanban card editor
+    /// when it is focused, otherwise the Write editor.
+    fn completion_source(&self) -> Option<(String, usize, bool)> {
+        if self.mode == Mode::Kanban && self.kanban_card.is_some() && self.kanban_card_field.focused
+        {
+            let text = self.kanban_card_field.text.clone();
+            let caret = self.kanban_card_field.focus.min(text.len());
+            return Some((text, caret, true));
+        }
+        if self.editor.focused && self.find.is_none() && self.selected.is_some() {
+            let text = self.editor.text.clone();
+            let caret = self.editor.focus.min(text.len());
+            return Some((text, caret, false));
+        }
+        None
+    }
+
     /// Detect an open `[[…` at the caret or refresh the candidate list.
     ///
     /// Runs from `poll` once a frame, like the find bar's match list, because
     /// the view only borrows `State`. The explicit Cmd+P picker is not
     /// detected here: its query is typed into the picker, not the note.
+    /// A focused kanban card editor is completed the same way as Write.
     /// Returns true when something the user can see changed.
     pub fn complete_tick(&mut self) -> bool {
         if let Some(c) = &self.complete {
             let Some(open) = c.open else {
                 return false;
             };
+            let card = c.card;
             let query = c.query.clone();
-            if !self.editor.focused || self.find.is_some() {
+            let Some((text, caret, is_card)) = self.completion_source() else {
+                self.complete = None;
+                return true;
+            };
+            if is_card != card {
                 self.complete = None;
                 return true;
             }
-            let caret = self.editor.focus.min(self.editor.text.len());
-            return match unclosed_link(&self.editor.text, caret) {
+            return match unclosed_link(&text, caret) {
                 Some((mark, current)) if mark == open => {
                     if current == query {
                         false
@@ -1934,11 +1958,10 @@ impl State {
                 }
             };
         }
-        if !self.editor.focused || self.find.is_some() || self.selected.is_none() {
+        let Some((text, caret, card)) = self.completion_source() else {
             return false;
-        }
-        let caret = self.editor.focus.min(self.editor.text.len());
-        let Some((open, query)) = unclosed_link(&self.editor.text, caret) else {
+        };
+        let Some((open, query)) = unclosed_link(&text, caret) else {
             return false;
         };
         if self.complete_dismissed == Some((open, caret)) {
@@ -1955,6 +1978,7 @@ impl State {
             query,
             items,
             index: 0,
+            card,
         });
         true
     }
@@ -1979,6 +2003,7 @@ impl State {
             query: String::new(),
             items,
             index: 0,
+            card: false,
         });
         self.complete_dismissed = None;
     }
@@ -2052,7 +2077,8 @@ impl State {
     }
 
     /// Insert `[[stem]]` for `id`, replacing the open `[[query` or inserting at
-    /// the picker's caret. Pointer clicks use this too.
+    /// the picker's caret. Pointer clicks use this too. A completion opened
+    /// from the kanban card editor inserts there instead of into Write.
     pub fn complete_choose(&mut self, id: usize) -> bool {
         let Some(c) = self.complete.take() else {
             return false;
@@ -2061,19 +2087,27 @@ impl State {
             return false;
         };
         let text = format!("[[{}]]", note.stem());
+        let card = c.card;
+        let field = if card {
+            &mut self.kanban_card_field
+        } else {
+            &mut self.editor
+        };
         match c.open {
             Some(open) => {
-                let caret = self.editor.focus.min(self.editor.text.len());
-                self.editor.set_selection(open.min(caret), caret);
-                self.editor.insert(&text);
+                let caret = field.focus.min(field.text.len());
+                field.set_selection(open.min(caret), caret);
+                field.insert(&text);
             }
             None => {
-                self.editor.set_caret(c.at.min(self.editor.text.len()));
-                self.editor.insert(&text);
+                field.set_caret(c.at.min(field.text.len()));
+                field.insert(&text);
             }
         }
         self.complete_dismissed = None;
-        self.dirty_at.get_or_insert(self.now);
+        if !card {
+            self.dirty_at.get_or_insert(self.now);
+        }
         true
     }
 
@@ -2083,7 +2117,13 @@ impl State {
         if let Some(c) = self.complete.take()
             && let Some(open) = c.open
         {
-            let caret = self.editor.focus.min(self.editor.text.len());
+            let caret = if c.card {
+                self.kanban_card_field
+                    .focus
+                    .min(self.kanban_card_field.text.len())
+            } else {
+                self.editor.focus.min(self.editor.text.len())
+            };
             self.complete_dismissed = Some((open, caret));
         }
     }
@@ -3553,14 +3593,31 @@ impl State {
     fn apply_rename(&mut self, id: usize, name: &str, rewrite: bool) {
         let was_selected = self.selected == Some(id);
         let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
+        let old_rel = self.vault.notes.get(id).map(|note| note.rel.clone());
         let inbound = if rewrite {
             self.vault.link_referrers(id)
         } else {
             Vec::new()
         };
+        // A kanban with unsaved edits must not be rewritten: the rewrite
+        // would replace the file the page is still editing. Slice 7's
+        // conflict bar takes this case over later.
+        let skipped = self
+            .unsaved_kanban_id()
+            .filter(|kid| inbound.iter().any(|(from, _)| from == kid));
         match self.vault.rename_note(id, name) {
             Ok(path) => {
                 self.error = None;
+                if let Some(old) = old_rel.as_deref()
+                    && let Some(new_rel) = self
+                        .vault
+                        .notes
+                        .get(id)
+                        .map(|note| note.rel.clone())
+                        .filter(|rel| rel != old)
+                {
+                    self.retarget_open_kanban(old, &new_rel, id);
+                }
                 let failures = if rewrite {
                     let stem = self
                         .vault
@@ -3568,7 +3625,12 @@ impl State {
                         .get(id)
                         .map(|note| note.stem().to_owned())
                         .unwrap_or_default();
-                    self.vault.rewrite_inbound_links(&inbound, &stem)
+                    let write: Vec<_> = inbound
+                        .iter()
+                        .filter(|(from, _)| Some(*from) != skipped)
+                        .cloned()
+                        .collect();
+                    self.vault.rewrite_inbound_links(&write, &stem)
                 } else {
                     Vec::new()
                 };
@@ -3583,7 +3645,18 @@ impl State {
                 } else {
                     self.selected_path.clone()
                 };
+                let skipped_name = skipped.and_then(|skipped_id| {
+                    self.vault
+                        .notes
+                        .get(skipped_id)
+                        .map(|note| note.title.clone())
+                        .filter(|title| !title.is_empty())
+                });
                 self.reload(select);
+                if skipped.is_some() {
+                    let name = skipped_name.unwrap_or_else(|| "the kanban".to_owned());
+                    self.notice = Some(format!("Links in {name} were not updated"));
+                }
                 if !failures.is_empty() {
                     self.error = Some(format!(
                         "Renamed, but {} inbound link file(s) could not be rewritten: {}",
@@ -3594,6 +3667,39 @@ impl State {
             }
             Err(e) => self.error = Some(format!("Could not rename note: {e}")),
         }
+    }
+
+    /// The open kanban's note, when the page holds edits that are not on disk
+    /// (including an open card editor or lane field).
+    fn unsaved_kanban_id(&self) -> Option<usize> {
+        if !self.kanban_dirty() {
+            return None;
+        }
+        let rel = self.kanban.as_ref()?.rel.as_str();
+        self.note_id(rel)
+    }
+
+    /// The open kanban was renamed: the path saved in settings, and the page's
+    /// own path, follow the file. The in-memory board is kept.
+    fn retarget_open_kanban(&mut self, old_rel: &str, new_rel: &str, id: usize) {
+        let moved = self.kanban_rel.as_deref() == Some(old_rel)
+            || self
+                .kanban
+                .as_ref()
+                .is_some_and(|shown| shown.rel == old_rel);
+        if !moved {
+            return;
+        }
+        if self.kanban_rel.as_deref() == Some(old_rel) {
+            self.kanban_rel = Some(new_rel.to_owned());
+        }
+        if let Some(shown) = &mut self.kanban
+            && shown.rel == old_rel
+        {
+            shown.rel = new_rel.to_owned();
+            shown.disk = self.vault.disk_state(id).ok();
+        }
+        self.save_settings();
     }
 
     pub(crate) fn format_rewrite_failures(&self, failures: &[(usize, io::Error)]) -> String {
@@ -4010,6 +4116,10 @@ impl State {
             }
             (MenuTarget::Card(lane, index), "duplicate") => self.duplicate_card(lane, index),
             (MenuTarget::Card(lane, index), "split") => self.split_card(lane, index),
+            (MenuTarget::Card(lane, index), "copy_link") => {
+                let _ = self.copy_card_link(lane, index);
+            }
+            (MenuTarget::Card(lane, index), "new_note") => self.new_note_from_card(lane, index),
             (MenuTarget::Card(lane, index), "delete") => self.delete_card(lane, index),
             (MenuTarget::Lane(lane), "add_card") => self.begin_add_card(lane),
             (MenuTarget::Lane(lane), "mark_done") => self.mark_lane_done(lane),
@@ -4336,12 +4446,12 @@ impl State {
     }
 
     /// EDT-04: place the caret on `heading` in Write mode, or scroll the reader
-    /// in Read mode. A missing heading is not an error: the note opens at the
-    /// top instead.
+    /// in Read mode. A fragment that starts with `^` is a block id. A missing
+    /// heading or block is not an error: the note opens at the top instead.
     fn goto_heading(&mut self, heading: &str, tx: &mut rune::Tx) {
         self.pending_heading = None;
         self.pending_top = false;
-        let offset = heading_offset(&self.editor.text, heading);
+        let offset = jump_offset(&self.editor.text, heading);
         match self.mode {
             Mode::Preview => {
                 // The reader shows the preview-rewritten source, whose byte
@@ -4349,7 +4459,7 @@ impl State {
                 // that source. Block keys are `heading-<preview offset>`.
                 let key = self.selected.and_then(|id| {
                     let source = self.vault.preview_with_attachments(&self.editor.text, id);
-                    heading_offset(&source, heading).map(|offset| format!("heading-{offset}"))
+                    jump_offset(&source, heading).map(|offset| format!("heading-{offset}"))
                 });
                 match key {
                     Some(key) => {

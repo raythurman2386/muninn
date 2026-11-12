@@ -1460,7 +1460,7 @@ fn group_broken(broken: HashMap<String, (String, Vec<usize>)>) -> Vec<BrokenLink
 /// `path`, never a truncated file. A failed write removes the temp file. The
 /// temp name starts with `.` so the vault walk ignores it even if a killed
 /// process leaves one behind.
-pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
+pub fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
     atomic_replace(path, true, |file| file.write_all(data))
 }
 

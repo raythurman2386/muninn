@@ -33,5 +33,8 @@ pub use board::{
 pub use kanban::{Archive, Card, CardOrder, Kanban, KanbanFile, Lane, is_kanban};
 pub use note::Note;
 pub use preview::Attachment;
-pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy, board_name};
-pub use wikilink::{WikiLink, heading_offset, headings, parse_links, unclosed_link};
+pub use vault::{BrokenLink, ScanJob, Vault, atomic_copy, atomic_write, board_name};
+pub use wikilink::{
+    WikiLink, block_anchors, block_offset, heading_offset, headings, jump_offset, parse_links,
+    unclosed_link,
+};
