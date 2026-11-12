@@ -23,26 +23,19 @@
 //!   be written either is the quit refused (the window comes back with the
 //!   reason), so a dirty board is never discarded silently.
 //! - **Contained.** Every write (save, Keep mine, Save copy) and every
-//!   restore goes through [`inside_vault`]: a recovery record naming `..`, an
+//!   restore goes through `doc_sync::inside_vault`: a recovery record naming `..`, an
 //!   absolute path, or a symlink out of the vault is refused (#38 review M2).
 
 use std::io;
-use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 use muninn_core::Board;
 
 use crate::board_tools::fingerprint;
 use crate::board_view::{BoardStatus, OpenBoard};
+use crate::doc_sync::{RECOVERY_IDLE, RECOVERY_MAX_AGE, Rest, copy_path, inside_vault, quit_rule};
 use crate::state::conflict_stamp;
 use crate::{Mode, State};
-
-/// Slice 7: the recovery copy of a drawing that keeps changing (a held
-/// arrow nudge, a stream of edits, text being typed) is written once it has
-/// rested this long…
-const BOARD_RECOVERY_IDLE: f64 = 0.5;
-/// …or, while it never rests, at least this often.
-const BOARD_RECOVERY_MAX_AGE: f64 = 2.0;
 
 /// #40 recheck B1: after a board press or key, poll again this soon, so an
 /// edit (or an editor opened) by it is seen by the recovery copy without
@@ -51,31 +44,6 @@ pub(crate) const BOARD_EDIT_WAKE: Duration = Duration::from_millis(50);
 
 /// Why a quit was refused.
 const QUIT_REFUSED: &str = "Board not saved and no recovery copy could be written";
-
-/// #38 review M2: `path` lies inside the vault `root`: below it through
-/// plain components only (no `..`, `.`, root or prefix), and, following the
-/// symlinks of whatever part of it exists, still below the canonical root.
-#[must_use]
-pub(crate) fn inside_vault(root: &Path, path: &Path) -> bool {
-    let Ok(rel) = path.strip_prefix(root) else {
-        return false;
-    };
-    if rel.as_os_str().is_empty() || !rel.components().all(|c| matches!(c, Component::Normal(_))) {
-        return false;
-    }
-    let Ok(base) = std::fs::canonicalize(root) else {
-        return false;
-    };
-    let mut probe = path.to_path_buf();
-    loop {
-        if let Ok(real) = std::fs::canonicalize(&probe) {
-            return real.starts_with(&base);
-        }
-        if !probe.pop() {
-            return false;
-        }
-    }
-}
 
 /// `true` for a vault-relative path that names a board.
 #[must_use]
@@ -141,7 +109,7 @@ impl State {
         let editing = self
             .board_text
             .is_some()
-            .then(|| Duration::from_secs_f64(BOARD_RECOVERY_IDLE));
+            .then(|| Duration::from_secs_f64(RECOVERY_IDLE));
         // Slice 5: a move drag changes the model every frame; copy once it
         // lands instead of writing (and fsyncing) per frame.
         if self
@@ -153,7 +121,7 @@ impl State {
         }
         // Slice 7: a stream of edits (a held arrow key) and text being typed
         // (#40 review M1) are copied once they rest, or every
-        // BOARD_RECOVERY_MAX_AGE while they do not. A big board's copy is
+        // RECOVERY_MAX_AGE while they do not. A big board's copy is
         // megabytes, written and fsynced each time.
         let pending = self.board_text_pending();
         if let Some(open) = &self.board_open {
@@ -161,14 +129,8 @@ impl State {
             let typing = pending.is_some() && self.board_recovered_text != pending;
             if drawing || typing {
                 let key = (open.generation, pending);
-                let wait = self.board_recovery_wait.get_or_insert((key.clone(), t, t));
-                if wait.0 != key {
-                    wait.0 = key;
-                    wait.2 = t;
-                }
-                if t - wait.2 < BOARD_RECOVERY_IDLE && t - wait.1 < BOARD_RECOVERY_MAX_AGE {
-                    let due = (BOARD_RECOVERY_IDLE - (t - wait.2))
-                        .min(BOARD_RECOVERY_MAX_AGE - (t - wait.1));
+                let wait = &mut self.board_recovery_wait;
+                if let Some(due) = Rest::wait(wait, key, t, RECOVERY_IDLE, RECOVERY_MAX_AGE) {
                     return Some(Duration::from_secs_f64(due.max(0.0)));
                 }
             }
@@ -233,22 +195,7 @@ impl State {
             return false;
         }
         let old_rel = open.rel();
-        let stem = open
-            .path
-            .file_stem()
-            .map_or_else(|| "Board".to_owned(), |s| s.to_string_lossy().into_owned());
-        let folder = open
-            .path
-            .parent()
-            .filter(|p| p.is_dir() && inside_vault(&root, p))
-            .map_or_else(|| root.clone(), PathBuf::from);
-        let stamp = conflict_stamp();
-        let mut copy = folder.join(format!("{stem} (conflict {stamp}).excalidraw"));
-        let mut n = 2;
-        while copy.exists() {
-            copy = folder.join(format!("{stem} (conflict {stamp} {n}).excalidraw"));
-            n += 1;
-        }
+        let copy = copy_path(&root, &open.path, &conflict_stamp());
         let saved = std::mem::replace(&mut open.path, copy.clone());
         // `write_board` checks the fingerprint of the target: a new file has
         // none, so write directly through s1's atomic save.
@@ -343,21 +290,18 @@ impl State {
     pub(crate) fn flush_board_before_quit(&mut self) -> bool {
         let saved = self.save_board();
         let copied = self.board_recovery_tick();
-        if saved {
-            return true;
-        }
-        let kept = copied.is_ok()
-            && self
-                .board_open
-                .as_ref()
-                .is_some_and(|open| open.recovered_at == Some(open.generation));
-        if kept {
-            self.log_event("board", "not saved; kept in the recovery copy");
-            return true;
-        }
-        let why = match copied {
-            Err(e) => e.to_string(),
-            Ok(()) => "the board could not be read".to_owned(),
+        let current = self
+            .board_open
+            .as_ref()
+            .is_some_and(|open| open.recovered_at == Some(open.generation));
+        let why = match quit_rule(saved, &copied, current, "board") {
+            Ok(()) => {
+                if !saved {
+                    self.log_event("board", "not saved; kept in the recovery copy");
+                }
+                return true;
+            }
+            Err(why) => why,
         };
         self.error = Some(format!(
             "{QUIT_REFUSED}: {why}. Use Save copy or fix the folder, then quit again."
@@ -365,61 +309,18 @@ impl State {
         false
     }
 
-    /// Whether closing now would lose nothing on the board: it is saved,
-    /// clean, or its recovery copy holds the latest drawing.
+    /// Whether closing now would lose nothing on the board (and the Kanban
+    /// page): it is saved, clean, or its recovery copy holds the latest
+    /// drawing.
     #[must_use]
     pub fn can_quit(&self) -> bool {
         let pending = self.board_text_pending();
-        self.board_open.as_ref().is_none_or(|open| {
+        let board = self.board_open.as_ref().is_none_or(|open| {
             (!open.dirty() && pending.is_none())
                 || (open.recovered_at == Some(open.generation)
                     && self.board_recovered_text == pending)
-        })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::inside_vault;
-
-    fn temp(tag: &str) -> std::path::PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("muninn-inside-vault-{tag}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    #[test]
-    fn plain_paths_inside_pass_and_dot_dot_or_absolute_fail() {
-        let root = temp("plain");
-        assert!(inside_vault(&root, &root.join("a/b.excalidraw")));
-        assert!(inside_vault(&root, &root.join("new.excalidraw")));
-        assert!(!inside_vault(&root, &root.join("../x.excalidraw")));
-        assert!(!inside_vault(&root, &root.join("a/../../x.excalidraw")));
-        assert!(!inside_vault(
-            &root,
-            std::path::Path::new("/tmp/x.excalidraw")
-        ));
-        assert!(!inside_vault(&root, &root));
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// #38 recheck: a folder inside the vault that is a symlink out of it.
-    #[cfg(unix)]
-    #[test]
-    fn a_symlinked_folder_pointing_out_of_the_vault_is_outside() {
-        let (root, out) = (temp("link-root"), temp("link-out"));
-        std::os::unix::fs::symlink(&out, root.join("escape")).unwrap();
-        std::fs::create_dir_all(root.join("real")).unwrap();
-        std::os::unix::fs::symlink(root.join("real"), root.join("alias")).unwrap();
-        // A missing file below the link resolves through its existing parent.
-        assert!(!inside_vault(&root, &root.join("escape/new.excalidraw")));
-        std::fs::write(out.join("there.excalidraw"), "{}").unwrap();
-        assert!(!inside_vault(&root, &root.join("escape/there.excalidraw")));
-        // A link that stays inside the vault is fine.
-        assert!(inside_vault(&root, &root.join("alias/new.excalidraw")));
-        let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(&out);
+        });
+        // Kanban slice 7: the Kanban page's edits count too.
+        board && self.kanban_can_quit()
     }
 }

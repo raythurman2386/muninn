@@ -15,11 +15,13 @@ mod board_text;
 mod board_tools;
 mod board_view;
 mod camera;
+mod doc_sync;
 mod global_shortcut;
 mod graph_view;
 mod kanban_drag;
 mod kanban_edit;
 mod kanban_lanes;
+mod kanban_sync;
 mod kanban_view;
 mod keys;
 mod mode;
@@ -48,6 +50,7 @@ pub use board_tools::{BoardTool, Draft, tool_for_key};
 pub use board_view::{
     BoardConflict, BoardCounts, BoardSession, BoardStatus, BoardSummary, OpenBoard,
 };
+pub use doc_sync::DocConflict;
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use kanban_edit::{CardSlot, KanbanHistory};
 pub use kanban_lanes::{CardStep, LaneField, LaneSlot};

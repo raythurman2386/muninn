@@ -374,6 +374,14 @@ pub struct State {
     /// spot is measured against them).
     pub(crate) kanban_drag: Option<crate::kanban_drag::KanbanDrag>,
     pub(crate) kanban_rects: crate::kanban_drag::KanbanRects,
+    /// Kanban slice 7: the shown kanban's edits waiting to rest before
+    /// autosave writes them (keyed by its change count) …
+    pub(crate) kanban_autosave_wait: Option<crate::doc_sync::Rest<u64>>,
+    /// … and before its recovery copy is written (keyed by that count and
+    /// the open field's typed text).
+    pub(crate) kanban_recovery_wait: Option<crate::doc_sync::Rest<(u64, Option<String>)>>,
+    /// When the kanban watcher last looked at the shown kanban's file.
+    pub(crate) last_kanban_watch: f64,
     /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).
     pub board_tool: Option<crate::BoardTool>,
     /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
@@ -391,14 +399,14 @@ pub struct State {
     /// Slice 7: the board recovery copy waits for the drawing (and any text
     /// being typed) to rest: `((generation, typed text), first change, last
     /// change)` of what is not copied yet.
-    pub(crate) board_recovery_wait: Option<((u64, Option<String>), f64, f64)>,
+    pub(crate) board_recovery_wait: Option<crate::doc_sync::Rest<(u64, Option<String>)>>,
     /// Slice 7: a view change (held arrow pan, zoom, a stroke) is written to
     /// `settings.json` once things rest, not once per event. When it was
     /// last asked for.
     pub(crate) settings_due: Option<f64>,
     /// Slice 7 autosave: `(generation, first change, last change)` of the
     /// open board's drawing not saved yet.
-    pub(crate) board_autosave_wait: Option<(u64, f64, f64)>,
+    pub(crate) board_autosave_wait: Option<crate::doc_sync::Rest<u64>>,
     /// Slice 7 board watcher: each listed board's file metadata at the last
     /// look, and when that was.
     pub(crate) board_stats: std::collections::BTreeMap<PathBuf, Option<crate::watch::FileState>>,
@@ -731,6 +739,9 @@ impl State {
             kanban_selected: None,
             kanban_drag: None,
             kanban_rects: crate::kanban_drag::KanbanRects::default(),
+            kanban_autosave_wait: None,
+            kanban_recovery_wait: None,
+            last_kanban_watch: 0.0,
             board_tool: None,
             board_hand: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
@@ -2830,6 +2841,15 @@ impl State {
         if crate::board_safety::is_board_rel(rel) {
             return self.restore_board_recovery(rel);
         }
+        // Kanban slice 7: a kanban note's copy opens on the Kanban page,
+        // flagged when the file is gone or holds something else, never
+        // written over it unasked.
+        if let Ok(text) = self.recovery.load(rel)
+            && muninn_core::is_kanban(&text)
+            && muninn_core::Kanban::parse(&text).is_ok()
+        {
+            return self.restore_kanban_recovery(rel, &text);
+        }
         let Some(id) = self.vault.notes.iter().find(|n| n.rel == rel).map(|n| n.id) else {
             return self.restore_missing_note(rel);
         };
@@ -3188,7 +3208,7 @@ impl State {
     }
 
     /// Re-scan the vault without changing what the editor shows or selects.
-    fn refresh_index_only(&mut self) {
+    pub(crate) fn refresh_index_only(&mut self) {
         if let Ok(vault) = Vault::load(&self.vault.root) {
             self.vault = vault;
             self.list_sidebar_boards();

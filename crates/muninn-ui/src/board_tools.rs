@@ -385,7 +385,7 @@ fn write_board(open: &mut OpenBoard, root: &Path) -> Result<(), String> {
     if open.vault_root != root {
         return Err("the board belongs to another vault".to_owned());
     }
-    if !crate::board_safety::inside_vault(root, &open.path) {
+    if !crate::doc_sync::inside_vault(root, &open.path) {
         return Err("the board is not inside the open vault".to_owned());
     }
     let on_disk = std::fs::read_to_string(&open.path).map_err(|e| match e.kind() {

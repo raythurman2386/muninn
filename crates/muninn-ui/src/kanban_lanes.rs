@@ -45,7 +45,9 @@
 //!   it moves it right one). A refused commit keeps the editor and its text
 //!   open, with the reason on the page, and the action waits.
 
-use muninn_core::CardOrder;
+use std::io;
+
+use muninn_core::{CardOrder, Kanban};
 use rune::{El, Key, KeyEvent, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -77,6 +79,25 @@ pub enum CardStep {
     Bottom,
     PreviousLane,
     NextLane,
+}
+
+/// Why a card limit was refused.
+const LIMIT_REFUSED: &str = "A card limit is a whole number";
+
+/// The lane field's `typed` text (trimmed) applied to `board` at `slot`, as
+/// committing it does. A blank title changes nothing; a blank limit clears it.
+pub(crate) fn apply_lane_field(board: &mut Kanban, slot: LaneSlot, typed: &str) -> io::Result<()> {
+    let LaneSlot { lane, field } = slot;
+    match field {
+        LaneField::New | LaneField::Rename if typed.is_empty() => Ok(()),
+        LaneField::New => board.add_lane(lane, typed, None, false),
+        LaneField::Rename => board.rename_lane(lane, typed),
+        LaneField::Limit if typed.is_empty() => board.set_lane_limit(lane, None),
+        LaneField::Limit => match typed.parse::<u32>() {
+            Ok(n) => board.set_lane_limit(lane, Some(n)),
+            Err(_) => Err(io::Error::new(io::ErrorKind::InvalidInput, LIMIT_REFUSED)),
+        },
+    }
 }
 
 impl State {
@@ -132,26 +153,22 @@ impl State {
             return CardCommit::Closed;
         };
         let typed = self.kanban_lane_field.text.trim().to_owned();
-        let applied = match field {
-            _ if typed.is_empty() && field != LaneField::Limit => true,
-            LaneField::New => {
-                self.edit_kanban("add the lane", |b| b.add_lane(lane, &typed, None, false))
+        let slot = LaneSlot { lane, field };
+        let what = match field {
+            LaneField::New => "add the lane",
+            LaneField::Rename => "rename the lane",
+            LaneField::Limit if typed.is_empty() => "clear the limit",
+            LaneField::Limit => "set the limit",
+        };
+        let applied = if typed.is_empty() && field != LaneField::Limit {
+            true
+        } else if field == LaneField::Limit && !typed.is_empty() && typed.parse::<u32>().is_err() {
+            if let Some(shown) = &mut self.kanban {
+                shown.error = Some(LIMIT_REFUSED.to_owned());
             }
-            LaneField::Rename => {
-                self.edit_kanban("rename the lane", |b| b.rename_lane(lane, &typed))
-            }
-            LaneField::Limit if typed.is_empty() => {
-                self.edit_kanban("clear the limit", |b| b.set_lane_limit(lane, None))
-            }
-            LaneField::Limit => match typed.parse::<u32>() {
-                Ok(n) => self.edit_kanban("set the limit", |b| b.set_lane_limit(lane, Some(n))),
-                Err(_) => {
-                    if let Some(shown) = &mut self.kanban {
-                        shown.error = Some("A card limit is a whole number".to_owned());
-                    }
-                    false
-                }
-            },
+            false
+        } else {
+            self.edit_kanban(what, |b| apply_lane_field(b, slot, &typed))
         };
         if !applied {
             return CardCommit::Refused;

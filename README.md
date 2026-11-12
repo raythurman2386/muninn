@@ -265,7 +265,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | A lane's `‹` / `›` (kanban) | Collapse it to a narrow strip, or expand it |
 | Drag a card, or a lane by its header (kanban) | Move it where the bar shows (`Esc` cancels); a lane's `⋯` has **Move lane left / right** |
 | `Alt+Shift+←→` (kanban) | Move the selected card's lane left or right |
-| `⌘S` / `Ctrl+S` (kanban) | Save the kanban's edits (nothing is written before; no autosave yet) |
+| `⌘S` / `Ctrl+S` (kanban) | Save the kanban's edits now (autosave also saves them once they rest, unless `"kanban_autosave": false`) |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |

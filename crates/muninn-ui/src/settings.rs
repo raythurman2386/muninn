@@ -462,6 +462,10 @@ pub struct Settings {
     /// Kanban slice 2: the vault-relative path of the kanban note last shown
     /// in Kanban mode. Files saved before kanbans load as `None`.
     pub kanban: Option<String>,
+    /// Kanban slice 7: unsaved kanban edits are saved once they rest, as a
+    /// board's are. On by default; `"kanban_autosave": false` in
+    /// `settings.json` leaves saving to `⌘S` (and the quit save).
+    pub kanban_autosave: bool,
 }
 
 impl Default for Settings {
@@ -485,6 +489,7 @@ impl Default for Settings {
             board: None,
             board_autosave: true,
             kanban: None,
+            kanban_autosave: true,
         }
     }
 }
@@ -546,6 +551,7 @@ impl Settings {
             "show_shortcut": self.show_shortcut,
             "board_autosave": self.board_autosave,
             "kanban": self.kanban,
+            "kanban_autosave": self.kanban_autosave,
             "board": self.board.as_ref().map(|b| {
                 let mut value = json!({ "rel": b.rel });
                 if let Some(view) = b.view {
@@ -632,6 +638,10 @@ impl Settings {
         settings.show_shortcut = flag("show_shortcut");
         settings.board_autosave = value
             .get("board_autosave")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        settings.kanban_autosave = value
+            .get("kanban_autosave")
             .and_then(Value::as_bool)
             .unwrap_or(true);
         settings.board = value.get("board").and_then(parse_board_session);
@@ -763,6 +773,7 @@ mod tests {
             }),
             board_autosave: false,
             kanban: Some("plans/Sprint.md".to_owned()),
+            kanban_autosave: false,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -786,6 +797,14 @@ mod tests {
         assert!(Settings::from_value(&serde_json::json!({ "mode": "board" })).board_autosave);
         let off = Settings::from_value(&serde_json::json!({ "board_autosave": false }));
         assert!(!off.board_autosave);
+    }
+
+    #[test]
+    fn kanban_autosave_is_on_by_default_and_in_old_files() {
+        assert!(Settings::default().kanban_autosave);
+        assert!(Settings::from_value(&serde_json::json!({ "mode": "kanban" })).kanban_autosave);
+        let off = Settings::from_value(&serde_json::json!({ "kanban_autosave": false }));
+        assert!(!off.kanban_autosave && off.board_autosave);
     }
 
     #[test]

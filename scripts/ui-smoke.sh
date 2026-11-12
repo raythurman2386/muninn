@@ -294,9 +294,35 @@
 #                   unchanged; Ctrl+S: Board.md equals ui-smoke/kanban-drag-x11.md with
 #                   list-collapse [false,true,false,false]; close through WM_DELETE_WINDOW
 #                   (exit 0), bytes still the saved ones
-#   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
-#   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
-#   else the first free display from :90.
+#   headless_kanban_sync  slice 7, offscreen on edit-board.md as Board.md, opened from
+#                   settings: with kanban autosave on (the default) checking a card leaves
+#                   the file as it was 0.45 s later (Unsaved) and is written 2.8 s later
+#                   (Saved; the fixture with the card checked, byte for byte); with
+#                   "kanban_autosave": false nothing is written. A seeded recovery copy
+#                   is offered on launch (recovery-banner) and Restore shows it on the
+#                   Kanban page, flagged "Changed on disk" over the original (nothing
+#                   written, autosave included); Keep mine writes it and clears the copy, Load theirs keeps the file and clears
+#                   it; with Board.md gone it is flagged "Removed or renamed" with Save
+#                   copy (a new "Board (conflict …).md" with the copy's bytes, Board.md
+#                   not recreated) and Discard (no file)
+#   x11_kanban_sync  windowed (`--new-instance`) on the private Xvfb with lavapipe,
+#                   autosave off, the file changed from the shell while the app runs:
+#                   an in-place write while clean is reloaded (the next
+#                   check + Ctrl+S writes theirs + mine byte for byte); an
+#                   atomic-rename save while clean is followed; an atomic save while
+#                   dirty shows the conflict bar (kanban-conflict-bar.png), Ctrl+S is
+#                   refused and their bytes stay; Load theirs, Keep mine and Save copy
+#                   each leave the bytes they promise; close through WM_DELETE_WINDOW (exit 0) writes nothing more
+#   x11_kanban_safety  the same window: Board.md deleted while dirty shows the bar
+#                   and Save copy writes the edits beside it; deleted while dirty and the window closed: exit 0 with the edits in
+#                   the recovery copy; an edit left to rest, then SIGKILL to the app this
+#                   step started: the relaunch offers the copy, Restore shows it flagged
+#                   (kanban-recovered.png) without writing, Keep mine writes it and the
+#                   copy goes. Every click point comes from the headless_kanban_sync trees
+#   The s4-s6 steps that check "unchanged until Ctrl+S" run with "kanban_autosave":
+#   false (kanban_explicit_save; slice 7 turned kanban autosave on by default).
+#   x11 steps take UI_SMOKE_DISPLAY (a display number) if set, else the first free
+#   display from :90.
 #   board_untouched the app left the boards it did not edit (Plan, Smoke) byte-identical,
 #                   and no hidden temp file in the vault (it only reads boards);
 #                   then the board_roundtrip example (load → compare → atomic save →
@@ -312,7 +338,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit headless_kanban_lanes x11_kanban_lanes headless_kanban_drag x11_kanban_drag board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit headless_kanban_lanes x11_kanban_lanes headless_kanban_drag x11_kanban_drag headless_kanban_sync x11_kanban_sync x11_kanban_safety board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -376,6 +402,11 @@ reopen_sidebar() { # $work/reopen.json: Cmd+\ at 0.3 s, for a relaunch straight 
 explicit_save() { # board autosave off in $XDG_CONFIG_HOME: the s4-s6 steps check the file is unchanged until Ctrl+S
   mkdir -p "$XDG_CONFIG_HOME/muninn"
   printf '{"board_autosave": false}\n' >"$XDG_CONFIG_HOME/muninn/settings.json"
+}
+
+kanban_explicit_save() { # kanban autosave off in $XDG_CONFIG_HOME: the s4-s6 kanban steps check the file is unchanged until Ctrl+S
+  mkdir -p "$XDG_CONFIG_HOME/muninn"
+  printf '{"kanban_autosave": false}\n' >"$XDG_CONFIG_HOME/muninn/settings.json"
 }
 
 cleanup() {
@@ -2801,6 +2832,7 @@ kanban_edit_run() { # kanban_edit_run VAULT SCRIPT MARK [SHOT]
   cp "$kanban_fixtures/edit-board.md" "$1/Board.md"
   export XDG_CONFIG_HOME="$work/config-kanban-edit-$3" XDG_STATE_HOME="$work/state-kanban-edit-$3"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  kanban_explicit_save
   "$bin" --vault "$1" --script "$2" --at "mark:$3+0.25" --scale 1 \
     ${4:+--snap "$out/screens/$4.png"} --tree "$out/trees/kanban-edit-$3.json"
 }
@@ -2943,7 +2975,10 @@ step_x11_kanban_edit() {
 JSON
   local mark
   for mark in cmdk added menu; do
-    export XDG_CONFIG_HOME="$work/config-kanban-edit-x11-$mark"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+    # Own state per run: an unsaved run leaves a kanban recovery copy (slice 7),
+    # whose launch banner would shift the next run's layout.
+    export XDG_CONFIG_HOME="$work/config-kanban-edit-x11-$mark" XDG_STATE_HOME="$work/state-kanban-edit-x11-$mark"
+    rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; kanban_explicit_save
     "$bin" --vault "$v" --script "$m/steps.json" --at "mark:$mark+0.4" --scale 1 \
       --snap "$out/screens/kanban-edit-headless-$mark.png" --tree "$t/kanban-edit-x11-$mark.json" || return 1
     python3 "$harness" tree-mode "$t/kanban-edit-x11-$mark.json" kanban || return 1
@@ -2965,6 +3000,7 @@ JSON
   echo "Xvfb on $DISPLAY"
   export XDG_CONFIG_HOME="$work/config-x11-kanban-edit" XDG_STATE_HOME="$work/state-x11-kanban-edit"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  kanban_explicit_save
   local settings="$XDG_CONFIG_HOME/muninn/settings.json"
   "$bin" --new-instance --vault "$v" >>"$out/logs/x11-kanban-edit-app.log" 2>&1 &
   app_pid=$!
@@ -3026,6 +3062,7 @@ kanban_lanes_run() { # kanban_lanes_run VAULT SCRIPT MARK [SHOT]
   cp "$kanban_fixtures/lanes-board.md" "$1/Board.md"
   export XDG_CONFIG_HOME="$work/config-kanban-lanes-$3" XDG_STATE_HOME="$work/state-kanban-lanes-$3"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  kanban_explicit_save
   "$bin" --vault "$1" --script "$2" --at "mark:$3+0.25" --scale 1 \
     ${4:+--snap "$out/screens/$4.png"} --tree "$out/trees/kanban-lanes-$3.json"
 }
@@ -3138,7 +3175,7 @@ step_x11_kanban_lanes() {
   {"t":2.6,"type":"mark","name":"open"}
 ]}
 JSON
-  export XDG_CONFIG_HOME="$work/config-kanban-lanes-x11-open"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  export XDG_CONFIG_HOME="$work/config-kanban-lanes-x11-open"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"; kanban_explicit_save
   "$bin" --vault "$v" --script "$m/steps.json" --at "mark:open+0.4" --scale 1 \
     --snap "$out/screens/kanban-lanes-headless-open.png" --tree "$t/kanban-lanes-x11-open.json" || return 1
   python3 "$harness" tree-mode "$t/kanban-lanes-x11-open.json" kanban || return 1
@@ -3158,6 +3195,7 @@ JSON
   echo "Xvfb on $DISPLAY"
   export XDG_CONFIG_HOME="$work/config-x11-kanban-lanes" XDG_STATE_HOME="$work/state-x11-kanban-lanes"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  kanban_explicit_save
   local settings="$XDG_CONFIG_HOME/muninn/settings.json"
   "$bin" --new-instance --vault "$v" >>"$out/logs/x11-kanban-lanes-app.log" 2>&1 &
   app_pid=$!
@@ -3208,6 +3246,7 @@ kanban_drag_run() { # kanban_drag_run VAULT SCRIPT MARK [SHOT]
   cp "$kanban_fixtures/drag-board.md" "$1/Board.md"
   export XDG_CONFIG_HOME="$work/config-kanban-drag-$3" XDG_STATE_HOME="$work/state-kanban-drag-$3"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  kanban_explicit_save
   "$bin" --vault "$1" --script "$2" --at "mark:$3+0.25" --scale 1 \
     ${4:+--snap "$out/screens/$4.png"} --tree "$out/trees/kanban-drag-$3.json"
 }
@@ -3399,7 +3438,7 @@ step_x11_kanban_drag() {
   {"t":2.6,"type":"mark","name":"open"}
 ]}
 JSON
-  export XDG_CONFIG_HOME="$work/config-kanban-drag-x11-open"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  export XDG_CONFIG_HOME="$work/config-kanban-drag-x11-open"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"; kanban_explicit_save
   "$bin" --vault "$v" --script "$m/steps.json" --at "mark:open+0.4" --scale 1 \
     --snap "$out/screens/kanban-drag-headless-open.png" --tree "$t/kanban-drag-x11-open.json" || return 1
   python3 "$harness" tree-mode "$t/kanban-drag-x11-open.json" kanban || return 1
@@ -3426,6 +3465,7 @@ JSON
   echo "Xvfb on $DISPLAY"
   export XDG_CONFIG_HOME="$work/config-x11-kanban-drag" XDG_STATE_HOME="$work/state-x11-kanban-drag"
   rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  kanban_explicit_save
   local settings="$XDG_CONFIG_HOME/muninn/settings.json"
   "$bin" --new-instance --vault "$v" >>"$out/logs/x11-kanban-drag-app.log" 2>&1 &
   app_pid=$!
@@ -3478,6 +3518,374 @@ JSON
   cmp "$v/Board.md" "$saved" || { echo "closing changed Board.md"; return 1; }
   echo "ok closing left the saved bytes"
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+# Slice 7: the kanban file follows the disk and nothing typed is lost. Every run
+# is on edit-board.md as Board.md, opened straight on the Kanban page from
+# settings; the expected bytes come from kanban_sync.py expect.
+kanban_sync_vault="$work/kanban-sync-vault"
+kanban_open='{"mode":"kanban","kanban":"Board.md"}'
+kanban_open_explicit='{"mode":"kanban","kanban":"Board.md","kanban_autosave":false}'
+ksync="$root/scripts/ui-smoke/kanban_sync.py"
+
+kanban_sync_run() { # kanban_sync_run NAME SCRIPT MARK SETTINGS: offscreen, state in $work/state-kanban-sync-NAME
+  export XDG_CONFIG_HOME="$work/config-kanban-sync-$1" XDG_STATE_HOME="$work/state-kanban-sync-$1"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME/muninn" "$XDG_STATE_HOME"
+  printf '%s\n' "$4" >"$XDG_CONFIG_HOME/muninn/settings.json"
+  "$bin" --vault "$kanban_sync_vault" --script "$2" --at "mark:$3+0.25" --scale 1 \
+    --tree "$out/trees/kanban-sync-$1.json"
+}
+
+kanban_sync_seed() { # kanban_sync_seed NAME COPY THEIRS: fresh state NAME with a recovery copy COPY of Board.md; THEIRS is Board.md's bytes or "gone"
+  rm -rf "$work/state-kanban-sync-$1"
+  rm -f "$kanban_sync_vault"/Board*.md
+  [ "$3" = gone ] || cp "$3" "$kanban_sync_vault/Board.md"
+  python3 "$ksync" seed-recovery "$2" "$kanban_sync_vault" "$work/state-kanban-sync-$1" Board.md
+}
+
+kanban_sync_expected() { # the bytes the slice 7 steps check, in $work/kanban-sync-expect
+  local e="$work/kanban-sync-expect" which
+  mkdir -p "$e"
+  cp "$kanban_fixtures/edit-board.md" "$e/original.md"
+  for which in mine theirs mine-theirs; do
+    python3 "$ksync" expect "$e/original.md" "$e/$which.md" "$which" || return 1
+  done
+}
+
+kanban_patience() { # tenths of a second to wait for the app's own frame (UI_SMOKE_SLOW scales it)
+  python3 -c "print(int(60 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1)))"
+}
+
+kanban_copy_of() { # kanban_copy_of VAULT: the one "Board (conflict …).md" beside Board.md
+  local n i
+  for i in $(seq "$(kanban_patience)"); do
+    n="$(find "$1" -maxdepth 1 -name 'Board (conflict *).md' | wc -l)"
+    [ "$n" = 1 ] && break
+    sleep 0.1
+  done
+  [ "$n" = 1 ] || { echo "want one conflict copy in $1, found $n" >&2; return 1; }
+  find "$1" -maxdepth 1 -name 'Board (conflict *).md'
+}
+
+kanban_wait_bytes() { # kanban_wait_bytes FILE EXPECTED: FILE holds EXPECTED's bytes (waiting for the app)
+  local i
+  for i in $(seq "$(kanban_patience)"); do
+    cmp -s "$1" "$2" && { echo "ok $(basename "$1") is $(basename "$2") byte for byte"; return 0; }
+    sleep 0.1
+  done
+  diff "$2" "$1"; return 1
+}
+
+step_headless_kanban_sync() {
+  isolate
+  kanban_gpu
+  local v="$kanban_sync_vault" t="$out/trees" m="$work/kanban-sync" e="$work/kanban-sync-expect"
+  rm -rf "$v" "$m"; mkdir -p "$v" "$m"
+  printf '# Roadmap\n\nThe plan the cards link to.\n' >"$v/Roadmap.md"
+  kanban_sync_expected || return 1
+  # 1. Autosave on (the default): nothing written while the edit rests, then the edit.
+  printf '{"events":[{"t":1.0,"type":"mark","name":"open"},{"t":1.2,"type":"tap","key":"kanban-card-1-0-mark"},{"t":1.4,"type":"mark","name":"typed"},{"t":4.0,"type":"mark","name":"autosaved"}]}' >"$m/edit.json"
+  local run
+  for run in open:open typed:typed autosaved:autosaved; do
+    cp "$e/original.md" "$v/Board.md"; rm -rf "$work/state-kanban-sync-${run%%:*}"
+    kanban_sync_run "${run%%:*}" "$m/edit.json" "${run#*:}" "$kanban_open" || return 1
+    python3 "$harness" tree-mode "$t/kanban-sync-${run%%:*}.json" kanban || return 1
+  done
+  python3 "$harness" tree-text "$t/kanban-sync-open.json" kanban-title Board || return 1
+  kanban_cards "$t/kanban-sync-autosaved.json" 1 "Done: Fix the sync bug" || return 1
+  python3 "$harness" tree-text "$t/kanban-sync-autosaved.json" kanban-status Saved || return 1
+  cmp "$v/Board.md" "$e/mine.md" || { diff "$e/mine.md" "$v/Board.md"; return 1; }
+  echo "ok autosaved: Board.md is the fixture with the card checked, byte for byte"
+  cp "$e/original.md" "$v/Board.md"
+  kanban_sync_run typed "$m/edit.json" typed "$kanban_open" || return 1
+  python3 "$harness" tree-text "$t/kanban-sync-typed.json" kanban-status Unsaved || return 1
+  cmp "$v/Board.md" "$e/original.md" || { echo "written before the edit rested"; return 1; }
+  echo "ok Board.md unchanged 0.45 s after the edit (autosave waits for it to rest)"
+  must_fail "Saved on the typed tree" python3 "$harness" tree-text "$t/kanban-sync-typed.json" kanban-status Saved || return 1
+  # 2. Autosave off: slice 4's explicit save, unchanged.
+  cp "$e/original.md" "$v/Board.md"; rm -rf "$work/state-kanban-sync-off"
+  kanban_sync_run off "$m/edit.json" autosaved "$kanban_open_explicit" || return 1
+  python3 "$harness" tree-text "$t/kanban-sync-off.json" kanban-status Unsaved || return 1
+  cmp "$v/Board.md" "$e/original.md" || { echo "autosaved with kanban_autosave off"; return 1; }
+  echo "ok kanban_autosave false: Board.md unchanged until Cmd+S"
+
+  # 3. A recovery copy (mine) offered on launch and restored on the Kanban page;
+  #    each choice of the conflict bar, from its own launch.
+  printf '{"events":[{"t":1.0,"type":"mark","name":"banner"},{"t":1.3,"type":"tap","key":"recovery-restore-0"},{"t":3.0,"type":"mark","name":"restored"},{"t":3.3,"type":"tap","key":"@CHOICE@"},{"t":4.2,"type":"mark","name":"done"}]}' >"$m/restore.json"
+  local choice
+  for choice in keep-mine save-copy load-theirs; do
+    sed "s/@CHOICE@/kanban-$choice/" "$m/restore.json" >"$m/restore-$choice.json"
+  done
+  # 3a. Over the file as it was (it differs from the copy): flagged Changed;
+  #     nothing written, autosave included; Keep mine writes the copy.
+  kanban_sync_seed banner "$e/mine.md" "$e/original.md" || return 1
+  kanban_sync_run banner "$m/restore-keep-mine.json" banner "$kanban_open" || return 1
+  python3 "$safety" text "$t/kanban-sync-banner.json" recovery-banner "Board.md" || return 1
+  kanban_sync_seed changed "$e/mine.md" "$e/original.md" || return 1
+  kanban_sync_run changed "$m/restore-keep-mine.json" restored "$kanban_open" || return 1
+  python3 "$harness" tree-mode "$t/kanban-sync-changed.json" kanban || return 1
+  python3 "$harness" tree-text "$t/kanban-sync-changed.json" kanban-conflict-text "Changed on disk" || return 1
+  python3 "$safety" text "$t/kanban-sync-changed.json" kanban-load-theirs "Load theirs" || return 1
+  python3 "$harness" tree-text "$t/kanban-sync-changed.json" kanban-status Unsaved || return 1
+  kanban_cards "$t/kanban-sync-changed.json" 1 "Done: Fix the sync bug" || return 1
+  no_key "$t/kanban-sync-changed.json" recovery-banner || return 1
+  cmp "$v/Board.md" "$e/original.md" || { echo "restoring wrote Board.md"; return 1; }
+  echo "ok restoring (and 1.7 s of autosave on) left Board.md as it was"
+  kanban_sync_seed kept "$e/mine.md" "$e/original.md" || return 1
+  kanban_sync_run kept "$m/restore-keep-mine.json" done "$kanban_open" || return 1
+  cmp "$v/Board.md" "$e/mine.md" || { diff "$e/mine.md" "$v/Board.md"; return 1; }
+  echo "ok Keep mine: Board.md is the recovered bytes"
+  python3 "$harness" tree-text "$t/kanban-sync-kept.json" kanban-status Saved || return 1
+  no_key "$t/kanban-sync-kept.json" kanban-conflict || return 1
+  python3 "$ksync" recovery "$work/state-kanban-sync-kept" Board.md gone || return 1
+  # 3b. Load theirs: the file stays, the copy goes.
+  kanban_sync_seed theirs "$e/mine.md" "$e/original.md" || return 1
+  kanban_sync_run theirs "$m/restore-load-theirs.json" done "$kanban_open" || return 1
+  cmp "$v/Board.md" "$e/original.md" || { echo "Load theirs changed their file"; return 1; }
+  kanban_cards "$t/kanban-sync-theirs.json" 1 "Open: Fix the sync bug" || return 1
+  no_key "$t/kanban-sync-theirs.json" kanban-conflict || return 1
+  python3 "$ksync" recovery "$work/state-kanban-sync-theirs" Board.md gone || return 1
+  echo "ok Load theirs: Board.md untouched, the page shows it, the copy is gone"
+  # 3c. The file is gone: flagged Removed; Save copy writes a new note beside it.
+  kanban_sync_seed missing "$e/mine.md" gone || return 1
+  kanban_sync_run missing "$m/restore-save-copy.json" restored "$kanban_open" || return 1
+  python3 "$harness" tree-text "$t/kanban-sync-missing.json" kanban-conflict-text "Removed or renamed" || return 1
+  python3 "$safety" text "$t/kanban-sync-missing.json" kanban-load-theirs Discard || return 1
+  [ ! -e "$v/Board.md" ] || { echo "restoring recreated Board.md"; return 1; }
+  kanban_sync_seed copied "$e/mine.md" gone || return 1
+  kanban_sync_run copied "$m/restore-save-copy.json" done "$kanban_open" || return 1
+  local copy
+  copy="$(kanban_copy_of "$v")" || return 1
+  cmp "$copy" "$e/mine.md" || { diff "$e/mine.md" "$copy"; return 1; }
+  [ ! -e "$v/Board.md" ] || { echo "Save copy wrote Board.md"; return 1; }
+  python3 "$harness" tree-text "$t/kanban-sync-copied.json" kanban-title "Board (conflict " || return 1
+  python3 "$ksync" recovery "$work/state-kanban-sync-copied" Board.md gone || return 1
+  echo "ok Save copy: $(basename "$copy") holds the recovered bytes; Board.md stays gone"
+  # 3d. Discard on the removed file: nothing written, the copy goes.
+  kanban_sync_seed discarded "$e/mine.md" gone || return 1
+  kanban_sync_run discarded "$m/restore-load-theirs.json" done "$kanban_open" || return 1
+  [ -z "$(find "$v" -maxdepth 1 -name 'Board*.md')" ] || { echo "Discard wrote a file"; return 1; }
+  python3 "$ksync" recovery "$work/state-kanban-sync-discarded" Board.md gone || return 1
+  echo "ok Discard: no file written, the copy is gone"
+  must_fail "the fixture as the kept bytes" cmp -s "$e/original.md" "$e/mine.md" || return 1
+  cp "$e/original.md" "$v/Board.md"
+}
+
+kanban_x11_up() { # kanban_x11_up NAME SETTINGS: Xvfb (once) and the app on $kanban_sync_vault; sets wid
+  if [ -z "${xvfb_pid:-}" ]; then
+    local n i
+    n="$(pick_display)" || return 1
+    Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-sync-$1.log" 2>&1 &
+    xvfb_pid=$!
+    for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+    export DISPLAY=":$n"
+    echo "Xvfb on $DISPLAY"
+  fi
+  export XDG_CONFIG_HOME="$work/config-x11-kanban-sync-$1"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME/muninn" "$XDG_STATE_HOME"
+  printf '%s\n' "$2" >"$XDG_CONFIG_HOME/muninn/settings.json"
+  "$bin" --new-instance --vault "$kanban_sync_vault" >>"$out/logs/x11-kanban-sync-$1-app.log" 2>&1 &
+  app_pid=$!
+  echo "app pid $app_pid (started by this step)"
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  sleep 2
+}
+
+kanban_x11_close() { # close through WM_DELETE_WINDOW; the app must exit 0
+  python3 "$harness" x11-close "$wid" || return 1
+  local status=124 i
+  for i in $(seq 150); do
+    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+    sleep 0.1
+  done
+  [ "$status" = 124 ] || app_pid=
+  echo "app exit status: $status"
+  [ "$status" = 0 ]
+}
+
+kanban_sync_points() { # the click points, from the headless_kanban_sync trees (same 1180x780 window)
+  local t="$out/trees"
+  [ -f "$t/kanban-sync-open.json" ] && [ -f "$t/kanban-sync-changed.json" ] && [ -f "$t/kanban-sync-missing.json" ] ||
+    { echo "run headless_kanban_sync first"; return 1; }
+  # The restored page is laid out as the opened one (the banner is gone).
+  [ "$(python3 "$harness" tree-center "$t/kanban-sync-open.json" kanban-title)" = \
+    "$(python3 "$harness" tree-center "$t/kanban-sync-changed.json" kanban-title)" ] ||
+    { echo "the restored page is not laid out as the opened one"; return 1; }
+  mark_xy="$(python3 "$harness" tree-center "$t/kanban-sync-open.json" kanban-card-1-0-mark)" &&
+    keep_xy="$(python3 "$harness" tree-center "$t/kanban-sync-changed.json" kanban-keep-mine)" &&
+    copy_xy="$(python3 "$harness" tree-center "$t/kanban-sync-changed.json" kanban-save-copy)" &&
+    theirs_xy="$(python3 "$harness" tree-center "$t/kanban-sync-changed.json" kanban-load-theirs)" &&
+    gone_copy_xy="$(python3 "$harness" tree-center "$t/kanban-sync-missing.json" kanban-save-copy)" &&
+    restore_xy="$(python3 "$harness" tree-center "$t/kanban-sync-banner.json" recovery-restore-0)"
+}
+
+kanban_x11_gpu() {
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd" WGPU_BACKEND=vulkan
+  echo "vulkan icd: $icd"
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  return 0
+}
+
+step_x11_kanban_sync() {
+  isolate
+  kanban_x11_gpu || return 1
+  local v="$kanban_sync_vault" e="$work/kanban-sync-expect" mark_xy keep_xy copy_xy theirs_xy gone_copy_xy restore_xy wid
+  kanban_sync_points || return 1
+  kanban_sync_expected || return 1
+  rm -f "$v"/Board*.md; cp "$e/original.md" "$v/Board.md"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  export XDG_STATE_HOME="$work/state-x11-kanban-sync"; rm -rf "$XDG_STATE_HOME"
+  local pause settle
+  pause="$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  settle="$(python3 -c "print(3.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  # Autosave off, so an edit stays unsaved while another app writes the file.
+  kanban_x11_up sync "$kanban_open_explicit" || return 1
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" kanban || return 1
+  # 1. Clean, another app writes Board.md in place: the page reloads it. Checking
+  #    the card and Ctrl+S then writes theirs plus mine (the page held theirs).
+  cp "$e/theirs.md" "$v/Board.md"
+  sleep "$settle"
+  python3 "$ksync" log "$XDG_STATE_HOME" "reloaded the shown kanban" || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep 0.5 || return 1
+  cmp "$v/Board.md" "$e/theirs.md" || { echo "written before Ctrl+S"; return 1; }
+  python3 "$harness" x11-chord "$wid" ctrl+s && sleep "$pause" || return 1
+  kanban_wait_bytes "$v/Board.md" "$e/mine-theirs.md" || return 1
+  echo "ok external write while clean: reloaded; the next save is theirs + mine byte for byte"
+  # 2. Clean, another app saves atomically (temp file renamed over Board.md):
+  #    followed; checking the card on the original and Ctrl+S writes mine.
+  python3 "$ksync" atomic "$e/original.md" "$v/Board.md" || return 1
+  sleep "$settle"
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+s && sleep "$pause" || return 1
+  kanban_wait_bytes "$v/Board.md" "$e/mine.md" || return 1
+  echo "ok atomic-rename save while clean: followed; the next save is mine byte for byte"
+  # 3. Dirty (the card unchecked again), another app saves theirs atomically:
+  #    the conflict bar; Ctrl+S is refused; nothing is written.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep 0.5 || return 1
+  python3 "$ksync" atomic "$e/theirs.md" "$v/Board.md" || return 1
+  sleep "$settle"
+  import -window "$wid" "$out/screens/kanban-conflict-bar.png" || return 1
+  python3 "$ksync" log "$XDG_STATE_HOME" "shown kanban changed on disk; kept unsaved" || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+s && sleep "$pause" || return 1
+  cmp "$v/Board.md" "$e/theirs.md" || { echo "a save went over their file"; return 1; }
+  echo "ok external write while dirty: flagged, Ctrl+S refused, their bytes kept"
+  #    Load theirs: the edit is dropped for their file; checking the card and
+  #    Ctrl+S writes theirs + mine.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $theirs_xy && sleep "$pause" || return 1
+  cmp "$v/Board.md" "$e/theirs.md" || { echo "Load theirs wrote"; return 1; }
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+s && sleep "$pause" || return 1
+  kanban_wait_bytes "$v/Board.md" "$e/mine-theirs.md" || return 1
+  echo "ok Load theirs: the page took their bytes (the next save is theirs + mine)"
+  # 4. Dirty (unchecked: the page holds theirs), another app writes the
+  #    original: Keep mine writes the page's bytes over it.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep 0.5 || return 1
+  python3 "$ksync" atomic "$e/original.md" "$v/Board.md" || return 1
+  sleep "$settle"
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $keep_xy && sleep "$pause" || return 1
+  kanban_wait_bytes "$v/Board.md" "$e/theirs.md" || return 1
+  echo "ok Keep mine: the page's bytes over the other app's"
+  # 5. Dirty (checked: theirs + mine), another app writes the original: Save
+  #    copy writes the page to a new note beside it; Board.md keeps theirs.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep 0.5 || return 1
+  python3 "$ksync" atomic "$e/original.md" "$v/Board.md" || return 1
+  sleep "$settle"
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $copy_xy && sleep "$pause" || return 1
+  local copy
+  copy="$(kanban_copy_of "$v")" || return 1
+  kanban_wait_bytes "$copy" "$e/mine-theirs.md" || return 1
+  cmp "$v/Board.md" "$e/original.md" || { echo "Save copy wrote Board.md"; return 1; }
+  echo "ok Save copy: $(basename "$copy") holds the page's bytes; Board.md is the other app's"
+  kanban_x11_close || return 1
+  cmp "$copy" "$e/mine-theirs.md" && cmp "$v/Board.md" "$e/original.md" || { echo "closing wrote a file"; return 1; }
+  echo "ok closing left both files as they were"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+  rm -f "$v"/Board*.md; cp "$e/original.md" "$v/Board.md"
+}
+
+step_x11_kanban_safety() {
+  isolate
+  kanban_x11_gpu || return 1
+  local v="$kanban_sync_vault" e="$work/kanban-sync-expect" mark_xy keep_xy copy_xy theirs_xy gone_copy_xy restore_xy wid
+  kanban_sync_points || return 1
+  kanban_sync_expected || return 1
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local pause settle copy
+  pause="$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  settle="$(python3 -c "print(3.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  # 1. Dirty, another app deletes Board.md: the bar (Removed, Save copy,
+  #    Discard), nothing recreated; Save copy writes the edits beside it.
+  rm -f "$v"/Board*.md; cp "$e/original.md" "$v/Board.md"
+  export XDG_STATE_HOME="$work/state-x11-kanban-deleted"; rm -rf "$XDG_STATE_HOME"
+  kanban_x11_up deleted "$kanban_open_explicit" || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep 0.5 || return 1
+  rm "$v/Board.md"
+  sleep "$settle"
+  [ ! -e "$v/Board.md" ] || { echo "Board.md recreated unasked"; return 1; }
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $gone_copy_xy && sleep "$pause" || return 1
+  copy="$(kanban_copy_of "$v")" || return 1
+  kanban_wait_bytes "$copy" "$e/mine.md" || return 1
+  [ ! -e "$v/Board.md" ] || { echo "Save copy wrote Board.md"; return 1; }
+  echo "ok external delete while dirty: Save copy wrote $(basename "$copy") with the edits"
+  kanban_x11_close || return 1
+  # 2. Dirty and deleted again, then the window is closed: the quit is not
+  #    blocked; the edits are in the recovery copy.
+  rm -f "$v"/Board*.md; cp "$e/original.md" "$v/Board.md"
+  export XDG_STATE_HOME="$work/state-x11-kanban-quit"; rm -rf "$XDG_STATE_HOME"
+  kanban_x11_up quit "$kanban_open_explicit" || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep 0.5 || return 1
+  rm "$v/Board.md"
+  sleep "$settle"
+  kanban_x11_close || { echo "the quit was blocked with the file gone"; return 1; }
+  python3 "$ksync" recovery "$XDG_STATE_HOME" Board.md "$e/mine.md" || return 1
+  [ ! -e "$v/Board.md" ] || { echo "quitting recreated Board.md"; return 1; }
+  echo "ok closing with the file gone quits (exit 0) and keeps the edits in the recovery copy"
+  # 3. A crash: the edit rests (recovery tick), then this step's own app is
+  #    killed with SIGKILL. The relaunch offers the copy; Restore shows it
+  #    flagged (Board.md still holds the original); Keep mine writes it.
+  rm -f "$v"/Board*.md; cp "$e/original.md" "$v/Board.md"
+  export XDG_STATE_HOME="$work/state-x11-kanban-crash"; rm -rf "$XDG_STATE_HOME"
+  kanban_x11_up crash "$kanban_open_explicit" || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $mark_xy && sleep "$pause" || return 1
+  python3 "$ksync" recovery "$XDG_STATE_HOME" Board.md "$e/mine.md" || return 1
+  local child="$app_pid"
+  kill -0 "$child" || { echo "the app (pid $child) is not running"; return 1; }
+  echo "kill -9 $child (the app this step started)"
+  kill -9 "$child"; wait "$child" 2>/dev/null; app_pid=
+  cmp "$v/Board.md" "$e/original.md" || { echo "Board.md changed before the crash"; return 1; }
+  kanban_x11_up crash-relaunch "$kanban_open_explicit" || return 1
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $restore_xy && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-recovered.png" || return 1
+  python3 "$ksync" log "$XDG_STATE_HOME" "restored kanban Board.md" || return 1
+  cmp "$v/Board.md" "$e/original.md" || { echo "restoring wrote Board.md"; return 1; }
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $keep_xy && sleep "$pause" || return 1
+  kanban_wait_bytes "$v/Board.md" "$e/mine.md" || return 1
+  python3 "$ksync" recovery "$XDG_STATE_HOME" Board.md gone || return 1
+  echo "ok recovered after SIGKILL: Keep mine wrote the edit; the copy is gone"
+  kanban_x11_close || return 1
+  cmp "$v/Board.md" "$e/mine.md" || { echo "closing changed Board.md"; return 1; }
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+  rm -f "$v"/Board*.md; cp "$e/original.md" "$v/Board.md"
 }
 
 failed=0

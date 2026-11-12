@@ -43,6 +43,7 @@ use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
 
 use crate::board_view::{BoardStatus, UNSAVED, placeholder};
+use crate::doc_sync::{DocConflict, conflict_bar, disk_conflict, file_state};
 use crate::kanban_drag::Dragged;
 use crate::kanban_edit::{CardCommit, CardSlot, KanbanHistory};
 use crate::kanban_lanes::{LaneField, lane_field};
@@ -74,6 +75,15 @@ pub struct ShownKanban {
     pub history: KanbanHistory,
     /// Why the last card action was refused, until the next one works.
     pub error: Option<String>,
+    /// Slice 7: set while the kanban has unsaved edits and its file changed
+    /// or vanished; the conflict bar decides.
+    pub conflict: Option<DocConflict>,
+    /// Bumped on every edit, undo and redo, so autosave and the recovery
+    /// copy wait for the edits to rest.
+    pub(crate) generation: u64,
+    /// What the recovery copy holds, when one was written: the change count
+    /// and the open field's text at the time.
+    pub(crate) recovered: Option<(u64, Option<String>)>,
 }
 
 impl ShownKanban {
@@ -87,11 +97,26 @@ impl ShownKanban {
 
     /// After an edit, undo or redo.
     pub(crate) fn mark_changed(&mut self) {
+        self.generation += 1;
         self.status = if self.dirty() {
             BoardStatus::Unsaved
         } else {
             BoardStatus::Clean
         };
+    }
+
+    /// Slice 7: compare the file at `path` with the text last read or
+    /// written, and flag the unsaved edits when it changed or vanished
+    /// (cleared when it holds that text again). With no known file state (a
+    /// kanban restored from its recovery copy over a file that holds
+    /// something else) it stays flagged, so only Keep mine writes over it.
+    pub(crate) fn check_disk(&mut self, path: &Path) {
+        let (known, saved) = (self.disk.is_some(), &self.saved);
+        self.conflict = disk_conflict(path, |text| known && text == saved, self.conflict);
+        if self.conflict.is_none() {
+            // Their write put back the same bytes, or only touched the file.
+            self.disk = file_state(path);
+        }
     }
 }
 
@@ -114,9 +139,18 @@ impl State {
                         .note_id(rel)
                         .is_some_and(|id| self.vault.notes[id].is_kanban())
             });
-            if !other || !self.save_kanban() {
+            if !other {
+                // Slice 7: the same rule as the kanban watcher's.
+                self.kanban_follow_disk();
                 return;
             }
+            if !self.save_kanban() {
+                return;
+            }
+        }
+        // Slice 7: a kanban renamed outside Muninn is followed to its new name.
+        if let Some(rel) = self.kanban_renamed() {
+            self.kanban_rel = Some(rel);
         }
         let shown = selected
             .and_then(|rel| self.read_kanban(rel))
@@ -124,19 +158,50 @@ impl State {
         if let Some(shown) = &shown {
             self.kanban_rel = Some(shown.rel.clone());
         }
-        if self.kanban.as_ref().map(|k| &k.rel) != shown.as_ref().map(|k| &k.rel) {
+        // Slice 7: the same kanban with the same text keeps the page as it
+        // is (its undo history and save state); only the file's identity is
+        // taken.
+        if let (Some(old), Some(new)) = (&mut self.kanban, &shown)
+            && old.rel == new.rel
+            && old.saved == new.saved
+            && !new.dirty()
+        {
+            old.disk = new.disk;
+            old.conflict = None;
+            return;
+        }
+        let same_rel = self.kanban.as_ref().map(|k| &k.rel) == shown.as_ref().map(|k| &k.rel);
+        if !same_rel {
             self.kanban_selected = None;
         }
+        let reloaded = same_rel && shown.is_some();
         self.kanban = shown;
+        // Slice 6: replacing the board ends a press held on a card or lane.
         self.kanban_drag = None;
+        self.prune_kanban_selection();
+        if reloaded {
+            self.log_event("watch", "reloaded the shown kanban");
+        }
     }
 
     /// `rel` read from disk, when it is a note in this vault and a kanban.
-    fn read_kanban(&self, rel: String) -> Option<ShownKanban> {
+    ///
+    /// Slice 7, the Write hand-off: when `rel` is the note open in Write and
+    /// its text there could not be saved, the kanban takes that text as
+    /// unsaved edits (the editor gives it up), so nothing typed is dropped.
+    pub(crate) fn read_kanban(&mut self, rel: String) -> Option<ShownKanban> {
         let note = self.vault.notes.iter().find(|note| note.rel == rel)?;
+        let id = note.id;
         let source = fs::read_to_string(&note.path).ok()?;
-        let disk = self.vault.disk_state(note.id).ok();
-        is_kanban(&source).then(|| ShownKanban {
+        let disk = self.vault.disk_state(id).ok();
+        let typed = (self.selected == Some(id) && self.editor.text != self.saved)
+            .then(|| Kanban::parse(&self.editor.text).ok())
+            .flatten()
+            .filter(|board| is_kanban(board.source()));
+        if !is_kanban(&source) && typed.is_none() {
+            return None;
+        }
+        let mut shown = ShownKanban {
             board: Kanban::parse(&source).ok(),
             rel,
             saved: source,
@@ -144,7 +209,20 @@ impl State {
             status: BoardStatus::Clean,
             history: KanbanHistory::default(),
             error: None,
-        })
+            conflict: None,
+            generation: 0,
+            recovered: None,
+        };
+        if let Some(board) = typed {
+            shown.board = Some(board);
+            shown.saved = self.saved.clone();
+            shown.disk = self.expected_disk;
+            shown.mark_changed();
+            self.give_editor_text_to_kanban();
+            let detail = format!("took the text typed in Write for {}", shown.rel);
+            self.log_event("kanban", &detail);
+        }
+        Some(shown)
     }
 
     /// Open note `id` on the Kanban page (the sidebar's Kanbans section, a
@@ -222,6 +300,8 @@ impl State {
         self.cancel_lane_edit();
         self.kanban_selected = None;
         self.kanban_drag = None;
+        self.kanban_autosave_wait = None;
+        self.kanban_recovery_wait = None;
     }
 
     /// A card's menu (its `⋯`, or a right-click on it), drawn under the card.
@@ -247,7 +327,10 @@ impl State {
         });
     }
 
-    /// Open as markdown: the shown note in Write.
+    /// Open as markdown: the shown note in Write. Slice 7: unsaved kanban
+    /// edits are saved first, so Write shows them and typing there can't
+    /// make a later kanban save refuse; when that save is refused the page
+    /// stays, with the reason and the conflict bar.
     pub fn open_kanban_as_markdown(&mut self) {
         let Some(id) = self
             .kanban
@@ -256,6 +339,9 @@ impl State {
         else {
             return;
         };
+        if !self.save_kanban() {
+            return;
+        }
         self.set_mode(Mode::Editor);
         self.load_note(id, true);
     }
@@ -388,6 +474,19 @@ fn header(s: &State, k: &Kit) -> El {
             .grow(1.0)
             .truncate(),
     )
+    .child(match shown.conflict {
+        Some(conflict) => conflict_bar(
+            k,
+            "kanban",
+            conflict,
+            [
+                State::kanban_keep_mine,
+                State::kanban_save_copy,
+                State::kanban_discard,
+            ],
+        ),
+        None => el(),
+    })
     .child(header_button(
         k,
         "kanban-open-markdown",

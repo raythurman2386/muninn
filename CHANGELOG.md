@@ -60,6 +60,23 @@ All notable changes to Muninn are documented here. The format is based on
   Each drop is one undo step, saved by `⌘S`. Without a mouse, a lane's menu
   has **Move lane left / right**, and `Alt+Shift+←/→` moves the selected
   card's lane.
+- **Kanban autosave, sync and recovery.** Kanban edits now save on their own
+  once they rest, with Board's delay (`"kanban_autosave": false` in
+  `settings.json` keeps saving to `⌘S`). The page follows its file: a change
+  made by another app (an atomic save included) is reloaded when there are
+  no unsaved edits, keeping the selected card; with unsaved edits the header
+  shows **Keep mine**, **Save copy** (a new `Name (conflict …).md` beside it)
+  and **Load theirs**, or **Discard** when the file was removed; a rename is
+  followed. Unsaved edits are kept in a recovery copy and offered on the next
+  launch after a crash. Quitting saves them, else keeps that copy, and only
+  refuses (with Save copy offered) when neither works. **Open as markdown**
+  saves first, and text typed in Write that could not be saved comes back to
+  the Kanban page as unsaved edits. Board and Kanban share one disk rule.
+
+### Fixed
+
+- A card moved into an empty lane whose heading is followed by plain text now
+  goes after that text instead of above it.
 
 ## [0.7.1] - 2026-11-11
 
