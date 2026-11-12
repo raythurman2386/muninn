@@ -21,11 +21,14 @@ A provenance line inside a `.md` fixture would sit in front of the frontmatter a
 | `card-text.md` | Hand-written from `docs/kanban-format.md`: wikilinks, an embed, dates, a time, a tag and an inline field. |
 | `crlf.md` | Hand-written from `docs/kanban-format.md`: CRLF line endings. |
 | `done-lane.md` | Hand-written from `docs/kanban-format.md`: a done lane. |
+| `fence-column0-card.md` | Hand-written from `docs/kanban-format.md`: an indented fence still open when a column-0 fence line appears. |
 | `fence-longer-close.md` | Hand-written from `docs/kanban-format.md`: a fence closed by a longer run of the same mark, then another lane. |
 | `fence-opaque.md` | Hand-written from `docs/kanban-format.md`: fenced code that looks like lanes, cards and a settings footer. |
 | `fence-unclosed.md` | Hand-written from `docs/kanban-format.md`: a column-0 fence that never closes. |
 | `footer-nested.md` | Hand-written from `docs/kanban-format.md`: a settings object with nested objects and an array of objects. |
 | `frontmatter-extra.md` | Hand-written from `docs/kanban-format.md`: extra frontmatter keys and a quoted `kanban-plugin` value. |
+| `indent-deep-line.md` | Hand-written from `docs/kanban-format.md`: one continuation line indented by more than two spaces. |
+| `indent-mixed.md` | Hand-written from `docs/kanban-format.md`: continuation lines that mix a tab indent and a two-space indent. |
 | `lanes-and-limits.md` | Hand-written from `docs/kanban-format.md`: several lanes, including limits and a written `(0)`. |
 | `multibyte.md` | Hand-written from `docs/kanban-format.md`: multibyte lane and card text. |
 | `multiline-cards.md` | Hand-written from `docs/kanban-format.md`: a multi-line card and a nested checklist. |
@@ -35,3 +38,4 @@ A provenance line inside a `.md` fixture would sit in front of the frontmatter a
 | `plain-list.md` | Hand-written from `docs/kanban-format.md`: list items with no checkbox. |
 | `settings-footer.md` | Hand-written from `docs/kanban-format.md`: a settings footer with several keys. |
 | `spec-example.md` | Hand-written from `docs/kanban-format.md`: the complete example in the spec. |
+| `task-open-fence.md` | Hand-written from `docs/kanban-format.md`: a column-0 task while an indented fence is still open, then another lane. |

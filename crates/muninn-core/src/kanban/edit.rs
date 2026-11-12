@@ -30,11 +30,15 @@ impl Kanban {
     /// stay. Continuation lines are indented like the rest of the file.
     pub fn edit_card(&mut self, lane: usize, index: usize, text: &str) -> io::Result<()> {
         let card = self.card(lane, index)?;
+        let text = text.replace('\r', "");
+        if text == card.text {
+            return Ok(());
+        }
         let indent = card
             .indent
             .clone()
             .unwrap_or_else(|| self.continuation_indent());
-        let block = render_card(self.nl, card.mark, text, card.block_id.as_deref(), &indent);
+        let block = render_card(self.nl, card.mark, &text, card.block_id.as_deref(), &indent);
         let span = card.span.clone();
         let block = keep_open_ending(&self.source, span.end, block, self.nl);
         self.commit(splice(&self.source, span, &block))
@@ -255,7 +259,12 @@ impl Kanban {
             .iter()
             .flat_map(|lane| lane.cards.iter())
             .chain(self.archive.iter().flat_map(|archive| archive.cards.iter()))
-            .find_map(|card| card.indent.clone());
+            .find_map(|card| {
+                card.indent
+                    .as_ref()
+                    .filter(|indent| !indent.is_empty())
+                    .cloned()
+            });
         found.unwrap_or_else(|| "  ".to_owned())
     }
 }
