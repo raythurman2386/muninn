@@ -205,6 +205,32 @@
 #                   lavapipe: click Release, Ctrl+5, screenshot kanban-x11.png (matches
 #                   the headless kanban-readonly.png), settings.json says kanban,
 #                   close through WM_DELETE_WINDOW (exit 0), files unchanged
+#   headless_new_kanban  Kanban slice 3, offscreen, on its own vault $work/kanban-new-vault
+#                   (Agenda, an empty Blank, Plans/Notes, someone's Plans/Untitled Kanban.md
+#                   and Release from lanes-and-limits). New Kanban from the palette twice:
+#                   Untitled Kanban.md, then Untitled Kanban 2.md, each byte-identical to
+#                   the spec's New-file layout (fixture new-kanban.md) and open in Kanban
+#                   (kanban-new.png); with Plans/Notes selected the existing
+#                   Plans/Untitled Kanban.md is kept (sha256) and Plans/Untitled Kanban 2.md
+#                   is made; Convert empty note to Kanban is offered on Blank and writes
+#                   the layout, and on Agenda (text) is not offered and Enter changes
+#                   nothing; the Kanbans section lists all five in path order
+#                   (kanban-sidebar.png), five notes-list rows carry the glyph, and the
+#                   palette has New Kanban and each kanban by name. The outside-the-vault
+#                   folder refusal is the core guard's tests (the scan never follows a
+#                   symlink, so the UI can't pick such a folder). Pre-existing files'
+#                   sha256 unchanged, no temp file left.
+#   x11_new_kanban  windowed (`--new-instance`) on the private Xvfb with lavapipe: Ctrl+Shift+P,
+#                   "new kanban", Enter: Untitled Kanban.md is the layout, settings.json
+#                   says kanban / Untitled Kanban.md, the session log says created
+#                   (kanban-new-x11.png), close through WM_DELETE_WINDOW (exit 0)
+#   x11_kanban_open  windowed (`--new-instance`): click Release in the notes list (Write, with
+#                   Open as kanban: kanban-open-button.png), click Open as kanban (Kanban on
+#                   Release), Open as markdown (Write on Release: kanban-as-markdown.png),
+#                   each shot matched against a headless run of the same clicks; then
+#                   Ctrl+K, Ctrl+Shift+P, "overloaded", Down, Enter opens the Overloaded
+#                   kanban in Kanban mode, and Esc leaves it (the page had the keyboard,
+#                   not the search field). Every file's sha256 unchanged, exit 0
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -223,7 +249,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -2318,6 +2344,334 @@ PY
   echo "app exit status: $status"
   [ "$status" = 0 ] || return 1
   kanban_view_unchanged "the windowed app"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+# Kanban slice 3: New Kanban, Convert, the Kanbans section and the palette's kanbans,
+# on their own vault (slice 1 uses $work/kanban-vault, slice 2 $work/kanban-view-vault).
+kanban_new_vault="$work/kanban-new-vault"
+
+seed_kanban_new_vault() {
+  rm -rf "$kanban_new_vault"
+  mkdir -p "$kanban_new_vault/Plans"
+  printf '# Agenda\n\nA plain note.\n' >"$kanban_new_vault/Agenda.md"
+  : >"$kanban_new_vault/Blank.md"
+  printf '# Notes\n\nPlanning notes.\n' >"$kanban_new_vault/Plans/Notes.md"
+  printf '# Mine\n\nSomeone else'"'"'s note. It stays as it is.\n' >"$kanban_new_vault/Plans/Untitled Kanban.md"
+  cp "$kanban_fixtures/lanes-and-limits.md" "$kanban_new_vault/Release.md"
+  (cd "$kanban_new_vault" && sha256sum Agenda.md Release.md Plans/Notes.md "Plans/Untitled Kanban.md") >"$work/kanban-new.sha256"
+}
+
+kanban_new_run() { # kanban_new_run NAME SCRIPT MARK: a fresh launch on the slice 3 vault, to MARK
+  export XDG_CONFIG_HOME="$work/config-kanban-new-$1" XDG_STATE_HOME="$work/state-kanban-new-$1"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --vault "$kanban_new_vault" --script "$2" --at "mark:$3+0.4" --scale 1 \
+    --snap "$out/screens/kanban-new-$1.png" --tree "$out/trees/kanban-new-$1.json"
+}
+
+palette_script() { # palette_script FILE QUERY [TAP]: tap TAP (a note row), Ctrl+Shift+P, type QUERY, mark "typed", Enter, mark "done"
+  local tap=""
+  [ -n "${3:-}" ] && tap="{\"t\":0.6,\"type\":\"tap\",\"key\":\"$3\"},"
+  printf '{"events":[%s{"t":1.2,"type":"key","name":"p","cmd":true,"shift":true},{"t":1.6,"type":"type","text":"%s"},{"t":2.2,"type":"mark","name":"typed"},{"t":2.6,"type":"key","name":"Enter"},{"t":3.4,"type":"mark","name":"done"}]}' \
+    "$tap" "$2" >"$1"
+}
+
+same_as_layout() { # same_as_layout FILE: byte-identical to the spec's New-file layout
+  cmp "$1" "$kanban_fixtures/new-kanban.md" || { echo "$1 is not the New Kanban layout"; return 1; }
+  echo "ok $1 is the New Kanban layout byte for byte"
+}
+
+step_headless_new_kanban() {
+  isolate
+  kanban_gpu
+  seed_kanban_new_vault
+  local t="$out/trees" m="$work/kanban-new"
+  mkdir -p "$m"
+  printf '{"events":[{"t":0.8,"type":"mark","name":"list"}]}' >"$m/list.json"
+  kanban_new_run list "$m/list.json" list || return 1
+  local agenda blank notes
+  read -r agenda blank notes <<<"$(kanban_row_ids "$t/kanban-new-list.json" Agenda Blank Notes)"
+  [ -n "$notes" ] || { echo "missing note rows"; return 1; }
+  echo "rows: Agenda $agenda, Blank $blank, Notes $notes"
+  # 1. New Kanban twice from the palette (Agenda, at the root, is selected at launch).
+  palette_script "$m/new.json" "new kanban"
+  kanban_new_run first "$m/new.json" done || return 1
+  same_as_layout "$kanban_new_vault/Untitled Kanban.md" || return 1
+  python3 "$harness" tree-mode "$t/kanban-new-first.json" kanban || return 1
+  python3 "$harness" tree-text "$t/kanban-new-first.json" kanban-title "Untitled Kanban" || return 1
+  python3 "$harness" tree-text "$t/kanban-new-first.json" kanban-lane-2-title "Done" || return 1
+  cp "$out/screens/kanban-new-first.png" "$out/screens/kanban-new.png"
+  kanban_new_run second "$m/new.json" done || return 1
+  same_as_layout "$kanban_new_vault/Untitled Kanban 2.md" || return 1
+  python3 "$harness" tree-text "$t/kanban-new-second.json" kanban-title "Untitled Kanban 2" || return 1
+  [ ! -e "$kanban_new_vault/Untitled Kanban 3.md" ] || { echo "a third file appeared"; return 1; }
+  # 2. In Plans, where "Untitled Kanban.md" is someone's note: it is kept, the next name is used.
+  palette_script "$m/plans.json" "new kanban" "$notes"
+  kanban_new_run plans "$m/plans.json" done || return 1
+  same_as_layout "$kanban_new_vault/Plans/Untitled Kanban 2.md" || return 1
+  python3 "$harness" tree-text "$t/kanban-new-plans.json" kanban-detail "Plans/Untitled Kanban 2.md" || return 1
+  # 3. Convert empty note to Kanban on Blank (empty): offered, writes the layout, opens it.
+  palette_script "$m/convert.json" "convert" "$blank"
+  # A run keeps replaying its script after the shot, so the look at the list runs
+  # the same script without its Enter.
+  sed 's/,{"t":2.6,"type":"key","name":"Enter"}//' "$m/convert.json" >"$m/convert-look.json"
+  kanban_new_run convert-offered "$m/convert-look.json" typed || return 1
+  python3 "$harness" tree-text "$t/kanban-new-convert-offered.json" palette-item-0 "Convert empty note to Kanban" || return 1
+  [ ! -s "$kanban_new_vault/Blank.md" ] || { echo "Blank changed without Enter"; return 1; }
+  kanban_new_run convert "$m/convert.json" done || return 1
+  same_as_layout "$kanban_new_vault/Blank.md" || return 1
+  python3 "$harness" tree-mode "$t/kanban-new-convert.json" kanban || return 1
+  python3 "$harness" tree-text "$t/kanban-new-convert.json" kanban-title "Blank" || return 1
+  # 4. On Agenda (has text) Convert is not offered, and Enter changes nothing.
+  palette_script "$m/refuse.json" "convert" "$agenda"
+  kanban_new_run refuse-typed "$m/refuse.json" typed || return 1
+  kanban_new_run refuse "$m/refuse.json" done || return 1
+  no_key "$t/kanban-new-refuse-typed.json" palette-item-0 || return 1
+  python3 -c 'import json,sys; t=json.dumps(json.load(open(sys.argv[1]))); assert "\"0 results\"" in t, "palette is not empty"; print("ok the palette shows 0 results for convert on Agenda")' \
+    "$t/kanban-new-refuse-typed.json" || return 1
+  python3 "$harness" tree-mode "$t/kanban-new-refuse.json" editor || return 1
+  # 5. The Kanbans section and the palette list every kanban by name.
+  printf '{"events":[{"t":0.8,"type":"mark","name":"sidebar"},{"t":1.2,"type":"key","name":"p","cmd":true,"shift":true},{"t":1.8,"type":"mark","name":"palette"}]}' >"$m/lists.json"
+  kanban_new_run sidebar "$m/lists.json" sidebar || return 1
+  kanban_new_run palette "$m/lists.json" palette || return 1
+  cp "$out/screens/kanban-new-sidebar.png" "$out/screens/kanban-sidebar.png"
+  python3 - "$t/kanban-new-sidebar.json" "$t/kanban-new-palette.json" <<'PY' || return 1
+import json, sys
+
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from walk(value)
+
+# The index's path order, case-folded: "untitled kanban 2.md" sorts before
+# "untitled kanban.md" (a space before a dot), Plans/ before Release.
+want = ["Blank", "Untitled Kanban 2", "Release", "Untitled Kanban 2", "Untitled Kanban"]
+nodes = list(walk(json.load(open(sys.argv[1])).get("elements", [])))
+got = [n.get("text") for n in nodes if str(n.get("key") or "").startswith("sidebar-kanban-title-")]
+print("Kanbans section:", got)
+if got != want:
+    raise SystemExit(f"FAIL Kanbans section {got}, expected {want} (index path order)")
+if not any(n.get("key") == "sidebar-kanbans" for n in nodes):
+    raise SystemExit("FAIL no sidebar-kanbans")
+glyphs = sorted(n["key"] for n in nodes if str(n.get("key") or "").endswith("-kanban") and str(n["key"]).startswith("note-row-"))
+if len(glyphs) != 5:
+    raise SystemExit(f"FAIL {len(glyphs)} notes-list kanban glyphs, expected 5: {glyphs}")
+print("ok five notes-list rows carry the kanban glyph")
+# The tree is flat, in draw order: a palette row belongs to the section header
+# drawn before it, and its label is the row's title.
+section, rows = None, []
+for n in json.load(open(sys.argv[2])).get("elements", []):
+    key = str(n.get("key") or "")
+    if key.startswith("palette-section-"):
+        section = key.removeprefix("palette-section-")
+    elif key.startswith("palette-item-"):
+        rows.append((section, n.get("label")))
+kanban_rows = sorted(label for section, label in rows if section == "kanbans")
+print("palette kanbans:", kanban_rows)
+if kanban_rows != sorted(want):
+    raise SystemExit(f"FAIL palette kanbans {kanban_rows}, expected {sorted(want)}")
+actions = [label for section, label in rows if section == "actions"]
+if "New Kanban" not in actions:
+    raise SystemExit(f"FAIL no New Kanban in the palette actions {actions}")
+if "Convert empty note to Kanban" in actions:
+    raise SystemExit("FAIL Convert offered on Agenda, which has text")
+print("ok the palette has New Kanban and every kanban by name")
+PY
+  # 6. A folder that resolves outside the vault is refused. The scan never follows a
+  #    symlink, so no indexed note can sit in such a folder and the UI can't pick one;
+  #    the guard is the core one, exercised here by its tests.
+  cargo test --locked -q -p muninn-core --lib --manifest-path "$root/Cargo.toml" -- \
+    kanban::tests::new_kanban 2>&1 | tail -n 4
+  [ "${PIPESTATUS[0]}" = 0 ] || return 1
+  # Pre-existing files are untouched; Blank changed only by Convert (checked above).
+  (cd "$kanban_new_vault" && sha256sum -c "$work/kanban-new.sha256") || { echo "a pre-existing file changed"; return 1; }
+  find "$kanban_new_vault" -name '.*' | grep . && { echo "a temp file was left"; return 1; }
+  (cd "$kanban_new_vault" && find . -type f | sort)
+}
+
+step_x11_new_kanban() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  echo "vulkan icd: $icd"
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  local v="$work/kanban-x11-new-vault"
+  rm -rf "$v"; mkdir -p "$v"
+  printf '# Agenda\n\nA plain note.\n' >"$v/Agenda.md"
+  cp "$kanban_fixtures/lanes-and-limits.md" "$v/Release.md"
+  (cd "$v" && sha256sum Agenda.md Release.md) >"$work/kanban-x11-new.sha256"
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n i
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-new.log" 2>&1 &
+  xvfb_pid=$!
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY"
+  export XDG_CONFIG_HOME="$work/config-x11-kanban-new" XDG_STATE_HOME="$work/state-x11-kanban-new"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --new-instance --vault "$v" >>"$out/logs/x11-kanban-new-app.log" 2>&1 &
+  app_pid=$!
+  local wid pause
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  pause="$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  sleep 2
+  [ ! -e "$v/Untitled Kanban.md" ] || { echo "a kanban appeared before New Kanban"; return 1; }
+  python3 "$harness" x11-chord "$wid" ctrl+shift+p || return 1
+  python3 "$harness" x11-type "$wid" "new kanban" && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" enter || return 1
+  sleep "$pause"
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" kanban || return 1
+  python3 -c 'import json,sys; k=json.load(open(sys.argv[1])).get("kanban"); print("saved kanban", k); assert k=="Untitled Kanban.md", k' \
+    "$XDG_CONFIG_HOME/muninn/settings.json" || return 1
+  same_as_layout "$v/Untitled Kanban.md" || return 1
+  grep -q 'created Untitled Kanban.md' "$XDG_STATE_HOME/muninn/session.log" || { echo "no 'created' line in the session log"; return 1; }
+  import -window "$wid" "$out/screens/kanban-new-x11.png" || return 1
+  python3 "$harness" x11-close "$wid" || return 1
+  local status=124
+  for i in $(seq 100); do
+    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+    sleep 0.1
+  done
+  app_pid=
+  echo "app exit status: $status"
+  [ "$status" = 0 ] || return 1
+  (cd "$v" && sha256sum -c "$work/kanban-x11-new.sha256") || { echo "a pre-existing file changed"; return 1; }
+  ls "$v"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+step_x11_kanban_open() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local icd
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd" WGPU_BACKEND=vulkan
+  echo "vulkan icd: $icd"
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  local v="$work/kanban-open-vault" t="$out/trees" m="$work/kanban-open"
+  rm -rf "$v" "$m"; mkdir -p "$v" "$m"
+  printf '# Agenda\n\nA plain note.\n' >"$v/Agenda.md"
+  cp "$kanban_fixtures/lanes-and-limits.md" "$v/Release.md"
+  cp "$kanban_fixtures/over-limit.md" "$v/Overloaded.md"
+  (cd "$v" && sha256sum Agenda.md Release.md Overloaded.md) >"$work/kanban-open.sha256"
+  # Where to click, from headless runs of the same vault in the same 1180x780 window.
+  printf '{"events":[{"t":0.8,"type":"mark","name":"list"}]}' >"$m/list.json"
+  export XDG_CONFIG_HOME="$work/config-kanban-open-list"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$v" --script "$m/list.json" --at "mark:list+0.3" --scale 1 --tree "$t/kanban-open-list.json" || return 1
+  local release
+  release="$(kanban_row_ids "$t/kanban-open-list.json" Release)"
+  [ -n "$release" ] || { echo "no Release row"; return 1; }
+  printf '{"events":[{"t":0.6,"type":"tap","key":"%s"},{"t":1.2,"type":"mark","name":"note"},{"t":1.6,"type":"tap","key":"open-as-kanban"},{"t":2.4,"type":"mark","name":"kanban"},{"t":2.8,"type":"tap","key":"kanban-open-markdown"},{"t":3.6,"type":"mark","name":"markdown"}]}' \
+    "$release" >"$m/open.json"
+  local mark mode
+  for pair in note:editor kanban:kanban markdown:editor; do
+    mark="${pair%%:*}" mode="${pair#*:}"
+    export XDG_CONFIG_HOME="$work/config-kanban-open-$mark"; rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+    "$bin" --vault "$v" --script "$m/open.json" --at "mark:$mark+0.4" --scale 1 \
+      --snap "$out/screens/kanban-open-headless-$mark.png" --tree "$t/kanban-open-$mark.json" || return 1
+    python3 "$harness" tree-mode "$t/kanban-open-$mark.json" "$mode" || return 1
+  done
+  python3 "$harness" tree-text "$t/kanban-open-note.json" open-as-kanban "Open as kanban" || return 1
+  python3 "$harness" tree-text "$t/kanban-open-kanban.json" kanban-title "Release" || return 1
+  no_key "$t/kanban-open-kanban.json" open-as-kanban || return 1
+  no_key "$t/kanban-open-markdown.json" kanban-page || return 1
+  python3 "$harness" tree-text "$t/kanban-open-markdown.json" open-as-kanban "Open as kanban" || return 1
+  no_key "$t/kanban-open-list.json" open-as-kanban || { echo "Agenda (plain) shows Open as kanban"; return 1; }
+  local row_xy button_xy markdown_xy
+  row_xy="$(python3 "$harness" tree-center "$t/kanban-open-list.json" "$release")" || return 1
+  button_xy="$(python3 "$harness" tree-center "$t/kanban-open-note.json" open-as-kanban)" || return 1
+  markdown_xy="$(python3 "$harness" tree-center "$t/kanban-open-kanban.json" kanban-open-markdown)" || return 1
+
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n i
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-open.log" 2>&1 &
+  xvfb_pid=$!
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY"
+  export XDG_CONFIG_HOME="$work/config-x11-kanban-open" XDG_STATE_HOME="$work/state-x11-kanban-open"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"; mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  local settings="$XDG_CONFIG_HOME/muninn/settings.json"
+  "$bin" --new-instance --vault "$v" >>"$out/logs/x11-kanban-open-app.log" 2>&1 &
+  app_pid=$!
+  local wid pause
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  pause="$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  sleep 2
+  saved() { # saved MODE KANBAN
+    python3 "$harness" settings-mode "$settings" "$1" || return 1
+    python3 -c 'import json,sys; v=json.load(open(sys.argv[1])); got=(v.get("selected_rel"), v.get("kanban")); print("saved", got); assert (got[1] or "")==sys.argv[2] and (sys.argv[3]=="" or got[0]==sys.argv[3]), got' \
+      "$settings" "$2" "${3:-}"
+  }
+  like() { # like HEADLESS X11: the windowed shot matches the headless one
+    python3 - "$1" "$2" <<'PY'
+import sys
+from PIL import Image, ImageChops
+a, b = (Image.open(p).convert("RGB") for p in sys.argv[1:])
+if a.size != b.size:
+    raise SystemExit(f"size {a.size} vs {b.size}")
+mean = sum(ImageChops.difference(a, b).resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))) / 3
+print(f"{sys.argv[2]} vs headless mean abs diff {mean:.2f}")
+if mean > 12:
+    raise SystemExit(f"the windowed page does not match the headless shot ({mean:.2f})")
+PY
+  }
+  # 1. The notes list opens a kanban note as a note, with Open as kanban.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $row_xy && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-open-button.png" || return 1
+  saved editor "" Release.md || return 1
+  like "$out/screens/kanban-open-headless-note.png" "$out/screens/kanban-open-button.png" || return 1
+  # 2. Open as kanban: Kanban mode on that note.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $button_xy && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-open-kanban.png" || return 1
+  saved kanban Release.md Release.md || return 1
+  like "$out/screens/kanban-open-headless-kanban.png" "$out/screens/kanban-open-kanban.png" || return 1
+  # 3. Open as markdown: back to Write on the same note.
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $markdown_xy && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-as-markdown.png" || return 1
+  saved editor Release.md Release.md || return 1
+  like "$out/screens/kanban-open-headless-markdown.png" "$out/screens/kanban-as-markdown.png" || return 1
+  # 4. Cmd+K first (the search field takes the keyboard), then the palette, the
+  #    Overloaded kanban (Down past its note row), Enter: Kanban mode on it.
+  python3 "$harness" x11-chord "$wid" ctrl+k && sleep 0.5 || return 1
+  python3 "$harness" x11-chord "$wid" ctrl+shift+p || return 1
+  python3 "$harness" x11-type "$wid" overloaded && sleep 0.5 || return 1
+  import -window "$wid" "$out/screens/kanban-open-palette.png" || return 1
+  python3 "$harness" x11-chord "$wid" Down && python3 "$harness" x11-chord "$wid" enter && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-open-from-palette.png" || return 1
+  saved kanban Overloaded.md Overloaded.md || return 1
+  # 5. A key the Kanban page handles: Esc leaves it. Had the search field kept the
+  #    keyboard, Esc would only have let go of it and the mode would stay kanban.
+  python3 "$harness" x11-chord "$wid" esc && sleep "$pause" || return 1
+  import -window "$wid" "$out/screens/kanban-open-esc.png" || return 1
+  saved editor Overloaded.md Overloaded.md || return 1
+  echo "ok focus landed on the Kanban page after the palette pick"
+  python3 "$harness" x11-close "$wid" || return 1
+  local status=124
+  for i in $(seq 100); do
+    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+    sleep 0.1
+  done
+  app_pid=
+  echo "app exit status: $status"
+  [ "$status" = 0 ] || return 1
+  (cd "$v" && sha256sum -c "$work/kanban-open.sha256") || { echo "a kanban file changed"; return 1; }
+  echo "ok every kanban file unchanged"
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
