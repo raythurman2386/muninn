@@ -13,5 +13,8 @@
   {"t":11.8,"type":"key","name":"2","cmd":true},{"t":11.8,"type":"mark","name":"preview-after"},
   {"t":12.8,"type":"key","name":"1","cmd":true},{"t":12.8,"type":"mark","name":"editor-after"},
   {"t":13.8,"type":"key","name":"4","cmd":true},{"t":13.8,"type":"mark","name":"end-in-board"},
-  {"t":14.8,"type":"mark","name":"end"}
+  {"t":14.8,"type":"key","name":"5","cmd":true},{"t":14.8,"type":"mark","name":"kanban-shortcut"},
+  {"t":15.8,"type":"key","name":"Escape"},{"t":15.8,"type":"mark","name":"kanban-esc"},
+  {"t":16.8,"type":"tap","key":"mode-kanban"},{"t":16.8,"type":"mark","name":"kanban-button"},
+  {"t":17.8,"type":"mark","name":"end"}
 ]}

@@ -24,7 +24,7 @@ The board canvas pixel checks are in board_pixels.py, the drawing checks in
 board_draw.py (both need Pillow).
 
 Mode keys are Muninn's settings keys: editor (Write), preview (Read), graph (Graph),
-board (Board).
+board (Board), kanban (Kanban).
 Later slices add board editing steps (shapes, select, move, text).
 """
 
@@ -38,6 +38,7 @@ MODE_BUTTONS = {
     "preview": "mode-preview",
     "graph": "mode-graph",
     "board": "mode-board",
+    "kanban": "mode-kanban",
 }
 
 

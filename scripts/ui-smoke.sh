@@ -39,8 +39,9 @@
 #   headless_modes  one input script (scripts/ui-smoke/modes.json) through Graph, Read,
 #                   Write, Board by ⌘4, Esc out, Board by its mode button, a board row
 #                   picked, Graph, Board by the command palette ("whiteboard"), Read,
-#                   Write, Board again: a PNG and tree per mark, the active mode button
-#                   asserted from each tree
+#                   Write, Board again, then Kanban by ⌘5, Esc out, Kanban by its mode
+#                   button: a PNG and tree per mark, the active mode button asserted
+#                   from each tree
 #   headless_restart  enter Board, quit, relaunch with the same settings: the app opens
 #                   in Board (asserted from the relaunch tree and settings.json)
 #   x11_modes       windowed app on Xvfb: launch shot, Ctrl+3/2/1/4, a click on the Board
@@ -182,6 +183,28 @@
 #   x11_kanban_model  the same vault, windowed (`--new-instance`) on the private Xvfb with
 #                   lavapipe: open the kanban note, screenshot kanban-s1-x11.png, close
 #                   through WM_DELETE_WINDOW (exit 0), file unchanged
+#   headless_kanban  Kanban slice 2, offscreen, on its own vault $work/kanban-view-vault
+#                   (slice 1's vault is $work/kanban-vault): Agenda.md (a plain note,
+#                   selected at launch) and slice 1's hand-written fixtures as
+#                   Release.md (lanes-and-limits), Overloaded.md (over-limit: a lane
+#                   past its limit, a two-line card, passthrough, a done lane) and
+#                   Torn.md (bad-json). scripts/ui-smoke/kanban.json, with the note ids
+#                   filled in from the app's own sidebar: Ctrl+5 on Agenda (the empty
+#                   state), Release then Ctrl+5, Overloaded then Ctrl+5, Torn then
+#                   Ctrl+5, and Open as markdown (Write). One run per mark with fresh
+#                   settings; the trees are checked for the mode, lane titles in file
+#                   order, counts, n/N, Over limit, Complete, card text, no
+#                   passthrough, the unreadable message. Screenshots kanban-empty.png,
+#                   kanban-readonly.png, kanban-wip-over.png, kanban-unreadable.png.
+#                   Every file's sha256 is unchanged.
+#   headless_kanban_restart  Release in Kanban, then Ctrl+[ back to Agenda (the page
+#                   keeps Release); settings.json says kanban / Release.md / Agenda.md;
+#                   a relaunch on those settings opens Kanban on Release
+#                   (kanban-restart.png). Files unchanged.
+#   x11_kanban      the same vault, windowed (`--new-instance`) on the private Xvfb with
+#                   lavapipe: click Release, Ctrl+5, screenshot kanban-x11.png (matches
+#                   the headless kanban-readonly.png), settings.json says kanban,
+#                   close through WM_DELETE_WINDOW (exit 0), files unchanged
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -200,7 +223,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -314,7 +337,8 @@ step_cli_check() {
 # mark in modes.json → the mode it must show
 HEADLESS_MARKS="graph:graph preview:preview editor:editor board-shortcut:board board-esc:editor
 board-button:board board-selected:board graph-after:graph board-palette:board
-preview-after:preview editor-after:editor end-in-board:board"
+preview-after:preview editor-after:editor end-in-board:board
+kanban-shortcut:kanban kanban-esc:editor kanban-button:kanban"
 
 step_headless_modes() {
   isolate
@@ -2044,6 +2068,256 @@ PY
   [ "$status" = 0 ] || return 1
   (cd "$kvault" && sha256sum -c "$work/kanban-x11.sha256") || { echo "the windowed app changed a kanban file"; return 1; }
   echo "ok x11 kanban note opened and the file is unchanged"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
+}
+
+# Kanban slice 2: the read-only Kanban page on its own vault.
+kanban_view_vault="$work/kanban-view-vault"
+
+seed_kanban_view_vault() {
+  rm -rf "$kanban_view_vault"
+  mkdir -p "$kanban_view_vault"
+  printf '# Agenda\n\nA plain note.\n' >"$kanban_view_vault/Agenda.md"
+  cp "$kanban_fixtures/lanes-and-limits.md" "$kanban_view_vault/Release.md"
+  cp "$kanban_fixtures/over-limit.md" "$kanban_view_vault/Overloaded.md"
+  cp "$kanban_fixtures/bad-json.md" "$kanban_view_vault/Torn.md"
+  kanban_hashes "$kanban_view_vault" "$work/kanban-view.sha256"
+}
+
+kanban_view_unchanged() { # kanban_view_unchanged WHAT
+  (cd "$kanban_view_vault" && sha256sum -c "$work/kanban-view.sha256") || { echo "$1 changed a file"; return 1; }
+  echo "ok every file unchanged after $1"
+}
+
+kanban_gpu() { # lavapipe when present, as the slice 1 steps; print the adapter
+  local icd=""
+  icd="$(find_lavapipe || true)"
+  if [ -n "$icd" ]; then
+    export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd" WGPU_BACKEND=vulkan
+    echo "vulkan icd: $icd (WGPU_BACKEND=vulkan)"
+  fi
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  return 0
+}
+
+kanban_row_ids() { # print "ROW" for each title, from the app's own sidebar tree $1
+  python3 - "$@" <<'PY'
+import json, sys
+tree = json.load(open(sys.argv[1]))
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from walk(value)
+rows = {}
+for node in walk(tree.get("accessibility") or tree):
+    key = str(node.get("key") or "")
+    if key.startswith("note-row-"):
+        rows[str(node.get("name") or "").split(" ")[0]] = key
+print(" ".join(rows[title] for title in sys.argv[2:]))
+PY
+}
+
+step_headless_kanban() {
+  isolate
+  kanban_gpu
+  seed_kanban_view_vault
+  printf '{"events":[{"t":0.8,"type":"mark","name":"list"}]}' >"$work/kanban-view-list.json"
+  export XDG_CONFIG_HOME="$work/config-kanban-view-list"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$kanban_view_vault" --script "$work/kanban-view-list.json" \
+    --at "mark:list+0.3" --scale 1 --tree "$out/trees/kanban-list.json" || return 1
+  local release overloaded torn
+  read -r release overloaded torn <<<"$(kanban_row_ids "$out/trees/kanban-list.json" Release Overloaded Torn)"
+  [ -n "$torn" ] || { echo "missing note rows"; return 1; }
+  echo "rows: Release $release, Overloaded $overloaded, Torn $torn"
+  sed -e "s/@RELEASE@/$release/" -e "s/@OVERLOADED@/$overloaded/" -e "s/@TORN@/$torn/" \
+    "$root/scripts/ui-smoke/kanban.json" >"$work/kanban-view.json"
+  local pair mark mode
+  for pair in empty:kanban readonly:kanban wip-over:kanban unreadable:kanban write:editor; do
+    mark="${pair%%:*}" mode="${pair#*:}"
+    export XDG_CONFIG_HOME="$work/config-kanban-view-$mark"
+    rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+    "$bin" --vault "$kanban_view_vault" --script "$work/kanban-view.json" \
+      --at "mark:$mark+0.4" --scale 1 \
+      --snap "$out/screens/kanban-$mark.png" --tree "$out/trees/kanban-$mark.json" || return 1
+    python3 "$harness" tree-mode "$out/trees/kanban-$mark.json" "$mode" || return 1
+  done
+  python3 - "$out/trees" <<'PY' || return 1
+import json, sys
+trees = sys.argv[1]
+
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from walk(value)
+
+def texts(name):
+    """key -> text for every keyed element, and all text, in the tree."""
+    keyed, every = {}, []
+    for node in walk(json.load(open(f"{trees}/kanban-{name}.json")).get("elements", [])):
+        text = node.get("text")
+        if isinstance(text, str):
+            every.append(text)
+            if node.get("key"):
+                keyed[node["key"]] = text
+        elif node.get("key"):
+            keyed.setdefault(node["key"], None)
+    return keyed, "\n".join(every)
+
+def expect(name, lanes, counts, over=(), complete=(), cards=(), absent=()):
+    keyed, every = texts(name)
+    got = [keyed.get(f"kanban-lane-{i}-title") for i in range(len(lanes) + 1)]
+    if got != list(lanes) + [None]:
+        raise SystemExit(f"FAIL {name}: lanes {got}, expected {list(lanes)}")
+    got = [keyed.get(f"kanban-lane-{i}-count") for i in range(len(lanes))]
+    if got != list(counts):
+        raise SystemExit(f"FAIL {name}: counts {got}, expected {list(counts)}")
+    for i in range(len(lanes)):
+        if (keyed.get(f"kanban-lane-{i}-over") == "Over limit") != (i in over):
+            raise SystemExit(f"FAIL {name}: lane {i} over-limit flag is wrong")
+        if (f"kanban-lane-{i}-complete" in keyed) != (i in complete):
+            raise SystemExit(f"FAIL {name}: lane {i} Complete indicator is wrong")
+    for needle in cards:
+        if needle not in every:
+            raise SystemExit(f"FAIL {name}: card text {needle!r} not shown")
+    for needle in absent:
+        if needle in every:
+            raise SystemExit(f"FAIL {name}: {needle!r} is shown")
+    if complete and "Complete" not in every:
+        raise SystemExit(f"FAIL {name}: no Complete label")
+    print(f"ok {name}: lanes {list(lanes)}, counts {list(counts)}, over {list(over)}, complete {list(complete)}")
+
+keyed, _ = texts("empty")
+if keyed.get("kanban-placeholder-title") != "No kanban open" or "kanban-lane-0" in keyed:
+    raise SystemExit("FAIL empty: no empty state")
+print("ok empty: No kanban open")
+expect("readonly", ["Backlog", "Doing", "Review", "Done"], ["1", "2/3", "1", "1"],
+       cards=["Write the threat model", "Parser", "Writer", "Spell the open points",
+              "Choose the branch name"], absent=["(3)", "(0)", "- [ ]"])
+expect("wip-over", ["Ideas", "Doing", "Shipped"], ["1", "3/2", "1"], over=[1], complete=[2],
+       cards=["Sketch the lane header", "Parse the board", "Draw the lanes", "Label the cards",
+              "with a second line", "Detect kanban notes"],
+       absent=["A paragraph between lanes", "**Complete**"])
+keyed, _ = texts("unreadable")
+if keyed.get("kanban-placeholder-title") != "This note can't be shown as a kanban":
+    raise SystemExit("FAIL unreadable: no unreadable message")
+if "kanban-open-markdown" not in keyed or "kanban-lane-0" in keyed:
+    raise SystemExit("FAIL unreadable: no Open as markdown, or lanes drawn")
+print("ok unreadable: message and Open as markdown")
+keyed, every = texts("write")
+if "kanban-page" in keyed or "kanban:settings" not in every:
+    raise SystemExit("FAIL write: Torn is not open as markdown")
+print("ok write: Torn open in Write")
+PY
+  kanban_view_unchanged "the headless kanban runs"
+}
+
+step_headless_kanban_restart() {
+  isolate
+  kanban_gpu
+  [ -f "$work/kanban-view.sha256" ] || seed_kanban_view_vault
+  local release
+  if [ -f "$out/trees/kanban-list.json" ]; then
+    release="$(kanban_row_ids "$out/trees/kanban-list.json" Release)"
+  else
+    echo "run headless_kanban first (needs its sidebar tree)"; return 1
+  fi
+  export XDG_CONFIG_HOME="$work/config-kanban-restart"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  # Back (Ctrl+[) from Release to Agenda on the Kanban page: the page keeps
+  # Release, so the relaunch must restore it from settings, not the selection.
+  printf '{"events":[{"t":0.6,"type":"tap","key":"%s"},{"t":1.2,"type":"key","name":"5","cmd":true},{"t":1.8,"type":"key","name":"[","cmd":true},{"t":2.4,"type":"mark","name":"left"}]}' \
+    "$release" >"$work/kanban-restart.json"
+  "$bin" --vault "$kanban_view_vault" --script "$work/kanban-restart.json" --at "mark:left+0.4" --scale 1 \
+    --snap "$out/screens/kanban-restart-1-left.png" --tree "$out/trees/kanban-restart-left.json" || return 1
+  python3 "$harness" tree-mode "$out/trees/kanban-restart-left.json" kanban || return 1
+  python3 "$harness" tree-text "$out/trees/kanban-restart-left.json" kanban-title Release || return 1
+  python3 - "$XDG_CONFIG_HOME/muninn/settings.json" <<'PY' || return 1
+import json, sys
+v = json.load(open(sys.argv[1]))
+got = (v.get("mode"), v.get("kanban"), v.get("selected_rel"))
+print("saved", got)
+assert got == ("kanban", "Release.md", "Agenda.md"), got
+PY
+  "$bin" --vault "$kanban_view_vault" --at 1.0 --scale 1 \
+    --snap "$out/screens/kanban-restart.png" --tree "$out/trees/kanban-restart.json" || return 1
+  python3 "$harness" tree-mode "$out/trees/kanban-restart.json" kanban || return 1
+  python3 "$harness" tree-text "$out/trees/kanban-restart.json" kanban-title Release || return 1
+  python3 "$harness" tree-text "$out/trees/kanban-restart.json" kanban-lane-1-count 2/3 || return 1
+  kanban_view_unchanged "the restart"
+}
+
+step_x11_kanban() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/kanban-list.json"
+  [ -f "$tree" ] && [ -f "$out/screens/kanban-readonly.png" ] || { echo "run headless_kanban first (needs $tree)"; return 1; }
+  local icd release xy
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  echo "vulkan icd: $icd"
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  [ -f "$work/kanban-view.sha256" ] || seed_kanban_view_vault
+  release="$(kanban_row_ids "$tree" Release)"
+  xy="$(python3 "$harness" tree-center "$tree" "$release")" || return 1
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n i
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-view.log" 2>&1 &
+  xvfb_pid=$!
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  export XDG_CONFIG_HOME="$work/config-x11-kanban-view" XDG_STATE_HOME="$work/state-x11-kanban-view"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --new-instance --vault "$kanban_view_vault" >>"$out/logs/x11-kanban-view-app.log" 2>&1 &
+  app_pid=$!
+  local wid
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  sleep 2
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $xy || return 1
+  sleep 1
+  python3 "$harness" x11-chord "$wid" ctrl+5 || return 1
+  sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  python3 "$harness" settings-mode "$XDG_CONFIG_HOME/muninn/settings.json" kanban || return 1
+  python3 -c 'import json,sys; k=json.load(open(sys.argv[1])).get("kanban"); print("saved kanban", k); assert k=="Release.md"' \
+    "$XDG_CONFIG_HOME/muninn/settings.json" || return 1
+  import -window "$wid" "$out/screens/kanban-x11.png" || return 1
+  python3 - "$out/screens/kanban-readonly.png" "$out/screens/kanban-x11.png" <<'PY' || return 1
+import sys
+from PIL import Image, ImageChops
+headless, windowed = (Image.open(path).convert("RGB") for path in sys.argv[1:])
+if headless.size != windowed.size:
+    raise SystemExit(f"size {headless.size} vs {windowed.size}")
+diff = ImageChops.difference(headless, windowed)
+mean = sum(diff.resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))) / 3
+print(f"x11 vs headless kanban mean abs diff {mean:.2f}")
+if mean > 12:
+    raise SystemExit(f"the windowed Kanban page does not match the headless shot ({mean:.2f})")
+print("ok x11 screenshot matches the headless Kanban shot")
+PY
+  python3 "$harness" x11-close "$wid" || return 1
+  local status=124
+  for i in $(seq 100); do
+    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+    sleep 0.1
+  done
+  app_pid=
+  echo "app exit status: $status"
+  [ "$status" = 0 ] || return 1
+  kanban_view_unchanged "the windowed app"
   kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
