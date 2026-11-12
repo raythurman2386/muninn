@@ -40,8 +40,11 @@
 //!   on the edited kanban. Switching vaults and quitting save first too and
 //!   are refused, with the reason, when the save fails.
 //! - An action the model refuses (an `io::Error`, for example text it can't
-//!   place inside the card) changes nothing, in memory or on disk; the status
-//!   bar says why.
+//!   place inside the card) changes nothing, in memory or on disk, and the
+//!   Kanban page says why. A refused editor stays open with its text.
+//! - The page draws the cards as they were when it was built. An action on a
+//!   card commits an open editor first; when that adds a card at or above the
+//!   one clicked, the action follows the clicked card down one place.
 
 use std::collections::VecDeque;
 use std::io;
@@ -60,6 +63,17 @@ pub struct CardSlot {
     pub index: usize,
     /// A card not in the file yet.
     pub new: bool,
+}
+
+/// What closing the card editor did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CardCommit {
+    /// No editor was open.
+    Closed,
+    /// The editor closed; with the slot of the card it added, if it added one.
+    Done(Option<CardSlot>),
+    /// The model refused the text: the editor stays open with it.
+    Refused,
 }
 
 /// Undo and redo for the kanban on the page: whole note texts, newest last.
@@ -93,7 +107,9 @@ impl State {
 
     /// + Add card: an editor at the end of `lane`.
     pub fn begin_add_card(&mut self, lane: usize) {
-        self.commit_card_edit();
+        if self.commit_card_edit() == CardCommit::Refused {
+            return;
+        }
         let Some(len) = self.kanban_lane_len(lane) else {
             return;
         };
@@ -109,7 +125,9 @@ impl State {
 
     /// Insert card before / after: an editor that will add a card at `index`.
     pub fn begin_insert_card(&mut self, lane: usize, index: usize) {
-        self.commit_card_edit();
+        let Some(index) = self.settle_card_edit(lane, index) else {
+            return;
+        };
         if self.kanban_lane_len(lane).is_some_and(|len| index <= len) {
             self.open_card_field(
                 CardSlot {
@@ -124,7 +142,9 @@ impl State {
 
     /// Edit: an editor on the card's markdown.
     pub fn begin_edit_card(&mut self, lane: usize, index: usize) {
-        self.commit_card_edit();
+        let Some(index) = self.settle_card_edit(lane, index) else {
+            return;
+        };
         let Some(text) = self
             .kanban_card_at(lane, index)
             .map(|c| c.text().to_owned())
@@ -151,19 +171,18 @@ impl State {
         self.kanban_card = Some(slot);
     }
 
-    /// Close the editor and apply its text as one edit. `true` when an
-    /// editor was open.
-    pub fn commit_card_edit(&mut self) -> bool {
-        let Some(slot) = self.kanban_card.take() else {
-            return false;
+    /// Close the editor and apply its text as one edit. When the model
+    /// refuses the text the editor stays open, holding it.
+    pub(crate) fn commit_card_edit(&mut self) -> CardCommit {
+        let Some(slot) = self.kanban_card else {
+            return CardCommit::Closed;
         };
-        let text = std::mem::take(&mut self.kanban_card_field.text);
-        self.kanban_card_field = TextEdit::default();
-        if text.trim().is_empty() {
-            return true;
-        }
+        let text = self.kanban_card_field.text.clone();
         let CardSlot { lane, index, new } = slot;
-        if new {
+        let added = new && !text.trim().is_empty();
+        let applied = if text.trim().is_empty() {
+            true
+        } else if new {
             let done = self.kanban_lane_is_done(lane);
             self.edit_kanban("add the card", |board| {
                 board.add_card(lane, index, &text)?;
@@ -171,17 +190,38 @@ impl State {
                     board.toggle_done(lane, index)?;
                 }
                 Ok(())
-            });
+            })
         } else {
-            self.edit_kanban("edit the card", |board| board.edit_card(lane, index, &text));
+            self.edit_kanban("edit the card", |board| board.edit_card(lane, index, &text))
+        };
+        if !applied {
+            return CardCommit::Refused;
         }
-        true
+        self.cancel_card_edit();
+        CardCommit::Done(added.then_some(slot))
+    }
+
+    /// Commit the editor before an action on the card drawn at `index` in
+    /// `lane`, and find that card again: a card the commit added at or above
+    /// it in the same lane moves it down one. `None` when the commit was
+    /// refused, so the action waits.
+    pub(crate) fn settle_card_edit(&mut self, lane: usize, index: usize) -> Option<usize> {
+        match self.commit_card_edit() {
+            CardCommit::Refused => None,
+            CardCommit::Done(Some(added)) if added.lane == lane && added.index <= index => {
+                Some(index + 1)
+            }
+            CardCommit::Closed | CardCommit::Done(_) => Some(index),
+        }
     }
 
     /// Esc in the editor: close it, changing nothing.
     pub fn cancel_card_edit(&mut self) {
         self.kanban_card = None;
         self.kanban_card_field = TextEdit::default();
+        if let Some(shown) = &mut self.kanban {
+            shown.error = None;
+        }
     }
 
     pub fn delete_card(&mut self, lane: usize, index: usize) {
@@ -234,7 +274,9 @@ impl State {
 
     /// The checkbox: flip the card's done mark.
     pub fn toggle_card_done(&mut self, lane: usize, index: usize) {
-        self.commit_card_edit();
+        let Some(index) = self.settle_card_edit(lane, index) else {
+            return;
+        };
         self.edit_kanban("change the done mark", |board| {
             board.toggle_done(lane, index)
         });
@@ -261,27 +303,30 @@ impl State {
 
     /// Run `op` on a copy of the board and keep the copy only when it
     /// succeeds and changed something: one history entry. A refusal leaves
-    /// the board as it was and says why.
-    fn edit_kanban(&mut self, what: &str, op: impl FnOnce(&mut Kanban) -> io::Result<()>) {
+    /// the board as it was, says why on the page and returns `false`.
+    fn edit_kanban(&mut self, what: &str, op: impl FnOnce(&mut Kanban) -> io::Result<()>) -> bool {
         let Some(mut next) = self.kanban_board().cloned() else {
-            return;
+            return true;
         };
         if let Err(e) = op(&mut next) {
             self.log_event("kanban", &format!("could not {what}: {e}"));
-            self.notice = Some(format!("Could not {what}: {e}"));
-            return;
-        }
-        if self.kanban_board().map(Kanban::source) == Some(next.source()) {
-            return;
+            if let Some(shown) = &mut self.kanban {
+                shown.error = Some(format!("Could not {what}: {e}"));
+            }
+            return false;
         }
         let Some(shown) = &mut self.kanban else {
-            return;
+            return true;
         };
-        let Some(board) = shown.board.replace(next) else {
-            return;
-        };
-        shown.history.record(board.source().to_owned());
-        shown.mark_changed();
+        shown.error = None;
+        if shown.board.as_ref().map(Kanban::source) == Some(next.source()) {
+            return true;
+        }
+        if let Some(board) = shown.board.replace(next) {
+            shown.history.record(board.source().to_owned());
+            shown.mark_changed();
+        }
+        true
     }
 
     /// `⌘Z` on the page: put back the text before the newest edit.
@@ -295,7 +340,9 @@ impl State {
     }
 
     fn step_kanban_history(&mut self, undo: bool) {
-        self.commit_card_edit();
+        if self.commit_card_edit() == CardCommit::Refused {
+            return;
+        }
         let Some(shown) = &mut self.kanban else {
             return;
         };
@@ -321,6 +368,7 @@ impl State {
             history.undo.push_back(current);
         }
         shown.board = Some(next);
+        shown.error = None;
         shown.mark_changed();
     }
 
@@ -328,7 +376,12 @@ impl State {
     /// it differs from the file. `false` when it could not be written (the
     /// reason is its status); `true` when written or nothing needed writing.
     pub fn save_kanban(&mut self) -> bool {
-        self.commit_card_edit();
+        if self.commit_card_edit() == CardCommit::Refused {
+            if let Some(shown) = &mut self.kanban {
+                shown.status = BoardStatus::Failed("the card being edited was refused".to_owned());
+            }
+            return false;
+        }
         let Some(shown) = &self.kanban else {
             return true;
         };

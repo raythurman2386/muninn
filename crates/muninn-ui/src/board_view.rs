@@ -37,6 +37,14 @@ use crate::board_sync::OpenBoardDiskRule;
 use crate::board_tools::{self, Draft, fingerprint};
 use crate::{BoardScene, Mode, State};
 
+/// The unsaved indicator on Board and the Kanban page, with the platform's
+/// save chord.
+pub(crate) const UNSAVED: &str = if cfg!(target_os = "macos") {
+    "Unsaved · ⌘S saves"
+} else {
+    "Unsaved · Ctrl+S saves"
+};
+
 /// Whether the open board's drawing is on disk.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BoardStatus {
@@ -841,11 +849,9 @@ fn surface(s: &State, k: &Kit) -> El {
     // #40 recheck: text typed but not committed is unsaved too.
     let typing = s.board_text_pending().is_some();
     let status = s.board_open.as_ref().map(|open| match &open.status {
-        BoardStatus::Clean | BoardStatus::Saved if typing => {
-            ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent)
-        }
+        BoardStatus::Clean | BoardStatus::Saved if typing => (UNSAVED.to_owned(), k.c.text_accent),
         BoardStatus::Clean => (String::new(), k.c.text_faint),
-        BoardStatus::Unsaved => ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent),
+        BoardStatus::Unsaved => (UNSAVED.to_owned(), k.c.text_accent),
         BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
         BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
     });

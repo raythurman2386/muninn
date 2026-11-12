@@ -275,15 +275,16 @@ impl State {
     /// `board_safety.rs`), and [`State::error`] says why.
     ///
     /// Kanban slice 4: unsaved kanban edits are saved too. When that save is
-    /// refused (the file changed on disk), the quit is refused with the
-    /// reason; nothing else keeps those edits yet.
+    /// refused (the file changed on disk, or the open card's text was
+    /// refused), the quit is refused with the reason, shown on the Kanban
+    /// page too; nothing else keeps those edits yet.
     pub fn flush_before_quit(&mut self) -> bool {
         self.save_now();
         let board = self.flush_board_before_quit();
         let kanban = self.save_kanban();
         if !kanban {
             self.error = Some(
-                "Not quitting: the kanban could not be saved. Undo the edits or save the note's text elsewhere, then quit again."
+                "Not quitting: the kanban could not be saved. Fix what stopped the save, or undo the edits, then quit again."
                     .to_owned(),
             );
         }

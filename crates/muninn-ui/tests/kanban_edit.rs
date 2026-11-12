@@ -8,12 +8,19 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{Mode, Settings, State, on_key, poll, view};
+use muninn_ui::{CardSlot, Mode, Settings, State, on_key, poll, view};
 use rune::{Env, Ime, Key, KeyEvent, Mods, Runtime};
 
 const BOARD: &str = include_str!("../../muninn-core/tests/fixtures/kanban/edit-board.md");
 const SPRINT: &str = include_str!("../../muninn-core/tests/fixtures/kanban/lanes-and-limits.md");
 const CRLF: &str = include_str!("../../muninn-core/tests/fixtures/kanban/crlf.md");
+
+/// The unsaved indicator, with the platform's save chord.
+const UNSAVED: &str = if cfg!(target_os = "macos") {
+    "Unsaved · ⌘S saves"
+} else {
+    "Unsaved · Ctrl+S saves"
+};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
@@ -121,7 +128,7 @@ fn on_disk(tmp: &TempVault) -> String {
 fn text_of(rt: &Runtime<State>, key: &str) -> Option<String> {
     rt.elements()
         .into_iter()
-        .find(|e| e.key.as_deref() == Some(key))
+        .find(|e| e.key.as_deref() == Some(key) && !e.exiting)
         .and_then(|e| e.text)
 }
 
@@ -171,10 +178,7 @@ fn each_action_changes_only_its_lines_and_nothing_is_written_before_save() {
     press(&mut rt, Key::Enter, false);
     assert!(!rt.state.is_typing());
     step(&mut rt, &[], &["- [ ] Plan the demo\n"], "add");
-    assert_eq!(
-        text_of(&rt, "kanban-status").as_deref(),
-        Some("Unsaved · ⌘S saves")
-    );
+    assert_eq!(text_of(&rt, "kanban-status").as_deref(), Some(UNSAVED));
 
     // Edit, with a multibyte line and a Shift+Enter second line.
     act(&mut rt, |s| s.begin_edit_card(0, 2));
@@ -427,10 +431,10 @@ fn multibyte_text_edits_by_whole_characters_and_esc_cancels() {
     assert_eq!(source(&rt), before);
 }
 
-/// An edit the model refuses changes nothing, in memory or on disk, and
-/// says why without blocking the page.
+/// An edit the model refuses changes nothing, in memory or on disk, says
+/// why on the page, and keeps the typed text in the open editor.
 #[test]
-fn a_refused_edit_changes_nothing() {
+fn a_refused_edit_changes_nothing_and_keeps_the_typed_text() {
     let tmp = vault();
     let mut rt = on_board(&tmp);
     // A trailing ` ^id` would be read back as a block id, not as the text.
@@ -438,21 +442,215 @@ fn a_refused_edit_changes_nothing() {
     type_text(&mut rt, "Call Ana ^x1");
     press(&mut rt, Key::Enter, false);
     assert_eq!(source(&rt), BOARD);
-    assert!(
-        rt.state
-            .notice
-            .as_deref()
-            .is_some_and(|n| n.starts_with("Could not add the card")),
-        "{:?}",
-        rt.state.notice
-    );
-    assert!(!rt.state.kanban_dirty());
-    rt.key(command('z', false));
-    frame(&mut rt);
-    assert_eq!(source(&rt), BOARD, "nothing to undo");
+    assert!(rt.state.is_typing(), "the editor stays open");
+    assert_eq!(rt.state.kanban_card_field.text, "Call Ana ^x1");
+    let error = text_of(&rt, "kanban-error").unwrap_or_default();
+    assert!(error.starts_with("Could not add the card"), "{error:?}");
+    // ⌘S can't save text the model refuses: the file and the text stay.
     rt.key(command('s', false));
     frame(&mut rt);
     assert_eq!(on_disk(&tmp), BOARD);
+    assert_eq!(rt.state.kanban_card_field.text, "Call Ana ^x1");
+    assert_eq!(
+        text_of(&rt, "kanban-status").as_deref(),
+        Some("Not saved: the card being edited was refused")
+    );
+    // Nor can quitting; the reason shows on the page.
+    let mut quits = true;
+    act(&mut rt, |s| quits = s.flush_before_quit());
+    assert!(!quits);
+    let error = text_of(&rt, "kanban-app-error").unwrap_or_default();
+    assert!(error.contains("could not be saved"), "{error:?}");
+    assert!(
+        !error.contains("elsewhere"),
+        "Open as markdown shows the file, not the edits"
+    );
+    assert_eq!(on_disk(&tmp), BOARD);
+    // Fixing the text adds the card and clears the message.
+    act(&mut rt, |s| s.kanban_card_field.replace_text("Call Ana"));
+    press(&mut rt, Key::Enter, false);
+    assert!(!rt.state.is_typing());
+    assert!(source(&rt).contains("- [ ] Call Ana\n"));
+    assert!(text_of(&rt, "kanban-error").is_none());
+    // A refused edit of a card keeps its text too, and Esc lets it go.
+    act(&mut rt, |s| s.begin_edit_card(0, 0));
+    act(&mut rt, |s| {
+        s.kanban_card_field.replace_text("Reworded ^x2")
+    });
+    press(&mut rt, Key::Enter, false);
+    assert_eq!(rt.state.kanban_card_field.text, "Reworded ^x2");
+    assert!(text_of(&rt, "kanban-error").is_some());
+    press(&mut rt, Key::Escape, false);
+    assert!(!rt.state.is_typing());
+    assert!(text_of(&rt, "kanban-error").is_none());
+    assert!(source(&rt).contains("- [ ] Write the release notes\n"));
+}
+
+/// The page draws cards as they were when it was built. With an Insert card
+/// editor open above a card, acting on that card commits the editor first,
+/// which moves the card down one; each action follows it there.
+#[test]
+fn actions_on_a_card_follow_it_past_the_card_an_open_editor_adds() {
+    let open_insert_before = |rt: &mut Runtime<State>| {
+        click(rt, "kanban-card-0-0-menu");
+        click(rt, "menu-insert_before");
+        type_text(rt, "New first");
+        assert!(rt.state.is_typing());
+    };
+    let first = "- [ ] New first\n";
+    let card = "- [ ] Write the release notes\n";
+
+    // The checkbox.
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    open_insert_before(&mut rt);
+    click(&mut rt, "kanban-card-0-0-mark");
+    assert!(
+        source(&rt).contains(&format!("{first}- [x] Write the release notes\n")),
+        "{}",
+        source(&rt)
+    );
+
+    // The card's menu button, then Delete.
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    open_insert_before(&mut rt);
+    click(&mut rt, "kanban-card-0-0-menu");
+    click(&mut rt, "menu-delete");
+    let after = source(&rt);
+    assert!(after.contains(first) && !after.contains(card), "{after}");
+
+    // A right-click on the card, then Duplicate.
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    open_insert_before(&mut rt);
+    for _ in 0..30 {
+        frame(&mut rt);
+    }
+    let (x, y) = rt.find("kanban-card-0-0").expect("card");
+    rt.secondary_down(x, y);
+    rt.secondary_up(x, y);
+    frame(&mut rt);
+    click(&mut rt, "menu-duplicate");
+    assert!(
+        source(&rt).contains(&format!("{first}{card}{card}")),
+        "{}",
+        source(&rt)
+    );
+
+    // A double click edits it.
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    open_insert_before(&mut rt);
+    for _ in 0..30 {
+        frame(&mut rt);
+    }
+    let (x, y) = rt.find("kanban-card-0-0").expect("card");
+    for _ in 0..2 {
+        rt.pointer_down(x, y);
+        frame(&mut rt);
+        rt.pointer_up(x, y);
+        frame(&mut rt);
+    }
+    frame(&mut rt);
+    assert!(source(&rt).contains(&format!("{first}{card}")));
+    assert_eq!(
+        rt.state.kanban_card,
+        Some(CardSlot {
+            lane: 0,
+            index: 1,
+            new: false
+        })
+    );
+    assert_eq!(rt.state.kanban_card_field.text, "Write the release notes");
+
+    // A card the editor adds below the one clicked leaves it in place.
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-0-0-menu");
+    click(&mut rt, "menu-insert_after");
+    type_text(&mut rt, "Next");
+    click(&mut rt, "kanban-card-0-0-mark");
+    assert!(
+        source(&rt).contains("- [x] Write the release notes\n- [ ] Next\n"),
+        "{}",
+        source(&rt)
+    );
+}
+
+/// Switching vaults saves the kanban's edits into the vault they belong to
+/// first, and is refused, with the reason on the page, when that fails.
+#[test]
+fn switching_vaults_saves_the_kanban_first() {
+    let tmp = vault();
+    let other = TempVault::new(&[("Other.md", "# Other\n")]);
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.toggle_card_done(0, 0));
+    let edited = source(&rt);
+    assert!(rt.state.switch_vault(other.path().to_path_buf()));
+    assert_eq!(on_disk(&tmp), edited, "saved before the switch");
+
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.toggle_card_done(0, 0));
+    let theirs = format!("{BOARD}- [ ] Added elsewhere, and longer\n");
+    fs::write(tmp.path().join("Board.md"), &theirs).unwrap();
+    let mut switched = true;
+    act(&mut rt, |s| {
+        switched = s.switch_vault(other.path().to_path_buf())
+    });
+    assert!(!switched);
+    assert_eq!(on_disk(&tmp), theirs);
+    assert_eq!(rt.state.kanban.as_ref().unwrap().rel, "Board.md");
+    assert_eq!(
+        text_of(&rt, "kanban-app-error").as_deref(),
+        Some("Save the current kanban before switching vaults")
+    );
+}
+
+/// After ⌘S on the selected note's kanban, Write shows the saved text, not
+/// the text it read before the edits.
+#[test]
+fn the_write_editor_shows_the_saved_text() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    let board = rt.state.vault.resolve("Board").unwrap();
+    assert_eq!(rt.state.selected, Some(board));
+    act(&mut rt, |s| s.toggle_card_done(0, 0));
+    rt.key(command('s', false));
+    frame(&mut rt);
+    let saved = on_disk(&tmp);
+    assert_ne!(saved, BOARD);
+    rt.key(command('1', false));
+    frame(&mut rt);
+    assert_eq!(rt.state.mode, Mode::Editor);
+    assert_eq!(rt.state.editor.text, saved);
+    assert!(!rt.state.dirty(), "the note buffer matches the file");
+}
+
+/// An action that changes nothing is not an edit: no history entry, nothing
+/// unsaved.
+#[test]
+fn an_action_that_changes_nothing_is_not_recorded() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    // The Done lane's open card, then Mark all cards done twice: the second
+    // finds nothing open.
+    act(&mut rt, |s| s.mark_lane_done(2));
+    let once = source(&rt);
+    assert_ne!(once, BOARD);
+    act(&mut rt, |s| s.mark_lane_done(2));
+    // Editing a card to its own text.
+    act(&mut rt, |s| s.begin_edit_card(0, 0));
+    press(&mut rt, Key::Enter, false);
+    assert_eq!(source(&rt), once);
+    rt.key(command('z', false));
+    frame(&mut rt);
+    assert_eq!(source(&rt), BOARD, "one undo goes back past the one edit");
+    assert!(!rt.state.kanban_dirty());
+    rt.key(command('z', false));
+    frame(&mut rt);
+    assert_eq!(source(&rt), BOARD, "nothing else was recorded");
 }
 
 /// New lines use the file's line ending.

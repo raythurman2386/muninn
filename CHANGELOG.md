@@ -37,7 +37,8 @@ All notable changes to Muninn are documented here. The format is based on
   exact text. Nothing is written until `⌘S`, and each action changes only
   its own lines of the file. Unsaved edits stay when you leave the page;
   picking another kanban, switching vaults or quitting saves them first, and
-  a file that changed on disk is not written over.
+  a file that changed on disk is not written over. Text the file format
+  can't hold stays in the open editor, and the page says why.
 
 ## [0.7.1] - 2026-11-11
 

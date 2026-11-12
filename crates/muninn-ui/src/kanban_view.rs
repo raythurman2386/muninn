@@ -38,8 +38,8 @@ use rune::{El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
 
-use crate::board_view::{BoardStatus, placeholder};
-use crate::kanban_edit::{CardSlot, KanbanHistory};
+use crate::board_view::{BoardStatus, UNSAVED, placeholder};
+use crate::kanban_edit::{CardCommit, CardSlot, KanbanHistory};
 use crate::{DiskState, MenuTarget, Mode, State};
 
 /// Width of a lane column, in points: the notes sidebar's width, so a lane
@@ -62,6 +62,8 @@ pub struct ShownKanban {
     pub disk: Option<DiskState>,
     pub status: BoardStatus,
     pub history: KanbanHistory,
+    /// Why the last card action was refused, until the next one works.
+    pub error: Option<String>,
 }
 
 impl ShownKanban {
@@ -127,6 +129,7 @@ impl State {
             disk,
             status: BoardStatus::Clean,
             history: KanbanHistory::default(),
+            error: None,
         })
     }
 
@@ -206,16 +209,19 @@ impl State {
 
     /// A card's menu (its `⋯`, or a right-click on it), drawn under the card.
     pub fn open_card_menu(&mut self, lane: usize, index: usize) {
-        self.open_kanban_menu(MenuTarget::Card(lane, index));
+        if let Some(index) = self.settle_card_edit(lane, index) {
+            self.open_kanban_menu(MenuTarget::Card(lane, index));
+        }
     }
 
     /// A lane's menu (the `⋯` in its header), drawn under the header.
     pub fn open_lane_menu(&mut self, lane: usize) {
-        self.open_kanban_menu(MenuTarget::Lane(lane));
+        if self.commit_card_edit() != CardCommit::Refused {
+            self.open_kanban_menu(MenuTarget::Lane(lane));
+        }
     }
 
     fn open_kanban_menu(&mut self, target: MenuTarget) {
-        self.commit_card_edit();
         // Drawn in place, like the notes list's menus: no anchor point.
         self.menu = Some(crate::ContextMenu {
             target,
@@ -284,6 +290,7 @@ pub fn kanban(s: &State, k: &Kit) -> El {
         .grow(1.0)
         .min_h(0.0)
         .child(header(s, k))
+        .child(message(s, k))
         .child(
             col()
                 .key("kanban-body")
@@ -294,6 +301,32 @@ pub fn kanban(s: &State, k: &Kit) -> El {
                 .pb(24.0)
                 .child(body),
         )
+}
+
+/// Why the last card action was refused, and why a quit or vault switch
+/// was: the Kanban page has no status bar, so it says so under its header.
+fn message(s: &State, k: &Kit) -> El {
+    let card = s.kanban.as_ref().and_then(|shown| shown.error.as_deref());
+    if card.is_none() && s.error.is_none() {
+        return el();
+    }
+    let line = |key: &'static str, error: Option<&str>| match error {
+        Some(error) => text(error.to_owned())
+            .key(key)
+            .role("alert")
+            .font(k.ty.caption())
+            .color(k.c.danger.fg)
+            .wrap_anywhere()
+            .w_full(),
+        None => el(),
+    };
+    col()
+        .px(28.0)
+        .pb(8.0)
+        .gap(4.0)
+        .w_full()
+        .child(line("kanban-error", card))
+        .child(line("kanban-app-error", s.error.as_deref()))
 }
 
 fn header(s: &State, k: &Kit) -> El {
@@ -312,7 +345,7 @@ fn header(s: &State, k: &Kit) -> El {
     // Board's words for the same states.
     let (status, status_color) = match &shown.status {
         BoardStatus::Clean => (String::new(), k.c.text_faint),
-        BoardStatus::Unsaved => ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent),
+        BoardStatus::Unsaved => (UNSAVED.to_owned(), k.c.text_accent),
         BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
         BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
     };
@@ -597,8 +630,10 @@ fn card_editor(s: &State, k: &Kit) -> El {
             .wrap_anywhere()
             .on_edit(|s: &mut State| &mut s.kanban_card_field)
             .on_submit(|s: &mut State, tx: &mut Tx| {
-                s.commit_card_edit();
-                tx.blur();
+                // A refused text stays in the field, with the reason above.
+                if s.commit_card_edit() != CardCommit::Refused {
+                    tx.blur();
+                }
             })
             .on_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                 if e.key == Key::Escape {

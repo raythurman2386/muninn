@@ -674,7 +674,12 @@ fn typing_counts_as_unsaved_and_blocks_quit_until_the_copy_has_it() {
         .into_iter()
         .find(|e| e.key.as_deref() == Some("board-save-state"))
         .and_then(|e| e.text);
-    assert_eq!(shown.as_deref(), Some("Unsaved · ⌘S saves"));
+    let unsaved = if cfg!(target_os = "macos") {
+        "Unsaved · ⌘S saves"
+    } else {
+        "Unsaved · Ctrl+S saves"
+    };
+    assert_eq!(shown.as_deref(), Some(unsaved));
     rest(&mut rt, 3.0);
     assert!(rt.state.board_dirty(), "still not saved");
     assert!(rt.state.can_quit(), "the copy holds it now");
