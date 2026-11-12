@@ -17,6 +17,7 @@ mod board_view;
 mod camera;
 mod global_shortcut;
 mod graph_view;
+mod kanban_view;
 mod keys;
 mod mode;
 mod omarchy;
@@ -45,6 +46,7 @@ pub use board_view::{
     BoardConflict, BoardCounts, BoardSession, BoardStatus, BoardSummary, OpenBoard,
 };
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
+pub use kanban_view::ShownKanban;
 pub use keys::{on_key, shortcut};
 pub use mode::{Mode, Scope};
 pub use overlay::{Layer, PaletteAction, PaletteItem, PaletteState, SettingsTab};

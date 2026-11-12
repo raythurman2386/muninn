@@ -27,6 +27,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.toggle_graph();
         return true;
     }
+    if e.key == Key::Escape && s.mode == Mode::Kanban {
+        s.toggle_kanban();
+        return true;
+    }
     // Esc on Board drops the drawing tool; with none picked it leaves Board
     // the way it leaves the graph.
     if e.key == Key::Escape && s.mode == Mode::Board {
@@ -156,6 +160,8 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.set_mode(Mode::Graph);
     } else if e.is_command('4') {
         s.set_mode(Mode::Board);
+    } else if e.is_command('5') {
+        s.set_mode(Mode::Kanban);
     } else {
         return false;
     }

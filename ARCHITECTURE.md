@@ -166,7 +166,8 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   bytes; an edit splices only the lines it changes, and `Kanban::save` uses the same atomic
   temp+rename path as other notes. A broken settings footer is `io::ErrorKind::InvalidData`
   and is left untouched, never read as an empty board. The format is `docs/kanban-format.md`.
-  There is no kanban canvas in this slice.
+  `Mode::Kanban` (`kanban_view.rs`) shows one as a read-only board: the file is read and
+  parsed when the mode, the selection or the vault changes, and viewing never writes it.
 - **Boards are files, not notes.** A whiteboard is an Excalidraw `.excalidraw` JSON file in
   the vault (`muninn_core::Board`). `Vault::boards` lists them with the note scan's own walk
   (same depth limit, dot-entries skipped) but never adds them to the note index, links or

@@ -34,6 +34,7 @@ A provenance line inside a `.md` fixture would sit in front of the frontmatter a
 | `multiline-cards.md` | Hand-written from `docs/kanban-format.md`: a multi-line card and a nested checklist. |
 | `new-kanban.md` | Hand-written from `docs/kanban-format.md`: the New Kanban layout. |
 | `no-final-newline.md` | Hand-written from `docs/kanban-format.md`: no final newline. |
+| `over-limit.md` | Hand-written from `docs/kanban-format.md`: a lane holding more cards than its limit, a two-line card, a paragraph between lanes and a done lane. |
 | `passthrough.md` | Hand-written from `docs/kanban-format.md`: a paragraph and a level-3 heading between lanes. |
 | `plain-list.md` | Hand-written from `docs/kanban-format.md`: list items with no checkbox. |
 | `settings-footer.md` | Hand-written from `docs/kanban-format.md`: a settings footer with several keys. |
