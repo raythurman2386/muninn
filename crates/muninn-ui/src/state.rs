@@ -349,6 +349,11 @@ pub struct State {
     pub board_views: HashMap<PathBuf, crate::BoardView>,
     /// The last session's board, applied on the first board refresh.
     pub board_restore: Option<crate::BoardSession>,
+    /// Kanban slice 2: the kanban note Kanban mode falls back to when the
+    /// selected note is not one (vault-relative, saved in settings), and the
+    /// one on the page, read when the mode, selection or vault changes.
+    pub kanban_rel: Option<String>,
+    pub kanban: Option<crate::ShownKanban>,
     /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).
     pub board_tool: Option<crate::BoardTool>,
     /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
@@ -693,6 +698,12 @@ impl State {
             } else {
                 None
             },
+            kanban_rel: if restore_vault {
+                settings.kanban.clone()
+            } else {
+                None
+            },
+            kanban: None,
             board_tool: None,
             board_hand: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
@@ -896,6 +907,7 @@ impl State {
         settings.mode = self.mode;
         settings.scope = self.scope;
         settings.board = self.board_session();
+        settings.kanban = self.kanban_rel.clone();
         match settings.save_to(config_home) {
             Ok(()) => true,
             Err(e) => {
@@ -1149,6 +1161,7 @@ impl State {
                 // open board, remembered views and pending restore.
                 self.clear_boards();
                 self.refresh_boards();
+                self.clear_kanban();
                 let first = self.vault.notes.first().map(|note| note.id);
                 if let Some(id) = first {
                     self.load_note(id, false);
@@ -1349,6 +1362,7 @@ impl State {
             PaletteAction::TogglePreview => self.toggle_preview(),
             PaletteAction::ToggleGraph => self.toggle_graph(),
             PaletteAction::ToggleBoard => self.toggle_board(),
+            PaletteAction::ToggleKanban => self.toggle_kanban(),
         }
     }
 
@@ -1489,6 +1503,11 @@ impl State {
         }
         if focus && self.mode == Mode::Editor {
             self.focus_editor();
+        }
+        // Kanban slice 2: Back/Forward and reloads on the Kanban page show
+        // the newly selected kanban, or keep the last one.
+        if self.mode == Mode::Kanban {
+            self.refresh_kanban();
         }
         // LIF-01: session restore is path-based, so record the note as soon as
         // it is showing. History navigation and recovery also land here.
@@ -2910,7 +2929,7 @@ impl State {
         true
     }
 
-    fn selected_rel(&self) -> Option<&str> {
+    pub(crate) fn selected_rel(&self) -> Option<&str> {
         let id = self.selected?;
         self.vault.notes.get(id).map(|note| note.rel.as_str())
     }
@@ -3289,6 +3308,7 @@ impl State {
         self.broken_panel = false;
         if !same_vault {
             self.clear_boards();
+            self.clear_kanban();
         }
         self.refresh_boards();
         let restore = self.restore_after_scan.take();
@@ -4238,7 +4258,7 @@ impl State {
                 self.editor.anchor = offset;
                 self.editor.focus = offset;
             }
-            Mode::Graph | Mode::Board => {}
+            Mode::Graph | Mode::Board | Mode::Kanban => {}
         }
     }
 

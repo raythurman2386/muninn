@@ -227,7 +227,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘E` / `Ctrl+E` | Toggle Write / Read |
 | `⌘G` / `Ctrl+G` | Toggle Graph |
 | `⌘L` / `Ctrl+L` | Toggle Global / Local graph |
-| `⌘1` / `⌘2` / `⌘3` / `⌘4` | Write / Read / Graph / Board |
+| `⌘1` / `⌘2` / `⌘3` / `⌘4` / `⌘5` | Write / Read / Graph / Board / Kanban |
 | `↑` / `↓` / `←` / `→` (graph) | Move the focus ring to the nearest node (sorted order wraps when no node lies that way) |
 | `Enter` (graph) | Open the focused note; when it is already open, glide the camera back to it |
 | `+` / `-` (graph) | Zoom in / out at the canvas centre |

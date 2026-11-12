@@ -110,11 +110,13 @@ pub enum PaletteAction {
     /// Enter Board, or go back to the last note mode. Its hint is ⌘4, which
     /// enters Board.
     ToggleBoard,
+    /// Enter Kanban, or go back to the last note mode. Its hint is ⌘5.
+    ToggleKanban,
 }
 
 impl PaletteAction {
     /// Every action, in the order shown before a query is typed.
-    pub const ALL: [PaletteAction; 7] = [
+    pub const ALL: [PaletteAction; 8] = [
         PaletteAction::OpenLocalGraph,
         PaletteAction::SwitchVault,
         PaletteAction::OpenSettings,
@@ -122,6 +124,7 @@ impl PaletteAction {
         PaletteAction::TogglePreview,
         PaletteAction::ToggleGraph,
         PaletteAction::ToggleBoard,
+        PaletteAction::ToggleKanban,
     ];
 
     /// The row's main label.
@@ -135,6 +138,7 @@ impl PaletteAction {
             PaletteAction::TogglePreview => "Toggle Write / Read",
             PaletteAction::ToggleGraph => "Toggle Graph",
             PaletteAction::ToggleBoard => "Toggle Board",
+            PaletteAction::ToggleKanban => "Toggle Kanban",
         }
     }
 
@@ -149,6 +153,7 @@ impl PaletteAction {
             PaletteAction::TogglePreview => "⌘E",
             PaletteAction::ToggleGraph => "⌘G",
             PaletteAction::ToggleBoard => "⌘4",
+            PaletteAction::ToggleKanban => "⌘5",
         }
     }
 
@@ -163,6 +168,7 @@ impl PaletteAction {
             PaletteAction::TogglePreview => "write read preview editor mode",
             PaletteAction::ToggleGraph => "graph global local mode",
             PaletteAction::ToggleBoard => "board whiteboard excalidraw drawing canvas sketch mode",
+            PaletteAction::ToggleKanban => "kanban lanes cards tasks mode",
         }
     }
 

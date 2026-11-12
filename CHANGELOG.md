@@ -6,6 +6,17 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Kanban mode (read-only).** A fifth mode (`⌘5` / `Ctrl+5`, a Kanban mode
+  button, **Toggle Kanban** in the command palette) shows a kanban note as a
+  board: lanes in file order with their card counts, `n/N` and an over-limit
+  flag against a lane limit, Complete on a done lane, and each card's done
+  mark and markdown. It shows the selected note when that is a kanban note,
+  else the last kanban shown (restored after a restart), else an empty state.
+  A note whose settings footer can't be read offers **Open as markdown**.
+  Viewing never writes the file; editing comes later.
+
 ## [0.7.1] - 2026-11-11
 
 ### Fixed

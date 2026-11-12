@@ -459,6 +459,9 @@ pub struct Settings {
     /// rests. On by default; `"board_autosave": false` in `settings.json`
     /// leaves saving to `⌘S` (and the quit save).
     pub board_autosave: bool,
+    /// Kanban slice 2: the vault-relative path of the kanban note last shown
+    /// in Kanban mode. Files saved before kanbans load as `None`.
+    pub kanban: Option<String>,
 }
 
 impl Default for Settings {
@@ -481,6 +484,7 @@ impl Default for Settings {
             show_shortcut: false,
             board: None,
             board_autosave: true,
+            kanban: None,
         }
     }
 }
@@ -541,6 +545,7 @@ impl Settings {
             "auto_start": self.auto_start,
             "show_shortcut": self.show_shortcut,
             "board_autosave": self.board_autosave,
+            "kanban": self.kanban,
             "board": self.board.as_ref().map(|b| {
                 let mut value = json!({ "rel": b.rel });
                 if let Some(view) = b.view {
@@ -590,6 +595,7 @@ impl Settings {
             Some("preview") => Mode::Preview,
             Some("graph") => Mode::Graph,
             Some("board") => Mode::Board,
+            Some("kanban") => Mode::Kanban,
             _ => Mode::Editor,
         };
         settings.scope = match value.get("scope").and_then(Value::as_str) {
@@ -629,6 +635,11 @@ impl Settings {
             .and_then(Value::as_bool)
             .unwrap_or(true);
         settings.board = value.get("board").and_then(parse_board_session);
+        settings.kanban = value
+            .get("kanban")
+            .and_then(Value::as_str)
+            .filter(|rel| !rel.is_empty())
+            .map(str::to_owned);
         settings
     }
 }
@@ -751,6 +762,7 @@ mod tests {
                 view: BoardView::new([-120.37, 44.5], 1.3),
             }),
             board_autosave: false,
+            kanban: Some("plans/Sprint.md".to_owned()),
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -805,6 +817,39 @@ mod tests {
             &serde_json::json!({ "board": { "rel": "A.excalidraw", "eye": [0], "zoom": -1 } }),
         );
         assert_eq!(broken_view.board.unwrap().view, None);
+    }
+
+    #[test]
+    fn mode_keys_are_appended_and_each_loads_back() {
+        let modes = [
+            Mode::Editor,
+            Mode::Preview,
+            Mode::Graph,
+            Mode::Board,
+            Mode::Kanban,
+        ];
+        for (i, mode) in modes.into_iter().enumerate() {
+            assert_eq!(mode as usize, i, "a new mode goes at the end");
+            let value = serde_json::json!({ "mode": mode.as_key() });
+            assert_eq!(Settings::from_value(&value).mode, mode);
+        }
+        assert_eq!(Mode::Kanban.as_key(), "kanban");
+    }
+
+    #[test]
+    fn the_saved_kanban_is_a_non_empty_path() {
+        assert_eq!(Settings::default().kanban, None);
+        let old = Settings::from_value(&serde_json::json!({ "mode": "board" }));
+        assert_eq!(old.kanban, None);
+        let saved = Settings::from_value(&serde_json::json!({ "kanban": "plans/Sprint.md" }));
+        assert_eq!(saved.kanban.as_deref(), Some("plans/Sprint.md"));
+        for bad in [
+            serde_json::json!({ "kanban": "" }),
+            serde_json::json!({ "kanban": 3 }),
+            serde_json::json!({ "kanban": { "rel": "A.md" } }),
+        ] {
+            assert_eq!(Settings::from_value(&bad).kanban, None, "{bad}");
+        }
     }
 
     #[test]
