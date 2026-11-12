@@ -16,7 +16,7 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
 
 | Crate | May depend on | Why |
 | --- | --- | --- |
-| `muninn-core` | nothing in the workspace | Pure domain model; fast unit tests. Its only external dependency is `serde_json`, for board files. |
+| `muninn-core` | nothing in the workspace | Pure domain model; fast unit tests. Its only external dependency is `serde_json`, for board files and for reading a kanban settings footer. |
 | `muninn-graph` | `muninn-core` | Needs note ids and links, nothing else. |
 | `muninn-sync` | nothing in the workspace | Plans and transfers vault bytes. It does not read the UI or the link index. |
 | `muninn-ui` | `muninn-core`, `muninn-graph`, `muninn-sync`, Rune | Owns state, rendering, input, and the manual sync session. |
@@ -160,6 +160,13 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   (`xdg-open`/`open`/`start`) because Rune's `Tx::open_url` refuses `file:`; drag-drop imports
   copy accepted files into the current folder with the same temp+rename rule and never
   overwrite an existing name.
+- **Kanban notes are notes.** A kanban board is a Markdown note whose frontmatter contains
+  `kanban-plugin` (`muninn_core::is_kanban`, `Vault::kanbans`). It stays in the note index, so
+  its wikilinks, backlinks, graph and rename are unchanged. `Kanban::parse` keeps the original
+  bytes; an edit splices only the lines it changes, and `Kanban::save` uses the same atomic
+  temp+rename path as other notes. A broken settings footer is `io::ErrorKind::InvalidData`
+  and is left untouched, never read as an empty board. The format is `docs/kanban-format.md`.
+  There is no kanban canvas in this slice.
 - **Boards are files, not notes.** A whiteboard is an Excalidraw `.excalidraw` JSON file in
   the vault (`muninn_core::Board`). `Vault::boards` lists them with the note scan's own walk
   (same depth limit, dot-entries skipped) but never adds them to the note index, links or

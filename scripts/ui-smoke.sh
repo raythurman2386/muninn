@@ -30,7 +30,7 @@
 # (`import`), sha256sum. Missing ones fail the step that needs them with the package name.
 #
 # Steps (UI_SMOKE_STEPS, space-separated, default all, in this order):
-#   build           cargo build the app and the board_roundtrip example
+#   build           cargo build the app, the board_roundtrip example and the kanban_roundtrip example
 #   seed            vault: two linked .md notes, Plan.excalidraw (the core test fixture)
 #                   and Smoke.excalidraw (one element of each kind, for the pixel checks),
 #                   and Tools.excalidraw (the board the draw steps draw on)
@@ -170,6 +170,18 @@
 #                   switches); and across kill -9 and a relaunch (no stale lock or icon).
 #                   Needs dbus-run-session, gdbus and python-gobject besides the x11 tools.
 #                   Rerun alone: UI_SMOKE_STEPS="build x11_single_instance" scripts/ui-smoke.sh
+#   headless_kanban_model  Kanban slice 1, offscreen, on its own vault (the hand-written
+#                   fixtures plus Roadmap.md and 2026-11-11.md; the shared seed vault is
+#                   not touched). kanban_roundtrip is byte-identical on every valid fixture
+#                   and a rename-lane diff matches kanban-rename.diff. `muninn --check`
+#                   and `--list-links` see the card links. scripts/ui-smoke/kanban_model.json
+#                   is generated for the note ids: the kanban opens in Write, then Read,
+#                   then Roadmap shows it in the backlinks. Screenshots kanban-s1-write.png,
+#                   kanban-s1-read.png, kanban-s1-backlinks.png. Every kanban file's sha256
+#                   is unchanged.
+#   x11_kanban_model  the same vault, windowed (`--new-instance`) on the private Xvfb with
+#                   lavapipe: open the kanban note, screenshot kanban-s1-x11.png, close
+#                   through WM_DELETE_WINDOW (exit 0), file unchanged
 #   The s4-s6 steps that check "unchanged until Ctrl+S" run with "board_autosave":
 #   false (explicit_save). x11 steps take UI_SMOKE_DISPLAY (a display number) if set,
 #   else the first free display from :90.
@@ -188,7 +200,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -196,6 +208,8 @@ work="$out/work"
 vault="$work/vault"
 bin="$root/target/debug/muninn"
 roundtrip="$root/target/debug/examples/board_roundtrip"
+kanban_roundtrip="$root/target/debug/examples/kanban_roundtrip"
+kanban_fixtures="$root/crates/muninn-core/tests/fixtures/kanban"
 board="$vault/Plan.excalidraw"
 fixture="$root/crates/muninn-core/tests/fixtures/board/scene.excalidraw"
 smoke_board="$vault/Smoke.excalidraw"
@@ -266,7 +280,7 @@ need() { # need COMMAND PACKAGE
 step_build() {
   cargo build --locked -p muninn-app --manifest-path "$root/Cargo.toml" &&
     cargo build --locked -p muninn-core --example board_roundtrip --example board_resave \
-      --manifest-path "$root/Cargo.toml"
+      --example kanban_roundtrip --manifest-path "$root/Cargo.toml"
 }
 
 step_seed() {
@@ -1798,6 +1812,182 @@ step_board_untouched() {
   # Nor any atomic-write temp file from the draw steps' saves.
   find "$vault" -name '.*' -type f | grep . && { echo "hidden temp file left behind"; return 1; }
   return 0
+}
+
+# Kanban slice 1 uses its own vault. The shared seed vault stays at two notes.
+kanban_vault_path() { echo "$work/kanban-vault"; }
+
+seed_kanban_vault() {
+  local kvault="$1" f base
+  rm -rf "$kvault"
+  mkdir -p "$kvault"
+  for f in "$kanban_fixtures"/*.md; do
+    base="$(basename "$f")"
+    case "$base" in
+      README.md|bad-*) continue ;;
+    esac
+    cp "$f" "$kvault/$base"
+  done
+  printf '# Roadmap\n\nThe plan the cards link to.\n' >"$kvault/Roadmap.md"
+  printf '# 2026-11-11\n\nA daily note.\n' >"$kvault/2026-11-11.md"
+}
+
+kanban_hashes() { # kanban_hashes VAULT FILE
+  (
+    cd "$1" || exit 1
+    find . -name '*.md' -type f | sort | while IFS= read -r f; do sha256sum "$f"; done
+  ) >"$2"
+}
+
+step_headless_kanban_model() {
+  isolate
+  local icd=""
+  icd="$(find_lavapipe || true)"
+  if [ -n "$icd" ]; then
+    export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd" WGPU_BACKEND=vulkan
+    echo "vulkan icd: $icd"
+  fi
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  local kvault f base out_text notes report links id road
+  kvault="$(kanban_vault_path)"
+  seed_kanban_vault "$kvault"
+  for f in "$kanban_fixtures"/*.md; do
+    base="$(basename "$f")"
+    case "$base" in
+      README.md|bad-*) continue ;;
+    esac
+    "$kanban_roundtrip" "$f" || return 1
+  done
+  printf 'rename-lane 1 Busy\n' >"$work/kanban-rename.edit"
+  out_text="$("$kanban_roundtrip" "$kanban_fixtures/lanes-and-limits.md" --edit "$work/kanban-rename.edit")" || return 1
+  printf '%s\n' "$out_text" | sed -n '/^--- kanban$/,$p' >"$work/kanban-rename.actual"
+  diff -u "$root/scripts/ui-smoke/kanban-rename.diff" "$work/kanban-rename.actual" || return 1
+  echo "ok rename-lane diff matches"
+  report="$("$bin" --check "$kvault" || true)"
+  echo "$report"
+  notes="$(find "$kvault" -name '*.md' -type f | wc -l | tr -d ' ')"
+  grep -qx "notes: $notes" <<<"$report" || { echo "expected notes: $notes"; return 1; }
+  grep -qx 'broken links: 0' <<<"$report" || return 1
+  links="$("$bin" --list-links "$kvault")" || return 1
+  echo "$links"
+  grep -qx 'card-text.md -> Roadmap.md' <<<"$links" || return 1
+  grep -qx 'card-text.md -> 2026-11-11.md' <<<"$links" || return 1
+  grep -qx 'spec-example.md -> Roadmap.md' <<<"$links" || return 1
+  grep -q 'Hidden' <<<"$links" && { echo "a wikilink inside code was indexed"; return 1; }
+  id="$(python3 -c 'import os,sys; fs=sorted((n for n in os.listdir(sys.argv[1]) if n.endswith(".md")), key=lambda n: (n.lower(), n)); print(fs.index("card-text.md"))' "$kvault")"
+  road="$(python3 -c 'import os,sys; fs=sorted((n for n in os.listdir(sys.argv[1]) if n.endswith(".md")), key=lambda n: (n.lower(), n)); print(fs.index("Roadmap.md"))' "$kvault")"
+  echo "card-text id $id, Roadmap id $road"
+  printf '%s\n' "$id" >"$work/kanban-note-id"
+  printf '%s\n' "$road" >"$work/kanban-road-id"
+  printf '{"events":[{"t":0.6,"type":"tap","key":"note-row-%s"},{"t":1.2,"type":"mark","name":"write"},{"t":2.0,"type":"key","name":"2","cmd":true},{"t":2.6,"type":"mark","name":"read"},{"t":3.4,"type":"tap","key":"note-row-%s"},{"t":4.2,"type":"mark","name":"backlinks"}]}' \
+    "$id" "$road" >"$work/kanban-model.json"
+  kanban_hashes "$kvault" "$work/kanban.sha256"
+  local mark mode
+  for mark in write:editor read:preview backlinks:preview; do
+    mode="${mark#*:}"
+    mark="${mark%%:*}"
+    export XDG_CONFIG_HOME="$work/config-kanban-$mark"
+    rm -rf "$XDG_CONFIG_HOME"
+    mkdir -p "$XDG_CONFIG_HOME"
+    "$bin" --vault "$kvault" --script "$work/kanban-model.json" \
+      --at "mark:$mark+0.4" --scale 1 \
+      --snap "$out/screens/kanban-s1-$mark.png" --tree "$out/trees/kanban-s1-$mark.json" || return 1
+    python3 "$harness" tree-mode "$out/trees/kanban-s1-$mark.json" "$mode" || return 1
+  done
+  python3 - "$out/trees" <<'PY' || return 1
+import json, sys
+trees = sys.argv[1]
+
+def walk(node):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from walk(value)
+
+def load(name):
+    return json.load(open(f"{trees}/kanban-s1-{name}.json"))
+
+def blob(name):
+    return json.dumps(load(name))
+
+def rail_has(name, needle):
+    for node in walk(load(name).get("elements", [])):
+        key = node.get("key") or ""
+        if str(key).startswith("rail-link-") and needle in json.dumps(node):
+            print(f"ok {name}: {key} mentions {needle}")
+            return
+    raise SystemExit(f"FAIL {name}: no rail link mentions {needle}")
+
+write = blob("write")
+for needle in ("card-text", "kanban-plugin", "[[Roadmap]]"):
+    if needle not in write:
+        raise SystemExit(f"FAIL write tree missing {needle!r}")
+    print(f"ok write tree has {needle!r}")
+read = blob("read")
+for needle in ("To do", "Roadmap", "card-text"):
+    if needle not in read:
+        raise SystemExit(f"FAIL read tree missing {needle!r}")
+    print(f"ok read tree has {needle!r}")
+rail_has("write", "Roadmap")
+rail_has("backlinks", "card-text")
+PY
+  (cd "$kvault" && sha256sum -c "$work/kanban.sha256") || { echo "the headless run changed a kanban file"; return 1; }
+  echo "ok kanban files unchanged"
+}
+
+step_x11_kanban_model() {
+  isolate
+  need Xvfb xorg-server-xvfb || return 1
+  need import imagemagick || return 1
+  python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
+  local tree="$out/trees/kanban-s1-write.json"
+  [ -f "$tree" ] || { echo "run headless_kanban_model first (needs $tree)"; return 1; }
+  local icd kvault id xy
+  icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
+  export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+  echo "vulkan icd: $icd"
+  command -v vulkaninfo >/dev/null && vulkaninfo --summary 2>/dev/null | grep -E 'deviceName|driverName|driverInfo'
+  kvault="$(kanban_vault_path)"
+  [ -d "$kvault" ] || seed_kanban_vault "$kvault"
+  id="$(cat "$work/kanban-note-id")"
+  xy="$(python3 "$harness" tree-center "$tree" "note-row-$id")" || return 1
+  trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
+  local n
+  n="$(pick_display)" || return 1
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban.log" 2>&1 &
+  xvfb_pid=$!
+  local i
+  for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
+  export DISPLAY=":$n"
+  echo "Xvfb on $DISPLAY, vulkan icd $icd"
+  kanban_hashes "$kvault" "$work/kanban-x11.sha256"
+  export XDG_CONFIG_HOME="$work/config-x11-kanban" XDG_STATE_HOME="$work/state-x11-kanban"
+  rm -rf "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+  "$bin" --new-instance --vault "$kvault" >>"$out/logs/x11-kanban-app.log" 2>&1 &
+  app_pid=$!
+  local wid
+  wid="$(python3 "$harness" x11-wait Muninn 30)" || return 1
+  sleep 2
+  # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $xy || return 1
+  sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
+  import -window "$wid" "$out/screens/kanban-s1-x11.png" || return 1
+  python3 "$harness" x11-close "$wid" || return 1
+  local status=124
+  for i in $(seq 100); do
+    if ! kill -0 "$app_pid" 2>/dev/null; then wait "$app_pid"; status=$?; break; fi
+    sleep 0.1
+  done
+  app_pid=
+  echo "app exit status: $status"
+  [ "$status" = 0 ] || return 1
+  (cd "$kvault" && sha256sum -c "$work/kanban-x11.sha256") || { echo "the windowed app changed a kanban file"; return 1; }
+  echo "ok x11 kanban note opened and the file is unchanged"
+  kill "$xvfb_pid" 2>/dev/null; wait "$xvfb_pid" 2>/dev/null; xvfb_pid=
 }
 
 failed=0
