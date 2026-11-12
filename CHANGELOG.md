@@ -88,6 +88,15 @@ All notable changes to Muninn are documented here. The format is based on
 
 - A card moved into an empty lane whose heading is followed by plain text now
   goes after that text instead of above it.
+- Kanban saves now compare the note's text, not only its modified time and
+  length: another app's same-size change, even with the old timestamp kept, is
+  flagged instead of written over. **Save copy** keeps the copy selected and on
+  the page through a later vault reload, a successful save clears the recovery
+  copy even when the kanban is not the selected note, and a restored copy over
+  a removed file is no longer mistaken for a rename onto an unrelated empty
+  note. A lane limit the model refuses no longer stops the recovery copy of
+  edits already made, and a vault refresh no longer replaces the board under a
+  held drag.
 
 ## [0.7.1] - 2026-11-11
 

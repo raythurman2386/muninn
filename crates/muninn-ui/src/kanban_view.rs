@@ -133,6 +133,23 @@ impl State {
     /// page on them.
     pub fn refresh_kanban(&mut self) {
         let selected = self.selected_rel().map(str::to_owned);
+        // Slice 7's shared disk rule says `Later` while a press is held on a
+        // card or lane: a reload now would replace the board under the drag
+        // and end it. The release ends the press; the next refresh applies
+        // what was deferred. Picking another kanban is not a disk refresh and
+        // still switches the page (the replacement ends the drag).
+        if self.kanban_drag.is_some() {
+            let shown = self.kanban.as_ref().map(|shown| shown.rel.as_str());
+            let other = selected.as_deref().is_some_and(|rel| {
+                Some(rel) != shown
+                    && self
+                        .note_id(rel)
+                        .is_some_and(|id| self.vault.notes[id].is_kanban())
+            });
+            if !other {
+                return;
+            }
+        }
         if self.kanban_dirty() {
             let shown = self.kanban.as_ref().map(|shown| shown.rel.as_str());
             let other = selected.as_deref().is_some_and(|rel| {
