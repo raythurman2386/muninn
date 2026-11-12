@@ -60,6 +60,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     if !s.is_typing() && crate::board_edit::board_command(s, e) {
         return true;
     }
+    // Kanban slice 4: undo and redo on the Kanban page, the same way.
+    if !s.is_typing() && crate::kanban_edit::kanban_command(s, e) {
+        return true;
+    }
     // Board slice 3: zoom, fit and arrow-pan keys on the open board; slice 4
     // adds the tool letters, slice 5 Delete, arrows nudging and Esc.
     if !s.is_typing() && s.mode == Mode::Board && s.board_key(e) {
@@ -139,9 +143,12 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.new_note();
     } else if e.is_command('s') {
         s.save_now();
-        // Board slice 4: on Board the chord also saves the open board.
+        // Board slice 4: on Board the chord also saves the open board;
+        // Kanban slice 4: on the Kanban page, the kanban.
         if s.mode == Mode::Board {
             s.save_board();
+        } else if s.mode == Mode::Kanban {
+            s.save_kanban();
         }
     } else if e.is_command('e') {
         s.toggle_preview();

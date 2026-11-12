@@ -255,6 +255,11 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (board) | Undo / redo drawing, moves and deletes (last 100) |
 | `⌘S` / `Ctrl+S` (board) | Save the board's drawing now (atomically, to the open board only; autosave also saves it once it rests, unless `"board_autosave": false`) |
 | `Esc` (board) | Clear the selection, else drop the tool, else leave Board for the last note mode |
+| **+ Add card**, a card's `⋯` or right-click (kanban) | Add a card at the lane's end; Edit, Insert card before / after, Duplicate, Split card, Delete |
+| Double-click a card (kanban) | Edit it in place: `Enter` commits, `Shift+Enter` breaks the line, `Esc` cancels |
+| Click a card's checkbox (kanban) | Toggle its done mark; a lane's `⋯` has **Mark all cards done** |
+| `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
+| `⌘S` / `Ctrl+S` (kanban) | Save the kanban's edits (nothing is written before; no autosave yet) |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |

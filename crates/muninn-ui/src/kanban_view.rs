@@ -1,10 +1,10 @@
-//! The Kanban page (`Mode::Kanban`): one kanban note shown as a read-only
-//! board.
+//! The Kanban page (`Mode::Kanban`): one kanban note shown as a board.
 //!
 //! The note is read from disk and parsed with [`Kanban`] when Kanban mode is
 //! entered, and again when the selection or the vault changes while the page
-//! is up ([`State::refresh_kanban`]). Frames draw that parse. Nothing here
-//! writes the file. The page shows:
+//! is up ([`State::refresh_kanban`]), unless it holds unsaved edits. Frames
+//! draw that parse. Editing, undo and saving are `kanban_edit.rs` (slice 4).
+//! The page shows:
 //!
 //! - the selected note, when it is a kanban note;
 //! - else the kanban shown last ([`State::kanban_rel`], restored from
@@ -17,7 +17,9 @@
 //! reader's renderer, broken wikilinks dimmed as Read dims them. Passthrough
 //! text and the archive are not drawn. The header's Open as markdown returns
 //! to Write on the shown note; a note that detects but does not parse says
-//! so instead of drawing lanes.
+//! so instead of drawing lanes. Slice 4 adds a checkbox that toggles, a menu
+//! on each card and lane, the card editor and **+ Add card** at each lane's
+//! foot, and the header's save status.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -28,15 +30,17 @@
 //! ([`State::open_from_search`]).
 
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use muninn_core::{Card, Kanban, Lane, is_kanban};
-use rune::{El, col, el, icon, row, text};
-use rune_kit::{Kit, Markdown, MarkdownStyle};
+use rune::{El, Key, KeyEvent, Tx, col, el, icon, row, text};
+use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
 
-use crate::board_view::placeholder;
-use crate::{Mode, State};
+use crate::board_view::{BoardStatus, placeholder};
+use crate::kanban_edit::{CardSlot, KanbanHistory};
+use crate::{DiskState, MenuTarget, Mode, State};
 
 /// Width of a lane column, in points: the notes sidebar's width, so a lane
 /// reads like the note list beside it.
@@ -47,17 +51,61 @@ const LANE_W: f32 = crate::view::SIDEBAR;
 pub struct ShownKanban {
     /// Vault-relative path with `/` separators.
     pub rel: String,
-    /// The parsed board. `None` when the note is a kanban note whose file
-    /// can't be read as a board (the parse was `InvalidData`).
+    /// The parsed board, with any unsaved edits. `None` when the note is a
+    /// kanban note whose file can't be read as a board (the parse was
+    /// `InvalidData`); then it is never written.
     pub board: Option<Kanban>,
+    /// The file's text as last read or written.
+    pub saved: String,
+    /// The file's identity as last read or written: a save is refused when
+    /// the file no longer matches it.
+    pub disk: Option<DiskState>,
+    pub status: BoardStatus,
+    pub history: KanbanHistory,
+}
+
+impl ShownKanban {
+    /// Edits that are not on disk: the board's text differs from the file's.
+    #[must_use]
+    pub fn dirty(&self) -> bool {
+        self.board
+            .as_ref()
+            .is_some_and(|board| board.source() != self.saved)
+    }
+
+    /// After an edit, undo or redo.
+    pub(crate) fn mark_changed(&mut self) {
+        self.status = if self.dirty() {
+            BoardStatus::Unsaved
+        } else {
+            BoardStatus::Clean
+        };
+    }
 }
 
 impl State {
     /// Pick and parse the kanban the page shows (see the module docs). The
     /// saved kanban follows a selected kanban note; a selected note that is
     /// not one leaves it as it is.
+    ///
+    /// Slice 4, as Board: unsaved edits (or an open card editor) are never
+    /// read over. The page keeps them unless another kanban note was
+    /// selected; that saves them first and, when the save fails, keeps the
+    /// page on them.
     pub fn refresh_kanban(&mut self) {
         let selected = self.selected_rel().map(str::to_owned);
+        if self.kanban_dirty() {
+            let shown = self.kanban.as_ref().map(|shown| shown.rel.as_str());
+            let other = selected.as_deref().is_some_and(|rel| {
+                Some(rel) != shown
+                    && self
+                        .note_id(rel)
+                        .is_some_and(|id| self.vault.notes[id].is_kanban())
+            });
+            if !other || !self.save_kanban() {
+                return;
+            }
+        }
         let shown = selected
             .and_then(|rel| self.read_kanban(rel))
             .or_else(|| self.read_kanban(self.kanban_rel.clone()?));
@@ -71,9 +119,14 @@ impl State {
     fn read_kanban(&self, rel: String) -> Option<ShownKanban> {
         let note = self.vault.notes.iter().find(|note| note.rel == rel)?;
         let source = fs::read_to_string(&note.path).ok()?;
+        let disk = self.vault.disk_state(note.id).ok();
         is_kanban(&source).then(|| ShownKanban {
             board: Kanban::parse(&source).ok(),
             rel,
+            saved: source,
+            disk,
+            status: BoardStatus::Clean,
+            history: KanbanHistory::default(),
         })
     }
 
@@ -143,10 +196,32 @@ impl State {
         self.set_text_focus(false, false);
     }
 
-    /// A kanban belongs to its vault: forget it on a vault switch.
+    /// A kanban belongs to its vault: forget it on a vault switch (which
+    /// saves it first).
     pub(crate) fn clear_kanban(&mut self) {
         self.kanban_rel = None;
         self.kanban = None;
+        self.cancel_card_edit();
+    }
+
+    /// A card's menu (its `⋯`, or a right-click on it), drawn under the card.
+    pub fn open_card_menu(&mut self, lane: usize, index: usize) {
+        self.open_kanban_menu(MenuTarget::Card(lane, index));
+    }
+
+    /// A lane's menu (the `⋯` in its header), drawn under the header.
+    pub fn open_lane_menu(&mut self, lane: usize) {
+        self.open_kanban_menu(MenuTarget::Lane(lane));
+    }
+
+    fn open_kanban_menu(&mut self, target: MenuTarget) {
+        self.commit_card_edit();
+        // Drawn in place, like the notes list's menus: no anchor point.
+        self.menu = Some(crate::ContextMenu {
+            target,
+            x: 0.0,
+            y: 0.0,
+        });
     }
 
     /// Open as markdown: the shown note in Write.
@@ -193,6 +268,7 @@ pub fn kanban(s: &State, k: &Kit) -> El {
         Some(ShownKanban {
             rel,
             board: Some(board),
+            ..
         }) => lanes(s, k, rel, board),
         Some(ShownKanban { board: None, .. }) => placeholder(
             k,
@@ -233,6 +309,13 @@ fn header(s: &State, k: &Kit) -> El {
     let title = Path::new(&shown.rel)
         .file_stem()
         .map_or_else(String::new, |stem| stem.to_string_lossy().into_owned());
+    // Board's words for the same states.
+    let (status, status_color) = match &shown.status {
+        BoardStatus::Clean => (String::new(), k.c.text_faint),
+        BoardStatus::Unsaved => ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent),
+        BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
+        BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
+    };
     head.child(
         text(title)
             .key("kanban-title")
@@ -240,10 +323,18 @@ fn header(s: &State, k: &Kit) -> El {
             .color(k.c.text_base),
     )
     .child(
-        text(format!("{} · Read only", shown.rel))
+        text(shown.rel.clone())
             .key("kanban-detail")
             .font(k.ty.caption())
             .color(k.c.text_faint)
+            .shrink()
+            .truncate(),
+    )
+    .child(
+        text(status)
+            .key("kanban-status")
+            .font(k.ty.caption())
+            .color(status_color)
             .grow(1.0)
             .truncate(),
     )
@@ -256,23 +347,31 @@ fn header(s: &State, k: &Kit) -> El {
     ))
 }
 
-/// The lanes, side by side, scrolling both ways. Built again only when the
-/// file's text or the theme changes.
+/// The lanes, side by side, scrolling both ways. Each lane is built again
+/// only when what it draws changes (its cards, its menu, the theme); the lane
+/// with the card editor open is built every frame, as the editor changes.
 fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let note = s.note_id(rel);
-    let body = rune::memo(
-        "kanban-lanes",
-        (rel, board.source(), crate::omarchy::kit_id(s, k.dark)),
-        move || {
-            row().gap(12.0).items_start().children(
-                board
-                    .lanes()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, lane)| lane_column(s, k, note, i, lane)),
+    let kit = crate::omarchy::kit_id(s, k.dark);
+    let body = row()
+        .gap(12.0)
+        .items_start()
+        .children(board.lanes().iter().enumerate().map(|(i, lane)| {
+            if s.kanban_card.is_some_and(|slot| slot.lane == i) {
+                return lane_column(s, k, note, i, lane);
+            }
+            // The lane's open menu: `Some(None)` its own, `Some(Some(j))` card j's.
+            let menu = s.menu.as_ref().and_then(|m| match m.target {
+                MenuTarget::Lane(l) if l == i => Some(None),
+                MenuTarget::Card(l, j) if l == i => Some(Some(j)),
+                _ => None,
+            });
+            rune::memo(
+                format!("kanban-lane-{i}"),
+                (rel, kit, lane_version(lane), menu),
+                move || lane_column(s, k, note, i, lane),
             )
-        },
-    );
+        }));
     col()
         .key("kanban-scroll")
         .w_full()
@@ -280,6 +379,16 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
         .min_h(0.0)
         .scroll_xy()
         .child(body)
+}
+
+/// A hash of what a lane draws: its header and its cards' marks and text.
+fn lane_version(lane: &Lane) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (lane.title(), lane.written_limit(), lane.done_word()).hash(&mut h);
+    for card in lane.cards() {
+        (card.mark(), card.text()).hash(&mut h);
+    }
+    h.finish()
 }
 
 fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -> El {
@@ -312,6 +421,10 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
                 .color(k.c.warning.fg),
         );
     }
+    head = head.child(
+        menu_button(k, format!("kanban-lane-{i}-menu"), "Lane actions")
+            .on_press(move |s: &mut State| s.open_lane_menu(i)),
+    );
     let mut label = format!("{}, {count} cards", lane.title());
     if over {
         label.push_str(", over limit");
@@ -334,6 +447,9 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
         .role("list")
         .label(label)
         .child(head);
+    if is_menu(s, &MenuTarget::Lane(i)) {
+        column = column.child(crate::view::context_menu(s, k));
+    }
     if lane.done_word().is_some() {
         column = column.child(
             row()
@@ -344,15 +460,70 @@ fn lane_column(s: &State, k: &Kit, note: Option<usize>, i: usize, lane: &Lane) -
                 .child(text("Complete").font(k.ty.caption()).color(k.c.success.fg)),
         );
     }
-    column.children(
-        lane.cards()
-            .iter()
-            .enumerate()
-            .map(|(j, card)| card_view(s, k, note, i, j, card)),
+    let new_at = s
+        .kanban_card
+        .filter(|slot| slot.lane == i && slot.new)
+        .map(|slot| slot.index);
+    for (j, card) in lane.cards().iter().enumerate() {
+        if new_at == Some(j) {
+            column = column.child(card_editor(s, k));
+        }
+        column = column.child(card_view(s, k, note, i, j, card));
+        if is_menu(s, &MenuTarget::Card(i, j)) {
+            column = column.child(crate::view::context_menu(s, k));
+        }
+    }
+    if new_at == Some(lane.cards().len()) {
+        column = column.child(card_editor(s, k));
+    }
+    column.child(
+        row()
+            .key(format!("kanban-lane-{i}-add"))
+            .w_full()
+            .h(30.0)
+            .px(8.0)
+            .gap(6.0)
+            .radius(7.0)
+            .center_y()
+            .hover(k.c.hover)
+            .press(k.c.pressed)
+            .cursor(rune::Cursor::Pointer)
+            .role("button")
+            .label("Add card")
+            .on_press(move |s: &mut State| s.begin_add_card(i))
+            .child(icon(&ic::PLUS, 12.0).color(k.c.text_faint))
+            .child(text("Add card").font(k.ty.ui_compact).color(k.c.text_faint)),
     )
 }
 
+fn is_menu(s: &State, target: &MenuTarget) -> bool {
+    s.menu.as_ref().is_some_and(|m| m.target == *target)
+}
+
+/// The `⋯` that opens a card's or a lane's menu.
+fn menu_button(k: &Kit, key: String, label: &'static str) -> El {
+    el().key(key)
+        .size(22.0, 22.0)
+        .radius(6.0)
+        .center()
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(rune::Cursor::Pointer)
+        .role("button")
+        .label(label)
+        .child(icon(&ic::OUTLINE_DOTS, 14.0).color(k.c.icon_muted))
+}
+
 fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: &Card) -> El {
+    let editing = s.kanban_card
+        == Some(CardSlot {
+            lane: i,
+            index: j,
+            new: false,
+        });
+    if editing {
+        return card_editor(s, k);
+    }
     let done = card.is_done();
     // Wikilinks and embeds read as the reader shows them; following them
     // from a card is slice 8.
@@ -376,9 +547,11 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
                 k.c.border_base
             },
         )
+        .cursor(rune::Cursor::Pointer)
         .role("checkbox")
         .checked(done)
-        .label(if done { "Done" } else { "Open" });
+        .label(if done { "Done" } else { "Open" })
+        .on_press(move |s: &mut State| s.toggle_card_done(i, j));
     let mark = if done {
         mark.child(icon(&ic::CHECK, 10.0).color(k.c.text_accent))
     } else {
@@ -394,6 +567,9 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
         .border(1.0, k.c.border_muted)
         .role("listitem")
         .label(format!("{}: {first}", if done { "Done" } else { "Open" }))
+        // As Board edits text: a double click opens the editor.
+        .on_double_press(move |s: &mut State| s.begin_edit_card(i, j))
+        .on_secondary_press(move |s: &mut State, _, _| s.open_card_menu(i, j))
         .child(mark)
         .child(
             col().grow(1.0).min_w(0.0).child(
@@ -404,6 +580,36 @@ fn card_view(s: &State, k: &Kit, note: Option<usize>, i: usize, j: usize, card: 
                     .build(k),
             ),
         )
+        .child(
+            menu_button(k, format!("kanban-card-{i}-{j}-menu"), "Card actions")
+                .on_press(move |s: &mut State| s.open_card_menu(i, j)),
+        )
+}
+
+/// The card editor: Enter commits, Shift+Enter breaks the line, Esc cancels.
+fn card_editor(s: &State, k: &Kit) -> El {
+    col().key("kanban-card-editor").w_full().child(
+        TextArea::new(&s.kanban_card_field)
+            .label("Card text")
+            .placeholder("Card text")
+            .width(None)
+            .auto_grow(2, 10)
+            .wrap_anywhere()
+            .on_edit(|s: &mut State| &mut s.kanban_card_field)
+            .on_submit(|s: &mut State, tx: &mut Tx| {
+                s.commit_card_edit();
+                tx.blur();
+            })
+            .on_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+                if e.key == Key::Escape {
+                    s.cancel_card_edit();
+                    tx.blur();
+                    return true;
+                }
+                false
+            })
+            .build(k),
+    )
 }
 
 /// A small bordered button in a page header: Open as markdown here, Open as

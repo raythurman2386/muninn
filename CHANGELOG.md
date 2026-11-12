@@ -8,14 +8,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
-- **Kanban mode (read-only).** A fifth mode (`⌘5` / `Ctrl+5`, a Kanban mode
+- **Kanban mode.** A fifth mode (`⌘5` / `Ctrl+5`, a Kanban mode
   button, **Toggle Kanban** in the command palette) shows a kanban note as a
   board: lanes in file order with their card counts, `n/N` and an over-limit
   flag against a lane limit, Complete on a done lane, and each card's done
   mark and markdown. It shows the selected note when that is a kanban note,
   else the last kanban shown (restored after a restart), else an empty state.
   A note whose settings footer can't be read offers **Open as markdown**.
-  Viewing never writes the file; editing comes later.
+  Viewing never writes the file.
 - **Finding, opening and making kanbans.** A **Kanbans** section in the
   sidebar lists every kanban note and opens it in Kanban mode, and kanban
   notes carry a checklist glyph in the notes list. The command palette has
@@ -27,6 +27,17 @@ All notable changes to Muninn are documented here. The format is based on
   list, a link, a backlink) opens as a note with an **Open as kanban**
   button, and the Kanban page's **Open as markdown** returns to Write on that
   note. On the Kanban page, picking another kanban note keeps the page.
+- **Editing cards.** On the Kanban page, **+ Add card** at a lane's foot, and
+  each card's menu (its `⋯`, or a right-click): Edit, Insert card before,
+  Insert card after, Duplicate, Split card and Delete. A double click edits
+  a card in place (`Enter` commits, `Shift+Enter` breaks the line, `Esc`
+  cancels), and its checkbox toggles the done mark. In a done lane new,
+  duplicated and split cards are done, and the lane menu's **Mark all cards
+  done** marks the rest. Undo and redo (`⌘Z`, `⇧⌘Z` / `Ctrl+Y`) restore the
+  exact text. Nothing is written until `⌘S`, and each action changes only
+  its own lines of the file. Unsaved edits stay when you leave the page;
+  picking another kanban, switching vaults or quitting saves them first, and
+  a file that changed on disk is not written over.
 
 ## [0.7.1] - 2026-11-11
 

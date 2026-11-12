@@ -25,6 +25,9 @@ pub enum MenuTarget {
     Folder(String),
     /// A board row (#43 rename), in the Board panel or the notes sidebar.
     Board(PathBuf, crate::BoardPlace),
+    /// Kanban slice 4: a card (lane, index) and a lane on the Kanban page.
+    Card(usize, usize),
+    Lane(usize),
 }
 
 impl MenuTarget {
@@ -354,6 +357,9 @@ pub struct State {
     /// one on the page, read when the mode, selection or vault changes.
     pub kanban_rel: Option<String>,
     pub kanban: Option<crate::ShownKanban>,
+    /// Kanban slice 4: where the card editor is open, and its field.
+    pub kanban_card: Option<crate::CardSlot>,
+    pub kanban_card_field: TextEdit,
     /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).
     pub board_tool: Option<crate::BoardTool>,
     /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
@@ -704,6 +710,8 @@ impl State {
                 None
             },
             kanban: None,
+            kanban_card: None,
+            kanban_card_field: TextEdit::default(),
             board_tool: None,
             board_hand: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
@@ -1115,6 +1123,11 @@ impl State {
         // vault is let go; a board that cannot be saved blocks the switch.
         if !self.save_board() {
             self.error = Some("Save the current board before switching vaults".to_owned());
+            return false;
+        }
+        // Kanban slice 4: the same for unsaved kanban edits.
+        if !self.save_kanban() {
+            self.error = Some("Save the current kanban before switching vaults".to_owned());
             return false;
         }
         let started = Instant::now();
@@ -3949,6 +3962,18 @@ impl State {
             (MenuTarget::Board(path, place), "rename") => {
                 self.begin_rename_board(path, place);
             }
+            (MenuTarget::Card(lane, index), "edit") => self.begin_edit_card(lane, index),
+            (MenuTarget::Card(lane, index), "insert_before") => {
+                self.begin_insert_card(lane, index);
+            }
+            (MenuTarget::Card(lane, index), "insert_after") => {
+                self.begin_insert_card(lane, index + 1);
+            }
+            (MenuTarget::Card(lane, index), "duplicate") => self.duplicate_card(lane, index),
+            (MenuTarget::Card(lane, index), "split") => self.split_card(lane, index),
+            (MenuTarget::Card(lane, index), "delete") => self.delete_card(lane, index),
+            (MenuTarget::Lane(lane), "add_card") => self.begin_add_card(lane),
+            (MenuTarget::Lane(lane), "mark_done") => self.mark_lane_done(lane),
             _ => {}
         }
     }

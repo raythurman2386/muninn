@@ -166,8 +166,13 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   bytes; an edit splices only the lines it changes, and `Kanban::save` uses the same atomic
   temp+rename path as other notes. A broken settings footer is `io::ErrorKind::InvalidData`
   and is left untouched, never read as an empty board. The format is `docs/kanban-format.md`.
-  `Mode::Kanban` (`kanban_view.rs`) shows one as a read-only board: the file is read and
-  parsed when the mode, the selection or the vault changes, and viewing never writes it.
+  `Mode::Kanban` (`kanban_view.rs`) shows one as a board: the file is read and parsed when
+  the mode, the selection or the vault changes, and viewing never writes it. Card edits
+  (`kanban_edit.rs`) go through the same splice API on an in-memory copy; undo keeps whole
+  note texts, so it restores exact bytes. Nothing is written before `⌘S`, which writes once
+  through `Vault::write_note_if_unmodified` and refuses a file that changed on disk.
+  Unsaved edits are never read over or dropped: leaving the page keeps them, and switching
+  kanban or vault and quitting save first, or are refused.
   Which notes are kanbans is cached in the index (`Note::is_kanban`, refreshed by
   `Vault::reindex`), so the sidebar's Kanbans section, the notes-list glyph and the palette
   never re-detect per frame. `Vault::create_kanban_in` claims each candidate name with an

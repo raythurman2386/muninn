@@ -17,7 +17,7 @@ pub enum Mode {
     /// The whiteboard page (`.excalidraw` files). Like Graph, it is not a
     /// note mode: leaving it returns to the last of Write/Read.
     Board,
-    /// A kanban note shown as a read-only board. An app mode like Board:
+    /// A kanban note shown as a board of cards. An app mode like Board:
     /// leaving it returns to the last of Write/Read.
     Kanban,
 }
@@ -56,8 +56,10 @@ impl State {
         if mode == self.mode {
             return;
         }
-        // Slice 6: leaving Board commits an open text editor.
+        // Slice 6: leaving Board commits an open text editor; Kanban slice
+        // 4: leaving the Kanban page commits its card editor.
         self.commit_board_text();
+        self.commit_card_edit();
         // #43: a rename field in the Board panel or title goes with them.
         self.board_rename_left_board(mode);
         self.pending_heading = None;

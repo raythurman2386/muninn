@@ -1,0 +1,448 @@
+//! Kanban slice 4: editing cards on the Kanban page, with undo, redo and an
+//! explicit save.
+//!
+//! Every action is one edit through `muninn_core::Kanban`'s splice API, so it
+//! changes only its own lines (`docs/kanban-format.md` section 10):
+//!
+//! - **Add card** (a lane's **+ Add card**) and **Insert card before / after**
+//!   (a card's menu) open an editor where the card will go. Committing text
+//!   that is not blank writes `- [ ] text` there; Add card puts it at the end
+//!   of the lane. Blank text adds nothing.
+//! - **Edit** (a double click on a card, or Edit in its menu) edits the card
+//!   in place. The checkbox character and the block id stay. Committing blank
+//!   text keeps the card as it was (Delete removes one).
+//! - In the editor Enter commits, Shift+Enter breaks the line and Esc
+//!   cancels. Leaving the page, picking another kanban, saving and quitting
+//!   commit it. While it is open it owns the keyboard ([`State::is_typing`]),
+//!   so `⌘Z` / `⇧⌘Z` there are the field's own undo and redo of the typing.
+//! - **Delete** removes the card's lines. **Duplicate** writes a copy of the
+//!   card's text right after it, without its block id (a block id names one
+//!   card). **Split card** makes each line of a multi-line card its own card,
+//!   in order: the first keeps the card's checkbox and block id, and the
+//!   lines lose their leading spaces and tabs. A card made by Duplicate or
+//!   Split is done when the card it came from is done.
+//! - The **checkbox** flips the done mark: one character.
+//! - **Done lanes**: a card added to, or duplicated or split inside, a done
+//!   lane is born done (`- [x]`). The lane menu's **Mark all cards done**
+//!   marks every open card in the lane done, each one character.
+//! - **Undo / redo** (`⌘Z`, `⇧⌘Z` / `⌘Y`, and the Ctrl chords) cover every
+//!   action above. Each history entry is the whole note text before or after
+//!   it, so undo puts back the exact previous bytes. Up to
+//!   [`muninn_core::HISTORY_LIMIT`] entries and about
+//!   [`muninn_core::HISTORY_BYTES`] per open kanban, as on Board.
+//! - **Saving**: nothing is written until `⌘S` / `Ctrl+S`, which writes the
+//!   note once through `Vault::write_note_if_unmodified` (the vault's atomic
+//!   writer). A file that changed on disk since it was read is not written
+//!   over: the save is refused and says so. There is no autosave yet.
+//! - **Unsaved edits are never dropped**, as on Board: leaving the page keeps
+//!   them in memory, and coming back does not re-read the file over them.
+//!   Picking another kanban saves first; when that save fails the page stays
+//!   on the edited kanban. Switching vaults and quitting save first too and
+//!   are refused, with the reason, when the save fails.
+//! - An action the model refuses (an `io::Error`, for example text it can't
+//!   place inside the card) changes nothing, in memory or on disk; the status
+//!   bar says why.
+
+use std::collections::VecDeque;
+use std::io;
+
+use muninn_core::{HISTORY_BYTES, HISTORY_LIMIT, Kanban};
+use rune::{KeyEvent, TextEdit};
+
+use crate::board_view::BoardStatus;
+use crate::{Mode, State};
+
+/// Where the card editor is open.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CardSlot {
+    pub lane: usize,
+    /// The card edited, or the index a new card will have.
+    pub index: usize,
+    /// A card not in the file yet.
+    pub new: bool,
+}
+
+/// Undo and redo for the kanban on the page: whole note texts, newest last.
+#[derive(Clone, Debug, Default)]
+pub struct KanbanHistory {
+    undo: VecDeque<String>,
+    redo: Vec<String>,
+}
+
+impl KanbanHistory {
+    /// Remember the text before an edit. A new edit clears redo.
+    fn record(&mut self, before: String) {
+        self.redo.clear();
+        self.undo.push_back(before);
+        let mut bytes: usize = self.undo.iter().map(String::len).sum();
+        while self.undo.len() > 1 && (self.undo.len() > HISTORY_LIMIT || bytes > HISTORY_BYTES) {
+            if let Some(old) = self.undo.pop_front() {
+                bytes -= old.len();
+            }
+        }
+    }
+}
+
+impl State {
+    /// Whether the kanban on the page holds edits that are not on disk, or
+    /// has its card editor open.
+    #[must_use]
+    pub fn kanban_dirty(&self) -> bool {
+        self.kanban_card.is_some() || self.kanban.as_ref().is_some_and(|k| k.dirty())
+    }
+
+    /// + Add card: an editor at the end of `lane`.
+    pub fn begin_add_card(&mut self, lane: usize) {
+        self.commit_card_edit();
+        let Some(len) = self.kanban_lane_len(lane) else {
+            return;
+        };
+        self.open_card_field(
+            CardSlot {
+                lane,
+                index: len,
+                new: true,
+            },
+            String::new(),
+        );
+    }
+
+    /// Insert card before / after: an editor that will add a card at `index`.
+    pub fn begin_insert_card(&mut self, lane: usize, index: usize) {
+        self.commit_card_edit();
+        if self.kanban_lane_len(lane).is_some_and(|len| index <= len) {
+            self.open_card_field(
+                CardSlot {
+                    lane,
+                    index,
+                    new: true,
+                },
+                String::new(),
+            );
+        }
+    }
+
+    /// Edit: an editor on the card's markdown.
+    pub fn begin_edit_card(&mut self, lane: usize, index: usize) {
+        self.commit_card_edit();
+        let Some(text) = self
+            .kanban_card_at(lane, index)
+            .map(|c| c.text().to_owned())
+        else {
+            return;
+        };
+        self.open_card_field(
+            CardSlot {
+                lane,
+                index,
+                new: false,
+            },
+            text,
+        );
+    }
+
+    fn open_card_field(&mut self, slot: CardSlot, text: String) {
+        self.menu = None;
+        self.set_text_focus(false, false);
+        let mut field = TextEdit::new(text);
+        field.set_caret(field.text.len());
+        field.focused = true;
+        self.kanban_card_field = field;
+        self.kanban_card = Some(slot);
+    }
+
+    /// Close the editor and apply its text as one edit. `true` when an
+    /// editor was open.
+    pub fn commit_card_edit(&mut self) -> bool {
+        let Some(slot) = self.kanban_card.take() else {
+            return false;
+        };
+        let text = std::mem::take(&mut self.kanban_card_field.text);
+        self.kanban_card_field = TextEdit::default();
+        if text.trim().is_empty() {
+            return true;
+        }
+        let CardSlot { lane, index, new } = slot;
+        if new {
+            let done = self.kanban_lane_is_done(lane);
+            self.edit_kanban("add the card", |board| {
+                board.add_card(lane, index, &text)?;
+                if done {
+                    board.toggle_done(lane, index)?;
+                }
+                Ok(())
+            });
+        } else {
+            self.edit_kanban("edit the card", |board| board.edit_card(lane, index, &text));
+        }
+        true
+    }
+
+    /// Esc in the editor: close it, changing nothing.
+    pub fn cancel_card_edit(&mut self) {
+        self.kanban_card = None;
+        self.kanban_card_field = TextEdit::default();
+    }
+
+    pub fn delete_card(&mut self, lane: usize, index: usize) {
+        self.edit_kanban("delete the card", |board| board.delete_card(lane, index));
+    }
+
+    pub fn duplicate_card(&mut self, lane: usize, index: usize) {
+        let Some(card) = self.kanban_card_at(lane, index) else {
+            return;
+        };
+        let text = card.text().to_owned();
+        let done = card.is_done() || self.kanban_lane_is_done(lane);
+        self.edit_kanban("duplicate the card", |board| {
+            board.add_card(lane, index + 1, &text)?;
+            if done {
+                board.toggle_done(lane, index + 1)?;
+            }
+            Ok(())
+        });
+    }
+
+    /// Split card: each non-blank line becomes a card, in order.
+    pub fn split_card(&mut self, lane: usize, index: usize) {
+        let Some(card) = self.kanban_card_at(lane, index) else {
+            return;
+        };
+        let lines: Vec<String> = split_lines(card.text())
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let done = card.is_done() || self.kanban_lane_is_done(lane);
+        let Some((first, rest)) = lines.split_first() else {
+            return;
+        };
+        if rest.is_empty() {
+            return;
+        }
+        self.edit_kanban("split the card", |board| {
+            board.edit_card(lane, index, first)?;
+            for (n, line) in rest.iter().enumerate() {
+                let at = index + 1 + n;
+                board.add_card(lane, at, line)?;
+                if done {
+                    board.toggle_done(lane, at)?;
+                }
+            }
+            Ok(())
+        });
+    }
+
+    /// The checkbox: flip the card's done mark.
+    pub fn toggle_card_done(&mut self, lane: usize, index: usize) {
+        self.commit_card_edit();
+        self.edit_kanban("change the done mark", |board| {
+            board.toggle_done(lane, index)
+        });
+    }
+
+    /// Mark all cards done: every open card in `lane`.
+    pub fn mark_lane_done(&mut self, lane: usize) {
+        let open: Vec<usize> = self
+            .kanban_board()
+            .and_then(|board| board.lanes().get(lane))
+            .map(|l| {
+                l.cards()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, card)| !card.is_done())
+                    .map(|(i, _)| i)
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.edit_kanban("mark the cards done", |board| {
+            open.iter().try_for_each(|&i| board.toggle_done(lane, i))
+        });
+    }
+
+    /// Run `op` on a copy of the board and keep the copy only when it
+    /// succeeds and changed something: one history entry. A refusal leaves
+    /// the board as it was and says why.
+    fn edit_kanban(&mut self, what: &str, op: impl FnOnce(&mut Kanban) -> io::Result<()>) {
+        let Some(mut next) = self.kanban_board().cloned() else {
+            return;
+        };
+        if let Err(e) = op(&mut next) {
+            self.log_event("kanban", &format!("could not {what}: {e}"));
+            self.notice = Some(format!("Could not {what}: {e}"));
+            return;
+        }
+        if self.kanban_board().map(Kanban::source) == Some(next.source()) {
+            return;
+        }
+        let Some(shown) = &mut self.kanban else {
+            return;
+        };
+        let Some(board) = shown.board.replace(next) else {
+            return;
+        };
+        shown.history.record(board.source().to_owned());
+        shown.mark_changed();
+    }
+
+    /// `⌘Z` on the page: put back the text before the newest edit.
+    pub fn undo_kanban(&mut self) {
+        self.step_kanban_history(true);
+    }
+
+    /// `⇧⌘Z` / `⌘Y` on the page: apply the newest undone edit again.
+    pub fn redo_kanban(&mut self) {
+        self.step_kanban_history(false);
+    }
+
+    fn step_kanban_history(&mut self, undo: bool) {
+        self.commit_card_edit();
+        let Some(shown) = &mut self.kanban else {
+            return;
+        };
+        let Some(board) = &shown.board else {
+            return;
+        };
+        let history = &mut shown.history;
+        let Some(text) = (if undo {
+            history.undo.pop_back()
+        } else {
+            history.redo.pop()
+        }) else {
+            return;
+        };
+        // Every entry was a parsed board's text, so it parses again.
+        let Ok(next) = Kanban::parse(&text) else {
+            return;
+        };
+        let current = board.source().to_owned();
+        if undo {
+            history.redo.push(current);
+        } else {
+            history.undo.push_back(current);
+        }
+        shown.board = Some(next);
+        shown.mark_changed();
+    }
+
+    /// `⌘S` on the page: commit the editor, then write the kanban once when
+    /// it differs from the file. `false` when it could not be written (the
+    /// reason is its status); `true` when written or nothing needed writing.
+    pub fn save_kanban(&mut self) -> bool {
+        self.commit_card_edit();
+        let Some(shown) = &self.kanban else {
+            return true;
+        };
+        let Some(board) = shown.board.as_ref().filter(|_| shown.dirty()) else {
+            return true;
+        };
+        let (rel, source, disk) = (shown.rel.clone(), board.source().to_owned(), shown.disk);
+        let written = match (self.note_id(&rel), disk) {
+            (None, _) => Err("the note is no longer in the vault".to_owned()),
+            (Some(_), None) => Err("the file could not be checked".to_owned()),
+            (Some(id), Some(expected)) => {
+                match self.vault.write_note_if_unmodified(id, &source, expected) {
+                    Ok(true) => Ok(id),
+                    Ok(false) => Err("the file changed on disk".to_owned()),
+                    Err(e) => Err(e.to_string()),
+                }
+            }
+        };
+        let status = match written {
+            Ok(id) => {
+                // The note's editor, links and watcher follow the new file.
+                if self.selected == Some(id) {
+                    let _ = self.load_disk_into_editor(id);
+                } else {
+                    self.graph.sync(&self.vault);
+                    self.refresh_watch();
+                }
+                self.log_event("kanban", &format!("saved {rel}"));
+                let disk = self.vault.disk_state(id).ok();
+                if let Some(shown) = &mut self.kanban {
+                    shown.saved = source;
+                    shown.disk = disk;
+                }
+                BoardStatus::Saved
+            }
+            Err(e) => {
+                self.log_event("kanban", &format!("{rel} not saved: {e}"));
+                BoardStatus::Failed(e)
+            }
+        };
+        let saved = status == BoardStatus::Saved;
+        if let Some(shown) = &mut self.kanban {
+            shown.status = status;
+        }
+        saved
+    }
+
+    fn kanban_board(&self) -> Option<&Kanban> {
+        self.kanban.as_ref()?.board.as_ref()
+    }
+
+    fn kanban_lane_len(&self, lane: usize) -> Option<usize> {
+        Some(self.kanban_board()?.lanes().get(lane)?.cards().len())
+    }
+
+    fn kanban_lane_is_done(&self, lane: usize) -> bool {
+        self.kanban_board()
+            .and_then(|board| board.lanes().get(lane))
+            .is_some_and(|l| l.done_word().is_some())
+    }
+
+    fn kanban_card_at(&self, lane: usize, index: usize) -> Option<&muninn_core::Card> {
+        self.kanban_board()?.lanes().get(lane)?.cards().get(index)
+    }
+}
+
+/// A card's lines for Split card: each line without its leading spaces and
+/// tabs, blank lines dropped.
+fn split_lines(text: &str) -> Vec<&str> {
+    text.split('\n')
+        .map(|line| line.trim_start_matches([' ', '\t']))
+        .filter(|line| !line.trim().is_empty())
+        .collect()
+}
+
+/// Undo and redo chords on the Kanban page, outside a text field.
+pub(crate) fn kanban_command(s: &mut State, e: &KeyEvent) -> bool {
+    if s.mode != Mode::Kanban || s.kanban.is_none() || !e.mods.cmd {
+        return false;
+    }
+    let rune::Key::Command(c) = &e.key else {
+        return false;
+    };
+    match c.to_ascii_lowercase() {
+        'z' if e.mods.shift => s.redo_kanban(),
+        'z' => s.undo_kanban(),
+        'y' => s.redo_kanban(),
+        _ => return false,
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_keeps_each_line_in_order_without_its_lead() {
+        assert_eq!(
+            split_lines("one\n  two\n\n\tthree 漢字\n   \nfour"),
+            ["one", "two", "three 漢字", "four"]
+        );
+    }
+
+    #[test]
+    fn history_keeps_the_newest_entries() {
+        let mut history = KanbanHistory::default();
+        for n in 0..HISTORY_LIMIT + 5 {
+            history.record(n.to_string());
+        }
+        assert_eq!(history.undo.len(), HISTORY_LIMIT);
+        assert_eq!(history.undo.front().map(String::as_str), Some("5"));
+        history.redo.push("r".to_owned());
+        history.record("next".to_owned());
+        assert!(history.redo.is_empty(), "a new edit clears redo");
+    }
+}

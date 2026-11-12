@@ -241,6 +241,7 @@ impl State {
             || self.rename_folder_prompt.is_some()
             || self.board_rename.is_some()
             || self.board_text.is_some()
+            || self.kanban_card.is_some()
     }
 
     /// DES-01: help overlay.
