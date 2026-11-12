@@ -23,7 +23,9 @@
 //! kanban entries ([`State::open_kanban`]), New Kanban
 //! ([`State::new_kanban`]) and Convert empty note to Kanban
 //! ([`State::convert_to_kanban`]). Picking a kanban note in the notes list
-//! while the page is up keeps the page (`State::open_from_list`).
+//! while the page is up keeps the page (`State::open_from_list`), and one
+//! picked from the sidebar search (⌘K) opens here from any mode
+//! ([`State::open_from_search`]).
 
 use std::fs;
 use std::path::Path;

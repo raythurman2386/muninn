@@ -1553,6 +1553,22 @@ impl State {
         self.load_note(id, true);
     }
 
+    /// A pick from the sidebar search (⌘K, then Enter or a click on a
+    /// result). A kanban note opens on the Kanban page from any mode, with
+    /// the keyboard on the page; any other note opens as from the list.
+    pub fn open_from_search(&mut self, id: usize) {
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_kanban())
+        {
+            self.open_kanban(id);
+        } else {
+            self.open_from_list(id);
+        }
+    }
+
     pub fn open_from_link(&mut self, id: usize) {
         self.load_note(id, self.mode == Mode::Editor);
     }
@@ -1723,7 +1739,7 @@ impl State {
             .or(if results.is_empty() { None } else { Some(0) })
         {
             self.search_selected = Some(index);
-            self.open_from_list(results[index]);
+            self.open_from_search(results[index]);
         }
     }
 
