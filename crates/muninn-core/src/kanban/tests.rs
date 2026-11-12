@@ -991,7 +991,7 @@ kanban-plugin: board
     let rows = [
         ("tab", "\n\tx", "\tx"),
         ("one-space", "\n x", "   x"),
-        ("ideographic", "\n\u{3000}全角", "\u{3000}全角"),
+        ("ideographic", "\n\u{3000}全角", "  \u{3000}全角"),
         ("nbsp", "\n\u{a0}x", "  \u{a0}x"),
         ("four-spaces", "\n    deep", "      deep"),
         ("fence", "\n```", "  ```"),
@@ -1040,6 +1040,155 @@ fn an_edit_that_would_change_the_card_text_is_rejected() {
     let error = kanban.edit_card(0, 0, "a ^abc\nl1").unwrap_err();
     assert_eq!(error.kind(), ErrorKind::InvalidData);
     assert_eq!(kanban.source(), source);
+}
+
+#[test]
+fn an_ideographic_space_stays_inside_the_card() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  l1
+- [ ] b
+";
+    let mut kanban = parse(source);
+    kanban.edit_card(0, 0, "a\nl1\n\n\u{3000}全角").unwrap();
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  l1
+
+  \u{3000}全角
+- [ ] b
+"
+    );
+    assert_eq!(kanban.lanes()[0].cards().len(), 2);
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "b");
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\nl1\n\n\u{3000}全角");
+}
+
+#[test]
+fn an_ideographic_space_inside_a_fence_does_not_swallow_the_next_card() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  ```
+  code
+  ```
+- [ ] b
+";
+    let mut kanban = parse(source);
+    kanban
+        .edit_card(0, 0, "a\n```\ncode\n\u{3000}x\n```")
+        .unwrap();
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+  ```
+  code
+  \u{3000}x
+  ```
+- [ ] b
+"
+    );
+    assert_eq!(kanban.lanes()[0].cards().len(), 2);
+    assert_eq!(
+        kanban.lanes()[0].cards()[0].text(),
+        "a\n```\ncode\n\u{3000}x\n```"
+    );
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "b");
+}
+
+#[test]
+fn a_four_space_line_on_a_tab_card_stays_in_the_card() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+	l0
+- [ ] b
+";
+    let mut kanban = parse(source);
+    kanban.edit_card(0, 0, "a\nl0\n    code").unwrap();
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+	l0
+    code
+- [ ] b
+"
+    );
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\nl0\n    code");
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "b");
+}
+
+#[test]
+fn a_tab_line_on_a_three_space_card_stays_in_the_card() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+   l0
+- [ ] b
+";
+    let mut kanban = parse(source);
+    kanban.edit_card(0, 0, "a\n l0\n \tx").unwrap();
+    assert_eq!(kanban.lanes()[0].cards()[0].text(), "a\n l0\n \tx");
+    assert_eq!(kanban.lanes()[0].cards().len(), 2);
+    assert_eq!(kanban.lanes()[0].cards()[1].text(), "b");
+    assert_eq!(
+        kanban.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+   l0
+ \tx
+- [ ] b
+"
+    );
 }
 
 #[test]
