@@ -119,6 +119,32 @@ impl BoardTool {
             BoardTool::Text => &TEXT,
         }
     }
+
+    /// The tool's accessible name (#72): a title, not the key-style `name`.
+    fn label(self) -> &'static str {
+        match self {
+            BoardTool::Rectangle => "Rectangle",
+            BoardTool::Diamond => "Diamond",
+            BoardTool::Ellipse => "Ellipse",
+            BoardTool::Arrow => "Arrow",
+            BoardTool::Line => "Line",
+            BoardTool::Freedraw => "Freehand",
+            BoardTool::Text => "Text",
+        }
+    }
+
+    /// What the tool does, with its key, for the button's help (#72).
+    fn help(self) -> &'static str {
+        match self {
+            BoardTool::Rectangle => "Draw a rectangle (R)",
+            BoardTool::Diamond => "Draw a diamond (D)",
+            BoardTool::Ellipse => "Draw an ellipse (O)",
+            BoardTool::Arrow => "Draw an arrow (A)",
+            BoardTool::Line => "Draw a line (L)",
+            BoardTool::Freedraw => "Draw freehand (P or X)",
+            BoardTool::Text => "Place text, then type (T)",
+        }
+    }
 }
 
 /// What a plain key does to the tool: `Some(Some(t))` picks `t`,
@@ -432,6 +458,10 @@ pub(crate) fn draft_shape(draft: &Draft, view: BoardView, ink: Ink<'_>) -> Shape
 pub(crate) fn toolbar(s: &State, k: &Kit) -> El {
     let mut bar = row()
         .key("board-toolbar")
+        // #72: a named toolbar, so assistive technology announces the group
+        // before reading its buttons.
+        .role("toolbar")
+        .label("Board tools")
         .pin(Some(12.0), Some(12.0), None, None)
         .h(36.0)
         .padding(3.0)
@@ -468,8 +498,24 @@ pub(crate) fn toolbar(s: &State, k: &Kit) -> El {
 }
 
 fn tool_button(k: &Kit, on: bool, glyph: &'static Icon, name: &str, tool: Option<BoardTool>) -> El {
+    // #72: hand and select are not `BoardTool`s, so name them here; the drawn
+    // tools carry their own label and help.
+    let (label, help) = match tool {
+        Some(tool) => (tool.label(), tool.help()),
+        None if name == "hand" => ("Hand", "Pan the board (H)"),
+        None => ("Select", "Select and move elements (V)"),
+    };
     row()
         .key(format!("board-tool-{name}"))
+        // #72: the 30 pt target is a named, focusable toggle button with a
+        // ring; Space presses it and the press still returns the keyboard to
+        // the canvas for the tool letters.
+        .role("button")
+        .label(label)
+        .help(help)
+        .checked(on)
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
         .size(30.0, 30.0)
         .radius(6.0)
         .center()

@@ -85,6 +85,10 @@ const ACTIONS: &[&str] = &[
     "Note and folder actions",
     "Settings (vaults, theme, autosave, Kanban defaults)",
     "Per-board overrides, one key at a time",
+    "Pan the board",
+    "Zoom at the pointer",
+    "Select every element",
+    "Save the board's drawing",
 ];
 
 #[test]
@@ -105,9 +109,11 @@ fn help_keeps_every_shortcut_and_the_footer_actions() {
     assert_eq!(text_of(&rt, "help-key-0-0-1-label"), "K");
     assert_eq!(text_of(&rt, "help-key-0-0-2-label"), "Ctrl");
     assert_eq!(text_of(&rt, "help-key-0-0-3-label"), "K");
-    // Slice 16: the Kanban group sits between Edit and Graph.
+    // Slice 16: the Kanban group sits between Edit and Graph; #72 adds Board
+    // between Graph and Sidebar.
     assert_eq!(text_of(&rt, "help-key-3-4-0-label"), "+");
     assert_eq!(text_of(&rt, "help-key-3-4-1-label"), "-");
+    assert!(rt.find("help-section-board").is_some());
     assert_eq!(text_of(&rt, "help-note-0-1"), "(search)");
     assert!(
         texts
@@ -140,6 +146,7 @@ fn sections_share_rows_on_a_wide_window_and_stack_when_narrow() {
     let edit = rect(&wide, "help-section-edit");
     let kanban = rect(&wide, "help-section-kanban");
     let graph = rect(&wide, "help-section-graph");
+    let board = rect(&wide, "help-section-board");
     let sidebar = rect(&wide, "help-section-sidebar");
     assert!(
         (nav[1] - edit[1]).abs() < 2.0 && edit[0] > nav[0] + 40.0,
@@ -154,8 +161,12 @@ fn sections_share_rows_on_a_wide_window_and_stack_when_narrow() {
         "graph should sit on the same row: {graph:?}"
     );
     assert!(
-        sidebar[1] > nav[1] + nav[3] - 4.0 && (sidebar[0] - nav[0]).abs() < 2.0,
-        "the fifth section wraps under the first: {sidebar:?} nav {nav:?}"
+        board[1] > nav[1] + nav[3] - 4.0 && (board[0] - nav[0]).abs() < 2.0,
+        "the fifth section wraps under the first: board {board:?} nav {nav:?}"
+    );
+    assert!(
+        (board[1] - sidebar[1]).abs() < 2.0 && sidebar[0] > board[0] + 40.0,
+        "sidebar should sit beside board: {sidebar:?} board {board:?}"
     );
     assert!(
         nav[2] > 200.0 && (nav[2] - edit[2]).abs() < 2.0,

@@ -2365,7 +2365,7 @@ fn keycap_text(key: &str) -> String {
     }
 }
 
-fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)]); 5] {
+fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)]); 6] {
     [
         (
             "Navigation",
@@ -2435,6 +2435,42 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("0 / F", "Fit the visible nodes"),
                 ("I", "Toggle Isolate"),
                 ("Esc", "Leave the graph"),
+            ],
+        ),
+        (
+            "Board",
+            &[
+                ("H / Shift+wheel", "Pan the board (or drag with the hand)"),
+                ("Wheel / pinch", "Zoom at the pointer"),
+                ("+ / -", "Zoom in / out at the canvas centre"),
+                ("Arrows (nothing selected)", "Pan the board"),
+                ("0 / F / double-click", "Fit the drawing"),
+                (
+                    "R / D / O / A / L / P / X",
+                    "Rectangle, diamond, ellipse, arrow, line or freehand tool",
+                ),
+                ("Drag with a tool", "Draw that shape; the tool stays picked"),
+                ("T / 8", "Place text, then click and type it in place"),
+                ("V / 1", "Drop the tool (back to selecting)"),
+                (
+                    "Click / Shift+click",
+                    "Select an element / add or remove it",
+                ),
+                (
+                    "Arrows (selection)",
+                    "Nudge the selection 1 unit (Shift: 5)",
+                ),
+                ("Delete / Backspace", "Delete the selection"),
+                ("⌘A / Ctrl+A", "Select every element"),
+                (
+                    "⌘Z / ⌘⇧Z / Ctrl+Y",
+                    "Undo / redo drawing, moves and deletes",
+                ),
+                ("⌘S / Ctrl+S", "Save the board's drawing"),
+                (
+                    "Esc",
+                    "Clear the selection, else drop the tool, else leave Board",
+                ),
             ],
         ),
         (
