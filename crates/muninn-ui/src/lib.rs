@@ -31,6 +31,7 @@ mod kanban_sync;
 mod kanban_tags;
 mod kanban_view;
 mod kanban_views;
+mod kanban_wrap;
 mod keys;
 mod mode;
 mod omarchy;

@@ -4,6 +4,17 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Long unbroken card text on the Kanban board.** A card whose visible text
+  is one run of letters, digits, `=`, `.`, `/` or `_` (an env var or a URL)
+  now stays inside the card in Board, List and Table views instead of
+  painting over the next lane. Board and List wrap it, URLs stay one
+  clickable link to the exact address, a single long `#tag` chip shrinks and
+  wraps, and the stored card text and the editor keep the original bytes.
+
 ## [0.8.0] - 2026-11-13
 
 ### Added

@@ -80,7 +80,7 @@ pub(crate) fn card_metadata_rows(
                 .key(format!("kanban-card-{i}-{j}-metadata-{index}"))
                 .font(k.ty.caption())
                 .color(k.c.text_muted)
-                .wrap(),
+                .wrap_anywhere(),
         };
         column = column.child(
             row()
