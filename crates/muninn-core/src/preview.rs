@@ -250,6 +250,12 @@ fn is_attachment_embed(source: &str, start: usize, target: &str) -> bool {
     attachment_name(target).is_some()
 }
 
+/// True when `target` names an attachment by its non-Markdown extension
+/// (`pic.png`, `Plan.excalidraw`). A bare link target (`Missing`) is not one.
+pub(crate) fn is_attachment_target(target: &str) -> bool {
+    attachment_name(target).is_some()
+}
+
 /// The file name of an attachment target (`assets/pic.png` → `pic.png`), or
 /// `None` when the extension is Markdown or missing.
 fn attachment_name(target: &str) -> Option<&str> {
