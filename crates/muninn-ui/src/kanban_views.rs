@@ -40,7 +40,7 @@ use rune_theme_opencode::icons as ic;
 
 use crate::State;
 use crate::kanban_view::{
-    card_checkbox, card_markdown, checklist_section, is_menu, lane_load, menu_button,
+    card_checkbox, card_markdown, checklist_section, lane_load, menu_button,
     without_checklist_lines,
 };
 
@@ -179,7 +179,7 @@ fn list_lane(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane) -> El {
     } else {
         base_count
     };
-    let mut section = col()
+    let section = col()
         .key(format!("kanban-list-lane-{i}"))
         .w_full()
         .gap(6.0)
@@ -206,11 +206,7 @@ fn list_lane(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane) -> El {
                 ""
             }
         ))
-        .expanded(!lane.collapsed())
         .child(list_head(k, i, lane, &count, over));
-    if is_menu(s, &crate::MenuTarget::Lane(i)) || is_menu(s, &crate::MenuTarget::DeleteLane(i)) {
-        section = section.child(crate::view::context_menu(s, k));
-    }
     if lane.collapsed() {
         return section.child(
             text(format!("Collapsed · {} cards", lane.cards().len()))
@@ -230,15 +226,11 @@ fn list_lane(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane) -> El {
         .gap(6.0)
         .role("list")
         .label(format!("{} cards", lane.title()))
-        .focus_group();
+        .focus_group()
+        .focus_follows();
     for &(j, card) in &cards {
         let (rows, value_note) = metadata.rows(&s.vault, ctx.note, card.text());
         list = list.child(list_card(s, k, ctx, i, j, lane, card, &rows, value_note));
-        if is_menu(s, &crate::MenuTarget::Card(i, j))
-            || is_menu(s, &crate::MenuTarget::MoveCard(i, j))
-        {
-            list = list.child(crate::view::context_menu(s, k));
-        }
     }
     section.child(list)
 }
@@ -282,14 +274,12 @@ fn list_head(k: &Kit, i: usize, lane: &Lane, count: &str, over: bool) -> El {
                     .color(k.c.success.fg),
             );
     }
-    head.child(
-        menu_button(
-            k,
-            format!("kanban-list-lane-{i}-menu"),
-            format!("Lane actions: {}", lane.title()),
-        )
-        .on_press(move |s: &mut State| s.open_lane_menu(i)),
-    )
+    head.child(menu_button(
+        k,
+        format!("kanban-list-lane-{i}-menu"),
+        format!("Lane actions: {}", lane.title()),
+        move |s: &mut State, _: &mut Tx| s.open_lane_menu(i),
+    ))
 }
 
 /// One card row in the list: the same text, dates, tags, metadata and
@@ -339,6 +329,9 @@ fn list_card(
         .role("listitem")
         .label(format!("{} · {state_word}: {first}", lane.title()))
         .focusable(true)
+        // Slice 16 fix: a nested group puts the row's controls within Tab and
+        // arrow reach (checkbox first, then the menu and checklist rows).
+        .focus_group()
         .focus_selected(selected)
         .focus_ring(2.0, 1.0, k.c.text_accent)
         // Slice 16: Space and Enter flip the focused card's done mark.
@@ -390,10 +383,12 @@ fn list_card(
                 ))
                 .child(checklist_section(k, i, j, &checklist)),
         )
-        .child(
-            menu_button(k, format!("kanban-card-{i}-{j}-menu"), menu_label)
-                .on_press(move |s: &mut State| s.open_card_menu(i, j)),
-        )
+        .child(menu_button(
+            k,
+            format!("kanban-card-{i}-{j}-menu"),
+            menu_label,
+            move |s: &mut State, _: &mut Tx| s.open_card_menu(i, j),
+        ))
 }
 
 /// The board as a table of cards, grouped by lane in file order.
@@ -437,6 +432,10 @@ pub(crate) fn table(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
             .gap(0.0)
             .role("table")
             .label("Cards by lane")
+            // Slice 16 fix: the rows are one group, so Tab reaches the table
+            // and the arrows rove its rows; the selection follows focus.
+            .focus_group()
+            .focus_follows()
             .children(rows)
     };
     col()
@@ -497,11 +496,6 @@ fn table_lane_rows(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane, row
     }
     for &(j, card) in &cards {
         rows.push(table_row(s, k, ctx, i, j, lane, card));
-        if is_menu(s, &crate::MenuTarget::Card(i, j))
-            || is_menu(s, &crate::MenuTarget::MoveCard(i, j))
-        {
-            rows.push(crate::view::context_menu(s, k));
-        }
     }
 }
 
@@ -604,17 +598,15 @@ fn table_row(
     {
         let target = link.target.clone();
         let heading = link.heading.clone();
-        card_cell = card_cell.child(
-            crate::kanban_view::icon_button(
-                k,
-                format!("kanban-table-{i}-{j}-open"),
-                &ic::LINK,
-                12.0,
-                "Open link",
-            )
-            .on_press_tx(move |s: &mut State, tx: &mut Tx| {
-                // Resolve at press time: the note may have appeared or been
-                // renamed since this row was built.
+        card_cell = card_cell.child(crate::kanban_view::icon_button(
+            k,
+            format!("kanban-table-{i}-{j}-open"),
+            &ic::LINK,
+            12.0,
+            "Open link",
+            move |s: &mut State, tx: &mut Tx| {
+                // Resolve at press time: the note may have appeared or
+                // been renamed since this row was built.
                 let path = match &heading {
                     Some(heading) => format!("{target}#{heading}"),
                     None => target.clone(),
@@ -625,8 +617,8 @@ fn table_row(
                     format!("missing:{target}")
                 };
                 s.open_card_link(&url, tx);
-            }),
-        );
+            },
+        ));
     }
     row()
         .key(format!("kanban-table-{i}-{j}"))
@@ -648,6 +640,9 @@ fn table_row(
             if done { "Done" } else { "Open" }
         ))
         .focusable(true)
+        // Slice 16 fix: a nested group puts the row's controls (checkbox and
+        // Open link) within Tab and arrow reach.
+        .focus_group()
         .focus_selected(selected)
         .focus_ring(2.0, 1.0, k.c.text_accent)
         .on_key(move |s: &mut State, e: &KeyEvent, tx: &mut Tx| {

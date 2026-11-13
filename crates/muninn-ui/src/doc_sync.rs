@@ -248,6 +248,10 @@ pub(crate) fn conflict_bar(
         // out), its sentence an alert, and each choice a real button.
         .role("alertdialog")
         .label(conflict.message())
+        // Slice 16 fix: Escape puts the bar away and the page's Resolve
+        // conflict button takes the keyboard; the other two pages have no
+        // such button, and the hint then resolves to nothing.
+        .focus_return(format!("{page}-conflict-review"))
         .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
         .child(
             text(conflict.message())
@@ -274,6 +278,7 @@ fn choice(k: &Kit, label: &str, key: String, action: fn(&mut State) -> bool) -> 
         .cursor(Cursor::Pointer)
         .px(8.0)
         .py(4.0)
+        .min_h(24.0)
         .center_y()
         .role("button")
         .label(label.to_owned())

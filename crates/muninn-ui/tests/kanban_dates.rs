@@ -269,8 +269,8 @@ fn a_typed_trigger_inserts_at_the_caret_and_escape_leaves_it_alone() {
         rt.state.kanban_picker.is_some(),
         "the date picker opened at the caret"
     );
+    // A day click chooses and accepts: it is a write.
     click(&mut rt, "kanban-picker-day-15");
-    click(&mut rt, "kanban-picker-set");
     let field = rt.state.kanban_card_field.text.clone();
     assert_eq!(
         field,
@@ -533,8 +533,8 @@ fn a_menu_date_replaces_the_existing_token_in_one_undo_step() {
     let tmp = vault_with(board);
     let mut rt = on_board(&tmp);
     menu(&mut rt, "kanban-card-0-0-menu", "add_date");
+    // A day click chooses and accepts: it is a write.
     click(&mut rt, "kanban-picker-day-15");
-    click(&mut rt, "kanban-picker-set");
     let want = format!(
         "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due {}\n",
         day_in(2026, 11, 15)
@@ -558,7 +558,6 @@ fn a_menu_date_keeps_a_link_form_folder_heading_and_alias() {
         let mut rt = on_board(&tmp);
         menu(&mut rt, "kanban-card-0-0-menu", "add_date");
         click(&mut rt, "kanban-picker-day-15");
-        click(&mut rt, "kanban-picker-set");
         assert_eq!(
             source(&rt),
             format!("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due {want}\n"),
@@ -572,16 +571,23 @@ fn a_menu_date_keeps_a_link_form_folder_heading_and_alias() {
 }
 
 #[test]
-fn enter_accepts_a_menu_date_picker() {
+fn a_menu_date_picker_enter_does_not_write_but_add_date_does() {
     let tmp = vault_with(PLAIN);
     let mut rt = on_board(&tmp);
     menu(&mut rt, "kanban-card-0-0-menu", "add_date");
     assert!(rt.state.kanban_picker.is_some());
+    let before = source(&rt);
     press(&mut rt, Key::Enter, false);
     assert!(
-        rt.state.kanban_picker.is_none(),
-        "Enter accepted the picker"
+        rt.state.kanban_picker.is_some(),
+        "Enter on the first control did not accept the picker"
     );
+    assert_eq!(source(&rt), before, "and wrote nothing");
+    // Enter on the focused Previous month button moved the grid; Today puts
+    // the choice back on today, then Add date writes it.
+    click(&mut rt, "kanban-picker-today");
+    click(&mut rt, "kanban-picker-set");
+    assert!(rt.state.kanban_picker.is_none());
     assert_eq!(
         source(&rt),
         format!(
@@ -702,8 +708,8 @@ fn undo_after_accept_does_not_reopen_the_picker_and_retyping_does() {
         s.kanban_card_field.set_caret(5);
     });
     type_text(&mut rt, " @");
+    // A day click chooses and accepts: it is a write.
     click(&mut rt, "kanban-picker-day-15");
-    click(&mut rt, "kanban-picker-set");
     assert!(rt.state.kanban_card_field.text.contains(&today_day(15)));
     rt.key(command('z', false));
     frame(&mut rt);

@@ -230,6 +230,14 @@ impl State {
         }
     }
 
+    /// Clicking a day chooses it and accepts the picker: that click is a write,
+    /// like Add date, and closes the picker. (The day grid's arrows only move
+    /// focus; Enter or a click chooses.)
+    pub fn picker_choose_day(&mut self, day: u32) {
+        self.picker_pick_day(day);
+        self.picker_accept();
+    }
+
     pub fn picker_now(&mut self) {
         let now = local_now().1;
         self.kanban_hour_field
@@ -588,24 +596,67 @@ fn clear_span(text: &str, start: usize, end: usize) -> (usize, usize) {
 }
 
 /// The picker under the card it belongs to.
+///
+/// Slice 16 fix: a picker opened from a menu is drawn by [`picker_layer`] as
+/// a real modal overlay, so this returns nothing for it. A picker opened from
+/// a typed trigger leaves the card editor its keyboard, so it stays inline
+/// under the editor and is not modal: Shift+Enter still breaks the line and
+/// typing still reaches the field.
 pub(crate) fn picker(s: &State, k: &Kit) -> El {
     let Some(picker) = &s.kanban_picker else {
         return rune::el();
     };
+    if !picker_typing(s) {
+        return rune::el();
+    }
     let panel = match picker.kind {
         PickerKind::Date => date_picker(s, k, picker),
         PickerKind::Time => time_picker(s, k),
     };
-    // Slice 16: a picker opened from a menu owns the keyboard (it is the
-    // page's top layer), so a dialog traps it and Escape dismisses it. One
-    // opened from a typed trigger leaves the card editor its keyboard, so
-    // Shift+Enter still breaks the line and typing still reaches the field.
-    let typing =
-        s.kanban_card_field.focused || s.kanban_hour_field.focused || s.kanban_minute_field.focused;
+    // Slice 16 fix: closing the inline picker returns the keyboard to its card.
+    panel.focus_return(format!("kanban-card-{}-{}", picker.card.0, picker.card.1))
+}
+
+/// Whether the picker was opened from a text field (the card editor or the
+/// time fields), which keeps the keyboard and draws it inline rather than as
+/// the modal overlay.
+fn picker_typing(s: &State) -> bool {
+    s.kanban_card_field.focused || s.kanban_hour_field.focused || s.kanban_minute_field.focused
+}
+
+/// A menu-opened picker, as the page's last root overlay: a real modal that
+/// traps Tab and the pointer, closes on Escape or a press outside it, and
+/// gives the keyboard back to its card. It floats under the card's last
+/// drawn rectangle (above it when there is no room below).
+pub(crate) fn picker_layer(s: &State, k: &Kit) -> El {
+    let Some(picker) = &s.kanban_picker else {
+        return rune::el();
+    };
+    let typing = picker_typing(s);
     if typing {
-        return panel;
+        return rune::el();
     }
+    let panel = match picker.kind {
+        PickerKind::Date => date_picker(s, k, picker),
+        PickerKind::Time => time_picker(s, k),
+    };
+    let (width, height) = match picker.kind {
+        PickerKind::Date => (232.0, 320.0),
+        PickerKind::Time => (210.0, 150.0),
+    };
+    let card = s
+        .kanban_rects
+        .card_rect(picker.card.0, picker.card.1)
+        .unwrap_or([8.0, 72.0, width, 0.0]);
+    let below = card[1] + card[3] + 4.0;
+    let y = if below + height <= s.window_height {
+        below
+    } else {
+        (card[1] - height - 4.0).max(8.0)
+    };
+    let x = card[0].min(s.window_width - width - 8.0).max(8.0);
     panel
+        .absolute(x, y)
         .modal(true, |s: &mut State| s.dismiss_picker())
         .focus_return(format!("kanban-card-{}-{}", picker.card.0, picker.card.1))
 }
@@ -618,9 +669,10 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
         .gap(4.0)
         .center_y()
         .child(
-            picker_button(k, "kanban-picker-prev", "‹")
-                .label("Previous month")
-                .on_press(|s: &mut State| s.picker_previous_month()),
+            picker_button(k, "kanban-picker-prev", "‹", |s: &mut State| {
+                s.picker_previous_month();
+            })
+            .label("Previous month"),
         )
         .child(
             text(title)
@@ -630,11 +682,18 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
                 .grow(1.0),
         )
         .child(
-            picker_button(k, "kanban-picker-next", "›")
-                .label("Next month")
-                .on_press(|s: &mut State| s.picker_next_month()),
+            picker_button(k, "kanban-picker-next", "›", |s: &mut State| {
+                s.picker_next_month();
+            })
+            .label("Next month"),
         );
-    let mut grid = col().key("kanban-picker-grid").w_full().gap(2.0);
+    let mut grid = col()
+        .key("kanban-picker-grid")
+        .w_full()
+        .gap(2.0)
+        .role("grid")
+        .label("Days")
+        .focus_group();
     let mut week = row().w_full().gap(2.0);
     for label in ["S", "M", "T", "W", "T", "F", "S"] {
         week = week.child(
@@ -666,10 +725,11 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
             .role("button")
             .label(format!("Day {day}"))
             .focusable(true)
+            .focus_selected(selected)
             .focus_ring(2.0, -1.0, k.c.text_accent)
             .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
                 if e.key == Key::Enter {
-                    s.picker_pick_day(day);
+                    s.picker_choose_day(day);
                     true
                 } else {
                     false
@@ -680,7 +740,7 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
             } else {
                 k.c.layer_02
             })
-            .on_press(move |s: &mut State| s.picker_pick_day(day))
+            .on_press(move |s: &mut State| s.picker_choose_day(day))
             .child(
                 text(day.to_string())
                     .font(k.ty.caption())
@@ -701,26 +761,37 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
     if column > 0 {
         grid = grid.child(line);
     }
-    let mut foot = row().w_full().gap(4.0).center_y().child(
-        picker_button(k, "kanban-picker-today", "Today").on_press(|s: &mut State| s.picker_today()),
-    );
+    let mut foot = row().w_full().gap(4.0).center_y().child(picker_button(
+        k,
+        "kanban-picker-today",
+        "Today",
+        |s: &mut State| {
+            s.picker_today();
+        },
+    ));
     if picker_can_clear(s) {
-        foot = foot.child(
-            picker_button(k, "kanban-picker-clear", "Clear")
-                .on_press(|s: &mut State| s.picker_clear()),
-        );
+        foot = foot.child(picker_button(
+            k,
+            "kanban-picker-clear",
+            "Clear",
+            |s: &mut State| {
+                s.picker_clear();
+            },
+        ));
     }
     foot = foot
         .child(rune::el().grow(1.0))
+        .child(picker_button(
+            k,
+            "kanban-picker-cancel",
+            "Cancel",
+            |s: &mut State| s.dismiss_picker(),
+        ))
         .child(
-            picker_button(k, "kanban-picker-cancel", "Cancel")
-                .on_press(|s: &mut State| s.dismiss_picker()),
-        )
-        .child(
-            picker_button(k, "kanban-picker-set", "Add date")
-                .fill(k.c.text_accent)
-                .default_button()
-                .on_press(|s: &mut State| s.picker_accept()),
+            picker_button(k, "kanban-picker-set", "Add date", |s: &mut State| {
+                s.picker_accept();
+            })
+            .fill(k.c.text_accent),
         );
     col()
         .key("kanban-picker")
@@ -732,15 +803,9 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
         .border(1.0, k.c.border_base)
         .role("dialog")
         .label("Add a date")
-        .focusable(true)
-        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
-            if e.key == Key::Enter && !e.mods.shift && !e.mods.cmd && !e.mods.ctrl {
-                s.picker_accept();
-                true
-            } else {
-                false
-            }
-        })
+        // Slice 16 fix: the panel is a dialog, not a control. The modal focuses
+        // its first real control (Previous month); a day or Add date is the
+        // only thing that writes.
         .child(head)
         .child(grid)
         .child(foot)
@@ -760,8 +825,10 @@ fn time_picker(s: &State, k: &Kit) -> El {
             .label(label)
             .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                 if e.key == Key::Escape {
+                    // Slice 16 fix: dismissing the picker leaves its panel and
+                    // its `focus_return` hands the keyboard back to the card;
+                    // an explicit blur would erase that.
                     s.dismiss_picker();
-                    tx.blur();
                     return true;
                 }
                 crate::shortcut(s, e, tx)
@@ -782,7 +849,6 @@ fn time_picker(s: &State, k: &Kit) -> El {
         .border(1.0, k.c.border_base)
         .role("dialog")
         .label("Add a time")
-        .focusable(true)
         .child(
             text("Add a time")
                 .key("kanban-picker-title")
@@ -801,31 +867,45 @@ fn time_picker(s: &State, k: &Kit) -> El {
 }
 
 fn time_picker_foot(s: &State, k: &Kit) -> El {
-    let mut foot = row().w_full().gap(4.0).center_y().child(
-        picker_button(k, "kanban-picker-now", "Now").on_press(|s: &mut State| s.picker_now()),
-    );
+    let mut foot = row().w_full().gap(4.0).center_y().child(picker_button(
+        k,
+        "kanban-picker-now",
+        "Now",
+        |s: &mut State| {
+            s.picker_now();
+        },
+    ));
     if picker_can_clear(s) {
-        foot = foot.child(
-            picker_button(k, "kanban-picker-clear", "Clear")
-                .on_press(|s: &mut State| s.picker_clear()),
-        );
+        foot = foot.child(picker_button(
+            k,
+            "kanban-picker-clear",
+            "Clear",
+            |s: &mut State| {
+                s.picker_clear();
+            },
+        ));
     }
     foot.child(rune::el().grow(1.0))
+        .child(picker_button(
+            k,
+            "kanban-picker-cancel",
+            "Cancel",
+            |s: &mut State| s.dismiss_picker(),
+        ))
         .child(
-            picker_button(k, "kanban-picker-cancel", "Cancel")
-                .on_press(|s: &mut State| s.dismiss_picker()),
-        )
-        .child(
-            picker_button(k, "kanban-picker-set", "Add time")
-                .fill(k.c.text_accent)
-                .on_press(|s: &mut State| s.picker_accept()),
+            picker_button(k, "kanban-picker-set", "Add time", |s: &mut State| {
+                s.picker_accept();
+            })
+            .fill(k.c.text_accent),
         )
 }
 
-fn picker_button(k: &Kit, key: &str, label: &str) -> El {
+fn picker_button(k: &Kit, key: &str, label: &str, action: impl Fn(&mut State) + 'static) -> El {
+    let action: std::rc::Rc<dyn Fn(&mut State)> = std::rc::Rc::new(action);
+    let enter = action.clone();
     row()
         .key(key)
-        .h(24.0)
+        .h(26.0)
         .px(7.0)
         .radius(5.0)
         .center()
@@ -837,7 +917,19 @@ fn picker_button(k: &Kit, key: &str, label: &str) -> El {
         .help(label)
         .focusable(true)
         .focus_ring(2.0, 1.0, k.c.text_accent)
+        // Slice 16 fix: Enter activates the focused picker button. The panel
+        // itself no longer takes focus or handles Enter, so opening a picker
+        // cannot write today's date by itself.
+        .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter && e.mods == rune::Mods::default() {
+                enter(s);
+                true
+            } else {
+                false
+            }
+        })
         .child(text(label).font(k.ty.caption()).color(k.c.text_base))
+        .on_press(move |s: &mut State| action(s))
 }
 
 /// The card's own date/time row: formatted values, an optional relative day,

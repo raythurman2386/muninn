@@ -43,18 +43,23 @@
 //! width, new-line trigger and header-button switches take effect on the next
 //! frame. Slice 15 (`kanban_views.rs`) draws the list and table views a
 //! `kanban-plugin: list` / `table` value asks for, and the header's Board /
-//! List / Table switcher chooses one for the session. Slice 16 adds the page's
-//! keyboard and accessibility pass: the lane cards are a list with roving
-//! Up/Down, every control is a Tab stop with a focus ring and Enter,
-//! Space/Enter toggle the focused or selected card's done mark, the menus are
-//! menu/menuitem stacks and the conflict bar is an alert dialog.
+//! List / Table switcher chooses one for the session. Slice 16 (fixed in
+//! review) adds the page's keyboard and accessibility pass: the lane cards are
+//! a list with roving Up/Down whose selection follows focus, every control is
+//! a Tab stop with a focus ring and Enter, Space/Enter toggle the focused or
+//! selected card's done mark, the menus are focus-taking modal overlays of
+//! menu/menuitem rows, the menu-opened date picker is a real modal overlay (a
+//! typed-trigger picker stays inline with its field), and the conflict bar is
+//! an alert dialog that gives the keyboard to **Resolve conflict** when Escape
+//! puts it away.
 //!
-//! Known limits of that pass (kept rather than faked): the date picker's day
-//! grid is reached with Tab, not arrow keys; roving the lane list with a
-//! card's checkbox or menu button focused steps through those controls too;
-//! a Left/Right move across lanes changes the selection while keyboard focus
-//! stays in the lane it was in; and an open menu closes on Escape or an
-//! action, not on a press outside it.
+//! Known limits of that pass (kept rather than faked): a card row is a nested
+//! focus group, so Tab reaches the row and then its first control (the
+//! checkbox) while the arrows rove the rest; the date picker's day grid is a
+//! grid, so Tab reaches it and the arrows move among days without writing; a
+//! menu-opened time picker keeps its hour/minute fields and so stays an inline
+//! group that Tab can leave; and a Kanban menu floats under its lane header,
+//! clamped to stay inside a short window.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -1071,17 +1076,18 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
                 &ic::CHEVRON_LEFT,
                 12.0,
                 format!("Collapse lane: {}", lane.title()),
+                move |s: &mut State, _: &mut Tx| s.toggle_lane_collapsed(i),
             )
-            .on_press(move |s: &mut State| s.toggle_lane_collapsed(i)),
+            // The button is the disclosure control; the lane region itself is
+            // not one.
+            .expanded(true),
         )
-        .child(
-            menu_button(
-                k,
-                format!("kanban-lane-{i}-menu"),
-                format!("Lane actions: {}", lane.title()),
-            )
-            .on_press(move |s: &mut State| s.open_lane_menu(i)),
-        );
+        .child(menu_button(
+            k,
+            format!("kanban-lane-{i}-menu"),
+            format!("Lane actions: {}", lane.title()),
+            move |s: &mut State, _: &mut Tx| s.open_lane_menu(i),
+        ));
     let mut label = format!("{}, {count} cards", lane.title());
     if over {
         label.push_str(", over limit");
@@ -1106,7 +1112,6 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         )
         .role("region")
         .label(label)
-        .expanded(true)
         .opacity(if dragged { DRAGGED } else { 1.0 })
         .on_layout_tx(move |s: &mut State, rect, tx: &mut Tx| {
             s.kanban_rects.set_lane(i, rect);
@@ -1121,18 +1126,9 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
     {
         column = column.child(lane_field(s, k));
     }
-    if is_menu(s, &MenuTarget::Lane(i)) || is_menu(s, &MenuTarget::DeleteLane(i)) {
-        column = column.child(crate::view::context_menu(s, k));
-    }
-    // A card menu can be taller than the window when it opens under a card
-    // near the top. Draw it once under the lane header instead, where it is
-    // always reachable; its rows still name the card.
-    if s.menu.as_ref().is_some_and(|menu| match menu.target {
-        MenuTarget::Card(lane, _) | MenuTarget::MoveCard(lane, _) => lane == i,
-        _ => false,
-    }) {
-        column = column.child(crate::view::context_menu(s, k));
-    }
+    // Slice 16 fix: the lane and card menus are root overlays
+    // (`view::kanban_menu_layer`), not children of the lane: an inline menu
+    // left the rest of the board inside its modal.
     if lane.done_word().is_some() {
         column = column.child(
             row()
@@ -1145,14 +1141,17 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
     }
     // Slice 16: the cards are a list of their own, so the lane is a region
     // while its buttons and field live outside it; Up and Down rove among the
-    // cards' controls.
+    // cards, and selection follows focus so Space/Enter act on the card the
+    // keyboard is on (and a click or a shortcut that moves the selection moves
+    // focus with it).
     let mut list = col()
         .key(format!("kanban-lane-{i}-cards"))
         .w_full()
         .gap(8.0)
         .role("list")
         .label(format!("{} cards", lane.title()))
-        .focus_group();
+        .focus_group()
+        .focus_follows();
     let new_at = s
         .kanban_card
         .filter(|slot| slot.lane == i && slot.new)
@@ -1268,7 +1267,6 @@ fn collapsed_lane(
         )
         .role("region")
         .label(label)
-        .expanded(false)
         .opacity(if dragged { DRAGGED } else { 1.0 })
         .cursor(rune::Cursor::Grab)
         .on_drag(move |s: &mut State, d: &mut Drag, tx: &mut Tx| {
@@ -1286,8 +1284,9 @@ fn collapsed_lane(
                 &ic::CHEVRON_RIGHT,
                 12.0,
                 format!("Expand lane: {}", lane.title()),
+                move |s: &mut State, _: &mut Tx| s.toggle_lane_collapsed(i),
             )
-            .on_press(move |s: &mut State| s.toggle_lane_collapsed(i)),
+            .expanded(false),
         )
         .child(
             text(count)
@@ -1382,28 +1381,36 @@ fn add_lane_button(k: &Kit, count: usize) -> El {
         .child(text("Add lane").font(k.ty.ui_compact).color(k.c.text_faint))
 }
 
-pub(crate) fn is_menu(s: &State, target: &MenuTarget) -> bool {
-    s.menu.as_ref().is_some_and(|m| m.target == *target)
+/// The `⋯` that opens a card's or a lane's menu.
+pub(crate) fn menu_button(
+    k: &Kit,
+    key: String,
+    label: impl Into<String>,
+    action: impl Fn(&mut State, &mut Tx) + 'static,
+) -> El {
+    icon_button(k, key, &ic::OUTLINE_DOTS, 14.0, label, action)
 }
 
-/// The `⋯` that opens a card's or a lane's menu.
-pub(crate) fn menu_button(k: &Kit, key: String, label: impl Into<String>) -> El {
-    icon_button(k, key, &ic::OUTLINE_DOTS, 14.0, label)
-}
+/// The action a shared icon button runs on Space and Enter.
+type IconAction = std::rc::Rc<dyn Fn(&mut State, &mut Tx)>;
 
 /// A small icon button: a menu's `⋯`, a lane's collapse and expand. Slice
-/// 16: focusable with a ring, Enter activates it, and its label is also its
-/// tooltip.
+/// 16: focusable with a ring, Enter activates it as Space does, and its label
+/// is also its tooltip.
 pub(crate) fn icon_button(
     k: &Kit,
     key: String,
     glyph: &'static rune::Icon,
     size: f32,
     label: impl Into<String>,
+    action: impl Fn(&mut State, &mut Tx) + 'static,
 ) -> El {
     let label = label.into();
+    let action: IconAction = std::rc::Rc::new(action);
+    let enter = action.clone();
     el().key(key)
-        .size(22.0, 22.0)
+        // WCAG 2.5.8: a target at least 24 × 24 points.
+        .size(24.0, 24.0)
         .radius(6.0)
         .center()
         .hover(k.c.hover)
@@ -1414,6 +1421,17 @@ pub(crate) fn icon_button(
         .help(label)
         .focusable(true)
         .focus_ring(2.0, 1.0, k.c.text_accent)
+        // Slice 16 fix: a plain Enter activates the focused icon button (the
+        // page's own Enter flip only runs with nothing focused).
+        .on_key(move |s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+            if e.key == Key::Enter && e.mods == rune::Mods::default() {
+                enter(s, tx);
+                true
+            } else {
+                false
+            }
+        })
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| action(s, tx))
         .child(icon(glyph, size).color(k.c.icon_muted))
 }
 
@@ -1549,6 +1567,10 @@ fn card_view(
         .role("listitem")
         .label(card_label)
         .focusable(true)
+        // Slice 16 fix: the row is a nested focus group, so Tab reaches its
+        // controls (the checkbox first) and the arrows rove the checkbox,
+        // menu and checklist rows once focus is on one of them.
+        .focus_group()
         .focus_selected(selected)
         .focus_ring(2.0, 1.0, k.c.text_accent)
         // Slice 16: Space and Enter on the focused card flip its done mark,
@@ -1626,10 +1648,14 @@ fn card_view(
                 ))
                 .child(checklist_section(k, i, j, &checklist)),
         )
-        .child(
-            menu_button(k, format!("kanban-card-{i}-{j}-menu"), menu_label)
-                .on_press(move |s: &mut State| s.open_card_menu(i, j)),
-        )
+        .child(menu_button(
+            k,
+            format!("kanban-card-{i}-{j}-menu"),
+            menu_label,
+            move |s: &mut State, _: &mut Tx| {
+                s.open_card_menu(i, j);
+            },
+        ))
 }
 
 /// Slice 16: plain arrows on a focused card row move the page's selection,
@@ -1703,7 +1729,7 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
             row()
                 .key(format!("kanban-card-{i}-{j}-task-{n}"))
                 .w_full()
-                .min_h(18.0)
+                .min_h(24.0)
                 .gap(6.0)
                 // The card indent is already stripped; deeper items keep
                 // their extra columns.

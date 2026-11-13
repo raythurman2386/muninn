@@ -34,10 +34,10 @@ pub enum Layer {
     RenameConfirm,
     MoveConfirm,
     FolderRenameConfirm,
-    Menu,
     /// Slice 16: the Kanban page's conflict bar, above a menu: while the
     /// file changed under unsaved edits, its three choices outrank the page.
     KanbanConflict,
+    Menu,
     KanbanPicker,
     /// The Kanban page's archive page, above the lanes it replaces.
     ArchivePage,

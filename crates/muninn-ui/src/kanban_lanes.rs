@@ -498,8 +498,14 @@ pub(crate) fn delete_lane_confirm(s: &State, k: &Kit, lane: usize) -> El {
         .role("alertdialog")
         .label(question.clone())
         .focus_group()
-        // Slice 16: closing the confirmation gives the lane back the keyboard.
-        .focus_return(format!("kanban-lane-{lane}"))
+        // Slice 16 fix: the confirmation takes the keyboard, Escape and a
+        // press outside close it, and closing gives the view's lane-menu
+        // button the keyboard back.
+        .modal(true, |s: &mut State| s.close_menu())
+        .focus_return(
+            crate::view::menu_return(s, &MenuTarget::DeleteLane(lane))
+                .unwrap_or_else(|| format!("kanban-lane-{lane}-menu")),
+        )
         .child(
             text(question)
                 .key("kanban-delete-lane-question")
@@ -576,7 +582,13 @@ pub(crate) fn lane_picker(s: &State, k: &Kit, lane: usize, index: usize) -> El {
         .role("menu")
         .label("Move to lane")
         .focus_group()
-        .focus_return(format!("kanban-card-{lane}-{index}"));
+        // Slice 16 fix: the picker takes the keyboard, Escape and a press
+        // outside close it, and closing gives the card the keyboard back.
+        .modal(true, |s: &mut State| s.close_menu())
+        .focus_return(
+            crate::view::menu_return(s, &MenuTarget::MoveCard(lane, index))
+                .unwrap_or_else(|| format!("kanban-card-{lane}-{index}")),
+        );
     let lanes = s.kanban_board().map(|b| b.lanes()).unwrap_or_default();
     for (to, other) in lanes.iter().enumerate().filter(|(to, _)| *to != lane) {
         list = list.child(

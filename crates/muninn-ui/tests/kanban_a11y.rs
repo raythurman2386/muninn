@@ -10,6 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use muninn_core::KanbanView;
 use muninn_core::testing::TempVault;
 use muninn_ui::{DocConflict, MenuTarget, Mode, Settings, State, on_key, poll, view};
 use rune::{ElementInfo, Env, Key, KeyEvent, Mods, Runtime};
@@ -100,6 +101,38 @@ fn press(rt: &mut Runtime<State>, key: Key) {
         mods: Mods::default(),
     });
     frame(rt);
+}
+
+fn press_shift(rt: &mut Runtime<State>, key: Key) {
+    rt.key(KeyEvent {
+        key,
+        mods: Mods {
+            shift: true,
+            ..Mods::default()
+        },
+    });
+    frame(rt);
+}
+
+/// Tab until `key` has the keyboard, for the order the board draws.
+fn tab_to(rt: &mut Runtime<State>, key: &str) {
+    for _ in 0..80 {
+        if focused(rt).as_deref() == Some(key) {
+            return;
+        }
+        press(rt, Key::Tab);
+    }
+    panic!("Tab never reached {key}; focused {:?}", focused(rt));
+}
+
+fn shift_tab_to(rt: &mut Runtime<State>, key: &str) {
+    for _ in 0..80 {
+        if focused(rt).as_deref() == Some(key) {
+            return;
+        }
+        press_shift(rt, Key::Tab);
+    }
+    panic!("Shift+Tab never reached {key}; focused {:?}", focused(rt));
 }
 
 fn source(rt: &Runtime<State>) -> String {
@@ -277,7 +310,7 @@ fn the_menu_key_opens_the_focused_cards_menu_and_escape_returns_focus() {
             ..Mods::default()
         },
     });
-    frame(&mut rt);
+    frames(&mut rt, 2);
     assert_eq!(
         rt.state.menu.as_ref().map(|m| m.target.clone()),
         Some(MenuTarget::Card(0, 0)),
@@ -295,6 +328,13 @@ fn the_menu_key_opens_the_focused_cards_menu_and_escape_returns_focus() {
     let cancel = element(&rt, "menu-cancel");
     assert_eq!(cancel.role, "menuitem");
     assert!(cancel.focusable);
+    // Slice 16 fix: the menu itself takes the keyboard, so Escape has a focus
+    // to give back (the assertion below is no longer vacuous).
+    assert_eq!(
+        focused(&rt).as_deref(),
+        Some("menu-edit"),
+        "the opened menu focused its first item"
+    );
 
     press(&mut rt, Key::Escape);
     assert!(rt.state.menu.is_none(), "Escape closed the menu");
@@ -340,9 +380,15 @@ fn escape_dismisses_the_conflict_bar_before_leaving_the_page() {
     }
 
     // Escape puts the bar away; the page and the conflict stay.
+    tab_to(&mut rt, "kanban-keep-mine");
     press(&mut rt, Key::Escape);
     assert_eq!(rt.state.mode, Mode::Kanban, "Escape did not leave the page");
     assert!(!has(&rt, "kanban-conflict"), "the bar is away");
+    assert_eq!(
+        focused(&rt).as_deref(),
+        Some("kanban-conflict-review"),
+        "the bar gave the keyboard to Resolve conflict"
+    );
     assert_eq!(
         rt.state.kanban.as_ref().and_then(|k| k.conflict),
         Some(DocConflict::Changed),
@@ -425,5 +471,199 @@ fn a_press_elsewhere_clears_an_open_fields_keyboard() {
         rt.state.kanban_selected,
         Some((0, 0)),
         "the page's arrows work again"
+    );
+}
+
+#[test]
+fn enter_on_a_focused_icon_button_activates_it_not_the_selected_card() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.select_kanban_card(0, 0));
+    let before = source(&rt);
+    assert!(!before.contains("- [x] Ship the a11y pass"));
+
+    // A focused lane menu button takes Enter itself; the selected card stays
+    // open.
+    click(&mut rt, "kanban-card-0-0");
+    shift_tab_to(&mut rt, "kanban-lane-0-menu");
+    press(&mut rt, Key::Enter);
+    assert_eq!(
+        rt.state.menu.as_ref().map(|m| m.target.clone()),
+        Some(MenuTarget::Lane(0)),
+        "Enter opened the focused lane's menu"
+    );
+    assert_eq!(source(&rt), before, "the selected card's mark did not flip");
+    press(&mut rt, Key::Escape);
+    assert!(rt.state.menu.is_none());
+    assert_eq!(focused(&rt).as_deref(), Some("kanban-lane-0-menu"));
+
+    // The collapse button is the next Tab stop to the left of the menu.
+    shift_tab_to(&mut rt, "kanban-lane-0-collapse");
+    press(&mut rt, Key::Enter);
+    let collapsed = rt
+        .state
+        .kanban
+        .as_ref()
+        .and_then(|k| k.board.as_ref())
+        .is_some_and(|b| b.lanes()[0].collapsed());
+    assert!(collapsed, "Enter collapsed the focused lane");
+    assert!(
+        !source(&rt).contains("- [x] Ship the a11y pass"),
+        "and did not touch the selected card: {}",
+        source(&rt)
+    );
+    assert_ne!(source(&rt), before, "the collapse setting was written");
+}
+
+#[test]
+fn a_menu_opened_date_picker_does_not_write_on_enter() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    let before = source(&rt);
+
+    click(&mut rt, "kanban-card-0-0-menu");
+    click(&mut rt, "menu-add_date");
+    for _ in 0..5 {
+        frame(&mut rt);
+    }
+    assert!(rt.state.kanban_picker.is_some(), "the picker is open");
+    assert_eq!(
+        focused(&rt).as_deref(),
+        Some("kanban-picker-prev"),
+        "the modal focused a real control, not the panel"
+    );
+    press(&mut rt, Key::Enter);
+    assert_eq!(
+        source(&rt),
+        before,
+        "Enter on the first control did not write today's date"
+    );
+    assert!(rt.state.kanban_picker.is_some());
+
+    // The overlay is a real modal: Tab stays inside the picker.
+    for _ in 0..12 {
+        press(&mut rt, Key::Tab);
+        let at = focused(&rt).expect("a picker control");
+        assert!(
+            at.starts_with("kanban-picker"),
+            "Tab stayed in the picker, not the page behind it: {at}"
+        );
+    }
+
+    // A day click is a write.
+    click(&mut rt, "kanban-picker-day-15");
+    assert!(rt.state.kanban_picker.is_none());
+    assert!(
+        source(&rt).contains("@{"),
+        "clicking a day wrote the date: {}",
+        source(&rt)
+    );
+
+    // Add date is the other write.
+    let before = source(&rt);
+    click(&mut rt, "kanban-card-1-0-menu");
+    click(&mut rt, "menu-add_date");
+    for _ in 0..5 {
+        frame(&mut rt);
+    }
+    click(&mut rt, "kanban-picker-set");
+    assert_ne!(source(&rt), before, "Add date wrote the date");
+    assert!(source(&rt).contains("@{"));
+}
+
+#[test]
+fn arrows_move_focus_with_the_selection_and_space_toggles_the_focused_card() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.select_kanban_card(0, 0));
+    click(&mut rt, "kanban-card-0-0");
+    assert_eq!(focused(&rt).as_deref(), Some("kanban-card-0-0"));
+
+    press(&mut rt, Key::Down);
+    assert_eq!(rt.state.kanban_selected, Some((0, 1)));
+    assert_eq!(
+        focused(&rt).as_deref(),
+        Some("kanban-card-0-1"),
+        "focus follows the selection"
+    );
+
+    press(&mut rt, Key::Text(" ".to_owned()));
+    let text = source(&rt);
+    assert!(
+        text.contains("- [ ] Read the audit"),
+        "Space toggled the focused/selected card: {text}"
+    );
+    assert!(
+        text.contains("- [ ] Ship the a11y pass"),
+        "the other card was not touched: {text}"
+    );
+}
+
+#[test]
+fn tab_reaches_a_cards_controls_and_arrows_rove_them() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-0-0");
+    assert_eq!(focused(&rt).as_deref(), Some("kanban-card-0-0"));
+
+    // The card row is a nested group: Tab enters its first control.
+    tab_to(&mut rt, "kanban-card-0-0-mark");
+    assert_eq!(element(&rt, "kanban-card-0-0-mark").role, "checkbox");
+    press(&mut rt, Key::Text(" ".to_owned()));
+    assert!(
+        source(&rt).contains("- [x] Ship the a11y pass"),
+        "Space on the checkbox toggles the card"
+    );
+
+    // Arrows rove the row's controls once focus is on one of them.
+    press(&mut rt, Key::Down);
+    assert_eq!(focused(&rt).as_deref(), Some("kanban-card-0-0-menu"));
+    press(&mut rt, Key::Up);
+    assert_eq!(focused(&rt).as_deref(), Some("kanban-card-0-0-mark"));
+}
+
+#[test]
+fn escape_returns_focus_to_the_list_and_table_openers() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.set_kanban_view(KanbanView::List));
+    frames(&mut rt, 3);
+
+    click(&mut rt, "kanban-list-lane-0-menu");
+    assert_eq!(
+        rt.state.menu.as_ref().map(|m| m.target.clone()),
+        Some(MenuTarget::Lane(0))
+    );
+    press(&mut rt, Key::Escape);
+    assert!(rt.state.menu.is_none());
+    assert_eq!(
+        focused(&rt).as_deref(),
+        Some("kanban-list-lane-0-menu"),
+        "the list lane menu returns to its own button"
+    );
+
+    act(&mut rt, |s| s.set_kanban_view(KanbanView::Table));
+    frames(&mut rt, 3);
+    click(&mut rt, "kanban-table-0-0");
+    assert_eq!(focused(&rt).as_deref(), Some("kanban-table-0-0"));
+    rt.key(KeyEvent {
+        key: Key::Function(10),
+        mods: Mods {
+            shift: true,
+            ..Mods::default()
+        },
+    });
+    frames(&mut rt, 2);
+    assert_eq!(
+        rt.state.menu.as_ref().map(|m| m.target.clone()),
+        Some(MenuTarget::Card(0, 0))
+    );
+    assert_eq!(focused(&rt).as_deref(), Some("menu-edit"));
+    press(&mut rt, Key::Escape);
+    assert!(rt.state.menu.is_none());
+    assert_eq!(
+        focused(&rt).as_deref(),
+        Some("kanban-table-0-0"),
+        "the table menu returns to its row"
     );
 }

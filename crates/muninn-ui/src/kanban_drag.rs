@@ -72,6 +72,16 @@ impl KanbanRects {
         self.cards.insert((lane, index), rect);
     }
 
+    /// Where lane `lane` was last laid out, in window points.
+    pub(crate) fn lane_rect(&self, lane: usize) -> Option<[f32; 4]> {
+        self.lanes.get(&lane).copied()
+    }
+
+    /// Where card `lane`/`index` was last laid out, in window points.
+    pub(crate) fn card_rect(&self, lane: usize, index: usize) -> Option<[f32; 4]> {
+        self.cards.get(&(lane, index)).copied()
+    }
+
     /// The card slot at window point `at`: the lane nearest across, and in
     /// it the number of cards whose middle is above `at` (all of them in a
     /// collapsed lane).

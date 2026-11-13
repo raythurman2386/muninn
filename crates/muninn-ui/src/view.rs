@@ -9,7 +9,7 @@ use rune_kit::{
 };
 use rune_theme_opencode::icons as ic;
 
-use muninn_core::{Vault, block_anchors, headings};
+use muninn_core::{KanbanView, Vault, block_anchors, headings};
 
 use crate::{
     DeleteConfirm, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State, ThemeMode,
@@ -59,6 +59,14 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
         })
         .child(if s.sidebar_shown() { divider(&k) } else { el() })
         .child(main_column(s, &k));
+    // Slice 16 fix: Kanban menus and a menu-opened date picker are real
+    // modals, drawn last so Tab and the pointer cannot reach the page behind
+    // them.
+    if s.mode == Mode::Kanban {
+        base = base
+            .child(kanban_menu_layer(s, &k))
+            .child(crate::kanban_dates::picker_layer(s, &k));
+    }
     if s.palette.is_some() {
         base = base.child(palette_layer(s, &k));
     }
@@ -1691,8 +1699,12 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
         // rows; closing it gives the card or lane back the keyboard.
         .role("menu")
         .label(menu_label(&menu.target))
-        .focus_group();
-    if let Some(trigger) = menu_return(&menu.target) {
+        .focus_group()
+        // Slice 16 fix: a menu takes the keyboard when it opens (Escape and a
+        // press outside close it through the modal), and closing it gives the
+        // opener back the keyboard.
+        .modal(true, |s: &mut State| s.close_menu());
+    if let Some(trigger) = menu_return(s, &menu.target) {
         col_menu = col_menu.focus_return(trigger);
     }
     for (label, action) in items {
@@ -1762,16 +1774,55 @@ fn menu_label(target: &MenuTarget) -> &'static str {
     }
 }
 
+/// A Kanban menu as the page's root overlay. Inline, the menu's flat document
+/// position left the rest of the board "inside" its modal; drawn last, the
+/// menu is a real modal that takes the keyboard, traps Tab and the pointer,
+/// closes on Escape or a press outside it, and gives the opener its focus
+/// back. It sits under the lane header, as the board used to draw it.
+pub(crate) fn kanban_menu_layer(s: &State, k: &Kit) -> El {
+    let Some(menu) = &s.menu else {
+        return el();
+    };
+    if !matches!(
+        menu.target,
+        MenuTarget::Card(..)
+            | MenuTarget::Lane(_)
+            | MenuTarget::DeleteLane(_)
+            | MenuTarget::MoveCard(..)
+    ) {
+        return el();
+    }
+    let rect = menu
+        .target
+        .lane()
+        .and_then(|lane| s.kanban_rects.lane_rect(lane));
+    let (left, top) = rect.map_or((28.0, 72.0), |r| (r[0], r[1] + 52.0));
+    let width = 260.0;
+    // A menu taller than the window's remaining height starts higher, so its
+    // last row stays reachable.
+    let x = left.min(s.window_width - width - 8.0).max(8.0);
+    let y = top.min((s.window_height - 360.0).max(8.0));
+    context_menu(s, k).absolute(x, y).w(width).min_w(0.0)
+}
+
 /// The control a menu gives the keyboard back to when it closes, for the
-/// menus drawn under a row (the notes list and Kanban cards and lanes).
-fn menu_return(target: &MenuTarget) -> Option<String> {
+/// menus drawn under a row (the notes list and Kanban cards and lanes). The
+/// Kanban key follows the view that drew the menu, since List and Table use
+/// their own rows and lane-menu buttons.
+pub(crate) fn menu_return(s: &State, target: &MenuTarget) -> Option<String> {
     match target {
         MenuTarget::Card(lane, index) | MenuTarget::MoveCard(lane, index) => {
-            Some(format!("kanban-card-{lane}-{index}"))
+            Some(match s.kanban_view() {
+                KanbanView::Table => format!("kanban-table-{lane}-{index}"),
+                KanbanView::Board | KanbanView::List => format!("kanban-card-{lane}-{index}"),
+            })
         }
-        MenuTarget::Lane(lane) | MenuTarget::DeleteLane(lane) => {
-            Some(format!("kanban-lane-{lane}"))
-        }
+        MenuTarget::Lane(lane) | MenuTarget::DeleteLane(lane) => match s.kanban_view() {
+            KanbanView::Board => Some(format!("kanban-lane-{lane}-menu")),
+            KanbanView::List => Some(format!("kanban-list-lane-{lane}-menu")),
+            // The table draws no lane menu; nothing to return to.
+            KanbanView::Table => None,
+        },
         MenuTarget::Note(id) => Some(format!("note-row-{id}")),
         MenuTarget::Folder(folder) => Some(format!("folder-header-{}", folder_slug(folder))),
         MenuTarget::Board(..) | MenuTarget::ArchiveRestore(_) => None,
@@ -2429,11 +2480,17 @@ fn palette_layer(s: &State, k: &Kit) -> El {
     }
     if items.is_empty() {
         rows = rows.child(
-            row().key("palette-empty").w_full().h(64.0).center().child(
-                text("No notes or actions match")
-                    .font(k.ty.caption())
-                    .color(k.c.text_faint),
-            ),
+            row()
+                .key("palette-empty")
+                .w_full()
+                .h(64.0)
+                .center()
+                .a11y_hidden()
+                .child(
+                    text("No notes or actions match")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
         );
     }
     let mut card = col()
@@ -2503,7 +2560,11 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                     stick_bottom: false,
                 })
                 .role("listbox")
-                .label("Results")
+                .label(if items.is_empty() {
+                    "No notes or actions match"
+                } else {
+                    "Results"
+                })
                 .child(rows),
         )
         .child(
@@ -2549,6 +2610,9 @@ fn palette_section(k: &Kit, title: &str) -> El {
         .px(14.0)
         .pt(8.0)
         .pb(3.0)
+        // Slice 16 fix: the listbox holds options only; a section heading is
+        // visual grouping, not an option.
+        .a11y_hidden()
         .child(
             text(title.to_uppercase())
                 .font(k.ty.caption())

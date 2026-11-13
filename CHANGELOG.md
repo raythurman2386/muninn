@@ -149,6 +149,21 @@ All notable changes to Muninn are documented here. The format is based on
   Add a date or time, Add card, Insert/Rename lane, Card limit) switches to the
   board first, where that field is drawn. Switching or reading a view, and
   filtering in it, never writes the board.
+- **Keyboard and accessibility on the Kanban page.** Every header, lane,
+  card, menu, picker and conflict-bar control is a Tab stop with a role,
+  name, help text and focus ring; a focused button activates on Space or
+  Enter. A lane's cards are a list whose Up/Down keys move the selection and
+  focus together, and Space/Enter toggles the focused/selected card; a card
+  row is a nested group, so Tab reaches its checkbox and arrows rove its
+  checkbox, menu and checklist rows. Menus (and Delete lane's confirmation
+  and Move to list…) take the keyboard when they open, close on Escape, an
+  action or a press outside them, and give focus back to the control that
+  opened them in the Board, List and Table views. The date picker is a real
+  modal overlay whose first control is a button: Enter alone never writes a
+  date, a day click or Add date does; its day grid is reachable by Tab and by
+  arrows. The conflict bar is an alert dialog: Escape puts it away and gives
+  the keyboard to Resolve conflict. Icon and picker targets are at least
+  24 × 24 points.
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
@@ -239,12 +254,13 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Known limitations
 
-- The date picker's day grid is reached with Tab, not arrow keys; roving a
-  lane's list with a card's checkbox or menu button focused steps through
-  those controls too.
-- A Left/Right move across lanes changes the selection while keyboard focus
-  stays in the lane it was in.
-- An open menu closes on Escape or an action, not on a press outside it.
+- The date picker's day grid is a `grid`: Tab reaches it, arrows move among
+  days without writing, and a day click or Add date is the write. A
+  menu-opened time picker keeps its hour/minute fields, so it stays an inline
+  group that Tab can leave; Escape returns to the card.
+- A Kanban menu floats under its lane header (clamped to stay inside a short
+  window) and is a modal overlay: it closes on Escape, an action or a press
+  outside it.
 - The table has a fixed 1080 pt width and scrolls sideways in narrow windows.
 - Metadata note embeds render as links; attachment embeds keep the reader's
   filename placeholder.
