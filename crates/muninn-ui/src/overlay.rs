@@ -25,6 +25,8 @@ pub enum Layer {
     FolderRenameConfirm,
     Menu,
     KanbanPicker,
+    /// The Kanban page's archive page, above the lanes it replaces.
+    ArchivePage,
     NewNote,
     RenameNote,
     NewFolder,
@@ -448,6 +450,9 @@ impl State {
         if self.kanban_picker.is_some() {
             return Some(Layer::KanbanPicker);
         }
+        if self.kanban_archive_open {
+            return Some(Layer::ArchivePage);
+        }
         if self.new_note_prompt.is_some() {
             return Some(Layer::NewNote);
         }
@@ -486,6 +491,7 @@ impl State {
             Layer::FolderRenameConfirm => self.cancel_folder_rename_confirm(),
             Layer::Menu => self.close_menu(),
             Layer::KanbanPicker => self.dismiss_picker(),
+            Layer::ArchivePage => self.close_kanban_archive(),
             Layer::NewNote => self.cancel_new_note(),
             Layer::RenameNote => self.cancel_rename_note(),
             Layer::NewFolder => self.cancel_new_folder(),

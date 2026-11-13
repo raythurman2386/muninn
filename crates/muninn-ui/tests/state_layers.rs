@@ -112,6 +112,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                 minute: 0,
             });
         }
+        Layer::ArchivePage => state.kanban_archive_open = on,
         Layer::NewNote => {
             if on {
                 state.new_note_prompt = Some(NamePrompt {
@@ -159,7 +160,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
     }
 }
 
-const ESCAPE_ORDER: [Layer; 17] = [
+const ESCAPE_ORDER: [Layer; 18] = [
     Layer::Palette,
     Layer::Settings,
     Layer::Help,
@@ -171,6 +172,7 @@ const ESCAPE_ORDER: [Layer; 17] = [
     Layer::FolderRenameConfirm,
     Layer::Menu,
     Layer::KanbanPicker,
+    Layer::ArchivePage,
     Layer::NewNote,
     Layer::RenameNote,
     Layer::NewFolder,

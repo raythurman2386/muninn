@@ -14,8 +14,13 @@
 //!   `kanban_defaults` in `settings.json`, then the built-in value. A date is
 //!   written through slice 9's formatter and is ordinary card text.
 //! - Viewing the archive writes nothing.
+//! - Known limitation: the checkbox reads the modifier keys when its press
+//!   handler runs (the frame after the button went down), not when the button
+//!   went down. Releasing `Cmd`/`Ctrl` within that one frame can archive where
+//!   a plain toggle was meant (or toggle where an archive was meant). The
+//!   card menu's **Archive** has no such window.
 
-use muninn_core::{ArchiveSettings, Kanban};
+use muninn_core::{ArchiveSettings, Kanban, scan_card_text};
 use rune::{El, col, row, text};
 use rune_kit::Kit;
 
@@ -129,6 +134,8 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
         1 => "1 archived card".to_owned(),
         n => format!("{n} archived cards"),
     };
+    let dates = s.kanban_date_settings();
+    let tags = s.kanban_tag_settings();
     let mut panel = col().key("kanban-archive-panel").w_full().gap(8.0).child(
         row()
             .w_full()
@@ -156,14 +163,24 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
             )),
     );
     if cards.is_empty() {
-        return panel.child(
-            text("No archived cards.")
-                .key("kanban-archive-empty")
-                .font(k.ty.caption())
-                .color(k.c.text_faint),
+        return scroll_page(
+            panel.child(
+                text("No archived cards.")
+                    .key("kanban-archive-empty")
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint),
+            ),
         );
     }
     for (index, card) in cards.iter().enumerate() {
+        // The same display form as a lane card: a date or tag the board hides
+        // stays in the file, not in the row.
+        let found = scan_card_text(card.text(), &dates);
+        let shown = found.without(
+            card.text(),
+            dates.hide_date_in_title,
+            tags.hide_tags_in_title,
+        );
         let entry = row()
             .key(format!("kanban-archive-card-{index}"))
             .w_full()
@@ -174,10 +191,10 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
             .fill(k.c.layer_02)
             .border(1.0, k.c.border_muted)
             .role("listitem")
-            .label(card.text().to_owned())
+            .label(shown.clone())
             .child(
                 col().grow(1.0).min_w(0.0).child(
-                    text(card.text().to_owned())
+                    text(shown)
                         .key(format!("kanban-archive-text-{index}"))
                         .font(k.ty.ui_compact)
                         .color(if card.is_done() {
@@ -223,7 +240,20 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
         }
         panel = panel.child(item);
     }
-    panel
+    scroll_page(panel)
+}
+
+/// The archive page's viewport: a long archive scrolls, like the lanes do, so
+/// every row stays reachable. `grow` and `min_h(0.0)` give it the body's
+/// bounded height instead of growing to fit its contents.
+fn scroll_page(panel: El) -> El {
+    col()
+        .key("kanban-archive-scroll")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .scroll_xy()
+        .child(panel)
 }
 
 /// Restore to…: every lane by title, under the archived card.

@@ -443,3 +443,104 @@ fn a_done_lane_card_archives_too() {
     assert!(!archived.contains("**Complete**\n- [x] Ship 0.7.1\n"));
     assert_eq!(rt.state.mode, Mode::Kanban);
 }
+
+/// One row's window rectangle, for the scroll test.
+fn rect_of(rt: &Runtime<State>, key: &str) -> [f32; 4] {
+    rt.elements()
+        .into_iter()
+        .find(|e| e.key.as_deref() == Some(key) && !e.exiting)
+        .map_or_else(|| panic!("missing {key}"), |e| e.rect)
+}
+
+#[test]
+fn a_long_archive_page_scrolls_to_its_last_row() {
+    let mut tall = String::from(
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n\n***\n\n## Archive\n\n",
+    );
+    for i in 0..20 {
+        tall.push_str(&format!("- [ ] archived {i}\n"));
+    }
+    let tmp = TempVault::new(&[("Tall.md", &tall)]);
+    let mut rt = app(&tmp, "Tall", KanbanDefaults::default());
+    click(&mut rt, "kanban-archive");
+    assert!(has(&rt, "kanban-archive-scroll"), "the page scrolls");
+    assert!(has(&rt, "kanban-archive-card-19"), "every row is built");
+
+    let before = rect_of(&rt, "kanban-archive-card-19");
+    assert!(
+        before[1] > 900.0,
+        "the last row starts below the 900 pt window: {before:?}"
+    );
+    // The wheel over the page moves it: the last row comes on screen.
+    for _ in 0..30 {
+        frame(&mut rt);
+    }
+    for _ in 0..10 {
+        rt.wheel(700.0, 450.0, -200.0);
+        frame(&mut rt);
+    }
+    for _ in 0..30 {
+        frame(&mut rt);
+    }
+    let after = rect_of(&rt, "kanban-archive-card-19");
+    assert!(
+        after[1] < before[1],
+        "the archive page scrolled: {before:?} -> {after:?}"
+    );
+    assert!(after[1] < 900.0, "the last row is reachable: {after:?}");
+}
+
+#[test]
+fn escape_closes_the_archive_page_then_leaves_kanban() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.archive_card(0, 0));
+    click(&mut rt, "kanban-archive");
+    assert!(has(&rt, "kanban-archive-panel"));
+
+    // A picker or menu on the page closes first.
+    click(&mut rt, "kanban-archive-lanes-0");
+    assert!(has(&rt, "kanban-archive-lane-0-1"));
+    rt.key(KeyEvent {
+        key: Key::Escape,
+        mods: Mods::default(),
+    });
+    frame(&mut rt);
+    assert!(!has(&rt, "kanban-archive-lane-0-1"), "the menu closed");
+    assert!(has(&rt, "kanban-archive-panel"), "the page is still open");
+
+    // Then Escape closes the page, and only then leaves the Kanban page.
+    rt.key(KeyEvent {
+        key: Key::Escape,
+        mods: Mods::default(),
+    });
+    frame(&mut rt);
+    assert!(!has(&rt, "kanban-archive-panel"));
+    assert!(has(&rt, "kanban-lane-0"));
+    assert_eq!(rt.state.mode, Mode::Kanban);
+    rt.key(KeyEvent {
+        key: Key::Escape,
+        mods: Mods::default(),
+    });
+    frame(&mut rt);
+    assert_ne!(rt.state.mode, Mode::Kanban);
+}
+
+#[test]
+fn archived_rows_hide_dates_and_tags_like_lane_cards() {
+    let board = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n\n\
+                 ***\n\n## Archive\n\n- [ ] Old @{2026-11-01} #done\n\n\
+                 %% kanban:settings\n```\n\
+                 {\"kanban-plugin\":\"board\",\"hide-tags-in-title\":true,\
+                 \"hide-date-in-title\":true}\n\
+                 ```\n%%\n";
+    let tmp = TempVault::new(&[("Hidden.md", board)]);
+    let mut rt = app(&tmp, "Hidden", KanbanDefaults::default());
+    click(&mut rt, "kanban-archive");
+    let shown = text_of(&rt, "kanban-archive-text-0").expect("the row");
+    assert!(!shown.contains("@{"), "the date token is hidden: {shown:?}");
+    assert!(!shown.contains("#done"), "the tag is hidden: {shown:?}");
+    assert!(shown.starts_with("Old"), "{shown:?}");
+    // Display only: the file keeps the tokens.
+    assert!(source(&rt).contains("- [ ] Old @{2026-11-01} #done\n"));
+}

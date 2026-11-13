@@ -3139,3 +3139,118 @@ fn archiving_into_a_file_with_no_final_newline_keeps_that_ending() {
     );
     assert!(board.source().contains("- [ ] two\n- [ ] one\n"));
 }
+
+#[test]
+fn an_empty_card_gets_one_space_and_the_date_next_to_its_bracket() {
+    let day = CivilDate::new(2026, 11, 12).expect("date");
+    // A trailing space, and the space before a block id, are already there:
+    // the stamp goes next to them instead of adding a second space.
+    for (line, id) in [("- [ ] ", None), ("- [ ]  ^card-1", Some("card-1"))] {
+        let source = format!("---\nkanban-plugin: board\n---\n\n## To do\n\n{line}\n");
+        let mut board = parse(&source);
+        board
+            .archive_card_with(
+                0,
+                0,
+                &ArchiveSettings {
+                    with_date: true,
+                    date_separator: " - ".to_owned(),
+                    ..ArchiveSettings::default()
+                },
+                Some(day),
+            )
+            .expect("archive");
+        let card = &board.archive().expect("archive").cards()[0];
+        assert_eq!(card.text(), "2026-11-12", "{line:?}: no separator");
+        assert_eq!(card.block_id(), id, "{line:?}: the id is kept");
+        assert!(
+            board.source().contains("- [ ] 2026-11-12"),
+            "{line:?}: {}",
+            board.source()
+        );
+    }
+}
+
+#[test]
+fn an_empty_first_line_keeps_its_continuation_and_drops_the_separator() {
+    let day = CivilDate::new(2026, 11, 12).expect("date");
+    for position in [ArchiveDatePosition::Start, ArchiveDatePosition::End] {
+        for (line, id) in [("- [ ]", None), ("- [ ]  ^card-1", Some("card-1"))] {
+            let source =
+                format!("---\nkanban-plugin: board\n---\n\n## To do\n\n{line}\n  continuation\n");
+            let mut board = parse(&source);
+            board
+                .archive_card_with(
+                    0,
+                    0,
+                    &ArchiveSettings {
+                        with_date: true,
+                        date_position: position,
+                        date_separator: " - ".to_owned(),
+                        ..ArchiveSettings::default()
+                    },
+                    Some(day),
+                )
+                .expect("archive");
+            let card = &board.archive().expect("archive").cards()[0];
+            assert_eq!(
+                card.text(),
+                "2026-11-12\ncontinuation",
+                "{position:?} {line:?}: the first line has no text to separate"
+            );
+            assert_eq!(card.block_id(), id, "{position:?}: the id is kept");
+            let first = if id.is_some() {
+                "- [ ] 2026-11-12 ^card-1"
+            } else {
+                "- [ ] 2026-11-12"
+            };
+            assert!(
+                board
+                    .source()
+                    .contains(&format!("{first}\n  continuation\n")),
+                "{position:?} {line:?}: {}",
+                board.source()
+            );
+        }
+    }
+}
+
+#[test]
+fn archiving_into_an_empty_archive_goes_after_its_indented_text() {
+    for blank in ["", "\n"] {
+        let source = format!(
+            "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n\n\
+             ***\n\n## Archive\n{blank}  an indented note\n"
+        );
+        let mut board = parse(&source);
+        board.archive_card(0, 0).expect("archive");
+        assert!(
+            board.source().ends_with(&format!(
+                "## Archive\n{blank}  an indented note\n- [ ] one\n"
+            )),
+            "{blank:?}: {}",
+            board.source()
+        );
+        assert_eq!(board.archive().expect("archive").cards()[0].text(), "one");
+    }
+}
+
+#[test]
+fn archiving_into_an_empty_archive_puts_a_blank_line_before_the_card() {
+    for blank in ["", "\n"] {
+        let source = format!(
+            "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n\n\
+             ***\n\n## Archive\n{blank}A paragraph about the archive.\n"
+        );
+        let mut board = parse(&source);
+        board.archive_card(0, 0).expect("archive");
+        assert!(
+            board.source().ends_with(&format!(
+                "## Archive\n{blank}A paragraph about the archive.\n\n- [ ] one\n"
+            )),
+            "{blank:?}: {}",
+            board.source()
+        );
+        assert_eq!(board.archive().expect("archive").cards()[0].text(), "one");
+    }
+}
