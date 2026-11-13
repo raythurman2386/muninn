@@ -14,6 +14,10 @@ All notable changes to Muninn are documented here. The format is based on
   painting over the next lane. Board and List wrap it, URLs stay one
   clickable link to the exact address, a single long `#tag` chip shrinks and
   wraps, and the stored card text and the editor keep the original bytes.
+- The sidebar's broken-link chip no longer counts an existing board or
+  attachment embed (`![[Plan.excalidraw]]`, `![[pic.png]]`) as a broken link.
+  A target that resolves to a file on disk is now skipped by the link checker;
+  a genuinely missing note or file is still reported.
 
 ## [0.8.0] - 2026-11-13
 

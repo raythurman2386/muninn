@@ -421,6 +421,14 @@ impl Vault {
                     }
                 }
                 None => {
+                    // A board or attachment target (`![[Plan.excalidraw]]`,
+                    // `![[pic.png]]`) names a file the note scan ignores. When
+                    // it exists on disk it is not a broken note link.
+                    if crate::preview::is_attachment_target(&link.target)
+                        && self.attachment_path(&link.target, i).is_some()
+                    {
+                        continue;
+                    }
                     let entry = broken
                         .entry(link.target.to_lowercase())
                         .or_insert_with(|| (link.target.clone(), Vec::new()));
@@ -2167,6 +2175,38 @@ mod tests {
         let v = tmp.load();
         assert_eq!(v.broken_links().len(), 1);
         assert_eq!(v.broken_links()[0].target, "gone/Else");
+    }
+
+    #[test]
+    fn existing_board_and_attachment_embeds_are_not_broken_links() {
+        let tmp = TempVault::new(&[
+            (
+                "Home.md",
+                "![[Plan.excalidraw]] then ![[assets/pic.png]] and [[Plan.excalidraw]]\n\
+                 plus ![[pic.png]] and [[Missing]] and ![[Gone.excalidraw]]",
+            ),
+            ("Plan.excalidraw", "{}"),
+            ("assets/pic.png", "not really a png"),
+        ]);
+        let v = tmp.load();
+        let broken: Vec<&str> = v.broken_links().iter().map(|b| b.target.as_str()).collect();
+        assert_eq!(broken.len(), 2, "{broken:?}");
+        assert!(
+            broken.contains(&"Missing"),
+            "a missing note stays broken: {broken:?}"
+        );
+        assert!(
+            broken.contains(&"Gone.excalidraw"),
+            "a missing board stays broken: {broken:?}"
+        );
+        assert!(
+            !broken.contains(&"Plan.excalidraw"),
+            "a board on disk is not a broken link: {broken:?}"
+        );
+        assert!(
+            !broken.contains(&"assets/pic.png") && !broken.contains(&"pic.png"),
+            "an attachment on disk is not a broken link: {broken:?}"
+        );
     }
 
     #[test]
