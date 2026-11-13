@@ -38,8 +38,8 @@ pub use kanban::{
     DATE_TRIGGER, DateKind, DateSettings, DateToken, HIDE_DATE_IN_TITLE, HIDE_TAGS_IN_TITLE,
     Kanban, KanbanDefaults, KanbanFile, LINK_DATE_TO_DAILY_NOTE, Lane, SHOW_RELATIVE_DATE,
     SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TIME_FORMAT, TIME_TRIGGER, TagColor, TagSettings, TagToken,
-    format_date, format_time, is_kanban, is_tag_char, is_tag_text, scan_card_text, scan_tags,
-    tag_colors, tag_colors_json,
+    format_date, format_time, in_code_at, is_kanban, is_tag_char, is_tag_text, scan_card_text,
+    scan_tags, tag_colors,
 };
 pub use note::Note;
 pub use preview::Attachment;

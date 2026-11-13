@@ -232,6 +232,7 @@ impl State {
             || self.palette.is_some()
             || self.find.is_some()
             || self.complete.is_some()
+            || self.tag_complete.is_some()
             || self.broken_panel
             || self.rename_confirm.is_some()
             || self.move_confirm.is_some()

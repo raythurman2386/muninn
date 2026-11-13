@@ -30,16 +30,19 @@ pub fn note_tags(source: &str) -> Vec<String> {
                 }
             }
             Some(FrontmatterValue::List(items)) => {
+                // A list item is one value as written. Only a scalar is split
+                // on commas/whitespace, so `- "release notes"` is not two tags.
                 for item in items {
-                    for part in split_items(item) {
-                        push_tag(&mut tags, &mut seen, part);
-                    }
+                    push_tag(&mut tags, &mut seen, item);
                 }
             }
             None => {}
         }
     }
     let body = source.get(front.body_start()..).unwrap_or_default();
+    // A byte-order mark is a boundary, not part of the first word: without
+    // this, `\u{feff}#alpha` would read `#alpha` as mid-word.
+    let body = body.strip_prefix('\u{feff}').unwrap_or(body);
     for token in scan_tags(body) {
         push_tag(&mut tags, &mut seen, &token.tag);
     }
@@ -78,7 +81,7 @@ fn split_items(value: &str) -> impl Iterator<Item = &str> {
 /// A `#` only opens completion at the start of the text or after whitespace,
 /// so an email (`a#b`), a URL fragment (`/#frag`) and a link target
 /// (`[[Note#heading]]`) do not. A heading marker (`# Heading`, `##`) is not a
-/// tag either.
+/// tag either, and neither is a `#` inside a fenced block or inline code.
 #[must_use]
 pub fn unclosed_tag(text: &str, caret: usize) -> Option<(usize, String)> {
     let before = text.get(..caret)?;
@@ -101,6 +104,9 @@ pub fn unclosed_tag(text: &str, caret: usize) -> Option<(usize, String)> {
     if crate::unclosed_link(text, caret).is_some() {
         return None;
     }
+    if crate::in_code_at(text, caret) {
+        return None;
+    }
     Some((open, query.to_owned()))
 }
 
@@ -114,12 +120,35 @@ mod tests {
         assert_eq!(note_tags(scalar), ["work"]);
         let list = "---\ntags:\n  - work\n  - home/garden\n---\n";
         assert_eq!(note_tags(list), ["work", "home/garden"]);
+        // A list at column 0 is just as common as an indented one.
+        let flat = "---\ntags:\n- work\n- home/garden\n---\n";
+        assert_eq!(note_tags(flat), ["work", "home/garden"]);
         let quoted = "---\ntags: \"alpha, beta\"\n---\n";
         assert_eq!(note_tags(quoted), ["alpha", "beta"]);
         let singular = "---\ntag: '#work'\n---\n";
         assert_eq!(note_tags(singular), ["work"]);
         let absent = "---\ntitle: x\n---\nno tags\n";
         assert!(note_tags(absent).is_empty());
+    }
+
+    #[test]
+    fn a_list_item_with_a_space_is_not_split_into_tags() {
+        let quoted = "---\ntags:\n  - \"release notes\"\n  - ok\n---\n";
+        assert_eq!(note_tags(quoted), ["ok"]);
+        let flow = "---\ntags: [\"release notes\", ok]\n---\n";
+        assert_eq!(note_tags(flow), ["ok"]);
+    }
+
+    #[test]
+    fn a_leading_thematic_break_keeps_both_body_tags() {
+        let source = "---\nfirst #one\n---\nsecond #two\n";
+        assert_eq!(note_tags(source), ["one", "two"]);
+    }
+
+    #[test]
+    fn a_bom_is_a_boundary_for_the_first_tag() {
+        assert_eq!(note_tags("\u{feff}#alpha"), ["alpha"]);
+        assert_eq!(note_tags("\u{feff}#alpha #beta"), ["alpha", "beta"]);
     }
 
     #[test]
@@ -147,6 +176,17 @@ mod tests {
         assert_eq!(unclosed_tag("# Heading", 1), None, "a heading marker");
         assert_eq!(unclosed_tag("##", 2), None, "a second # is a heading");
         assert_eq!(unclosed_tag("a #b c", 6), None, "past a space");
+        assert_eq!(
+            unclosed_tag("`see #wo`", 8),
+            None,
+            "inside an inline code span"
+        );
+        assert_eq!(unclosed_tag("```\n#wo", 7), None, "inside a fenced block");
+        assert_eq!(
+            unclosed_tag("`code` #wo", 10),
+            Some((7, "wo".to_owned())),
+            "after a closed code span"
+        );
     }
 
     #[test]

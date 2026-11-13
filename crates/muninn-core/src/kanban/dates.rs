@@ -7,10 +7,7 @@
 
 use serde_json::{Map, Value};
 
-use super::tags::{
-    HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagColor, TagSettings, tag_colors,
-    tag_colors_json,
-};
+use super::tags::{HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagSettings, tag_colors};
 
 /// The footer key: the text that starts a date (`@` by default).
 pub const DATE_TRIGGER: &str = "date-trigger";
@@ -845,7 +842,10 @@ pub struct KanbanDefaults {
     // Tag defaults (slice 10).
     pub hide_tags_in_title: Option<bool>,
     pub show_tags_at_bottom: Option<bool>,
-    pub tag_colors: Option<Vec<TagColor>>,
+    /// The raw `tag-colors` value. It is kept as written so extra fields and
+    /// entries a later editor does not understand survive a settings save.
+    /// [`TagSettings`] reads the entries it understands from it.
+    pub tag_colors: Option<Value>,
     /// Keys this version does not know, kept so a newer Muninn's app defaults
     /// are not lost by an older one. A known key with the wrong JSON type is
     /// kept here too.
@@ -871,7 +871,10 @@ impl KanbanDefaults {
             link_date_to_daily_note: value.get(LINK_DATE_TO_DAILY_NOTE).and_then(Value::as_bool),
             hide_tags_in_title: value.get(HIDE_TAGS_IN_TITLE).and_then(Value::as_bool),
             show_tags_at_bottom: value.get(SHOW_TAGS_AT_BOTTOM).and_then(Value::as_bool),
-            tag_colors: tag_colors(value.get(TAG_COLORS)),
+            tag_colors: value
+                .get(TAG_COLORS)
+                .filter(|value| value.is_array())
+                .cloned(),
             other: Map::new(),
         };
         if let Some(object) = value.as_object() {
@@ -934,7 +937,7 @@ impl KanbanDefaults {
             object.insert(SHOW_TAGS_AT_BOTTOM.to_owned(), Value::Bool(value));
         }
         if let Some(colors) = &self.tag_colors {
-            object.insert(TAG_COLORS.to_owned(), tag_colors_json(colors));
+            object.insert(TAG_COLORS.to_owned(), colors.clone());
         }
         Value::Object(object)
     }
@@ -994,8 +997,8 @@ impl KanbanDefaults {
         if let Some(value) = self.show_tags_at_bottom {
             settings.show_tags_at_bottom = value;
         }
-        if let Some(colors) = &self.tag_colors {
-            settings.tag_colors.clone_from(colors);
+        if let Some(colors) = tag_colors(self.tag_colors.as_ref()) {
+            settings.tag_colors = colors;
         }
         settings
     }
@@ -1003,6 +1006,7 @@ impl KanbanDefaults {
 
 #[cfg(test)]
 mod tests {
+    use super::super::tags::TagColor;
     use super::*;
     use serde_json::json;
 
@@ -1220,10 +1224,7 @@ mod tests {
             link_date_to_daily_note: Some(true),
             hide_tags_in_title: Some(true),
             show_tags_at_bottom: Some(false),
-            tag_colors: Some(vec![TagColor {
-                tag_key: "work".to_owned(),
-                color: "2".to_owned(),
-            }]),
+            tag_colors: Some(json!([{"tagKey": "work", "color": "2"}])),
             ..KanbanDefaults::default()
         };
         let json = defaults.to_json();
@@ -1233,6 +1234,35 @@ mod tests {
             text,
             r#"{"date-display-format":"D MMMM YYYY","date-format":"DD.MM.YYYY","date-trigger":"@d","hide-date-in-title":false,"hide-tags-in-title":true,"link-date-to-daily-note":true,"show-relative-date":true,"show-tags-at-bottom":false,"tag-colors":[{"color":"2","tagKey":"work"}],"time-format":"HH:mm","time-trigger":"at"}"#
         );
+    }
+
+    #[test]
+    fn tag_colors_is_kept_as_written_including_unknown_and_malformed_entries() {
+        let raw = json!([
+            {"tagKey": "work", "color": "1", "extra": "kept"},
+            {"tagKey": 2, "color": "2"},
+            "not an object"
+        ]);
+        let defaults = KanbanDefaults {
+            tag_colors: Some(raw.clone()),
+            ..KanbanDefaults::default()
+        };
+        let written = defaults.to_json();
+        assert_eq!(written[TAG_COLORS], raw, "the raw array survives a save");
+        assert_eq!(KanbanDefaults::from_json(Some(&written)), defaults);
+        // The typed view understands the entries it can and ignores the rest.
+        assert_eq!(
+            defaults.to_tag_settings().tag_colors,
+            vec![TagColor {
+                tag_key: "work".to_owned(),
+                color: "1".to_owned()
+            }]
+        );
+        // A value of the wrong type is kept too, through `other`.
+        let wrong = json!({"tag-colors": "not an array"});
+        let defaults = KanbanDefaults::from_json(Some(&wrong));
+        assert!(defaults.tag_colors.is_none());
+        assert_eq!(defaults.to_json()["tag-colors"], "not an array");
     }
 
     #[test]

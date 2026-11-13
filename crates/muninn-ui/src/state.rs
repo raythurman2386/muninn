@@ -1869,7 +1869,14 @@ impl State {
     /// history).
     pub fn close_find(&mut self) {
         self.find = None;
-        self.set_text_focus(true, false);
+        // In Kanban the note editor is not mounted: focusing it would leave
+        // the page's arrows and Alt-arrows without a keyboard owner. Keep the
+        // page focused instead; note modes return to Write as before.
+        if self.mode == Mode::Kanban {
+            self.set_text_focus(false, false);
+        } else {
+            self.set_text_focus(true, false);
+        }
     }
 
     pub fn find_next(&mut self) {
@@ -1987,6 +1994,10 @@ impl State {
                         false
                     } else {
                         let items = self.vault.suggest_tags(&current, 8);
+                        if items.is_empty() {
+                            self.tag_complete = None;
+                            return true;
+                        }
                         if let Some(c) = self.tag_complete.as_mut() {
                             c.query = current;
                             c.items = items;
@@ -2021,6 +2032,10 @@ impl State {
                         false
                     } else {
                         let items = self.vault.suggest_links(&current, 8);
+                        if items.is_empty() {
+                            self.complete = None;
+                            return true;
+                        }
                         if let Some(c) = self.complete.as_mut() {
                             c.query = current;
                             c.items = items;
@@ -2129,6 +2144,21 @@ impl State {
             return false;
         }
         let picker = self.complete.as_ref().is_some_and(|c| c.open.is_none());
+        // An inline list with no candidates is not drawn; do not claim keys
+        // for it (typing `#zz` must not swallow Enter or arrows).
+        let empty = if tag {
+            current_tag.is_none()
+        } else {
+            current_note.is_none()
+        };
+        if !picker && empty {
+            if tag {
+                self.tag_complete = None;
+            } else {
+                self.complete = None;
+            }
+            return false;
+        }
         match &e.key {
             Key::Escape => {
                 self.dismiss_complete();
@@ -2243,7 +2273,14 @@ impl State {
         let text = format!("#{}", tag.strip_prefix('#').unwrap_or(tag));
         let field = &mut self.kanban_card_field;
         let caret = field.focus.min(field.text.len());
-        field.set_selection(c.open.min(caret), caret);
+        // The list opens wherever the caret is, which can be mid-token
+        // (`#work` with the caret after `#wo`). Replace the token's whole
+        // tail, not only the text before the caret, or `#work` becomes
+        // `#workrk`.
+        let tail = field.text[caret..]
+            .find(|c: char| !muninn_core::is_tag_char(c))
+            .map_or(field.text.len(), |len| caret + len);
+        field.set_selection(c.open.min(caret), tail);
         field.insert(&text);
         self.tag_complete_dismissed = None;
         true

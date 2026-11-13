@@ -188,6 +188,44 @@ pub fn scan_tags(text: &str) -> Vec<TagToken> {
     tags
 }
 
+/// Whether byte `caret` sits inside a fenced block or an inline code span.
+/// The fence and inline rules are the ones [`scan_card_text`] uses; the card
+/// editor's `#` completion asks this so it does not offer tags inside code.
+#[must_use]
+pub fn in_code_at(text: &str, caret: usize) -> bool {
+    let caret = caret.min(text.len());
+    let mut fence: Option<(u8, usize)> = None;
+    let mut line_start = 0;
+    for line in text.split_inclusive('\n') {
+        let body = line.strip_suffix('\n').unwrap_or(line);
+        let body = body.strip_suffix('\r').unwrap_or(body);
+        let line_end = line_start + body.len();
+        if let Some((marker, run)) = fence {
+            if (line_start..=line_end).contains(&caret) {
+                return true;
+            }
+            if fence_closes(body, marker, run) {
+                fence = None;
+            }
+            line_start += line.len();
+            continue;
+        }
+        if let Some(opened) = opens_fence(body) {
+            if (line_start..=line_end).contains(&caret) {
+                return true;
+            }
+            fence = Some(opened);
+            line_start += line.len();
+            continue;
+        }
+        if (line_start..=line_end).contains(&caret) {
+            return in_code(&code_ranges(body), caret - line_start);
+        }
+        line_start += line.len();
+    }
+    false
+}
+
 /// The triggers to look for, longest first so `@@` is not read as `@`.
 fn triggers(settings: &DateSettings) -> Vec<(DateKind, &str)> {
     let mut triggers = vec![
@@ -281,7 +319,11 @@ fn code_ranges(body: &str) -> Vec<Range<usize>> {
 }
 
 fn in_code(ranges: &[Range<usize>], at: usize) -> bool {
-    ranges.iter().any(|range| range.contains(&at))
+    // Inclusive at both ends: a caret just after the opening run and just
+    // before the closing run is still inside the span.
+    ranges
+        .iter()
+        .any(|range| range.start <= at && at <= range.end)
 }
 
 /// The bytes of a token after its trigger: `{value}` is len + 2, the link
@@ -555,5 +597,21 @@ mod tests {
         assert_eq!(found.without_tags(text), "ship  @{2026-01-01} then ");
         assert_eq!(found.without(text, true, true), "ship   then ");
         assert_eq!(found.without(text, false, false), text);
+    }
+
+    #[test]
+    fn in_code_at_follows_spans_fences_and_crlf() {
+        let inline = "`see #wo`";
+        assert!(in_code_at(inline, 6), "inside the span");
+        assert!(!in_code_at(inline, 0), "on the opening backtick");
+        assert!(!in_code_at(inline, 9), "after the closing backtick");
+
+        let fenced = "```md\r\n#wo\r\n```\r\n#tag";
+        assert!(in_code_at(fenced, 4), "on the opening fence");
+        assert!(in_code_at(fenced, 12), "inside the fence");
+        assert!(!in_code_at(fenced, 21), "after the closing fence");
+
+        assert!(!in_code_at("plain #tag", 10));
+        assert!(!in_code_at("multi ``a ` b`` #tag", 20), "after a span");
     }
 }
