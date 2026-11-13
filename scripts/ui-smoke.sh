@@ -3120,17 +3120,17 @@ step_headless_kanban_lanes() {
     python3 "$harness" tree-mode "$t/kanban-lanes-$mark.json" kanban || return 1
   done
   local c="kanban_cards $t/kanban-lanes" h="python3 $harness tree-text $t/kanban-lanes"
-  local todo="Open: Write the docs #docs @{2026-12-01}|Open: Fix the parser #bug @{2026-11-20}|Open: Book the room|Open: Ask about the budget #admin @{2026-11-20}"
+  local todo="Open: Write the docs #docs|Open: Fix the parser #bug|Open: Book the room|Open: Ask about the budget #admin"
   $c-open.json 0 "$todo" && $h-lane-added.json kanban-lane-3-title Later &&
     $h-lane-edited.json kanban-lane-3-title "Later on" && $h-lane-edited.json kanban-lane-3-count "0/2" &&
     python3 "$harness" tree-rect "$t/kanban-lanes-lane-edited.json" kanban-lane-3-complete >/dev/null &&
     echo "ok Later on shows Complete" &&
     $h-lane-inserted.json kanban-lane-1-title Soon && $h-lane-deleted.json kanban-lane-1-title Doing &&
-    $c-moved-down.json 0 "Open: Fix the parser #bug @{2026-11-20}|Open: Write the docs #docs @{2026-12-01}|Open: Book the room|Open: Ask about the budget #admin @{2026-11-20}" &&
-    $c-moved-right.json 1 "Open: Review the PR #review|Open: Write the docs #docs @{2026-12-01}" &&
-    $c-moved-across.json 0 "Open: Book the room|Open: Ask about the budget #admin @{2026-11-20}" &&
-    $c-moved-across.json 3 "Done: Fix the parser #bug @{2026-11-20}" &&
-    $c-sorted.json 0 "Open: Ask about the budget #admin @{2026-11-20}|Open: Book the room" &&
+    $c-moved-down.json 0 "Open: Fix the parser #bug|Open: Write the docs #docs|Open: Book the room|Open: Ask about the budget #admin" &&
+    $c-moved-right.json 1 "Open: Review the PR #review|Open: Write the docs #docs" &&
+    $c-moved-across.json 0 "Open: Book the room|Open: Ask about the budget #admin" &&
+    $c-moved-across.json 3 "Done: Fix the parser #bug" &&
+    $c-sorted.json 0 "Open: Ask about the budget #admin|Open: Book the room" &&
     $h-collapsed.json kanban-lane-1-count 2 && $c-start.json 0 "$todo" || return 1
   python3 - "$t/kanban-lanes-collapsed.json" <<'PY' || return 1
 import json, sys

@@ -96,6 +96,21 @@ impl CardText {
         if ranges.is_empty() {
             return text.to_owned();
         }
+        // A hidden token at the end of a line should not leave the space that
+        // separated it from the text behind; take one adjacent space with it.
+        for range in &mut ranges {
+            if range.start > 0
+                && text.as_bytes()[range.start - 1] == b' '
+                && (range.end >= text.len() || text.as_bytes()[range.end].is_ascii_whitespace())
+            {
+                range.start -= 1;
+            } else if range.start == 0
+                && range.end < text.len()
+                && text.as_bytes()[range.end] == b' '
+            {
+                range.end += 1;
+            }
+        }
         ranges.sort_by_key(|range| range.start);
         let mut out = String::with_capacity(text.len());
         let mut at = 0;
@@ -547,7 +562,7 @@ mod tests {
     fn without_dates_removes_only_the_first_tokens() {
         let text = "a @{2026-01-01} @@{09:30} @{2027-02-02}";
         let found = scan(text);
-        assert_eq!(found.without_dates(text), "a   @{2027-02-02}");
+        assert_eq!(found.without_dates(text), "a @{2027-02-02}");
         let plain = scan("no dates here");
         assert_eq!(plain.without_dates("no dates here"), "no dates here");
     }
@@ -594,8 +609,8 @@ mod tests {
     fn without_tags_and_without_both_kinds_use_the_same_scan() {
         let text = "ship #one @{2026-01-01} then #two";
         let found = scan(text);
-        assert_eq!(found.without_tags(text), "ship  @{2026-01-01} then ");
-        assert_eq!(found.without(text, true, true), "ship   then ");
+        assert_eq!(found.without_tags(text), "ship @{2026-01-01} then");
+        assert_eq!(found.without(text, true, true), "ship then");
         assert_eq!(found.without(text, false, false), text);
     }
 

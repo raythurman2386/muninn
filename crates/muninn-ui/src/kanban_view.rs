@@ -1124,6 +1124,15 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
     if is_menu(s, &MenuTarget::Lane(i)) || is_menu(s, &MenuTarget::DeleteLane(i)) {
         column = column.child(crate::view::context_menu(s, k));
     }
+    // A card menu can be taller than the window when it opens under a card
+    // near the top. Draw it once under the lane header instead, where it is
+    // always reachable; its rows still name the card.
+    if s.menu.as_ref().is_some_and(|menu| match menu.target {
+        MenuTarget::Card(lane, _) | MenuTarget::MoveCard(lane, _) => lane == i,
+        _ => false,
+    }) {
+        column = column.child(crate::view::context_menu(s, k));
+    }
     if lane.done_word().is_some() {
         column = column.child(
             row()
@@ -1171,9 +1180,6 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         list = list.child(card_view(s, k, i, j, card, when, &metadata_rows));
         if picker_here && !new_here {
             list = list.child(crate::kanban_dates::picker(s, k));
-        }
-        if is_menu(s, &MenuTarget::Card(i, j)) || is_menu(s, &MenuTarget::MoveCard(i, j)) {
-            list = list.child(crate::view::context_menu(s, k));
         }
     }
     if drop == Some(lane.cards().len()) {
