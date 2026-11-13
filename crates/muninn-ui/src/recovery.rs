@@ -12,7 +12,13 @@
 //! ```text
 //! $XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.txt
 //! $XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.json
+//! $XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>~kanban.txt
+//! $XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>~kanban.json
 //! ```
+//!
+//! The `~kanban` pair is the Kanban page's own copy of that note. Write's
+//! recovery autosave writes the first pair and never the second, so a crash
+//! while Write still has unsaved text keeps the card edit as well.
 //!
 //! The `.json` sidecar stores the exact vault-relative path, a Unix timestamp
 //! and a stable FNV-1a hash of the canonical vault root (`vault`). The vault
@@ -42,6 +48,18 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// Longest sanitized stem before a hash is appended to keep names portable.
 const NAME_CAP: usize = 120;
 
+/// Which buffer a recovery file holds. Write and the Kanban page can both
+/// have unsaved text for one note; each has its own file so one autosave
+/// cannot replace the other.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RecoverySlot {
+    /// The editor buffer (Write, and a board's drawing).
+    #[default]
+    Editor,
+    /// The Kanban page's unsaved card edits for the same note.
+    Kanban,
+}
+
 /// One recoverable dirty buffer, as listed by the startup banner.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecoveryEntry {
@@ -49,6 +67,8 @@ pub struct RecoveryEntry {
     pub rel: String,
     /// Unix seconds when the buffer was last persisted.
     pub ts: u64,
+    /// Which of the note's buffers this copy is.
+    pub slot: RecoverySlot,
 }
 
 /// The shared recovery directory, scoped to one vault by `vault`.
@@ -105,7 +125,7 @@ impl RecoveryStore {
             // A copy under the new names was written after this one (only a
             // newer Muninn writes them), so the old record is stale: drop it
             // rather than leave it to come back once the new copy is cleared.
-            if self.meta_for(&rel).exists() {
+            if self.meta_for(&rel, RecoverySlot::Editor).exists() {
                 let _ = fs::remove_file(path.with_extension("txt"));
                 let _ = fs::remove_file(&path);
                 continue;
@@ -114,52 +134,83 @@ impl RecoveryStore {
             if text.is_file() && fs::rename(&text, self.path_for(&rel)).is_err() {
                 continue;
             }
-            let _ = fs::rename(&path, self.meta_for(&rel));
+            let _ = fs::rename(&path, self.meta_for(&rel, RecoverySlot::Editor));
         }
     }
 
-    /// The buffer file for `rel`.
+    /// The editor buffer file for `rel`.
     #[must_use]
     pub(crate) fn path_for(&self, rel: &str) -> PathBuf {
-        self.key_for(rel, "txt")
+        self.path_for_slot(rel, RecoverySlot::Editor)
     }
 
-    fn meta_for(&self, rel: &str) -> PathBuf {
-        self.key_for(rel, "json")
+    /// The buffer file for one of `rel`'s slots.
+    #[must_use]
+    pub(crate) fn path_for_slot(&self, rel: &str, slot: RecoverySlot) -> PathBuf {
+        self.key_for(rel, slot, "txt")
     }
 
-    fn key_for(&self, rel: &str, extension: &str) -> PathBuf {
-        self.dir
-            .join(format!("{}~{}.{extension}", self.vault, sanitize(rel)))
+    fn meta_for(&self, rel: &str, slot: RecoverySlot) -> PathBuf {
+        self.key_for(rel, slot, "json")
     }
 
-    /// Persist a dirty buffer. Only called for text that differs from the
-    /// last saved copy; the caller owns debouncing.
+    fn key_for(&self, rel: &str, slot: RecoverySlot, extension: &str) -> PathBuf {
+        let stem = match slot {
+            // The editor name is the original one, so copies written before
+            // the kanban slot existed still load.
+            RecoverySlot::Editor => format!("{}~{}", self.vault, sanitize(rel)),
+            RecoverySlot::Kanban => format!("{}~{}~kanban", self.vault, sanitize(rel)),
+        };
+        self.dir.join(format!("{stem}.{extension}"))
+    }
+
+    /// Persist the editor's dirty buffer. Only called for text that differs
+    /// from the last saved copy; the caller owns debouncing.
     pub(crate) fn save(&self, rel: &str, text: &str) -> io::Result<()> {
+        self.save_slot(rel, RecoverySlot::Editor, text)
+    }
+
+    /// Persist one slot. The kanban slot is a different file from the
+    /// editor's, so writing one leaves the other in place.
+    pub(crate) fn save_slot(&self, rel: &str, slot: RecoverySlot, text: &str) -> io::Result<()> {
         fs::create_dir_all(&self.dir)?;
         // The buffer is committed before the sidecar so a crash between the
         // two writes cannot advertise a recovery file that has no text.
-        atomic_write(&self.path_for(rel), text.as_bytes())?;
+        atomic_write(&self.path_for_slot(rel, slot), text.as_bytes())?;
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
+        let slot_field = match slot {
+            RecoverySlot::Editor => String::new(),
+            RecoverySlot::Kanban => ",\"slot\":\"kanban\"".to_owned(),
+        };
         let meta = format!(
-            "{{\"rel\":\"{}\",\"vault\":\"{}\",\"ts\":{ts}}}\n",
+            "{{\"rel\":\"{}\",\"vault\":\"{}\"{slot_field},\"ts\":{ts}}}\n",
             escape(rel),
             self.vault
         );
-        atomic_write(&self.meta_for(rel), meta.as_bytes())
+        atomic_write(&self.meta_for(rel, slot), meta.as_bytes())
     }
 
-    /// Forget `rel`'s recovery copy. Missing files are not an error.
+    /// Forget the editor's recovery copy. Missing files are not an error.
     pub(crate) fn clear(&self, rel: &str) {
-        let _ = fs::remove_file(self.path_for(rel));
-        let _ = fs::remove_file(self.meta_for(rel));
+        self.clear_slot(rel, RecoverySlot::Editor);
     }
 
-    /// Read a persisted buffer back.
+    /// Forget one slot. The other slot for `rel` is left alone.
+    pub(crate) fn clear_slot(&self, rel: &str, slot: RecoverySlot) {
+        let _ = fs::remove_file(self.path_for_slot(rel, slot));
+        let _ = fs::remove_file(self.meta_for(rel, slot));
+    }
+
+    /// Read the editor's persisted buffer back.
     pub(crate) fn load(&self, rel: &str) -> io::Result<String> {
-        fs::read_to_string(self.path_for(rel))
+        self.load_slot(rel, RecoverySlot::Editor)
+    }
+
+    /// Read one slot's persisted buffer back.
+    pub(crate) fn load_slot(&self, rel: &str, slot: RecoverySlot) -> io::Result<String> {
+        fs::read_to_string(self.path_for_slot(rel, slot))
     }
 
     /// List the recoverable buffers, newest last. Orphaned `.txt` files (no
@@ -192,13 +243,19 @@ impl RecoveryStore {
             let (Some(rel), Some(ts)) = (parse_rel(&meta), parse_ts(&meta)) else {
                 continue;
             };
-            if !self.path_for(&rel).is_file() {
+            let slot = slot_of(&path, &meta);
+            let text = self.path_for_slot(&rel, slot);
+            if !text.is_file() {
                 continue;
             }
-            found.push(RecoveryEntry { rel, ts });
+            found.push(RecoveryEntry { rel, ts, slot });
         }
-        found.sort_by(|a, b| a.ts.cmp(&b.ts).then_with(|| a.rel.cmp(&b.rel)));
-        found.dedup_by(|a, b| a.rel == b.rel);
+        found.sort_by(|a, b| {
+            a.ts.cmp(&b.ts)
+                .then_with(|| a.rel.cmp(&b.rel))
+                .then_with(|| a.slot.cmp(&b.slot))
+        });
+        found.dedup_by(|a, b| a.rel == b.rel && a.slot == b.slot);
         found
     }
 }
@@ -293,6 +350,20 @@ fn parse_string(meta: &str, key: &str) -> Option<String> {
     None
 }
 
+/// The kanban slot is named `~kanban` before the extension. A sidecar
+/// `"slot":"kanban"` says the same thing when the name was kept.
+fn slot_of(path: &Path, meta: &str) -> RecoverySlot {
+    let named = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .is_some_and(|stem| stem.ends_with("~kanban"));
+    if named || parse_string(meta, "slot").as_deref() == Some("kanban") {
+        RecoverySlot::Kanban
+    } else {
+        RecoverySlot::Editor
+    }
+}
+
 fn parse_ts(meta: &str) -> Option<u64> {
     let start = meta.find("\"ts\":")? + "\"ts\":".len();
     let digits: String = meta[start..]
@@ -362,6 +433,37 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn the_kanban_slot_survives_an_editor_save_of_the_same_note() {
+        let (state, vault) = (temp("state"), temp("vault"));
+        let store = RecoveryStore::at(&state, &vault);
+        store
+            .save_slot("Board.md", RecoverySlot::Kanban, "card edit")
+            .unwrap();
+        store.save("Board.md", "typed in write").unwrap();
+        store.save("Board.md", "typed again").unwrap();
+        assert_eq!(store.load("Board.md").unwrap(), "typed again");
+        assert_eq!(
+            store.load_slot("Board.md", RecoverySlot::Kanban).unwrap(),
+            "card edit"
+        );
+        let listed = store.scan();
+        assert_eq!(listed.len(), 2, "{listed:?}");
+        assert!(
+            listed
+                .iter()
+                .any(|e| { e.rel == "Board.md" && e.slot == RecoverySlot::Kanban })
+        );
+        store.clear("Board.md");
+        assert_eq!(
+            store.load_slot("Board.md", RecoverySlot::Kanban).unwrap(),
+            "card edit",
+            "clearing Write's copy leaves the kanban copy"
+        );
+        store.clear_slot("Board.md", RecoverySlot::Kanban);
+        assert!(store.scan().is_empty());
     }
 
     #[test]

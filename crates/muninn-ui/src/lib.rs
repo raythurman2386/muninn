@@ -15,8 +15,22 @@ mod board_text;
 mod board_tools;
 mod board_view;
 mod camera;
+mod doc_sync;
 mod global_shortcut;
 mod graph_view;
+mod kanban_archive;
+mod kanban_dates;
+mod kanban_drag;
+mod kanban_edit;
+mod kanban_lanes;
+mod kanban_links;
+mod kanban_metadata;
+mod kanban_search;
+mod kanban_settings;
+mod kanban_sync;
+mod kanban_tags;
+mod kanban_view;
+mod kanban_views;
 mod keys;
 mod mode;
 mod omarchy;
@@ -44,20 +58,28 @@ pub use board_tools::{BoardTool, Draft, tool_for_key};
 pub use board_view::{
     BoardConflict, BoardCounts, BoardSession, BoardStatus, BoardSummary, OpenBoard,
 };
+pub use doc_sync::DocConflict;
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
+pub use kanban_dates::{KanbanPicker, PickerInsert, PickerKind};
+pub use kanban_edit::{CardSlot, KanbanHistory};
+pub use kanban_lanes::{CardStep, LaneField, LaneSlot};
+pub use kanban_search::{
+    KanbanDateFilter, KanbanDatePreset, KanbanDateRange, KanbanFilter, KanbanFindState, KanbanMatch,
+};
+pub use kanban_view::ShownKanban;
 pub use keys::{on_key, shortcut};
 pub use mode::{Mode, Scope};
 pub use overlay::{Layer, PaletteAction, PaletteItem, PaletteState, SettingsTab};
 pub use poll::poll;
-pub use recovery::RecoveryEntry;
+pub use recovery::{RecoveryEntry, RecoverySlot};
 pub use settings::{
     DEFAULT_AUTOSAVE_DELAY, RECENT_VAULTS_MAX, ReduceMotion, Settings, ThemeMode, config_home,
 };
 pub use state::{
     ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction, FindState,
     FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport, LinkComplete,
-    MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TrashUndo,
-    file_action_command,
+    MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TagComplete,
+    TrashUndo, file_action_command,
 };
 pub use tray::{
     TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,

@@ -273,11 +273,17 @@ impl State {
     /// brought up to date instead, as a note's is. Returns `false` only when
     /// neither worked: the caller must not quit then (see
     /// `board_safety.rs`), and [`State::error`] says why.
+    ///
+    /// Kanban slice 7: unsaved kanban edits follow the board's rule
+    /// (`kanban_sync.rs`): saved, else kept in their recovery copy; only
+    /// when neither works, or the open card's text is refused, is the quit
+    /// refused, with the reason on the Kanban page.
     pub fn flush_before_quit(&mut self) -> bool {
         self.save_now();
         let board = self.flush_board_before_quit();
+        let kanban = self.flush_kanban_before_quit();
         self.save_settings();
-        board
+        board && kanban
     }
 }
 

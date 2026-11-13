@@ -1,6 +1,6 @@
 //! Application state: the open vault, note, editor, graph and camera.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, Write as _};
@@ -8,13 +8,15 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime};
 
-use muninn_core::{ScanJob, Vault, atomic_copy, heading_offset, unclosed_link};
+use muninn_core::{
+    KanbanView, ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag,
+};
 use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::{Camera, CameraGlide};
 use crate::mode::{Mode, Scope};
-use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
+use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
 use crate::settings::{ReduceMotion, Settings, ThemeMode, clamp_note_template, config_home};
 use crate::watch::{self, VaultSnapshot};
 
@@ -25,6 +27,15 @@ pub enum MenuTarget {
     Folder(String),
     /// A board row (#43 rename), in the Board panel or the notes sidebar.
     Board(PathBuf, crate::BoardPlace),
+    /// Kanban slice 4: a card (lane, index) and a lane on the Kanban page.
+    Card(usize, usize),
+    Lane(usize),
+    /// Kanban slice 5: Delete lane's confirmation, and Move to list…'s lane
+    /// picker for a card.
+    DeleteLane(usize),
+    MoveCard(usize, usize),
+    /// Kanban slice 12: the lane picker for Restore on archive card `index`.
+    ArchiveRestore(usize),
 }
 
 impl MenuTarget {
@@ -34,6 +45,34 @@ impl MenuTarget {
     fn folder(folder: &str) -> Self {
         Self::Folder(folder.to_owned())
     }
+
+    /// The lane this target sits in, for the view that draws its menu.
+    pub(crate) fn lane(&self) -> Option<usize> {
+        match self {
+            Self::Card(lane, _)
+            | Self::Lane(lane)
+            | Self::DeleteLane(lane)
+            | Self::MoveCard(lane, _) => Some(*lane),
+            _ => None,
+        }
+    }
+}
+
+/// Slice 15: whether a menu item opens one of the Board's in-place fields (the
+/// card editor, a date or time picker, the lane title field or Card limit).
+/// The List and Table views draw the menus but not those fields, so the action
+/// switches to the Board first.
+fn opens_board_field(target: &MenuTarget, action: &str) -> bool {
+    matches!(
+        (target, action),
+        (
+            MenuTarget::Card(..),
+            "edit" | "insert_before" | "insert_after" | "add_date" | "add_time",
+        ) | (
+            MenuTarget::Lane(..),
+            "add_card" | "insert_lane_before" | "insert_lane_after" | "rename_lane" | "lane_limit",
+        )
+    )
 }
 
 /// Open right-click menu, anchored in window points.
@@ -190,6 +229,24 @@ pub struct LinkComplete {
     /// Candidate note ids, best first, capped at eight.
     pub items: Vec<usize>,
     pub index: usize,
+    /// The `[[` is in the kanban card editor. Otherwise it is in the Write editor.
+    pub card: bool,
+}
+
+/// Kanban slice 10: the card editor's `#` tag completion.
+#[derive(Clone, Debug)]
+pub struct TagComplete {
+    /// Byte offset of the `#` being completed.
+    pub open: usize,
+    /// The caret when the list opened; the typed `#query` is what it replaces.
+    pub at: usize,
+    /// Text after `#`.
+    pub query: String,
+    /// Candidate tags as stored in the vault, best first, capped at eight.
+    pub items: Vec<String>,
+    pub index: usize,
+    /// The list belongs to the kanban card editor (tags are offered there only).
+    pub card: bool,
 }
 
 /// How many recently opened notes the empty palette shows.
@@ -317,6 +374,10 @@ pub struct State {
     /// Inline completion dismissed with Escape at `(open offset, caret)`; it
     /// stays closed until either moves.
     pub(crate) complete_dismissed: Option<(usize, usize)>,
+    /// Kanban slice 10: the card editor's open `#` tag completion.
+    pub tag_complete: Option<TagComplete>,
+    /// A tag completion dismissed with Escape at `(open offset, caret)`.
+    pub(crate) tag_complete_dismissed: Option<(usize, usize)>,
     /// M2 NAV-02: the broken-links dashboard is open.
     pub broken_panel: bool,
     /// M2 EDT-04: heading a Read-mode open should scroll to on the next frame.
@@ -349,6 +410,63 @@ pub struct State {
     pub board_views: HashMap<PathBuf, crate::BoardView>,
     /// The last session's board, applied on the first board refresh.
     pub board_restore: Option<crate::BoardSession>,
+    /// Kanban slice 2: the kanban note Kanban mode falls back to when the
+    /// selected note is not one (vault-relative, saved in settings), and the
+    /// one on the page, read when the mode, selection or vault changes.
+    pub kanban_rel: Option<String>,
+    pub kanban: Option<crate::ShownKanban>,
+    /// Kanban slice 4: where the card editor is open, and its field.
+    pub kanban_card: Option<crate::CardSlot>,
+    pub kanban_card_field: TextEdit,
+    /// Kanban slice 5: where the lane field is open, and its field.
+    pub kanban_lane_edit: Option<crate::LaneSlot>,
+    pub kanban_lane_field: TextEdit,
+    /// Kanban slice 9: the date/time picker under a card or the card editor,
+    /// and the two time fields it edits.
+    pub kanban_picker: Option<crate::KanbanPicker>,
+    /// Slice 9: the card editor's text, trigger start and whether an accept
+    /// set it. An accepted marker survives the token and suppresses the undo;
+    /// an Escape marker is cleared by the next edit.
+    pub kanban_picker_dismissed: Option<(String, usize, bool)>,
+    pub kanban_hour_field: TextEdit,
+    pub kanban_minute_field: TextEdit,
+    /// Kanban slice 5: the card (lane, index) the arrow keys act on.
+    pub kanban_selected: Option<(usize, usize)>,
+    /// Kanban slice 12: the Archive page is open instead of the lanes.
+    pub kanban_archive_open: bool,
+    /// Kanban slice 13: board Find, and the board's ephemeral filter.
+    pub kanban_find: Option<crate::kanban_search::KanbanFindState>,
+    pub kanban_filter: crate::kanban_search::KanbanFilter,
+    /// The card selected before the filter first hid it, so clearing the
+    /// filter can put the selection back (clamped to a card that still
+    /// exists). `None` when no filter has hidden a selection.
+    pub kanban_filter_saved: Option<(usize, usize)>,
+    /// Kanban slice 14: the Board settings panel, and its text fields (one per
+    /// text key, in both the app tab and the board panel).
+    pub kanban_settings_open: bool,
+    pub(crate) kanban_app_text: std::collections::BTreeMap<&'static str, TextEdit>,
+    pub(crate) kanban_board_text: std::collections::BTreeMap<&'static str, TextEdit>,
+    /// The new key typed in the `linked-page-metadata` list editor (app and
+    /// board contexts keep one each).
+    pub(crate) kanban_app_new_metadata: TextEdit,
+    pub(crate) kanban_board_new_metadata: TextEdit,
+    /// Kanban slice 15: the view the header switcher picked for the shown
+    /// board. `None` follows the file's `kanban-plugin` value; it is never
+    /// saved in settings and never written to the file.
+    pub kanban_view: Option<muninn_core::KanbanView>,
+    /// Kanban slice 6: the card or lane pressed and held (cleared whenever
+    /// the board changes), and where lanes and cards were laid out (the drop
+    /// spot is measured against them).
+    pub(crate) kanban_drag: Option<crate::kanban_drag::KanbanDrag>,
+    pub(crate) kanban_rects: crate::kanban_drag::KanbanRects,
+    /// Kanban slice 7: the shown kanban's edits waiting to rest before
+    /// autosave writes them (keyed by its change count) …
+    pub(crate) kanban_autosave_wait: Option<crate::doc_sync::Rest<u64>>,
+    /// … and before its recovery copy is written (keyed by that count and
+    /// the open field's typed text).
+    pub(crate) kanban_recovery_wait: Option<crate::doc_sync::Rest<(u64, Option<String>)>>,
+    /// When the kanban watcher last looked at the shown kanban's file.
+    pub(crate) last_kanban_watch: f64,
     /// Board slice 4: the picked drawing tool (`None`: a drag selects or moves, slice 5).
     pub board_tool: Option<crate::BoardTool>,
     /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
@@ -366,14 +484,14 @@ pub struct State {
     /// Slice 7: the board recovery copy waits for the drawing (and any text
     /// being typed) to rest: `((generation, typed text), first change, last
     /// change)` of what is not copied yet.
-    pub(crate) board_recovery_wait: Option<((u64, Option<String>), f64, f64)>,
+    pub(crate) board_recovery_wait: Option<crate::doc_sync::Rest<(u64, Option<String>)>>,
     /// Slice 7: a view change (held arrow pan, zoom, a stroke) is written to
     /// `settings.json` once things rest, not once per event. When it was
     /// last asked for.
     pub(crate) settings_due: Option<f64>,
     /// Slice 7 autosave: `(generation, first change, last change)` of the
     /// open board's drawing not saved yet.
-    pub(crate) board_autosave_wait: Option<(u64, f64, f64)>,
+    pub(crate) board_autosave_wait: Option<crate::doc_sync::Rest<u64>>,
     /// Slice 7 board watcher: each listed board's file metadata at the last
     /// look, and when that was.
     pub(crate) board_stats: std::collections::BTreeMap<PathBuf, Option<crate::watch::FileState>>,
@@ -401,6 +519,8 @@ pub struct State {
     pub canvas: [f32; 2],
     /// The last measured window width, so narrow layouts can drop the links rail.
     pub window_width: f32,
+    /// The last measured window height, so a tall settings tab can use it.
+    pub window_height: f32,
     pub needs_fit: bool,
     /// Keep the settling layout centred and in view until the camera is touched.
     pub auto_fit: bool,
@@ -625,6 +745,21 @@ impl State {
         let reduced_motion_env = reduced_motion_from_env();
         let log_path = state_home.join("muninn").join("session.log");
         let note_template_field = TextEdit::new(&settings.note_template);
+        // Slice 14: one text field per text setting, in both settings surfaces.
+        let app_effective = muninn_core::KanbanEffective::resolve(None, &settings.kanban_defaults);
+        let mut kanban_app_text = BTreeMap::new();
+        let mut kanban_board_text = BTreeMap::new();
+        for entry in muninn_core::KANBAN_KEYS {
+            if entry.kind != muninn_core::KanbanSettingKind::Text {
+                continue;
+            }
+            let text = match app_effective.get(entry.key) {
+                Some(muninn_core::KanbanSettingValue::Text(text)) => text,
+                _ => String::new(),
+            };
+            kanban_app_text.insert(entry.key, TextEdit::new(&text));
+            kanban_board_text.insert(entry.key, TextEdit::new(&text));
+        }
         let started = Instant::now();
         let mut scan = None;
         let (vault, startup_error) = match Vault::scan_start(&root) {
@@ -674,6 +809,8 @@ impl State {
             find: None,
             complete: None,
             complete_dismissed: None,
+            tag_complete: None,
+            tag_complete_dismissed: None,
             broken_panel: false,
             pending_heading: None,
             pending_top: false,
@@ -693,6 +830,36 @@ impl State {
             } else {
                 None
             },
+            kanban_rel: if restore_vault {
+                settings.kanban.clone()
+            } else {
+                None
+            },
+            kanban: None,
+            kanban_card: None,
+            kanban_card_field: TextEdit::default(),
+            kanban_lane_edit: None,
+            kanban_lane_field: TextEdit::default(),
+            kanban_picker: None,
+            kanban_picker_dismissed: None,
+            kanban_hour_field: TextEdit::default(),
+            kanban_minute_field: TextEdit::default(),
+            kanban_selected: None,
+            kanban_archive_open: false,
+            kanban_find: None,
+            kanban_filter: crate::kanban_search::KanbanFilter::default(),
+            kanban_filter_saved: None,
+            kanban_settings_open: false,
+            kanban_app_text,
+            kanban_board_text,
+            kanban_app_new_metadata: TextEdit::default(),
+            kanban_board_new_metadata: TextEdit::default(),
+            kanban_view: None,
+            kanban_drag: None,
+            kanban_rects: crate::kanban_drag::KanbanRects::default(),
+            kanban_autosave_wait: None,
+            kanban_recovery_wait: None,
+            last_kanban_watch: 0.0,
             board_tool: None,
             board_hand: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
@@ -716,6 +883,7 @@ impl State {
             graph_isolate: false,
             canvas: [900.0, 620.0],
             window_width: 1180.0,
+            window_height: 780.0,
             needs_fit: true,
             auto_fit: true,
             pan_at_press: [0.0; 2],
@@ -896,6 +1064,7 @@ impl State {
         settings.mode = self.mode;
         settings.scope = self.scope;
         settings.board = self.board_session();
+        settings.kanban = self.kanban_rel.clone();
         match settings.save_to(config_home) {
             Ok(()) => true,
             Err(e) => {
@@ -972,6 +1141,16 @@ impl State {
     /// autosave tick with the note key only, never its text.
     fn after_save(&mut self, rel: &str) {
         self.clear_recovery(rel);
+        // Write's save clears only the editor slot. The Kanban page has its
+        // own file for the same note; validate it now rather than at its next
+        // tick, so a crash just after this save cannot lose the card edit.
+        let kanban_pending = self
+            .kanban
+            .as_ref()
+            .is_some_and(|shown| shown.rel == rel && shown.dirty());
+        if kanban_pending && let Err(e) = self.kanban_recovery_tick() {
+            self.error = Some(format!("Could not persist kanban recovery copy: {e}"));
+        }
         self.trace_log("autosave", rel);
     }
 
@@ -1105,6 +1284,11 @@ impl State {
             self.error = Some("Save the current board before switching vaults".to_owned());
             return false;
         }
+        // Kanban slice 4: the same for unsaved kanban edits.
+        if !self.save_kanban() {
+            self.error = Some("Save the current kanban before switching vaults".to_owned());
+            return false;
+        }
         let started = Instant::now();
         match Vault::load(&root) {
             Ok(vault) => {
@@ -1149,6 +1333,7 @@ impl State {
                 // open board, remembered views and pending restore.
                 self.clear_boards();
                 self.refresh_boards();
+                self.clear_kanban();
                 let first = self.vault.notes.first().map(|note| note.id);
                 if let Some(id) = first {
                     self.load_note(id, false);
@@ -1227,18 +1412,32 @@ impl State {
             return Vec::new();
         }
         let query = self.palette_field.text.trim().to_lowercase();
+        let mut actions = PaletteAction::ALL.to_vec();
+        if self.can_convert_to_kanban() {
+            actions.push(PaletteAction::ConvertToKanban);
+        }
+        // Kanban slice 3: every kanban note by name (the index caches which
+        // notes are kanbans), filtered by the query like the actions.
+        let kanbans = self
+            .vault
+            .notes
+            .iter()
+            .filter(|note| note.is_kanban() && note.title.to_lowercase().contains(&query))
+            .map(|note| PaletteItem::Kanban(note.id));
         let mut items = Vec::new();
         if query.is_empty() {
-            items.extend(PaletteAction::ALL.into_iter().map(PaletteItem::Action));
+            items.extend(actions.into_iter().map(PaletteItem::Action));
             items.extend(self.recent_note_ids().into_iter().map(PaletteItem::Recent));
+            items.extend(kanbans);
         } else {
             items.extend(
                 self.search_results_for(&query)
                     .into_iter()
                     .map(PaletteItem::Note),
             );
+            items.extend(kanbans);
             items.extend(
-                PaletteAction::ALL
+                actions
                     .into_iter()
                     .filter(|action| action.matches(&query))
                     .map(PaletteItem::Action),
@@ -1334,6 +1533,7 @@ impl State {
         match item {
             PaletteItem::Recent(id) | PaletteItem::Note(id) => self.open_note(id),
             PaletteItem::Action(action) => self.palette_run_action(action),
+            PaletteItem::Kanban(id) => self.open_kanban(id),
         }
     }
 
@@ -1349,6 +1549,9 @@ impl State {
             PaletteAction::TogglePreview => self.toggle_preview(),
             PaletteAction::ToggleGraph => self.toggle_graph(),
             PaletteAction::ToggleBoard => self.toggle_board(),
+            PaletteAction::ToggleKanban => self.toggle_kanban(),
+            PaletteAction::NewKanban => self.new_kanban(),
+            PaletteAction::ConvertToKanban => self.convert_to_kanban(),
         }
     }
 
@@ -1444,8 +1647,7 @@ impl State {
     /// navigation. History-recording callers push afterwards; Back/Forward
     /// call this directly so moving through history does not rewrite it.
     fn load_note_at(&mut self, id: usize, focus: bool) {
-        self.complete = None;
-        self.complete_dismissed = None;
+        self.clear_complete();
         self.pending_heading = None;
         self.pending_top = false;
         let note = &self.vault.notes[id];
@@ -1490,12 +1692,29 @@ impl State {
         if focus && self.mode == Mode::Editor {
             self.focus_editor();
         }
+        // Kanban slice 2: Back/Forward and reloads on the Kanban page show
+        // the newly selected kanban, or keep the last one.
+        if self.mode == Mode::Kanban {
+            self.refresh_kanban();
+        }
         // LIF-01: session restore is path-based, so record the note as soon as
         // it is showing. History navigation and recovery also land here.
         self.save_settings();
     }
 
     pub fn open_from_list(&mut self, id: usize) {
+        // Kanban slice 3 (F6): on the Kanban page a kanban note picked from
+        // the list is shown there; any other note leaves it as below.
+        if self.mode == Mode::Kanban
+            && self
+                .vault
+                .notes
+                .get(id)
+                .is_some_and(|note| note.is_kanban())
+        {
+            self.open_kanban(id);
+            return;
+        }
         // A note picked from the sidebar while Graph or Board is up opens in
         // Write, as the graph always has.
         if !self.mode.is_note_mode() {
@@ -1503,6 +1722,22 @@ impl State {
             self.camera_glide = None;
         }
         self.load_note(id, true);
+    }
+
+    /// A pick from the sidebar search (⌘K, then Enter or a click on a
+    /// result). A kanban note opens on the Kanban page from any mode, with
+    /// the keyboard on the page; any other note opens as from the list.
+    pub fn open_from_search(&mut self, id: usize) {
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_kanban())
+        {
+            self.open_kanban(id);
+        } else {
+            self.open_from_list(id);
+        }
     }
 
     pub fn open_from_link(&mut self, id: usize) {
@@ -1675,7 +1910,7 @@ impl State {
             .or(if results.is_empty() { None } else { Some(0) })
         {
             self.search_selected = Some(index);
-            self.open_from_list(results[index]);
+            self.open_from_search(results[index]);
         }
     }
 
@@ -1694,8 +1929,7 @@ impl State {
 
     /// Cmd/Ctrl+F: open the find bar, or refocus it when it is already open.
     pub fn open_find(&mut self) {
-        self.complete = None;
-        self.complete_dismissed = None;
+        self.clear_complete();
         if let Some(find) = self.find.as_mut() {
             find.field.focused = true;
         } else {
@@ -1716,7 +1950,14 @@ impl State {
     /// history).
     pub fn close_find(&mut self) {
         self.find = None;
-        self.set_text_focus(true, false);
+        // In Kanban the note editor is not mounted: focusing it would leave
+        // the page's arrows and Alt-arrows without a keyboard owner. Keep the
+        // page focused instead; note modes return to Write as before.
+        if self.mode == Mode::Kanban {
+            self.set_text_focus(false, false);
+        } else {
+            self.set_text_focus(true, false);
+        }
     }
 
     pub fn find_next(&mut self) {
@@ -1790,29 +2031,92 @@ impl State {
 
     // ---- M2 EDT-03: wikilink completion -------------------------------------
 
-    /// Detect an open `[[…` at the caret or refresh the candidate list.
+    /// The text and caret autocomplete should follow: the kanban card editor
+    /// when it is focused, otherwise the Write editor.
+    fn completion_source(&self) -> Option<(String, usize, bool)> {
+        if self.mode == Mode::Kanban && self.kanban_card.is_some() && self.kanban_card_field.focused
+        {
+            let text = self.kanban_card_field.text.clone();
+            let caret = self.kanban_card_field.focus.min(text.len());
+            return Some((text, caret, true));
+        }
+        if self.editor.focused && self.find.is_none() && self.selected.is_some() {
+            let text = self.editor.text.clone();
+            let caret = self.editor.focus.min(text.len());
+            return Some((text, caret, false));
+        }
+        None
+    }
+
+    /// Detect an open `[[…` or `#…` at the caret, or refresh its candidate
+    /// list.
     ///
     /// Runs from `poll` once a frame, like the find bar's match list, because
     /// the view only borrows `State`. The explicit Cmd+P picker is not
     /// detected here: its query is typed into the picker, not the note.
+    /// A focused kanban card editor is completed the same way as Write; the
+    /// `#` tag list is offered there only.
     /// Returns true when something the user can see changed.
     pub fn complete_tick(&mut self) -> bool {
+        if let Some(c) = &self.tag_complete {
+            let open = c.open;
+            let query = c.query.clone();
+            let Some((text, caret, is_card)) = self.completion_source() else {
+                self.tag_complete = None;
+                return true;
+            };
+            if !is_card {
+                self.tag_complete = None;
+                return true;
+            }
+            return match unclosed_tag(&text, caret) {
+                Some((mark, current)) if mark == open => {
+                    if current == query {
+                        false
+                    } else {
+                        let items = self.vault.suggest_tags(&current, 8);
+                        if items.is_empty() {
+                            self.tag_complete = None;
+                            return true;
+                        }
+                        if let Some(c) = self.tag_complete.as_mut() {
+                            c.query = current;
+                            c.items = items;
+                            c.index = 0;
+                        }
+                        true
+                    }
+                }
+                _ => {
+                    self.tag_complete = None;
+                    true
+                }
+            };
+        }
         if let Some(c) = &self.complete {
             let Some(open) = c.open else {
                 return false;
             };
+            let card = c.card;
             let query = c.query.clone();
-            if !self.editor.focused || self.find.is_some() {
+            let Some((text, caret, is_card)) = self.completion_source() else {
+                self.complete = None;
+                return true;
+            };
+            if is_card != card {
                 self.complete = None;
                 return true;
             }
-            let caret = self.editor.focus.min(self.editor.text.len());
-            return match unclosed_link(&self.editor.text, caret) {
+            return match unclosed_link(&text, caret) {
                 Some((mark, current)) if mark == open => {
                     if current == query {
                         false
                     } else {
                         let items = self.vault.suggest_links(&current, 8);
+                        if items.is_empty() {
+                            self.complete = None;
+                            return true;
+                        }
                         if let Some(c) = self.complete.as_mut() {
                             c.query = current;
                             c.items = items;
@@ -1827,27 +2131,49 @@ impl State {
                 }
             };
         }
-        if !self.editor.focused || self.find.is_some() || self.selected.is_none() {
-            return false;
-        }
-        let caret = self.editor.focus.min(self.editor.text.len());
-        let Some((open, query)) = unclosed_link(&self.editor.text, caret) else {
+        let Some((text, caret, card)) = self.completion_source() else {
             return false;
         };
-        if self.complete_dismissed == Some((open, caret)) {
+        if let Some((open, query)) = unclosed_link(&text, caret) {
+            if self.complete_dismissed == Some((open, caret)) {
+                return false;
+            }
+            self.complete_dismissed = None;
+            let items = self.vault.suggest_links(&query, 8);
+            if items.is_empty() {
+                return false;
+            }
+            self.complete = Some(LinkComplete {
+                open: Some(open),
+                at: caret,
+                query,
+                items,
+                index: 0,
+                card,
+            });
+            return true;
+        }
+        if !card {
             return false;
         }
-        self.complete_dismissed = None;
-        let items = self.vault.suggest_links(&query, 8);
+        let Some((open, query)) = unclosed_tag(&text, caret) else {
+            return false;
+        };
+        if self.tag_complete_dismissed == Some((open, caret)) {
+            return false;
+        }
+        self.tag_complete_dismissed = None;
+        let items = self.vault.suggest_tags(&query, 8);
         if items.is_empty() {
             return false;
         }
-        self.complete = Some(LinkComplete {
-            open: Some(open),
+        self.tag_complete = Some(TagComplete {
+            open,
             at: caret,
             query,
             items,
             index: 0,
+            card: true,
         });
         true
     }
@@ -1872,29 +2198,61 @@ impl State {
             query: String::new(),
             items,
             index: 0,
+            card: false,
         });
         self.complete_dismissed = None;
+        self.tag_complete = None;
+        self.tag_complete_dismissed = None;
     }
 
     /// Keys claimed while a completion or the picker is open. Up/Down move the
     /// highlight, Enter/Tab accept, Escape dismisses. Typing filters only in
     /// the explicit picker; in inline mode the note itself receives the text
-    /// and `complete_tick` follows the query.
+    /// and `complete_tick` follows the query. The card editor's tag list
+    /// shares these keys; only the accepted text differs (`#tag`).
     pub fn complete_key(&mut self, e: &KeyEvent) -> bool {
-        let Some((picker, current)) = self
+        let tag = self.tag_complete.is_some();
+        let current_note = self
             .complete
             .as_ref()
-            .map(|c| (c.open.is_none(), c.items.get(c.index).copied()))
-        else {
+            .and_then(|c| c.items.get(c.index).copied());
+        let current_tag = self
+            .tag_complete
+            .as_ref()
+            .and_then(|c| c.items.get(c.index))
+            .cloned();
+        if !tag && self.complete.is_none() {
             return false;
+        }
+        let picker = self.complete.as_ref().is_some_and(|c| c.open.is_none());
+        // An inline list with no candidates is not drawn; do not claim keys
+        // for it (typing `#zz` must not swallow Enter or arrows).
+        let empty = if tag {
+            current_tag.is_none()
+        } else {
+            current_note.is_none()
         };
+        if !picker && empty {
+            if tag {
+                self.tag_complete = None;
+            } else {
+                self.complete = None;
+            }
+            return false;
+        }
         match &e.key {
             Key::Escape => {
                 self.dismiss_complete();
                 true
             }
             Key::Enter | Key::Tab => {
-                if let Some(id) = current {
+                if tag {
+                    if let Some(tag) = current_tag {
+                        self.tag_complete_choose(&tag);
+                    } else {
+                        self.dismiss_complete();
+                    }
+                } else if let Some(id) = current_note {
                     self.complete_choose(id);
                 } else {
                     self.dismiss_complete();
@@ -1933,6 +2291,14 @@ impl State {
 
     /// Move the highlighted suggestion, wrapping at both ends.
     pub fn complete_step(&mut self, delta: isize) -> bool {
+        if let Some(c) = self.tag_complete.as_mut() {
+            if c.items.is_empty() {
+                return false;
+            }
+            let len = c.items.len() as isize;
+            c.index = (c.index as isize + delta).rem_euclid(len) as usize;
+            return true;
+        }
         let Some(c) = self.complete.as_mut() else {
             return false;
         };
@@ -1945,7 +2311,8 @@ impl State {
     }
 
     /// Insert `[[stem]]` for `id`, replacing the open `[[query` or inserting at
-    /// the picker's caret. Pointer clicks use this too.
+    /// the picker's caret. Pointer clicks use this too. A completion opened
+    /// from the kanban card editor inserts there instead of into Write.
     pub fn complete_choose(&mut self, id: usize) -> bool {
         let Some(c) = self.complete.take() else {
             return false;
@@ -1954,31 +2321,83 @@ impl State {
             return false;
         };
         let text = format!("[[{}]]", note.stem());
+        let card = c.card;
+        let field = if card {
+            &mut self.kanban_card_field
+        } else {
+            &mut self.editor
+        };
         match c.open {
             Some(open) => {
-                let caret = self.editor.focus.min(self.editor.text.len());
-                self.editor.set_selection(open.min(caret), caret);
-                self.editor.insert(&text);
+                let caret = field.focus.min(field.text.len());
+                field.set_selection(open.min(caret), caret);
+                field.insert(&text);
             }
             None => {
-                self.editor.set_caret(c.at.min(self.editor.text.len()));
-                self.editor.insert(&text);
+                field.set_caret(c.at.min(field.text.len()));
+                field.insert(&text);
             }
         }
         self.complete_dismissed = None;
-        self.dirty_at.get_or_insert(self.now);
+        if !card {
+            self.dirty_at.get_or_insert(self.now);
+        }
+        true
+    }
+
+    /// Insert `#tag`, replacing the typed `#query` in the card editor. The
+    /// pointer uses this too. Escape leaves the typed `#` alone.
+    pub fn tag_complete_choose(&mut self, tag: &str) -> bool {
+        let Some(c) = self.tag_complete.take() else {
+            return false;
+        };
+        let text = format!("#{}", tag.strip_prefix('#').unwrap_or(tag));
+        let field = &mut self.kanban_card_field;
+        let caret = field.focus.min(field.text.len());
+        // The list opens wherever the caret is, which can be mid-token
+        // (`#work` with the caret after `#wo`). Replace the token's whole
+        // tail, not only the text before the caret, or `#work` becomes
+        // `#workrk`.
+        let tail = field.text[caret..]
+            .find(|c: char| !muninn_core::is_tag_char(c))
+            .map_or(field.text.len(), |len| caret + len);
+        field.set_selection(c.open.min(caret), tail);
+        field.insert(&text);
+        self.tag_complete_dismissed = None;
         true
     }
 
     /// Escape: close the list. Inline completion remembers where it was
     /// dismissed so the next frame does not immediately reopen it.
     pub fn dismiss_complete(&mut self) {
+        if let Some(c) = self.tag_complete.take() {
+            let caret = self
+                .kanban_card_field
+                .focus
+                .min(self.kanban_card_field.text.len());
+            self.tag_complete_dismissed = Some((c.open, caret));
+        }
         if let Some(c) = self.complete.take()
             && let Some(open) = c.open
         {
-            let caret = self.editor.focus.min(self.editor.text.len());
+            let caret = if c.card {
+                self.kanban_card_field
+                    .focus
+                    .min(self.kanban_card_field.text.len())
+            } else {
+                self.editor.focus.min(self.editor.text.len())
+            };
             self.complete_dismissed = Some((open, caret));
         }
+    }
+
+    /// Close both lists and forget where Escape dismissed them (a mode or
+    /// note change, not a dismissal the next frame should honour).
+    pub(crate) fn clear_complete(&mut self) {
+        self.complete = None;
+        self.complete_dismissed = None;
+        self.tag_complete = None;
+        self.tag_complete_dismissed = None;
     }
 
     pub fn focus_editor(&mut self) {
@@ -1987,8 +2406,7 @@ impl State {
     }
 
     pub fn focus_search(&mut self) {
-        self.complete = None;
-        self.complete_dismissed = None;
+        self.clear_complete();
         self.dismiss_palette();
         self.reveal_sidebar();
         self.set_text_focus(false, true);
@@ -2623,10 +3041,18 @@ impl State {
 
     // ---- SAF-05: dirty-buffer crash recovery ---------------------------------
 
-    /// Where the recovery copy for `rel` lives. Exposed for tests and support.
+    /// Where the editor's recovery copy for `rel` lives. Exposed for tests
+    /// and support.
     #[must_use]
     pub fn recovery_path(&self, rel: &str) -> PathBuf {
         self.recovery.path_for(rel)
+    }
+
+    /// Where the Kanban page's recovery copy for `rel` lives. A different
+    /// file from [`State::recovery_path`], so Write's copy cannot replace it.
+    #[must_use]
+    pub fn kanban_recovery_path(&self, rel: &str) -> PathBuf {
+        self.recovery.path_for_slot(rel, RecoverySlot::Kanban)
     }
 
     /// One recovery tick: once the buffer has been idle for
@@ -2691,16 +3117,24 @@ impl State {
             return Ok(());
         }
         let text = self.editor.text.clone();
+        // The editor slot only. The Kanban page keeps its own file, so this
+        // write cannot replace the card edit or make the page believe a
+        // copy is current when that file now holds Write's text.
         self.recovery.save(&rel, &text)?;
         self.recovery_rel = Some(rel);
         self.recovery_text = Some(text);
         Ok(())
     }
 
-    fn clear_recovery(&mut self, rel: &str) {
-        self.recovery.clear(rel);
-        self.recovered.retain(|entry| entry.rel != rel);
-        if self.recovery_rel.as_deref() == Some(rel) {
+    pub(crate) fn clear_recovery(&mut self, rel: &str) {
+        self.clear_recovery_slot(rel, RecoverySlot::Editor);
+    }
+
+    pub(crate) fn clear_recovery_slot(&mut self, rel: &str, slot: RecoverySlot) {
+        self.recovery.clear_slot(rel, slot);
+        self.recovered
+            .retain(|entry| !(entry.rel == rel && entry.slot == slot));
+        if slot == RecoverySlot::Editor && self.recovery_rel.as_deref() == Some(rel) {
             self.recovery_rel = None;
             self.recovery_text = None;
         }
@@ -2709,30 +3143,74 @@ impl State {
     /// Dismiss the startup banner by discarding every listed copy. This is the
     /// explicit "I do not want these edits" action; it never touches the notes.
     pub fn dismiss_recovery(&mut self) -> bool {
-        let rels: Vec<String> = self
+        let entries: Vec<(String, RecoverySlot)> = self
             .recovered
             .iter()
-            .map(|entry| entry.rel.clone())
+            .map(|entry| (entry.rel.clone(), entry.slot))
             .collect();
-        for rel in rels {
-            self.clear_recovery(&rel);
+        for (rel, slot) in entries {
+            self.clear_recovery_slot(&rel, slot);
         }
         self.recovered.clear();
         true
     }
 
-    /// Throw away one recovery copy (and its banner row).
+    /// Throw away the recovery copies for `rel` (and their banner rows).
     pub fn discard_recovery(&mut self, rel: &str) -> bool {
-        self.clear_recovery(rel);
+        self.clear_recovery_slot(rel, RecoverySlot::Editor);
+        self.clear_recovery_slot(rel, RecoverySlot::Kanban);
         true
     }
 
     /// Load one recovered buffer into the editor as dirty. If the note no
     /// longer exists it is recreated at its original vault-relative path.
+    ///
+    /// When only the Kanban page's copy exists, that is what comes back.
+    /// When both slots exist, this loads the editor's; the banner passes
+    /// the slot so the card edit can be restored on its own.
     pub fn restore_recovery(&mut self, rel: &str) -> bool {
+        let slot = if self.recovery.load(rel).is_ok() {
+            RecoverySlot::Editor
+        } else if self.recovery.load_slot(rel, RecoverySlot::Kanban).is_ok() {
+            RecoverySlot::Kanban
+        } else {
+            RecoverySlot::Editor
+        };
+        self.restore_recovery_slot(rel, slot)
+    }
+
+    /// Load one slot's copy. The other slot for the same note stays on disk
+    /// and on the banner.
+    pub fn restore_recovery_slot(&mut self, rel: &str, slot: RecoverySlot) -> bool {
+        if slot == RecoverySlot::Kanban {
+            return match self.recovery.load_slot(rel, slot) {
+                Ok(text)
+                    if muninn_core::is_kanban(&text)
+                        && muninn_core::Kanban::parse(&text).is_ok() =>
+                {
+                    self.restore_kanban_recovery(rel, &text, RecoverySlot::Kanban)
+                }
+                Ok(_) => false,
+                Err(e) => {
+                    self.error = Some(format!("Could not read recovery copy: {e}"));
+                    false
+                }
+            };
+        }
         // #38 review B2: a board's copy opens on Board, never as a note.
         if crate::board_safety::is_board_rel(rel) {
             return self.restore_board_recovery(rel);
+        }
+        // A kanban note's editor copy opens on the Kanban page when that is
+        // the only copy (the slot both used to share). When the page already
+        // has its own copy, this text is Write's buffer: it goes into the
+        // editor below and the card edit stays where it is.
+        if self.recovery.load_slot(rel, RecoverySlot::Kanban).is_err()
+            && let Ok(text) = self.recovery.load(rel)
+            && muninn_core::is_kanban(&text)
+            && muninn_core::Kanban::parse(&text).is_ok()
+        {
+            return self.restore_kanban_recovery(rel, &text, RecoverySlot::Editor);
         }
         let Some(id) = self.vault.notes.iter().find(|n| n.rel == rel).map(|n| n.id) else {
             return self.restore_missing_note(rel);
@@ -2782,21 +3260,30 @@ impl State {
             self.error = Some(format!("Could not persist recovery copy: {e}"));
         }
         self.log_event("recovery", &format!("restored {rel}"));
-        self.recovered.retain(|entry| entry.rel != rel);
+        self.recovered
+            .retain(|entry| !(entry.rel == rel && entry.slot == RecoverySlot::Editor));
         true
     }
 
-    /// Restore every listed buffer. Each restored note is flushed to disk
-    /// before the next one opens, so the last one stays in the editor.
+    /// Restore every listed buffer, each from its own slot. Each restored
+    /// note is flushed to disk before the next one opens, so the last one
+    /// stays in the editor.
     pub fn restore_all_recovery(&mut self) -> bool {
-        let rels: Vec<String> = self
+        let mut entries: Vec<(String, RecoverySlot)> = self
             .recovered
             .iter()
-            .map(|entry| entry.rel.clone())
+            .map(|entry| (entry.rel.clone(), entry.slot))
             .collect();
+        // The card edit is restored before Write's buffer. Write's text for
+        // a kanban note is usually still a kanban, and restoring it first
+        // would take the page (and, before the guard above, the file).
+        entries.sort_by_key(|(_, slot)| match slot {
+            RecoverySlot::Kanban => 0,
+            RecoverySlot::Editor => 1,
+        });
         let mut restored = true;
-        for rel in rels {
-            restored &= self.restore_recovery(&rel);
+        for (rel, slot) in entries {
+            restored &= self.restore_recovery_slot(&rel, slot);
         }
         restored
     }
@@ -2910,7 +3397,7 @@ impl State {
         true
     }
 
-    fn selected_rel(&self) -> Option<&str> {
+    pub(crate) fn selected_rel(&self) -> Option<&str> {
         let id = self.selected?;
         self.vault.notes.get(id).map(|note| note.rel.as_str())
     }
@@ -3021,7 +3508,7 @@ impl State {
 
     /// Read the note file back into the editor, replacing the buffer and the
     /// expected disk identity.
-    fn load_disk_into_editor(&mut self, note_id: usize) -> io::Result<()> {
+    pub(crate) fn load_disk_into_editor(&mut self, note_id: usize) -> io::Result<()> {
         let path = self
             .vault
             .notes
@@ -3092,7 +3579,7 @@ impl State {
     }
 
     /// Re-scan the vault without changing what the editor shows or selects.
-    fn refresh_index_only(&mut self) {
+    pub(crate) fn refresh_index_only(&mut self) {
         if let Ok(vault) = Vault::load(&self.vault.root) {
             self.vault = vault;
             self.list_sidebar_boards();
@@ -3289,6 +3776,7 @@ impl State {
         self.broken_panel = false;
         if !same_vault {
             self.clear_boards();
+            self.clear_kanban();
         }
         self.refresh_boards();
         let restore = self.restore_after_scan.take();
@@ -3436,14 +3924,31 @@ impl State {
     fn apply_rename(&mut self, id: usize, name: &str, rewrite: bool) {
         let was_selected = self.selected == Some(id);
         let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
+        let old_rel = self.vault.notes.get(id).map(|note| note.rel.clone());
         let inbound = if rewrite {
             self.vault.link_referrers(id)
         } else {
             Vec::new()
         };
+        // A kanban with unsaved edits must not be rewritten: the rewrite
+        // would replace the file the page is still editing. Slice 7's
+        // conflict bar takes this case over later.
+        let skipped = self
+            .unsaved_kanban_id()
+            .filter(|kid| inbound.iter().any(|(from, _)| from == kid));
         match self.vault.rename_note(id, name) {
             Ok(path) => {
                 self.error = None;
+                if let Some(old) = old_rel.as_deref()
+                    && let Some(new_rel) = self
+                        .vault
+                        .notes
+                        .get(id)
+                        .map(|note| note.rel.clone())
+                        .filter(|rel| rel != old)
+                {
+                    self.retarget_open_kanban(old, &new_rel, id);
+                }
                 let failures = if rewrite {
                     let stem = self
                         .vault
@@ -3451,7 +3956,12 @@ impl State {
                         .get(id)
                         .map(|note| note.stem().to_owned())
                         .unwrap_or_default();
-                    self.vault.rewrite_inbound_links(&inbound, &stem)
+                    let write: Vec<_> = inbound
+                        .iter()
+                        .filter(|(from, _)| Some(*from) != skipped)
+                        .cloned()
+                        .collect();
+                    self.vault.rewrite_inbound_links(&write, &stem)
                 } else {
                     Vec::new()
                 };
@@ -3466,7 +3976,18 @@ impl State {
                 } else {
                     self.selected_path.clone()
                 };
+                let skipped_name = skipped.and_then(|skipped_id| {
+                    self.vault
+                        .notes
+                        .get(skipped_id)
+                        .map(|note| note.title.clone())
+                        .filter(|title| !title.is_empty())
+                });
                 self.reload(select);
+                if skipped.is_some() {
+                    let name = skipped_name.unwrap_or_else(|| "the kanban".to_owned());
+                    self.notice = Some(format!("Links in {name} were not updated"));
+                }
                 if !failures.is_empty() {
                     self.error = Some(format!(
                         "Renamed, but {} inbound link file(s) could not be rewritten: {}",
@@ -3477,6 +3998,39 @@ impl State {
             }
             Err(e) => self.error = Some(format!("Could not rename note: {e}")),
         }
+    }
+
+    /// The open kanban's note, when the page holds edits that are not on disk
+    /// (including an open card editor or lane field).
+    fn unsaved_kanban_id(&self) -> Option<usize> {
+        if !self.kanban_dirty() {
+            return None;
+        }
+        let rel = self.kanban.as_ref()?.rel.as_str();
+        self.note_id(rel)
+    }
+
+    /// The open kanban was renamed: the path saved in settings, and the page's
+    /// own path, follow the file. The in-memory board is kept.
+    fn retarget_open_kanban(&mut self, old_rel: &str, new_rel: &str, id: usize) {
+        let moved = self.kanban_rel.as_deref() == Some(old_rel)
+            || self
+                .kanban
+                .as_ref()
+                .is_some_and(|shown| shown.rel == old_rel);
+        if !moved {
+            return;
+        }
+        if self.kanban_rel.as_deref() == Some(old_rel) {
+            self.kanban_rel = Some(new_rel.to_owned());
+        }
+        if let Some(shown) = &mut self.kanban
+            && shown.rel == old_rel
+        {
+            shown.rel = new_rel.to_owned();
+            shown.disk = self.vault.disk_state(id).ok();
+        }
+        self.save_settings();
     }
 
     pub(crate) fn format_rewrite_failures(&self, failures: &[(usize, io::Error)]) -> String {
@@ -3783,6 +4337,20 @@ impl State {
     fn apply_rename_folder(&mut self, folder: &str, name: &str, rewrite: bool) {
         let folder = folder.trim_matches('/');
         let old_path = self.selected_path.clone();
+        // Same rule as a note rename: a kanban with unsaved edits is not
+        // rewritten, or the write would replace the file the page is editing.
+        let skipped = rewrite.then(|| {
+            self.unsaved_kanban_id()
+                .filter(|kid| self.vault.link_referrers_for_folder(folder).contains(kid))
+        });
+        let skipped = skipped.flatten();
+        let skipped_name = skipped.and_then(|skipped_id| {
+            self.vault
+                .notes
+                .get(skipped_id)
+                .map(|note| note.title.clone())
+                .filter(|title| !title.is_empty())
+        });
         match self.vault.rename_folder(folder, name) {
             Ok(path) => {
                 self.error = None;
@@ -3792,7 +4360,7 @@ impl State {
                     .unwrap_or_default();
                 let failures = if rewrite && !new_folder.is_empty() {
                     self.vault
-                        .rewrite_inbound_links_for_folder(folder, &new_folder)
+                        .rewrite_inbound_links_for_folder(folder, &new_folder, skipped)
                 } else {
                     Vec::new()
                 };
@@ -3821,6 +4389,10 @@ impl State {
                     )
                 });
                 self.reload(select);
+                if skipped.is_some() {
+                    let name = skipped_name.unwrap_or_else(|| "the kanban".to_owned());
+                    self.notice = Some(format!("Links in {name} were not updated"));
+                }
                 if failure_message.is_some() {
                     self.error = failure_message;
                 }
@@ -3867,6 +4439,16 @@ impl State {
         let Some(menu) = self.menu.take() else {
             return;
         };
+        // Slice 15: the List and Table views draw the card and lane menus but
+        // not the board's in-place fields. An item that opens one switches to
+        // the Board first, where the editor or picker is drawn and useful.
+        if opens_board_field(&menu.target, action) {
+            self.set_kanban_view(KanbanView::Board);
+            if self.kanban_view() != KanbanView::Board {
+                // A refused commit kept the view (and its reason on screen).
+                return;
+            }
+        }
         match (menu.target, action) {
             (MenuTarget::Note(id), "rename") => self.begin_rename_note(id),
             (MenuTarget::Note(id), "delete") => self.delete_note(id),
@@ -3884,7 +4466,33 @@ impl State {
             (MenuTarget::Board(path, place), "rename") => {
                 self.begin_rename_board(path, place);
             }
-            _ => {}
+            (MenuTarget::Card(lane, index), "edit") => self.begin_edit_card(lane, index),
+            (MenuTarget::Card(lane, index), "insert_before") => {
+                self.begin_insert_card(lane, index);
+            }
+            (MenuTarget::Card(lane, index), "insert_after") => {
+                self.begin_insert_card(lane, index + 1);
+            }
+            (MenuTarget::Card(lane, index), "duplicate") => self.duplicate_card(lane, index),
+            (MenuTarget::Card(lane, index), "toggle_done") => {
+                self.toggle_card_done(lane, index);
+            }
+            (MenuTarget::Card(lane, index), "split") => self.split_card(lane, index),
+            (MenuTarget::Card(lane, index), "add_date") => {
+                self.open_card_date_picker(lane, index);
+            }
+            (MenuTarget::Card(lane, index), "add_time") => {
+                self.open_card_time_picker(lane, index);
+            }
+            (MenuTarget::Card(lane, index), "copy_link") => {
+                let _ = self.copy_card_link(lane, index);
+            }
+            (MenuTarget::Card(lane, index), "new_note") => self.new_note_from_card(lane, index),
+            (MenuTarget::Card(lane, index), "archive") => self.archive_card(lane, index),
+            (MenuTarget::Card(lane, index), "delete") => self.delete_card(lane, index),
+            (MenuTarget::Lane(lane), "add_card") => self.begin_add_card(lane),
+            (MenuTarget::Lane(lane), "mark_done") => self.mark_lane_done(lane),
+            (target, action) => self.pick_kanban_menu(target, action),
         }
     }
 
@@ -4207,12 +4815,12 @@ impl State {
     }
 
     /// EDT-04: place the caret on `heading` in Write mode, or scroll the reader
-    /// in Read mode. A missing heading is not an error: the note opens at the
-    /// top instead.
+    /// in Read mode. A fragment that starts with `^` is a block id. A missing
+    /// heading or block is not an error: the note opens at the top instead.
     fn goto_heading(&mut self, heading: &str, tx: &mut rune::Tx) {
         self.pending_heading = None;
         self.pending_top = false;
-        let offset = heading_offset(&self.editor.text, heading);
+        let offset = jump_offset(&self.editor.text, heading);
         match self.mode {
             Mode::Preview => {
                 // The reader shows the preview-rewritten source, whose byte
@@ -4220,7 +4828,7 @@ impl State {
                 // that source. Block keys are `heading-<preview offset>`.
                 let key = self.selected.and_then(|id| {
                     let source = self.vault.preview_with_attachments(&self.editor.text, id);
-                    heading_offset(&source, heading).map(|offset| format!("heading-{offset}"))
+                    jump_offset(&source, heading).map(|offset| format!("heading-{offset}"))
                 });
                 match key {
                     Some(key) => {
@@ -4238,7 +4846,7 @@ impl State {
                 self.editor.anchor = offset;
                 self.editor.focus = offset;
             }
-            Mode::Graph | Mode::Board => {}
+            Mode::Graph | Mode::Board | Mode::Kanban => {}
         }
     }
 
@@ -4363,7 +4971,7 @@ fn expand_path(raw: &str) -> PathBuf {
 /// `text`. The haystack is folded character by character with a byte-origin
 /// map so Unicode case folding (including a character that lowers to more than
 /// one) still reports offsets into the original note.
-fn find_matches(text: &str, query: &str) -> (Vec<usize>, Vec<usize>) {
+pub(crate) fn find_matches(text: &str, query: &str) -> (Vec<usize>, Vec<usize>) {
     let needle = query.to_lowercase();
     if needle.is_empty() {
         return (Vec::new(), Vec::new());

@@ -4,7 +4,274 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.0] - 2026-11-13
+
+### Added
+
+- **Kanban mode.** A fifth mode (`⌘5` / `Ctrl+5`, a Kanban mode
+  button, **Toggle Kanban** in the command palette) shows a kanban note as a
+  board: lanes in file order with their card counts, `n/N` and an over-limit
+  flag against a lane limit, Complete on a done lane, and each card's done
+  mark and markdown. It shows the selected note when that is a kanban note,
+  else the last kanban shown (restored after a restart), else an empty state.
+  A note whose settings footer can't be read offers **Open as markdown**.
+  Viewing never writes the file.
+- **Finding, opening and making kanbans.** A **Kanbans** section in the
+  sidebar lists every kanban note and opens it in Kanban mode, and kanban
+  notes carry a checklist glyph in the notes list. The command palette has
+  each kanban by name, **New Kanban** (writes `Untitled Kanban.md`, then
+  `Untitled Kanban 2.md`…, in the selected note's folder, never over an
+  existing file) and, on an empty note, **Convert empty note to Kanban**. A
+  kanban note picked from the sidebar search (`⌘K` / `Ctrl+K`) opens in
+  Kanban mode from any mode. A kanban note opened any other way (the notes
+  list, a link, a backlink) opens as a note with an **Open as kanban**
+  button, and the Kanban page's **Open as markdown** returns to Write on that
+  note. On the Kanban page, picking another kanban note keeps the page.
+- **Editing cards.** On the Kanban page, **+ Add card** at a lane's foot, and
+  each card's menu (its `⋯`, or a right-click): Edit, Insert card before,
+  Insert card after, Duplicate, Split card and Delete. A double click edits
+  a card in place (`Enter` commits, `Shift+Enter` breaks the line, `Esc`
+  cancels), and its checkbox toggles the done mark. In a done lane new,
+  duplicated and split cards are done, and the lane menu's **Mark all cards
+  done** marks the rest. Undo and redo (`⌘Z`, `⇧⌘Z` / `Ctrl+Y`) restore the
+  exact text. Nothing is written until `⌘S`, and each action changes only
+  its own lines of the file. Unsaved edits stay when you leave the page;
+  picking another kanban, switching vaults or quitting saves them first, and
+  a file that changed on disk is not written over. Text the file format
+  can't hold stays in the open editor, and the page says why.
+- **Card dates and times.** A card reads `@{…}` and the link form `@[[…]]` as
+  a date, and `@@{…}` as a time, outside fences and inline code. A card's menu
+  has **Add/Change date…** (a month grid with Today, Clear, Cancel and Add) and
+  **Add/Change time…** (hour and minute fields); accepting writes the card's
+  one token of that kind, replacing an existing one in place, as one undo step
+  that changes only the card's line. Typing `@` or `@@` at a word
+  boundary in the card editor opens the same picker at the caret, and Escape
+  leaves the typed trigger. The card's foot shows the formatted date and time,
+  optionally relative (`today`, `in 3 days`, counted from the local calendar
+  day) and linked to the daily note. Board footer keys `date-trigger`,
+  `time-trigger`, `date-format`, `time-format`, `date-display-format`,
+  `show-relative-date`, `hide-date-in-title` and `link-date-to-daily-note`,
+  with app-wide `kanban_defaults` in `settings.json`; the footer wins, then the
+  app default, then the built-in. Sorting by date uses the parsed day and time,
+  and cards with no date sort last. Display settings never rewrite the board.
+- **Card tags.** A card's `#tag` tokens are read outside fences and inline
+  code, with frontmatter `tags:`/`tag:` (scalar or list) and ordinary note
+  bodies in the same vault-wide, case-insensitive tag index. The footer's
+  `hide-tags-in-title` keeps tags out of the card's main text and
+  `show-tags-at-bottom` draws chips at the card's foot; a chip click sets the
+  board's tag filter. In the card editor, `#` at a word boundary offers the
+  vault's tags and inserts one at the caret, while Escape leaves the typed
+  `#`. `tag-colors` is kept as written for a later editor. Display settings
+  never rewrite the board. App-wide defaults live under `kanban_defaults` in
+  `settings.json`.
+- **Card metadata from linked notes.** A card's first wikilink selects a note,
+  and the board's `linked-page-metadata` keys draw that note's frontmatter and
+  inline fields (`[key:: value]` or `key:: value`) at the card's foot, after
+  dates and tags. `containsMarkdown` renders a value through the reader: its
+  links work, a note embed becomes a link and an attachment embed keeps the
+  reader's filename placeholder; `show-missing-metadata` draws `key: —` for an absent
+  key or note. Keys match case-insensitively and the first occurrence wins.
+  App-wide defaults live under `kanban_defaults`; the footer wins, then the
+  app default, then the built-in. A missing note or key draws nothing by
+  default, and display never writes the board or the linked note.
+- **Archiving cards.** A card's menu has **Archive**, and `Cmd`/`Ctrl`-clicking
+  its checkbox archives it (a plain click still toggles the done mark). The
+  card's lines move whole into the note's archive, after a `***` line and
+  `## Archive`, which the first archive creates with the English word; a file
+  that already has an archive keeps its own word (German `Archiv`, Japanese
+  `アーカイブ` and the other marker words). The header's **Archive** page lists
+  the archived cards from the same note, with the count, **Restore** (to the
+  first lane, or **Restore to…** for a lane picked by name) and **Delete**.
+  `archive-with-date`, `archive-date-format`, `archive-date-position`,
+  `archive-date-separator` and `max-archive-cards` (absent or `0` is no limit;
+  the oldest archive cards go, never a lane card) read from the board footer,
+  then `kanban_defaults` in `settings.json`, then the built-in value. The
+  archive date is ordinary card text written with the date tokens, not a
+  `@{…}`. Every action is one undo step saved by `⌘S` (or autosave), and
+  viewing the archive writes nothing.
+- **Finding and filtering the board.** On the Kanban page `⌘F` / `Ctrl+F`
+  opens the board's own Find bar: it searches the parsed cards
+  case-insensitively, outlines the current match's card, steps with `Enter` /
+  `↓` and `Shift+Enter` / `↑`, and `Esc` closes it and restores the previous
+  selection. The header's **Filter** panel hides cards by text, tag, date
+  (`today`, `overdue`, or a `YYYY-MM-DD` range) and open/done state; conditions
+  compose with AND, the header shows what is active with a Clear control, and
+  a tag chip's click sets the tag filter. Finding and filtering never change
+  the board, its file or its undo history, and filters are not saved.
+- **Card checklists.** Nested task-list items inside a card are drawn as an
+  interactive checklist at the card's foot with a `done/total` count. Clicking
+  one toggles exactly that character through the card edit path: the card's
+  own checkbox and every other line stay as they are, and one undo puts it
+  back. Fenced lines and the card's first line are not checklist items.
+- **Board settings and app-wide defaults.** **Settings › Kanban** edits the
+  app-wide `kanban_defaults` in `settings.json` (and the top-level
+  `kanban_autosave`), and the Kanban page's **Board settings** panel edits the
+  shown board's footer. Both are generated from one schema, so every key has
+  one label, help text, type and built-in value. Each control says whether it
+  is a **Board override**, an **App default** or the built-in **Default** — a
+  value that is present but the wrong JSON type is named **Board value
+  ignored** / **App value ignored** instead — and can reset one key: **Reset
+  board** removes the footer key, **Reset app default** removes it from
+  `settings.json`. A board change writes only that key through the normal
+  edit/undo/save path; a typed text value is one undo step, and an app text
+  default is written once typing rests, not once per character. Opening,
+  closing or switching a board writes nothing and unknown footer keys stay byte
+  for byte; the panel closes when another board is shown, the archive opens or
+  the Settings modal opens, so one board's text can never be typed into
+  another. A `linked-page-metadata`
+  edit changes only the row's own entry, keeping extra fields, a wrong-typed
+  flag and malformed entries. Alongside slices 9–13's keys, a board can set
+  `lane-width` (272, drawn between 120 and 720), `new-line-trigger` (`enter` or
+  `shift+enter` in the card editor), `new-card-insertion-method` (`prepend` or
+  `append` for **+ Add card**), `show-checkboxes`, the header's
+  `show-filter-button`, `show-archive-button` and `show-open-markdown-button`,
+  and `new-note-folder` / `new-note-template` for **New note from card**.
+  Lane width, the new-line trigger and hidden header buttons take effect at
+  once, and a card's menu still offers **Mark done** / **Mark open** when its
+  checkbox is hidden.
+
+- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
+  once.
+- **List and table views.** A board whose frontmatter says
+  `kanban-plugin: list` opens as one scrollable list of lane sections, and
+  `kanban-plugin: table` opens as a table with Lane, Card, Date, Tags and
+  checklist-progress columns, grouped by lane in file order. `basic` and
+  unknown values open as the board, and every value stays byte for byte in the
+  file. The header's **Board / List / Table** switcher shows any of the three;
+  its choice is ephemeral: it is not saved and never rewrites the frontmatter.
+  List and table rows keep the board's card actions (checkbox toggles done,
+  `Cmd`/`Ctrl`-click archives, card menu, links, tag chips; the table's Tags
+  column draws the same chips), a collapsed lane hides its cards, and an empty
+  lane or board says so. Finding marks every matching card in all three views.
+  The table flattens a multi-line card to one safe line, renders dates in
+  their column, and scrolls sideways when the window is narrow. A card or lane
+  menu item that opens an editor or picker (Edit, Insert card before / after,
+  Add a date or time, Add card, Insert/Rename lane, Card limit) switches to the
+  board first, where that field is drawn. Switching or reading a view, and
+  filtering in it, never writes the board.
+- **Keyboard and accessibility on the Kanban page.** Every header, lane,
+  card, menu, picker and conflict-bar control is a Tab stop with a role,
+  name, help text and focus ring; a focused button activates on Space or
+  Enter. A lane's cards are a list whose Up/Down keys move the selection and
+  focus together, and Space/Enter toggles the focused/selected card; a card
+  row is a nested group, so Tab reaches its checkbox and arrows rove its
+  checkbox, menu and checklist rows. Menus (and Delete lane's confirmation
+  and Move to list…) take the keyboard when they open, close on Escape, an
+  action or a press outside them, and give focus back to the control that
+  opened them in the Board, List and Table views. The date picker is a real
+  modal overlay whose first control is a button: Enter alone never writes a
+  date, a day click or Add date does; its day grid is reachable by Tab and by
+  arrows. The conflict bar is an alert dialog: Escape puts it away and gives
+  the keyboard to Resolve conflict. Icon and picker targets are at least
+  24 × 24 points.
+- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
+  lane's menu: Insert lane before / after, Rename lane, Card limit… (written
+  as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
+  Sort by text, date or tags, and Delete lane (a lane with cards asks first;
+  note text in the lane that the board doesn't show stays in the file, or the
+  confirmation says how much goes).
+  A card's menu moves it up, down, to the top or bottom of its lane, to the
+  previous or next lane, or to a lane picked by name; a click selects a card
+  and `Alt+↑/↓`, `Alt+Shift+↑/↓` and `Alt+←/→` move it. A card moved into a
+  done lane becomes done. A lane's `‹` collapses it to a narrow strip with
+  its title and count, kept in the note's settings. All of it is undoable and
+  saved by `⌘S`.
+- **Dragging cards and lanes.** On the Kanban page a card drags within its
+  lane or into another, with a bar showing exactly where it will land; a
+  collapsed lane takes it at its end and a done lane marks it done. A lane
+  drags by its header (a collapsed lane by its strip) and its collapse state
+  moves with it. `Esc` cancels a drag and a drop in place changes nothing;
+  a key that changes the board mid-drag (an undo, a keyboard move) ends it.
+  Each drop is one undo step, saved by `⌘S`. Without a mouse, a lane's menu
+  has **Move lane left / right**, and `Alt+Shift+←/→` moves the selected
+  card's lane.
+- **Kanban autosave, sync and recovery.** Kanban edits now save on their own
+  once they rest, with Board's delay (`"kanban_autosave": false` in
+  `settings.json` keeps saving to `⌘S`). The page follows its file: a change
+  made by another app (an atomic save included) is reloaded when there are
+  no unsaved edits, keeping the selected card; with unsaved edits the header
+  shows **Keep mine**, **Save copy** (a new `Name (conflict …).md` beside it)
+  and **Load theirs**, or **Discard** when the file was removed; a rename is
+  followed. Unsaved edits are kept in a recovery copy and offered on the next
+  launch after a crash. Quitting saves them, else keeps that copy, and only
+  refuses (with Save copy offered) when neither works. **Open as markdown**
+  saves first, and text typed in Write that could not be saved comes back to
+  the Kanban page as unsaved edits. Board and Kanban share one disk rule.
+- **Links and rename.** Clicking a `[[link]]` in a card opens that note.
+  Typing `[[` in the card editor offers notes. **Copy link to card** writes
+  a block id (`^card-N`) once, when the card has none, and copies
+  `[[Note#^id]]`; a later copy keeps that id. **New note from card** creates
+  a note from the card text, in the folder New note uses and with the note
+  template, then replaces the card with a link to it. Opening `[[Note#^id]]`
+  jumps to that block, in a kanban card or in an ordinary note. Renaming a
+  linked note, or a folder a card links into, updates a clean kanban and
+  reloads it; a kanban with unsaved edits is not rewritten, and the page
+  names it. Renaming the kanban itself
+  updates the path remembered in settings.
+
+### Fixed
+
+- A card moved into an empty lane whose heading is followed by plain text now
+  goes after that text instead of above it.
+- Kanban saves now compare the note's text, not only its modified time and
+  length: another app's same-size change, even with the old timestamp kept, is
+  flagged instead of written over. **Save copy** keeps the copy selected and on
+  the page through a later vault reload, a successful save clears the recovery
+  copy even when the kanban is not the selected note, and a restored copy over
+  a removed file is no longer mistaken for a rename onto an unrelated empty
+  note. A lane limit the model refuses no longer stops the recovery copy of
+  edits already made, and a vault refresh no longer replaces the board under a
+  held drag.
+- **Kanban menus name what they act on.** A card or lane menu, its **Move to
+  list…** picker, and **Delete lane**'s confirmation close when a keyboard
+  move, an undo or redo, or another kanban's re-read replaces or shifts the
+  board. A still-open menu can no longer delete the neighbouring card or lane
+  at that place. The selected card is followed by its content instead (or
+  cleared when it is gone), and a menu is not carried from one kanban to the
+  next.
+- A crash while Write still has unsaved text for a kanban note no longer
+  loses the Kanban page's card edit. The page keeps its own recovery file, so
+  Write's recovery autosave (including while a conflict refuses the save)
+  cannot replace it, and the next launch offers both the card edit and
+  Write's text. Restoring Write's copy, even when that text is still a
+  kanban, does not replace the card-edit file; **Restore all** brings the
+  card edit back first, and the two rows are labelled Kanban edits and
+  Write edits.
+- **Esc on the Kanban page cancels a field that lost its focus.** After
+  clicking away from an open card editor or lane field, `Esc` now closes the
+  field and stays on the page (as the docs say) instead of leaving the page
+  and committing the text by doing so; `⌘Z` / `Ctrl+Z` there undoes the
+  field's typing rather than committing it first.
+- **List and table menus act where their field is drawn.** Edit, Insert card
+  before / after, Add a date or time, Add card, and a lane's Insert, Rename
+  and Card limit from the List or Table view now switch to the Board before
+  opening the editor or picker, so the field is visible and the keyboard is
+  not left in a hidden editor. The switch commits an open editor and writes
+  nothing. The table's Tags column draws real tag chips (a click sets the tag
+  filter), Find outlines every matching card in both views, two empty lanes
+  no longer share an element key, and each lane's rows are rebuilt only when
+  what they draw changes instead of every frame.
+
+### Known limitations
+
+- The date picker's day grid is a `grid`: Tab reaches it, arrows move among
+  days without writing, and a day click or Add date is the write. A
+  menu-opened time picker keeps its hour/minute fields, so it stays an inline
+  group that Tab can leave; Escape returns to the card.
+- A Kanban menu floats under its lane header (clamped to stay inside a short
+  window) and is a modal overlay: it closes on Escape, an action or a press
+  outside it.
+- The table has a fixed 1080 pt width and scrolls sideways in narrow windows.
+- Metadata note embeds render as links; attachment embeds keep the reader's
+  filename placeholder.
+- `settings.json` is re-serialized (object order may change); kanban footer
+  bytes are untouched.
+- The list, table, archive and settings panels have headless coverage but no
+  X11 screenshot step yet; slice 16's release smoke is the full harness.
+- Checklist rows render as plain text, and a non-task sub-bullet under an item
+  can render at the card's top level.
+- A Cmd/Ctrl-click whose modifier is released in the same frame can toggle
+  instead of archive (one-frame window; the menu path has no window).
 
 ## [0.7.1] - 2026-11-11
 

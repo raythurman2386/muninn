@@ -102,8 +102,22 @@ shot 3-second-launch
 # 3. Settings › Appearance › Show tray icon: off, on, then on again after
 #    closing and reopening Settings.
 wid="$(python3 "$harness" x11-wait Muninn 10)" || exit 1
-read -r tx ty tw th <<<"$(python3 "$harness" tree-rect "$vaults_tree" settings-tabs)"
-appearance_tab="$(( tx + tw * 5 / 10 )) $(( ty + th / 2 ))" # the third of five equal tabs
+appearance_tab="$(python3 - "$vaults_tree" <<'PY'
+import json, sys
+tree = json.load(open(sys.argv[1]))
+def walk(ns):
+    for n in ns:
+        yield n
+        yield from walk(n.get("children", []))
+for n in walk(tree["elements"]):
+    if n.get("label") == "Appearance" and isinstance(n.get("rect"), list):
+        x, y, w, h = n["rect"]
+        print(round(x + w / 2), round(y + h / 2))
+        break
+else:
+    raise SystemExit("no Appearance settings tab")
+PY
+)" # the Appearance segment, whatever the tab count
 # The switch's track, from the headless tree. The windowed dialog can sit a
 # few pixels off the headless one, so find the track's rows on screen in its
 # column (an on track is the accent colour, an off one grey, both far from

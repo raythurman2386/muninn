@@ -11,3 +11,5 @@
 *.woff2 binary
 # Upstream font licences are kept byte-for-byte (CRLF).
 site/assets/fonts/*-LICENSE.txt -text
+# Kanban fixtures keep CRLF, a byte-order mark and a missing final newline.
+crates/muninn-core/tests/fixtures/kanban/** -text

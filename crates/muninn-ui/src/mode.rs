@@ -1,6 +1,6 @@
-//! Mode state machine: which main-column page is shown (Write, Read, Graph
-//! or Board), the graph's scope (Global or Local), and the transitions between
-//! them.
+//! Mode state machine: which main-column page is shown (Write, Read, Graph,
+//! Board or Kanban), the graph's scope (Global or Local), and the transitions
+//! between them.
 //!
 //! `Mode` and `Scope` are plain enums whose fields live on
 //! [`crate::State`](crate::State); this module owns their transitions so the
@@ -17,6 +17,9 @@ pub enum Mode {
     /// The whiteboard page (`.excalidraw` files). Like Graph, it is not a
     /// note mode: leaving it returns to the last of Write/Read.
     Board,
+    /// A kanban note shown as a board of cards. An app mode like Board:
+    /// leaving it returns to the last of Write/Read.
+    Kanban,
 }
 
 impl Mode {
@@ -24,11 +27,11 @@ impl Mode {
     /// variants does not repeat the same match shape used elsewhere. Older
     /// settings files only ever contain the first three keys.
     pub(crate) fn as_key(self) -> &'static str {
-        const KEYS: [&str; 4] = ["editor", "preview", "graph", "board"];
+        const KEYS: [&str; 5] = ["editor", "preview", "graph", "board", "kanban"];
         KEYS[self as usize]
     }
 
-    /// Write and Read show the open note; Graph and Board replace it.
+    /// Write and Read show the open note; Graph, Board and Kanban replace it.
     #[must_use]
     pub fn is_note_mode(self) -> bool {
         matches!(self, Mode::Editor | Mode::Preview)
@@ -53,13 +56,29 @@ impl State {
         if mode == self.mode {
             return;
         }
-        // Slice 6: leaving Board commits an open text editor.
+        // Slice 6: leaving Board commits an open text editor; Kanban slice
+        // 4: leaving the Kanban page commits its card editor.
         self.commit_board_text();
+        self.commit_card_edit();
+        // Kanban slice 6: a press held on the page ends with it.
+        self.kanban_drag = None;
+        // Kanban slice 9: a date/time picker belongs to the visible page.
+        if mode != Mode::Kanban {
+            self.close_picker();
+            // Slice 13: Board Find, the filter panel and its fields belong to
+            // the Kanban page; none may keep the keyboard on another page.
+            self.close_kanban_find();
+            self.close_kanban_filter();
+        } else {
+            // The note find bar searches the Write buffer, which is not
+            // mounted here; the Kanban page's own Find bar replaces it.
+            self.find = None;
+        }
         // #43: a rename field in the Board panel or title goes with them.
         self.board_rename_left_board(mode);
         self.pending_heading = None;
         self.pending_top = false;
-        self.complete = None;
+        self.clear_complete();
         if mode.is_note_mode() && self.mode.is_note_mode() {
             self.last_note_mode = mode;
         }
@@ -84,6 +103,11 @@ impl State {
         if mode == Mode::Board {
             // The file is the source of truth: list what is on disk now.
             self.refresh_boards();
+        }
+        if mode == Mode::Kanban {
+            // Typed text reaches the file first, then the board is read from it.
+            self.flush();
+            self.refresh_kanban();
         }
         if mode == Mode::Editor {
             self.focus_editor();
@@ -117,6 +141,16 @@ impl State {
             self.set_mode(self.last_note_mode);
         } else {
             self.set_mode(Mode::Board);
+        }
+    }
+
+    /// The palette's Toggle Kanban, as Toggle Board. ⌘5 only enters Kanban;
+    /// Esc leaves it.
+    pub fn toggle_kanban(&mut self) {
+        if self.mode == Mode::Kanban {
+            self.set_mode(self.last_note_mode);
+        } else {
+            self.set_mode(Mode::Kanban);
         }
     }
 

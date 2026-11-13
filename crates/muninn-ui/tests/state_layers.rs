@@ -39,6 +39,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                     query: String::new(),
                     items: Vec::new(),
                     index: 0,
+                    card: false,
                 });
             } else {
                 state.complete = None;
@@ -51,6 +52,11 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                 state.find = None;
             }
         }
+        Layer::KanbanFind => {
+            state.kanban_find = on.then_some(muninn_ui::KanbanFindState::default());
+        }
+        Layer::KanbanFilter => state.kanban_filter.open = on,
+        Layer::KanbanSettings => state.kanban_settings_open = on,
         Layer::BrokenPanel => state.broken_panel = on,
         Layer::RenameConfirm => {
             if on {
@@ -99,6 +105,22 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                 state.menu = None;
             }
         }
+        // A Kanban conflict needs a shown kanban, which this state has not:
+        // `kanban_conflict_is_a_layer_above_the_menu` sets one up.
+        Layer::KanbanConflict => {}
+        Layer::KanbanPicker => {
+            state.kanban_picker = on.then_some(muninn_ui::KanbanPicker {
+                kind: muninn_ui::PickerKind::Date,
+                card: (0, 0),
+                insert: None,
+                year: 2026,
+                month: 11,
+                day: 12,
+                hour: 0,
+                minute: 0,
+            });
+        }
+        Layer::ArchivePage => state.kanban_archive_open = on,
         Layer::NewNote => {
             if on {
                 state.new_note_prompt = Some(NamePrompt {
@@ -146,17 +168,22 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
     }
 }
 
-const ESCAPE_ORDER: [Layer; 16] = [
+const ESCAPE_ORDER: [Layer; 21] = [
     Layer::Palette,
     Layer::Settings,
     Layer::Help,
     Layer::Complete,
     Layer::Find,
+    Layer::KanbanFind,
+    Layer::KanbanFilter,
+    Layer::KanbanSettings,
     Layer::BrokenPanel,
     Layer::RenameConfirm,
     Layer::MoveConfirm,
     Layer::FolderRenameConfirm,
     Layer::Menu,
+    Layer::KanbanPicker,
+    Layer::ArchivePage,
     Layer::NewNote,
     Layer::RenameNote,
     Layer::NewFolder,
@@ -194,6 +221,33 @@ fn dismissing_a_layer_does_not_close_others() {
     assert_eq!(state.topmost_layer(), Some(Layer::Find));
     state.dismiss_layer(Layer::Find);
     assert_eq!(state.topmost_layer(), None);
+}
+
+#[test]
+fn a_kanban_conflict_is_dismissed_before_an_open_menu() {
+    let vault = TempVault::new(&[(
+        "Board.md",
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n",
+    )]);
+    let mut state = State::with_state_home(
+        vault.path().to_path_buf(),
+        vault.path().with_extension("state"),
+    );
+    let id = state.vault.resolve("Board").expect("Board");
+    state.open_kanban(id);
+    set_layer(&mut state, Layer::Menu, true);
+    state.kanban.as_mut().expect("a kanban").conflict = Some(muninn_ui::DocConflict::Changed);
+    assert_eq!(state.topmost_layer(), Some(Layer::KanbanConflict));
+    state.dismiss_layer(Layer::KanbanConflict);
+    assert!(
+        state.kanban.as_ref().expect("a kanban").conflict.is_some(),
+        "Escape puts the bar away; the conflict and its save block stay"
+    );
+    assert_eq!(
+        state.topmost_layer(),
+        Some(Layer::Menu),
+        "the menu was under it"
+    );
 }
 
 #[test]

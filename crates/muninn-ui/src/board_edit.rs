@@ -50,7 +50,7 @@ const HIT_SLOP: f32 = 8.0;
 pub const NUDGE: f64 = 1.0;
 pub const NUDGE_BIG: f64 = 5.0;
 /// Screen travel under which a press is a click, not a drag.
-const CLICK_TRAVEL: f32 = 2.0;
+pub(crate) const CLICK_TRAVEL: f32 = 2.0;
 /// The outline sits this far (screen points) outside the element.
 const OUTLINE_GAP: f32 = 4.0;
 /// Handle side, in screen points.

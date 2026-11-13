@@ -33,9 +33,17 @@ use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
 use crate::board_camera::{BoardCam, BoardView, KEY_PAN, KEY_ZOOM, WHEEL_IN, WHEEL_OUT};
-use crate::board_sync::OpenBoardDiskRule;
 use crate::board_tools::{self, Draft, fingerprint};
+use crate::doc_sync::{DiskRule, conflict_bar, disk_conflict};
 use crate::{BoardScene, Mode, State};
+
+/// The unsaved indicator on Board and the Kanban page, with the platform's
+/// save chord.
+pub(crate) const UNSAVED: &str = if cfg!(target_os = "macos") {
+    "Unsaved · ⌘S saves"
+} else {
+    "Unsaved · Ctrl+S saves"
+};
 
 /// Whether the open board's drawing is on disk.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,26 +59,8 @@ pub enum BoardStatus {
 }
 
 /// Why the open board's file no longer matches its unsaved drawing (#38
-/// review B1/B2). Muninn never writes over it on its own: the heading offers
-/// Keep mine, Save copy and Load theirs (Discard when the file is gone).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BoardConflict {
-    /// Another app changed the file since Muninn read or wrote it.
-    Changed,
-    /// The file was removed, renamed or moved away.
-    Missing,
-}
-
-impl BoardConflict {
-    /// The heading's words for it.
-    #[must_use]
-    pub fn message(self) -> &'static str {
-        match self {
-            BoardConflict::Changed => "Changed on disk by another app",
-            BoardConflict::Missing => "Removed or renamed on disk",
-        }
-    }
-}
+/// review B1/B2): the shared [`DocConflict`](crate::DocConflict).
+pub type BoardConflict = crate::doc_sync::DocConflict;
 
 /// The board on the canvas: its drawing and camera.
 pub struct OpenBoard {
@@ -219,12 +209,12 @@ impl OpenBoard {
     /// Compare the file with what Muninn last read or wrote, and flag the
     /// unsaved drawing when it changed or vanished (cleared when it is back).
     pub(crate) fn check_disk(&mut self) {
-        self.conflict = match std::fs::read_to_string(&self.path) {
-            Ok(text) if Some(fingerprint(&text)) == self.disk => None,
-            Ok(_) => Some(BoardConflict::Changed),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(BoardConflict::Missing),
-            Err(_) => self.conflict,
-        };
+        let disk = self.disk;
+        self.conflict = disk_conflict(
+            &self.path,
+            |text| Some(fingerprint(text)) == disk,
+            self.conflict,
+        );
     }
 
     /// A board opened from a recovered drawing rather than its file (#38
@@ -381,7 +371,7 @@ impl State {
         // typed is not reloaded under (the board watcher looks again once
         // it closes).
         match self.open_board_disk_rule() {
-            Some(OpenBoardDiskRule::Flag) => {
+            Some(DiskRule::Flag) => {
                 if let Some(open) = &mut self.board_open {
                     let was = open.conflict;
                     open.check_disk();
@@ -393,7 +383,7 @@ impl State {
                 }
                 return;
             }
-            Some(OpenBoardDiskRule::Later) => {
+            Some(DiskRule::Later) => {
                 if let Some(open) = &self.board_open {
                     let path = open.path.clone();
                     self.board_stats.remove(&path);
@@ -401,7 +391,7 @@ impl State {
                 }
                 return;
             }
-            Some(OpenBoardDiskRule::Reload) | None => {}
+            Some(DiskRule::Reload) | None => {}
         }
         if let Some(path) = &self.board_selected
             && !self.boards.iter().any(|b| &b.file.path == path)
@@ -461,7 +451,7 @@ impl State {
             .map(|b| {
                 (
                     b.file.path.clone(),
-                    crate::board_sync::file_state(&b.file.path),
+                    crate::doc_sync::file_state(&b.file.path),
                 )
             })
             .collect();
@@ -841,11 +831,9 @@ fn surface(s: &State, k: &Kit) -> El {
     // #40 recheck: text typed but not committed is unsaved too.
     let typing = s.board_text_pending().is_some();
     let status = s.board_open.as_ref().map(|open| match &open.status {
-        BoardStatus::Clean | BoardStatus::Saved if typing => {
-            ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent)
-        }
+        BoardStatus::Clean | BoardStatus::Saved if typing => (UNSAVED.to_owned(), k.c.text_accent),
         BoardStatus::Clean => (String::new(), k.c.text_faint),
-        BoardStatus::Unsaved => ("Unsaved · ⌘S saves".to_owned(), k.c.text_accent),
+        BoardStatus::Unsaved => (UNSAVED.to_owned(), k.c.text_accent),
         BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
         BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
     });
@@ -916,17 +904,27 @@ fn surface(s: &State, k: &Kit) -> El {
         _ => heading,
     };
     let heading = match s.board_open.as_ref().and_then(|open| open.conflict) {
-        Some(conflict) => heading.child(conflict_bar(k, conflict)),
+        Some(conflict) => heading.child(conflict_bar(
+            k,
+            "board",
+            conflict,
+            [
+                State::board_keep_mine,
+                State::board_save_copy,
+                State::board_discard,
+            ],
+        )),
         None => heading,
     };
     let body = match s.board_open.as_ref() {
         Some(open) => match &open.scene {
             Ok(scene) => board_canvas(s, k, open, scene),
-            Err(e) => placeholder(k, &ic::DOT_GRID, "This board could not be read", e),
+            Err(e) => placeholder(k, "board-placeholder", &ic::DOT_GRID, "This board could not be read", e),
         },
         // Slice 8: an empty Board offers a way in, not just a message.
         None if s.boards.is_empty() => placeholder(
             k,
+            "board-placeholder",
             &ic::DOT_GRID,
             "No boards in this vault yet",
             "A board is an Excalidraw file in your vault. Make one to start drawing.",
@@ -934,6 +932,7 @@ fn surface(s: &State, k: &Kit) -> El {
         .child(new_board_button(k, "board-new-empty")),
         None => placeholder(
             k,
+            "board-placeholder",
             &ic::DOT_GRID,
             "No board open",
             "Pick a board on the left, or make a new one. Boards are Excalidraw files in your vault.",
@@ -950,61 +949,17 @@ fn surface(s: &State, k: &Kit) -> El {
         .child(body)
 }
 
-/// The choices for unsaved drawing whose file changed or vanished, as the
-/// note conflict bar offers them.
-fn conflict_bar(k: &Kit, conflict: BoardConflict) -> El {
-    let theirs = match conflict {
-        BoardConflict::Changed => "Load theirs",
-        BoardConflict::Missing => "Discard",
-    };
-    row()
-        .key("board-conflict")
-        .gap(6.0)
-        .center_y()
-        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
-        .child(
-            text(conflict.message())
-                .key("board-conflict-text")
-                .font(k.ty.caption())
-                .color(k.c.danger.fg),
-        )
-        .child(choice(
-            k,
-            "Keep mine",
-            "board-keep-mine",
-            State::board_keep_mine,
-        ))
-        .child(choice(
-            k,
-            "Save copy",
-            "board-save-copy",
-            State::board_save_copy,
-        ))
-        .child(choice(k, theirs, "board-load-theirs", State::board_discard))
-}
-
-fn choice(k: &Kit, label: &str, key: &str, action: fn(&mut State) -> bool) -> El {
-    el().key(key.to_owned())
-        .radius(6.0)
-        .hover(k.c.hover)
-        .press(k.c.pressed)
-        .cursor(Cursor::Pointer)
-        .px(8.0)
-        .py(4.0)
-        .center_y()
-        .child(
-            text(label.to_owned())
-                .font(k.ty.caption())
-                .color(k.c.text_base),
-        )
-        .on_press(move |s: &mut State| {
-            let _ = action(s);
-        })
-}
-
-fn placeholder(k: &Kit, glyph: &'static rune::Icon, title: &str, detail: &str) -> El {
+/// An empty or error state filling the page: a glyph, a title (keyed
+/// `{key}-title`) and a detail line. Board and Kanban both use it.
+pub(crate) fn placeholder(
+    k: &Kit,
+    key: &str,
+    glyph: &'static rune::Icon,
+    title: &str,
+    detail: &str,
+) -> El {
     col()
-        .key("board-placeholder")
+        .key(key)
         .w_full()
         .grow(1.0)
         .min_h(0.0)
@@ -1016,6 +971,7 @@ fn placeholder(k: &Kit, glyph: &'static rune::Icon, title: &str, detail: &str) -
         .child(icon(glyph, 22.0).color(k.c.icon_muted))
         .child(
             text(title.to_owned())
+                .key(format!("{key}-title"))
                 .font(k.ty.ui_medium)
                 .color(k.c.text_base),
         )

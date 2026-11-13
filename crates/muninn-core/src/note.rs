@@ -15,9 +15,29 @@ pub struct Note {
     pub links: Vec<usize>,
     /// Notes that link here, unique and sorted.
     pub backlinks: Vec<usize>,
+    /// Tags in the frontmatter and body, unique by case-insensitive key in
+    /// file order. The first spelling seen is kept for display; filled by
+    /// [`crate::Vault::reindex`].
+    pub tags: Vec<String>,
+    /// [`crate::is_kanban`] of `source`, cached by [`crate::Vault::reindex`]
+    /// so a frame never re-detects it.
+    pub(crate) kanban: bool,
 }
 
 impl Note {
+    /// Whether this note is a kanban note (its frontmatter has
+    /// `kanban-plugin`), as of the last index rebuild.
+    #[must_use]
+    pub fn is_kanban(&self) -> bool {
+        self.kanban
+    }
+
+    /// Tags in this note, as of the last index rebuild.
+    #[must_use]
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
+
     /// Vault-relative folder (e.g. `projects/alpha`), or
     /// empty when the note is at the vault root.
     #[must_use]

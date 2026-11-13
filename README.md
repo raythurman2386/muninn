@@ -227,7 +227,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘E` / `Ctrl+E` | Toggle Write / Read |
 | `⌘G` / `Ctrl+G` | Toggle Graph |
 | `⌘L` / `Ctrl+L` | Toggle Global / Local graph |
-| `⌘1` / `⌘2` / `⌘3` / `⌘4` | Write / Read / Graph / Board |
+| `⌘1` / `⌘2` / `⌘3` / `⌘4` / `⌘5` | Write / Read / Graph / Board / Kanban |
 | `↑` / `↓` / `←` / `→` (graph) | Move the focus ring to the nearest node (sorted order wraps when no node lies that way) |
 | `Enter` (graph) | Open the focused note; when it is already open, glide the camera back to it |
 | `+` / `-` (graph) | Zoom in / out at the canvas centre |
@@ -255,11 +255,113 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (board) | Undo / redo drawing, moves and deletes (last 100) |
 | `⌘S` / `Ctrl+S` (board) | Save the board's drawing now (atomically, to the open board only; autosave also saves it once it rests, unless `"board_autosave": false`) |
 | `Esc` (board) | Clear the selection, else drop the tool, else leave Board for the last note mode |
+| **+ Add card**, a card's `⋯` or right-click (kanban) | Add a card at the lane's end; Edit, Insert card before / after, Duplicate, Split card, Add/Change date…, Add/Change time…, Archive, Delete |
+| Double-click a card (kanban) | Edit it in place: `Enter` commits, `Shift+Enter` breaks the line (or the reverse with `new-line-trigger`), `Esc` cancels |
+| Type `@` or `@@` in the card editor (kanban) | Open the date or time picker at the caret; the picker's Add replaces the trigger, and `Esc` leaves it |
+| Click a card's checkbox (kanban) | Toggle its done mark; a lane's `⋯` has **Mark all cards done** |
+| `⌘`-click / `Ctrl`-click a card's checkbox (kanban) | Archive the card instead of toggling it |
+| The header's **Archive** button (kanban) | List the archive's cards from the same note; **Restore** to the first lane, **Restore to…** a lane, or **Delete** |
+| Click a nested checklist item (kanban) | Toggle only that item's character; the card's own checkbox and every other line stay as they are |
+| **Board settings** in the header (kanban) | Change this board's lane width, card editing, header buttons, note template and the date, tag, metadata and archive keys; each control can reset to the app default or the built-in value |
+| `⌘F` / `Ctrl+F` (kanban) | Find in the board (`Enter` / `↓` next, `Shift+Enter` / `↑` previous, `Esc` closes and restores the selection) |
+| **Filter** in the header (kanban) | Hide cards by text, tag, date (`Today`, `Overdue`, a `YYYY-MM-DD` range) and open/done; conditions combine with AND, and **Clear** removes them |
+| The header's **Board / List / Table** (kanban) | Switch the Kanban page's view for this session only; the file and its `kanban-plugin` value are never changed |
+| Click a tag chip (kanban) | Set the board's tag filter |
+| `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
+| **+ Add lane**, a lane's `⋯` (kanban) | Add or insert a lane; rename it, set its card limit, mark it done or not done, sort its cards by text, date or tags, delete it |
+| A card's `⋯` (kanban) | Move it up, down, to the top or bottom, to the previous or next lane, or **Move to list…** |
+| Click a card, then arrows / `Alt+↑↓` / `Alt+Shift+↑↓` / `Alt+←→` (kanban) | Select a card; move it one place, to the top or bottom, or to the previous or next lane |
+| A lane's `‹` / `›` (kanban) | Collapse it to a narrow strip, or expand it |
+| Drag a card, or a lane by its header (kanban) | Move it where the bar shows (`Esc` cancels); a lane's `⋯` has **Move lane left / right** |
+| `Alt+Shift+←→` (kanban) | Move the selected card's lane left or right |
+| `⌘S` / `Ctrl+S` (kanban) | Save the kanban's edits now (autosave also saves them once they rest, unless `"kanban_autosave": false`) |
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |
-| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, autosave delay, note template, recent vaults) |
+| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, autosave delay, note template, recent vaults, Kanban defaults) |
 | `?` (when not typing) | Open Help; `Esc` closes it |
+
+Kanban cards read `@{2026-11-11}`, `@[[2026-11-11]]` and `@@{14:30}` outside
+code; the card's foot shows the date/time, relative days (local calendar days)
+and a daily-note link when the board asks. A board's settings footer holds `date-trigger`,
+`time-trigger`, `date-format`, `time-format`, `date-display-format`,
+`show-relative-date`, `hide-date-in-title` and `link-date-to-daily-note`; app-wide
+defaults live under `kanban_defaults` in `settings.json`, and the footer wins.
+
+Cards also read `#tag` (outside code, not a heading or only digits) and the
+note's frontmatter `tags:`/`tag:`, into one case-insensitive vault tag index.
+`hide-tags-in-title` keeps tags out of a card's text and `show-tags-at-bottom`
+draws chips at its foot; clicking a chip sets the board's tag filter.
+Typing `#` at a word boundary in the card editor offers the vault's tags
+(`Enter`/`Tab` inserts, `Esc` leaves the typed `#`). `tag-colors` is kept as
+written for a later colour editor, and no display setting writes the board.
+
+On the Kanban page `⌘F` searches the board itself (card text, case-insensitively),
+outlines every matching card (the current one more heavily) and moves the
+selection with it; `Esc` restores the selection. The header's **Filter** hides
+cards by text, tag, date (`Today`,
+`Overdue`, or a `YYYY-MM-DD` range) and open/done state, combining conditions
+with AND. Filters are display state only: they are never written to the board
+or `settings.json`, and the header shows what is active with **Clear**. Nested
+task items inside a card appear at its foot as a checklist with a `done/total`
+count; clicking one changes exactly that character and is one undo step.
+
+A board's `kanban-plugin` frontmatter value can ask for a **list** or a
+**table** instead of columns; `basic` and unknown values open as the board.
+The list draws each lane as one section in a scrollable list, and the table
+has Lane, Card, Date, Tags and progress columns, grouped by lane in file
+order; a multi-line card is flattened to one line there, and a narrow window
+scrolls it sideways. The header's Board / List / Table switcher changes the
+view for this session only: it is not saved and never rewrites the file's
+frontmatter. Card checkboxes, menus, links and tag chips work in all three
+views; the table's Tags column draws the same chips as the card's foot, and
+finding marks every matching card in all three. A card or lane menu item that
+opens an editor or picker (Edit, Insert card, Add a date/time, Add card, lane
+Rename/Card limit) switches to the board first, where that field is drawn; the
+switch commits an open editor and never writes the file.
+
+A card's first wikilink (a heading, block id or alias does not change the
+note) supplies metadata for the card's foot. The board's
+`linked-page-metadata` key lists `{ "key": …, "containsMarkdown": false }`
+entries; each key is read case-insensitively from the linked note's
+frontmatter or from an inline field (`[key:: value]` or a line `key:: value`),
+first occurrence wins, and a list value is shown joined with `, `.
+`containsMarkdown` renders links through the reader; a note embed becomes a
+link and an attachment embed keeps the reader's filename placeholder.
+`show-missing-metadata` draws `key: —` when a key or the note is missing.
+App-wide defaults live under `kanban_defaults`; the footer wins. Viewing never
+writes a board or a linked note.
+
+A card's menu has **Archive**, and `Cmd`/`Ctrl`-clicking a card's checkbox
+archives it too (a plain click toggles it). The card's lines move whole into
+the note's archive, after `***` and `## Archive` (created on the first archive
+with the English word; a file's own word, such as `## Archiv`, is kept). The
+header's **Archive** page lists those cards read from the same note, with the
+count, **Restore** to the first lane, **Restore to…** a named lane, and
+**Delete**. `archive-with-date`, `archive-date-format`,
+`archive-date-position`, `archive-date-separator` and `max-archive-cards`
+(absent or `0` is unlimited) follow the same footer → app default → built-in
+order; the date is ordinary card text, and the limit drops the oldest archive
+cards only. Each action is one undo step and viewing the page writes nothing.
+The archive page scrolls like the lanes, so a long archive stays reachable.
+`Cmd`/`Ctrl`-click reads the modifier keys when its press handler runs, one
+frame after the button went down, so releasing the key within that frame can
+toggle instead of archive (the card menu's **Archive** has no such window).
+
+A board's settings are edited in two places generated from one key list:
+**Settings › Kanban** sets the app-wide defaults in `settings.json` under
+`kanban_defaults` (plus the top-level `kanban_autosave`), and the Kanban page's
+**Board settings** panel sets the shown board's footer. A board value wins, then
+the app default, then the built-in value; each control says where its value came
+from and can reset just that key. Changes are one undo step on a board and one
+`settings.json` write for an app default; opening either surface writes nothing.
+Alongside the date, tag, metadata and archive keys, a board can set
+`lane-width` (272, drawn between 120 and 720), `new-line-trigger` (`enter` or
+`shift+enter`), `new-card-insertion-method` (`prepend` or `append`),
+`show-checkboxes`, the three header-button switches (`show-filter-button`,
+`show-archive-button`, `show-open-markdown-button`), and `new-note-folder` /
+`new-note-template` for **New note from card**. Unknown footer keys are kept
+byte for byte.
 
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
 full vault-relative stem, so a link keeps working when two notes share a title.

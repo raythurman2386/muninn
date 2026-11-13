@@ -10,6 +10,14 @@
 use crate::State;
 use crate::settings::{AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY};
 
+/// The Kanban mode chord as this platform labels it. Slice 16: the palette
+/// said ⌘5 off macOS too.
+pub(crate) const KANBAN_CHORD: &str = if cfg!(target_os = "macos") {
+    "⌘5"
+} else {
+    "Ctrl+5"
+};
+
 /// One dismissible layer of the UI, in Escape-dismissal order. See
 /// [`State::topmost_layer`] / [`State::dismiss_layer`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,11 +27,20 @@ pub enum Layer {
     Help,
     Complete,
     Find,
+    KanbanFind,
+    KanbanFilter,
+    KanbanSettings,
     BrokenPanel,
     RenameConfirm,
     MoveConfirm,
     FolderRenameConfirm,
+    /// Slice 16: the Kanban page's conflict bar, above a menu: while the
+    /// file changed under unsaved edits, its three choices outrank the page.
+    KanbanConflict,
     Menu,
+    KanbanPicker,
+    /// The Kanban page's archive page, above the lanes it replaces.
+    ArchivePage,
     NewNote,
     RenameNote,
     NewFolder,
@@ -50,15 +67,18 @@ pub enum SettingsTab {
     Graph,
     /// Vault sync. A placeholder until the sync work lands.
     Sync,
+    /// Kanban slice 14: app-wide kanban defaults (`kanban_defaults`).
+    Kanban,
 }
 
 impl SettingsTab {
-    pub const ALL: [SettingsTab; 5] = [
+    pub const ALL: [SettingsTab; 6] = [
         SettingsTab::Vaults,
         SettingsTab::Editor,
         SettingsTab::Appearance,
         SettingsTab::Graph,
         SettingsTab::Sync,
+        SettingsTab::Kanban,
     ];
 
     pub fn label(self) -> &'static str {
@@ -68,6 +88,7 @@ impl SettingsTab {
             SettingsTab::Appearance => "Appearance",
             SettingsTab::Graph => "Graph",
             SettingsTab::Sync => "Sync",
+            SettingsTab::Kanban => "Kanban",
         }
     }
 
@@ -110,11 +131,19 @@ pub enum PaletteAction {
     /// Enter Board, or go back to the last note mode. Its hint is ⌘4, which
     /// enters Board.
     ToggleBoard,
+    /// Enter Kanban, or go back to the last note mode. Its hint is ⌘5.
+    ToggleKanban,
+    /// Write `Untitled Kanban.md` and open it on the Kanban page.
+    NewKanban,
+    /// Write the New Kanban layout into the selected note. Offered only
+    /// while that note is empty, so it is not in [`PaletteAction::ALL`].
+    ConvertToKanban,
 }
 
 impl PaletteAction {
-    /// Every action, in the order shown before a query is typed.
-    pub const ALL: [PaletteAction; 7] = [
+    /// Every action always offered, in the order shown before a query is
+    /// typed. [`PaletteAction::ConvertToKanban`] follows them when offered.
+    pub const ALL: [PaletteAction; 9] = [
         PaletteAction::OpenLocalGraph,
         PaletteAction::SwitchVault,
         PaletteAction::OpenSettings,
@@ -122,6 +151,8 @@ impl PaletteAction {
         PaletteAction::TogglePreview,
         PaletteAction::ToggleGraph,
         PaletteAction::ToggleBoard,
+        PaletteAction::ToggleKanban,
+        PaletteAction::NewKanban,
     ];
 
     /// The row's main label.
@@ -135,6 +166,9 @@ impl PaletteAction {
             PaletteAction::TogglePreview => "Toggle Write / Read",
             PaletteAction::ToggleGraph => "Toggle Graph",
             PaletteAction::ToggleBoard => "Toggle Board",
+            PaletteAction::ToggleKanban => "Toggle Kanban",
+            PaletteAction::NewKanban => "New Kanban",
+            PaletteAction::ConvertToKanban => "Convert empty note to Kanban",
         }
     }
 
@@ -149,6 +183,8 @@ impl PaletteAction {
             PaletteAction::TogglePreview => "⌘E",
             PaletteAction::ToggleGraph => "⌘G",
             PaletteAction::ToggleBoard => "⌘4",
+            PaletteAction::ToggleKanban => KANBAN_CHORD,
+            PaletteAction::NewKanban | PaletteAction::ConvertToKanban => "Kanban",
         }
     }
 
@@ -163,6 +199,9 @@ impl PaletteAction {
             PaletteAction::TogglePreview => "write read preview editor mode",
             PaletteAction::ToggleGraph => "graph global local mode",
             PaletteAction::ToggleBoard => "board whiteboard excalidraw drawing canvas sketch mode",
+            PaletteAction::ToggleKanban => "kanban lanes cards tasks mode",
+            PaletteAction::NewKanban => "kanban create add lanes cards tasks",
+            PaletteAction::ConvertToKanban => "kanban empty blank turn lanes cards tasks",
         }
     }
 
@@ -182,6 +221,8 @@ pub enum PaletteItem {
     /// A note matching the typed query (title-first, via `Vault::search`).
     Note(usize),
     Action(PaletteAction),
+    /// A kanban note by name; it opens on the Kanban page.
+    Kanban(usize),
 }
 
 impl PaletteItem {
@@ -192,6 +233,7 @@ impl PaletteItem {
             PaletteItem::Recent(_) => "Recent",
             PaletteItem::Note(_) => "Notes",
             PaletteItem::Action(_) => "Actions",
+            PaletteItem::Kanban(_) => "Kanbans",
         }
     }
 }
@@ -210,6 +252,7 @@ impl State {
             || self.palette.is_some()
             || self.find.is_some()
             || self.complete.is_some()
+            || self.tag_complete.is_some()
             || self.broken_panel
             || self.rename_confirm.is_some()
             || self.move_confirm.is_some()
@@ -220,6 +263,29 @@ impl State {
             || self.rename_folder_prompt.is_some()
             || self.board_rename.is_some()
             || self.board_text.is_some()
+            // A card editor or lane field left open (its text refused) waits
+            // on the Kanban page; it doesn't hold the keyboard elsewhere, nor
+            // once a click elsewhere on the page took its focus. Board Find
+            // holds it only while its field has focus: a click on the board
+            // leaves the bar open but gives the arrows back.
+            || (self.mode == crate::Mode::Kanban
+                && (self
+                    .kanban_find
+                    .as_ref()
+                    .is_some_and(|find| find.field.focused)
+                    || self.kanban_filter_field_focused()
+                    || (self.kanban_card.is_some() && self.kanban_card_field.focused)
+                    || (self.kanban_lane_edit.is_some() && self.kanban_lane_field.focused)
+                    || self.kanban_hour_field.focused
+                    || self.kanban_minute_field.focused
+                    // Slice 14: the Board settings panel's text fields own
+                    // typing (and undo) while they are focused.
+                    || self.kanban_settings_open
+                        && (self
+                            .kanban_board_text
+                            .values()
+                            .any(|field| field.focused)
+                            || self.kanban_board_new_metadata.focused)))
     }
 
     /// DES-01: help overlay.
@@ -258,6 +324,10 @@ impl State {
         self.settings_return_editor = self.editor.focused;
         self.settings_return_search = self.search.focused;
         self.settings_modal = true;
+        // Slice 14: the app-wide Kanban tab and the page's Board settings
+        // panel are one surface at a time, so the panel (and its text fields)
+        // cannot sit under the modal holding another board's values.
+        self.close_kanban_settings();
         self.settings_tab = SettingsTab::default();
         // Settings is the top layer; a help page or sidebar menu cannot stay
         // live underneath it.
@@ -276,6 +346,11 @@ impl State {
         self.settings_modal = false;
         self.vault_field.focused = false;
         self.sync_ui.blur();
+        // Slice 14: a Kanban text default is written once typing rests; do it
+        // now rather than leave it for the next idle frame.
+        if self.settings_due.take().is_some() {
+            self.save_settings();
+        }
         if self.settings_return_search {
             self.focus_search();
         } else if self.settings_return_editor {
@@ -305,6 +380,9 @@ impl State {
             }
         }
         self.settings_tab = tab;
+        if tab == SettingsTab::Kanban {
+            self.refresh_kanban_setting_text();
+        }
     }
 
     /// Persist a new autosave idle window, clamped to the documented range.
@@ -344,6 +422,8 @@ impl State {
         self.vault_field.focused = false;
         self.complete = None;
         self.complete_dismissed = None;
+        self.tag_complete = None;
+        self.tag_complete_dismissed = None;
         if let Some(find) = self.find.as_mut() {
             find.field.focused = false;
         }
@@ -397,6 +477,15 @@ impl State {
         if self.find.is_some() {
             return Some(Layer::Find);
         }
+        if self.kanban_find.is_some() {
+            return Some(Layer::KanbanFind);
+        }
+        if self.kanban_filter.open {
+            return Some(Layer::KanbanFilter);
+        }
+        if self.kanban_settings_open {
+            return Some(Layer::KanbanSettings);
+        }
         if self.broken_panel {
             return Some(Layer::BrokenPanel);
         }
@@ -409,8 +498,25 @@ impl State {
         if self.folder_rename_confirm.is_some() {
             return Some(Layer::FolderRenameConfirm);
         }
+        // Slice 16: an unresolved conflict (one the page says outranks its
+        // ordinary status) is dismissed before an open menu, and the page is
+        // not left while it shows.
+        if self.mode == crate::Mode::Kanban
+            && self
+                .kanban
+                .as_ref()
+                .is_some_and(|shown| shown.conflict.is_some() && !shown.conflict_hidden)
+        {
+            return Some(Layer::KanbanConflict);
+        }
         if self.menu.is_some() {
             return Some(Layer::Menu);
+        }
+        if self.kanban_picker.is_some() {
+            return Some(Layer::KanbanPicker);
+        }
+        if self.kanban_archive_open {
+            return Some(Layer::ArchivePage);
         }
         if self.new_note_prompt.is_some() {
             return Some(Layer::NewNote);
@@ -444,11 +550,17 @@ impl State {
             Layer::Help => self.close_help(),
             Layer::Complete => self.dismiss_complete(),
             Layer::Find => self.close_find(),
+            Layer::KanbanFind => self.close_kanban_find(),
+            Layer::KanbanFilter => self.close_kanban_filter(),
+            Layer::KanbanSettings => self.close_kanban_settings(),
             Layer::BrokenPanel => self.close_broken_links(),
             Layer::RenameConfirm => self.cancel_rename_confirm(),
             Layer::MoveConfirm => self.cancel_move_confirm(),
             Layer::FolderRenameConfirm => self.cancel_folder_rename_confirm(),
             Layer::Menu => self.close_menu(),
+            Layer::KanbanConflict => self.dismiss_kanban_conflict(),
+            Layer::KanbanPicker => self.dismiss_picker(),
+            Layer::ArchivePage => self.close_kanban_archive(),
             Layer::NewNote => self.cancel_new_note(),
             Layer::RenameNote => self.cancel_rename_note(),
             Layer::NewFolder => self.cancel_new_folder(),

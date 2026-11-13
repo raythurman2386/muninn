@@ -30,8 +30,15 @@
 //!
 //! Empty targets (`[[#Heading]]`) are self-links and resolve to the note that
 //! contains them.
+//!
+//! ## Tag index
+//!
+//! [`Vault::reindex`] also builds a tag index: each note's frontmatter
+//! `tags`/`tag` and body `#tag` tokens (outside code), keyed case-insensitively
+//! with the first spelling kept for display. [`Vault::tag_index`] and
+//! [`Vault::suggest_tags`] read that cache, so a frame never scans notes.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
@@ -78,6 +85,22 @@ pub struct Vault {
     /// NAV-02: unresolved link targets, grouped, with referrers. Rebuilt by
     /// [`Vault::reindex`].
     broken: Vec<BrokenLink>,
+    /// Tags (lower-cased key) → notes, with the first spelling seen for
+    /// display. Rebuilt by [`Vault::reindex`].
+    tag_index: BTreeMap<String, TagEntry>,
+    /// Bumped by every [`Vault::reindex`]. A view whose output depends on
+    /// note bodies (a card's linked-note metadata, slice 11) hashes it so a
+    /// changed note redraws without scanning that note every frame.
+    revision: u64,
+}
+
+/// One tag in a vault's index.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TagEntry {
+    /// The tag as first spelled in file order, without its `#`.
+    pub tag: String,
+    /// Notes that carry it, in note order.
+    pub notes: Vec<usize>,
 }
 
 /// An in-progress chunked scan started by [`Vault::scan_start`].
@@ -154,6 +177,8 @@ impl ScanJob {
             by_title: HashMap::new(),
             skipped: self.skipped,
             broken: Vec::new(),
+            tag_index: BTreeMap::new(),
+            revision: 0,
         };
         vault.reindex();
         vault
@@ -185,6 +210,8 @@ impl Vault {
             by_title: HashMap::new(),
             skipped: 0,
             broken: Vec::new(),
+            tag_index: BTreeMap::new(),
+            revision: 0,
         }
     }
 
@@ -233,8 +260,13 @@ impl Vault {
         })
     }
 
-    /// Rebuild the title index and every note's link lists.
+    /// Rebuild the title index, every note's link lists, and the tag index.
     pub fn reindex(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
+        for note in &mut self.notes {
+            note.kanban = crate::is_kanban(&note.source);
+            note.tags = crate::note_tags(&note.source);
+        }
         self.by_path.clear();
         self.by_title.clear();
         for note in &self.notes {
@@ -290,6 +322,78 @@ impl Vault {
             note.backlinks.sort_unstable();
             note.backlinks.dedup();
         }
+        self.tag_index.clear();
+        for note in &self.notes {
+            for tag in &note.tags {
+                let entry = self
+                    .tag_index
+                    .entry(tag.to_lowercase())
+                    .or_insert_with(|| TagEntry {
+                        tag: tag.clone(),
+                        notes: Vec::new(),
+                    });
+                entry.notes.push(note.id);
+            }
+        }
+    }
+
+    /// A counter that changes on every [`Vault::reindex`]. A view that reads
+    /// note bodies outside the index uses it to know the bodies may have
+    /// changed.
+    #[must_use]
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// The vault's tags, keyed by lower-case tag and sorted by that key. Each
+    /// entry keeps the first spelling seen in note order, and the note ids
+    /// that carry it. Rebuilt by [`Vault::reindex`], so a frame reads a cache
+    /// and never scans notes.
+    #[must_use]
+    pub fn tag_index(&self) -> &BTreeMap<String, TagEntry> {
+        &self.tag_index
+    }
+
+    /// The notes carrying `tag`, matched case-insensitively. Empty when the
+    /// vault has no such tag.
+    #[must_use]
+    pub fn notes_with_tag(&self, tag: &str) -> &[usize] {
+        let tag = tag.strip_prefix('#').unwrap_or(tag);
+        self.tag_index
+            .get(&tag.to_lowercase())
+            .map_or(&[], |entry| entry.notes.as_slice())
+    }
+
+    /// Tags whose display text matches `query`, best first and capped at
+    /// `cap`. A prefix match sorts before a match anywhere; within a rank the
+    /// index's sort order decides. Used by the card editor's `#` completion.
+    #[must_use]
+    pub fn suggest_tags(&self, query: &str, cap: usize) -> Vec<String> {
+        let query = query
+            .strip_prefix('#')
+            .unwrap_or(query)
+            .trim()
+            .to_lowercase();
+        let mut ranked: Vec<(u8, &TagEntry)> = Vec::new();
+        for (key, entry) in &self.tag_index {
+            let score = if query.is_empty() || key.starts_with(&query) {
+                0
+            } else if key.contains(&query) {
+                1
+            } else {
+                continue;
+            };
+            ranked.push((score, entry));
+        }
+        ranked.sort_by(|(sa, a), (sb, b)| {
+            sa.cmp(sb)
+                .then_with(|| a.tag.to_lowercase().cmp(&b.tag.to_lowercase()))
+        });
+        ranked.truncate(cap);
+        ranked
+            .into_iter()
+            .map(|(_, entry)| entry.tag.clone())
+            .collect()
     }
 
     /// Resolve one note's outgoing links, recording each unresolved target in
@@ -650,10 +754,14 @@ impl Vault {
     /// Files are written one at a time through [`Vault::write_note`] (atomic per
     /// file). A failure leaves the folder rename in place and is returned as
     /// `(referrer id, error)` for the caller to surface; there is no rollback.
+    ///
+    /// `skip` is a note left byte for byte as it is (an open kanban that still
+    /// has unsaved edits). Every other referrer is rewritten.
     pub fn rewrite_inbound_links_for_folder(
         &mut self,
         old_folder: &str,
         new_folder: &str,
+        skip: Option<usize>,
     ) -> Vec<(usize, io::Error)> {
         let old_folder = old_folder.trim_matches('/');
         let new_folder = new_folder.trim_matches('/');
@@ -682,6 +790,9 @@ impl Vault {
         // the live resolution this pass is deliberately replaying.
         let mut edits = Vec::new();
         for note in &self.notes {
+            if Some(note.id) == skip {
+                continue;
+            }
             let mut out = String::with_capacity(note.source.len());
             let mut last = 0;
             let mut changed = false;
@@ -867,6 +978,28 @@ impl Vault {
     /// outside the vault (a symlink) is refused.
     pub fn create_board_in(&self, title: &str, folder: &str) -> io::Result<PathBuf> {
         let title = sanitise_title(title);
+        let dir = self.new_file_dir(folder)?;
+        let body = crate::Board::new().to_json();
+        let mut n = 1;
+        loop {
+            let name = if n == 1 {
+                format!("{title}.excalidraw")
+            } else {
+                format!("{title} {n}.excalidraw")
+            };
+            let path = dir.join(name);
+            if !path.exists() {
+                atomic_write(&path, body.as_bytes())?;
+                return Ok(path);
+            }
+            n += 1;
+        }
+    }
+
+    /// The folder a new board or kanban goes in, made if missing. `folder`
+    /// is resolved like a note's (`..` and hidden parts dropped), and a
+    /// folder that resolves outside the vault (a symlink) is refused.
+    pub(crate) fn new_file_dir(&self, folder: &str) -> io::Result<PathBuf> {
         let dir = folder_dir(&self.root, folder);
         let root = fs::canonicalize(&self.root)?;
         let outside = || {
@@ -887,21 +1020,7 @@ impl Vault {
         if !fs::canonicalize(&dir)?.starts_with(&root) {
             return Err(outside());
         }
-        let body = crate::Board::new().to_json();
-        let mut n = 1;
-        loop {
-            let name = if n == 1 {
-                format!("{title}.excalidraw")
-            } else {
-                format!("{title} {n}.excalidraw")
-            };
-            let path = dir.join(name);
-            if !path.exists() {
-                atomic_write(&path, body.as_bytes())?;
-                return Ok(path);
-            }
-            n += 1;
-        }
+        Ok(dir)
     }
 
     /// Board rename: rename the board at `path` to `new_name` in its own
@@ -1449,7 +1568,7 @@ fn group_broken(broken: HashMap<String, (String, Vec<usize>)>) -> Vec<BrokenLink
 /// `path`, never a truncated file. A failed write removes the temp file. The
 /// temp name starts with `.` so the vault walk ignores it even if a killed
 /// process leaves one behind.
-pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
+pub fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
     atomic_replace(path, true, |file| file.write_all(data))
 }
 
@@ -1615,6 +1734,8 @@ fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
         source,
         links: Vec::new(),
         backlinks: Vec::new(),
+        tags: Vec::new(),
+        kanban: false,
     })
 }
 
@@ -2135,7 +2256,7 @@ mod tests {
         let referrers = v.link_referrers_for_folder("old");
         assert_eq!(referrers.len(), 1, "{referrers:?}");
         v.rename_folder("old", "new").expect("rename folder");
-        let failures = v.rewrite_inbound_links_for_folder("old", "new");
+        let failures = v.rewrite_inbound_links_for_folder("old", "new", None);
         assert!(failures.is_empty(), "{failures:?}");
         assert_eq!(
             fs::read_to_string(tmp.path().join("Home.md")).unwrap(),
@@ -2180,7 +2301,10 @@ mod tests {
             Some("elsewhere/deep.md")
         );
         v.rename_folder("old", "new").expect("rename folder");
-        assert!(v.rewrite_inbound_links_for_folder("old", "new").is_empty());
+        assert!(
+            v.rewrite_inbound_links_for_folder("old", "new", None)
+                .is_empty()
+        );
         assert_eq!(
             fs::read_to_string(tmp.path().join("Home.md")).unwrap(),
             "[[new/child/deep#Deep|d]] and bare [[deep]]"

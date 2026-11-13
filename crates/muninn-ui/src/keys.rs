@@ -27,6 +27,16 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.toggle_graph();
         return true;
     }
+    if e.key == Key::Escape && s.mode == Mode::Kanban {
+        // A card editor or lane field that lost its focus is still open: Esc
+        // cancels it and the page stays. Esc only leaves with none open,
+        // never committing the field's text by leaving.
+        if s.cancel_kanban_field() {
+            return true;
+        }
+        s.toggle_kanban();
+        return true;
+    }
     // Esc on Board drops the drawing tool; with none picked it leaves Board
     // the way it leaves the graph.
     if e.key == Key::Escape && s.mode == Mode::Board {
@@ -54,6 +64,15 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     // Board slice 5: undo, redo and select all on the open board, before
     // the note chords (⌘Z is the editor's otherwise, ⌘A its select-all).
     if !s.is_typing() && crate::board_edit::board_command(s, e) {
+        return true;
+    }
+    // Kanban slice 4: undo and redo on the Kanban page, the same way.
+    if !s.is_typing() && crate::kanban_edit::kanban_command(s, e) {
+        return true;
+    }
+    // Kanban slice 5: arrows pick a card, Alt+arrows move it, Space/Enter
+    // flip the selected card's done mark (slice 16).
+    if !s.is_typing() && crate::kanban_lanes::kanban_key(s, e, tx) {
         return true;
     }
     // Board slice 3: zoom, fit and arrow-pan keys on the open board; slice 4
@@ -122,9 +141,16 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         // palette). Cmd/Ctrl+K stays search focus.
         s.open_link_picker();
     } else if e.is_command('f') {
-        // M2 EDT-01: find inside the open note. Cmd/Ctrl+F is the
-        // platform-standard chord and leaves Vim-style Ctrl+[ free.
-        s.open_find();
+        // M2 EDT-01: find inside the open note. Kanban slice 13: on the
+        // Kanban page the same chord opens the board's own Find bar, which
+        // searches the parsed board rather than the (unmounted) Write buffer.
+        // On a Kanban page with no board it does nothing: the note bar would
+        // be hidden and would leave the page without a keyboard owner.
+        if s.mode == Mode::Kanban {
+            s.open_kanban_find();
+        } else {
+            s.open_find();
+        }
     } else if e.is_command('[') {
         // M2 NAV-03: browser-standard Back. Chosen over Alt+Left because
         // Option+Left is word-wise caret movement inside text fields on macOS.
@@ -135,9 +161,12 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.new_note();
     } else if e.is_command('s') {
         s.save_now();
-        // Board slice 4: on Board the chord also saves the open board.
+        // Board slice 4: on Board the chord also saves the open board;
+        // Kanban slice 4: on the Kanban page, the kanban.
         if s.mode == Mode::Board {
             s.save_board();
+        } else if s.mode == Mode::Kanban {
+            s.save_kanban();
         }
     } else if e.is_command('e') {
         s.toggle_preview();
@@ -156,6 +185,8 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.set_mode(Mode::Graph);
     } else if e.is_command('4') {
         s.set_mode(Mode::Board);
+    } else if e.is_command('5') {
+        s.set_mode(Mode::Kanban);
     } else {
         return false;
     }

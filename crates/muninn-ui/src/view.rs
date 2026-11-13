@@ -1,22 +1,21 @@
 //! The window's chrome: vault sidebar, note title bar, editor, Markdown preview and links rail.
 
 use rune::{
-    Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, ScrollSpec, Shape, Span, TextStyle,
-    Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
+    Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, LiveRegion, ScrollSpec, Shape, Span,
+    TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
 use rune_kit::{
     Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl, Switch, TextArea,
 };
 use rune_theme_opencode::icons as ic;
 
-use muninn_core::{Vault, headings};
+use muninn_core::{KanbanView, Vault, block_anchors, headings};
 
 use crate::{
-    DeleteConfirm, LinkComplete, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State,
-    ThemeMode,
+    DeleteConfirm, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State, ThemeMode,
 };
 
-const SIDEBAR: f32 = 258.0;
+pub(crate) const SIDEBAR: f32 = 258.0;
 const RAIL: f32 = 286.0;
 
 pub fn view(s: &State, cx: &mut Cx<State>) -> El {
@@ -31,8 +30,9 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
         .h_full()
         .fill(k.c.bg_base)
         .on_drawn_layout_tx(|s: &mut State, r: [f32; 4], tx: &mut Tx| {
-            if (s.window_width - r[2]).abs() > 0.5 {
+            if (s.window_width - r[2]).abs() > 0.5 || (s.window_height - r[3]).abs() > 0.5 {
                 s.window_width = r[2];
+                s.window_height = r[3];
                 tx.instant();
             }
         })
@@ -59,6 +59,14 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
         })
         .child(if s.sidebar_shown() { divider(&k) } else { el() })
         .child(main_column(s, &k));
+    // Slice 16 fix: Kanban menus and a menu-opened date picker are real
+    // modals, drawn last so Tab and the pointer cannot reach the page behind
+    // them.
+    if s.mode == Mode::Kanban {
+        base = base
+            .child(kanban_menu_layer(s, &k))
+            .child(crate::kanban_dates::picker_layer(s, &k));
+    }
     if s.palette.is_some() {
         base = base.child(palette_layer(s, &k));
     }
@@ -327,7 +335,10 @@ fn sidebar(s: &State, k: &Kit) -> El {
                         }
                     });
             }
-            scroller.child(list).child(sidebar_boards(s, k, filtering))
+            scroller
+                .child(list)
+                .child(sidebar_kanbans(s, k, filtering))
+                .child(sidebar_boards(s, k, filtering))
         })
         .child(divider_h(k))
         .child(
@@ -461,7 +472,7 @@ fn folder_new_folder_button(k: &Kit, slug: &str, folder: &str) -> El {
 }
 
 /// Shared cursor/hover/press base for small pointer targets.
-fn pressable(k: &Kit, key: String) -> El {
+pub(crate) fn pressable(k: &Kit, key: String) -> El {
     let mut target = el().key(key);
     target = target.radius(6.0);
     target = target.hover(k.c.hover);
@@ -534,7 +545,14 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
         .cursor(Cursor::Pointer)
         .focusable(true)
         .focus_ring(2.0, 1.0, accent)
-        .on_press(move |s: &mut State| s.open_from_list(id))
+        // A row shown for a search query is a search result.
+        .on_press(move |s: &mut State| {
+            if s.search.text.trim().is_empty() {
+                s.open_from_list(id);
+            } else {
+                s.open_from_search(id);
+            }
+        })
         .on_secondary_press(move |s: &mut State, press, _| {
             s.open_note_menu(id, press.x, press.y);
         })
@@ -557,6 +575,15 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
                         .truncate(),
                 ),
         )
+        // Kanban slice 3: a kanban note is still a note; the glyph says so.
+        .child(if note.is_kanban() {
+            icon(&ic::CHECKLIST, 13.0)
+                .key(format!("note-row-{id}-kanban"))
+                .color(k.c.icon_muted)
+                .label("Kanban")
+        } else {
+            el()
+        })
         .px(10.0)
         .pl(20.0)
 }
@@ -906,6 +933,22 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
         SettingsTab::Appearance => settings_appearance_tab(s, k),
         SettingsTab::Graph => settings_graph_tab(s, k),
         SettingsTab::Sync => settings_sync_tab(s, k),
+        SettingsTab::Kanban => crate::kanban_settings::app_tab(s, k),
+    };
+    // The Kanban defaults are many rows; the other tabs stay short. A scroll
+    // bounded by the window keeps the dialog and its Close button on screen,
+    // and still shows every row on a tall window.
+    let content = if s.settings_tab == SettingsTab::Kanban {
+        col()
+            .key("settings-kanban-scroll")
+            .w_full()
+            .max_h((s.window_height - 220.0).max(260.0))
+            .scroll(ScrollSpec {
+                stick_bottom: false,
+            })
+            .child(content)
+    } else {
+        content
     };
 
     let body = col()
@@ -1578,6 +1621,69 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             ("Delete", "delete"),
         ],
         MenuTarget::Board(..) => vec![("Rename", "rename")],
+        MenuTarget::Card(lane, index) => {
+            let done = s
+                .kanban
+                .as_ref()
+                .and_then(|shown| shown.board.as_ref())
+                .and_then(|board| board.lanes().get(*lane)?.cards().get(*index))
+                .is_some_and(muninn_core::Card::is_done);
+            let mut items = vec![
+                ("Edit", "edit"),
+                ("Insert card before", "insert_before"),
+                ("Insert card after", "insert_after"),
+                ("Duplicate", "duplicate"),
+            ];
+            // Slice 14: the card's checkbox can be hidden by `show-checkboxes`;
+            // the menu still toggles the done mark.
+            items.push((if done { "Mark open" } else { "Mark done" }, "toggle_done"));
+            items.push((
+                if crate::kanban_dates::has_token(s, *lane, *index, crate::PickerKind::Date) {
+                    "Change date…"
+                } else {
+                    "Add a date…"
+                },
+                "add_date",
+            ));
+            items.push((
+                if crate::kanban_dates::has_token(s, *lane, *index, crate::PickerKind::Time) {
+                    "Change time…"
+                } else {
+                    "Add a time…"
+                },
+                "add_time",
+            ));
+            let multi_line = s
+                .kanban
+                .as_ref()
+                .and_then(|shown| shown.board.as_ref())
+                .and_then(|board| board.lanes().get(*lane)?.cards().get(*index))
+                .is_some_and(|card| card.text().contains('\n'));
+            if multi_line {
+                items.push(("Split card", "split"));
+            }
+            items.extend(crate::kanban_lanes::card_move_items(s, *lane, *index));
+            items.push(("Copy link to card", "copy_link"));
+            items.push(("New note from card", "new_note"));
+            items.push(("Archive", "archive"));
+            items.push(("Delete", "delete"));
+            items
+        }
+        MenuTarget::Lane(lane) => {
+            let mut items = vec![
+                ("Add card", "add_card"),
+                ("Mark all cards done", "mark_done"),
+            ];
+            items.extend(crate::kanban_lanes::lane_items(s, *lane));
+            items
+        }
+        MenuTarget::DeleteLane(lane) => {
+            return crate::kanban_lanes::delete_lane_confirm(s, k, *lane);
+        }
+        MenuTarget::MoveCard(lane, index) => {
+            return crate::kanban_lanes::lane_picker(s, k, *lane, *index);
+        }
+        MenuTarget::ArchiveRestore(_) => return el(),
     };
     let mut col_menu = col()
         .key("context-menu")
@@ -1588,7 +1694,19 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
         .py(4.0)
         .radius(8.0)
         .fill(k.c.layer_02)
-        .border(1.0, k.c.border_base);
+        .border(1.0, k.c.border_base)
+        // Slice 16: a menu of menu items, one Tab stop whose Up/Down rove the
+        // rows; closing it gives the card or lane back the keyboard.
+        .role("menu")
+        .label(menu_label(&menu.target))
+        .focus_group()
+        // Slice 16 fix: a menu takes the keyboard when it opens (Escape and a
+        // press outside close it through the modal), and closing it gives the
+        // opener back the keyboard.
+        .modal(true, |s: &mut State| s.close_menu());
+    if let Some(trigger) = menu_return(s, &menu.target) {
+        col_menu = col_menu.focus_return(trigger);
+    }
     for (label, action) in items {
         col_menu = col_menu.child(
             row()
@@ -1599,8 +1717,11 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                 .radius(6.0)
                 .center_y()
                 .cursor(Cursor::Pointer)
-                .hover(k.c.hover)
                 .press(k.c.pressed)
+                .role("menuitem")
+                .label(label.to_owned())
+                .focusable(true)
+                .focus_highlight(k.c.hover)
                 .child(
                     text(label)
                         .font(k.ty.ui_compact)
@@ -1610,7 +1731,16 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                             k.c.text_base
                         }),
                 )
-                .on_press(move |s: &mut State| s.pick_menu(action)),
+                .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+                    if action == "copy_link" {
+                        if let Some(link) = s.copy_open_card_link() {
+                            tx.copy(link);
+                            s.notice = Some("Copied a link to the card".to_owned());
+                        }
+                    } else {
+                        s.pick_menu(action);
+                    }
+                }),
         );
     }
     col_menu.child(
@@ -1622,10 +1752,81 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             .radius(6.0)
             .center_y()
             .cursor(Cursor::Pointer)
-            .hover(k.c.hover)
+            .press(k.c.pressed)
+            .role("menuitem")
+            .label("Cancel")
+            .focusable(true)
+            .focus_highlight(k.c.hover)
             .child(text("Cancel").font(k.ty.ui_compact).color(k.c.text_muted))
             .on_press(|s: &mut State| s.close_menu()),
     )
+}
+
+/// The name a menu announces, from what it acts on.
+fn menu_label(target: &MenuTarget) -> &'static str {
+    match target {
+        MenuTarget::Note(_) => "Note actions",
+        MenuTarget::Folder(_) => "Folder actions",
+        MenuTarget::Board(..) => "Board actions",
+        MenuTarget::Card(..) | MenuTarget::MoveCard(..) => "Card actions",
+        MenuTarget::Lane(_) | MenuTarget::DeleteLane(_) => "Lane actions",
+        MenuTarget::ArchiveRestore(_) => "Archive actions",
+    }
+}
+
+/// A Kanban menu as the page's root overlay. Inline, the menu's flat document
+/// position left the rest of the board "inside" its modal; drawn last, the
+/// menu is a real modal that takes the keyboard, traps Tab and the pointer,
+/// closes on Escape or a press outside it, and gives the opener its focus
+/// back. It sits under the lane header, as the board used to draw it.
+pub(crate) fn kanban_menu_layer(s: &State, k: &Kit) -> El {
+    let Some(menu) = &s.menu else {
+        return el();
+    };
+    if !matches!(
+        menu.target,
+        MenuTarget::Card(..)
+            | MenuTarget::Lane(_)
+            | MenuTarget::DeleteLane(_)
+            | MenuTarget::MoveCard(..)
+    ) {
+        return el();
+    }
+    let rect = menu
+        .target
+        .lane()
+        .and_then(|lane| s.kanban_rects.lane_rect(lane));
+    let (left, top) = rect.map_or((28.0, 72.0), |r| (r[0], r[1] + 52.0));
+    let width = 260.0;
+    // A menu taller than the window's remaining height starts higher, so its
+    // last row stays reachable.
+    let x = left.min(s.window_width - width - 8.0).max(8.0);
+    let y = top.min((s.window_height - 360.0).max(8.0));
+    context_menu(s, k).absolute(x, y).w(width).min_w(0.0)
+}
+
+/// The control a menu gives the keyboard back to when it closes, for the
+/// menus drawn under a row (the notes list and Kanban cards and lanes). The
+/// Kanban key follows the view that drew the menu, since List and Table use
+/// their own rows and lane-menu buttons.
+pub(crate) fn menu_return(s: &State, target: &MenuTarget) -> Option<String> {
+    match target {
+        MenuTarget::Card(lane, index) | MenuTarget::MoveCard(lane, index) => {
+            Some(match s.kanban_view() {
+                KanbanView::Table => format!("kanban-table-{lane}-{index}"),
+                KanbanView::Board | KanbanView::List => format!("kanban-card-{lane}-{index}"),
+            })
+        }
+        MenuTarget::Lane(lane) | MenuTarget::DeleteLane(lane) => match s.kanban_view() {
+            KanbanView::Board => Some(format!("kanban-lane-{lane}-menu")),
+            KanbanView::List => Some(format!("kanban-list-lane-{lane}-menu")),
+            // The table draws no lane menu; nothing to return to.
+            KanbanView::Table => None,
+        },
+        MenuTarget::Note(id) => Some(format!("note-row-{id}")),
+        MenuTarget::Folder(folder) => Some(format!("folder-header-{}", folder_slug(folder))),
+        MenuTarget::Board(..) | MenuTarget::ArchiveRestore(_) => None,
+    }
 }
 
 /// Inline folder targets under a note being moved.
@@ -1937,7 +2138,7 @@ fn main(s: &State, k: &Kit) -> El {
         .min_w(0.0)
         .child(topbar(s, k))
         .child(divider_h(k));
-    if s.find.is_some() {
+    if s.find.is_some() && s.mode != Mode::Kanban {
         page = page.child(find_bar(s, k));
     }
     if s.startup_error.is_some() && !s.vault.notes.is_empty() {
@@ -1967,6 +2168,9 @@ fn main_body(s: &State, k: &Kit) -> El {
     }
     if s.mode == Mode::Board {
         return crate::board_view::board(s, k);
+    }
+    if s.mode == Mode::Kanban {
+        return crate::kanban_view::kanban(s, k);
     }
     let mut content = row().key("note-body").w_full().grow(1.0).min_h(0.0).child(
         col()
@@ -2161,7 +2365,7 @@ fn keycap_text(key: &str) -> String {
     }
 }
 
-fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)]); 4] {
+fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)]); 5] {
     [
         (
             "Navigation",
@@ -2171,7 +2375,10 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("Enter (search)", "Open the highlighted result"),
                 ("⌘[ / Ctrl+[", "Back in note history"),
                 ("⌘] / Ctrl+]", "Forward in note history"),
-                ("⌘1 / ⌘2 / ⌘3 / ⌘4", "Write / Read / Graph / Board"),
+                (
+                    "⌘1 / ⌘2 / ⌘3 / ⌘4 / ⌘5",
+                    "Write / Read / Graph / Board / Kanban",
+                ),
                 ("Esc", "Close the outermost layer"),
                 ("⌘+⇧+P / Ctrl+Shift+P", "Open the command palette"),
             ],
@@ -2180,14 +2387,41 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
             "Edit",
             &[
                 ("⌘F / Ctrl+F", "Find in the open note"),
+                ("⌘F / Ctrl+F (Kanban)", "Find in the board"),
+                (
+                    "Filter (Kanban header)",
+                    "Hide cards by text, tag, date or state",
+                ),
+                (
+                    "Board settings (Kanban header)",
+                    "Per-board overrides, one key at a time",
+                ),
                 ("⌘P / Ctrl+P", "Insert a wikilink"),
                 ("⌘N / Ctrl+N", "New note"),
                 ("⌘S / Ctrl+S", "Save now (autosave is on)"),
                 ("⌘E / Ctrl+E", "Toggle Write / Read"),
                 ("[[", "Wikilink completion"),
+                ("# (card editor)", "Vault tag completion"),
                 ("Tab (editor)", "Indent four spaces"),
                 ("F2", "Rename the selected note (on Board: the board)"),
                 ("Del", "Delete the selected note"),
+            ],
+        ),
+        (
+            "Kanban",
+            &[
+                ("Tab / Shift+Tab", "Move through the board's controls"),
+                ("↑ / ↓ (lane)", "Move between the focused lane's cards"),
+                ("← / → (board)", "Move the selection across lanes"),
+                ("Space / Enter", "Toggle the selected card's done mark"),
+                ("Alt+Arrows", "Move the selected card"),
+                (
+                    "Alt+Shift+Arrows",
+                    "Move it to the top, the bottom or another lane",
+                ),
+                ("Shift+F10 / Menu", "Open the focused card's menu"),
+                ("Double-click", "Edit the card"),
+                ("Esc", "Close the menu, confirmation or conflict bar"),
             ],
         ),
         (
@@ -2212,7 +2446,10 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("↑ / ↓ (list)", "Move through a list"),
                 ("Enter / Space", "Open the focused row"),
                 ("Right-click", "Note and folder actions"),
-                ("⌘, / Ctrl+,", "Settings (vaults, theme, autosave)"),
+                (
+                    "⌘, / Ctrl+,",
+                    "Settings (vaults, theme, autosave, Kanban defaults)",
+                ),
             ],
         ),
     ]
@@ -2243,14 +2480,20 @@ fn palette_layer(s: &State, k: &Kit) -> El {
     }
     if items.is_empty() {
         rows = rows.child(
-            row().key("palette-empty").w_full().h(64.0).center().child(
-                text("No notes or actions match")
-                    .font(k.ty.caption())
-                    .color(k.c.text_faint),
-            ),
+            row()
+                .key("palette-empty")
+                .w_full()
+                .h(64.0)
+                .center()
+                .a11y_hidden()
+                .child(
+                    text("No notes or actions match")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
         );
     }
-    let card = col()
+    let mut card = col()
         .key("palette")
         .w(560.0)
         .max_w(560.0)
@@ -2261,6 +2504,9 @@ fn palette_layer(s: &State, k: &Kit) -> El {
         .transition(Transition::offset(0.0, 12.0).combined(Transition::opacity()))
         .role("dialog")
         .label("Command palette")
+        // Slice 16: a real modal, so Escape and Tab never reach the page
+        // behind it and the background is inert.
+        .modal(true, |s: &mut State| s.close_palette())
         .child(
             row()
                 .key("palette-search")
@@ -2273,6 +2519,8 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 .child(
                     text_input(&s.palette_field, k.ty.ui_compact)
                         .key("palette-input")
+                        .label("Search notes and actions")
+                        .active_descendant(format!("palette-item-{selected}"))
                         .single_line()
                         .grow(1.0)
                         .color(k.c.text_base)
@@ -2311,6 +2559,12 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 .scroll(ScrollSpec {
                     stick_bottom: false,
                 })
+                .role("listbox")
+                .label(if items.is_empty() {
+                    "No notes or actions match"
+                } else {
+                    "Results"
+                })
                 .child(rows),
         )
         .child(
@@ -2334,6 +2588,12 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                         .color(k.c.text_faint),
                 ),
         );
+    // Slice 16: the palette is a modal. When it closes onto the Kanban page
+    // (an item that opens a kanban, or Escape while the page is up) the page
+    // takes the keyboard, rather than the field the palette was opened from;
+    // Rune restores that field when a modal goes, so the hint is always set
+    // and only resolves when `kanban-page` is in the new tree.
+    card = card.focus_return("kanban-page");
     el().key("palette-layer")
         .absolute(0.0, 0.0)
         .w_full()
@@ -2350,6 +2610,9 @@ fn palette_section(k: &Kit, title: &str) -> El {
         .px(14.0)
         .pt(8.0)
         .pb(3.0)
+        // Slice 16 fix: the listbox holds options only; a section heading is
+        // visual grouping, not an option.
+        .a11y_hidden()
         .child(
             text(title.to_uppercase())
                 .font(k.ty.caption())
@@ -2367,6 +2630,17 @@ fn palette_row(s: &State, k: &Kit, index: usize, item: &PaletteItem, selected: b
                 "Vault root".to_owned()
             } else {
                 folder.to_owned()
+            };
+            (title, subtitle, String::new(), k.c.text_accent)
+        }
+        PaletteItem::Kanban(id) => {
+            let note = s.vault.notes.get(*id);
+            let title = note.map_or_else(|| "Missing note".to_owned(), |n| n.title.clone());
+            let folder = note.map(|n| n.folder()).unwrap_or_default();
+            let subtitle = if folder.is_empty() {
+                "Kanban · Vault root".to_owned()
+            } else {
+                format!("Kanban · {folder}")
             };
             (title, subtitle, String::new(), k.c.text_accent)
         }
@@ -2411,8 +2685,9 @@ fn palette_row(s: &State, k: &Kit, index: usize, item: &PaletteItem, selected: b
         })
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
-        .role("button")
+        .role("option")
         .label(title.clone())
+        .focus_selected(selected)
         .on_press(move |s: &mut State| s.palette_run_index(index))
         .child(
             el().size(6.0, 6.0)
@@ -3220,12 +3495,22 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
         );
     for (index, entry) in s.recovered.iter().take(3).enumerate() {
         let rel = entry.rel.clone();
+        let slot = entry.slot;
+        // One copy keeps the file name, so a single row lays out as before.
+        // Two copies of one note say which buffer each row restores.
+        let both = s.recovered.iter().filter(|other| other.rel == rel).count() > 1;
+        let label = match (both, slot) {
+            (true, crate::recovery::RecoverySlot::Kanban) => format!("{rel} — Kanban edits"),
+            (true, crate::recovery::RecoverySlot::Editor) => format!("{rel} — Write edits"),
+            (false, _) => rel.clone(),
+        };
         banner = banner.child(
             row()
                 .gap(4.0)
                 .center_y()
                 .child(
-                    text(entry.rel.clone())
+                    text(label)
+                        .key(format!("recovery-label-{index}"))
                         .font(k.ty.caption())
                         .color(k.c.text_muted)
                         .max_w(190.0)
@@ -3237,7 +3522,7 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
                         .py(3.0)
                         .child(text("Restore").font(k.ty.caption()).color(k.c.text_base))
                         .on_press(move |s: &mut State| {
-                            s.restore_recovery(&rel);
+                            s.restore_recovery_slot(&rel, slot);
                         }),
                 ),
         );
@@ -3266,10 +3551,21 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
 }
 
 fn topbar(s: &State, k: &Kit) -> El {
-    let (title, path) = match s.selected.and_then(|id| s.vault.notes.get(id)) {
+    // Kanban slice 3 (s2 review N4): on the Kanban page the title is the
+    // kanban shown, which may not be the selected note.
+    let note = match (s.mode, &s.kanban) {
+        (Mode::Kanban, Some(shown)) => s.note_id(&shown.rel),
+        _ => s.selected,
+    };
+    let (title, path) = match note.and_then(|id| s.vault.notes.get(id)) {
         Some(note) => (note.title.clone(), note.rel.clone()),
         None => ("No note selected".to_owned(), String::new()),
     };
+    // A kanban note opened as a note offers its board.
+    let open_as_kanban = s.mode.is_note_mode()
+        && s.selected
+            .and_then(|id| s.vault.notes.get(id))
+            .is_some_and(|note| note.is_kanban());
     let dirty = s.dirty();
     let title_col = col()
         .grow(1.0)
@@ -3281,6 +3577,7 @@ fn topbar(s: &State, k: &Kit) -> El {
                 .center_y()
                 .child(
                     text(title)
+                        .key("topbar-title")
                         .font(k.ty.ui_medium.lh(20.0))
                         .color(k.c.text_base)
                         .truncate(),
@@ -3318,6 +3615,17 @@ fn topbar(s: &State, k: &Kit) -> El {
             State::forward,
         ))
         .child(title_col)
+        .child(if open_as_kanban {
+            crate::kanban_view::header_button(
+                k,
+                "open-as-kanban",
+                &ic::CHECKLIST,
+                "Open as kanban",
+                |s: &mut State| s.set_mode(Mode::Kanban),
+            )
+        } else {
+            el()
+        })
         .child(mode_switch(s, k))
 }
 
@@ -3414,6 +3722,14 @@ fn mode_switch(s: &State, k: &Kit) -> El {
             &ic::DOT_GRID,
             "mode-board",
             Mode::Board,
+            s.mode,
+        ))
+        .child(mode_button(
+            k,
+            "Kanban",
+            &ic::CHECKLIST,
+            "mode-kanban",
+            Mode::Kanban,
             s.mode,
         ))
 }
@@ -3582,7 +3898,18 @@ fn editor(s: &State, k: &Kit) -> El {
     if let Some(complete) = &s.complete
         && !complete.items.is_empty()
     {
-        body = body.child(link_complete_list(s, k, complete));
+        let rows = complete
+            .items
+            .iter()
+            .map(|&id| {
+                (
+                    format!("complete-item-{id}"),
+                    s.vault.display_label(id),
+                    CompletePick::Note(id),
+                )
+            })
+            .collect();
+        body = body.child(complete_list(k, "link-complete", rows, complete.index));
     }
     col()
         .key("editor-pane")
@@ -3603,26 +3930,43 @@ fn editor(s: &State, k: &Kit) -> El {
         )
 }
 
-/// EDT-03: the completion/picker list under the editor. The highlighted row is
-/// moved with Up/Down (and wraps); clicking a row accepts it. Duplicate titles
-/// show their folder through `display_label`.
-fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) -> El {
+/// EDT-03: one row of a completion list. Accepting a note inserts a
+/// wikilink; accepting a tag (kanban slice 10) inserts `#tag`.
+#[derive(Clone, Debug)]
+pub(crate) enum CompletePick {
+    Note(usize),
+    Tag(String),
+}
+
+/// EDT-03: the completion/picker list under the editor or the card editor.
+/// The highlighted row is moved with Up/Down (and wraps); clicking a row
+/// accepts it. Duplicate titles show their folder through `display_label`.
+pub(crate) fn complete_list(
+    k: &Kit,
+    key: &str,
+    rows: Vec<(String, String, CompletePick)>,
+    index: usize,
+) -> El {
     let mut list = col()
-        .key("link-complete")
+        .key(key)
         .mt(8.0)
         .w(420.0)
         .gap(1.0)
         .padding(4.0)
         .radius(8.0)
         .fill(k.c.layer_02)
-        .border(1.0, k.c.border_base);
-    for (index, &id) in complete.items.iter().enumerate() {
-        let on = complete.index == index;
-        let label = s.vault.display_label(id);
-        let key = format!("complete-item-{id}");
+        .border(1.0, k.c.border_base)
+        // Slice 16: the open completions are a listbox of options; the field
+        // points at the highlighted one (its active descendant) and a change
+        // is announced.
+        .role("listbox")
+        .label("Completions")
+        .live_region(LiveRegion::Polite);
+    for (row_index, (row_key, label, pick)) in rows.into_iter().enumerate() {
+        let on = index == row_index;
         list = list.child(
             row()
-                .key(key)
+                .key(row_key)
                 .w_full()
                 .h(28.0)
                 .px(8.0)
@@ -3635,8 +3979,16 @@ fn link_complete_list(s: &State, k: &Kit, complete: &LinkComplete) -> El {
                 })
                 .hover(k.c.hover)
                 .cursor(Cursor::Pointer)
-                .on_press(move |s: &mut State| {
-                    s.complete_choose(id);
+                .role("option")
+                .label(label.clone())
+                .focus_selected(on)
+                .on_press(move |s: &mut State| match &pick {
+                    CompletePick::Note(id) => {
+                        s.complete_choose(*id);
+                    }
+                    CompletePick::Tag(tag) => {
+                        s.tag_complete_choose(tag);
+                    }
                 })
                 .child(
                     text(label)
@@ -3662,9 +4014,6 @@ fn preview(s: &State, k: &Kit) -> El {
     // (link rewriting changes byte lengths), matching `Markdown::block_keys`.
     let block_keys = heading_keys(&source);
     let accent = k.c.text_accent;
-    let faint = k.c.text_faint;
-    let faint_rule = k.alpha(faint, 0.5);
-    let faint_hover = k.alpha(faint, 0.6);
     // Palette identity in the memo version: a theme switch rebuilds the styled preview.
     let body = rune::memo(
         format!("preview-{id}"),
@@ -3678,14 +4027,7 @@ fn preview(s: &State, k: &Kit) -> El {
                 .style(style)
                 .block_keys(block_keys)
                 .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| s.open_link(url, tx))
-                .link_style(move |url| {
-                    url.strip_prefix("missing:").map(|_| {
-                        (
-                            Span::new(0, 0).color(faint).underline(faint_rule),
-                            LinkPaint::new().color(faint).underline(faint_hover),
-                        )
-                    })
-                })
+                .link_style(missing_link_style(k))
                 .build(k)
         },
     );
@@ -3716,12 +4058,113 @@ fn preview(s: &State, k: &Kit) -> El {
         )
 }
 
-/// EDT-04: stable block keys for the preview's top-level headings.
+/// A wikilink to no note (`Vault::preview_with_attachments` points it at
+/// `missing:`) reads dimmed, in Read and on kanban cards alike.
+pub(crate) fn missing_link_style(k: &Kit) -> impl Fn(&str) -> Option<(Span, LinkPaint)> + 'static {
+    let faint = k.c.text_faint;
+    let rule = k.alpha(faint, 0.5);
+    let hover = k.alpha(faint, 0.6);
+    move |url| {
+        url.strip_prefix("missing:").map(|_| {
+            (
+                Span::new(0, 0).color(faint).underline(rule),
+                LinkPaint::new().color(faint).underline(hover),
+            )
+        })
+    }
+}
+
+/// EDT-04: stable block keys for the preview's headings and `^id` blocks.
 fn heading_keys(source: &str) -> Vec<(usize, String)> {
-    headings(source)
+    let mut keys: Vec<(usize, String)> = headings(source)
         .into_iter()
         .map(|(offset, _)| (offset, format!("heading-{offset}")))
-        .collect()
+        .collect();
+    for (offset, _) in block_anchors(source) {
+        let key = format!("heading-{offset}");
+        if keys.iter().all(|(_, existing)| existing != &key) {
+            keys.push((offset, key));
+        }
+    }
+    keys
+}
+
+/// Kanban slice 3: the sidebar's Kanbans section, between the notes and the
+/// Boards. Every kanban note (cached in the index), by title; a row opens it
+/// in Kanban mode. Hidden while searching notes and in a vault with none.
+fn sidebar_kanbans(s: &State, k: &Kit, filtering: bool) -> El {
+    let kanbans: Vec<_> = s.vault.notes.iter().filter(|n| n.is_kanban()).collect();
+    if filtering || kanbans.is_empty() {
+        return el();
+    }
+    let shown = s
+        .kanban
+        .as_ref()
+        .filter(|_| s.mode == Mode::Kanban)
+        .map(|shown| shown.rel.as_str());
+    let mut list = col()
+        .key("sidebar-kanbans")
+        .w_full()
+        .px(8.0)
+        .pb(8.0)
+        .gap(2.0)
+        .role("list")
+        .child(sidebar_section_head(k, "KANBANS", kanbans.len()));
+    for note in kanbans {
+        let id = note.id;
+        let current = shown == Some(note.rel.as_str());
+        let mut body = row().grow(1.0).min_w(0.0).gap(6.0).center_y().child(
+            text(&note.title)
+                .key(format!("sidebar-kanban-title-{id}"))
+                .font(k.ty.ui_compact)
+                .color(if current {
+                    k.c.text_accent
+                } else {
+                    k.c.text_base
+                })
+                .truncate(),
+        );
+        if !note.folder().is_empty() {
+            body = body.child(
+                text(note.folder())
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint)
+                    .truncate(),
+            );
+        }
+        list = list.child(
+            pressable(k, format!("sidebar-kanban-{id}"))
+                .h(30.0)
+                .px(8.0)
+                .gap(8.0)
+                .center_y()
+                .role("button")
+                .label(note.title.clone())
+                .child(icon(&ic::CHECKLIST, 14.0).color(k.c.icon_muted))
+                .child(body)
+                .on_press(move |s: &mut State| s.open_kanban(id)),
+        );
+    }
+    list
+}
+
+/// A sidebar section's caps title and count (Kanbans, Boards).
+fn sidebar_section_head(k: &Kit, title: &'static str, count: usize) -> El {
+    row()
+        .h(28.0)
+        .px(8.0)
+        .gap(8.0)
+        .center_y()
+        .child(
+            text(title)
+                .font(TextStyle::new(10.0, 650.0).tracking(0.9))
+                .color(k.c.text_muted),
+        )
+        .child(
+            text(count.to_string())
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        )
 }
 
 /// Slice 7: the sidebar's Boards section, below the notes. A row opens the
@@ -3737,23 +4180,7 @@ fn sidebar_boards(s: &State, k: &Kit, filtering: bool) -> El {
         .pb(8.0)
         .gap(2.0)
         .role("list")
-        .child(
-            row()
-                .h(28.0)
-                .px(8.0)
-                .gap(8.0)
-                .center_y()
-                .child(
-                    text("BOARDS")
-                        .font(TextStyle::new(10.0, 650.0).tracking(0.9))
-                        .color(k.c.text_muted),
-                )
-                .child(
-                    text(s.sidebar_boards.len().to_string())
-                        .font(k.ty.caption())
-                        .color(k.c.text_faint),
-                ),
-        );
+        .child(sidebar_section_head(k, "BOARDS", s.sidebar_boards.len()));
     let open = s.board_open.as_ref().map(|open| open.path.as_path());
     for (i, board) in s.sidebar_boards.iter().enumerate() {
         let path = board.path.clone();
@@ -4367,7 +4794,7 @@ mod help_layout_tests {
         );
 
         assert_eq!(shortcut_label("[[").chords, vec![vec!["[[".to_owned()]]);
-        assert_eq!(shortcut_label("⌘1 / ⌘2 / ⌘3 / ⌘4").chords.len(), 4);
+        assert_eq!(shortcut_label("⌘1 / ⌘2 / ⌘3 / ⌘4 / ⌘5").chords.len(), 5);
         assert_eq!(
             shortcut_label("Tab / Shift+Tab").chords,
             vec![

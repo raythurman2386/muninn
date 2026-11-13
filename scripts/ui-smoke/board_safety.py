@@ -147,13 +147,29 @@ def cmd_file(path, count, *ids):
 
 
 def copy_paths(state_home, rel):
-    """The recovery copy's (text, sidecar) for rel: `<vault-id>~<key>` since
-    the #38 review (M1), `<key>` in the older shared layout."""
+    """The recovery copy's (text, sidecar) for rel.
+
+    Names: `<key>` (the older shared layout), `<vault-id>~<key>` (the editor
+    slot since the #38 review), and `<vault-id>~<key>~kanban` (the Kanban
+    page's own slot).
+    """
     d = recovery_dir(state_home)
     key = sanitize(rel)
     names = os.listdir(d) if os.path.isdir(d) else []
-    stems = sorted({n[: -len(".txt")] for n in names if n.endswith(".txt")} | {n[: -len(".json")] for n in names if n.endswith(".json")})
-    stems = [st for st in stems if st == key or (len(st) == 17 + len(key) and st[16] == "~" and st.endswith(key))]
+    stems = sorted(
+        {n[: -len(".txt")] for n in names if n.endswith(".txt")}
+        | {n[: -len(".json")] for n in names if n.endswith(".json")}
+    )
+    kanban = f"~{key}~kanban"
+
+    def matches(st):
+        if st == key:
+            return True
+        if len(st) == 17 + len(key) and st[16] == "~" and st.endswith(key):
+            return True
+        return len(st) == 16 + len(kanban) and st[16] == "~" and st.endswith(kanban)
+
+    stems = [st for st in stems if matches(st)]
     return [(os.path.join(d, st + ".txt"), os.path.join(d, st + ".json")) for st in stems]
 
 

@@ -16,7 +16,7 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
 
 | Crate | May depend on | Why |
 | --- | --- | --- |
-| `muninn-core` | nothing in the workspace | Pure domain model; fast unit tests. Its only external dependency is `serde_json`, for board files. |
+| `muninn-core` | nothing in the workspace | Pure domain model; fast unit tests. Its only external dependency is `serde_json`, for board files and for reading a kanban settings footer. |
 | `muninn-graph` | `muninn-core` | Needs note ids and links, nothing else. |
 | `muninn-sync` | nothing in the workspace | Plans and transfers vault bytes. It does not read the UI or the link index. |
 | `muninn-ui` | `muninn-core`, `muninn-graph`, `muninn-sync`, Rune | Owns state, rendering, input, and the manual sync session. |
@@ -160,6 +160,39 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   (`xdg-open`/`open`/`start`) because Rune's `Tx::open_url` refuses `file:`; drag-drop imports
   copy accepted files into the current folder with the same temp+rename rule and never
   overwrite an existing name.
+- **Kanban notes are notes.** A kanban board is a Markdown note whose frontmatter contains
+  `kanban-plugin` (`muninn_core::is_kanban`, `Vault::kanbans`). It stays in the note index, so
+  its wikilinks, backlinks, graph and rename are unchanged. `Kanban::parse` keeps the original
+  bytes; an edit splices only the lines it changes, and `Kanban::save` uses the same atomic
+  temp+rename path as other notes. A broken settings footer is `io::ErrorKind::InvalidData`
+  and is left untouched, never read as an empty board. The format is `docs/kanban-format.md`.
+  `Mode::Kanban` (`kanban_view.rs`) shows one as a board: the file is read and parsed when
+  the mode, the selection or the vault changes, and viewing never writes it. Card edits
+  (`kanban_edit.rs`) go through the same splice API on an in-memory copy; undo keeps whole
+  note texts, so it restores exact bytes. A save (`⌘S`, or autosave) writes once through
+  `Vault::write_note_if_unmodified`, only inside the open vault, and refuses a file that
+  changed on disk. Unsaved edits are never read over or dropped: leaving the page keeps
+  them, and switching kanban or vault saves first, or is refused. The kanban follows the
+  disk with Board's rule (`kanban_sync.rs` over the shared `doc_sync.rs`, see below):
+  autosave once the edits rest (`"kanban_autosave"`, on by default; never with a card
+  editor, lane field or drag open, or over a conflict), a watcher every 1.5 s while the
+  page shows (a clean kanban is re-read keeping its selection; a dirty one is flagged with
+  the conflict bar; a rename is followed when one new note holds the same text), the
+  SAF-05 recovery copy once the edits rest, and the quit rule (saved, else that copy, else
+  refused with the reason). "Open as markdown" saves first and stays on the page with the
+  bar when the save is refused; Write text that could not be saved is handed to the page
+  as unsaved edits. Lane edits, card moves, sorting
+  and collapse (`kanban_lanes.rs`) are more edits of the same kind: a sort moves whole card
+  blocks slot by slot, and collapse is the settings footer's `list-collapse` key, so it is
+  undone and saved with the rest. Dragging (`kanban_drag.rs`) adds no new edit: a card drop
+  is the same card move, and a lane drop is `Kanban::move_lane`, which moves the lane's
+  lines whole and keeps `list-collapse` aligned. Drop slots come from the rects each card and
+  lane reports as it is laid out, so they match what is drawn whatever the card heights.
+  Which notes are kanbans is cached in the index (`Note::is_kanban`, refreshed by
+  `Vault::reindex`), so the sidebar's Kanbans section, the notes-list glyph and the palette
+  never re-detect per frame. `Vault::create_kanban_in` claims each candidate name with an
+  exclusive create before filling it through the atomic writer, so New Kanban never
+  overwrites a file.
 - **Boards are files, not notes.** A whiteboard is an Excalidraw `.excalidraw` JSON file in
   the vault (`muninn_core::Board`). `Vault::boards` lists them with the note scan's own walk
   (same depth limit, dot-entries skipped) but never adds them to the note index, links or
@@ -218,9 +251,14 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   vault's id and its vault-relative path, outside the vault, same temp+fsync+rename), and the copy is removed
   once the board is saved or discarded; the launch banner restores it onto Board, never as
   a note, flagged the same way when the file is gone or now holds something else, and only
-  for a plain relative path that stays inside the vault (`board_safety::inside_vault`, also
+  for a plain relative path that stays inside the vault (`doc_sync::inside_vault`, also
   checked by every board write). Closing or quitting saves the board, or else updates that copy; if neither is
   possible the quit is refused and the window comes back with the reason.
+  The pieces of this rule that kanbans share (`doc_sync`: the conflict kinds and bar, the
+  reload/flag/wait decision, the rest timer behind autosave and the recovery copy, the
+  conflict-copy name, the quit rule and `inside_vault`) live in one module, so Board and
+  Kanban cannot drift apart; each page keeps only its own file comparison (Board: a
+  content fingerprint; Kanban: the note's modified time and length, then its text).
 - **Writes are atomic.** Every note save or creation writes a hidden, unique temp file in the
   note's folder, fsyncs it, then renames it into place; renames and moves use the filesystem's
   atomic rename. A crash or failed write leaves the previous bytes intact instead of a

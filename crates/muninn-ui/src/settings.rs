@@ -23,6 +23,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::{Value, json};
 
+use muninn_core::KanbanDefaults;
+
 use crate::{BoardSession, BoardView};
 
 use crate::{Mode, Scope};
@@ -459,6 +461,17 @@ pub struct Settings {
     /// rests. On by default; `"board_autosave": false` in `settings.json`
     /// leaves saving to `⌘S` (and the quit save).
     pub board_autosave: bool,
+    /// Kanban slice 2: the vault-relative path of the kanban note last shown
+    /// in Kanban mode. Files saved before kanbans load as `None`.
+    pub kanban: Option<String>,
+    /// Kanban slice 7: unsaved kanban edits are saved once they rest, as a
+    /// board's are. On by default; `"kanban_autosave": false` in
+    /// `settings.json` leaves saving to `⌘S` (and the quit save).
+    pub kanban_autosave: bool,
+    /// Kanban slice 9: app-wide board defaults, used when a board's settings
+    /// footer does not set a key. The object is absent until the user sets
+    /// one, which means every built-in default.
+    pub kanban_defaults: KanbanDefaults,
 }
 
 impl Default for Settings {
@@ -481,6 +494,9 @@ impl Default for Settings {
             show_shortcut: false,
             board: None,
             board_autosave: true,
+            kanban: None,
+            kanban_autosave: true,
+            kanban_defaults: KanbanDefaults::default(),
         }
     }
 }
@@ -517,7 +533,7 @@ impl Settings {
         } else {
             DEFAULT_AUTOSAVE_DELAY
         };
-        let value = json!({
+        let mut value = json!({
             "theme": self.theme.as_key(),
             "collapsed": self.collapsed,
             "last_vault": self
@@ -541,6 +557,8 @@ impl Settings {
             "auto_start": self.auto_start,
             "show_shortcut": self.show_shortcut,
             "board_autosave": self.board_autosave,
+            "kanban": self.kanban,
+            "kanban_autosave": self.kanban_autosave,
             "board": self.board.as_ref().map(|b| {
                 let mut value = json!({ "rel": b.rel });
                 if let Some(view) = b.view {
@@ -550,6 +568,11 @@ impl Settings {
                 value
             }),
         });
+        // An absent `kanban_defaults` is the same as an empty one; keeping it
+        // out of old files means a settings write changes only what it must.
+        if !self.kanban_defaults.is_empty() {
+            value["kanban_defaults"] = self.kanban_defaults.to_json();
+        }
         let bytes = serde_json::to_vec_pretty(&value)?;
         atomic_write(&path, &bytes)
     }
@@ -590,6 +613,7 @@ impl Settings {
             Some("preview") => Mode::Preview,
             Some("graph") => Mode::Graph,
             Some("board") => Mode::Board,
+            Some("kanban") => Mode::Kanban,
             _ => Mode::Editor,
         };
         settings.scope = match value.get("scope").and_then(Value::as_str) {
@@ -628,7 +652,17 @@ impl Settings {
             .get("board_autosave")
             .and_then(Value::as_bool)
             .unwrap_or(true);
+        settings.kanban_autosave = value
+            .get("kanban_autosave")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
         settings.board = value.get("board").and_then(parse_board_session);
+        settings.kanban = value
+            .get("kanban")
+            .and_then(Value::as_str)
+            .filter(|rel| !rel.is_empty())
+            .map(str::to_owned);
+        settings.kanban_defaults = KanbanDefaults::from_json(value.get("kanban_defaults"));
         settings
     }
 }
@@ -751,6 +785,13 @@ mod tests {
                 view: BoardView::new([-120.37, 44.5], 1.3),
             }),
             board_autosave: false,
+            kanban: Some("plans/Sprint.md".to_owned()),
+            kanban_autosave: false,
+            kanban_defaults: muninn_core::KanbanDefaults {
+                date_trigger: Some("@d".to_owned()),
+                hide_date_in_title: Some(false),
+                ..muninn_core::KanbanDefaults::default()
+            },
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -774,6 +815,14 @@ mod tests {
         assert!(Settings::from_value(&serde_json::json!({ "mode": "board" })).board_autosave);
         let off = Settings::from_value(&serde_json::json!({ "board_autosave": false }));
         assert!(!off.board_autosave);
+    }
+
+    #[test]
+    fn kanban_autosave_is_on_by_default_and_in_old_files() {
+        assert!(Settings::default().kanban_autosave);
+        assert!(Settings::from_value(&serde_json::json!({ "mode": "kanban" })).kanban_autosave);
+        let off = Settings::from_value(&serde_json::json!({ "kanban_autosave": false }));
+        assert!(!off.kanban_autosave && off.board_autosave);
     }
 
     #[test]
@@ -805,6 +854,116 @@ mod tests {
             &serde_json::json!({ "board": { "rel": "A.excalidraw", "eye": [0], "zoom": -1 } }),
         );
         assert_eq!(broken_view.board.unwrap().view, None);
+    }
+
+    #[test]
+    fn mode_keys_are_appended_and_each_loads_back() {
+        let modes = [
+            Mode::Editor,
+            Mode::Preview,
+            Mode::Graph,
+            Mode::Board,
+            Mode::Kanban,
+        ];
+        for (i, mode) in modes.into_iter().enumerate() {
+            assert_eq!(mode as usize, i, "a new mode goes at the end");
+            let value = serde_json::json!({ "mode": mode.as_key() });
+            assert_eq!(Settings::from_value(&value).mode, mode);
+        }
+        assert_eq!(Mode::Kanban.as_key(), "kanban");
+    }
+
+    #[test]
+    fn the_saved_kanban_is_a_non_empty_path() {
+        assert_eq!(Settings::default().kanban, None);
+        let old = Settings::from_value(&serde_json::json!({ "mode": "board" }));
+        assert_eq!(old.kanban, None);
+        let saved = Settings::from_value(&serde_json::json!({ "kanban": "plans/Sprint.md" }));
+        assert_eq!(saved.kanban.as_deref(), Some("plans/Sprint.md"));
+        for bad in [
+            serde_json::json!({ "kanban": "" }),
+            serde_json::json!({ "kanban": 3 }),
+            serde_json::json!({ "kanban": { "rel": "A.md" } }),
+        ] {
+            assert_eq!(Settings::from_value(&bad).kanban, None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn kanban_defaults_are_absent_by_default_and_load_untyped_keys_out() {
+        assert!(Settings::default().kanban_defaults.is_empty());
+        let old = Settings::from_value(&json!({ "theme": "dark" }));
+        assert!(old.kanban_defaults.is_empty());
+        let set = Settings::from_value(&json!({
+            "kanban_defaults": {
+                "date-trigger": "@d",
+                "hide-date-in-title": false,
+                "date-format": 3,
+                "unknown": "kept out",
+            }
+        }));
+        assert_eq!(set.kanban_defaults.date_trigger.as_deref(), Some("@d"));
+        assert_eq!(set.kanban_defaults.hide_date_in_title, Some(false));
+        assert_eq!(set.kanban_defaults.date_format, None);
+        assert!(!set.kanban_defaults.is_empty());
+
+        // An empty object writes no key, so an old settings file keeps its bytes.
+        let home = temp_config("kanban-defaults");
+        Settings::default().save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(!text.contains("kanban_defaults"), "{text}");
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn kanban_defaults_keep_unknown_and_mistyped_keys_through_a_save() {
+        let home = temp_config("kanban-defaults-raw");
+        let settings = Settings {
+            kanban_defaults: muninn_core::KanbanDefaults::from_json(Some(&json!({
+                "date-trigger": "@d",
+                "date-format": 3,
+                "hide-date-in-title": "no",
+                "unknown": {"x": 1},
+            }))),
+            ..Settings::default()
+        };
+        settings.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"date-format\": 3"), "{text}");
+        assert!(text.contains("\"hide-date-in-title\": \"no\""), "{text}");
+        assert!(text.contains("\"unknown\""), "{text}");
+        let loaded = Settings::load_from(&home);
+        let out = loaded.kanban_defaults.to_json();
+        assert_eq!(out["date-trigger"], "@d");
+        assert_eq!(out["date-format"], 3);
+        assert_eq!(out["hide-date-in-title"], "no");
+        assert_eq!(out["unknown"]["x"], 1);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn kanban_defaults_keep_raw_linked_page_metadata_through_a_save() {
+        let home = temp_config("kanban-defaults-metadata-raw");
+        let raw = json!([
+            {"key": "status", "label": "Status", "containsMarkdown": "yes"}
+        ]);
+        let settings = Settings {
+            kanban_defaults: muninn_core::KanbanDefaults::from_json(Some(&json!({
+                "linked-page-metadata": raw,
+            }))),
+            ..Settings::default()
+        };
+        settings.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"label\": \"Status\""), "{text}");
+        assert!(text.contains("\"containsMarkdown\": \"yes\""), "{text}");
+        let loaded = Settings::load_from(&home);
+        assert_eq!(
+            loaded.kanban_defaults.to_json()["linked-page-metadata"],
+            raw,
+            "extra fields, order and the wrong type survive the round trip"
+        );
+        let _ = fs::remove_dir_all(&home);
     }
 
     #[test]
