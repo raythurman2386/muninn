@@ -3199,9 +3199,32 @@ JSON
   python3 "$harness" tree-mode "$t/kanban-lanes-x11-open.json" kanban || return 1
   cmp "$v/Board.md" "$original" || { echo "a headless run wrote Board.md"; return 1; }
   local add_xy card_xy collapse_xy
-  add_xy="$(python3 "$harness" tree-center "$t/kanban-lanes-x11-open.json" kanban-add-lane)" || return 1
+  lane_menu_xy="$(python3 "$harness" tree-center "$t/kanban-lanes-x11-open.json" kanban-lane-2-menu)" || return 1
   card_xy="$(python3 "$harness" tree-center "$t/kanban-lanes-x11-open.json" kanban-card-0-0)" || return 1
-  collapse_xy="$(python3 "$harness" tree-center "$t/kanban-lanes-x11-open.json" kanban-lane-2-collapse)" || return 1
+  # Adding the lane auto-scrolls the board, so the Done lane's collapse point
+  # moves. Reproduce the sequence headlessly and take that point from its tree.
+  local probe="$work/kanban-lanes-x11-probe"
+  rm -rf "$probe"; cp -r "$v" "$probe"
+  cat >"$m/after.json" <<'JSON'
+{"events":[
+  {"t":0.6,"type":"key","name":"1","cmd":true},
+  {"t":1.0,"type":"key","name":"k","cmd":true},
+  {"t":1.4,"type":"type","text":"board"},
+  {"t":2.0,"type":"key","name":"Enter"},
+  {"t":2.6,"type":"mark","name":"open"},
+  {"t":3.0,"type":"tap","key":"kanban-lane-2-menu"},
+  {"t":3.4,"type":"tap","key":"menu-insert_lane_after"},
+  {"t":3.8,"type":"type","text":"Later"},
+  {"t":4.2,"type":"key","name":"Enter"},
+  {"t":4.6,"type":"tap","key":"kanban-card-0-0"},
+  {"t":5.0,"type":"key","name":"Right","alt":true},
+  {"t":5.4,"type":"mark","name":"after"}
+]}
+JSON
+  rm -rf "$work/config-kanban-lanes-x11-after"; mkdir -p "$work/config-kanban-lanes-x11-after"
+  XDG_CONFIG_HOME="$work/config-kanban-lanes-x11-after" XDG_STATE_HOME="$work/state-kanban-lanes-x11-after" \
+    "$bin" --vault "$probe" --script "$m/after.json" --at mark:after+0.3 --tree "$t/kanban-lanes-x11-after.json" || return 1
+  collapse_xy="$(python3 "$harness" tree-center "$t/kanban-lanes-x11-after.json" kanban-lane-2-collapse)" || return 1
 
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n i
@@ -3226,10 +3249,14 @@ JSON
   python3 "$harness" x11-type "$wid" board && sleep 0.5 || return 1
   python3 "$harness" x11-chord "$wid" enter && sleep "$pause" || return 1
   python3 "$harness" settings-mode "$settings" kanban || return 1
-  # + Add lane, type, Enter; a click selects the first card and Alt+Right moves it
-  # to the next lane; the Done lane's collapse control; then Ctrl+S.
+  # Insert lane after (the last lane's menu), type, Enter; a click selects the
+  # first card and Alt+Right moves it to the next lane; the Done lane's collapse
+  # control; then Ctrl+S. The Add-lane button sits past the window's right edge,
+  # so use the lane menu, which is fully visible.
   # shellcheck disable=SC2086
-  python3 "$harness" x11-click "$wid" $add_xy && sleep 0.5 || return 1
+  python3 "$harness" x11-click "$wid" $lane_menu_xy && sleep 0.5 || return 1
+  for _ in 1 2 3 4; do python3 "$harness" x11-chord "$wid" Down && sleep 0.1 || return 1; done
+  python3 "$harness" x11-chord "$wid" enter && sleep 0.5 || return 1
   python3 "$harness" x11-type "$wid" "Later" && python3 "$harness" x11-chord "$wid" enter && sleep 0.5 || return 1
   # shellcheck disable=SC2086
   python3 "$harness" x11-click "$wid" $card_xy && sleep 0.5 || return 1
