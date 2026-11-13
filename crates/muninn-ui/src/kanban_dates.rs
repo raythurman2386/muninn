@@ -486,7 +486,7 @@ fn picker_can_clear(s: &State) -> bool {
 
 /// The note a link-form date points at: an alias after `|` is display text,
 /// not part of the target.
-fn link_target(value: &str) -> &str {
+pub(crate) fn link_target(value: &str) -> &str {
     value.split_once('|').map_or(value, |(target, _)| target)
 }
 

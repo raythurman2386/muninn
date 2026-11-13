@@ -265,6 +265,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | **Board settings** in the header (kanban) | Change this board's lane width, card editing, header buttons, note template and the date, tag, metadata and archive keys; each control can reset to the app default or the built-in value |
 | `⌘F` / `Ctrl+F` (kanban) | Find in the board (`Enter` / `↓` next, `Shift+Enter` / `↑` previous, `Esc` closes and restores the selection) |
 | **Filter** in the header (kanban) | Hide cards by text, tag, date (`Today`, `Overdue`, a `YYYY-MM-DD` range) and open/done; conditions combine with AND, and **Clear** removes them |
+| The header's **Board / List / Table** (kanban) | Switch the Kanban page's view for this session only; the file and its `kanban-plugin` value are never changed |
 | Click a tag chip (kanban) | Set the board's tag filter |
 | `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
 | **+ Add lane**, a lane's `⋯` (kanban) | Add or insert a lane; rename it, set its card limit, mark it done or not done, sort its cards by text, date or tags, delete it |
@@ -303,6 +304,16 @@ with AND. Filters are display state only: they are never written to the board
 or `settings.json`, and the header shows what is active with **Clear**. Nested
 task items inside a card appear at its foot as a checklist with a `done/total`
 count; clicking one changes exactly that character and is one undo step.
+
+A board's `kanban-plugin` frontmatter value can ask for a **list** or a
+**table** instead of columns; `basic` and unknown values open as the board.
+The list draws each lane as one section in a scrollable list, and the table
+has Lane, Card, Date, Tags and progress columns, grouped by lane in file
+order; a multi-line card is flattened to one line there, and a narrow window
+scrolls it sideways. The header's Board / List / Table switcher changes the
+view for this session only: it is not saved and never rewrites the file's
+frontmatter. Card checkboxes, menus, links and tag chips work in all three
+views; editing stays on the board.
 
 A card's first wikilink (a heading, block id or alias does not change the
 note) supplies metadata for the card's foot. The board's

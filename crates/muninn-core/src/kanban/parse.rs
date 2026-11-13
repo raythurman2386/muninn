@@ -10,7 +10,8 @@ use std::ops::Range;
 
 use serde_json::Value;
 
-use super::{Archive, Card, Footer, Kanban, LIST_COLLAPSE, Lane, invalid_data};
+use super::{Archive, Card, Footer, Kanban, KanbanPlugin, LIST_COLLAPSE, Lane, invalid_data};
+use crate::frontmatter::Frontmatter;
 
 const BOM: char = '\u{feff}';
 
@@ -85,6 +86,11 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
     if !marked {
         return Err(invalid_data("not a kanban note"));
     }
+    // The flat frontmatter reader already knows quotes, comments, CRLF and a
+    // byte-order mark; the view is settled once here, never per frame.
+    let plugin = Frontmatter::parse(source)
+        .text("kanban-plugin")
+        .map_or_else(|| KanbanPlugin::from_value(""), KanbanPlugin::from_value);
     let mut i = front_end + 1;
     let mut lanes: Vec<Lane> = Vec::new();
     let mut archive: Option<Archive> = None;
@@ -219,6 +225,7 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
             "\n"
         },
         source: source.to_owned(),
+        plugin,
         lanes,
         archive,
         footer,

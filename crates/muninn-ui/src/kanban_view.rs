@@ -41,7 +41,9 @@
 //! `without_checklist_lines`). Slice 14 (`kanban_settings.rs`) draws the
 //! header's Board settings panel from the shared key schema, and its lane
 //! width, new-line trigger and header-button switches take effect on the next
-//! frame.
+//! frame. Slice 15 (`kanban_views.rs`) draws the list and table views a
+//! `kanban-plugin: list` / `table` value asks for, and the header's Board /
+//! List / Table switcher chooses one for the session.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -56,8 +58,8 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use muninn_core::{
-    Card, ChecklistItem, CivilDate, DateSettings, Kanban, Lane, MetadataCache, MetadataSettings,
-    card_checklist, is_kanban, parse_links, scan_card_text,
+    Card, ChecklistItem, CivilDate, DateSettings, Kanban, KanbanView, Lane, MetadataCache,
+    MetadataSettings, card_checklist, is_kanban, parse_links, scan_card_text,
 };
 use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
@@ -223,6 +225,11 @@ impl State {
         let selected_card = if same_rel { self.selected_card() } else { None };
         let reloaded = same_rel && shown.is_some();
         self.kanban = shown;
+        // Slice 15: a view the switcher picked belongs to the board it was
+        // picked on; another kanban opens in its own file's view.
+        if !same_rel {
+            self.kanban_view = None;
+        }
         // A menu names a place on the board that a re-read can move; a press
         // held on it ends with it. The selected card is found again by its
         // content, or kept in place when its lane still holds the same cards.
@@ -356,6 +363,7 @@ impl State {
         self.kanban_selected = None;
         self.kanban_archive_open = false;
         self.close_kanban_settings();
+        self.kanban_view = None;
         self.kanban_drag = None;
         self.kanban_autosave_wait = None;
         self.kanban_recovery_wait = None;
@@ -412,11 +420,39 @@ impl State {
             .find(|note| note.rel == rel)
             .map(|note| note.id)
     }
+
+    /// Slice 15: the view on screen. The header switcher's choice when there
+    /// is one, else the shown file's `kanban-plugin` value, else the board.
+    #[must_use]
+    pub fn kanban_view(&self) -> KanbanView {
+        self.kanban_view
+            .unwrap_or_else(|| self.kanban_board().map_or(KanbanView::Board, Kanban::view))
+    }
+
+    /// Slice 15: the header's Board / List / Table switcher. It changes only
+    /// what the frame draws: the board, its undo history, the file and
+    /// `settings.json` are untouched.
+    pub fn set_kanban_view(&mut self, view: KanbanView) {
+        if self.kanban_view() == view {
+            return;
+        }
+        // An open card or lane editor commits as when the page is left; a
+        // refused one keeps the board and the typed text on screen.
+        if self.commit_card_edit() == CardCommit::Refused {
+            return;
+        }
+        // A date picker belongs to the board's card, and a press held on a
+        // card names a place in a layout that is about to go.
+        self.close_picker();
+        self.kanban_drag = None;
+        self.menu = None;
+        self.kanban_view = Some(view);
+    }
 }
 
 /// The lane header's count, `n` or `n/N` against the lane limit, and whether
 /// the lane holds more cards than its limit.
-fn lane_load(lane: &Lane) -> (String, bool) {
+pub(crate) fn lane_load(lane: &Lane) -> (String, bool) {
     let n = lane.cards().len();
     match lane.limit() {
         Some(limit) => (format!("{n}/{limit}"), n > limit as usize),
@@ -447,7 +483,11 @@ pub fn kanban(s: &State, k: &Kit) -> El {
             rel,
             board: Some(board),
             ..
-        }) => lanes(s, k, rel, board),
+        }) => match s.kanban_view() {
+            KanbanView::Board => lanes(s, k, rel, board),
+            KanbanView::List => crate::kanban_views::list(s, k, rel, board),
+            KanbanView::Table => crate::kanban_views::table(s, k, rel, board),
+        },
         Some(ShownKanban { board: None, .. }) => placeholder(
             k,
             "kanban-placeholder",
@@ -598,8 +638,9 @@ fn header(s: &State, k: &Kit) -> El {
             State::toggle_kanban_archive,
         ));
     }
-    // An unreadable board has no settings panel to open.
     if shown.board.is_some() {
+        head = head.child(view_switch(s, k));
+        // An unreadable board has no settings panel to open.
         head = head.child(header_button(
             k,
             "kanban-settings",
@@ -608,19 +649,17 @@ fn header(s: &State, k: &Kit) -> El {
             State::toggle_kanban_settings,
         ));
     }
-    head.child(if layout.show_open_markdown_button {
-        header_button(
+    if layout.show_open_markdown_button {
+        head = head.child(header_button(
             k,
             "kanban-open-markdown",
             &ic::EDIT,
             "Open as markdown",
             State::open_kanban_as_markdown,
-        )
-    } else {
-        el()
-    })
+        ));
+    }
+    head
 }
-
 /// The active filter in the header: how many cards it shows, what it asks
 /// for, and Clear. Nothing is drawn when no filter is active.
 fn filter_summary(s: &State, k: &Kit) -> El {
@@ -650,6 +689,62 @@ fn filter_summary(s: &State, k: &Kit) -> El {
                 .label("Clear filters")
                 .on_press(|s: &mut State| s.clear_kanban_filter()),
         )
+}
+
+/// Slice 15: the header's Board / List / Table switcher. The choice is
+/// ephemeral and never changes the frontmatter, so a `kanban-plugin: list`
+/// board opens as a list but can still be shown as a board.
+fn view_switch(s: &State, k: &Kit) -> El {
+    let current = s.kanban_view();
+    row()
+        .key("kanban-view-switch")
+        .h(28.0)
+        .gap(2.0)
+        .px(2.0)
+        .radius(7.0)
+        .center_y()
+        .fill(k.c.layer_01)
+        .border(1.0, k.c.border_muted)
+        .children(
+            [KanbanView::Board, KanbanView::List, KanbanView::Table]
+                .into_iter()
+                .map(|view| view_tab(k, view, view == current)),
+        )
+}
+
+/// One tab of [`view_switch`].
+fn view_tab(k: &Kit, view: KanbanView, active: bool) -> El {
+    let label = match view {
+        KanbanView::Board => "Board view",
+        KanbanView::List => "List view",
+        KanbanView::Table => "Table view",
+    };
+    row()
+        .key(match view {
+            KanbanView::Board => "kanban-view-board",
+            KanbanView::List => "kanban-view-list",
+            KanbanView::Table => "kanban-view-table",
+        })
+        .h(24.0)
+        .px(8.0)
+        .radius(6.0)
+        .center_y()
+        .fill(if active {
+            k.alpha(k.c.text_accent, 0.14)
+        } else {
+            k.c.layer_01
+        })
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(rune::Cursor::Pointer)
+        .role("button")
+        .label(label)
+        .on_press(move |s: &mut State| s.set_kanban_view(view))
+        .child(text(view.label()).font(k.ty.ui_compact).color(if active {
+            k.c.text_accent
+        } else {
+            k.c.text_muted
+        }))
 }
 
 /// The lanes, side by side, scrolling both ways. Each lane is built again
@@ -1134,17 +1229,17 @@ fn add_lane_button(k: &Kit, count: usize) -> El {
         .child(text("Add lane").font(k.ty.ui_compact).color(k.c.text_faint))
 }
 
-fn is_menu(s: &State, target: &MenuTarget) -> bool {
+pub(crate) fn is_menu(s: &State, target: &MenuTarget) -> bool {
     s.menu.as_ref().is_some_and(|m| m.target == *target)
 }
 
 /// The `⋯` that opens a card's or a lane's menu.
-fn menu_button(k: &Kit, key: String, label: &'static str) -> El {
+pub(crate) fn menu_button(k: &Kit, key: String, label: &'static str) -> El {
     icon_button(k, key, &ic::OUTLINE_DOTS, 14.0, label)
 }
 
 /// A small icon button: a menu's `⋯`, a lane's collapse and expand.
-fn icon_button(
+pub(crate) fn icon_button(
     k: &Kit,
     key: String,
     glyph: &'static rune::Icon,
@@ -1161,6 +1256,45 @@ fn icon_button(
         .role("button")
         .label(label)
         .child(icon(glyph, size).color(k.c.icon_muted))
+}
+
+/// The card's checkbox on any view: a plain click toggles its done mark and
+/// `Cmd`/`Ctrl`-click archives it (slice 12). The list and table views reuse
+/// it so the same actions read the same in every layout.
+pub(crate) fn card_checkbox(k: &Kit, i: usize, j: usize, done: bool) -> El {
+    let mark = el()
+        .key(format!("kanban-card-{i}-{j}-mark"))
+        .size(14.0, 14.0)
+        // Level with the first line of text.
+        .mt(5.0)
+        .radius(4.0)
+        .center()
+        .border(
+            1.0,
+            if done {
+                k.c.text_accent
+            } else {
+                k.c.border_base
+            },
+        )
+        .cursor(rune::Cursor::Pointer)
+        .role("checkbox")
+        .checked(done)
+        .label(if done { "Done" } else { "Open" })
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            // Slice 12: Cmd/Ctrl-click archives; a plain click still toggles.
+            let mods = tx.mods();
+            if mods.cmd || mods.ctrl {
+                s.archive_card(i, j);
+            } else {
+                s.toggle_card_done(i, j);
+            }
+        });
+    if done {
+        mark.child(icon(&ic::CHECK, 10.0).color(k.c.text_accent))
+    } else {
+        mark
+    }
 }
 
 fn card_view(
@@ -1199,39 +1333,7 @@ fn card_view(
     // embed keeps the reader's filename placeholder.
     let source = card_markdown(&s.vault, when.note, &display_text);
     let first = display_text.lines().next().unwrap_or_default();
-    let mark = el()
-        .key(format!("kanban-card-{i}-{j}-mark"))
-        .size(14.0, 14.0)
-        // Level with the first line of text.
-        .mt(5.0)
-        .radius(4.0)
-        .center()
-        .border(
-            1.0,
-            if done {
-                k.c.text_accent
-            } else {
-                k.c.border_base
-            },
-        )
-        .cursor(rune::Cursor::Pointer)
-        .role("checkbox")
-        .checked(done)
-        .label(if done { "Done" } else { "Open" })
-        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
-            // Slice 12: Cmd/Ctrl-click archives; a plain click still toggles.
-            let mods = tx.mods();
-            if mods.cmd || mods.ctrl {
-                s.archive_card(i, j);
-            } else {
-                s.toggle_card_done(i, j);
-            }
-        });
-    let mark = if done {
-        mark.child(icon(&ic::CHECK, 10.0).color(k.c.text_accent))
-    } else {
-        mark
-    };
+    let mark = card_checkbox(k, i, j, done);
     let selected = s.kanban_selected == Some((i, j));
     let dragged = s.kanban_drag_in(i).1 == Some(j);
     let (matching, current) = s.kanban_find_mark(i, j);
@@ -1320,7 +1422,7 @@ fn card_view(
 /// leave this display text empty or blank, so it is not byte-for-byte the
 /// card text. `docs/kanban-format.md` section 5 records the gap; toggling uses
 /// the card's exact bytes.
-fn without_checklist_lines(text: &str, items: &[ChecklistItem]) -> String {
+pub(crate) fn without_checklist_lines(text: &str, items: &[ChecklistItem]) -> String {
     if items.is_empty() {
         return text.to_owned();
     }
@@ -1335,7 +1437,7 @@ fn without_checklist_lines(text: &str, items: &[ChecklistItem]) -> String {
 
 /// The card's nested task items: a progress label and one interactive row per
 /// item. Each row toggles only its own character through the core edit path.
-fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistItem]) -> El {
+pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistItem]) -> El {
     if items.is_empty() {
         return el();
     }

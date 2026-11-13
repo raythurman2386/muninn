@@ -420,6 +420,10 @@ pub struct State {
     /// board contexts keep one each).
     pub(crate) kanban_app_new_metadata: TextEdit,
     pub(crate) kanban_board_new_metadata: TextEdit,
+    /// Kanban slice 15: the view the header switcher picked for the shown
+    /// board. `None` follows the file's `kanban-plugin` value; it is never
+    /// saved in settings and never written to the file.
+    pub kanban_view: Option<muninn_core::KanbanView>,
     /// Kanban slice 6: the card or lane pressed and held (cleared whenever
     /// the board changes), and where lanes and cards were laid out (the drop
     /// spot is measured against them).
@@ -820,6 +824,7 @@ impl State {
             kanban_board_text,
             kanban_app_new_metadata: TextEdit::default(),
             kanban_board_new_metadata: TextEdit::default(),
+            kanban_view: None,
             kanban_drag: None,
             kanban_rects: crate::kanban_drag::KanbanRects::default(),
             kanban_autosave_wait: None,

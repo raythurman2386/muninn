@@ -131,7 +131,20 @@ All notable changes to Muninn are documented here. The format is based on
   checkbox is hidden.
 
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
-  lane's menu: Insert lane before / after, Rename lane, Card limit… (written
+  once.
+- **List and table views.** A board whose frontmatter says
+  `kanban-plugin: list` opens as one scrollable list of lane sections, and
+  `kanban-plugin: table` opens as a table with Lane, Card, Date, Tags and
+  checklist-progress columns, grouped by lane in file order. `basic` and
+  unknown values open as the board, and every value stays byte for byte in the
+  file. The header's **Board / List / Table** switcher shows any of the three;
+  its choice is ephemeral: it is not saved and never rewrites the frontmatter.
+  List and table rows keep the board's card actions (checkbox toggles done,
+  `Cmd`/`Ctrl`-click archives, card menu, links, tag chips), a collapsed lane
+  hides its cards, and an empty lane or board says so. The table flattens a
+  multi-line card to one safe line, renders dates and tags in their columns,
+  and scrolls sideways when the window is narrow. Switching or reading a view,
+  and filtering in it, never writes the board.- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each  lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
   Sort by text, date or tags, and Delete lane (a lane with cards asks first;
   note text in the lane that the board doesn't show stays in the file, or the

@@ -108,6 +108,69 @@ pub fn is_kanban(source: &str) -> bool {
     parse::has_kanban_key(source)
 }
 
+/// The `kanban-plugin` frontmatter value, as Muninn read it: without its
+/// quotes and comment, with its own spelling otherwise.
+///
+/// The value is read for display and never written: switching views is
+/// display state, so the file keeps every frontmatter byte
+/// (`docs/kanban-format.md` section 3, open point F-1 resolved).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct KanbanPlugin {
+    value: String,
+}
+
+impl KanbanPlugin {
+    /// Read a frontmatter value.
+    #[must_use]
+    pub fn from_value(value: &str) -> Self {
+        Self {
+            value: value.to_owned(),
+        }
+    }
+
+    /// The value without quotes. An unknown value keeps its own spelling.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.value
+    }
+
+    /// The view the file asks for. `board`, `basic` and unknown values are the
+    /// board (slice 15 keeps the slice 1 F-1 decision for them).
+    #[must_use]
+    pub fn view(&self) -> KanbanView {
+        if self.value.eq_ignore_ascii_case("list") {
+            KanbanView::List
+        } else if self.value.eq_ignore_ascii_case("table") {
+            KanbanView::Table
+        } else {
+            KanbanView::Board
+        }
+    }
+}
+
+/// The way the Kanban page can draw a board.
+///
+/// It is not stored in the file: [`Kanban::view`] gives the file's default and
+/// the page's switcher chooses another one for the session only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum KanbanView {
+    Board,
+    List,
+    Table,
+}
+
+impl KanbanView {
+    /// The switcher's label.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Board => "Board",
+            Self::List => "List",
+            Self::Table => "Table",
+        }
+    }
+}
+
 /// One kanban note, parsed from the bytes it was read from.
 ///
 /// The owned source is those bytes. Edits replace spans inside a copy and
@@ -117,6 +180,8 @@ pub struct Kanban {
     source: String,
     /// Line ending used for lines an edit adds. `"\n"` or `"\r\n"`.
     nl: &'static str,
+    /// The frontmatter value, read once at parse time.
+    plugin: KanbanPlugin,
     lanes: Vec<Lane>,
     archive: Option<Archive>,
     footer: Option<Footer>,
@@ -204,6 +269,20 @@ impl Kanban {
     #[must_use]
     pub fn source(&self) -> &str {
         &self.source
+    }
+
+    /// The `kanban-plugin` frontmatter value. It never changes with the view
+    /// on screen and is never written by Muninn.
+    #[must_use]
+    pub fn plugin(&self) -> &KanbanPlugin {
+        &self.plugin
+    }
+
+    /// The view the file asks for: `list`, `table`, or the board for `board`,
+    /// `basic` and every value without a rule.
+    #[must_use]
+    pub fn view(&self) -> KanbanView {
+        self.plugin.view()
     }
 
     /// Lanes in file order. An `Archive` heading with no `***` before it is a

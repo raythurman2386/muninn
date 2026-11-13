@@ -11,7 +11,7 @@ use serde_json::json;
 
 use super::{
     Archive, ArchiveDatePosition, ArchiveSettings, CardOrder, CivilDate, DateSettings, Kanban,
-    KanbanDefaults, Lane, is_kanban, scan_card_text,
+    KanbanDefaults, KanbanView, Lane, is_kanban, scan_card_text,
 };
 use crate::Vault;
 use crate::testing::TempVault;
@@ -163,6 +163,56 @@ fn detection_edges() {
     assert!(!is_kanban(""));
     let error = Kanban::parse("just a note").unwrap_err();
     assert_eq!(error.kind(), ErrorKind::InvalidData);
+}
+
+#[test]
+fn the_plugin_value_names_the_view_and_is_never_changed() {
+    for (value, view) in [
+        ("board", KanbanView::Board),
+        ("list", KanbanView::List),
+        ("table", KanbanView::Table),
+        ("basic", KanbanView::Board),
+        ("kanban", KanbanView::Board),
+    ] {
+        let source = format!("---\nkanban-plugin: {value}\n---\n\n## To do\n\n- [ ] one\n");
+        let kanban = parse(&source);
+        assert_eq!(kanban.plugin().as_str(), value, "{value:?}");
+        assert_eq!(kanban.view(), view, "{value:?}");
+        assert_eq!(kanban.source(), source, "the file is untouched");
+    }
+}
+
+#[test]
+fn quoted_crlf_and_bom_values_reach_the_view_without_rewriting() {
+    let quoted = "---\nkanban-plugin: 'list'\n---\n\n## To do\n\n- [ ] one\n";
+    assert_eq!(parse(quoted).view(), KanbanView::List);
+    assert_eq!(parse(quoted).source(), quoted);
+
+    let crlf = "---\r\nkanban-plugin: \"table\"\r\n---\r\n\r\n## To do\r\n\r\n- [ ] one\r\n";
+    assert_eq!(parse(crlf).view(), KanbanView::Table);
+    assert_eq!(parse(crlf).source(), crlf);
+
+    let bom = "\u{feff}---\nkanban-plugin: list\n---\n\n## To do\n";
+    assert_eq!(parse(bom).view(), KanbanView::List);
+    assert_eq!(parse(bom).source(), bom);
+
+    // A comment after the value is not part of it, and still no byte moves.
+    let comment = "---\nkanban-plugin: table # keep me\n---\n";
+    let kanban = parse(comment);
+    assert_eq!(kanban.plugin().as_str(), "table");
+    assert_eq!(kanban.view(), KanbanView::Table);
+    assert_eq!(kanban.source(), comment);
+}
+
+#[test]
+fn a_bare_plugin_key_is_the_board_and_a_list_value_is_the_board() {
+    let bare = "---\nkanban-plugin:\n---\n\n## To do\n";
+    assert_eq!(parse(bare).plugin().as_str(), "");
+    assert_eq!(parse(bare).view(), KanbanView::Board);
+
+    let list = "---\nkanban-plugin:\n  - list\n---\n\n## To do\n";
+    assert_eq!(parse(list).view(), KanbanView::Board);
+    assert_eq!(parse(list).source(), list);
 }
 
 #[test]

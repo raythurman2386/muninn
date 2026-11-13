@@ -72,7 +72,11 @@ kanban-plugin: board
 - **Frontmatter.** The file starts with a line `---`, then frontmatter lines, then a closing `---` line.
 - **Detection.** The note is a kanban note when the frontmatter has the key `kanban-plugin`. The usual value is `board`.
 - **Other values.** The values `list`, `table` and `basic` also appear in the wild.
-  - **Open point F-1:** what the values other than `board` mean for display. In 0.8.0 they are detected as kanban notes and kept unchanged.
+  - **Open point F-1 (resolved).** `list` and `table` ask for the list and
+    table views on the Kanban page (section 5, **Views**). `basic`, and any
+    value without a rule, is shown as the board. Muninn keeps the value in the
+    file exactly as written, quotes and all, and switching views is display
+    state: it never rewrites the frontmatter or any other byte.
 - **Other frontmatter.** Keys besides `kanban-plugin` may be present. They are passthrough and are kept byte for byte, including order, comments, quoting and blank lines.
 - **Reader.** Muninn reads frontmatter with its own minimal flat reader: `key: value` lines and simple `- item` lists. Anything more complex is passthrough.
 - **Edge cases** that must still detect: a value quoted as `'board'` or `"board"`; CRLF line endings; a UTF-8 byte-order mark before the first `---`.
@@ -109,6 +113,23 @@ kanban-plugin: board
   is active) case-insensitively, draws the current match's card with an
   outline, and steps through matches with `Enter` / `↓` and `Shift+Enter` /
   `↑`; `Esc` closes it and restores the selection. The header's Filter hides cards that do not match a text query, a `#tag`, a date (`today`, `overdue`, or an inclusive `YYYY-MM-DD` range) and/or an open/done state. Conditions combine with AND. A tag chip's click sets the tag condition. Filtering and finding are display state: they do not change the board model, the file, or its undo history, and they are not saved in the settings footer or in `settings.json`. A card with no date does not match a date condition. Overdue means a date before the local calendar day.
+- **Views (view only).** The frontmatter value selects the Kanban page's
+  default view (section 3): `board` is the columns, `list` draws the lanes as
+  sections in one scrollable list, and `table` draws a header row (Lane, Card,
+  Date, Tags, Progress) with one row per card, grouped by lane in file order.
+  `basic` and unknown values use the board. In the list, each section has the
+  lane title, its count (`n/N` against a lane limit, the over-limit mark and
+  Complete) and the lane's cards; a collapsed lane keeps its header and hides
+  its cards, an empty lane says so, and an empty board says so. In the table, a
+  card's multi-line text is flattened to a single line, dates and tags have
+  their own columns, checklist cards show `done/total`, and a narrow window
+  scrolls the table sideways. The page header has a Board / List / Table
+  switcher; its choice lasts for the session only: it is not saved in the
+  settings footer or `settings.json`, and switching views never changes the
+  board, the file, or its undo history. The card checkbox (toggle done;
+  `Cmd`/`Ctrl`-click archives), the card menu, links and tag chips work in the
+  list and table; editing stays on the board view. An open card or lane editor
+  commits when the view changes, as it does when the page is left.
 - **List items without a checkbox** (`- text`).
   - **Open point C-2:** whether these are cards. Muninn keeps them as passthrough and does not show them as cards in 0.8.0.
 - **Writing a new card.** `- [ ] ` + text. The text is not blank. A line of only spaces or tabs is written as a blank continuation. The continuation indent is taken from the first card in file order that has one, walking the lanes and then the archive. If none do, Muninn uses two spaces. If that indent is only spaces and is narrower than two columns, a new card uses two spaces.

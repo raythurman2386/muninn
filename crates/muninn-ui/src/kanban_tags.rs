@@ -41,7 +41,7 @@ impl State {
 
 /// The card's tags with case-insensitive duplicates removed, first spelling
 /// first. One chip per tag, and the same list decides a chip's stable index.
-fn unique_tags(found: &CardText) -> Vec<&str> {
+pub(crate) fn unique_tags(found: &CardText) -> Vec<&str> {
     let mut seen = HashSet::new();
     found
         .tags
