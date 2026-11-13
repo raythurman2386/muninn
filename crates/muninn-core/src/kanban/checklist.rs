@@ -9,6 +9,14 @@
 //! [`Kanban::toggle_card_task`](crate::kanban::Kanban::toggle_card_task),
 //! which changes exactly the one character of that item through the card
 //! edit path. The file is still the source of truth: nothing here writes it.
+//!
+//! Display gaps, documented rather than papered over (`kanban_view.rs` draws
+//! them): a checklist row is its item's own text as plain text, not rendered
+//! markdown, and a continuation line indented under an item stays in the
+//! card's main markdown instead of joining the row. The main text drops only
+//! the item lines, so a blank continuation or an empty card first line can
+//! leave it empty or blank. Reading and toggling always use the card's exact
+//! bytes, so none of this affects what is written.
 
 use super::parse::{fence_closes, indent_columns, opens_fence};
 use super::{Kanban, invalid_input};

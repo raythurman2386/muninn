@@ -249,9 +249,14 @@ impl State {
             || self.board_text.is_some()
             // A card editor or lane field left open (its text refused) waits
             // on the Kanban page; it doesn't hold the keyboard elsewhere, nor
-            // once a click elsewhere on the page took its focus.
+            // once a click elsewhere on the page took its focus. Board Find
+            // holds it only while its field has focus: a click on the board
+            // leaves the bar open but gives the arrows back.
             || (self.mode == crate::Mode::Kanban
-                && (self.kanban_find.is_some()
+                && (self
+                    .kanban_find
+                    .as_ref()
+                    .is_some_and(|find| find.field.focused)
                     || self.kanban_filter_field_focused()
                     || (self.kanban_card.is_some() && self.kanban_card_field.focused)
                     || (self.kanban_lane_edit.is_some() && self.kanban_lane_field.focused)

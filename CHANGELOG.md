@@ -102,7 +102,8 @@ All notable changes to Muninn are documented here. The format is based on
   interactive checklist at the card's foot with a `done/total` count. Clicking
   one toggles exactly that character through the card edit path: the card's
   own checkbox and every other line stay as they are, and one undo puts it
-  back. Fenced lines and the card's first line are not checklist items.- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
+  back. Fenced lines and the card's first line are not checklist items.
+- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
   Sort by text, date or tags, and Delete lane (a lane with cards asks first;

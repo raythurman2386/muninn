@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{Mode, Settings, State, on_key, poll, view};
+use muninn_ui::{CardStep, Mode, Settings, State, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
 const BOARD: &str = "\
@@ -84,6 +84,20 @@ fn click(rt: &mut Runtime<State>, key: &str) {
     frame(rt);
 }
 
+fn double_click(rt: &mut Runtime<State>, key: &str) {
+    for _ in 0..30 {
+        frame(rt);
+    }
+    let (x, y) = rt.find(key).unwrap_or_else(|| panic!("missing {key}"));
+    for _ in 0..2 {
+        rt.pointer_down(x, y);
+        frame(rt);
+        rt.pointer_up(x, y);
+        frame(rt);
+    }
+    frame(rt);
+}
+
 fn key(k: Key) -> KeyEvent {
     KeyEvent {
         key: k,
@@ -99,6 +113,18 @@ fn command(c: char) -> KeyEvent {
             ..Mods::default()
         },
     }
+}
+
+fn press(rt: &mut Runtime<State>, key: Key, alt: bool, shift: bool) {
+    rt.key(KeyEvent {
+        key,
+        mods: Mods {
+            alt,
+            shift,
+            ..Mods::default()
+        },
+    });
+    frame(rt);
 }
 
 fn source(rt: &Runtime<State>) -> String {
@@ -348,6 +374,274 @@ kanban-plugin: board
     assert!(has(&rt, "kanban-card-0-0"), "the tagged card stays");
     assert!(!has(&rt, "kanban-card-0-1"), "the untagged card is hidden");
     assert!(has(&rt, "kanban-filter-summary"));
+}
+
+const FILTER_BOARD: &str = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] alpha one
+- [ ] beta only
+- [ ] alpha two
+";
+
+const OTHER_BOARD: &str = "\
+---
+kanban-plugin: board
+---
+
+## Later
+
+- [ ] Other card
+";
+
+const LANES_FILTER_BOARD: &str = "\
+---
+kanban-plugin: board
+---
+
+## Do
+
+- [ ] alpha one
+
+## Hidden
+
+- [ ] beta only
+
+## Later
+
+- [ ] alpha two
+";
+
+/// The app on `Board.md`, with `Other.md` as a second kanban for the
+/// across-boards tests.
+fn on_boards_with(board: &str, other: &str) -> (TempVault, Runtime<State>) {
+    let tmp = TempVault::new(&[
+        ("Agenda.md", "# Agenda\n\nPlain.\n"),
+        ("Board.md", board),
+        ("Other.md", other),
+    ]);
+    let config = unique_dir("config");
+    let state_home = unique_dir("state");
+    let state = State::with_settings(
+        tmp.path().to_path_buf(),
+        state_home,
+        config.clone(),
+        Settings {
+            kanban_autosave: false,
+            ..Settings::load_from(&config)
+        },
+    );
+    let mut rt = Runtime::new(state, view, (1400.0, 900.0), Env::new(true, 2.0));
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+    let id = rt.state.vault.resolve("Board").expect("Board");
+    rt.update(|s, _| s.open_kanban(id));
+    rt.frame(1.0 / 60.0);
+    (tmp, rt)
+}
+
+fn set_filter_text(rt: &mut Runtime<State>, text: &str) {
+    rt.update(|s, _| {
+        s.kanban_filter.text.replace_text(text);
+        s.kanban_filter.text.set_caret(text.len());
+    });
+    frame(rt);
+}
+
+/// Slice 13 review: the filter is one predicate for the view and the
+/// keyboard. Arrows step over hidden cards, a hidden card can be neither
+/// selected nor moved, and Clear puts back the card selected before the
+/// filter.
+#[test]
+fn arrows_skip_hidden_cards_moves_refuse_them_and_clear_restores() {
+    let (tmp, mut rt) = on_board_with(FILTER_BOARD);
+    act(&mut rt, |s| s.kanban_selected = Some((0, 1)));
+    click(&mut rt, "kanban-filter-toggle");
+    set_filter_text(&mut rt, "alpha");
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 0)),
+        "a hidden selection snaps to the first shown card"
+    );
+
+    press(&mut rt, Key::Down, false, false);
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 2)),
+        "Down walks to the next shown card and skips the hidden one"
+    );
+    press(&mut rt, Key::Up, false, false);
+    assert_eq!(rt.state.kanban_selected, Some((0, 0)), "Up skips it too");
+
+    // A click on a hidden card does not select it.
+    act(&mut rt, |s| s.select_kanban_card(0, 1));
+    assert_eq!(rt.state.kanban_selected, Some((0, 0)));
+
+    // A move action refuses it too. (The chord has the same guard: before a
+    // key is handled, the filter tick has already put the selection back on a
+    // card the filter shows, and `kanban_key` refuses Alt on a hidden one.)
+    let before = source(&rt);
+    act(&mut rt, |s| s.step_kanban_card(0, 1, CardStep::Down));
+    assert_eq!(source(&rt), before, "a hidden card cannot be moved");
+
+    // Clear restores the card that was selected before the filter first hid
+    // it, and changes nothing in the board.
+    click(&mut rt, "kanban-filter-clear");
+    assert!(!rt.state.kanban_filter_active());
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 1)),
+        "Clear restores the pre-filter selection"
+    );
+    assert_eq!(source(&rt), FILTER_BOARD);
+    assert_eq!(on_disk(&tmp), FILTER_BOARD);
+}
+
+/// Arrows step over a lane the filter hides wholly, in reading order for
+/// Up/Down and sideways for Left/Right.
+#[test]
+fn arrows_skip_a_wholly_hidden_lane() {
+    let (_tmp, mut rt) = on_board_with(LANES_FILTER_BOARD);
+    click(&mut rt, "kanban-filter-toggle");
+    set_filter_text(&mut rt, "alpha");
+    assert_eq!(rt.state.kanban_selected, Some((0, 0)));
+    press(&mut rt, Key::Down, false, false);
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((2, 0)),
+        "Down goes to the next shown card, over the hidden lane"
+    );
+    press(&mut rt, Key::Up, false, false);
+    assert_eq!(rt.state.kanban_selected, Some((0, 0)));
+    press(&mut rt, Key::Right, false, false);
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((2, 0)),
+        "Right steps over the lane with nothing shown"
+    );
+}
+
+/// A tag filter compares the core tag key, so Unicode case folds match:
+/// `#Ärger` finds `#ärger` and the other way round.
+#[test]
+fn a_tag_filter_matches_unicode_case() {
+    let board = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] Fix #ärger
+- [ ] Fix #other
+";
+    let (_tmp, mut rt) = on_board_with(board);
+    click(&mut rt, "kanban-filter-toggle");
+    act(&mut rt, |s| s.kanban_filter.tag.replace_text("#Ärger"));
+    frame(&mut rt);
+    assert!(has(&rt, "kanban-card-0-0"), "the lowercase tag matches");
+    assert!(!has(&rt, "kanban-card-0-1"));
+}
+
+/// Any date is a clear: it drops a typed range as well as a preset.
+#[test]
+fn any_date_clears_a_typed_range() {
+    let (_tmp, mut rt) = on_board_with(BOARD);
+    click(&mut rt, "kanban-filter-toggle");
+    act(&mut rt, |s| {
+        s.kanban_filter.from.replace_text("2000-01-01");
+        s.kanban_filter.to.replace_text("2100-01-01");
+    });
+    frame(&mut rt);
+    assert!(rt.state.kanban_filter.date_filter().is_some());
+    click(&mut rt, "kanban-filter-any-date");
+    assert!(
+        rt.state.kanban_filter.date_filter().is_none(),
+        "Any date leaves no date condition"
+    );
+    assert!(rt.state.kanban_filter.from.text.is_empty());
+    assert!(rt.state.kanban_filter.to.text.is_empty());
+    assert!(has(&rt, "kanban-card-0-0"));
+    assert!(has(&rt, "kanban-card-0-1"));
+    assert!(has(&rt, "kanban-card-0-2"));
+}
+
+/// The open card editor closes when the filter hides its card, so Enter
+/// cannot commit an invisible change.
+#[test]
+fn a_filtered_out_card_editor_does_not_commit_invisibly() {
+    let (tmp, mut rt) = on_board_with(BOARD);
+    double_click(&mut rt, "kanban-card-0-1");
+    assert!(rt.state.kanban_card.is_some(), "the double click edits it");
+    act(&mut rt, |s| {
+        s.kanban_card_field.replace_text("changed invisibly")
+    });
+    click(&mut rt, "kanban-filter-toggle");
+    set_filter_text(&mut rt, "Ship");
+    assert!(
+        rt.state.kanban_card.is_none(),
+        "the editor closed with its hidden card"
+    );
+    press(&mut rt, Key::Enter, false, false);
+    assert_eq!(source(&rt), BOARD);
+    assert_eq!(on_disk(&tmp), BOARD);
+}
+
+/// A click on the board blurs Board Find's field, so the arrows select cards
+/// again while the bar stays open.
+#[test]
+fn a_click_away_from_board_find_gives_the_arrows_back() {
+    let (_tmp, mut rt) = on_board_with(BOARD);
+    open_find(&mut rt);
+    type_query(&mut rt, "Fix");
+    assert!(rt.state.is_typing(), "the find field owns the keyboard");
+    click(&mut rt, "kanban-card-0-2");
+    assert!(
+        !rt.state.is_typing(),
+        "a click on the board takes the keyboard"
+    );
+    assert!(rt.state.kanban_find.is_some(), "the bar itself stays open");
+    assert_eq!(rt.state.kanban_selected, Some((0, 2)));
+    press(&mut rt, Key::Up, false, false);
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 1)),
+        "Up selects a card again"
+    );
+}
+
+/// Filter and Board Find are per board: opening another board starts clear.
+#[test]
+fn filter_and_find_do_not_leak_to_another_board() {
+    let (_tmp, mut rt) = on_boards_with(BOARD, OTHER_BOARD);
+    click(&mut rt, "kanban-filter-toggle");
+    set_filter_text(&mut rt, "Ship");
+    open_find(&mut rt);
+    type_query(&mut rt, "Ship");
+    assert!(rt.state.kanban_filter_active());
+    assert!(rt.state.kanban_find.is_some());
+
+    let other = rt.state.vault.resolve("Other").expect("Other");
+    act(&mut rt, |s| s.open_kanban(other));
+    assert_eq!(
+        rt.state.kanban.as_ref().map(|k| k.rel.as_str()),
+        Some("Other.md")
+    );
+    assert!(
+        !rt.state.kanban_filter_active(),
+        "the new board starts clear"
+    );
+    assert!(rt.state.kanban_filter.text.text.is_empty());
+    assert!(
+        rt.state.kanban_find.is_none(),
+        "Find closed with the old board"
+    );
+    assert!(has(&rt, "kanban-card-0-0"), "the new board's card is shown");
 }
 
 #[test]

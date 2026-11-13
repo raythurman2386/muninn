@@ -407,6 +407,10 @@ pub struct State {
     /// Kanban slice 13: board Find, and the board's ephemeral filter.
     pub kanban_find: Option<crate::kanban_search::KanbanFindState>,
     pub kanban_filter: crate::kanban_search::KanbanFilter,
+    /// The card selected before the filter first hid it, so clearing the
+    /// filter can put the selection back (clamped to a card that still
+    /// exists). `None` when no filter has hidden a selection.
+    pub kanban_filter_saved: Option<(usize, usize)>,
     /// Kanban slice 6: the card or lane pressed and held (cleared whenever
     /// the board changes), and where lanes and cards were laid out (the drop
     /// spot is measured against them).
@@ -784,6 +788,7 @@ impl State {
             kanban_archive_open: false,
             kanban_find: None,
             kanban_filter: crate::kanban_search::KanbanFilter::default(),
+            kanban_filter_saved: None,
             kanban_drag: None,
             kanban_rects: crate::kanban_drag::KanbanRects::default(),
             kanban_autosave_wait: None,

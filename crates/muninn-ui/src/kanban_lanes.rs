@@ -269,6 +269,10 @@ impl State {
         to_lane: usize,
         to_index: usize,
     ) {
+        // A card the filter hides is not on the page: it cannot be moved.
+        if !self.kanban_card_shown(lane, index) {
+            return;
+        }
         let Some(open) = self.kanban_card_at(lane, index).map(|c| !c.is_done()) else {
             return;
         };
@@ -285,11 +289,18 @@ impl State {
         }
     }
 
-    /// The card menu's moves and Alt+arrows. A step with nowhere to go does nothing.
+    /// The card menu's moves and Alt+arrows. A step with nowhere to go does
+    /// nothing; a card the filter hides is never moved.
     pub fn step_kanban_card(&mut self, lane: usize, index: usize, step: CardStep) {
+        if !self.kanban_card_shown(lane, index) {
+            return;
+        }
         let Some((lane, index)) = self.settle_card_edit(lane, index) else {
             return;
         };
+        if !self.kanban_card_shown(lane, index) {
+            return;
+        }
         let len = |l: usize| self.kanban_lane(l).map(|l| l.cards().len());
         let Some(here) = len(lane).filter(|&n| index < n) else {
             return;
@@ -311,6 +322,9 @@ impl State {
 
     /// Move to list…: the lane picker under the card.
     pub fn open_move_to_list(&mut self, lane: usize, index: usize) {
+        if !self.kanban_card_shown(lane, index) {
+            return;
+        }
         let Some((lane, index)) = self.settle_card_edit(lane, index) else {
             return;
         };
@@ -338,8 +352,12 @@ impl State {
 
     /// A click on a card: the card the arrow keys and Alt+arrows act on. It
     /// leaves an open editor alone (a double click edits); when the editor
-    /// later adds a card or lane, the selection follows its card.
+    /// later adds a card or lane, the selection follows its card. A card the
+    /// filter hides cannot be selected.
     pub fn select_kanban_card(&mut self, lane: usize, index: usize) {
+        if !self.kanban_card_shown(lane, index) {
+            return;
+        }
         self.kanban_selected = Some((lane, index));
     }
 
@@ -613,7 +631,8 @@ pub(crate) fn lane_field(s: &State, k: &Kit) -> El {
 
 /// Arrow keys on the Kanban page: select a card, or with Alt move the
 /// selected one (Shift: to the top or bottom of its lane). Slice 6:
-/// Alt+Shift+Left / Right move the selected card's lane.
+/// Alt+Shift+Left / Right move the selected card's lane. Slice 13: a filter's
+/// hidden cards are skipped, and a wholly hidden lane is stepped over.
 pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
     if s.mode != Mode::Kanban || e.mods.cmd {
         return false;
@@ -625,22 +644,29 @@ pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
         Key::Right => (1, 0),
         _ => return false,
     };
+    let dates = s.kanban_date_settings();
+    let today = crate::kanban_dates::local_today();
     let Some(board) = s.kanban_board() else {
         return false;
     };
+    let lanes = board.lanes().len();
     let len = |l: usize| board.lanes().get(l).map_or(0, |l| l.cards().len());
-    let selected = s.kanban_selected.filter(|&(l, i)| i < len(l));
-    let Some((lane, index)) = selected else {
-        s.kanban_selected = (0..board.lanes().len())
-            .find(|&l| len(l) > 0)
-            .map(|l| (l, 0));
-        return true;
-    };
-    if e.mods.alt && e.mods.shift && across != 0 {
-        s.step_kanban_lane(lane, across > 0);
-        return true;
-    }
+    let shown = |l: usize, i: usize| s.kanban_card_shown_at(&dates, today, l, i);
+    // Only a card the filter shows can be selected, moved or have its lane
+    // moved. The selection the last frame kept is always such a card, but a
+    // filter that just changed (or a direct `kanban_selected` write) may
+    // name a hidden one; Alt then does nothing rather than move it.
+    let selected = s
+        .kanban_selected
+        .filter(|&(l, i)| i < len(l) && shown(l, i));
     if e.mods.alt {
+        let Some((lane, index)) = selected else {
+            return true;
+        };
+        if e.mods.shift && across != 0 {
+            s.step_kanban_lane(lane, across > 0);
+            return true;
+        }
         let step = match (across, down, e.mods.shift) {
             (-1, _, _) => CardStep::PreviousLane,
             (1, _, _) => CardStep::NextLane,
@@ -652,11 +678,92 @@ pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
         s.step_kanban_card(lane, index, step);
         return true;
     }
-    let to_lane = lane.saturating_add_signed(across);
-    let to_len = len(to_lane);
-    if to_len > 0 {
-        let to_index = index.saturating_add_signed(down).min(to_len - 1);
-        s.kanban_selected = Some((to_lane, to_index));
+    let target = match selected {
+        Some((lane, index)) if down > 0 => next_shown(lane, index, lanes, len, shown),
+        Some((lane, index)) if down < 0 => prev_shown(lane, index, len, shown),
+        Some((lane, index)) => shown_beside(lane, index, across, lanes, len, shown),
+        None => next_shown_after(None, lanes, len, shown),
+    };
+    if let Some(next) = target {
+        s.kanban_selected = Some(next);
     }
     true
+}
+
+/// The first shown card after the start of reading order, or after
+/// `(lane, index)` when one is given. Cards hidden by the filter are skipped,
+/// and so is every lane with no shown card.
+fn next_shown(
+    lane: usize,
+    index: usize,
+    lanes: usize,
+    len: impl Fn(usize) -> usize,
+    shown: impl Fn(usize, usize) -> bool,
+) -> Option<(usize, usize)> {
+    next_shown_after(Some((lane, index)), lanes, len, shown)
+}
+
+fn next_shown_after(
+    after: Option<(usize, usize)>,
+    lanes: usize,
+    len: impl Fn(usize) -> usize,
+    shown: impl Fn(usize, usize) -> bool,
+) -> Option<(usize, usize)> {
+    let (start_lane, start) = match after {
+        Some((lane, index)) => (lane, index + 1),
+        None => (0, 0),
+    };
+    (start_lane..lanes).find_map(|lane| {
+        let from = if lane == start_lane { start } else { 0 };
+        (from..len(lane))
+            .find(|&index| shown(lane, index))
+            .map(|index| (lane, index))
+    })
+}
+
+/// The last shown card before `(lane, index)` in reading order.
+fn prev_shown(
+    lane: usize,
+    index: usize,
+    len: impl Fn(usize) -> usize,
+    shown: impl Fn(usize, usize) -> bool,
+) -> Option<(usize, usize)> {
+    (0..=lane).rev().find_map(|lane_before| {
+        let end = if lane_before == lane {
+            index
+        } else {
+            len(lane_before)
+        };
+        (0..end)
+            .rev()
+            .find(|&index| shown(lane_before, index))
+            .map(|index| (lane_before, index))
+    })
+}
+
+/// The shown card nearest `index` in the lane `across` steps away, stepping
+/// over lanes the filter hides wholly. The candidate is `index` itself when
+/// it is shown, else the nearest shown card below it, else the last one above.
+fn shown_beside(
+    lane: usize,
+    index: usize,
+    across: isize,
+    lanes: usize,
+    len: impl Fn(usize) -> usize,
+    shown: impl Fn(usize, usize) -> bool,
+) -> Option<(usize, usize)> {
+    let mut at = lane as isize + across;
+    while at >= 0 && (at as usize) < lanes {
+        let target = at as usize;
+        let count = len(target);
+        if (0..count).any(|i| shown(target, i)) {
+            let near = index.min(count.saturating_sub(1));
+            let found = (near..count)
+                .find(|&i| shown(target, i))
+                .or_else(|| (0..near).rev().find(|&i| shown(target, i)))?;
+            return Some((target, found));
+        }
+        at += across;
+    }
+    None
 }

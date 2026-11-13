@@ -35,7 +35,10 @@
 //! card's first wikilink names, at the card's foot. Slice 12
 //! (`kanban_archive.rs`) moves cards into the archive from the card menu or a
 //! `Cmd`/`Ctrl`-click, and draws the header's Archive page with Restore and
-//! Delete.
+//! Delete. Slice 13 (`kanban_search.rs`) adds Board Find and the ephemeral
+//! filter, and draws a card's nested task items as its checklist at the card's
+//! foot (plain-text rows; the display gaps are documented at
+//! `without_checklist_lines`).
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -203,6 +206,11 @@ impl State {
             return;
         }
         let same_rel = self.kanban.as_ref().map(|k| &k.rel) == shown.as_ref().map(|k| &k.rel);
+        // Slice 13: Board Find and the filter belong to one board. Another
+        // board starts with both clear; a re-read of the same board keeps them.
+        if !same_rel {
+            self.reset_kanban_search();
+        }
         // A re-read can move the selected card down its lane; another
         // kanban's selection goes with that kanban.
         let selected_card = if same_rel { self.selected_card() } else { None };
@@ -336,6 +344,7 @@ impl State {
         self.close_picker();
         self.close_kanban_find();
         self.kanban_filter.clear();
+        self.kanban_filter_saved = None;
         self.close_kanban_filter();
         self.kanban_selected = None;
         self.kanban_archive_open = false;
@@ -777,7 +786,7 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         .cards()
         .iter()
         .enumerate()
-        .filter(|(_, card)| s.kanban_filter_matches_card(card, when.dates, when.today))
+        .filter(|&(j, _)| s.kanban_card_shown_at(when.dates, when.today, i, j))
         .collect();
     if lane.collapsed() {
         return collapsed_lane(k, i, lane, cards.len(), filtering, drop.is_some(), dragged);
@@ -1249,6 +1258,13 @@ fn card_view(
 
 /// The card's markdown without the lines that make up its checklist. The
 /// checklist rows at the foot are the one interactive copy.
+///
+/// Only the item lines are dropped. A continuation line under an item stays
+/// in the main markdown, and the row shows just the item's own text (plain
+/// text, not markdown); a blank continuation or an empty card first line can
+/// leave this display text empty or blank, so it is not byte-for-byte the
+/// card text. `docs/kanban-format.md` section 5 records the gap; toggling uses
+/// the card's exact bytes.
 fn without_checklist_lines(text: &str, items: &[ChecklistItem]) -> String {
     if items.is_empty() {
         return text.to_owned();

@@ -1,17 +1,21 @@
 //! Kanban slice 13: board find, filters and checklist actions.
 //!
-//! - **Board Find** (`⌘F` / `Ctrl+F` on the Kanban page) searches the live
+//! - **Board Find** (`⌘F` / `Ctrl+F` on the Kanban page) searches the parsed
 //!   board's cards, case-insensitively, and outlines the current match's
 //!   card. `Enter` / `↓` step forward, `Shift+Enter` / `↑` step back, and
 //!   `Esc` closes the bar and puts the selection back where it was. It reads
-//!   the parsed board, not the Write buffer, so unsaved card edits are found
-//!   at once. It never writes.
+//!   the parsed board, not the Write buffer: the cards as of the last
+//!   commit, so text typed in an open card editor is not searched until it is
+//!   committed. It never writes.
 //! - **Filter** (the header's Filter button) hides cards that do not match a
 //!   text query, a tag, a date (`today`, `overdue`, or a `YYYY-MM-DD` range)
 //!   and/or a done state. Filters compose with AND. They are display state
 //!   only: the board, its file and its undo history are untouched, and they
 //!   are not saved in `settings.json`. The header shows what is active and a
-//!   Clear control.
+//!   Clear control. One predicate, [`State::kanban_card_shown`], decides what
+//!   the lanes draw and what the arrow keys may select or move; a hidden card
+//!   is never selected or moved. The selection at the moment the filter first
+//!   hid it is kept, and Clear puts it back.
 //! - A tag chip's click (`kanban_tags.rs`) sets the tag filter, so the chip
 //!   and the filter menu agree.
 //! - A nested checklist item is toggled through the core `toggle_card_task`,
@@ -21,7 +25,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use muninn_core::{Card, CivilDate, DateSettings, format_date, scan_card_text};
+use muninn_core::{Card, CivilDate, DateSettings, format_date, scan_card_text, tag_key};
 use rune::{El, Key, KeyEvent, TextEdit, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
@@ -204,13 +208,11 @@ impl KanbanFilter {
             return false;
         }
         let found = scan_card_text(text, dates);
-        if let Some(tag) = self.tag_text()
-            && !found
-                .tags
-                .iter()
-                .any(|token| token.tag.eq_ignore_ascii_case(tag))
-        {
-            return false;
+        if let Some(tag) = self.tag_text() {
+            let want = tag_key(tag);
+            if !found.tags.iter().any(|token| tag_key(&token.tag) == want) {
+                return false;
+            }
         }
         if let Some(want) = self.done
             && want != done
@@ -312,6 +314,57 @@ impl State {
         self.kanban_filter_matches(card.text(), card.is_done(), dates, today)
     }
 
+    /// Whether the card at `lane`/`index` is drawn under the current filter.
+    /// This is the one predicate the lanes draw with, the arrow keys walk
+    /// with and every move checks: a card it hides can never be selected or
+    /// moved. `false` when there is no such card.
+    #[must_use]
+    pub fn kanban_card_shown(&self, lane: usize, index: usize) -> bool {
+        let dates = self.kanban_date_settings();
+        let today = crate::kanban_dates::local_today();
+        self.kanban_card_shown_at(&dates, today, lane, index)
+    }
+
+    /// [`State::kanban_card_shown`] with the date settings and local day
+    /// already resolved once, for a frame or one key event.
+    #[must_use]
+    pub fn kanban_card_shown_at(
+        &self,
+        dates: &DateSettings,
+        today: CivilDate,
+        lane: usize,
+        index: usize,
+    ) -> bool {
+        self.kanban_card_at(lane, index)
+            .is_some_and(|card| self.kanban_filter_matches_card(card, dates, today))
+    }
+
+    /// Put the selection back on the card the filter hid, if it is still on
+    /// the board. `true` when the selection moved. Called when the filter
+    /// becomes inactive (Clear, or a field emptied).
+    fn restore_kanban_filter_selection(&mut self) -> bool {
+        let Some((lane, index)) = self.kanban_filter_saved.take() else {
+            return false;
+        };
+        if self.kanban_card_at(lane, index).is_none() || self.kanban_selected == Some((lane, index))
+        {
+            return false;
+        }
+        self.kanban_selected = Some((lane, index));
+        true
+    }
+
+    /// Forget Board Find and every filter condition, without restoring the
+    /// selection: another board is about to be shown, so the old board's
+    /// cards mean nothing. The one reset for both leaks across boards.
+    pub(crate) fn reset_kanban_search(&mut self) {
+        self.kanban_find = None;
+        self.kanban_filter.clear();
+        self.kanban_filter.open = false;
+        self.kanban_filter_saved = None;
+        self.blur_kanban_filter_fields();
+    }
+
     /// The number of cards the filter shows and the board's total, for the
     /// header's summary.
     #[must_use]
@@ -398,9 +451,10 @@ impl State {
         self.blur_kanban_filter_fields();
     }
 
-    /// The header's Clear control.
+    /// The header's Clear control. The selection the filter hid comes back.
     pub fn clear_kanban_filter(&mut self) {
         self.kanban_filter.clear();
+        self.restore_kanban_filter_selection();
         self.blur_kanban_filter_fields();
     }
 
@@ -411,13 +465,12 @@ impl State {
         self.close_kanban_find();
     }
 
-    /// `today` / `overdue` / no date preset.
+    /// `today` / `overdue` / no date preset. Any date clears a typed range
+    /// too, so the preset and the fields cannot disagree.
     pub fn set_kanban_date_preset(&mut self, preset: Option<KanbanDatePreset>) {
         self.kanban_filter.preset = preset;
-        if preset.is_some() {
-            self.kanban_filter.from.replace_text("");
-            self.kanban_filter.to.replace_text("");
-        }
+        self.kanban_filter.from.replace_text("");
+        self.kanban_filter.to.replace_text("");
         self.blur_kanban_filter_fields();
     }
 
@@ -427,44 +480,59 @@ impl State {
         self.blur_kanban_filter_fields();
     }
 
-    /// Keep the selected card on a visible one while a filter is active.
-    /// Returns true when the selection moved.
+    /// Keep the selected card on one the filter shows, and close a card
+    /// editor whose card it hides (so Enter cannot commit an invisible
+    /// edit). Returns true when something visible moved.
+    ///
+    /// The selection at the moment the filter first hides it is remembered;
+    /// when the filter becomes inactive again it is put back.
     pub fn kanban_filter_tick(&mut self) -> bool {
-        if self.mode != Mode::Kanban || !self.kanban_filter_active() {
+        if self.mode != Mode::Kanban {
             return false;
         }
-        let Some(board) = self.kanban_board() else {
-            return false;
-        };
+        if !self.kanban_filter_active() {
+            return self.restore_kanban_filter_selection();
+        }
         let dates = self.kanban_date_settings();
         let today = crate::kanban_dates::local_today();
-        let shows = |card: &Card| {
-            self.kanban_filter
-                .matches(card.text(), card.is_done(), &dates, today)
+        let shown = |s: &State, lane: usize, index: usize| {
+            s.kanban_card_shown_at(&dates, today, lane, index)
         };
-        if let Some((lane, index)) = self.kanban_selected
-            && board
-                .lanes()
-                .get(lane)
-                .and_then(|lane| lane.cards().get(index))
-                .is_some_and(shows)
-        {
-            return false;
+        if self.kanban_filter_saved.is_none() {
+            self.kanban_filter_saved = self.kanban_selected;
         }
-        let mut first = None;
-        'lanes: for (lane, section) in board.lanes().iter().enumerate() {
-            for (index, card) in section.cards().iter().enumerate() {
-                if shows(card) {
-                    first = Some((lane, index));
-                    break 'lanes;
-                }
-            }
+        // An editor on a card the filter hides must not stay open: its field
+        // is gone from the lanes, so Enter would write an invisible change.
+        // A new card's editor is not on the board yet, so it stays.
+        let hidden_edit = self
+            .kanban_card
+            .filter(|slot| !slot.new)
+            .is_some_and(|slot| !shown(self, slot.lane, slot.index));
+        let first = {
+            let Some(board) = self.kanban_board() else {
+                return false;
+            };
+            (0..board.lanes().len()).find_map(|lane| {
+                (0..board.lanes()[lane].cards().len())
+                    .find(|&index| shown(self, lane, index))
+                    .map(|index| (lane, index))
+            })
+        };
+        let selected_shown = self
+            .kanban_selected
+            .is_some_and(|(lane, index)| shown(self, lane, index));
+        let mut changed = false;
+        if hidden_edit {
+            self.cancel_card_edit();
+            changed = true;
         }
-        if first == self.kanban_selected {
-            return false;
+        if !selected_shown && first != self.kanban_selected {
+            // The selected card is hidden (or gone, or none): move to the
+            // first one the filter shows.
+            self.kanban_selected = first;
+            changed = true;
         }
-        self.kanban_selected = first;
-        true
+        changed
     }
 
     /// `⌘F` on the Kanban page: open the board's Find bar, or refocus it.
@@ -922,6 +990,18 @@ mod tests {
         assert!(!filter.matches("Ship #docs @{2026-11-12}", false, &dates, today));
         filter.done = Some(true);
         assert!(!filter.matches("Ship #release @{2026-11-12}", false, &dates, today));
+    }
+
+    #[test]
+    fn a_tag_matches_case_insensitively_beyond_ascii() {
+        let dates = DateSettings::default();
+        let today = CivilDate::new(2026, 11, 12).expect("today");
+        let mut filter = KanbanFilter::default();
+        filter.set_tag("#Ärger");
+        assert!(filter.matches("Fix #ärger", false, &dates, today));
+        filter.set_tag("#ärger");
+        assert!(filter.matches("Fix #ÄRGER", false, &dates, today));
+        assert!(!filter.matches("Fix #other", false, &dates, today));
     }
 
     #[test]

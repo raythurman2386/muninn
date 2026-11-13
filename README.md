@@ -261,10 +261,11 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | Click a card's checkbox (kanban) | Toggle its done mark; a lane's `⋯` has **Mark all cards done** |
 | `⌘`-click / `Ctrl`-click a card's checkbox (kanban) | Archive the card instead of toggling it |
 | The header's **Archive** button (kanban) | List the archive's cards from the same note; **Restore** to the first lane, **Restore to…** a lane, or **Delete** |
-| Click / Shift+click (kanban) | A card's checkbox toggles its done mark; a nested checklist item toggles only its own character |
+| Click a nested checklist item (kanban) | Toggle only that item's character; the card's own checkbox and every other line stay as they are |
 | `⌘F` / `Ctrl+F` (kanban) | Find in the board (`Enter` / `↓` next, `Shift+Enter` / `↑` previous, `Esc` closes and restores the selection) |
 | **Filter** in the header (kanban) | Hide cards by text, tag, date (`Today`, `Overdue`, a `YYYY-MM-DD` range) and open/done; conditions combine with AND, and **Clear** removes them |
-| Click a tag chip (kanban) | Set the board's tag filter || `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
+| Click a tag chip (kanban) | Set the board's tag filter |
+| `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
 | **+ Add lane**, a lane's `⋯` (kanban) | Add or insert a lane; rename it, set its card limit, mark it done or not done, sort its cards by text, date or tags, delete it |
 | A card's `⋯` (kanban) | Move it up, down, to the top or bottom, to the previous or next lane, or **Move to list…** |
 | Click a card, then arrows / `Alt+↑↓` / `Alt+Shift+↑↓` / `Alt+←→` (kanban) | Select a card; move it one place, to the top or bottom, or to the previous or next lane |
