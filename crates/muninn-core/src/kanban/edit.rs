@@ -832,7 +832,7 @@ pub(super) fn insert_block(source: &str, at: usize, mut block: String, nl: &str)
 /// of that block: its indented lines, the blank lines between them, and an
 /// indented fenced block whole. A card put before it would take those lines
 /// as its continuation.
-fn leading_indented_end(body: &str) -> Option<usize> {
+pub(super) fn leading_indented_end(body: &str) -> Option<usize> {
     let mut at = 0;
     let mut seen = false;
     let mut end = 0;
@@ -866,7 +866,7 @@ fn leading_indented_end(body: &str) -> Option<usize> {
 
 /// When `body` holds a line of text at column 0, the end (after its line
 /// ending) of its last line that is not blank.
-fn last_text_line_end(body: &str) -> Option<usize> {
+pub(super) fn last_text_line_end(body: &str) -> Option<usize> {
     let mut end = None;
     let mut column_zero = false;
     let mut at = 0;

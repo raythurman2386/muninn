@@ -20,7 +20,7 @@ use std::io;
 use serde_json::Value;
 
 use super::dates::{CivilDate, KanbanDefaults, format_date};
-use super::edit::{insert_block, splice};
+use super::edit::{insert_block, last_text_line_end, leading_indented_end, splice};
 use super::parse::split_block_id;
 use super::{Kanban, invalid_data, invalid_input};
 
@@ -298,16 +298,25 @@ fn archive_stamp(
 ) -> Stamp {
     let stamp = settings.stamp(date);
     let at = first_text_at(board, card);
-    if card.text.is_empty() {
+    let separator = settings.date_separator.as_str();
+    if first_line_text_len(board, card) == 0 {
         // `- [ ]` needs the space after its bracket back before the first
-        // text, or the line is no longer a card.
+        // text, or the line is no longer a card. A card that already has one
+        // (a trailing space, or the space before a block id) keeps it, so the
+        // stamp is not given a second. The separator is dropped: there is no
+        // text to separate the stamp from, and a continuation line is left
+        // as it was.
+        let insert = if at > 0 && board.source.as_bytes()[at - 1] == b' ' {
+            stamp.clone()
+        } else {
+            format!(" {stamp}")
+        };
         return Stamp {
-            insert: format!(" {stamp}"),
+            insert,
             at,
-            text: stamp,
+            text: stamped_text(&card.text, &settings.date_position, &stamp, separator),
         };
     }
-    let separator = settings.date_separator.as_str();
     let (insert, at) = match settings.date_position {
         ArchiveDatePosition::Start => (format!("{stamp}{separator}"), at),
         ArchiveDatePosition::End => (
@@ -360,9 +369,15 @@ fn stamped_text(
         Some((first, rest)) => (first, Some(rest)),
         None => (text, None),
     };
-    let first = match position {
-        ArchiveDatePosition::Start => format!("{stamp}{separator}{first}"),
-        ArchiveDatePosition::End => format!("{first}{separator}{stamp}"),
+    // An empty first line has no text for the separator to stand between: the
+    // stamp alone is the first line, and a continuation line stays whole.
+    let first = if first.is_empty() {
+        stamp.to_owned()
+    } else {
+        match position {
+            ArchiveDatePosition::Start => format!("{stamp}{separator}{first}"),
+            ArchiveDatePosition::End => format!("{first}{separator}{stamp}"),
+        }
     };
     match rest {
         Some(rest) => format!("{first}\n{rest}"),
@@ -404,22 +419,45 @@ fn append_archive_card(board: &Kanban, block: String) -> io::Result<String> {
 /// Where a new card goes in an existing archive: after its last card, else
 /// under its heading. A blank line after the heading stays between the heading
 /// and the card.
+///
+/// An archive with no cards can still hold passthrough text, as a lane can.
+/// Column-0 text (a paragraph) stays above the first card, and indented text
+/// stays above it too: a card put directly above either would take it as a
+/// continuation line. Both rules are the ones an empty lane follows in
+/// `insert_offset`.
 fn archive_insert_offset(board: &Kanban, archive: &super::Archive, block: String) -> String {
     if let Some(card) = archive.cards.last() {
         return insert_block(&board.source, card.span.end, block, board.nl);
     }
     let after = archive.heading_line.end;
     let body = &board.source[after..archive.span.end];
-    if body.starts_with(board.nl) {
-        insert_block(
-            &board.source,
-            after,
-            format!("{}{block}", board.nl),
-            board.nl,
-        )
-    } else {
-        insert_block(&board.source, after, block, board.nl)
+    if let Some(end) = last_text_line_end(body) {
+        let at = after + end;
+        // A newly created archive puts a blank line before its first card;
+        // keep that here too, so the card does not run into the paragraph.
+        let block = if board.source[..at].ends_with(&format!("{}{}", board.nl, board.nl)) {
+            block
+        } else {
+            format!("{}{block}", board.nl)
+        };
+        return insert_block(&board.source, at, block, board.nl);
     }
+    // Nothing at column 0. A blank line right under the heading comes first,
+    // then any indented text.
+    let blank = body.starts_with(board.nl);
+    let content = after + if blank { board.nl.len() } else { 0 };
+    let leading = &board.source[content..archive.span.end];
+    if let Some(end) = leading_indented_end(leading) {
+        return insert_block(&board.source, content + end, block, board.nl);
+    }
+    // Only the heading and its blank line are there: keep the blank line
+    // between the heading and the card, as a newly created archive has it.
+    let block = if blank {
+        format!("{}{block}", board.nl)
+    } else {
+        block
+    };
+    insert_block(&board.source, after, block, board.nl)
 }
 
 /// Drop the oldest archive cards while the archive holds more than `max`.

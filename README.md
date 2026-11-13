@@ -313,6 +313,10 @@ count, **Restore** to the first lane, **Restore to…** a named lane, and
 (absent or `0` is unlimited) follow the same footer → app default → built-in
 order; the date is ordinary card text, and the limit drops the oldest archive
 cards only. Each action is one undo step and viewing the page writes nothing.
+The archive page scrolls like the lanes, so a long archive stays reachable.
+`Cmd`/`Ctrl`-click reads the modifier keys when its press handler runs, one
+frame after the button went down, so releasing the key within that frame can
+toggle instead of archive (the card menu's **Archive** has no such window).
 
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
 full vault-relative stem, so a link keeps working when two notes share a title.
