@@ -30,8 +30,9 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
         .h_full()
         .fill(k.c.bg_base)
         .on_drawn_layout_tx(|s: &mut State, r: [f32; 4], tx: &mut Tx| {
-            if (s.window_width - r[2]).abs() > 0.5 {
+            if (s.window_width - r[2]).abs() > 0.5 || (s.window_height - r[3]).abs() > 0.5 {
                 s.window_width = r[2];
+                s.window_height = r[3];
                 tx.instant();
             }
         })
@@ -924,6 +925,22 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
         SettingsTab::Appearance => settings_appearance_tab(s, k),
         SettingsTab::Graph => settings_graph_tab(s, k),
         SettingsTab::Sync => settings_sync_tab(s, k),
+        SettingsTab::Kanban => crate::kanban_settings::app_tab(s, k),
+    };
+    // The Kanban defaults are many rows; the other tabs stay short. A scroll
+    // bounded by the window keeps the dialog and its Close button on screen,
+    // and still shows every row on a tall window.
+    let content = if s.settings_tab == SettingsTab::Kanban {
+        col()
+            .key("settings-kanban-scroll")
+            .w_full()
+            .max_h((s.window_height - 220.0).max(260.0))
+            .scroll(ScrollSpec {
+                stick_bottom: false,
+            })
+            .child(content)
+    } else {
+        content
     };
 
     let body = col()
@@ -2271,6 +2288,10 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                     "Filter (Kanban header)",
                     "Hide cards by text, tag, date or state",
                 ),
+                (
+                    "Board settings (Kanban header)",
+                    "Per-board overrides, one key at a time",
+                ),
                 ("⌘P / Ctrl+P", "Insert a wikilink"),
                 ("⌘N / Ctrl+N", "New note"),
                 ("⌘S / Ctrl+S", "Save now (autosave is on)"),
@@ -2304,7 +2325,10 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("↑ / ↓ (list)", "Move through a list"),
                 ("Enter / Space", "Open the focused row"),
                 ("Right-click", "Note and folder actions"),
-                ("⌘, / Ctrl+,", "Settings (vaults, theme, autosave)"),
+                (
+                    "⌘, / Ctrl+,",
+                    "Settings (vaults, theme, autosave, Kanban defaults)",
+                ),
             ],
         ),
     ]

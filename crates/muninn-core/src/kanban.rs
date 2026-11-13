@@ -30,8 +30,10 @@ mod archive;
 mod checklist;
 mod dates;
 mod edit;
+mod layout;
 mod metadata;
 mod parse;
+mod schema;
 mod sort;
 mod tags;
 mod text;
@@ -56,10 +58,21 @@ pub use self::dates::{
     HIDE_DATE_IN_TITLE, KanbanDefaults, LINK_DATE_TO_DAILY_NOTE, SHOW_RELATIVE_DATE, TIME_FORMAT,
     TIME_TRIGGER, format_date, format_time,
 };
+pub use self::layout::{
+    DEFAULT_LANE_WIDTH, KanbanBoardSettings, LANE_WIDTH, MAX_LANE_WIDTH, MIN_LANE_WIDTH,
+    NEW_CARD_INSERTION, NEW_LINE_TRIGGER, NEW_NOTE_FOLDER, NEW_NOTE_TEMPLATE, NewCardInsertion,
+    NewLineTrigger, SHOW_ARCHIVE_BUTTON, SHOW_CHECKBOXES, SHOW_FILTER_BUTTON,
+    SHOW_OPEN_MARKDOWN_BUTTON,
+};
 pub use self::metadata::{
     LINKED_PAGE_METADATA, MetadataCache, MetadataEntry, MetadataField, MetadataRow,
     MetadataSettings, SHOW_MISSING_METADATA, card_metadata, first_linked_note, inline_fields,
     metadata_fields, metadata_rows, note_metadata,
+};
+pub use self::schema::{
+    KANBAN_AUTOSAVE, KANBAN_KEYS, KanbanBuiltin, KanbanChoice, KanbanEffective, KanbanKey,
+    KanbanNumber, KanbanScope, KanbanSection, KanbanSettingKind, KanbanSettingValue, kanban_key,
+    kanban_keys_in,
 };
 pub use self::sort::CardOrder;
 pub use self::tags::{

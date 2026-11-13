@@ -38,7 +38,10 @@
 //! Delete. Slice 13 (`kanban_search.rs`) adds Board Find and the ephemeral
 //! filter, and draws a card's nested task items as its checklist at the card's
 //! foot (plain-text rows; the display gaps are documented at
-//! `without_checklist_lines`).
+//! `without_checklist_lines`). Slice 14 (`kanban_settings.rs`) draws the
+//! header's Board settings panel from the shared key schema, and its lane
+//! width, new-line trigger and header-button switches take effect on the next
+//! frame.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -67,9 +70,6 @@ use crate::kanban_edit::{CardCommit, CardSlot, KanbanHistory};
 use crate::kanban_lanes::{LaneField, lane_field};
 use crate::{DiskState, MenuTarget, Mode, State};
 
-/// Width of a lane column, in points: the notes sidebar's width, so a lane
-/// reads like the note list beside it.
-const LANE_W: f32 = crate::view::SIDEBAR;
 /// Width of a collapsed lane's strip.
 const STRIP_W: f32 = 52.0;
 /// Opacity of a card or lane while it is dragged (slice 6).
@@ -348,6 +348,7 @@ impl State {
         self.close_kanban_filter();
         self.kanban_selected = None;
         self.kanban_archive_open = false;
+        self.close_kanban_settings();
         self.kanban_drag = None;
         self.kanban_autosave_wait = None;
         self.kanban_recovery_wait = None;
@@ -425,6 +426,11 @@ pub fn kanban(s: &State, k: &Kit) -> El {
             "No kanban open",
             "Select a kanban note, then press ⌘5 to see it as a board.",
         ),
+        Some(ShownKanban {
+            rel,
+            board: Some(board),
+            ..
+        }) if s.kanban_settings_open => crate::kanban_settings::board_panel(s, k),
         Some(ShownKanban {
             rel,
             board: Some(board),
@@ -562,27 +568,46 @@ fn header(s: &State, k: &Kit) -> El {
         None => el(),
     })
     .child(filter_summary(s, k))
+    .child(if s.kanban_board_settings().show_filter_button {
+        header_button(
+            k,
+            "kanban-filter-toggle",
+            &ic::OUTLINE_SLIDERS,
+            "Filter",
+            State::toggle_kanban_filter,
+        )
+    } else {
+        el()
+    })
+    .child(if s.kanban_board_settings().show_archive_button {
+        header_button(
+            k,
+            "kanban-archive",
+            &ic::ARCHIVE,
+            "Archive",
+            State::toggle_kanban_archive,
+        )
+    } else {
+        el()
+    })
     .child(header_button(
         k,
-        "kanban-filter-toggle",
-        &ic::OUTLINE_SLIDERS,
-        "Filter",
-        State::toggle_kanban_filter,
+        "kanban-settings",
+        &ic::SETTINGS_GEAR,
+        "Board settings",
+        State::toggle_kanban_settings,
     ))
-    .child(header_button(
-        k,
-        "kanban-archive",
-        &ic::ARCHIVE,
-        "Archive",
-        State::toggle_kanban_archive,
-    ))
-    .child(header_button(
-        k,
-        "kanban-open-markdown",
-        &ic::EDIT,
-        "Open as markdown",
-        State::open_kanban_as_markdown,
-    ))
+    .child(if s.kanban_board_settings().show_open_markdown_button {
+        header_button(
+            k,
+            "kanban-open-markdown",
+            &ic::EDIT,
+            "Open as markdown",
+            State::open_kanban_as_markdown,
+        )
+    } else {
+        el()
+    })
 }
 
 /// The active filter in the header: how many cards it shows, what it asks
@@ -625,7 +650,8 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let dates = s.kanban_date_settings();
     let today = crate::kanban_dates::local_today();
     let metadata_settings = s.kanban_metadata_settings();
-    let card_key = card_settings_version(s, &dates, today, &metadata_settings);
+    let layout = s.kanban_board_settings();
+    let card_key = card_settings_version(s, &dates, today, &metadata_settings, &layout);
     let filter_hash = s.kanban_filter_hash();
     let find_hash = s.kanban_find_hash();
     let kit = crate::omarchy::kit_id(s, k.dark);
@@ -668,12 +694,14 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
                     today,
                     note,
                     metadata: &metadata_settings,
+                    layout: &layout,
                 },
             )
         } else {
             let selected = s.kanban_selected.filter(|(l, _)| *l == i).map(|(_, j)| j);
             let dates = dates.clone();
             let metadata_settings = metadata_settings.clone();
+            let layout = layout.clone();
             rune::memo(
                 format!("kanban-lane-{i}"),
                 (
@@ -697,6 +725,7 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
                             today,
                             note,
                             metadata: &metadata_settings,
+                            layout: &layout,
                         },
                     )
                 },
@@ -746,11 +775,13 @@ fn card_settings_version(
     dates: &DateSettings,
     today: CivilDate,
     metadata: &MetadataSettings,
+    layout: &muninn_core::KanbanBoardSettings,
 ) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     date_version(dates, today).hash(&mut h);
     s.kanban_tag_settings().hash(&mut h);
     metadata.hash(&mut h);
+    layout.hash(&mut h);
     s.vault.revision().hash(&mut h);
     h.finish()
 }
@@ -770,6 +801,7 @@ struct DateContext<'a> {
     /// The board's own note, for a self-link and for markdown embeds.
     note: Option<usize>,
     metadata: &'a MetadataSettings,
+    layout: &'a muninn_core::KanbanBoardSettings,
 }
 
 /// The metadata rows a card's foot draws, resolved once by its lane.
@@ -853,7 +885,7 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
     }
     let mut column = col()
         .key(format!("kanban-lane-{i}"))
-        .w(LANE_W)
+        .w(lane_width(when.layout))
         .padding(10.0)
         .gap(8.0)
         .radius(10.0)
@@ -1029,6 +1061,14 @@ fn collapsed_lane(
         )
 }
 
+/// A lane's drawn width: the board's `lane-width`, clamped to the range the
+/// settings stepper writes.
+fn lane_width(layout: &muninn_core::KanbanBoardSettings) -> f32 {
+    layout
+        .lane_width
+        .clamp(muninn_core::MIN_LANE_WIDTH, muninn_core::MAX_LANE_WIDTH) as f32
+}
+
 /// Where a dragged card would land in a lane.
 fn card_drop_bar(k: &Kit) -> El {
     el().key("kanban-drop")
@@ -1043,7 +1083,7 @@ fn lane_drop_bar(s: &State, k: &Kit) -> El {
     let h = s
         .kanban_lane_drop()
         .and_then(|(lane, _)| s.kanban_rects.lane_height(lane))
-        .unwrap_or(LANE_W);
+        .unwrap_or_else(|| lane_width(&s.kanban_board_settings()));
     el().key("kanban-lane-drop")
         .w(3.0)
         .h(h)
@@ -1055,7 +1095,7 @@ fn lane_drop_bar(s: &State, k: &Kit) -> El {
 fn new_lane_column(s: &State, k: &Kit) -> El {
     col()
         .key("kanban-new-lane")
-        .w(LANE_W)
+        .w(lane_width(&s.kanban_board_settings()))
         .padding(10.0)
         .radius(10.0)
         .fill(k.c.layer_01)
@@ -1215,7 +1255,11 @@ fn card_view(
             s.kanban_rects.set_card(i, j, rect);
             tx.live_only();
         })
-        .child(mark)
+        .child(if when.layout.show_checkboxes {
+            mark
+        } else {
+            el()
+        })
         .child(
             col()
                 .grow(1.0)
@@ -1400,6 +1444,25 @@ fn card_editor(s: &State, k: &Kit) -> El {
                     // of committing the bare trigger. Shift+Enter keeps the
                     // line break and Cmd/Ctrl+Enter keeps its meaning.
                     s.picker_accept();
+                    return true;
+                }
+                // Slice 14: `new-line-trigger` swaps what Enter does. With
+                // Shift+Enter, a plain Enter breaks the line and Shift+Enter
+                // commits the card; Cmd/Ctrl+Enter still commits.
+                if e.key == Key::Enter
+                    && !e.mods.cmd
+                    && !e.mods.ctrl
+                    && !e.mods.alt
+                    && s.kanban_board_settings().new_line_trigger
+                        == muninn_core::NewLineTrigger::ShiftEnter
+                {
+                    if e.mods.shift {
+                        if s.commit_card_edit() != CardCommit::Refused {
+                            tx.blur();
+                        }
+                    } else {
+                        s.kanban_card_field.insert("\n");
+                    }
                     return true;
                 }
                 if e.key == Key::Escape {

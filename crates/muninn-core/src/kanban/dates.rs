@@ -11,6 +11,11 @@ use super::archive::{
     ARCHIVE_DATE_FORMAT, ARCHIVE_DATE_POSITION, ARCHIVE_DATE_SEPARATOR, ARCHIVE_WITH_DATE,
     MAX_ARCHIVE_CARDS,
 };
+use super::layout::{
+    KanbanBoardSettings, LANE_WIDTH, NEW_CARD_INSERTION, NEW_LINE_TRIGGER, NEW_NOTE_FOLDER,
+    NEW_NOTE_TEMPLATE, SHOW_ARCHIVE_BUTTON, SHOW_CHECKBOXES, SHOW_FILTER_BUTTON,
+    SHOW_OPEN_MARKDOWN_BUTTON,
+};
 use super::metadata::{LINKED_PAGE_METADATA, SHOW_MISSING_METADATA};
 use super::tags::{HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagSettings, tag_colors};
 
@@ -854,6 +859,15 @@ fn handles_default_key(key: &str, defaults: &KanbanDefaults) -> bool {
         ARCHIVE_DATE_POSITION => defaults.archive_date_position.is_some(),
         ARCHIVE_DATE_SEPARATOR => defaults.archive_date_separator.is_some(),
         MAX_ARCHIVE_CARDS => defaults.max_archive_cards.is_some(),
+        LANE_WIDTH => defaults.lane_width.is_some(),
+        NEW_LINE_TRIGGER => defaults.new_line_trigger.is_some(),
+        NEW_CARD_INSERTION => defaults.new_card_insertion.is_some(),
+        SHOW_CHECKBOXES => defaults.show_checkboxes.is_some(),
+        SHOW_FILTER_BUTTON => defaults.show_filter_button.is_some(),
+        SHOW_ARCHIVE_BUTTON => defaults.show_archive_button.is_some(),
+        SHOW_OPEN_MARKDOWN_BUTTON => defaults.show_open_markdown_button.is_some(),
+        NEW_NOTE_FOLDER => defaults.new_note_folder.is_some(),
+        NEW_NOTE_TEMPLATE => defaults.new_note_template.is_some(),
         _ => false,
     }
 }
@@ -895,6 +909,59 @@ fn insert_archive_defaults(object: &mut Map<String, Value>, defaults: &KanbanDef
     }
 }
 
+/// The board layout keys of one `kanban_defaults` object.
+fn apply_layout_defaults(value: &Value, defaults: &mut KanbanDefaults) {
+    defaults.lane_width = value.get(LANE_WIDTH).and_then(Value::as_u64);
+    defaults.new_line_trigger = text_value(value, NEW_LINE_TRIGGER);
+    defaults.new_card_insertion = text_value(value, NEW_CARD_INSERTION);
+    defaults.show_checkboxes = value.get(SHOW_CHECKBOXES).and_then(Value::as_bool);
+    defaults.show_filter_button = value.get(SHOW_FILTER_BUTTON).and_then(Value::as_bool);
+    defaults.show_archive_button = value.get(SHOW_ARCHIVE_BUTTON).and_then(Value::as_bool);
+    defaults.show_open_markdown_button = value
+        .get(SHOW_OPEN_MARKDOWN_BUTTON)
+        .and_then(Value::as_bool);
+    // An empty string means the same as an absent key for these two; keep it
+    // so the settings panel can show the written value.
+    defaults.new_note_folder = value
+        .get(NEW_NOTE_FOLDER)
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    defaults.new_note_template = value
+        .get(NEW_NOTE_TEMPLATE)
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+}
+
+/// The board layout keys of [`KanbanDefaults::to_json`].
+fn insert_layout_defaults(object: &mut Map<String, Value>, defaults: &KanbanDefaults) {
+    if let Some(value) = defaults.lane_width {
+        object.insert(LANE_WIDTH.to_owned(), Value::from(value));
+    }
+    for (key, value) in [
+        (NEW_LINE_TRIGGER, &defaults.new_line_trigger),
+        (NEW_CARD_INSERTION, &defaults.new_card_insertion),
+        (NEW_NOTE_FOLDER, &defaults.new_note_folder),
+        (NEW_NOTE_TEMPLATE, &defaults.new_note_template),
+    ] {
+        if let Some(value) = value {
+            object.insert(key.to_owned(), Value::String(value.clone()));
+        }
+    }
+    for (key, value) in [
+        (SHOW_CHECKBOXES, defaults.show_checkboxes),
+        (SHOW_FILTER_BUTTON, defaults.show_filter_button),
+        (SHOW_ARCHIVE_BUTTON, defaults.show_archive_button),
+        (
+            SHOW_OPEN_MARKDOWN_BUTTON,
+            defaults.show_open_markdown_button,
+        ),
+    ] {
+        if let Some(value) = value {
+            object.insert(key.to_owned(), Value::Bool(value));
+        }
+    }
+}
+
 /// The app-wide `kanban_defaults` object in `settings.json`. Every known
 /// field is absent until the user sets it; an absent key means the built-in
 /// default. Unknown keys, and known keys with the wrong type, stay in
@@ -930,6 +997,18 @@ pub struct KanbanDefaults {
     pub archive_date_position: Option<String>,
     pub archive_date_separator: Option<String>,
     pub max_archive_cards: Option<u64>,
+    // Board layout and behaviour defaults (slice 14).
+    pub lane_width: Option<u64>,
+    pub new_line_trigger: Option<String>,
+    pub new_card_insertion: Option<String>,
+    pub show_checkboxes: Option<bool>,
+    pub show_filter_button: Option<bool>,
+    pub show_archive_button: Option<bool>,
+    pub show_open_markdown_button: Option<bool>,
+    /// An empty written value is meaningful here: the folder New note uses.
+    pub new_note_folder: Option<String>,
+    /// A vault-relative note path; an empty value means the app note template.
+    pub new_note_template: Option<String>,
     /// Keys this version does not know, kept so a newer Muninn's app defaults
     /// are not lost by an older one. A known key with the wrong JSON type is
     /// kept here too.
@@ -969,9 +1048,19 @@ impl KanbanDefaults {
             archive_date_position: None,
             archive_date_separator: None,
             max_archive_cards: None,
+            lane_width: None,
+            new_line_trigger: None,
+            new_card_insertion: None,
+            show_checkboxes: None,
+            show_filter_button: None,
+            show_archive_button: None,
+            show_open_markdown_button: None,
+            new_note_folder: None,
+            new_note_template: None,
             other: Map::new(),
         };
         apply_archive_defaults(value, &mut defaults);
+        apply_layout_defaults(value, &mut defaults);
         if let Some(object) = value.as_object() {
             for (key, item) in object {
                 if !handles_default_key(key, &defaults) {
@@ -1027,6 +1116,7 @@ impl KanbanDefaults {
             object.insert(SHOW_MISSING_METADATA.to_owned(), Value::Bool(value));
         }
         insert_archive_defaults(&mut object, self);
+        insert_layout_defaults(&mut object, self);
         Value::Object(object)
     }
 
@@ -1050,6 +1140,15 @@ impl KanbanDefaults {
             && self.archive_date_position.is_none()
             && self.archive_date_separator.is_none()
             && self.max_archive_cards.is_none()
+            && self.lane_width.is_none()
+            && self.new_line_trigger.is_none()
+            && self.new_card_insertion.is_none()
+            && self.show_checkboxes.is_none()
+            && self.show_filter_button.is_none()
+            && self.show_archive_button.is_none()
+            && self.show_open_markdown_button.is_none()
+            && self.new_note_folder.is_none()
+            && self.new_note_template.is_none()
             && self.other.is_empty()
     }
 
@@ -1124,6 +1223,137 @@ impl KanbanDefaults {
             settings.tag_colors = colors;
         }
         settings
+    }
+
+    /// The board layout and behaviour settings these defaults supply; missing
+    /// keys stay built-in.
+    #[must_use]
+    pub fn to_board_settings(&self) -> KanbanBoardSettings {
+        let mut settings = KanbanBoardSettings::default();
+        if let Some(value) = self.lane_width {
+            settings.lane_width = value;
+        }
+        if let Some(trigger) = self
+            .new_line_trigger
+            .as_deref()
+            .and_then(super::layout::NewLineTrigger::parse)
+        {
+            settings.new_line_trigger = trigger;
+        }
+        if let Some(insertion) = self
+            .new_card_insertion
+            .as_deref()
+            .and_then(super::layout::NewCardInsertion::parse)
+        {
+            settings.new_card_insertion = insertion;
+        }
+        for (value, field) in [
+            (self.show_checkboxes, &mut settings.show_checkboxes),
+            (self.show_filter_button, &mut settings.show_filter_button),
+            (self.show_archive_button, &mut settings.show_archive_button),
+            (
+                self.show_open_markdown_button,
+                &mut settings.show_open_markdown_button,
+            ),
+        ] {
+            if let Some(value) = value {
+                *field = value;
+            }
+        }
+        if let Some(folder) = &self.new_note_folder {
+            settings.new_note_folder.clone_from(folder);
+        }
+        if let Some(template) = &self.new_note_template {
+            settings.new_note_template.clone_from(template);
+        }
+        settings
+    }
+
+    /// Set or clear one known app default. `None` removes the key, which means
+    /// the built-in value. An unknown key is left alone and returns `false`.
+    /// A value of the wrong JSON type clears the key instead of storing it;
+    /// the settings loader keeps such a value in [`KanbanDefaults::other`]
+    /// until the user writes it.
+    pub fn set_key(&mut self, key: &str, value: Option<&Value>) -> bool {
+        // A key this version knows; an unknown key is left untouched. A known
+        // key that the loader kept in `other` because its JSON type was wrong
+        // loses that raw copy as soon as the panel writes a valid value (or
+        // clears it), so Reset app default can clear a corrupt key too.
+        if !matches!(
+            key,
+            DATE_TRIGGER
+                | TIME_TRIGGER
+                | DATE_FORMAT
+                | TIME_FORMAT
+                | DATE_DISPLAY_FORMAT
+                | SHOW_RELATIVE_DATE
+                | HIDE_DATE_IN_TITLE
+                | LINK_DATE_TO_DAILY_NOTE
+                | HIDE_TAGS_IN_TITLE
+                | SHOW_TAGS_AT_BOTTOM
+                | TAG_COLORS
+                | LINKED_PAGE_METADATA
+                | SHOW_MISSING_METADATA
+                | ARCHIVE_WITH_DATE
+                | ARCHIVE_DATE_FORMAT
+                | ARCHIVE_DATE_POSITION
+                | ARCHIVE_DATE_SEPARATOR
+                | MAX_ARCHIVE_CARDS
+                | LANE_WIDTH
+                | NEW_LINE_TRIGGER
+                | NEW_CARD_INSERTION
+                | SHOW_CHECKBOXES
+                | SHOW_FILTER_BUTTON
+                | SHOW_ARCHIVE_BUTTON
+                | SHOW_OPEN_MARKDOWN_BUTTON
+                | NEW_NOTE_FOLDER
+                | NEW_NOTE_TEMPLATE
+        ) {
+            return false;
+        }
+        self.other.remove(key);
+        let text = |value: Option<&Value>| {
+            value
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .filter(|text| !text.is_empty())
+        };
+        // An empty string is a real value for these two keys.
+        let raw_text = |value: Option<&Value>| value.and_then(Value::as_str).map(str::to_owned);
+        let flag = |value: Option<&Value>| value.and_then(Value::as_bool);
+        match key {
+            DATE_TRIGGER => self.date_trigger = text(value),
+            TIME_TRIGGER => self.time_trigger = text(value),
+            DATE_FORMAT => self.date_format = text(value),
+            TIME_FORMAT => self.time_format = text(value),
+            DATE_DISPLAY_FORMAT => self.date_display_format = text(value),
+            SHOW_RELATIVE_DATE => self.show_relative_date = flag(value),
+            HIDE_DATE_IN_TITLE => self.hide_date_in_title = flag(value),
+            LINK_DATE_TO_DAILY_NOTE => self.link_date_to_daily_note = flag(value),
+            HIDE_TAGS_IN_TITLE => self.hide_tags_in_title = flag(value),
+            SHOW_TAGS_AT_BOTTOM => self.show_tags_at_bottom = flag(value),
+            TAG_COLORS => self.tag_colors = value.filter(|value| value.is_array()).cloned(),
+            LINKED_PAGE_METADATA => {
+                self.linked_page_metadata = value.filter(|value| value.is_array()).cloned();
+            }
+            SHOW_MISSING_METADATA => self.show_missing_metadata = flag(value),
+            ARCHIVE_WITH_DATE => self.archive_with_date = flag(value),
+            ARCHIVE_DATE_FORMAT => self.archive_date_format = text(value),
+            ARCHIVE_DATE_POSITION => self.archive_date_position = text(value),
+            ARCHIVE_DATE_SEPARATOR => self.archive_date_separator = raw_text(value),
+            MAX_ARCHIVE_CARDS => self.max_archive_cards = value.and_then(Value::as_u64),
+            LANE_WIDTH => self.lane_width = value.and_then(Value::as_u64),
+            NEW_LINE_TRIGGER => self.new_line_trigger = text(value),
+            NEW_CARD_INSERTION => self.new_card_insertion = text(value),
+            SHOW_CHECKBOXES => self.show_checkboxes = flag(value),
+            SHOW_FILTER_BUTTON => self.show_filter_button = flag(value),
+            SHOW_ARCHIVE_BUTTON => self.show_archive_button = flag(value),
+            SHOW_OPEN_MARKDOWN_BUTTON => self.show_open_markdown_button = flag(value),
+            NEW_NOTE_FOLDER => self.new_note_folder = raw_text(value),
+            NEW_NOTE_TEMPLATE => self.new_note_template = raw_text(value),
+            _ => return false,
+        }
+        true
     }
 }
 

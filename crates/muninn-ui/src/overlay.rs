@@ -21,6 +21,7 @@ pub enum Layer {
     Find,
     KanbanFind,
     KanbanFilter,
+    KanbanSettings,
     BrokenPanel,
     RenameConfirm,
     MoveConfirm,
@@ -55,15 +56,18 @@ pub enum SettingsTab {
     Graph,
     /// Vault sync. A placeholder until the sync work lands.
     Sync,
+    /// Kanban slice 14: app-wide kanban defaults (`kanban_defaults`).
+    Kanban,
 }
 
 impl SettingsTab {
-    pub const ALL: [SettingsTab; 5] = [
+    pub const ALL: [SettingsTab; 6] = [
         SettingsTab::Vaults,
         SettingsTab::Editor,
         SettingsTab::Appearance,
         SettingsTab::Graph,
         SettingsTab::Sync,
+        SettingsTab::Kanban,
     ];
 
     pub fn label(self) -> &'static str {
@@ -73,6 +77,7 @@ impl SettingsTab {
             SettingsTab::Appearance => "Appearance",
             SettingsTab::Graph => "Graph",
             SettingsTab::Sync => "Sync",
+            SettingsTab::Kanban => "Kanban",
         }
     }
 
@@ -347,6 +352,9 @@ impl State {
             }
         }
         self.settings_tab = tab;
+        if tab == SettingsTab::Kanban {
+            self.refresh_kanban_setting_text();
+        }
     }
 
     /// Persist a new autosave idle window, clamped to the documented range.
@@ -447,6 +455,9 @@ impl State {
         if self.kanban_filter.open {
             return Some(Layer::KanbanFilter);
         }
+        if self.kanban_settings_open {
+            return Some(Layer::KanbanSettings);
+        }
         if self.broken_panel {
             return Some(Layer::BrokenPanel);
         }
@@ -502,6 +513,7 @@ impl State {
             Layer::Find => self.close_find(),
             Layer::KanbanFind => self.close_kanban_find(),
             Layer::KanbanFilter => self.close_kanban_filter(),
+            Layer::KanbanSettings => self.close_kanban_settings(),
             Layer::BrokenPanel => self.close_broken_links(),
             Layer::RenameConfirm => self.cancel_rename_confirm(),
             Layer::MoveConfirm => self.cancel_move_confirm(),

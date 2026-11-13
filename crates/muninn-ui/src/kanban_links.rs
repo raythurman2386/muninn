@@ -90,7 +90,14 @@ impl State {
             .lines()
             .find(|line| !line.trim().is_empty())
             .unwrap_or("Untitled");
-        let folder = self.current_folder();
+        // Slice 14: the board (or app) may name the folder and a template note.
+        let layout = self.kanban_board_settings();
+        let folder = if layout.new_note_folder.trim().is_empty() {
+            self.current_folder()
+        } else {
+            layout.new_note_folder.trim().to_owned()
+        };
+        let template = self.new_note_template_text(&layout);
         let path = match self.vault.create_note_in(title, &folder) {
             Ok(path) => path,
             Err(e) => {
@@ -99,7 +106,7 @@ impl State {
                 return;
             }
         };
-        let body = note_from_card_body(&self.settings.note_template, &text);
+        let body = note_from_card_body(&template, &text);
         if let Err(e) = atomic_write(&path, body.as_bytes()) {
             self.log_event("kanban", &format!("note from card not written: {e}"));
             self.notice = Some(format!("Could not create a note: {e}"));
@@ -116,6 +123,19 @@ impl State {
         // Index the new note. The kanban is dirty, so the page keeps the edit.
         let keep = self.selected_path.clone();
         self.reload(keep);
+    }
+
+    /// The text a New note from card starts with: the board's
+    /// `new-note-template` note when it exists, else the app note template.
+    fn new_note_template_text(&self, layout: &muninn_core::KanbanBoardSettings) -> String {
+        let path = layout.new_note_template.trim();
+        if !path.is_empty()
+            && let Some(id) = self.vault.resolve(path)
+            && let Some(note) = self.vault.notes.get(id)
+        {
+            return note.source.clone();
+        }
+        self.settings.note_template.clone()
     }
 }
 

@@ -303,10 +303,22 @@ The done-lane marker and the archive heading are written in the language of the 
   | `archive-date-position` | string | `"end"` | `start` or `end` of the card's text. Any other value is ignored. |
   | `archive-date-separator` | string | `" "` | Text between the card and its date; an empty string joins them. |
   | `max-archive-cards` | number | absent | How many archive cards to keep; `0` and an absent key are no limit. |
+  | `lane-width` | number | `272` | A lane's width in points. The board draws it between 120 and 720. |
+  | `new-line-trigger` | string | `"enter"` | `enter`: Enter commits the card and Shift+Enter breaks the line. `shift+enter`: the reverse. Any other value is ignored. |
+  | `new-card-insertion-method` | string | `"append"` | Where **+ Add card** puts the new card: `prepend` at the top, `append` at the foot. Any other value is ignored. |
+  | `show-checkboxes` | boolean | `true` | Draw each card's done checkbox. |
+  | `show-filter-button` | boolean | `true` | Show the header's Filter button. |
+  | `show-archive-button` | boolean | `true` | Show the header's Archive button. |
+  | `show-open-markdown-button` | boolean | `true` | Show the header's Open as markdown button. |
+  | `new-note-folder` | string | `""` | Folder for **New note from card**. Empty uses the folder New note uses. |
+  | `new-note-template` | string | `""` | Vault-relative path of a note whose text starts the new note. Empty uses the app note template. |
 
 - **App-wide defaults.** `settings.json` may hold a `kanban_defaults` object
-  with the same keys, including `linked-page-metadata`, `show-missing-metadata`
-  and the archive keys, with the same wrong-type rule: an unknown key and
+  with the same keys, including `linked-page-metadata`, `show-missing-metadata`,
+  the archive keys and the board keys (`lane-width`, `new-line-trigger`,
+  `new-card-insertion-method`, `show-checkboxes`, the header-button switches and
+  `new-note-folder` / `new-note-template`), with the same wrong-type rule: an
+  unknown key and
   a known key with the wrong JSON type are kept as written. It applies to
   every board that has no value of its own.
   A key is resolved in this order: the board's settings footer, then
@@ -314,11 +326,25 @@ The done-lane marker and the archive heading are written in the language of the 
   `kanban_defaults`, or an absent key in it, means the built-in default. The
   object is written with the keys that are set; a key this version does not
   know, and a known key with the wrong JSON type, is kept as written.
-- **When a footer key is written.** The date, time, tag, metadata and archive
-  keys are read only; they are not rewritten by viewing or by an unrelated
-  card edit.
+- **Settings surfaces.** The **Kanban** tab of the app Settings modal edits the
+  app-wide defaults; the Kanban page's **Board settings** panel edits the shown
+  board's footer. Both are generated from one list of keys, so a key appears
+  once and its label, help, type and built-in value are written once. Each
+  control says whether its value is a **Board override**, an **App default** or
+  the built-in **Default**, and offers **Reset board** (removes the footer key)
+  and, when an app default is set, **Reset app default** (removes it from
+  `settings.json`). A board change writes exactly one footer key and is one
+  undo step; an app change writes `settings.json`. Opening or closing either
+  surface writes nothing.
+- **`kanban_autosave`** is app-wide only: it lives at the top level of
+  `settings.json`, never in the footer or `kanban_defaults`. `true` (the
+  built-in) saves unsaved edits once they rest; `false` leaves saving to `⌘S`
+  and the quit save.
+- **When a footer key is written.** The date, time, tag, metadata, archive
+  and board keys are read only; they are not rewritten by viewing or by an
+  unrelated card edit.
   A picker adds its token to the card text, not to the footer. The footer
-  changes only when a later settings panel writes one key, and then only that
+  changes only when a settings surface writes one key, and then only that
   key's value changes (as for `list-collapse`).
 - **Malformed footer.** If the footer is unterminated or its JSON does not parse, the file is reported as unreadable as a board. It is never treated as an empty board, and Muninn never writes to it.
 

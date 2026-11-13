@@ -103,6 +103,25 @@ All notable changes to Muninn are documented here. The format is based on
   one toggles exactly that character through the card edit path: the card's
   own checkbox and every other line stay as they are, and one undo puts it
   back. Fenced lines and the card's first line are not checklist items.
+- **Board settings and app-wide defaults.** **Settings › Kanban** edits the
+  app-wide `kanban_defaults` in `settings.json` (and the top-level
+  `kanban_autosave`), and the Kanban page's **Board settings** panel edits the
+  shown board's footer. Both are generated from one schema, so every key has
+  one label, help text, type and built-in value. Each control says whether it
+  is a **Board override**, an **App default** or the built-in **Default**, and
+  can reset one key: **Reset board** removes the footer key, **Reset app
+  default** removes it from `settings.json`. A board change writes only that
+  key through the normal edit/undo/save path; an app change writes
+  `settings.json`; opening or closing a surface writes nothing and unknown
+  footer keys stay byte for byte. Alongside slices 9–13's keys, a board can set
+  `lane-width` (272, drawn between 120 and 720), `new-line-trigger` (`enter` or
+  `shift+enter` in the card editor), `new-card-insertion-method` (`prepend` or
+  `append` for **+ Add card**), `show-checkboxes`, the header's
+  `show-filter-button`, `show-archive-button` and `show-open-markdown-button`,
+  and `new-note-folder` / `new-note-template` for **New note from card**.
+  Lane width, the new-line trigger and hidden header buttons take effect at
+  once.
+
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,

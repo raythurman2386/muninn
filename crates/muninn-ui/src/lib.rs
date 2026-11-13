@@ -26,6 +26,7 @@ mod kanban_lanes;
 mod kanban_links;
 mod kanban_metadata;
 mod kanban_search;
+mod kanban_settings;
 mod kanban_sync;
 mod kanban_tags;
 mod kanban_view;

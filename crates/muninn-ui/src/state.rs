@@ -1,6 +1,6 @@
 //! Application state: the open vault, note, editor, graph and camera.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, Write as _};
@@ -411,6 +411,15 @@ pub struct State {
     /// filter can put the selection back (clamped to a card that still
     /// exists). `None` when no filter has hidden a selection.
     pub kanban_filter_saved: Option<(usize, usize)>,
+    /// Kanban slice 14: the Board settings panel, and its text fields (one per
+    /// text key, in both the app tab and the board panel).
+    pub kanban_settings_open: bool,
+    pub(crate) kanban_app_text: std::collections::BTreeMap<&'static str, TextEdit>,
+    pub(crate) kanban_board_text: std::collections::BTreeMap<&'static str, TextEdit>,
+    /// The new key typed in the `linked-page-metadata` list editor (app and
+    /// board contexts keep one each).
+    pub(crate) kanban_app_new_metadata: TextEdit,
+    pub(crate) kanban_board_new_metadata: TextEdit,
     /// Kanban slice 6: the card or lane pressed and held (cleared whenever
     /// the board changes), and where lanes and cards were laid out (the drop
     /// spot is measured against them).
@@ -476,6 +485,8 @@ pub struct State {
     pub canvas: [f32; 2],
     /// The last measured window width, so narrow layouts can drop the links rail.
     pub window_width: f32,
+    /// The last measured window height, so a tall settings tab can use it.
+    pub window_height: f32,
     pub needs_fit: bool,
     /// Keep the settling layout centred and in view until the camera is touched.
     pub auto_fit: bool,
@@ -700,6 +711,21 @@ impl State {
         let reduced_motion_env = reduced_motion_from_env();
         let log_path = state_home.join("muninn").join("session.log");
         let note_template_field = TextEdit::new(&settings.note_template);
+        // Slice 14: one text field per text setting, in both settings surfaces.
+        let app_effective = muninn_core::KanbanEffective::resolve(None, &settings.kanban_defaults);
+        let mut kanban_app_text = BTreeMap::new();
+        let mut kanban_board_text = BTreeMap::new();
+        for entry in muninn_core::KANBAN_KEYS {
+            if entry.kind != muninn_core::KanbanSettingKind::Text {
+                continue;
+            }
+            let text = match app_effective.get(entry.key) {
+                Some(muninn_core::KanbanSettingValue::Text(text)) => text,
+                _ => String::new(),
+            };
+            kanban_app_text.insert(entry.key, TextEdit::new(&text));
+            kanban_board_text.insert(entry.key, TextEdit::new(&text));
+        }
         let started = Instant::now();
         let mut scan = None;
         let (vault, startup_error) = match Vault::scan_start(&root) {
@@ -789,6 +815,11 @@ impl State {
             kanban_find: None,
             kanban_filter: crate::kanban_search::KanbanFilter::default(),
             kanban_filter_saved: None,
+            kanban_settings_open: false,
+            kanban_app_text,
+            kanban_board_text,
+            kanban_app_new_metadata: TextEdit::default(),
+            kanban_board_new_metadata: TextEdit::default(),
             kanban_drag: None,
             kanban_rects: crate::kanban_drag::KanbanRects::default(),
             kanban_autosave_wait: None,
@@ -817,6 +848,7 @@ impl State {
             graph_isolate: false,
             canvas: [900.0, 620.0],
             window_width: 1180.0,
+            window_height: 780.0,
             needs_fit: true,
             auto_fit: true,
             pan_at_press: [0.0; 2],

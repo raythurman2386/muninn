@@ -56,6 +56,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
             state.kanban_find = on.then_some(muninn_ui::KanbanFindState::default());
         }
         Layer::KanbanFilter => state.kanban_filter.open = on,
+        Layer::KanbanSettings => state.kanban_settings_open = on,
         Layer::BrokenPanel => state.broken_panel = on,
         Layer::RenameConfirm => {
             if on {
@@ -164,7 +165,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
     }
 }
 
-const ESCAPE_ORDER: [Layer; 20] = [
+const ESCAPE_ORDER: [Layer; 21] = [
     Layer::Palette,
     Layer::Settings,
     Layer::Help,
@@ -172,6 +173,7 @@ const ESCAPE_ORDER: [Layer; 20] = [
     Layer::Find,
     Layer::KanbanFind,
     Layer::KanbanFilter,
+    Layer::KanbanSettings,
     Layer::BrokenPanel,
     Layer::RenameConfirm,
     Layer::MoveConfirm,

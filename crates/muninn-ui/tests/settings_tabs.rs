@@ -99,18 +99,22 @@ fn click(rt: &mut Runtime<State>, key: &str) {
 }
 
 /// Every tab's body key, in tab-bar order.
-const BODIES: [&str; 5] = [
+const BODIES: [&str; 6] = [
     "settings-tab-vaults",
     "settings-tab-editor",
     "settings-tab-appearance",
     "settings-tab-graph",
     "settings-tab-sync",
+    "settings-tab-kanban",
 ];
 
 #[test]
 fn tab_bar_lists_every_tab_in_order() {
     let labels: Vec<&str> = SettingsTab::ALL.iter().map(|tab| tab.label()).collect();
-    assert_eq!(labels, ["Vaults", "Editor", "Appearance", "Graph", "Sync"]);
+    assert_eq!(
+        labels,
+        ["Vaults", "Editor", "Appearance", "Graph", "Sync", "Kanban"]
+    );
     for (index, tab) in SettingsTab::ALL.iter().enumerate() {
         assert_eq!(tab.index(), index);
     }
@@ -128,7 +132,7 @@ fn each_tab_mounts_only_its_own_section() {
     assert!(f.rt.find("settings-close").is_some());
 
     // Signature controls per tab, so a section that moves tabs fails loudly.
-    let signatures: [&[&str]; 5] = [
+    let signatures: [&[&str]; 6] = [
         &["vault-prompt", "vault-path", "settings-recents"],
         &["settings-autosave-plus", "settings-autosave-value"],
         // The theme picker, or its "Following Omarchy" note on an Omarchy
@@ -141,6 +145,11 @@ fn each_tab_mounts_only_its_own_section() {
             "settings-sync-connect",
             "settings-sync-now",
             "settings-sync-disconnect",
+        ],
+        &[
+            "kanban-setting-date-trigger",
+            "kanban-setting-lane-width",
+            "kanban-setting-kanban_autosave",
         ],
     ];
     for (index, tab) in SettingsTab::ALL.iter().enumerate() {

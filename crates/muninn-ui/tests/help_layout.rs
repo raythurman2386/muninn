@@ -79,7 +79,8 @@ const ACTIONS: &[&str] = &[
     "Move through a list",
     "Open the focused row",
     "Note and folder actions",
-    "Settings (vaults, theme, autosave)",
+    "Settings (vaults, theme, autosave, Kanban defaults)",
+    "Per-board overrides, one key at a time",
 ];
 
 #[test]

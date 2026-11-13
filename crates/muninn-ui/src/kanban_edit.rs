@@ -177,10 +177,18 @@ impl State {
         let Some(len) = self.kanban_lane_len(lane) else {
             return;
         };
+        // Slice 14: `new-card-insertion-method`; append is the built-in.
+        let index = if self.kanban_board_settings().new_card_insertion
+            == muninn_core::NewCardInsertion::Prepend
+        {
+            0
+        } else {
+            len
+        };
         self.open_card_field(
             CardSlot {
                 lane,
-                index: len,
+                index,
                 new: true,
             },
             String::new(),

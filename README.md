@@ -256,12 +256,13 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘S` / `Ctrl+S` (board) | Save the board's drawing now (atomically, to the open board only; autosave also saves it once it rests, unless `"board_autosave": false`) |
 | `Esc` (board) | Clear the selection, else drop the tool, else leave Board for the last note mode |
 | **+ Add card**, a card's `⋯` or right-click (kanban) | Add a card at the lane's end; Edit, Insert card before / after, Duplicate, Split card, Add/Change date…, Add/Change time…, Archive, Delete |
-| Double-click a card (kanban) | Edit it in place: `Enter` commits, `Shift+Enter` breaks the line, `Esc` cancels |
+| Double-click a card (kanban) | Edit it in place: `Enter` commits, `Shift+Enter` breaks the line (or the reverse with `new-line-trigger`), `Esc` cancels |
 | Type `@` or `@@` in the card editor (kanban) | Open the date or time picker at the caret; the picker's Add replaces the trigger, and `Esc` leaves it |
 | Click a card's checkbox (kanban) | Toggle its done mark; a lane's `⋯` has **Mark all cards done** |
 | `⌘`-click / `Ctrl`-click a card's checkbox (kanban) | Archive the card instead of toggling it |
 | The header's **Archive** button (kanban) | List the archive's cards from the same note; **Restore** to the first lane, **Restore to…** a lane, or **Delete** |
 | Click a nested checklist item (kanban) | Toggle only that item's character; the card's own checkbox and every other line stay as they are |
+| **Board settings** in the header (kanban) | Change this board's lane width, card editing, header buttons, note template and the date, tag, metadata and archive keys; each control can reset to the app default or the built-in value |
 | `⌘F` / `Ctrl+F` (kanban) | Find in the board (`Enter` / `↓` next, `Shift+Enter` / `↑` previous, `Esc` closes and restores the selection) |
 | **Filter** in the header (kanban) | Hide cards by text, tag, date (`Today`, `Overdue`, a `YYYY-MM-DD` range) and open/done; conditions combine with AND, and **Clear** removes them |
 | Click a tag chip (kanban) | Set the board's tag filter |
@@ -276,7 +277,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `F2` | Rename selected note |
 | `Del` | Delete selected note (with confirmation) |
 | `⌘?` / `Ctrl+?` | Open the keyboard-shortcuts Help overlay |
-| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, autosave delay, note template, recent vaults) |
+| `⌘,` / `Ctrl+,` | Open Settings (vaults, theme, autosave delay, note template, recent vaults, Kanban defaults) |
 | `?` (when not typing) | Open Help; `Esc` closes it |
 
 Kanban cards read `@{2026-11-11}`, `@[[2026-11-11]]` and `@@{14:30}` outside
@@ -330,6 +331,21 @@ The archive page scrolls like the lanes, so a long archive stays reachable.
 `Cmd`/`Ctrl`-click reads the modifier keys when its press handler runs, one
 frame after the button went down, so releasing the key within that frame can
 toggle instead of archive (the card menu's **Archive** has no such window).
+
+A board's settings are edited in two places generated from one key list:
+**Settings › Kanban** sets the app-wide defaults in `settings.json` under
+`kanban_defaults` (plus the top-level `kanban_autosave`), and the Kanban page's
+**Board settings** panel sets the shown board's footer. A board value wins, then
+the app default, then the built-in value; each control says where its value came
+from and can reset just that key. Changes are one undo step on a board and one
+`settings.json` write for an app default; opening either surface writes nothing.
+Alongside the date, tag, metadata and archive keys, a board can set
+`lane-width` (272, drawn between 120 and 720), `new-line-trigger` (`enter` or
+`shift+enter`), `new-card-insertion-method` (`prepend` or `append`),
+`show-checkboxes`, the three header-button switches (`show-filter-button`,
+`show-archive-button`, `show-open-markdown-button`), and `new-note-folder` /
+`new-note-template` for **New note from card**. Unknown footer keys are kept
+byte for byte.
 
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
 full vault-relative stem, so a link keeps working when two notes share a title.
