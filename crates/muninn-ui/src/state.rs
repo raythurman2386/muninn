@@ -1141,10 +1141,9 @@ impl State {
     /// autosave tick with the note key only, never its text.
     fn after_save(&mut self, rel: &str) {
         self.clear_recovery(rel);
-        // MF1: clearing the shared slot above also drops the Kanban page's
-        // copy for the same note, whose edits are still not in the file.
-        // Rewrite it now rather than at the page's next tick, so a crash just
-        // after this save cannot lose the card edit.
+        // Write's save clears only the editor slot. The Kanban page has its
+        // own file for the same note; validate it now rather than at its next
+        // tick, so a crash just after this save cannot lose the card edit.
         let kanban_pending = self
             .kanban
             .as_ref()

@@ -422,9 +422,9 @@ impl State {
             return false;
         }
         if !saved && let Some(shown) = &mut self.kanban {
-            // MF1: a refused save proves the record may be stale (Write's save
-            // of the same note clears the shared copy). Force the tick below
-            // to write and validate a copy rather than trust `current`.
+            // MF1: a refused save proves the record may be stale. Force the
+            // tick below to write and validate the Kanban slot rather than
+            // trust `current`.
             shown.recovered = None;
         }
         let copied = self.kanban_recovery_tick();

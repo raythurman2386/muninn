@@ -657,8 +657,8 @@ fn a_write_save_does_not_strand_a_dirty_kanbans_recovery_copy() {
     assert!(saved);
     assert_eq!(read(&tmp), typed, "Write's save reached the file");
 
-    // The crash check: the card edit is still in the shared copy at once,
-    // even though Write cleared it (the board is still unsaved).
+    // The crash check: the card edit is still in the Kanban slot at once,
+    // even though Write saved its own slot (the board is still unsaved).
     assert_eq!(
         fs::read_to_string(&copy).unwrap(),
         mine(),
@@ -1006,9 +1006,9 @@ fn save_copy_keeps_writes_dirty_buffer_and_its_conflict_on_its_own_note() {
     );
 }
 
-/// P1: a kanban save clears the shared recovery slot. Write's record for the
-/// same note must go with it, or its next tick trusts a copy that is gone
-/// and the dirty buffer stops being recoverable.
+/// P1: a kanban save clears only the Kanban recovery slot. Write's copy for
+/// the same note is a different file and must stay, so its next tick does not
+/// trust a copy that is gone and the dirty buffer stays recoverable.
 #[test]
 fn a_kanban_save_does_not_strand_the_editors_recovery_copy_for_the_same_rel() {
     let tmp = vault();
@@ -1039,8 +1039,8 @@ fn a_kanban_save_does_not_strand_the_editors_recovery_copy_for_the_same_rel() {
     let board_bytes = fs::read_to_string(file(&tmp)).unwrap();
     assert!(board_bytes.contains("- [x] Write the release notes"));
 
-    // The save cleared the shared slot; the editor's next tick rewrites its
-    // own copy instead of trusting the record for a file that is gone.
+    // The save cleared the Kanban slot only; the editor's own copy stays (and
+    // its next tick rewrites it if needed).
     frames(&mut s.rt, 60);
     assert_eq!(
         fs::read_to_string(&copy).unwrap(),
