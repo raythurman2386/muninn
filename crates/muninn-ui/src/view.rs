@@ -1,8 +1,8 @@
 //! The window's chrome: vault sidebar, note title bar, editor, Markdown preview and links rail.
 
 use rune::{
-    Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, ScrollSpec, Shape, Span, TextStyle,
-    Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
+    Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, LiveRegion, ScrollSpec, Shape, Span,
+    TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
 use rune_kit::{
     Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl, Switch, TextArea,
@@ -1686,7 +1686,15 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
         .py(4.0)
         .radius(8.0)
         .fill(k.c.layer_02)
-        .border(1.0, k.c.border_base);
+        .border(1.0, k.c.border_base)
+        // Slice 16: a menu of menu items, one Tab stop whose Up/Down rove the
+        // rows; closing it gives the card or lane back the keyboard.
+        .role("menu")
+        .label(menu_label(&menu.target))
+        .focus_group();
+    if let Some(trigger) = menu_return(&menu.target) {
+        col_menu = col_menu.focus_return(trigger);
+    }
     for (label, action) in items {
         col_menu = col_menu.child(
             row()
@@ -1697,8 +1705,11 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                 .radius(6.0)
                 .center_y()
                 .cursor(Cursor::Pointer)
-                .hover(k.c.hover)
                 .press(k.c.pressed)
+                .role("menuitem")
+                .label(label.to_owned())
+                .focusable(true)
+                .focus_highlight(k.c.hover)
                 .child(
                     text(label)
                         .font(k.ty.ui_compact)
@@ -1712,6 +1723,7 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                     if action == "copy_link" {
                         if let Some(link) = s.copy_open_card_link() {
                             tx.copy(link);
+                            s.notice = Some("Copied a link to the card".to_owned());
                         }
                     } else {
                         s.pick_menu(action);
@@ -1728,10 +1740,42 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             .radius(6.0)
             .center_y()
             .cursor(Cursor::Pointer)
-            .hover(k.c.hover)
+            .press(k.c.pressed)
+            .role("menuitem")
+            .label("Cancel")
+            .focusable(true)
+            .focus_highlight(k.c.hover)
             .child(text("Cancel").font(k.ty.ui_compact).color(k.c.text_muted))
             .on_press(|s: &mut State| s.close_menu()),
     )
+}
+
+/// The name a menu announces, from what it acts on.
+fn menu_label(target: &MenuTarget) -> &'static str {
+    match target {
+        MenuTarget::Note(_) => "Note actions",
+        MenuTarget::Folder(_) => "Folder actions",
+        MenuTarget::Board(..) => "Board actions",
+        MenuTarget::Card(..) | MenuTarget::MoveCard(..) => "Card actions",
+        MenuTarget::Lane(_) | MenuTarget::DeleteLane(_) => "Lane actions",
+        MenuTarget::ArchiveRestore(_) => "Archive actions",
+    }
+}
+
+/// The control a menu gives the keyboard back to when it closes, for the
+/// menus drawn under a row (the notes list and Kanban cards and lanes).
+fn menu_return(target: &MenuTarget) -> Option<String> {
+    match target {
+        MenuTarget::Card(lane, index) | MenuTarget::MoveCard(lane, index) => {
+            Some(format!("kanban-card-{lane}-{index}"))
+        }
+        MenuTarget::Lane(lane) | MenuTarget::DeleteLane(lane) => {
+            Some(format!("kanban-lane-{lane}"))
+        }
+        MenuTarget::Note(id) => Some(format!("note-row-{id}")),
+        MenuTarget::Folder(folder) => Some(format!("folder-header-{}", folder_slug(folder))),
+        MenuTarget::Board(..) | MenuTarget::ArchiveRestore(_) => None,
+    }
 }
 
 /// Inline folder targets under a note being moved.
@@ -2270,7 +2314,7 @@ fn keycap_text(key: &str) -> String {
     }
 }
 
-fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)]); 4] {
+fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)]); 5] {
     [
         (
             "Navigation",
@@ -2310,6 +2354,23 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("Tab (editor)", "Indent four spaces"),
                 ("F2", "Rename the selected note (on Board: the board)"),
                 ("Del", "Delete the selected note"),
+            ],
+        ),
+        (
+            "Kanban",
+            &[
+                ("Tab / Shift+Tab", "Move through the board's controls"),
+                ("↑ / ↓ (lane)", "Move between the focused lane's cards"),
+                ("← / → (board)", "Move the selection across lanes"),
+                ("Space / Enter", "Toggle the selected card's done mark"),
+                ("Alt+Arrows", "Move the selected card"),
+                (
+                    "Alt+Shift+Arrows",
+                    "Move it to the top, the bottom or another lane",
+                ),
+                ("Shift+F10 / Menu", "Open the focused card's menu"),
+                ("Double-click", "Edit the card"),
+                ("Esc", "Close the menu, confirmation or conflict bar"),
             ],
         ),
         (
@@ -2375,7 +2436,7 @@ fn palette_layer(s: &State, k: &Kit) -> El {
             ),
         );
     }
-    let card = col()
+    let mut card = col()
         .key("palette")
         .w(560.0)
         .max_w(560.0)
@@ -2386,6 +2447,9 @@ fn palette_layer(s: &State, k: &Kit) -> El {
         .transition(Transition::offset(0.0, 12.0).combined(Transition::opacity()))
         .role("dialog")
         .label("Command palette")
+        // Slice 16: a real modal, so Escape and Tab never reach the page
+        // behind it and the background is inert.
+        .modal(true, |s: &mut State| s.close_palette())
         .child(
             row()
                 .key("palette-search")
@@ -2398,6 +2462,8 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 .child(
                     text_input(&s.palette_field, k.ty.ui_compact)
                         .key("palette-input")
+                        .label("Search notes and actions")
+                        .active_descendant(format!("palette-item-{selected}"))
                         .single_line()
                         .grow(1.0)
                         .color(k.c.text_base)
@@ -2436,6 +2502,8 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 .scroll(ScrollSpec {
                     stick_bottom: false,
                 })
+                .role("listbox")
+                .label("Results")
                 .child(rows),
         )
         .child(
@@ -2459,6 +2527,12 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                         .color(k.c.text_faint),
                 ),
         );
+    // Slice 16: the palette is a modal. When it closes onto the Kanban page
+    // (an item that opens a kanban, or Escape while the page is up) the page
+    // takes the keyboard, rather than the field the palette was opened from;
+    // Rune restores that field when a modal goes, so the hint is always set
+    // and only resolves when `kanban-page` is in the new tree.
+    card = card.focus_return("kanban-page");
     el().key("palette-layer")
         .absolute(0.0, 0.0)
         .w_full()
@@ -2547,8 +2621,9 @@ fn palette_row(s: &State, k: &Kit, index: usize, item: &PaletteItem, selected: b
         })
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
-        .role("button")
+        .role("option")
         .label(title.clone())
+        .focus_selected(selected)
         .on_press(move |s: &mut State| s.palette_run_index(index))
         .child(
             el().size(6.0, 6.0)
@@ -3816,7 +3891,13 @@ pub(crate) fn complete_list(
         .padding(4.0)
         .radius(8.0)
         .fill(k.c.layer_02)
-        .border(1.0, k.c.border_base);
+        .border(1.0, k.c.border_base)
+        // Slice 16: the open completions are a listbox of options; the field
+        // points at the highlighted one (its active descendant) and a change
+        // is announced.
+        .role("listbox")
+        .label("Completions")
+        .live_region(LiveRegion::Polite);
     for (row_index, (row_key, label, pick)) in rows.into_iter().enumerate() {
         let on = index == row_index;
         list = list.child(
@@ -3834,6 +3915,9 @@ pub(crate) fn complete_list(
                 })
                 .hover(k.c.hover)
                 .cursor(Cursor::Pointer)
+                .role("option")
+                .label(label.clone())
+                .focus_selected(on)
                 .on_press(move |s: &mut State| match &pick {
                     CompletePick::Note(id) => {
                         s.complete_choose(*id);

@@ -10,6 +10,14 @@
 use crate::State;
 use crate::settings::{AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY};
 
+/// The Kanban mode chord as this platform labels it. Slice 16: the palette
+/// said ⌘5 off macOS too.
+pub(crate) const KANBAN_CHORD: &str = if cfg!(target_os = "macos") {
+    "⌘5"
+} else {
+    "Ctrl+5"
+};
+
 /// One dismissible layer of the UI, in Escape-dismissal order. See
 /// [`State::topmost_layer`] / [`State::dismiss_layer`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,6 +35,9 @@ pub enum Layer {
     MoveConfirm,
     FolderRenameConfirm,
     Menu,
+    /// Slice 16: the Kanban page's conflict bar, above a menu: while the
+    /// file changed under unsaved edits, its three choices outrank the page.
+    KanbanConflict,
     KanbanPicker,
     /// The Kanban page's archive page, above the lanes it replaces.
     ArchivePage,
@@ -172,7 +183,7 @@ impl PaletteAction {
             PaletteAction::TogglePreview => "⌘E",
             PaletteAction::ToggleGraph => "⌘G",
             PaletteAction::ToggleBoard => "⌘4",
-            PaletteAction::ToggleKanban => "⌘5",
+            PaletteAction::ToggleKanban => KANBAN_CHORD,
             PaletteAction::NewKanban | PaletteAction::ConvertToKanban => "Kanban",
         }
     }
@@ -487,6 +498,17 @@ impl State {
         if self.folder_rename_confirm.is_some() {
             return Some(Layer::FolderRenameConfirm);
         }
+        // Slice 16: an unresolved conflict (one the page says outranks its
+        // ordinary status) is dismissed before an open menu, and the page is
+        // not left while it shows.
+        if self.mode == crate::Mode::Kanban
+            && self
+                .kanban
+                .as_ref()
+                .is_some_and(|shown| shown.conflict.is_some() && !shown.conflict_hidden)
+        {
+            return Some(Layer::KanbanConflict);
+        }
         if self.menu.is_some() {
             return Some(Layer::Menu);
         }
@@ -536,6 +558,7 @@ impl State {
             Layer::MoveConfirm => self.cancel_move_confirm(),
             Layer::FolderRenameConfirm => self.cancel_folder_rename_confirm(),
             Layer::Menu => self.close_menu(),
+            Layer::KanbanConflict => self.dismiss_kanban_conflict(),
             Layer::KanbanPicker => self.dismiss_picker(),
             Layer::ArchivePage => self.close_kanban_archive(),
             Layer::NewNote => self.cancel_new_note(),

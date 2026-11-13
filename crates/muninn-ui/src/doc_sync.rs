@@ -27,7 +27,7 @@
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
-use rune::{Cursor, El, el, row, text};
+use rune::{Cursor, El, Key, KeyEvent, Tx, el, row, text};
 use rune_kit::Kit;
 
 use crate::State;
@@ -244,10 +244,15 @@ pub(crate) fn conflict_bar(
         .key(format!("{page}-conflict"))
         .gap(6.0)
         .center_y()
+        // Slice 16: a conflict is an alert dialog (its choices are the way
+        // out), its sentence an alert, and each choice a real button.
+        .role("alertdialog")
+        .label(conflict.message())
         .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.danger.fg))
         .child(
             text(conflict.message())
                 .key(format!("{page}-conflict-text"))
+                .role("alert")
                 .font(k.ty.caption())
                 .color(k.c.danger.fg),
         )
@@ -270,6 +275,19 @@ fn choice(k: &Kit, label: &str, key: String, action: fn(&mut State) -> bool) -> 
         .px(8.0)
         .py(4.0)
         .center_y()
+        .role("button")
+        .label(label.to_owned())
+        .help(label.to_owned())
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                let _ = action(s);
+                true
+            } else {
+                false
+            }
+        })
         .child(
             text(label.to_owned())
                 .font(k.ty.caption())

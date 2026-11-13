@@ -631,6 +631,7 @@ impl State {
             history: crate::KanbanHistory::default(),
             error: None,
             conflict,
+            conflict_hidden: false,
             generation: 0,
             recovered: None,
         };

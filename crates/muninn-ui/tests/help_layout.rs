@@ -57,6 +57,10 @@ const ACTIONS: &[&str] = &[
     "Close the outermost layer",
     "Open the command palette",
     "Find in the open note",
+    "Move through the board's controls",
+    "Move between the focused lane's cards",
+    "Toggle the selected card's done mark",
+    "Open the focused card's menu",
     "Insert a wikilink",
     "New note",
     "Save now (autosave is on)",
@@ -101,8 +105,9 @@ fn help_keeps_every_shortcut_and_the_footer_actions() {
     assert_eq!(text_of(&rt, "help-key-0-0-1-label"), "K");
     assert_eq!(text_of(&rt, "help-key-0-0-2-label"), "Ctrl");
     assert_eq!(text_of(&rt, "help-key-0-0-3-label"), "K");
-    assert_eq!(text_of(&rt, "help-key-2-4-0-label"), "+");
-    assert_eq!(text_of(&rt, "help-key-2-4-1-label"), "-");
+    // Slice 16: the Kanban group sits between Edit and Graph.
+    assert_eq!(text_of(&rt, "help-key-3-4-0-label"), "+");
+    assert_eq!(text_of(&rt, "help-key-3-4-1-label"), "-");
     assert_eq!(text_of(&rt, "help-note-0-1"), "(search)");
     assert!(
         texts
@@ -133,6 +138,7 @@ fn sections_share_rows_on_a_wide_window_and_stack_when_narrow() {
     let (_tmp, wide) = help_at(1600.0, 900.0, true);
     let nav = rect(&wide, "help-section-navigation");
     let edit = rect(&wide, "help-section-edit");
+    let kanban = rect(&wide, "help-section-kanban");
     let graph = rect(&wide, "help-section-graph");
     let sidebar = rect(&wide, "help-section-sidebar");
     assert!(
@@ -140,12 +146,16 @@ fn sections_share_rows_on_a_wide_window_and_stack_when_narrow() {
         "edit should sit beside navigation: nav {nav:?} edit {edit:?}"
     );
     assert!(
-        (nav[1] - graph[1]).abs() < 2.0 && graph[0] > edit[0] + 40.0,
+        (nav[1] - kanban[1]).abs() < 2.0 && kanban[0] > edit[0] + 40.0,
+        "kanban should sit on the same row: {kanban:?}"
+    );
+    assert!(
+        (nav[1] - graph[1]).abs() < 2.0 && graph[0] > kanban[0] + 40.0,
         "graph should sit on the same row: {graph:?}"
     );
     assert!(
-        (nav[1] - sidebar[1]).abs() < 2.0 && sidebar[0] > graph[0] + 40.0,
-        "sidebar should be the fourth column: {sidebar:?}"
+        sidebar[1] > nav[1] + nav[3] - 4.0 && (sidebar[0] - nav[0]).abs() < 2.0,
+        "the fifth section wraps under the first: {sidebar:?} nav {nav:?}"
     );
     assert!(
         nav[2] > 200.0 && (nav[2] - edit[2]).abs() < 2.0,
@@ -155,14 +165,19 @@ fn sections_share_rows_on_a_wide_window_and_stack_when_narrow() {
     let (_tmp, mid) = help_at(1180.0, 780.0, true);
     let nav = rect(&mid, "help-section-navigation");
     let edit = rect(&mid, "help-section-edit");
+    let kanban = rect(&mid, "help-section-kanban");
     let graph = rect(&mid, "help-section-graph");
     assert!(
         (nav[1] - edit[1]).abs() < 2.0 && edit[0] > nav[0] + 40.0,
         "default window is two columns: nav {nav:?} edit {edit:?}"
     );
     assert!(
-        graph[1] > nav[1] + nav[3] - 4.0 && (graph[0] - nav[0]).abs() < 2.0,
-        "graph wraps under navigation: {graph:?} nav {nav:?}"
+        kanban[1] > nav[1] + nav[3] - 4.0 && (kanban[0] - nav[0]).abs() < 2.0,
+        "kanban wraps under navigation: {kanban:?} nav {nav:?}"
+    );
+    assert!(
+        (kanban[1] - graph[1]).abs() < 2.0 && graph[0] > kanban[0] + 40.0,
+        "graph sits beside kanban: {graph:?} kanban {kanban:?}"
     );
 
     let (_tmp, narrow) = help_at(840.0, 640.0, true);

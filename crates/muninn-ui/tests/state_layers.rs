@@ -105,6 +105,9 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                 state.menu = None;
             }
         }
+        // A Kanban conflict needs a shown kanban, which this state has not:
+        // `kanban_conflict_is_a_layer_above_the_menu` sets one up.
+        Layer::KanbanConflict => {}
         Layer::KanbanPicker => {
             state.kanban_picker = on.then_some(muninn_ui::KanbanPicker {
                 kind: muninn_ui::PickerKind::Date,
@@ -218,6 +221,33 @@ fn dismissing_a_layer_does_not_close_others() {
     assert_eq!(state.topmost_layer(), Some(Layer::Find));
     state.dismiss_layer(Layer::Find);
     assert_eq!(state.topmost_layer(), None);
+}
+
+#[test]
+fn a_kanban_conflict_is_dismissed_before_an_open_menu() {
+    let vault = TempVault::new(&[(
+        "Board.md",
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] a\n",
+    )]);
+    let mut state = State::with_state_home(
+        vault.path().to_path_buf(),
+        vault.path().with_extension("state"),
+    );
+    let id = state.vault.resolve("Board").expect("Board");
+    state.open_kanban(id);
+    set_layer(&mut state, Layer::Menu, true);
+    state.kanban.as_mut().expect("a kanban").conflict = Some(muninn_ui::DocConflict::Changed);
+    assert_eq!(state.topmost_layer(), Some(Layer::KanbanConflict));
+    state.dismiss_layer(Layer::KanbanConflict);
+    assert!(
+        state.kanban.as_ref().expect("a kanban").conflict.is_some(),
+        "Escape puts the bar away; the conflict and its save block stay"
+    );
+    assert_eq!(
+        state.topmost_layer(),
+        Some(Layer::Menu),
+        "the menu was under it"
+    );
 }
 
 #[test]

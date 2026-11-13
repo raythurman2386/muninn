@@ -43,7 +43,18 @@
 //! width, new-line trigger and header-button switches take effect on the next
 //! frame. Slice 15 (`kanban_views.rs`) draws the list and table views a
 //! `kanban-plugin: list` / `table` value asks for, and the header's Board /
-//! List / Table switcher chooses one for the session.
+//! List / Table switcher chooses one for the session. Slice 16 adds the page's
+//! keyboard and accessibility pass: the lane cards are a list with roving
+//! Up/Down, every control is a Tab stop with a focus ring and Enter,
+//! Space/Enter toggle the focused or selected card's done mark, the menus are
+//! menu/menuitem stacks and the conflict bar is an alert dialog.
+//!
+//! Known limits of that pass (kept rather than faked): the date picker's day
+//! grid is reached with Tab, not arrow keys; roving the lane list with a
+//! card's checkbox or menu button focused steps through those controls too;
+//! a Left/Right move across lanes changes the selection while keyboard focus
+//! stays in the lane it was in; and an open menu closes on Escape or an
+//! action, not on a press outside it.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -76,6 +87,13 @@ use crate::{DiskState, MenuTarget, Mode, State};
 const STRIP_W: f32 = 52.0;
 /// Opacity of a card or lane while it is dragged (slice 6).
 const DRAGGED: f32 = 0.45;
+/// The Kanban page's empty state, with the mode chord this platform uses
+/// (slice 16: the words said ⌘5 everywhere).
+const NO_KANBAN_DETAIL: &str = if cfg!(target_os = "macos") {
+    "Select a kanban note, then press ⌘5 to see it as a board."
+} else {
+    "Select a kanban note, then press Ctrl+5 to see it as a board."
+};
 
 /// The kanban note on the Kanban page, as read from disk.
 #[derive(Clone, Debug)]
@@ -98,6 +116,11 @@ pub struct ShownKanban {
     /// Slice 7: set while the kanban has unsaved edits and its file changed
     /// or vanished; the conflict bar decides.
     pub conflict: Option<DocConflict>,
+    /// Slice 16: Escape dismissed the conflict bar for now (it is an
+    /// `alertdialog`), so the header shows **Resolve conflict** instead. A
+    /// new or changed conflict shows the bar again; the flag itself stays,
+    /// so every save stays blocked until one of the three choices is taken.
+    pub(crate) conflict_hidden: bool,
     /// Bumped on every edit, undo and redo, so autosave and the recovery
     /// copy wait for the edits to rest.
     pub(crate) generation: u64,
@@ -132,7 +155,13 @@ impl ShownKanban {
     /// something else) it stays flagged, so only Keep mine writes over it.
     pub(crate) fn check_disk(&mut self, path: &Path) {
         let (known, saved) = (self.disk.is_some(), &self.saved);
+        let was = self.conflict;
         self.conflict = disk_conflict(path, |text| known && text == saved, self.conflict);
+        if self.conflict.is_none() || self.conflict != was {
+            // A conflict that changed (or went away) speaks again even when
+            // Escape had put the bar away.
+            self.conflict_hidden = false;
+        }
         if self.conflict.is_none() {
             // Their write put back the same bytes, or only touched the file.
             self.disk = file_state(path);
@@ -267,6 +296,7 @@ impl State {
             history: KanbanHistory::default(),
             error: None,
             conflict: None,
+            conflict_hidden: false,
             generation: 0,
             recovered: None,
         };
@@ -394,6 +424,26 @@ impl State {
         });
     }
 
+    /// Slice 16: Escape with the conflict bar up puts it away (the bar is an
+    /// `alertdialog`) without deciding anything. The conflict stays, so saves
+    /// stay blocked and the header offers **Resolve conflict**; a new or
+    /// changed conflict brings the bar back ([`ShownKanban::check_disk`]).
+    pub(crate) fn dismiss_kanban_conflict(&mut self) {
+        if let Some(shown) = &mut self.kanban
+            && shown.conflict.is_some()
+        {
+            shown.conflict_hidden = true;
+        }
+    }
+
+    /// **Resolve conflict**: show the bar again for the pending conflict.
+    pub fn show_kanban_conflict(&mut self) {
+        self.menu = None;
+        if let Some(shown) = &mut self.kanban {
+            shown.conflict_hidden = false;
+        }
+    }
+
     /// Open as markdown: the shown note in Write. Slice 7: unsaved kanban
     /// edits are saved first, so Write shows them and typing there can't
     /// make a later kanban save refuse; when that save is refused the page
@@ -467,7 +517,7 @@ pub fn kanban(s: &State, k: &Kit) -> El {
             "kanban-placeholder",
             &ic::CHECKLIST,
             "No kanban open",
-            "Select a kanban note, then press ⌘5 to see it as a board.",
+            NO_KANBAN_DETAIL,
         ),
         Some(ShownKanban {
             rel,
@@ -498,6 +548,8 @@ pub fn kanban(s: &State, k: &Kit) -> El {
     };
     col()
         .key("kanban-page")
+        .role("main")
+        .label("Kanban")
         .w_full()
         .grow(1.0)
         .min_h(0.0)
@@ -595,14 +647,25 @@ fn header(s: &State, k: &Kit) -> El {
                 .truncate(),
         )
         .child(
-            text(status)
+            text(status.clone())
                 .key("kanban-status")
+                .role("status")
                 .font(k.ty.caption())
                 .color(status_color)
                 .grow(1.0)
-                .truncate(),
+                .truncate()
+                .help_when_truncated(status),
         )
         .child(match shown.conflict {
+            // Slice 16: Escape put the bar away; the conflict and its save
+            // block stay, and this brings the bar back.
+            Some(_) if shown.conflict_hidden => header_button(
+                k,
+                "kanban-conflict-review",
+                &ic::CIRCLE_EXCLAMATION,
+                "Resolve conflict",
+                State::show_kanban_conflict,
+            ),
             Some(conflict) => conflict_bar(
                 k,
                 "kanban",
@@ -687,13 +750,25 @@ fn filter_summary(s: &State, k: &Kit) -> El {
                 .cursor(rune::Cursor::Pointer)
                 .role("button")
                 .label("Clear filters")
+                .help("Clear filters")
+                .focusable(true)
+                .focus_ring(2.0, 1.0, k.c.text_accent)
+                .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+                    if e.key == Key::Enter {
+                        s.clear_kanban_filter();
+                        true
+                    } else {
+                        false
+                    }
+                })
                 .on_press(|s: &mut State| s.clear_kanban_filter()),
         )
 }
 
 /// Slice 15: the header's Board / List / Table switcher. The choice is
 /// ephemeral and never changes the frontmatter, so a `kanban-plugin: list`
-/// board opens as a list but can still be shown as a board.
+/// board opens as a list but can still be shown as a board. Slice 16: it is a
+/// tab list, so the chosen view reports its selected state.
 fn view_switch(s: &State, k: &Kit) -> El {
     let current = s.kanban_view();
     row()
@@ -705,6 +780,9 @@ fn view_switch(s: &State, k: &Kit) -> El {
         .center_y()
         .fill(k.c.layer_01)
         .border(1.0, k.c.border_muted)
+        .role("tablist")
+        .label("Kanban view")
+        .focus_group()
         .children(
             [KanbanView::Board, KanbanView::List, KanbanView::Table]
                 .into_iter()
@@ -737,8 +815,20 @@ fn view_tab(k: &Kit, view: KanbanView, active: bool) -> El {
         .hover(k.c.hover)
         .press(k.c.pressed)
         .cursor(rune::Cursor::Pointer)
-        .role("button")
+        .role("tab")
         .label(label)
+        .help(label)
+        .focusable(true)
+        .focus_selected(active)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                s.set_kanban_view(view);
+                true
+            } else {
+                false
+            }
+        })
         .on_press(move |s: &mut State| s.set_kanban_view(view))
         .child(text(view.label()).font(k.ty.ui_compact).color(if active {
             k.c.text_accent
@@ -945,6 +1035,8 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         .w_full()
         .gap(8.0)
         .center_y()
+        .role("group")
+        .label(format!("{} controls", lane.title()))
         .cursor(rune::Cursor::Grab)
         .on_drag(move |s: &mut State, d: &mut Drag, tx: &mut Tx| {
             s.drag_kanban(Dragged::Lane(i), d, tx);
@@ -978,17 +1070,24 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
                 format!("kanban-lane-{i}-collapse"),
                 &ic::CHEVRON_LEFT,
                 12.0,
-                "Collapse lane",
+                format!("Collapse lane: {}", lane.title()),
             )
             .on_press(move |s: &mut State| s.toggle_lane_collapsed(i)),
         )
         .child(
-            menu_button(k, format!("kanban-lane-{i}-menu"), "Lane actions")
-                .on_press(move |s: &mut State| s.open_lane_menu(i)),
+            menu_button(
+                k,
+                format!("kanban-lane-{i}-menu"),
+                format!("Lane actions: {}", lane.title()),
+            )
+            .on_press(move |s: &mut State| s.open_lane_menu(i)),
         );
     let mut label = format!("{}, {count} cards", lane.title());
     if over {
         label.push_str(", over limit");
+    }
+    if lane.done_word().is_some() {
+        label.push_str(", done lane");
     }
     let mut column = col()
         .key(format!("kanban-lane-{i}"))
@@ -1005,13 +1104,17 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
                 k.c.border_muted
             },
         )
-        .role("list")
+        .role("region")
         .label(label)
+        .expanded(true)
         .opacity(if dragged { DRAGGED } else { 1.0 })
         .on_layout_tx(move |s: &mut State, rect, tx: &mut Tx| {
             s.kanban_rects.set_lane(i, rect);
             tx.live_only();
         })
+        // Slice 16: the Menu key and Shift+F10 on anything in the lane open
+        // its menu, as right-click does (a card's own press wins first).
+        .on_secondary_press(move |s: &mut State, _, _| s.open_lane_menu(i))
         .child(head);
     if s.kanban_lane_edit
         .is_some_and(|slot| slot.lane == i && slot.field != LaneField::New)
@@ -1031,6 +1134,16 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
                 .child(text("Complete").font(k.ty.caption()).color(k.c.success.fg)),
         );
     }
+    // Slice 16: the cards are a list of their own, so the lane is a region
+    // while its buttons and field live outside it; Up and Down rove among the
+    // cards' controls.
+    let mut list = col()
+        .key(format!("kanban-lane-{i}-cards"))
+        .w_full()
+        .gap(8.0)
+        .role("list")
+        .label(format!("{} cards", lane.title()))
+        .focus_group();
     let new_at = s
         .kanban_card
         .filter(|slot| slot.lane == i && slot.new)
@@ -1042,39 +1155,40 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
             .is_some_and(|picker| picker.card == (i, j));
         let new_here = new_at == Some(j);
         if new_here {
-            column = column.child(card_editor(s, k));
+            list = list.child(card_editor(s, k));
             if picker_here {
-                column = column.child(crate::kanban_dates::picker(s, k));
+                list = list.child(crate::kanban_dates::picker(s, k));
             }
         }
         if drop == Some(j) {
-            column = column.child(card_drop_bar(k));
+            list = list.child(card_drop_bar(k));
         }
         let (metadata_rows, value_note) = metadata.rows(&s.vault, when.note, card.text());
         let metadata_rows = MetadataRows {
             rows: &metadata_rows,
             value_note,
         };
-        column = column.child(card_view(s, k, i, j, card, when, &metadata_rows));
+        list = list.child(card_view(s, k, i, j, card, when, &metadata_rows));
         if picker_here && !new_here {
-            column = column.child(crate::kanban_dates::picker(s, k));
+            list = list.child(crate::kanban_dates::picker(s, k));
         }
         if is_menu(s, &MenuTarget::Card(i, j)) || is_menu(s, &MenuTarget::MoveCard(i, j)) {
-            column = column.child(crate::view::context_menu(s, k));
+            list = list.child(crate::view::context_menu(s, k));
         }
     }
     if drop == Some(lane.cards().len()) {
-        column = column.child(card_drop_bar(k));
+        list = list.child(card_drop_bar(k));
     }
     if new_at == Some(lane.cards().len()) {
-        column = column.child(card_editor(s, k));
+        list = list.child(card_editor(s, k));
         if s.kanban_picker
             .as_ref()
             .is_some_and(|picker| picker.card == (i, lane.cards().len()))
         {
-            column = column.child(crate::kanban_dates::picker(s, k));
+            list = list.child(crate::kanban_dates::picker(s, k));
         }
     }
+    column = column.child(list);
     column.child(
         row()
             .key(format!("kanban-lane-{i}-add"))
@@ -1088,7 +1202,18 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
             .press(k.c.pressed)
             .cursor(rune::Cursor::Pointer)
             .role("button")
-            .label("Add card")
+            .label(format!("Add card to {}", lane.title()))
+            .help(format!("Add card to {}", lane.title()))
+            .focusable(true)
+            .focus_ring(2.0, 1.0, k.c.text_accent)
+            .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+                if e.key == Key::Enter {
+                    s.begin_add_card(i);
+                    true
+                } else {
+                    false
+                }
+            })
             .on_press(move |s: &mut State| s.begin_add_card(i))
             .child(icon(&ic::PLUS, 12.0).color(k.c.text_faint))
             .child(text("Add card").font(k.ty.ui_compact).color(k.c.text_faint)),
@@ -1113,6 +1238,10 @@ fn collapsed_lane(
     } else {
         count
     };
+    let mut label = format!("{}, {count} cards, collapsed", lane.title());
+    if lane.done_word().is_some() {
+        label.push_str(", done lane");
+    }
     col()
         .key(format!("kanban-lane-{i}"))
         .w(STRIP_W)
@@ -1131,13 +1260,15 @@ fn collapsed_lane(
                 k.c.border_muted
             },
         )
-        .role("list")
-        .label(format!("{}, {count} cards, collapsed", lane.title()))
+        .role("region")
+        .label(label)
+        .expanded(false)
         .opacity(if dragged { DRAGGED } else { 1.0 })
         .cursor(rune::Cursor::Grab)
         .on_drag(move |s: &mut State, d: &mut Drag, tx: &mut Tx| {
             s.drag_kanban(Dragged::Lane(i), d, tx);
         })
+        .on_secondary_press(move |s: &mut State, _, _| s.open_lane_menu(i))
         .on_layout_tx(move |s: &mut State, rect, tx: &mut Tx| {
             s.kanban_rects.set_lane(i, rect);
             tx.live_only();
@@ -1148,7 +1279,7 @@ fn collapsed_lane(
                 format!("kanban-lane-{i}-expand"),
                 &ic::CHEVRON_RIGHT,
                 12.0,
-                "Expand lane",
+                format!("Expand lane: {}", lane.title()),
             )
             .on_press(move |s: &mut State| s.toggle_lane_collapsed(i)),
         )
@@ -1183,6 +1314,7 @@ fn card_drop_bar(k: &Kit) -> El {
         .h(3.0)
         .radius(2.0)
         .fill(k.c.text_accent)
+        .a11y_hidden()
 }
 
 /// Where a dragged lane would go, as tall as that lane.
@@ -1196,6 +1328,7 @@ fn lane_drop_bar(s: &State, k: &Kit) -> El {
         .h(h)
         .radius(2.0)
         .fill(k.c.text_accent)
+        .a11y_hidden()
 }
 
 /// A new lane's title field, where the lane will go.
@@ -1207,6 +1340,8 @@ fn new_lane_column(s: &State, k: &Kit) -> El {
         .radius(10.0)
         .fill(k.c.layer_01)
         .border(1.0, k.c.border_base)
+        .role("group")
+        .label("New lane")
         .child(lane_field(s, k))
 }
 
@@ -1225,6 +1360,17 @@ fn add_lane_button(k: &Kit, count: usize) -> El {
         .cursor(rune::Cursor::Pointer)
         .role("button")
         .label("Add lane")
+        .help("Add lane")
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                s.begin_add_lane(count);
+                true
+            } else {
+                false
+            }
+        })
         .on_press(move |s: &mut State| s.begin_add_lane(count))
         .child(icon(&ic::PLUS, 12.0).color(k.c.text_faint))
         .child(text("Add lane").font(k.ty.ui_compact).color(k.c.text_faint))
@@ -1235,18 +1381,21 @@ pub(crate) fn is_menu(s: &State, target: &MenuTarget) -> bool {
 }
 
 /// The `⋯` that opens a card's or a lane's menu.
-pub(crate) fn menu_button(k: &Kit, key: String, label: &'static str) -> El {
+pub(crate) fn menu_button(k: &Kit, key: String, label: impl Into<String>) -> El {
     icon_button(k, key, &ic::OUTLINE_DOTS, 14.0, label)
 }
 
-/// A small icon button: a menu's `⋯`, a lane's collapse and expand.
+/// A small icon button: a menu's `⋯`, a lane's collapse and expand. Slice
+/// 16: focusable with a ring, Enter activates it, and its label is also its
+/// tooltip.
 pub(crate) fn icon_button(
     k: &Kit,
     key: String,
     glyph: &'static rune::Icon,
     size: f32,
-    label: &'static str,
+    label: impl Into<String>,
 ) -> El {
+    let label = label.into();
     el().key(key)
         .size(22.0, 22.0)
         .radius(6.0)
@@ -1255,14 +1404,24 @@ pub(crate) fn icon_button(
         .press(k.c.pressed)
         .cursor(rune::Cursor::Pointer)
         .role("button")
-        .label(label)
+        .label(label.clone())
+        .help(label)
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
         .child(icon(glyph, size).color(k.c.icon_muted))
 }
 
 /// The card's checkbox on any view: a plain click toggles its done mark and
 /// `Cmd`/`Ctrl`-click archives it (slice 12). The list and table views reuse
-/// it so the same actions read the same in every layout.
-pub(crate) fn card_checkbox(k: &Kit, i: usize, j: usize, done: bool) -> El {
+/// it so the same actions read the same in every layout. Slice 16: its
+/// accessible name is the card's text, its checked state says done, and it is
+/// a keyboard stop (Space presses it, Enter toggles it).
+pub(crate) fn card_checkbox(k: &Kit, i: usize, j: usize, done: bool, card: &str) -> El {
+    let name = if card.trim().is_empty() {
+        "Card".to_owned()
+    } else {
+        card.trim().to_owned()
+    };
     let mark = el()
         .key(format!("kanban-card-{i}-{j}-mark"))
         .size(14.0, 14.0)
@@ -1281,7 +1440,20 @@ pub(crate) fn card_checkbox(k: &Kit, i: usize, j: usize, done: bool) -> El {
         .cursor(rune::Cursor::Pointer)
         .role("checkbox")
         .checked(done)
-        .label(if done { "Done" } else { "Open" })
+        .label(name)
+        .help(if done { "Mark not done" } else { "Mark done" })
+        .focusable(true)
+        .focus_ring(2.0, -1.0, k.c.text_accent)
+        .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            // A focused button presses on Space for free; Enter needs its own
+            // handler (slice 16). An open picker or bar keeps Enter.
+            if e.key == Key::Enter && s.topmost_layer().is_none() {
+                s.toggle_card_done(i, j);
+                true
+            } else {
+                false
+            }
+        })
         .on_press_tx(move |s: &mut State, tx: &mut Tx| {
             // Slice 12: Cmd/Ctrl-click archives; a plain click still toggles.
             let mods = tx.mods();
@@ -1333,8 +1505,8 @@ fn card_view(
     // `![[Note]]` in a card and does not say to inline the note. An attachment
     // embed keeps the reader's filename placeholder.
     let source = card_markdown(&s.vault, when.note, &display_text);
-    let first = display_text.lines().next().unwrap_or_default();
-    let mark = card_checkbox(k, i, j, done);
+    let first = display_text.lines().next().unwrap_or_default().to_owned();
+    let mark = card_checkbox(k, i, j, done, &first);
     let selected = s.kanban_selected == Some((i, j));
     let dragged = s.kanban_drag_in(i).1 == Some(j);
     let (matching, current) = s.kanban_find_mark(i, j);
@@ -1347,8 +1519,21 @@ fn card_view(
     } else {
         k.c.border_muted
     };
+    let state_word = if done { "Done" } else { "Open" };
+    let card_label = if first.trim().is_empty() {
+        format!("{state_word}, empty card")
+    } else {
+        format!("{state_word}: {first}")
+    };
+    let menu_label = if first.trim().is_empty() {
+        "Card actions: empty card".to_owned()
+    } else {
+        format!("Card actions: {first}")
+    };
+    let key = format!("kanban-card-{i}-{j}");
+    let focused_key = key.clone();
     row()
-        .key(format!("kanban-card-{i}-{j}"))
+        .key(key)
         .w_full()
         .padding(10.0)
         .gap(8.0)
@@ -1356,7 +1541,34 @@ fn card_view(
         .fill(k.c.layer_02)
         .border(if current { 2.0 } else { 1.0 }, border)
         .role("listitem")
-        .label(format!("{}: {first}", if done { "Done" } else { "Open" }))
+        .label(card_label)
+        .focusable(true)
+        .focus_selected(selected)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        // Slice 16: Space and Enter on the focused card flip its done mark,
+        // the same edit its checkbox makes. A child control keeps its keys.
+        .on_key(move |s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+            if tx.focused() != Some(focused_key.as_str()) {
+                return false;
+            }
+            if card_row_arrow(s, e, tx) {
+                return true;
+            }
+            if e.mods != rune::Mods::default() || s.topmost_layer().is_some() {
+                return false;
+            }
+            match &e.key {
+                Key::Enter => {
+                    s.toggle_card_done(i, j);
+                    true
+                }
+                Key::Text(typed) if typed == " " => {
+                    s.toggle_card_done(i, j);
+                    true
+                }
+                _ => false,
+            }
+        })
         .on_press(move |s: &mut State| s.select_kanban_card(i, j))
         // As Board edits text: a double click opens the editor.
         .on_double_press(move |s: &mut State| s.begin_edit_card(i, j))
@@ -1409,9 +1621,21 @@ fn card_view(
                 .child(checklist_section(k, i, j, &checklist)),
         )
         .child(
-            menu_button(k, format!("kanban-card-{i}-{j}-menu"), "Card actions")
+            menu_button(k, format!("kanban-card-{i}-{j}-menu"), menu_label)
                 .on_press(move |s: &mut State| s.open_card_menu(i, j)),
         )
+}
+
+/// Slice 16: plain arrows on a focused card row move the page's selection,
+/// as the page's own keys do, instead of roving the card's list group into
+/// the row's checkbox and menu buttons. The card's border shows the
+/// selection (a list item draws no focus ring of its own).
+pub(crate) fn card_row_arrow(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
+    if e.mods != rune::Mods::default() {
+        return false;
+    }
+    matches!(e.key, Key::Up | Key::Down | Key::Left | Key::Right)
+        && crate::kanban_lanes::kanban_key(s, e, tx)
 }
 
 /// The card's markdown without the lines that make up its checklist. The
@@ -1486,6 +1710,16 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
                 .role("checkbox")
                 .checked(checked)
                 .label(words.to_owned())
+                .focusable(true)
+                .focus_ring(2.0, 1.0, k.c.text_accent)
+                .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+                    if e.key == Key::Enter && s.topmost_layer().is_none() {
+                        s.toggle_card_task(i, j, line);
+                        true
+                    } else {
+                        false
+                    }
+                })
                 .on_press(move |s: &mut State| s.toggle_card_task(i, j, line))
                 .child(
                     el().size(13.0, 13.0)
@@ -1523,77 +1757,106 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
 
 /// The card editor: Enter commits, Shift+Enter breaks the line, Esc cancels.
 fn card_editor(s: &State, k: &Kit) -> El {
-    let mut editor = col().key("kanban-card-editor").w_full().child(
-        TextArea::new(&s.kanban_card_field)
-            .label("Card text")
-            .placeholder("Card text")
-            .width(None)
-            .auto_grow(2, 10)
-            .wrap_anywhere()
-            .on_edit(|s: &mut State| {
-                s.detect_card_trigger();
-                &mut s.kanban_card_field
-            })
-            .on_submit(|s: &mut State, tx: &mut Tx| {
-                // Enter is the completion's accept key while the list is open
-                // (`on_key` claims it). A refused text stays in the field.
-                if s.complete.is_some() {
-                    return;
+    // Slice 16: closing the editor gives the keyboard back to the card it
+    // edited (or to its lane's Add card, for a card not in the file yet).
+    let mut editor = col().key("kanban-card-editor").w_full();
+    if let Some(slot) = s.kanban_card {
+        editor = editor.focus_return(if slot.new {
+            format!("kanban-lane-{}-add", slot.lane)
+        } else {
+            format!("kanban-card-{}-{}", slot.lane, slot.index)
+        });
+    }
+    // Slice 16: the open completion list names the row the field points at.
+    let active = s
+        .complete
+        .as_ref()
+        .filter(|complete| complete.card && !complete.items.is_empty())
+        .map(|complete| {
+            let index = complete.index.min(complete.items.len() - 1);
+            format!("complete-item-{}", complete.items[index])
+        })
+        .or_else(|| {
+            s.tag_complete
+                .as_ref()
+                .filter(|complete| complete.card && !complete.items.is_empty())
+                .map(|complete| {
+                    format!(
+                        "complete-tag-{}",
+                        complete.index.min(complete.items.len() - 1)
+                    )
+                })
+        });
+    let field = TextArea::new(&s.kanban_card_field)
+        .label("Card text")
+        .placeholder("Card text")
+        .width(None)
+        .auto_grow(2, 10)
+        .wrap_anywhere()
+        .on_edit(|s: &mut State| {
+            s.detect_card_trigger();
+            &mut s.kanban_card_field
+        })
+        .on_submit(|s: &mut State, _: &mut Tx| {
+            // Enter is the completion's accept key while the list is open
+            // (`on_key` claims it). A refused text stays in the field; a
+            // committed one leaves the tree and its `focus_return` hands the
+            // keyboard back to the card (an explicit blur would erase it).
+            if s.complete.is_some() {
+                return;
+            }
+            let _ = s.commit_card_edit();
+        })
+        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if s.complete_key(e) {
+                return true;
+            }
+            if e.key == Key::Enter
+                && s.kanban_picker.is_some()
+                && !e.mods.shift
+                && !e.mods.cmd
+                && !e.mods.ctrl
+            {
+                // Slice 9: a plain Enter accepts the open picker instead
+                // of committing the bare trigger. Shift+Enter keeps the
+                // line break and Cmd/Ctrl+Enter keeps its meaning.
+                s.picker_accept();
+                return true;
+            }
+            // Slice 14: `new-line-trigger` swaps what Enter does. With
+            // Shift+Enter, a plain Enter breaks the line and Shift+Enter
+            // commits the card; Cmd/Ctrl+Enter still commits.
+            if e.key == Key::Enter
+                && !e.mods.cmd
+                && !e.mods.ctrl
+                && !e.mods.alt
+                && s.kanban_board_settings().new_line_trigger
+                    == muninn_core::NewLineTrigger::ShiftEnter
+            {
+                if e.mods.shift {
+                    let _ = s.commit_card_edit();
+                } else {
+                    s.kanban_card_field.insert("\n");
                 }
-                if s.commit_card_edit() != CardCommit::Refused {
-                    tx.blur();
-                }
-            })
-            .on_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
-                if s.complete_key(e) {
+                return true;
+            }
+            if e.key == Key::Escape {
+                // Slice 9: Escape closes the picker and leaves the typed
+                // trigger; a second Escape cancels the editor.
+                if s.kanban_picker.is_some() {
+                    s.dismiss_picker();
                     return true;
                 }
-                if e.key == Key::Enter
-                    && s.kanban_picker.is_some()
-                    && !e.mods.shift
-                    && !e.mods.cmd
-                    && !e.mods.ctrl
-                {
-                    // Slice 9: a plain Enter accepts the open picker instead
-                    // of committing the bare trigger. Shift+Enter keeps the
-                    // line break and Cmd/Ctrl+Enter keeps its meaning.
-                    s.picker_accept();
-                    return true;
-                }
-                // Slice 14: `new-line-trigger` swaps what Enter does. With
-                // Shift+Enter, a plain Enter breaks the line and Shift+Enter
-                // commits the card; Cmd/Ctrl+Enter still commits.
-                if e.key == Key::Enter
-                    && !e.mods.cmd
-                    && !e.mods.ctrl
-                    && !e.mods.alt
-                    && s.kanban_board_settings().new_line_trigger
-                        == muninn_core::NewLineTrigger::ShiftEnter
-                {
-                    if e.mods.shift {
-                        if s.commit_card_edit() != CardCommit::Refused {
-                            tx.blur();
-                        }
-                    } else {
-                        s.kanban_card_field.insert("\n");
-                    }
-                    return true;
-                }
-                if e.key == Key::Escape {
-                    // Slice 9: Escape closes the picker and leaves the typed
-                    // trigger; a second Escape cancels the editor.
-                    if s.kanban_picker.is_some() {
-                        s.dismiss_picker();
-                        return true;
-                    }
-                    s.cancel_card_edit();
-                    tx.blur();
-                    return true;
-                }
-                false
-            })
-            .build(k),
-    );
+                s.cancel_card_edit();
+                return true;
+            }
+            false
+        })
+        .build(k);
+    editor = editor.child(match active {
+        Some(active) => field.active_descendant(active),
+        None => field,
+    });
     if let Some(complete) = &s.complete
         && complete.card
         && !complete.items.is_empty()
@@ -1686,7 +1949,8 @@ fn embed_is_file(target: &str) -> bool {
 }
 
 /// A small bordered button in a page header: Open as markdown here, Open as
-/// kanban in a kanban note's title bar.
+/// kanban in a kanban note's title bar. Slice 16: focusable with a ring,
+/// Enter activates it, and its label is its tooltip.
 pub(crate) fn header_button(
     k: &Kit,
     key: &'static str,
@@ -1707,6 +1971,17 @@ pub(crate) fn header_button(
         .cursor(rune::Cursor::Pointer)
         .role("button")
         .label(label)
+        .help(label)
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter {
+                action(s);
+                true
+            } else {
+                false
+            }
+        })
         .on_press(action)
         .child(icon(glyph, 12.0).color(k.c.text_accent))
         .child(text(label).font(k.ty.ui_compact).color(k.c.text_base))

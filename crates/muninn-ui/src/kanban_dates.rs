@@ -592,10 +592,22 @@ pub(crate) fn picker(s: &State, k: &Kit) -> El {
     let Some(picker) = &s.kanban_picker else {
         return rune::el();
     };
-    match picker.kind {
+    let panel = match picker.kind {
         PickerKind::Date => date_picker(s, k, picker),
         PickerKind::Time => time_picker(s, k),
+    };
+    // Slice 16: a picker opened from a menu owns the keyboard (it is the
+    // page's top layer), so a dialog traps it and Escape dismisses it. One
+    // opened from a typed trigger leaves the card editor its keyboard, so
+    // Shift+Enter still breaks the line and typing still reaches the field.
+    let typing =
+        s.kanban_card_field.focused || s.kanban_hour_field.focused || s.kanban_minute_field.focused;
+    if typing {
+        return panel;
     }
+    panel
+        .modal(true, |s: &mut State| s.dismiss_picker())
+        .focus_return(format!("kanban-card-{}-{}", picker.card.0, picker.card.1))
 }
 
 fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
@@ -653,6 +665,16 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
             .press(k.c.pressed)
             .role("button")
             .label(format!("Day {day}"))
+            .focusable(true)
+            .focus_ring(2.0, -1.0, k.c.text_accent)
+            .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
+                if e.key == Key::Enter {
+                    s.picker_pick_day(day);
+                    true
+                } else {
+                    false
+                }
+            })
             .fill(if selected {
                 k.c.text_accent
             } else {
@@ -760,6 +782,7 @@ fn time_picker(s: &State, k: &Kit) -> El {
         .border(1.0, k.c.border_base)
         .role("dialog")
         .label("Add a time")
+        .focusable(true)
         .child(
             text("Add a time")
                 .key("kanban-picker-title")
@@ -811,6 +834,9 @@ fn picker_button(k: &Kit, key: &str, label: &str) -> El {
         .press(k.c.pressed)
         .role("button")
         .label(label)
+        .help(label)
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
         .child(text(label).font(k.ty.caption()).color(k.c.text_base))
 }
 

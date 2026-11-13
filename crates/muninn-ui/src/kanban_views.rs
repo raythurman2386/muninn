@@ -34,7 +34,7 @@ use muninn_core::{
     Card, CardText, CivilDate, DateSettings, Kanban, Lane, MetadataCache, MetadataSettings,
     TagSettings, card_checklist, format_date, format_time, parse_links, scan_card_text,
 };
-use rune::{El, ScrollSpec, Tx, col, icon, row, text};
+use rune::{El, Key, KeyEvent, ScrollSpec, Tx, col, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 use rune_theme_opencode::icons as ic;
 
@@ -194,8 +194,19 @@ fn list_lane(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane) -> El {
                 k.c.border_muted
             },
         )
-        .role("list")
-        .label(format!("{}, {count} cards", lane.title()))
+        // Slice 16: the lane is a region; its cards are the list.
+        .role("region")
+        .label(format!(
+            "{} lane, {count} cards{}{}",
+            lane.title(),
+            if over { ", over limit" } else { "" },
+            if lane.done_word().is_some() {
+                ", done lane"
+            } else {
+                ""
+            }
+        ))
+        .expanded(!lane.collapsed())
         .child(list_head(k, i, lane, &count, over));
     if is_menu(s, &crate::MenuTarget::Lane(i)) || is_menu(s, &crate::MenuTarget::DeleteLane(i)) {
         section = section.child(crate::view::context_menu(s, k));
@@ -213,16 +224,23 @@ fn list_lane(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane) -> El {
     }
     // One cache for this lane: a distinct linked note is parsed once.
     let metadata = MetadataCache::for_lane(&s.vault, lane, ctx.note, ctx.metadata.clone());
+    let mut list = col()
+        .key(format!("kanban-list-lane-{i}-cards"))
+        .w_full()
+        .gap(6.0)
+        .role("list")
+        .label(format!("{} cards", lane.title()))
+        .focus_group();
     for &(j, card) in &cards {
         let (rows, value_note) = metadata.rows(&s.vault, ctx.note, card.text());
-        section = section.child(list_card(s, k, ctx, i, j, lane, card, &rows, value_note));
+        list = list.child(list_card(s, k, ctx, i, j, lane, card, &rows, value_note));
         if is_menu(s, &crate::MenuTarget::Card(i, j))
             || is_menu(s, &crate::MenuTarget::MoveCard(i, j))
         {
-            section = section.child(crate::view::context_menu(s, k));
+            list = list.child(crate::view::context_menu(s, k));
         }
     }
-    section
+    section.child(list)
 }
 
 /// One lane's header in the list: title, count, over-limit, Complete, menu.
@@ -265,8 +283,12 @@ fn list_head(k: &Kit, i: usize, lane: &Lane, count: &str, over: bool) -> El {
             );
     }
     head.child(
-        menu_button(k, format!("kanban-list-lane-{i}-menu"), "Lane actions")
-            .on_press(move |s: &mut State| s.open_lane_menu(i)),
+        menu_button(
+            k,
+            format!("kanban-list-lane-{i}-menu"),
+            format!("Lane actions: {}", lane.title()),
+        )
+        .on_press(move |s: &mut State| s.open_lane_menu(i)),
     )
 }
 
@@ -294,12 +316,20 @@ fn list_card(
     let checklist = card_checklist(card.text());
     let display_text = without_checklist_lines(&title_text, &checklist);
     let source = card_markdown(&s.vault, ctx.note, &display_text);
-    let first = display_text.lines().next().unwrap_or_default();
+    let first = display_text.lines().next().unwrap_or_default().to_owned();
     let selected = s.kanban_selected == Some((i, j));
     let (matching, current) = s.kanban_find_mark(i, j);
     let (width, border) = mark_border(k, card_mark(current, matching, selected));
+    let key = format!("kanban-card-{i}-{j}");
+    let focused_key = key.clone();
+    let state_word = if done { "Done" } else { "Open" };
+    let menu_label = if first.trim().is_empty() {
+        format!("Card actions: empty card in {}", lane.title())
+    } else {
+        format!("Card actions: {first}")
+    };
     row()
-        .key(format!("kanban-card-{i}-{j}"))
+        .key(key)
         .w_full()
         .padding(10.0)
         .gap(8.0)
@@ -307,14 +337,36 @@ fn list_card(
         .fill(k.c.layer_02)
         .border(width, border)
         .role("listitem")
-        .label(format!(
-            "{} · {}: {first}",
-            lane.title(),
-            if done { "Done" } else { "Open" }
-        ))
+        .label(format!("{} · {state_word}: {first}", lane.title()))
+        .focusable(true)
+        .focus_selected(selected)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        // Slice 16: Space and Enter flip the focused card's done mark.
+        .on_key(move |s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+            if tx.focused() != Some(focused_key.as_str()) {
+                return false;
+            }
+            if crate::kanban_view::card_row_arrow(s, e, tx) {
+                return true;
+            }
+            if e.mods != rune::Mods::default() || s.topmost_layer().is_some() {
+                return false;
+            }
+            match &e.key {
+                Key::Enter => {
+                    s.toggle_card_done(i, j);
+                    true
+                }
+                Key::Text(typed) if typed == " " => {
+                    s.toggle_card_done(i, j);
+                    true
+                }
+                _ => false,
+            }
+        })
         .on_press(move |s: &mut State| s.select_kanban_card(i, j))
         .on_secondary_press(move |s: &mut State, _, _| s.open_card_menu(i, j))
-        .child(card_checkbox(k, i, j, done))
+        .child(card_checkbox(k, i, j, done, &first))
         .child(
             col()
                 .grow(1.0)
@@ -339,7 +391,7 @@ fn list_card(
                 .child(checklist_section(k, i, j, &checklist)),
         )
         .child(
-            menu_button(k, format!("kanban-card-{i}-{j}-menu"), "Card actions")
+            menu_button(k, format!("kanban-card-{i}-{j}-menu"), menu_label)
                 .on_press(move |s: &mut State| s.open_card_menu(i, j)),
         )
 }
@@ -379,7 +431,13 @@ pub(crate) fn table(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let content = if board.lanes().is_empty() {
         empty_state(k, "kanban-table-empty-board", "No lanes on this board")
     } else {
-        col().key("kanban-table").w(TABLE_W).gap(0.0).children(rows)
+        col()
+            .key("kanban-table")
+            .w(TABLE_W)
+            .gap(0.0)
+            .role("table")
+            .label("Cards by lane")
+            .children(rows)
     };
     col()
         .key("kanban-table-scroll")
@@ -467,6 +525,8 @@ fn table_head(k: &Kit) -> El {
                 .color(k.c.text_muted)
                 .grow(1.0)
                 .min_w(0.0)
+                .role("columnheader")
+                .label("Card")
                 .selectable(true),
         )
         .child(cell(k, "kanban-table-head-date", "Date", DATE_COL))
@@ -487,6 +547,8 @@ fn cell(k: &Kit, key: &'static str, label: &'static str, width: f32) -> El {
         .color(k.c.text_muted)
         .w(width)
         .truncate()
+        .role("columnheader")
+        .label(label)
         .selectable(true)
 }
 
@@ -516,13 +578,14 @@ fn table_row(
     let (matching, current) = s.kanban_find_mark(i, j);
     let (width, border) = mark_border(k, card_mark(current, matching, selected));
     let first = flat.lines().next().unwrap_or_default().to_owned();
+    let focused_key = format!("kanban-table-{i}-{j}");
     let mut card_cell = row()
         .key(format!("kanban-table-{i}-{j}-card"))
         .gap(6.0)
         .center_y()
         .grow(1.0)
         .min_w(0.0)
-        .child(card_checkbox(k, i, j, done))
+        .child(card_checkbox(k, i, j, done, &first))
         .child(
             text(flat)
                 .key(format!("kanban-table-{i}-{j}-text"))
@@ -584,6 +647,31 @@ fn table_row(
             lane.title(),
             if done { "Done" } else { "Open" }
         ))
+        .focusable(true)
+        .focus_selected(selected)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_key(move |s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+            if tx.focused() != Some(focused_key.as_str()) {
+                return false;
+            }
+            if crate::kanban_view::card_row_arrow(s, e, tx) {
+                return true;
+            }
+            if e.mods != rune::Mods::default() || s.topmost_layer().is_some() {
+                return false;
+            }
+            match &e.key {
+                Key::Enter => {
+                    s.toggle_card_done(i, j);
+                    true
+                }
+                Key::Text(typed) if typed == " " => {
+                    s.toggle_card_done(i, j);
+                    true
+                }
+                _ => false,
+            }
+        })
         .on_press(move |s: &mut State| s.select_kanban_card(i, j))
         .on_secondary_press(move |s: &mut State, _, _| s.open_card_menu(i, j))
         .child(

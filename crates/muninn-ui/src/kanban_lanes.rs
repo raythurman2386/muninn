@@ -495,6 +495,11 @@ pub(crate) fn delete_lane_confirm(s: &State, k: &Kit, lane: usize) -> El {
         .radius(8.0)
         .fill(k.c.layer_02)
         .border(1.0, k.c.border_base)
+        .role("alertdialog")
+        .label(question.clone())
+        .focus_group()
+        // Slice 16: closing the confirmation gives the lane back the keyboard.
+        .focus_return(format!("kanban-lane-{lane}"))
         .child(
             text(question)
                 .key("kanban-delete-lane-question")
@@ -518,6 +523,9 @@ pub(crate) fn delete_lane_confirm(s: &State, k: &Kit, lane: usize) -> El {
                 .press(k.c.pressed)
                 .role("button")
                 .label(button)
+                .help(button)
+                .focusable(true)
+                .focus_ring(2.0, 1.0, k.c.danger.fg)
                 .child(text(button).font(k.ty.ui_compact).color(k.c.danger.fg))
                 .on_press(|s: &mut State| s.pick_menu("delete")),
         )
@@ -564,7 +572,11 @@ pub(crate) fn lane_picker(s: &State, k: &Kit, lane: usize, index: usize) -> El {
         .py(4.0)
         .radius(8.0)
         .fill(k.c.layer_02)
-        .border(1.0, k.c.border_base);
+        .border(1.0, k.c.border_base)
+        .role("menu")
+        .label("Move to lane")
+        .focus_group()
+        .focus_return(format!("kanban-card-{lane}-{index}"));
     let lanes = s.kanban_board().map(|b| b.lanes()).unwrap_or_default();
     for (to, other) in lanes.iter().enumerate().filter(|(to, _)| *to != lane) {
         list = list.child(
@@ -587,10 +599,13 @@ fn menu_row(k: &Kit, key: String, label: String) -> El {
         .radius(6.0)
         .center_y()
         .cursor(rune::Cursor::Pointer)
-        .hover(k.c.hover)
         .press(k.c.pressed)
-        .role("button")
+        // Slice 16: a menu row is a real menu item: the pointer and the
+        // keyboard share one highlight, and Enter presses it.
+        .role("menuitem")
         .label(label.clone())
+        .focusable(true)
+        .focus_highlight(k.c.hover)
         .child(text(label).font(k.ty.ui_compact).color(k.c.text_base))
 }
 
@@ -600,8 +615,16 @@ pub(crate) fn lane_field(s: &State, k: &Kit) -> El {
         Some(LaneField::Limit) => ("Card limit", "No limit"),
         _ => ("Lane title", "Lane title"),
     };
+    // Slice 16: closing the field gives the keyboard back to the lane's menu
+    // (or Add lane, for a lane not in the file yet).
+    let return_to = match s.kanban_lane_edit.map(|slot| (slot.lane, slot.field)) {
+        Some((_, LaneField::New)) => "kanban-add-lane".to_owned(),
+        Some((lane, _)) => format!("kanban-lane-{lane}-menu"),
+        None => "kanban-add-lane".to_owned(),
+    };
     text_input(&s.kanban_lane_field, k.ty.ui_compact)
         .key("kanban-lane-field")
+        .focus_return(return_to)
         .single_line()
         .w_full()
         .px(8.0)
@@ -615,27 +638,50 @@ pub(crate) fn lane_field(s: &State, k: &Kit) -> El {
         .on_edit(|s: &mut State| &mut s.kanban_lane_field)
         .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
             if e.key == Key::Escape {
+                // Slice 16: the field leaves the tree and its `focus_return`
+                // gives the keyboard back; an explicit blur erases that.
                 s.cancel_lane_edit();
-                tx.blur();
                 return true;
             }
             crate::shortcut(s, e, tx)
         })
-        .on_submit(|s: &mut State, tx: &mut Tx| {
-            // A refused text stays in the field, with the reason above.
-            if s.commit_lane_edit() != CardCommit::Refused {
-                tx.blur();
-            }
+        .on_submit(|s: &mut State, _: &mut Tx| {
+            // A refused text stays in the field, with the reason above; a
+            // committed one leaves the tree and its `focus_return` hands the
+            // keyboard back to the lane.
+            let _ = s.commit_lane_edit();
         })
 }
 
 /// Arrow keys on the Kanban page: select a card, or with Alt move the
 /// selected one (Shift: to the top or bottom of its lane). Slice 6:
 /// Alt+Shift+Left / Right move the selected card's lane. Slice 13: a filter's
-/// hidden cards are skipped, and a wholly hidden lane is stepped over.
-pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
+/// hidden cards are skipped, and a wholly hidden lane is stepped over. Slice
+/// 16: Space or Enter flips the selected card's done mark, and a selection the
+/// keyboard made is scrolled into view.
+pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     if s.mode != Mode::Kanban || e.mods.cmd {
         return false;
+    }
+    let plain = e.mods == rune::Mods::default();
+    let flips = match &e.key {
+        Key::Enter => true,
+        Key::Text(typed) => typed == " ",
+        _ => false,
+    };
+    // Space/Enter outside a focused control: the selected card's done mark.
+    // A focused control (the card itself, or one of its buttons) owns the
+    // same keys, and an open layer (a menu, a prompt, the conflict bar) keeps
+    // them, so the page only flips when no control has the keyboard.
+    if plain && flips && s.topmost_layer().is_none() && tx.focused().is_none() {
+        if let Some((lane, index)) = s.kanban_selected
+            && s.kanban_board()
+                .and_then(|board| board.lanes().get(lane))
+                .is_some_and(|lane| index < lane.cards().len())
+        {
+            s.toggle_card_done(lane, index);
+        }
+        return true;
     }
     let (across, down): (isize, isize) = match e.key {
         Key::Up => (0, -1),
@@ -665,6 +711,9 @@ pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
         };
         if e.mods.shift && across != 0 {
             s.step_kanban_lane(lane, across > 0);
+            if let Some((lane, index)) = s.kanban_selected {
+                tx.scroll_into_view(format!("kanban-card-{lane}-{index}"));
+            }
             return true;
         }
         let step = match (across, down, e.mods.shift) {
@@ -676,6 +725,9 @@ pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
             (_, _, true) => CardStep::Bottom,
         };
         s.step_kanban_card(lane, index, step);
+        if let Some((lane, index)) = s.kanban_selected {
+            tx.scroll_into_view(format!("kanban-card-{lane}-{index}"));
+        }
         return true;
     }
     let target = match selected {
@@ -684,8 +736,9 @@ pub(crate) fn kanban_key(s: &mut State, e: &KeyEvent) -> bool {
         Some((lane, index)) => shown_beside(lane, index, across, lanes, len, shown),
         None => next_shown_after(None, lanes, len, shown),
     };
-    if let Some(next) = target {
-        s.kanban_selected = Some(next);
+    if let Some((lane, index)) = target {
+        s.kanban_selected = Some((lane, index));
+        tx.scroll_into_view(format!("kanban-card-{lane}-{index}"));
     }
     true
 }
