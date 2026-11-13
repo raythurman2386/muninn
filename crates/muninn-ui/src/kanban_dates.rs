@@ -19,7 +19,8 @@ use std::cmp::Reverse;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use muninn_core::{
-    CardText, CivilDate, CivilTime, DateSettings, Kanban, format_date, format_time, scan_card_text,
+    CardText, CivilDate, CivilTime, DateSettings, DateToken, Kanban, format_date, format_time,
+    scan_card_text,
 };
 use rune::{El, Key, KeyEvent, TextEdit, Tx, col, row, text, text_input};
 use rune_kit::Kit;
@@ -248,11 +249,13 @@ impl State {
             return;
         };
         let settings = self.kanban_date_settings();
+        let mut picked_date = None;
         let token = match picker.kind {
             PickerKind::Date => {
                 let Some(date) = CivilDate::new(picker.year, picker.month, picker.day) else {
                     return;
                 };
+                picked_date = Some(date);
                 settings.date_token(date)
             }
             PickerKind::Time => {
@@ -302,10 +305,12 @@ impl State {
             };
             // A menu picker replaces the card's existing token of this kind;
             // only an editor picker inserts a new one at the caret.
-            let text = match card_token_span(&text, &settings, picker.kind) {
-                Some(range) => {
+            let text = match card_token(&text, &settings, picker.kind) {
+                Some(old) => {
                     let mut next = text;
-                    next.replace_range(range, &token);
+                    let replacement = link_replacement(&settings, &old, picked_date)
+                        .unwrap_or_else(|| token.clone());
+                    next.replace_range(old.start..old.end, &replacement);
                     next
                 }
                 None => with_token(&text, &token),
@@ -421,18 +426,62 @@ impl State {
     }
 }
 
+/// The card's first date or time token.
+fn card_token(text: &str, settings: &DateSettings, kind: PickerKind) -> Option<DateToken> {
+    let found = scan_card_text(text, settings);
+    match kind {
+        PickerKind::Date => found.date,
+        PickerKind::Time => found.time,
+    }
+}
+
 /// The byte range of the card's first date or time token.
 fn card_token_span(
     text: &str,
     settings: &DateSettings,
     kind: PickerKind,
 ) -> Option<std::ops::Range<usize>> {
-    let found = scan_card_text(text, settings);
-    let token = match kind {
-        PickerKind::Date => found.date,
-        PickerKind::Time => found.time,
-    }?;
+    let token = card_token(text, settings, kind)?;
     Some(token.start..token.end)
+}
+
+/// A link-form date keeps its link form when replaced. The date part of the
+/// target is updated in place, so a folder, `#heading` and `|alias` stay as
+/// written; if the old date cannot be found in the text, only the new date is
+/// written.
+fn link_replacement(
+    settings: &DateSettings,
+    old: &DateToken,
+    date: Option<CivilDate>,
+) -> Option<String> {
+    if !old.link {
+        return None;
+    }
+    let date = date?;
+    let new_formatted = format_date(date, &settings.date_format);
+    let old_formatted = settings
+        .parse_date(&old.value)
+        .map(|date| format_date(date, &settings.date_format));
+    let value = match old_formatted.filter(|old_formatted| old.value.contains(old_formatted)) {
+        Some(old_formatted) => old.value.replacen(&old_formatted, &new_formatted, 1),
+        None => new_formatted,
+    };
+    Some(format!("{}[[{}]]", settings.date_trigger, value))
+}
+
+/// Whether the open picker has a token to clear: an editor's text, or the
+/// card's text for a menu picker.
+fn picker_can_clear(s: &State) -> bool {
+    let Some(picker) = &s.kanban_picker else {
+        return false;
+    };
+    let settings = s.kanban_date_settings();
+    if picker.insert.is_some() {
+        card_token(&s.kanban_card_field.text, &settings, picker.kind).is_some()
+    } else {
+        s.kanban_card_at(picker.card.0, picker.card.1)
+            .is_some_and(|card| card_token(card.text(), &settings, picker.kind).is_some())
+    }
 }
 
 /// The note a link-form date points at: an alias after `|` is display text,
@@ -456,6 +505,9 @@ pub(crate) fn has_token(s: &State, lane: usize, index: usize, kind: PickerKind) 
 /// The local date and time now. Rune reads the OS time zone; core stays
 /// zone-free and only converts the fields.
 pub(crate) fn local_now() -> (CivilDate, CivilTime) {
+    // A clock before 1970 (or an `as_millis` overflow) maps to 1970-01-01
+    // 00:00, the same harmless fallback `LocalTime` uses when the OS has no
+    // time-zone answer. Normal clocks never reach it.
     let epoch_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |elapsed| {
@@ -469,6 +521,8 @@ pub(crate) fn local_today() -> CivilDate {
 }
 
 fn date_time_from_local(local: rune::LocalTime) -> (CivilDate, CivilTime) {
+    // `LocalTime` is always a real calendar day; the 1970 fallback only keeps
+    // this conversion total if a platform ever hands back invalid fields.
     let date = CivilDate::new(i64::from(local.year), local.month, local.day)
         .unwrap_or_else(|| CivilDate::from_days_since_epoch(0));
     let time = CivilTime::new(local.hour as u8, local.minute as u8, local.second as u8)
@@ -628,7 +682,7 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
     let mut foot = row().w_full().gap(4.0).center_y().child(
         picker_button(k, "kanban-picker-today", "Today").on_press(|s: &mut State| s.picker_today()),
     );
-    if s.kanban_card_at(picker.card.0, picker.card.1).is_some() {
+    if picker_can_clear(s) {
         foot = foot.child(
             picker_button(k, "kanban-picker-clear", "Clear")
                 .on_press(|s: &mut State| s.picker_clear()),
@@ -643,6 +697,7 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
         .child(
             picker_button(k, "kanban-picker-set", "Add date")
                 .fill(k.c.text_accent)
+                .default_button()
                 .on_press(|s: &mut State| s.picker_accept()),
         );
     col()
@@ -655,6 +710,15 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
         .border(1.0, k.c.border_base)
         .role("dialog")
         .label("Add a date")
+        .focusable(true)
+        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+            if e.key == Key::Enter && !e.mods.shift && !e.mods.cmd && !e.mods.ctrl {
+                s.picker_accept();
+                true
+            } else {
+                false
+            }
+        })
         .child(head)
         .child(grid)
         .child(foot)
@@ -710,29 +774,28 @@ fn time_picker(s: &State, k: &Kit) -> El {
                 .child(text(":").color(k.c.text_faint))
                 .child(minute),
         )
+        .child(time_picker_foot(s, k))
+}
+
+fn time_picker_foot(s: &State, k: &Kit) -> El {
+    let mut foot = row().w_full().gap(4.0).center_y().child(
+        picker_button(k, "kanban-picker-now", "Now").on_press(|s: &mut State| s.picker_now()),
+    );
+    if picker_can_clear(s) {
+        foot = foot.child(
+            picker_button(k, "kanban-picker-clear", "Clear")
+                .on_press(|s: &mut State| s.picker_clear()),
+        );
+    }
+    foot.child(rune::el().grow(1.0))
         .child(
-            row()
-                .w_full()
-                .gap(4.0)
-                .center_y()
-                .child(
-                    picker_button(k, "kanban-picker-now", "Now")
-                        .on_press(|s: &mut State| s.picker_now()),
-                )
-                .child(
-                    picker_button(k, "kanban-picker-clear", "Clear")
-                        .on_press(|s: &mut State| s.picker_clear()),
-                )
-                .child(rune::el().grow(1.0))
-                .child(
-                    picker_button(k, "kanban-picker-cancel", "Cancel")
-                        .on_press(|s: &mut State| s.dismiss_picker()),
-                )
-                .child(
-                    picker_button(k, "kanban-picker-set", "Add time")
-                        .fill(k.c.text_accent)
-                        .on_press(|s: &mut State| s.picker_accept()),
-                ),
+            picker_button(k, "kanban-picker-cancel", "Cancel")
+                .on_press(|s: &mut State| s.dismiss_picker()),
+        )
+        .child(
+            picker_button(k, "kanban-picker-set", "Add time")
+                .fill(k.c.text_accent)
+                .on_press(|s: &mut State| s.picker_accept()),
         )
 }
 
@@ -754,7 +817,6 @@ fn picker_button(k: &Kit, key: &str, label: &str) -> El {
 /// The card's own date/time row: formatted values, an optional relative day,
 /// and a link to the daily note when the board asks.
 pub(crate) fn card_when(
-    s: &State,
     k: &Kit,
     settings: &DateSettings,
     found: &CardText,
@@ -784,14 +846,7 @@ pub(crate) fn card_when(
             }
             _ => shown,
         };
-        let target = (settings.link_date_to_daily_note || token.link).then(|| {
-            let (note, _) = raw.split_once('#').unwrap_or((raw, ""));
-            if s.vault.resolve(note).is_some() {
-                format!("note:{raw}")
-            } else {
-                format!("missing:{note}")
-            }
-        });
+        let target = (settings.link_date_to_daily_note || token.link).then(|| raw.to_owned());
         line = line.child(match target {
             Some(target) => text(shown)
                 .key(format!("kanban-card-{i}-{j}-date"))
@@ -800,7 +855,17 @@ pub(crate) fn card_when(
                 .cursor(rune::Cursor::Pointer)
                 .role("link")
                 .label("Open the date's daily note")
-                .on_press_tx(move |s: &mut State, tx: &mut Tx| s.open_card_link(&target, tx)),
+                .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+                    // Resolve at press time: the lane is memoised, and the
+                    // daily note may have appeared or been renamed since.
+                    let (note, _) = target.split_once('#').unwrap_or((target.as_str(), ""));
+                    let url = if s.vault.resolve(note).is_some() {
+                        format!("note:{target}")
+                    } else {
+                        format!("missing:{note}")
+                    };
+                    s.open_card_link(&url, tx);
+                }),
             None => text(shown)
                 .key(format!("kanban-card-{i}-{j}-date"))
                 .font(k.ty.caption())

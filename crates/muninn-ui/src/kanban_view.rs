@@ -1066,7 +1066,7 @@ fn card_view(
                         .build(k),
                 )
                 .child(crate::kanban_dates::card_when(
-                    s, k, when.dates, &found, when.today, i, j,
+                    k, when.dates, &found, when.today, i, j,
                 )),
         )
         .child(
@@ -1102,9 +1102,15 @@ fn card_editor(s: &State, k: &Kit) -> El {
                 if s.complete_key(e) {
                     return true;
                 }
-                if e.key == Key::Enter && s.kanban_picker.is_some() {
-                    // Slice 9: Enter accepts the open picker instead of
-                    // committing the bare trigger.
+                if e.key == Key::Enter
+                    && s.kanban_picker.is_some()
+                    && !e.mods.shift
+                    && !e.mods.cmd
+                    && !e.mods.ctrl
+                {
+                    // Slice 9: a plain Enter accepts the open picker instead
+                    // of committing the bare trigger. Shift+Enter keeps the
+                    // line break and Cmd/Ctrl+Enter keeps its meaning.
                     s.picker_accept();
                     return true;
                 }

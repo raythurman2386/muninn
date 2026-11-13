@@ -171,10 +171,12 @@ without changing the file. Only an edit the user asks for writes a token.
 - **Editing.** A picker opened from a card's menu writes one token for that
   kind: if the card already has a date (or time) token, the new token
   replaces it in place; otherwise it is appended with a space when needed.
-  A picker opened from the card editor replaces the typed trigger at the
-  caret, so an editor can add a token next to an existing one. The picker's
-  Clear removes the card's date or time token (in the card editor, the token
-  in the text being edited); nothing else in the card changes.
+  Replacing a link-form date keeps the link form, and the target's folder,
+  `#heading` and `|alias` text stay as written with only the date part
+  updated. A picker opened from the card editor replaces the typed trigger at
+  the caret, so an editor can add a token next to an existing one. The
+  picker's Clear removes the card's date or time token (in the card editor,
+  the token in the text being edited); nothing else in the card changes.
 - **Tag:** `#word`, as in ordinary Obsidian tags. Inside code it is not a tag.
 - **Inline fields:** text like `[key:: value]`.
   - **Open point T-1:** to be specified before the metadata slice. Kept as text.
