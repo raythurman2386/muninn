@@ -82,7 +82,11 @@ pub(crate) fn tag_chips(
         .key(format!("{prefix}-{i}-{j}-tags"))
         .w_full()
         .gap(4.0)
-        .center_y();
+        .center_y()
+        // Issue #66: a full row of chips, or one long #tag, must not blow the
+        // card's width. Chips move onto the next line; a single chip is
+        // allowed to shrink and its label wraps inside it.
+        .flex_wrap();
     if let Some(width) = width {
         line = line.w(width);
     }
@@ -91,7 +95,9 @@ pub(crate) fn tag_chips(
         line = line.child(
             row()
                 .key(format!("{prefix}-{i}-{j}-tag-{index}"))
-                .h(18.0)
+                .min_h(18.0)
+                .min_w(0.0)
+                .shrink()
                 .px(6.0)
                 .radius(4.0)
                 .center_y()
@@ -105,7 +111,9 @@ pub(crate) fn tag_chips(
                 .child(
                     text(format!("#{tag}"))
                         .font(k.ty.caption())
-                        .color(k.c.text_accent),
+                        .color(k.c.text_accent)
+                        .shrink()
+                        .wrap_anywhere(),
                 ),
         );
     }

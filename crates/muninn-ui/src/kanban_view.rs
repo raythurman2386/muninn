@@ -1943,10 +1943,13 @@ fn card_editor(s: &State, k: &Kit) -> El {
 /// `hide-date-in-title` removed the date and time tokens before this point.
 pub(crate) fn card_markdown(vault: &muninn_core::Vault, note: Option<usize>, text: &str) -> String {
     let text = plain_note_embeds(text);
-    match note {
+    let preview = match note {
         Some(id) => vault.preview_with_attachments(&text, id),
         None => text,
-    }
+    };
+    // Issue #66: the reader has no wrap-anywhere fallback, so give long
+    // unbroken runs break opportunities here, after wikilinks are links.
+    crate::kanban_wrap::card_markdown(&preview)
 }
 
 /// Drop the embed mark on `![[Note]]`. A target with a non-Markdown extension
