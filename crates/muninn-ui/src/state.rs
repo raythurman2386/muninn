@@ -638,17 +638,17 @@ pub struct State {
     pub welcome: bool,
     /// DES-01: in-window keyboard-shortcuts overlay.
     pub help: bool,
-    /// v0.5: in-window settings modal. It sits above every other layer and
-    /// owns the keyboard while open.
-    pub settings_modal: bool,
-    /// The Settings modal's selected tab. Ephemeral: never persisted, and
+    /// v0.5: the in-window Settings page. It replaces the main column like
+    /// Help while the sidebar stays, and is a dismissible layer for Escape.
+    pub settings_open: bool,
+    /// The Settings page's selected tab. Ephemeral: never persisted, and
     /// reset to the first tab whenever Settings opens.
     pub settings_tab: crate::overlay::SettingsTab,
-    /// Where focus was when the settings modal opened, so closing it returns
+    /// Where focus was when the Settings page opened, so closing it returns
     /// typing to the same field.
     pub(crate) settings_return_editor: bool,
     pub(crate) settings_return_search: bool,
-    /// v0.5: the settings modal's default-note-template textarea buffer. It
+    /// v0.5: the Settings page's default-note-template textarea buffer. It
     /// mirrors [`Settings::note_template`]; edits persist through
     /// [`State::set_note_template`].
     pub note_template_field: TextEdit,
@@ -953,7 +953,7 @@ impl State {
             },
             welcome,
             help: false,
-            settings_modal: false,
+            settings_open: false,
             settings_tab: crate::overlay::SettingsTab::Vaults,
             settings_return_editor: false,
             settings_return_search: false,
@@ -1221,7 +1221,7 @@ impl State {
         self.load_ms
     }
 
-    /// Focus the vault-path field in the Settings modal's Vaults section.
+    /// Focus the vault-path field in the Settings page's Vaults section.
     pub fn begin_vault_prompt(&mut self) {
         self.begin_inline_prompt();
         self.vault_field.replace_text("");

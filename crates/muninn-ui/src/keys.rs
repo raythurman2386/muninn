@@ -45,14 +45,6 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         }
         return true;
     }
-    // The settings modal owns the keyboard while it is mounted: only the
-    // toggle chord is read here, everything else belongs to its controls.
-    if s.settings_modal {
-        if e.is_command(',') {
-            s.close_settings();
-        }
-        return true;
-    }
     // M3 GRP-02: arrows, Enter and the zoom/fit/isolate keys are graph-only;
     // State owns them so the canvas can be tested without a window. The
     // palette takes precedence while it is open (its input owns arrows).
@@ -175,8 +167,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
     } else if e.is_command('l') {
         s.toggle_scope();
     } else if e.is_command(',') {
-        // v0.5: platform-standard preferences chord (VSCode style).
-        s.open_settings();
+        // v0.5: platform-standard preferences chord (VSCode style). Settings
+        // is a page now, so the same chord closes it; the fields on the page
+        // own ordinary typing, as Board settings fields do.
+        s.toggle_settings();
     } else if e.is_command('1') {
         s.set_mode(Mode::Editor);
     } else if e.is_command('2') {

@@ -29,7 +29,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                 state.close_palette();
             }
         }
-        Layer::Settings => state.settings_modal = on,
+        Layer::Settings => state.settings_open = on,
         Layer::Help => state.help = on,
         Layer::Complete => {
             if on {

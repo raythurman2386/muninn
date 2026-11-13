@@ -27,7 +27,7 @@ returns to the note mode. One press never closes two layers.
 | # | `Layer` | Backing field | Opens via |
 |---|---|---|---|
 | 1 | `Palette` | `palette: Option<PaletteState>` | `⌘⇧P` |
-| 2 | `Settings` | `settings_modal: bool` | `⌘,` or gear button |
+| 2 | `Settings` | `settings_open: bool` | `⌘,` or gear button |
 | 3 | `Help` | `help: bool` | `⌘?` / `?` / `?` button |
 | 4 | `Complete` | `complete: Option<LinkComplete>` | typing `[[` or `⌘P` |
 | 5 | `Find` | `find: Option<FindState>` | `⌘F` |

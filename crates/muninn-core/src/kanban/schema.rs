@@ -1,6 +1,6 @@
 //! One schema for every kanban setting (slice 14).
 //!
-//! The settings modal's **Kanban** tab and the Kanban page's **Board
+//! The Settings page's **Kanban** tab and the Kanban page's **Board
 //! settings** panel are both generated from [`KANBAN_KEYS`], so a key, its
 //! label and its built-in value are written once. Every key resolves from the
 //! board's settings footer, then the app-wide `kanban_defaults` object in

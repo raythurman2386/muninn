@@ -29,7 +29,7 @@ use crate::{BoardSession, BoardView};
 
 use crate::{Mode, Scope};
 
-/// Default idle window before autosave, in seconds. The settings modal can
+/// Default idle window before autosave, in seconds. The Settings page can
 /// tune it between 0.05 and 10 seconds.
 pub const DEFAULT_AUTOSAVE_DELAY: f64 = 0.55;
 
@@ -42,7 +42,7 @@ pub const AUTOSAVE_MAX_DELAY: f64 = 10.0;
 /// How many recently opened vaults are remembered (MRU, newest first).
 pub const RECENT_VAULTS_MAX: usize = 5;
 
-/// Longest default note template kept, in characters. The settings modal and
+/// Longest default note template kept, in characters. The Settings page and
 /// the loader both clamp to this so a runaway paste cannot bloat
 /// `settings.json` or every note created from it.
 pub(crate) const NOTE_TEMPLATE_MAX_CHARS: usize = 4096;

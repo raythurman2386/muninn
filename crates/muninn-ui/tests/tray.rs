@@ -286,10 +286,10 @@ fn new_note_closes_settings_and_opens_the_name_field() {
     let mut f = fixture("new-note", true);
     f.rt.update(|s, _| s.open_settings());
     frames(&mut f.rt, 4);
-    assert!(f.rt.state.settings_modal);
+    assert!(f.rt.state.settings_open);
     f.rt.update(|s, _| s.tray_new_note());
     frames(&mut f.rt, 4);
-    assert!(!f.rt.state.settings_modal, "Settings closed");
+    assert!(!f.rt.state.settings_open, "Settings closed");
     assert!(f.rt.state.new_note_prompt.is_some(), "new-note field open");
 }
 

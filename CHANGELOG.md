@@ -25,6 +25,15 @@ All notable changes to Muninn are documented here. The format is based on
   canvas. The canvas is a named `canvas` reporting its element count, tool and
   selection, and Help gains a Board group matching the README's keys.
 
+- **Settings is a full page.** `⌘,` / `Ctrl+,`, the sidebar gear and **Open
+  Settings** in the command palette now replace the main column with a
+  Settings page instead of opening a 540 pt dialog on a scrim. The sidebar
+  stays, the six tabs and their controls are unchanged, and the body scrolls
+  in the space left after it, so the Kanban tab shows every row without a
+  dialog-height cap. The tab bar wraps in a narrow window, Close and Escape
+  still return typing focus to the field that opened Settings, and the same
+  chord toggles it.
+
 ### Fixed
 
 - **Long unbroken card text on the Kanban board.** A card whose visible text

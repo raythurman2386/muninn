@@ -1,4 +1,4 @@
-//! Overlay state machine: the command palette, Settings modal and Help page,
+//! Overlay state machine: the command palette, Settings page and Help page,
 //! plus the one dismissal stack every overlay shares.
 //!
 //! `Layer` names the order Escape dismisses them in; `State::topmost_layer`
@@ -49,7 +49,7 @@ pub enum Layer {
     MovePicker,
 }
 
-/// The Settings modal's tabs, in tab-bar order.
+/// The Settings page's tabs, in tab-bar order.
 ///
 /// The selected tab is ephemeral: it lives on [`State::settings_tab`], is not
 /// written to `settings.json`, and resets to [`SettingsTab::Vaults`] each
@@ -123,7 +123,7 @@ pub struct PaletteState {
 pub enum PaletteAction {
     OpenLocalGraph,
     SwitchVault,
-    /// Opens the settings modal (v0.5).
+    /// Opens the Settings page (v0.5).
     OpenSettings,
     NewNote,
     TogglePreview,
@@ -312,21 +312,22 @@ impl State {
         }
     }
 
-    /// v0.5: open the in-window settings modal.
+    /// v0.5: open the in-window Settings page.
     ///
-    /// The modal is a Rune dialog on the overlay layer, so it sits above the
-    /// sidebar and the help page. It records which text field was typing
-    /// before taking the keyboard and gives it back on [`Self::close_settings`].
+    /// Settings replaces the main column while the sidebar stays, the same
+    /// page pattern as Help and the Kanban Board settings panel. It records
+    /// which text field was typing before taking the keyboard and gives it
+    /// back on [`Self::close_settings`].
     pub fn open_settings(&mut self) {
-        if self.settings_modal {
+        if self.settings_open {
             return;
         }
         self.settings_return_editor = self.editor.focused;
         self.settings_return_search = self.search.focused;
-        self.settings_modal = true;
+        self.settings_open = true;
         // Slice 14: the app-wide Kanban tab and the page's Board settings
         // panel are one surface at a time, so the panel (and its text fields)
-        // cannot sit under the modal holding another board's values.
+        // cannot be replaced while holding another board's values.
         self.close_kanban_settings();
         self.settings_tab = SettingsTab::default();
         // Settings is the top layer; a help page or sidebar menu cannot stay
@@ -337,13 +338,13 @@ impl State {
         self.set_text_focus(false, false);
     }
 
-    /// Close the settings modal and return typing to the field that opened it.
+    /// Close the Settings page and return typing to the field that opened it.
     /// The vault-path field never keeps focus while hidden.
     pub fn close_settings(&mut self) {
-        if !self.settings_modal {
+        if !self.settings_open {
             return;
         }
-        self.settings_modal = false;
+        self.settings_open = false;
         self.vault_field.focused = false;
         self.sync_ui.blur();
         // Slice 14: a Kanban text default is written once typing rests; do it
@@ -361,14 +362,14 @@ impl State {
     }
 
     pub fn toggle_settings(&mut self) {
-        if self.settings_modal {
+        if self.settings_open {
             self.close_settings();
         } else {
             self.open_settings();
         }
     }
 
-    /// Switch the Settings modal to `tab`. The vault-path field never keeps
+    /// Switch the Settings page to `tab`. The vault-path field never keeps
     /// focus once its tab is hidden.
     pub fn set_settings_tab(&mut self, tab: SettingsTab) {
         if self.settings_tab != tab {
@@ -465,7 +466,7 @@ impl State {
         if self.palette.is_some() {
             return Some(Layer::Palette);
         }
-        if self.settings_modal {
+        if self.settings_open {
             return Some(Layer::Settings);
         }
         if self.help {

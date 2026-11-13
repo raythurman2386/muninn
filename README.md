@@ -65,7 +65,7 @@ Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 missing file starts from defaults instead of blocking startup. It remembers the theme,
 collapsed folders, the last vault and note, Write/Read/Graph/Board mode, Global/Local scope, the
 autosave delay (0.55 s by default), the default note template, the Reduce motion choice, the tray, start-at-login and shortcut switches and up to five recent vaults. `Cmd/Ctrl+,`
-opens the in-window Settings modal, split into tabs: **Vaults** (open or create a vault,
+opens the in-window Settings page, split into tabs: **Vaults** (open or create a vault,
 or reopen a recent one), **Editor** (step the autosave delay, 0.05–10 s, and the default
 note template), **Appearance** (Omarchy / System / Dark / Light, **Show tray icon**, **Close to tray**,
 **Start Muninn at login** and **Show Muninn with Ctrl+Alt+M**),
@@ -119,9 +119,9 @@ could never be read back; the reasoning is recorded in
 [ARCHITECTURE.md](ARCHITECTURE.md) (step 10).
 
 There is no native menu bar on Linux and the sidebar has no vault control; vault management
-lives in the in-window Settings modal (`Cmd/Ctrl+,` or the gear). Its **Vaults** tab has
+lives in the in-window Settings page (`Cmd/Ctrl+,` or the gear). Its **Vaults** tab has
 a typed-path field (`~` expands to your home folder) with **Open vault**, **New vault** and
-**Cancel**: a successful open or create closes the modal and switches vaults. Recent vaults
+**Cancel**: a successful open or create closes Settings and switches vaults. Recent vaults
 are managed there too — listed newest first, with a click promoting one to the top.
 `Cmd/Ctrl+?` (or the sidebar `?` button, or plain `?` when no text field has focus) opens the
 full shortcut map; `Esc` closes it.
