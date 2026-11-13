@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime};
 
-use muninn_core::{ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag};
+use muninn_core::{
+    KanbanView, ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag,
+};
 use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
@@ -43,6 +45,34 @@ impl MenuTarget {
     fn folder(folder: &str) -> Self {
         Self::Folder(folder.to_owned())
     }
+
+    /// The lane this target sits in, for the view that draws its menu.
+    pub(crate) fn lane(&self) -> Option<usize> {
+        match self {
+            Self::Card(lane, _)
+            | Self::Lane(lane)
+            | Self::DeleteLane(lane)
+            | Self::MoveCard(lane, _) => Some(*lane),
+            _ => None,
+        }
+    }
+}
+
+/// Slice 15: whether a menu item opens one of the Board's in-place fields (the
+/// card editor, a date or time picker, the lane title field or Card limit).
+/// The List and Table views draw the menus but not those fields, so the action
+/// switches to the Board first.
+fn opens_board_field(target: &MenuTarget, action: &str) -> bool {
+    matches!(
+        (target, action),
+        (
+            MenuTarget::Card(..),
+            "edit" | "insert_before" | "insert_after" | "add_date" | "add_time",
+        ) | (
+            MenuTarget::Lane(..),
+            "add_card" | "insert_lane_before" | "insert_lane_after" | "rename_lane" | "lane_limit",
+        )
+    )
 }
 
 /// Open right-click menu, anchored in window points.
@@ -4410,6 +4440,16 @@ impl State {
         let Some(menu) = self.menu.take() else {
             return;
         };
+        // Slice 15: the List and Table views draw the card and lane menus but
+        // not the board's in-place fields. An item that opens one switches to
+        // the Board first, where the editor or picker is drawn and useful.
+        if opens_board_field(&menu.target, action) {
+            self.set_kanban_view(KanbanView::Board);
+            if self.kanban_view() != KanbanView::Board {
+                // A refused commit kept the view (and its reason on screen).
+                return;
+            }
+        }
         match (menu.target, action) {
             (MenuTarget::Note(id), "rename") => self.begin_rename_note(id),
             (MenuTarget::Note(id), "delete") => self.delete_note(id),

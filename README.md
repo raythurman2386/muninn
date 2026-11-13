@@ -297,8 +297,9 @@ Typing `#` at a word boundary in the card editor offers the vault's tags
 written for a later colour editor, and no display setting writes the board.
 
 On the Kanban page `⌘F` searches the board itself (card text, case-insensitively),
-outlines the current match and moves the selection with it; `Esc` restores the
-selection. The header's **Filter** hides cards by text, tag, date (`Today`,
+outlines every matching card (the current one more heavily) and moves the
+selection with it; `Esc` restores the selection. The header's **Filter** hides
+cards by text, tag, date (`Today`,
 `Overdue`, or a `YYYY-MM-DD` range) and open/done state, combining conditions
 with AND. Filters are display state only: they are never written to the board
 or `settings.json`, and the header shows what is active with **Clear**. Nested
@@ -313,7 +314,11 @@ order; a multi-line card is flattened to one line there, and a narrow window
 scrolls it sideways. The header's Board / List / Table switcher changes the
 view for this session only: it is not saved and never rewrites the file's
 frontmatter. Card checkboxes, menus, links and tag chips work in all three
-views; editing stays on the board.
+views; the table's Tags column draws the same chips as the card's foot, and
+finding marks every matching card in all three. A card or lane menu item that
+opens an editor or picker (Edit, Insert card, Add a date/time, Add card, lane
+Rename/Card limit) switches to the board first, where that field is drawn; the
+switch commits an open editor and never writes the file.
 
 A card's first wikilink (a heading, block id or alias does not change the
 note) supplies metadata for the card's foot. The board's

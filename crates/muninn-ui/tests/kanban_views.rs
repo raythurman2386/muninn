@@ -8,6 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use muninn_core::KanbanView;
 use muninn_core::testing::TempVault;
 use muninn_ui::{Mode, Settings, State, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
@@ -66,6 +67,10 @@ fn views_vault() -> TempVault {
              ```\n%%\n",
         ),
         ("Empty.md", "---\n\nkanban-plugin: list\n\n---\n\n"),
+        (
+            "TwoEmpty.md",
+            "---\n\nkanban-plugin: table\n\n---\n\n## First\n\n## Second\n",
+        ),
     ])
 }
 
@@ -115,6 +120,18 @@ fn command(c: char) -> KeyEvent {
     }
 }
 
+fn plain(key: Key) -> KeyEvent {
+    KeyEvent {
+        key,
+        mods: Mods::default(),
+    }
+}
+
+fn press(rt: &mut Runtime<State>, key: Key) {
+    rt.key(plain(key));
+    frame(rt);
+}
+
 fn click(rt: &mut Runtime<State>, key: &str) {
     let (x, y) = rt.find(key).unwrap_or_else(|| panic!("missing {key}"));
     rt.pointer_down(x, y);
@@ -127,6 +144,14 @@ fn show(rt: &mut Runtime<State>, title: &str) {
     rt.state.open_from_list(id);
     rt.key(command('5'));
     frame(rt);
+}
+
+/// [`show`], then force `view`: a board keeps the session's switcher choice
+/// while it stays open, so a second look at the same note needs this.
+fn show_view(rt: &mut Runtime<State>, title: &str, view: KanbanView) {
+    show(rt, title);
+    rt.update(|s, _| s.set_kanban_view(view));
+    settle(rt);
 }
 
 fn has(rt: &Runtime<State>, key: &str) -> bool {
@@ -146,6 +171,30 @@ fn page_text(rt: &Runtime<State>) -> String {
         .filter_map(|e| e.text)
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn label_of(rt: &Runtime<State>, key: &str) -> Option<String> {
+    rt.elements()
+        .into_iter()
+        .find(|e| e.key.as_deref() == Some(key))
+        .and_then(|e| e.label)
+}
+
+/// The row labels of one view's cards: the list's `listitem` rows and the
+/// table's `row` rows.
+fn card_rows(rt: &Runtime<State>, prefix: &str, role: &str) -> Vec<String> {
+    let mut rows: Vec<String> = rt
+        .elements()
+        .into_iter()
+        .filter(|e| {
+            e.role == role
+                && e.key.as_deref() != Some("kanban-table-head")
+                && e.key.as_deref().is_some_and(|key| key.starts_with(prefix))
+        })
+        .filter_map(|e| e.label)
+        .collect();
+    rows.sort();
+    rows
 }
 
 /// Every `.md` file's bytes, by name.
@@ -242,9 +291,13 @@ fn list_and_table_show_the_same_lanes_and_cards() {
         text_of(&rt, "kanban-table-0-0-date").as_deref(),
         Some("2026-11-11")
     );
+    assert!(
+        has(&rt, "kanban-table-0-0-tag-0"),
+        "the Tags column draws the same chips as the board"
+    );
     assert_eq!(
-        text_of(&rt, "kanban-table-0-0-tags").as_deref(),
-        Some("#release")
+        label_of(&rt, "kanban-table-0-0-tag-0").as_deref(),
+        Some("Filter by #release")
     );
     assert_eq!(
         text_of(&rt, "kanban-table-2-0-progress").as_deref(),
@@ -256,7 +309,7 @@ fn list_and_table_show_the_same_lanes_and_cards() {
         Some("Empty")
     );
     assert_eq!(
-        text_of(&rt, "kanban-table-empty-lane").as_deref(),
+        text_of(&rt, "kanban-table-lane-1-empty").as_deref(),
         Some("No cards")
     );
     let flattened = text_of(&rt, "kanban-table-0-0-text").expect("card text");
@@ -346,7 +399,7 @@ fn a_collapsed_lane_keeps_its_header_and_hides_its_cards() {
     assert!(has(&rt, "kanban-table-lane-1"));
     assert!(!has(&rt, "kanban-table-1-0"));
     assert!(
-        text_of(&rt, "kanban-table-lane-note").is_some_and(|note| note.contains("Collapsed")),
+        text_of(&rt, "kanban-table-lane-1-note").is_some_and(|note| note.contains("Collapsed")),
         "the table says the lane is collapsed"
     );
 }
@@ -425,4 +478,271 @@ fn another_board_opens_in_its_own_view_and_the_switcher_is_not_saved() {
     assert_eq!(rt.state.mode, Mode::Kanban);
     assert!(has(&rt, "kanban-scroll"));
     assert!(!has(&rt, "kanban-list"));
+}
+
+/// Open a card's menu in the current view, then pick `action`.
+fn card_menu(rt: &mut Runtime<State>, row: &str, action: &str) {
+    let (x, y) = rt.find(row).unwrap_or_else(|| panic!("missing {row}"));
+    rt.secondary_down(x, y);
+    rt.secondary_up(x, y);
+    frame(rt);
+    assert!(has(rt, action), "the card menu opens from {row}");
+    // Let the menu's insertion settle before pressing an item.
+    for _ in 0..20 {
+        frame(rt);
+    }
+    click(rt, action);
+    frame(rt);
+}
+
+/// Open a lane's menu in the list, then pick `action`.
+fn lane_menu(rt: &mut Runtime<State>, lane: usize, action: &str) {
+    click(rt, &format!("kanban-list-lane-{lane}-menu"));
+    frame(rt);
+    for _ in 0..20 {
+        frame(rt);
+    }
+    click(rt, action);
+    frame(rt);
+}
+
+#[test]
+fn a_list_card_menu_starts_editors_on_the_board() {
+    let tmp = views_vault();
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "List");
+    settle(&mut rt);
+    click(&mut rt, "kanban-card-0-0");
+    frame(&mut rt);
+    assert_eq!(rt.state.kanban_selected, Some((0, 0)));
+
+    // Edit: the board is drawn, with its editor, instead of a hidden focus
+    // owner in the list.
+    card_menu(&mut rt, "kanban-card-0-0-menu", "menu-edit");
+    assert_eq!(rt.state.kanban_view(), KanbanView::Board);
+    assert!(has(&rt, "kanban-scroll"));
+    assert!(has(&rt, "kanban-card-editor"), "the editor is drawn");
+    assert!(!has(&rt, "kanban-list"));
+
+    // Esc closes the field, and the page's arrows still move the selection.
+    press(&mut rt, Key::Escape);
+    assert!(!has(&rt, "kanban-card-editor"));
+    assert_eq!(rt.state.kanban_selected, Some((0, 0)));
+    press(&mut rt, Key::Down);
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 1)),
+        "the board has the keyboard again"
+    );
+}
+
+#[test]
+fn a_list_lane_menu_starts_its_editors_on_the_board() {
+    let tmp = views_vault();
+    let (mut rt, _, _) = fresh(&tmp);
+
+    // Add card.
+    show_view(&mut rt, "List", KanbanView::List);
+    lane_menu(&mut rt, 0, "menu-add_card");
+    assert_eq!(rt.state.kanban_view(), KanbanView::Board);
+    assert!(has(&rt, "kanban-card-editor"));
+    press(&mut rt, Key::Escape);
+
+    // Insert lane before.
+    show_view(&mut rt, "List", KanbanView::List);
+    lane_menu(&mut rt, 0, "menu-insert_lane_before");
+    assert_eq!(rt.state.kanban_view(), KanbanView::Board);
+    assert!(has(&rt, "kanban-lane-field"));
+    press(&mut rt, Key::Escape);
+
+    // Rename lane.
+    show_view(&mut rt, "List", KanbanView::List);
+    lane_menu(&mut rt, 0, "menu-rename_lane");
+    assert_eq!(rt.state.kanban_view(), KanbanView::Board);
+    assert!(has(&rt, "kanban-lane-field"));
+    press(&mut rt, Key::Escape);
+
+    // Card limit….
+    show_view(&mut rt, "List", KanbanView::List);
+    lane_menu(&mut rt, 0, "menu-lane_limit");
+    assert_eq!(rt.state.kanban_view(), KanbanView::Board);
+    assert!(has(&rt, "kanban-lane-field"));
+}
+
+#[test]
+fn a_list_card_menu_add_date_switches_to_the_board_picker() {
+    let tmp = views_vault();
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "List");
+    settle(&mut rt);
+    card_menu(&mut rt, "kanban-card-0-0-menu", "menu-add_date");
+    assert_eq!(rt.state.kanban_view(), KanbanView::Board);
+    assert!(has(&rt, "kanban-picker"), "the picker is drawn");
+    assert!(has(&rt, "kanban-scroll"));
+}
+
+#[test]
+fn a_table_card_right_click_edits_on_the_board() {
+    let tmp = views_vault();
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "Table");
+    settle(&mut rt);
+    card_menu(&mut rt, "kanban-table-0-0", "menu-edit");
+    assert_eq!(rt.state.kanban_view(), KanbanView::Board);
+    assert!(has(&rt, "kanban-card-editor"));
+    assert!(has(&rt, "kanban-scroll"));
+}
+
+#[test]
+fn switching_views_with_an_open_changed_editor_commits_it_and_writes_nothing() {
+    let tmp = views_vault();
+    let before = snapshot(tmp.path());
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "Board");
+    settle(&mut rt);
+    card_menu(&mut rt, "kanban-card-0-0-menu", "menu-edit");
+    assert!(has(&rt, "kanban-card-editor"));
+    rt.state.kanban_card_field.replace_text("Edited in place");
+    rt.state.kanban_card_field.set_caret(15);
+    frame(&mut rt);
+
+    click(&mut rt, "kanban-view-list");
+    frame(&mut rt);
+    assert!(has(&rt, "kanban-list"));
+    assert!(!has(&rt, "kanban-card-editor"), "the editor closed");
+    assert!(
+        rt.state.kanban.as_ref().unwrap().dirty(),
+        "the edit is kept"
+    );
+    let board = rt.state.kanban.as_ref().unwrap().board.as_ref().unwrap();
+    assert_eq!(board.lanes()[0].cards()[0].text(), "Edited in place");
+    assert!(
+        page_text(&rt).contains("Edited in place"),
+        "the list shows it"
+    );
+    drop(rt);
+    assert_eq!(snapshot(tmp.path()), before, "no file is written");
+}
+
+#[test]
+fn find_marks_every_match_in_the_list_and_the_table() {
+    let tmp = views_vault();
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "List");
+    rt.key(command('f'));
+    frame(&mut rt);
+    rt.update(|s, _| {
+        let find = s.kanban_find.as_mut().expect("Board Find");
+        find.field.replace_text("line");
+        find.field.set_caret(4);
+        find.field.focused = true;
+    });
+    frame(&mut rt);
+    assert_eq!(
+        rt.state.kanban_find.as_ref().map(|f| f.matches.len()),
+        Some(41),
+        "every occurrence matches (both cards hold the query)"
+    );
+    assert_eq!(rt.state.kanban_find_mark(0, 0), (true, true));
+    assert_eq!(
+        rt.state.kanban_find_mark(0, 1),
+        (true, false),
+        "the other match is marked too"
+    );
+    assert!(has(&rt, "kanban-find-bar"));
+
+    click(&mut rt, "kanban-view-table");
+    frame(&mut rt);
+    assert!(has(&rt, "kanban-table"));
+    assert_eq!(rt.state.kanban_find_mark(0, 0), (true, true));
+    assert_eq!(rt.state.kanban_find_mark(0, 1), (true, false));
+    assert!(has(&rt, "kanban-find-bar"), "Find stays open across views");
+}
+
+#[test]
+fn filters_and_tag_chips_work_in_the_list_and_the_table() {
+    let tmp = views_vault();
+    let before = snapshot(tmp.path());
+    let (mut rt, _, _) = fresh(&tmp);
+
+    // List: the text filter hides the other lane's card.
+    show(&mut rt, "List");
+    rt.update(|s, _| s.kanban_filter.text.replace_text("Ship"));
+    frame(&mut rt);
+    assert!(has(&rt, "kanban-filter-summary"));
+    assert!(!has(&rt, "kanban-card-0-0"), "the filtered card is hidden");
+    assert!(has(&rt, "kanban-card-2-0"), "the matching card stays");
+    assert_eq!(
+        text_of(&rt, "kanban-list-lane-0-empty").as_deref(),
+        Some("No matching cards")
+    );
+
+    // Table: a tag chip sets the tag filter, as on the board.
+    rt.state.clear_kanban_filter();
+    show(&mut rt, "Table");
+    settle(&mut rt);
+    click(&mut rt, "kanban-table-0-0-tag-0");
+    frame(&mut rt);
+    assert_eq!(rt.state.kanban_filter.tag_text(), Some("release"));
+    assert!(has(&rt, "kanban-table-0-0"));
+    assert!(
+        !has(&rt, "kanban-table-2-0"),
+        "the chip filters other cards"
+    );
+    drop(rt);
+    assert_eq!(snapshot(tmp.path()), before, "filtering writes nothing");
+}
+
+#[test]
+fn two_empty_lanes_get_their_own_table_keys() {
+    let tmp = views_vault();
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "TwoEmpty");
+    assert!(has(&rt, "kanban-table"));
+    assert_eq!(
+        text_of(&rt, "kanban-table-lane-0-empty").as_deref(),
+        Some("No cards")
+    );
+    assert_eq!(
+        text_of(&rt, "kanban-table-lane-1-empty").as_deref(),
+        Some("No cards")
+    );
+    let keys: Vec<String> = rt
+        .elements()
+        .into_iter()
+        .filter_map(|e| e.key)
+        .filter(|key| key.starts_with("kanban-table-lane-"))
+        .collect();
+    let mut unique = keys.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(keys.len(), unique.len(), "every key is unique: {keys:?}");
+}
+
+#[test]
+fn the_list_and_table_draw_the_same_card_rows() {
+    let tmp = views_vault();
+    let (mut rt, _, _) = fresh(&tmp);
+    show(&mut rt, "List");
+    let list = card_rows(&rt, "kanban-card-", "listitem");
+    assert!(!list.is_empty(), "the list draws card rows");
+
+    click(&mut rt, "kanban-view-table");
+    frame(&mut rt);
+    let table = card_rows(&rt, "kanban-table-", "row");
+    // The list shows a card's first line in its label; the table flattens a
+    // multi-line card, so compare the first line of the card part.
+    let first_line = |label: &str| {
+        label
+            .split_once(": ")
+            .map_or(label, |(_, card)| card)
+            .split(" · ")
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_owned()
+    };
+    let list: Vec<String> = list.iter().map(|label| first_line(label)).collect();
+    let table: Vec<String> = table.iter().map(|label| first_line(label)).collect();
+    assert_eq!(table, list, "the same cards in the same order");
 }

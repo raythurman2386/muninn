@@ -140,11 +140,17 @@ All notable changes to Muninn are documented here. The format is based on
   file. The header's **Board / List / Table** switcher shows any of the three;
   its choice is ephemeral: it is not saved and never rewrites the frontmatter.
   List and table rows keep the board's card actions (checkbox toggles done,
-  `Cmd`/`Ctrl`-click archives, card menu, links, tag chips), a collapsed lane
-  hides its cards, and an empty lane or board says so. The table flattens a
-  multi-line card to one safe line, renders dates and tags in their columns,
-  and scrolls sideways when the window is narrow. Switching or reading a view,
-  and filtering in it, never writes the board.- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each  lane's menu: Insert lane before / after, Rename lane, Card limit… (written
+  `Cmd`/`Ctrl`-click archives, card menu, links, tag chips; the table's Tags
+  column draws the same chips), a collapsed lane hides its cards, and an empty
+  lane or board says so. Finding marks every matching card in all three views.
+  The table flattens a multi-line card to one safe line, renders dates in
+  their column, and scrolls sideways when the window is narrow. A card or lane
+  menu item that opens an editor or picker (Edit, Insert card before / after,
+  Add a date or time, Add card, Insert/Rename lane, Card limit) switches to the
+  board first, where that field is drawn. Switching or reading a view, and
+  filtering in it, never writes the board.
+- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
+  lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
   Sort by text, date or tags, and Delete lane (a lane with cards asks first;
   note text in the lane that the board doesn't show stays in the file, or the
@@ -221,6 +227,16 @@ All notable changes to Muninn are documented here. The format is based on
   field and stays on the page (as the docs say) instead of leaving the page
   and committing the text by doing so; `⌘Z` / `Ctrl+Z` there undoes the
   field's typing rather than committing it first.
+- **List and table menus act where their field is drawn.** Edit, Insert card
+  before / after, Add a date or time, Add card, and a lane's Insert, Rename
+  and Card limit from the List or Table view now switch to the Board before
+  opening the editor or picker, so the field is visible and the keyboard is
+  not left in a hidden editor. The switch commits an open editor and writes
+  nothing. The table's Tags column draws real tag chips (a click sets the tag
+  filter), Find outlines every matching card in both views, two empty lanes
+  no longer share an element key, and each lane's rows are rebuilt only when
+  what they draw changes instead of every frame.
+
 ## [0.7.1] - 2026-11-11
 
 ### Fixed

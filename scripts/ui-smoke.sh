@@ -294,6 +294,11 @@
 #                   unchanged; Ctrl+S: Board.md equals ui-smoke/kanban-drag-x11.md with
 #                   list-collapse [false,true,false,false]; close through WM_DELETE_WINDOW
 #                   (exit 0), bytes still the saved ones
+#   headless_kanban_views  slice 15, offscreen on its own vault (List.md, a kanban whose
+#                   frontmatter says list): opens it from the note search (a kanban
+#                   opens in Kanban mode) and taps the header's Board / List / Table
+#                   tabs, checking from each tree that the matching view is drawn and
+#                   the other two are not; switching writes nothing
 #   headless_kanban_sync  slice 7, offscreen on edit-board.md as Board.md, opened from
 #                   settings: with kanban autosave on (the default) checking a card leaves
 #                   the file as it was 0.45 s later (Unsaved) and is written 2.8 s later
@@ -351,7 +356,7 @@ set -uo pipefail
 root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "${1:-$root/target/ui-smoke}" && CDPATH= cd -- "${1:-$root/target/ui-smoke}" && pwd)"
 harness="$root/scripts/ui-smoke/harness.py"
-STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit headless_kanban_lanes x11_kanban_lanes headless_kanban_drag x11_kanban_drag headless_kanban_sync x11_kanban_sync x11_kanban_safety headless_kanban_links x11_kanban_links board_untouched}"
+STEPS="${UI_SMOKE_STEPS:-build seed cli_check headless_modes headless_restart headless_board headless_big_restart headless_big_write headless_draw headless_board_safety headless_edit headless_text headless_sync headless_new_board x11_modes x11_board x11_draw x11_board_safety x11_edit x11_text x11_sync x11_chrome x11_new_board x11_board_rename x11_single_instance headless_kanban_model x11_kanban_model headless_kanban headless_kanban_restart x11_kanban headless_new_kanban x11_new_kanban x11_kanban_open headless_kanban_edit x11_kanban_edit headless_kanban_lanes x11_kanban_lanes headless_kanban_drag x11_kanban_drag headless_kanban_sync x11_kanban_sync x11_kanban_safety headless_kanban_links x11_kanban_links headless_kanban_views board_untouched}"
 
 rm -rf "$out/screens" "$out/trees" "$out/logs" "$out/work" "$out/summary.txt"
 mkdir -p "$out/screens" "$out/trees" "$out/logs"
@@ -3587,6 +3592,40 @@ kanban_wait_bytes() { # kanban_wait_bytes FILE EXPECTED: FILE holds EXPECTED's b
     sleep 0.1
   done
   diff "$2" "$1"; return 1
+}
+
+step_headless_kanban_views() {
+  isolate
+  kanban_gpu
+  local v="$work/kanban-views-vault" t="$out/trees" m="$work/kanban-views" mark
+  rm -rf "$v" "$m"; mkdir -p "$v" "$m"
+  printf -- '---\nkanban-plugin: list\n---\n\n## To do\n\n- [ ] one\n\n## Done\n\n- [x] old\n' >"$v/List.md"
+  cp "$v/List.md" "$m/List.md"
+  # Each mark is one launch: open List.md from the note search (a kanban opens
+  # in Kanban mode), then switch the view with the header's tabs.
+  for mark in list table board list-again; do
+    rm -rf "$work/state-kanban-views-$mark" "$work/config-kanban-views-$mark"
+    export XDG_CONFIG_HOME="$work/config-kanban-views-$mark" XDG_STATE_HOME="$work/state-kanban-views-$mark"
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+    "$bin" --vault "$v" --script "$root/scripts/ui-smoke/kanban-views.json" \
+      --at "mark:$mark+0.3" --scale 1 --tree "$t/kanban-views-$mark.json" || return 1
+    python3 "$harness" tree-mode "$t/kanban-views-$mark.json" kanban || return 1
+  done
+  python3 "$harness" tree-text "$t/kanban-views-list.json" kanban-list-lane-0-title "To do" || return 1
+  no_key "$t/kanban-views-list.json" kanban-scroll || return 1
+  no_key "$t/kanban-views-list.json" kanban-table || return 1
+  python3 "$harness" tree-text "$t/kanban-views-table.json" kanban-table-0-0-lane "To do" || return 1
+  no_key "$t/kanban-views-table.json" kanban-list || return 1
+  no_key "$t/kanban-views-table.json" kanban-scroll || return 1
+  python3 "$harness" tree-text "$t/kanban-views-board.json" kanban-lane-0-title "To do" || return 1
+  no_key "$t/kanban-views-board.json" kanban-list || return 1
+  no_key "$t/kanban-views-board.json" kanban-table || return 1
+  python3 "$harness" tree-text "$t/kanban-views-list-again.json" kanban-list-lane-0-title "To do" || return 1
+  no_key "$t/kanban-views-list-again.json" kanban-scroll || return 1
+  echo "ok Board / List / Table switch and every frame shows one view"
+  # Switching is display state: not one byte of the note changed.
+  cmp "$v/List.md" "$m/List.md" || { diff "$m/List.md" "$v/List.md"; return 1; }
+  echo "ok switching views wrote nothing"
 }
 
 step_headless_kanban_sync() {

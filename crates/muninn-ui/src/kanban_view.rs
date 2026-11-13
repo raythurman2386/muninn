@@ -858,7 +858,7 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
 }
 
 /// A hash of what a lane draws: its header and its cards' marks and text.
-fn lane_version(lane: &Lane) -> u64 {
+pub(crate) fn lane_version(lane: &Lane) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     (
         lane.title(),
@@ -875,8 +875,9 @@ fn lane_version(lane: &Lane) -> u64 {
 
 /// A hash of the date, tag and metadata settings a card's text and foot
 /// depend on, plus the vault revision so a changed linked note's metadata is
-/// read again on the next lane rebuild.
-fn card_settings_version(
+/// read again on the next lane rebuild. The List and Table views use the same
+/// key, so their lane groups rebuild on the same changes as the board's.
+pub(crate) fn card_settings_version(
     s: &State,
     dates: &DateSettings,
     today: CivilDate,

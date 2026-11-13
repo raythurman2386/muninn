@@ -110,9 +110,10 @@ kanban-plugin: board
 - **Checklist.** Nested task-list items in a card's continuation lines are the card's checklist: a bullet (`-`, `*`, `+`, or `1.` / `1)`) followed by a task checkbox, at any indentation inside the card. The card's own first line is the card's checkbox, never a checklist item. Items inside a fenced block or a line that starts as inline code are not checklist items. Malformed task lines stay ordinary card text. A card shows its checklist at its foot with a `done/total` count; clicking one item toggles exactly that character through the same edit path as the card's own checkbox, so it is one undo step and leaves the card's outer checkbox and every other line unchanged. A viewer reads the checklist from the card text; it never invents or rewrites one. On screen each checklist row is that item's own line as plain text, not rendered markdown, and a continuation line below an item stays in the card's main text rather than in the row. The main text omits only the item lines themselves, so a blank continuation or an empty card first line can leave it empty or blank; that display is not byte-for-byte the card text. Reading and toggling still use the card's exact bytes.
 - **Find and filter (view only).** On the Kanban page, Find (`⌘F` / `Ctrl+F`)
   searches the parsed board's card text (the cards the filter shows, when one
-  is active) case-insensitively, draws the current match's card with an
-  outline, and steps through matches with `Enter` / `↓` and `Shift+Enter` /
-  `↑`; `Esc` closes it and restores the selection. The header's Filter hides cards that do not match a text query, a `#tag`, a date (`today`, `overdue`, or an inclusive `YYYY-MM-DD` range) and/or an open/done state. Conditions combine with AND. A tag chip's click sets the tag condition. Filtering and finding are display state: they do not change the board model, the file, or its undo history, and they are not saved in the settings footer or in `settings.json`. A card with no date does not match a date condition. Overdue means a date before the local calendar day.
+  is active) case-insensitively, draws every matching card with an outline and
+  the current match with a heavier one, and steps through matches with `Enter`
+  / `↓` and `Shift+Enter` / `↑`; `Esc` closes it and restores the selection.
+  The header's Filter hides cards that do not match a text query, a `#tag`, a date (`today`, `overdue`, or an inclusive `YYYY-MM-DD` range) and/or an open/done state. Conditions combine with AND. A tag chip's click sets the tag condition. Filtering and finding are display state: they do not change the board model, the file, or its undo history, and they are not saved in the settings footer or in `settings.json`. A card with no date does not match a date condition. Overdue means a date before the local calendar day.
 - **Views (view only).** The frontmatter value selects the Kanban page's
   default view (section 3): `board` is the columns, `list` draws the lanes as
   sections in one scrollable list, and `table` draws a header row (Lane, Card,
@@ -128,8 +129,14 @@ kanban-plugin: board
   settings footer or `settings.json`, and switching views never changes the
   board, the file, or its undo history. The card checkbox (toggle done;
   `Cmd`/`Ctrl`-click archives), the card menu, links and tag chips work in the
-  list and table; editing stays on the board view. An open card or lane editor
-  commits when the view changes, as it does when the page is left.
+  list and table; the table's Tags column draws the same chips as the card's
+  foot, so a chip's click filters from there too. Finding marks every matching
+  card in all three views. An open card or lane editor commits when the view
+  changes, as it does when the page is left. A menu item that opens an
+  in-place field (Edit, Insert card before / after, Add a date or time, Add
+  card, Insert/Rename lane and Card limit) switches to the board first, since
+  the list and table do not draw those fields; that switch also commits an open
+  editor and never writes the file.
 - **List items without a checkbox** (`- text`).
   - **Open point C-2:** whether these are cards. Muninn keeps them as passthrough and does not show them as cards in 0.8.0.
 - **Writing a new card.** `- [ ] ` + text. The text is not blank. A line of only spaces or tabs is written as a blank continuation. The continuation indent is taken from the first card in file order that has one, walking the lanes and then the archive. If none do, Muninn uses two spaces. If that indent is only spaces and is narrower than two columns, a new card uses two spaces.

@@ -15,8 +15,20 @@
 //!
 //! Neither view writes: the card's checkbox (toggle done, Cmd/Ctrl-click to
 //! archive), its menu, its links and a tag chip's filter work as on the board,
-//! and editing stays on the board view. Switching views never changes the
-//! frontmatter or any other byte.
+//! and editing stays on the board view. A card or lane menu item that opens
+//! one of the board's in-place fields (Edit, Insert card before / after, Add a
+//! date or time, Add card, Insert/Rename lane, Card limit) switches to the
+//! Board first (`State::pick_menu`), where the field is drawn; the list and
+//! table do not draw those fields. Finding marks every matching card with the
+//! board's outline precedence, and the table's Tags column draws the same chip
+//! rows as the card's foot. Switching views never changes the frontmatter or
+//! any other byte.
+//!
+//! A lane's section or row group is built again only when what it draws
+//! changes: its cards and header (the board's [`lane_version`]), the selected
+//! card, the date, tag and metadata settings and the vault revision, the
+//! filter and Board Find. A lane with its menu open is built every frame, as
+//! on the board. [`lane_version`]: crate::kanban_view::lane_version
 
 use muninn_core::{
     Card, CardText, CivilDate, DateSettings, Kanban, Lane, MetadataCache, MetadataSettings,
@@ -42,7 +54,43 @@ const PROGRESS_COL: f32 = 76.0;
 /// natural width, so every row names this width rather than `w_full`.
 const TABLE_W: f32 = 1080.0;
 
+/// How a card row is marked: Find's current or other match, the selection, or
+/// nothing. The board's precedence: the current match, then any match, then
+/// the selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CardMark {
+    Current,
+    Matching,
+    Selected,
+    Plain,
+}
+
+/// The mark for a card, from Find's two flags and the selection. The list and
+/// the table draw with the board's precedence.
+fn card_mark(current: bool, matching: bool, selected: bool) -> CardMark {
+    if current {
+        CardMark::Current
+    } else if matching {
+        CardMark::Matching
+    } else if selected {
+        CardMark::Selected
+    } else {
+        CardMark::Plain
+    }
+}
+
+/// A card row's border, from its mark: width and colour.
+fn mark_border(k: &Kit, mark: CardMark) -> (f32, rune::Color) {
+    match mark {
+        CardMark::Current => (2.0, k.c.text_accent),
+        CardMark::Matching => (1.0, k.c.warning.fg),
+        CardMark::Selected => (1.0, k.c.text_accent),
+        CardMark::Plain => (1.0, k.c.border_muted),
+    }
+}
+
 /// The settings and the day one frame draws with, resolved once.
+#[derive(Clone)]
 struct Context {
     note: Option<usize>,
     dates: DateSettings,
@@ -66,9 +114,35 @@ impl Context {
 /// The board as one scrollable list of lane sections.
 pub(crate) fn list(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let ctx = Context::new(s, rel);
+    let layout = s.kanban_board_settings();
+    let card_key =
+        crate::kanban_view::card_settings_version(s, &ctx.dates, ctx.today, &ctx.metadata, &layout);
+    let filter_hash = s.kanban_filter_hash();
+    let find_hash = s.kanban_find_hash();
+    let kit = crate::omarchy::kit_id(s, k.dark);
     let mut sections = Vec::new();
     for (i, lane) in board.lanes().iter().enumerate() {
-        sections.push(list_lane(s, k, &ctx, i, lane));
+        // A lane with its menu open is built every frame: the menu is part of
+        // what it draws and names a card by place.
+        if s.menu.as_ref().and_then(|menu| menu.target.lane()) == Some(i) {
+            sections.push(list_lane(s, k, &ctx, i, lane));
+            continue;
+        }
+        let selected = s.kanban_selected.filter(|(l, _)| *l == i).map(|(_, j)| j);
+        let lane_ctx = ctx.clone();
+        sections.push(rune::memo(
+            format!("kanban-list-lane-{i}"),
+            (
+                rel,
+                kit,
+                crate::kanban_view::lane_version(lane),
+                selected,
+                card_key,
+                filter_hash,
+                find_hash,
+            ),
+            move || list_lane(s, k, &lane_ctx, i, lane),
+        ));
     }
     let content = if sections.is_empty() {
         empty_state(k, "kanban-list-empty", "No lanes on this board")
@@ -222,6 +296,8 @@ fn list_card(
     let source = card_markdown(&s.vault, ctx.note, &display_text);
     let first = display_text.lines().next().unwrap_or_default();
     let selected = s.kanban_selected == Some((i, j));
+    let (matching, current) = s.kanban_find_mark(i, j);
+    let (width, border) = mark_border(k, card_mark(current, matching, selected));
     row()
         .key(format!("kanban-card-{i}-{j}"))
         .w_full()
@@ -229,14 +305,7 @@ fn list_card(
         .gap(8.0)
         .radius(8.0)
         .fill(k.c.layer_02)
-        .border(
-            1.0,
-            if selected {
-                k.c.text_accent
-            } else {
-                k.c.border_muted
-            },
-        )
+        .border(width, border)
         .role("listitem")
         .label(format!(
             "{} · {}: {first}",
@@ -278,9 +347,34 @@ fn list_card(
 /// The board as a table of cards, grouped by lane in file order.
 pub(crate) fn table(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let ctx = Context::new(s, rel);
+    let layout = s.kanban_board_settings();
+    let card_key =
+        crate::kanban_view::card_settings_version(s, &ctx.dates, ctx.today, &ctx.metadata, &layout);
+    let filter_hash = s.kanban_filter_hash();
+    let find_hash = s.kanban_find_hash();
+    let kit = crate::omarchy::kit_id(s, k.dark);
     let mut rows = vec![table_head(k)];
     for (i, lane) in board.lanes().iter().enumerate() {
-        table_lane_rows(s, k, &ctx, i, lane, &mut rows);
+        // A lane with its card menu open is built every frame, as on the board.
+        if s.menu.as_ref().and_then(|menu| menu.target.lane()) == Some(i) {
+            rows.push(table_lane_group(s, k, &ctx, i, lane));
+            continue;
+        }
+        let selected = s.kanban_selected.filter(|(l, _)| *l == i).map(|(_, j)| j);
+        let lane_ctx = ctx.clone();
+        rows.push(rune::memo(
+            format!("kanban-table-group-{i}"),
+            (
+                rel,
+                kit,
+                crate::kanban_view::lane_version(lane),
+                selected,
+                card_key,
+                filter_hash,
+                find_hash,
+            ),
+            move || table_lane_group(s, k, &lane_ctx, i, lane),
+        ));
     }
     let content = if board.lanes().is_empty() {
         empty_state(k, "kanban-table-empty-board", "No lanes on this board")
@@ -294,6 +388,19 @@ pub(crate) fn table(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
         .min_h(0.0)
         .scroll_xy()
         .child(content)
+}
+
+/// One lane's rows in the table, grouped so the lane is built again only when
+/// what it draws changes (its cards, the selected card, the settings, the
+/// filter and Find).
+fn table_lane_group(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane) -> El {
+    let mut rows = Vec::new();
+    table_lane_rows(s, k, ctx, i, lane, &mut rows);
+    col()
+        .key(format!("kanban-table-group-{i}"))
+        .w(TABLE_W)
+        .gap(0.0)
+        .children(rows)
 }
 
 /// One lane's table rows: a collapsed or empty note, or its cards.
@@ -326,11 +433,7 @@ fn table_lane_rows(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane, row
             } else {
                 "No cards".to_owned()
             },
-            Some(if no_match {
-                "kanban-table-empty"
-            } else {
-                "kanban-table-empty-lane"
-            }),
+            Some("empty"),
         ));
         return;
     }
@@ -407,14 +510,11 @@ fn table_row(
     let checklist = card_checklist(card.text());
     let display_text = without_checklist_lines(&title_text, &checklist);
     let flat = flatten_card_text(&display_text);
-    let tags = crate::kanban_tags::unique_tags(&found)
-        .into_iter()
-        .map(|tag| format!("#{tag}"))
-        .collect::<Vec<_>>()
-        .join(" ");
     let date = table_date(&ctx.dates, &found);
     let progress = table_progress(card.text());
     let selected = s.kanban_selected == Some((i, j));
+    let (matching, current) = s.kanban_find_mark(i, j);
+    let (width, border) = mark_border(k, card_mark(current, matching, selected));
     let first = flat.lines().next().unwrap_or_default().to_owned();
     let mut card_cell = row()
         .key(format!("kanban-table-{i}-{j}-card"))
@@ -477,14 +577,7 @@ fn table_row(
         } else {
             k.c.layer_02
         })
-        .border(
-            1.0,
-            if selected {
-                k.c.text_accent
-            } else {
-                k.c.border_muted
-            },
-        )
+        .border(width, border)
         .role("row")
         .label(format!(
             "{} · {}: {first}",
@@ -512,15 +605,14 @@ fn table_row(
                 .truncate()
                 .selectable(true),
         )
-        .child(
-            text(tags)
-                .key(format!("kanban-table-{i}-{j}-tags"))
-                .font(k.ty.caption())
-                .color(k.c.text_accent)
-                .w(TAGS_COL)
-                .truncate()
-                .selectable(true),
-        )
+        .child(crate::kanban_tags::tag_chips(
+            k,
+            &found,
+            i,
+            j,
+            "kanban-table",
+            Some(TAGS_COL),
+        ))
         .child(
             text(progress)
                 .key(format!("kanban-table-{i}-{j}-progress"))
@@ -533,7 +625,13 @@ fn table_row(
 }
 
 /// A lane with no rows: its name and a reason, in the table's columns.
-fn table_lane_note(k: &Kit, i: usize, lane: &Lane, words: String, key: Option<&'static str>) -> El {
+fn table_lane_note(
+    k: &Kit,
+    i: usize,
+    lane: &Lane,
+    words: String,
+    suffix: Option<&'static str>,
+) -> El {
     row()
         .key(format!("kanban-table-lane-{i}"))
         .w(TABLE_W)
@@ -553,7 +651,11 @@ fn table_lane_note(k: &Kit, i: usize, lane: &Lane, words: String, key: Option<&'
         )
         .child(
             text(words)
-                .key(key.unwrap_or("kanban-table-lane-note"))
+                // A lane's own key: two empty lanes are two rows.
+                .key(format!(
+                    "kanban-table-lane-{i}-{}",
+                    suffix.unwrap_or("note")
+                ))
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
                 .grow(1.0)
@@ -638,7 +740,15 @@ fn table_progress(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::flatten_card_text;
+    use super::{CardMark, card_mark, flatten_card_text};
+
+    #[test]
+    fn find_marks_take_precedence_over_the_selection() {
+        assert_eq!(card_mark(true, true, true), CardMark::Current);
+        assert_eq!(card_mark(false, true, true), CardMark::Matching);
+        assert_eq!(card_mark(false, false, true), CardMark::Selected);
+        assert_eq!(card_mark(false, false, false), CardMark::Plain);
+    }
 
     #[test]
     fn multi_line_and_multibyte_text_flattens_to_one_line() {

@@ -63,16 +63,34 @@ pub(crate) fn card_tags(
     if !settings.show_tags_at_bottom || found.tags.is_empty() {
         return rune::el();
     }
+    tag_chips(k, found, i, j, "kanban-card", None)
+}
+
+/// A card's tag chips as a row. The list and the table reuse it: the table
+/// gives it its Tags column width and draws it whichever
+/// `show-tags-at-bottom` says, because tags have a column of their own there
+/// (spec section 5, **Views**).
+pub(crate) fn tag_chips(
+    k: &Kit,
+    found: &CardText,
+    i: usize,
+    j: usize,
+    prefix: &str,
+    width: Option<f32>,
+) -> El {
     let mut line = row()
-        .key(format!("kanban-card-{i}-{j}-tags"))
+        .key(format!("{prefix}-{i}-{j}-tags"))
         .w_full()
         .gap(4.0)
         .center_y();
+    if let Some(width) = width {
+        line = line.w(width);
+    }
     for (index, tag) in unique_tags(found).into_iter().enumerate() {
         let filter = tag.to_owned();
         line = line.child(
             row()
-                .key(format!("kanban-card-{i}-{j}-tag-{index}"))
+                .key(format!("{prefix}-{i}-{j}-tag-{index}"))
                 .h(18.0)
                 .px(6.0)
                 .radius(4.0)

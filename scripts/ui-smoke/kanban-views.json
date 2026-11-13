@@ -1,0 +1,12 @@
+{"events":[
+  {"t":0.6,"type":"key","name":"k","cmd":true},
+  {"t":1.0,"type":"type","text":"list"},
+  {"t":1.6,"type":"key","name":"Enter"},
+  {"t":2.4,"type":"mark","name":"list"},
+  {"t":3.0,"type":"tap","key":"kanban-view-table"},
+  {"t":4.0,"type":"mark","name":"table"},
+  {"t":4.6,"type":"tap","key":"kanban-view-board"},
+  {"t":5.6,"type":"mark","name":"board"},
+  {"t":6.2,"type":"tap","key":"kanban-view-list"},
+  {"t":7.2,"type":"mark","name":"list-again"}
+]}
