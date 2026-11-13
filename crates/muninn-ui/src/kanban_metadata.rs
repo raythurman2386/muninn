@@ -6,13 +6,14 @@
 //!   the keys to draw at the card's foot, after dates and tags. A key comes
 //!   from the linked note's flat frontmatter or an inline field; matching is
 //!   case-insensitive and the first occurrence wins.
-//! - `containsMarkdown` renders the value through the reader, so links and
-//!   embeds work; otherwise it is plain text. `show-missing-metadata` draws
-//!   `key: —` for an absent key or note.
+//! - `containsMarkdown` renders the value through the reader: links work, a
+//!   note embed becomes a link, and an attachment embed keeps the reader's
+//!   filename placeholder. Otherwise it is plain text.
+//!   `show-missing-metadata` draws `key: —` for an absent key or note.
 //! - Everything here is display-only. Viewing or a dirty board never changes
 //!   a byte.
 
-use muninn_core::{Kanban, MetadataSettings, card_metadata, first_linked_note};
+use muninn_core::{Kanban, MetadataRow, MetadataSettings};
 use rune::{El, col, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 
@@ -34,39 +35,36 @@ impl State {
     }
 }
 
-/// The card's metadata rows, one per configured key the linked note has.
-/// `note` is the board's own note id, used only for a self-link.
+/// The card's metadata rows, already resolved from the board's metadata
+/// cache. `value_note` is the linked note a markdown value's relative embeds
+/// resolve against.
 pub(crate) fn card_metadata_rows(
     s: &State,
     k: &Kit,
-    note: Option<usize>,
-    card_text: &str,
+    rows: &[MetadataRow],
+    value_note: Option<usize>,
     i: usize,
     j: usize,
 ) -> El {
-    let settings = s.kanban_metadata_settings();
-    let rows = card_metadata(&s.vault, note, card_text, &settings);
     if rows.is_empty() {
         return rune::el();
     }
-    // A markdown value's relative embeds resolve against the linked note.
-    let value_note = first_linked_note(&s.vault, note, card_text).or(note);
     let mut column = col()
         .key(format!("kanban-card-{i}-{j}-metadata"))
         .w_full()
         .gap(2.0);
-    for (index, metadata) in rows.into_iter().enumerate() {
-        let key = metadata.key;
+    for (index, metadata) in rows.iter().enumerate() {
+        let key = metadata.key.clone();
         let label = text(format!("{key}:"))
             .font(k.ty.caption())
             .color(k.c.text_faint);
-        let value = match metadata.value {
+        let value = match &metadata.value {
             None => text("—")
                 .key(format!("kanban-card-{i}-{j}-metadata-{index}"))
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
             Some(value) if metadata.contains_markdown => {
-                let value = clip(&value);
+                let value = clip(value);
                 let source = crate::kanban_view::card_markdown(&s.vault, value_note, &value);
                 Markdown::new(source)
                     .style(MarkdownStyle::from_kit(k).link(k.c.text_accent))
@@ -78,7 +76,7 @@ pub(crate) fn card_metadata_rows(
                     .build(k)
                     .key(format!("kanban-card-{i}-{j}-metadata-{index}"))
             }
-            Some(value) => text(clip(&value))
+            Some(value) => text(clip(value))
                 .key(format!("kanban-card-{i}-{j}-metadata-{index}"))
                 .font(k.ty.caption())
                 .color(k.c.text_muted)

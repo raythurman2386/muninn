@@ -294,7 +294,8 @@ note) supplies metadata for the card's foot. The board's
 entries; each key is read case-insensitively from the linked note's
 frontmatter or from an inline field (`[key:: value]` or a line `key:: value`),
 first occurrence wins, and a list value is shown joined with `, `.
-`containsMarkdown` renders links and embeds through the reader.
+`containsMarkdown` renders links through the reader; a note embed becomes a
+link and an attachment embed keeps the reader's filename placeholder.
 `show-missing-metadata` draws `key: —` when a key or the note is missing.
 App-wide defaults live under `kanban_defaults`; the footer wins. Viewing never
 writes a board or a linked note.

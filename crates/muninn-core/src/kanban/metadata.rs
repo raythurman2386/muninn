@@ -12,10 +12,10 @@
 //! This is a read-only view. Nothing here writes a note or a board, and every
 //! value is display text; the bytes stay exactly as they were.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use crate::frontmatter::{Frontmatter, FrontmatterValue};
 use crate::vault::Vault;
@@ -24,6 +24,7 @@ use crate::wikilink::parse_links;
 use super::dates::KanbanDefaults;
 use super::parse::{fence_closes, opens_fence};
 use super::text::{code_ranges, in_code};
+use super::{Card, Lane};
 
 /// The footer key: the metadata keys to show from a card's linked note.
 pub const LINKED_PAGE_METADATA: &str = "linked-page-metadata";
@@ -35,7 +36,9 @@ pub const SHOW_MISSING_METADATA: &str = "show-missing-metadata";
 pub struct MetadataField {
     /// The note key, as the board wrote it.
     pub key: String,
-    /// Render the value as markdown (links and embeds) rather than text.
+    /// Render the value as markdown rather than text. A link works, a note
+    /// embed becomes a link and an attachment embed keeps the reader's
+    /// filename placeholder.
     pub contains_markdown: bool,
 }
 
@@ -53,7 +56,11 @@ impl MetadataSettings {
     #[must_use]
     pub fn resolve(footer_json: Option<&str>, defaults: &KanbanDefaults) -> Self {
         let mut settings = Self {
-            linked_page_metadata: defaults.linked_page_metadata.clone().unwrap_or_default(),
+            linked_page_metadata: defaults
+                .linked_page_metadata
+                .as_ref()
+                .and_then(|value| metadata_fields(Some(value)))
+                .unwrap_or_default(),
             show_missing_metadata: defaults.show_missing_metadata.unwrap_or(false),
         };
         if let Some(value) = footer_json.and_then(|json| serde_json::from_str::<Value>(json).ok()) {
@@ -99,26 +106,6 @@ pub fn metadata_fields(value: Option<&Value>) -> Option<Vec<MetadataField>> {
         });
     }
     Some(fields)
-}
-
-/// The `linked-page-metadata` value as written: an array of `{key,
-/// containsMarkdown}` objects.
-#[must_use]
-pub fn metadata_fields_json(fields: &[MetadataField]) -> Value {
-    Value::Array(
-        fields
-            .iter()
-            .map(|field| {
-                let mut object = Map::new();
-                object.insert("key".to_owned(), Value::String(field.key.clone()));
-                object.insert(
-                    "containsMarkdown".to_owned(),
-                    Value::Bool(field.contains_markdown),
-                );
-                Value::Object(object)
-            })
-            .collect(),
-    )
 }
 
 /// One metadata key and its display value.
@@ -338,9 +325,23 @@ pub fn card_metadata(
     let linked = first_linked_note(vault, current, card_text)
         .and_then(|id| vault.notes.get(id))
         .map(|note| note_metadata(&note.source));
+    metadata_rows(linked.as_deref(), settings)
+}
+
+/// The rows for one card from metadata already parsed for its linked note.
+/// [`card_metadata`] parses one note for one card; a board uses
+/// [`MetadataCache`] so a note linked by many cards is parsed once.
+#[must_use]
+pub fn metadata_rows(
+    entries: Option<&[MetadataEntry]>,
+    settings: &MetadataSettings,
+) -> Vec<MetadataRow> {
+    if settings.linked_page_metadata.is_empty() {
+        return Vec::new();
+    }
     let mut rows = Vec::with_capacity(settings.linked_page_metadata.len());
     for field in &settings.linked_page_metadata {
-        let value = linked.as_ref().and_then(|entries| {
+        let value = entries.and_then(|entries| {
             entries
                 .iter()
                 .find(|entry| entry.key.to_lowercase() == field.key.to_lowercase())
@@ -358,9 +359,82 @@ pub fn card_metadata(
     rows
 }
 
+/// The metadata one lane's cards need, with every distinct linked note parsed
+/// once. Build it once per lane rebuild, then call [`MetadataCache::rows`] per
+/// card; [`Vault::revision`] in the lane's memo key makes a changed note build
+/// a fresh cache.
+#[derive(Clone, Debug)]
+pub struct MetadataCache {
+    settings: MetadataSettings,
+    notes: HashMap<usize, Vec<MetadataEntry>>,
+}
+
+impl MetadataCache {
+    /// Read `settings`' distinct linked notes for one lane once. A memoised
+    /// lane builds this only when it is rebuilt, not every frame.
+    #[must_use]
+    pub fn for_lane(
+        vault: &Vault,
+        lane: &Lane,
+        current: Option<usize>,
+        settings: MetadataSettings,
+    ) -> Self {
+        Self::collect(vault, lane.cards().iter(), current, settings)
+    }
+
+    fn collect<'a>(
+        vault: &Vault,
+        cards: impl Iterator<Item = &'a Card>,
+        current: Option<usize>,
+        settings: MetadataSettings,
+    ) -> Self {
+        let mut ids = HashSet::new();
+        if !settings.linked_page_metadata.is_empty() {
+            for card in cards {
+                if let Some(id) = first_linked_note(vault, current, card.text()) {
+                    ids.insert(id);
+                }
+            }
+        }
+        let notes = ids
+            .into_iter()
+            .filter_map(|id| {
+                vault
+                    .notes
+                    .get(id)
+                    .map(|note| (id, note_metadata(&note.source)))
+            })
+            .collect();
+        Self { settings, notes }
+    }
+
+    /// One card's rows and the note its first link selects (for resolving a
+    /// markdown value's attachments). The note's metadata is looked up in the
+    /// cache; no note body is read here.
+    #[must_use]
+    pub fn rows(
+        &self,
+        vault: &Vault,
+        current: Option<usize>,
+        card_text: &str,
+    ) -> (Vec<MetadataRow>, Option<usize>) {
+        let linked = first_linked_note(vault, current, card_text);
+        let entries = linked.and_then(|id| self.notes.get(&id)).map(Vec::as_slice);
+        (metadata_rows(entries, &self.settings), linked.or(current))
+    }
+
+    /// How many distinct linked notes this cache parsed. A test hook for the
+    /// per-rebuild budget; it is zero when no key is configured.
+    #[cfg(test)]
+    fn parsed_notes(&self) -> usize {
+        self.notes.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Kanban;
     use crate::testing::TempVault;
 
     fn entry<'a>(entries: &'a [MetadataEntry], key: &str) -> Option<&'a str> {
@@ -550,8 +624,8 @@ mod tests {
 
         let wrong = MetadataSettings::resolve(Some(r#"{"linked-page-metadata":"no"}"#), &defaults);
         assert_eq!(
-            wrong.linked_page_metadata,
-            defaults.linked_page_metadata.clone().unwrap(),
+            wrong,
+            MetadataSettings::resolve(None, &defaults),
             "a wrong footer type is ignored"
         );
 
@@ -568,7 +642,7 @@ mod tests {
     }
 
     #[test]
-    fn metadata_fields_skip_malformed_entries_and_round_trip() {
+    fn metadata_fields_skip_malformed_entries() {
         let value: Value = serde_json::from_str(
             r#"[{"key":"a"},{"key":2},{"key":"b","containsMarkdown":true},{"key":"  "},{"key":"c","containsMarkdown":"yes"}]"#,
         )
@@ -591,18 +665,82 @@ mod tests {
                 }
             ]
         );
-        assert_eq!(
-            metadata_fields_json(&fields),
-            serde_json::json!([
-                {"key": "a", "containsMarkdown": false},
-                {"key": "b", "containsMarkdown": true},
-                {"key": "c", "containsMarkdown": false}
-            ])
-        );
         assert_eq!(metadata_fields(None), None);
         assert_eq!(
             metadata_fields(Some(&serde_json::json!({"key": "a"}))),
             None
         );
+    }
+
+    #[test]
+    fn raw_app_defaults_keep_extra_fields_order_and_wrong_types() {
+        let raw = serde_json::json!([
+            {"key": "status", "label": "Status", "containsMarkdown": "yes"},
+            {"key": "owner", "containsMarkdown": true}
+        ]);
+        let defaults = KanbanDefaults::from_json(Some(&serde_json::json!({
+            "linked-page-metadata": raw,
+        })));
+        assert_eq!(
+            defaults.to_json()["linked-page-metadata"],
+            raw,
+            "the raw entry survives a settings round trip"
+        );
+        let settings = MetadataSettings::resolve(None, &defaults);
+        assert_eq!(settings.linked_page_metadata.len(), 2);
+        assert_eq!(settings.linked_page_metadata[0].key, "status");
+        assert!(
+            !settings.linked_page_metadata[0].contains_markdown,
+            "display reads the wrong-typed flag as false"
+        );
+        assert!(settings.linked_page_metadata[1].contains_markdown);
+    }
+
+    #[test]
+    fn a_leading_thematic_break_is_not_frontmatter_for_an_inline_field() {
+        let source = "---\n[foo:: real]\nfoo:: break\n---\n";
+        assert!(
+            Frontmatter::parse(source).is_empty(),
+            "a `foo::` line is not `key: value` frontmatter"
+        );
+        assert_eq!(
+            entry(&note_metadata(source), "foo"),
+            Some("real"),
+            "the thematic break must not shadow the real inline field"
+        );
+    }
+
+    #[test]
+    fn a_lane_with_k_cards_linking_one_note_parses_it_once() {
+        let cards: String = (0..20)
+            .map(|n| format!("- [ ] card {n} sees [[Agenda]]\n"))
+            .collect();
+        let board_source = format!("---\nkanban-plugin: board\n---\n\n## To do\n\n{cards}");
+        let agenda = format!(
+            "---\nstatus: Active\n---\n{}",
+            "[owner:: Ada]\n".repeat(200)
+        );
+        let tmp = TempVault::new(&[("Agenda.md", &agenda), ("Board.md", &board_source)]);
+        let vault = tmp.load();
+        let board_id = vault.resolve("Board").expect("Board");
+        let board = Kanban::parse(vault.note(board_id).source.as_str()).expect("board");
+        let lane = &board.lanes()[0];
+        let cache = MetadataCache::for_lane(
+            &vault,
+            lane,
+            Some(board_id),
+            settings(&[("status", false), ("owner", true)], false),
+        );
+        assert_eq!(
+            cache.parsed_notes(),
+            1,
+            "20 cards linking one note parse it once"
+        );
+        for card in lane.cards() {
+            let (rows, linked) = cache.rows(&vault, Some(board_id), card.text());
+            assert_eq!(linked, vault.resolve("Agenda"));
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0].value.as_deref(), Some("Active"));
+        }
     }
 }

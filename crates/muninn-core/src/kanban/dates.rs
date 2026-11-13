@@ -7,10 +7,7 @@
 
 use serde_json::{Map, Value};
 
-use super::metadata::{
-    LINKED_PAGE_METADATA, MetadataField, SHOW_MISSING_METADATA, metadata_fields,
-    metadata_fields_json,
-};
+use super::metadata::{LINKED_PAGE_METADATA, SHOW_MISSING_METADATA};
 use super::tags::{HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagSettings, tag_colors};
 
 /// The footer key: the text that starts a date (`@` by default).
@@ -851,7 +848,11 @@ pub struct KanbanDefaults {
     /// [`TagSettings`] reads the entries it understands from it.
     pub tag_colors: Option<Value>,
     // Card metadata defaults (slice 11).
-    pub linked_page_metadata: Option<Vec<MetadataField>>,
+    /// The raw `linked-page-metadata` value. It is kept as written so extra
+    /// fields, their order, and a wrong-typed `containsMarkdown` survive a
+    /// settings save. [`super::metadata::MetadataSettings`] reads the entries
+    /// it understands from it.
+    pub linked_page_metadata: Option<Value>,
     pub show_missing_metadata: Option<bool>,
     /// Keys this version does not know, kept so a newer Muninn's app defaults
     /// are not lost by an older one. A known key with the wrong JSON type is
@@ -882,7 +883,10 @@ impl KanbanDefaults {
                 .get(TAG_COLORS)
                 .filter(|value| value.is_array())
                 .cloned(),
-            linked_page_metadata: metadata_fields(value.get(LINKED_PAGE_METADATA)),
+            linked_page_metadata: value
+                .get(LINKED_PAGE_METADATA)
+                .filter(|value| value.is_array())
+                .cloned(),
             show_missing_metadata: value.get(SHOW_MISSING_METADATA).and_then(Value::as_bool),
             other: Map::new(),
         };
@@ -951,10 +955,7 @@ impl KanbanDefaults {
             object.insert(TAG_COLORS.to_owned(), colors.clone());
         }
         if let Some(fields) = &self.linked_page_metadata {
-            object.insert(
-                LINKED_PAGE_METADATA.to_owned(),
-                metadata_fields_json(fields),
-            );
+            object.insert(LINKED_PAGE_METADATA.to_owned(), fields.clone());
         }
         if let Some(value) = self.show_missing_metadata {
             object.insert(SHOW_MISSING_METADATA.to_owned(), Value::Bool(value));

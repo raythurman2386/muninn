@@ -81,6 +81,10 @@ impl Frontmatter {
             let Some(colon) = line.find(':') else {
                 continue;
             };
+            // `foo:: bar` is an inline field, not `foo: : bar` frontmatter.
+            if line.as_bytes().get(colon + 1) == Some(&b':') {
+                continue;
+            }
             let key = line[..colon].trim();
             if key.is_empty() || key.contains(char::is_whitespace) {
                 continue;
@@ -108,18 +112,6 @@ impl Frontmatter {
         self.entries
             .iter()
             .find(|(name, _)| name == key)
-            .map(|(_, value)| value)
-    }
-
-    /// The value for `key`, matched case-insensitively. A repeated key keeps
-    /// its first value. Metadata keys are matched this way
-    /// (`docs/kanban-format.md` section 7, T-1).
-    #[must_use]
-    pub fn get_ignore_case(&self, key: &str) -> Option<&FrontmatterValue> {
-        let key = key.to_lowercase();
-        self.entries
-            .iter()
-            .find(|(name, _)| name.to_lowercase() == key)
             .map(|(_, value)| value)
     }
 
@@ -372,6 +364,21 @@ mod tests {
             "a list item under an empty key is the flat reading"
         );
         assert_eq!(front.text("tags"), Some("work"));
+    }
+
+    #[test]
+    fn a_double_colon_line_is_an_inline_field_not_frontmatter() {
+        let source = "---\n[foo:: real]\nfoo:: break\n---\nbody\n";
+        let front = Frontmatter::parse(source);
+        assert!(
+            front.is_empty(),
+            "`foo::` is not the flat `key: value` shape"
+        );
+        assert_eq!(front.body_start(), 0, "the break is ordinary body text");
+        assert_eq!(
+            Frontmatter::parse("---\nfoo: a::b\n---\n").text("foo"),
+            Some("a::b")
+        );
     }
 
     #[test]
