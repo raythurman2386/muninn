@@ -3499,32 +3499,42 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
         // One copy keeps the file name, so a single row lays out as before.
         // Two copies of one note say which buffer each row restores.
         let both = s.recovered.iter().filter(|other| other.rel == rel).count() > 1;
-        let label = match (both, slot) {
-            (true, crate::recovery::RecoverySlot::Kanban) => format!("{rel} — Kanban edits"),
-            (true, crate::recovery::RecoverySlot::Editor) => format!("{rel} — Write edits"),
-            (false, _) => rel.clone(),
-        };
+        let mut row_el = row()
+            .gap(4.0)
+            .center_y()
+            // The path gives up its 190 pt budget first, so the slot suffix
+            // below stays whole and two rows for one note stay distinct.
+            .child(
+                text(rel.clone())
+                    .key(format!("recovery-label-{index}"))
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted)
+                    .max_w(190.0)
+                    .truncate()
+                    .help_when_truncated(rel.clone()),
+            );
+        if both {
+            let suffix = match slot {
+                crate::recovery::RecoverySlot::Kanban => "— Kanban edits",
+                crate::recovery::RecoverySlot::Editor => "— Write edits",
+            };
+            row_el = row_el.child(
+                text(suffix)
+                    .key(format!("recovery-slot-{index}"))
+                    .font(k.ty.caption())
+                    .color(k.c.text_muted),
+            );
+        }
         banner = banner.child(
-            row()
-                .gap(4.0)
-                .center_y()
-                .child(
-                    text(label)
-                        .key(format!("recovery-label-{index}"))
-                        .font(k.ty.caption())
-                        .color(k.c.text_muted)
-                        .max_w(190.0)
-                        .truncate(),
-                )
-                .child(
-                    pressable(k, format!("recovery-restore-{index}"))
-                        .px(6.0)
-                        .py(3.0)
-                        .child(text("Restore").font(k.ty.caption()).color(k.c.text_base))
-                        .on_press(move |s: &mut State| {
-                            s.restore_recovery_slot(&rel, slot);
-                        }),
-                ),
+            row_el.child(
+                pressable(k, format!("recovery-restore-{index}"))
+                    .px(6.0)
+                    .py(3.0)
+                    .child(text("Restore").font(k.ty.caption()).color(k.c.text_base))
+                    .on_press(move |s: &mut State| {
+                        s.restore_recovery_slot(&rel, slot);
+                    }),
+            ),
         );
     }
     if count > 3 {

@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{ConflictReason, State, poll, view};
+use muninn_ui::{ConflictReason, RecoveryEntry, RecoverySlot, State, poll, view};
 use rune::{Env as RuneEnv, Runtime, Tx};
 
 /// A temp vault plus its private XDG state home.
@@ -272,4 +272,96 @@ fn an_unchanged_vault_keeps_the_watcher_quiet() {
     for t in [1.6, 3.2, 4.8, 6.4] {
         assert!(!poll(&mut s, t, &mut tx), "poll at {t} must be quiet");
     }
+}
+
+/// A path well past the banner's 190 pt label budget.
+const LONG_REL: &str =
+    "Projects/Sisters/a-very-long-note-name-that-runs-well-past-the-label-budget.md";
+
+fn banner_for(recovered: Vec<RecoveryEntry>) -> Runtime<State> {
+    let env = TestEnv::new(&[("Alpha.md", "# Alpha\n")]);
+    let mut s = env.state();
+    s.recovered = recovered;
+    let mut rt = Runtime::new(s, view, (1400.0, 900.0), RuneEnv::new(true, 2.0));
+    rt.frame(0.0);
+    rt.frame(1.0 / 60.0);
+    rt
+}
+
+fn element<'a>(els: &'a [rune::ElementInfo], key: &str) -> Option<&'a rune::ElementInfo> {
+    els.iter()
+        .find(|el| el.key.as_deref() == Some(key) && !el.exiting)
+}
+
+/// #68: two recovery copies of one note differ only by their slot suffix.
+/// A long path must not truncate that suffix away, and the whole path stays
+/// available as the label's help.
+#[test]
+fn a_long_path_keeps_the_suffix_that_distinguishes_the_two_rows() {
+    let rt = banner_for(vec![
+        RecoveryEntry {
+            rel: LONG_REL.to_owned(),
+            ts: 1,
+            slot: RecoverySlot::Editor,
+        },
+        RecoveryEntry {
+            rel: LONG_REL.to_owned(),
+            ts: 2,
+            slot: RecoverySlot::Kanban,
+        },
+    ]);
+    let els = rt.elements();
+
+    for (index, suffix) in [(0, "— Write edits"), (1, "— Kanban edits")] {
+        let slot = element(&els, &format!("recovery-slot-{index}"))
+            .unwrap_or_else(|| panic!("row {index} keeps its slot label"));
+        assert_eq!(slot.text.as_deref(), Some(suffix));
+        assert!(
+            slot.rect[2] > 0.0 && slot.rect[3] > 0.0,
+            "row {index}'s suffix is laid out: {:?}",
+            slot.rect
+        );
+
+        let path = element(&els, &format!("recovery-label-{index}")).expect("row's path");
+        assert_eq!(path.text.as_deref(), Some(LONG_REL));
+        assert!(
+            path.rect[2] <= 190.5,
+            "row {index}'s path stays within the label budget: {:?}",
+            path.rect
+        );
+        assert_eq!(
+            path.help.as_deref(),
+            Some(LONG_REL),
+            "the cut path's help keeps the whole path"
+        );
+    }
+}
+
+/// A lone copy has no suffix; it still truncates its long path cleanly and
+/// offers the whole path as help.
+#[test]
+fn a_single_row_still_truncates_its_long_path_cleanly() {
+    let rt = banner_for(vec![RecoveryEntry {
+        rel: LONG_REL.to_owned(),
+        ts: 1,
+        slot: RecoverySlot::Editor,
+    }]);
+    let els = rt.elements();
+
+    assert!(
+        element(&els, "recovery-slot-0").is_none(),
+        "a lone copy has no slot suffix"
+    );
+    let path = element(&els, "recovery-label-0").expect("the path row");
+    assert_eq!(path.text.as_deref(), Some(LONG_REL));
+    assert!(
+        path.rect[2] <= 190.5,
+        "the long path is cut to the label budget: {:?}",
+        path.rect
+    );
+    assert_eq!(
+        path.help.as_deref(),
+        Some(LONG_REL),
+        "the cut path's help keeps the whole path"
+    );
 }
