@@ -108,7 +108,10 @@ All notable changes to Muninn are documented here. The format is based on
   loses the Kanban page's card edit. The page keeps its own recovery file, so
   Write's recovery autosave (including while a conflict refuses the save)
   cannot replace it, and the next launch offers both the card edit and
-  Write's text.
+  Write's text. Restoring Write's copy, even when that text is still a
+  kanban, does not replace the card-edit file; **Restore all** brings the
+  card edit back first, and the two rows are labelled Kanban edits and
+  Write edits.
 - **Esc on the Kanban page cancels a field that lost its focus.** After
   clicking away from an open card editor or lane field, `Esc` now closes the
   field and stays on the page (as the docs say) instead of leaving the page

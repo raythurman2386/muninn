@@ -2941,10 +2941,12 @@ impl State {
         if crate::board_safety::is_board_rel(rel) {
             return self.restore_board_recovery(rel);
         }
-        // A kanban note's editor copy opens on the Kanban page, flagged when
-        // the file is gone or holds something else, never written over it
-        // unasked.
-        if let Ok(text) = self.recovery.load(rel)
+        // A kanban note's editor copy opens on the Kanban page when that is
+        // the only copy (the slot both used to share). When the page already
+        // has its own copy, this text is Write's buffer: it goes into the
+        // editor below and the card edit stays where it is.
+        if self.recovery.load_slot(rel, RecoverySlot::Kanban).is_err()
+            && let Ok(text) = self.recovery.load(rel)
             && muninn_core::is_kanban(&text)
             && muninn_core::Kanban::parse(&text).is_ok()
         {
@@ -3007,11 +3009,18 @@ impl State {
     /// note is flushed to disk before the next one opens, so the last one
     /// stays in the editor.
     pub fn restore_all_recovery(&mut self) -> bool {
-        let entries: Vec<(String, RecoverySlot)> = self
+        let mut entries: Vec<(String, RecoverySlot)> = self
             .recovered
             .iter()
             .map(|entry| (entry.rel.clone(), entry.slot))
             .collect();
+        // The card edit is restored before Write's buffer. Write's text for
+        // a kanban note is usually still a kanban, and restoring it first
+        // would take the page (and, before the guard above, the file).
+        entries.sort_by_key(|(_, slot)| match slot {
+            RecoverySlot::Kanban => 0,
+            RecoverySlot::Editor => 1,
+        });
         let mut restored = true;
         for (rel, slot) in entries {
             restored &= self.restore_recovery_slot(&rel, slot);

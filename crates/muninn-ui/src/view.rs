@@ -3301,12 +3301,21 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
     for (index, entry) in s.recovered.iter().take(3).enumerate() {
         let rel = entry.rel.clone();
         let slot = entry.slot;
+        // One copy keeps the file name, so a single row lays out as before.
+        // Two copies of one note say which buffer each row restores.
+        let both = s.recovered.iter().filter(|other| other.rel == rel).count() > 1;
+        let label = match (both, slot) {
+            (true, crate::recovery::RecoverySlot::Kanban) => format!("{rel} — Kanban edits"),
+            (true, crate::recovery::RecoverySlot::Editor) => format!("{rel} — Write edits"),
+            (false, _) => rel.clone(),
+        };
         banner = banner.child(
             row()
                 .gap(4.0)
                 .center_y()
                 .child(
-                    text(rel.clone())
+                    text(label)
+                        .key(format!("recovery-label-{index}"))
                         .font(k.ty.caption())
                         .color(k.c.text_muted)
                         .max_w(190.0)

@@ -773,6 +773,147 @@ fn crash_with_unsaved_write(conflict: bool) {
     assert_eq!(rt.state.editor.text, typed, "Write's text restores as well");
 }
 
+/// Write's unsaved text for a kanban note is usually still a kanban. Restoring
+/// that row (the first one when both copies share a timestamp), Restore all,
+/// or either order must leave the card edit on disk and on the page once it
+/// is restored, and must leave Write's text too.
+#[test]
+fn restoring_a_kanban_shaped_write_copy_keeps_the_card_edit() {
+    let written = BOARD.replace("- [ ] Tag the release", "- [x] Tag the release");
+    assert_ne!(written, mine());
+    assert!(muninn_core::is_kanban(&written));
+
+    // Row 0 is Write. The card-edit file stays, and restoring it afterwards
+    // still shows the card edit.
+    let (tmp, config, state_home) = crash_with_kanban_shaped_write(&written);
+    let mut rt = launch_with(tmp.path(), &config, &state_home);
+    frames(&mut rt, 2);
+    assert_eq!(rt.state.recovered[0].slot, RecoverySlot::Editor, "row 0");
+    assert_eq!(rt.state.recovered[1].slot, RecoverySlot::Kanban);
+    assert_eq!(
+        text_of(&rt, "recovery-label-0").as_deref(),
+        Some("Board.md — Write edits")
+    );
+    assert_eq!(
+        text_of(&rt, "recovery-label-1").as_deref(),
+        Some("Board.md — Kanban edits")
+    );
+    click(&mut rt, "recovery-restore-0");
+    assert_eq!(rt.state.editor.text, written, "row 0 restores Write");
+    assert_eq!(
+        fs::read_to_string(rt.state.kanban_recovery_path("Board.md")).unwrap(),
+        mine(),
+        "row 0 does not replace the card edit"
+    );
+    assert_eq!(
+        fs::read_to_string(rt.state.recovery_path("Board.md")).unwrap(),
+        written
+    );
+    click(&mut rt, "recovery-restore-0");
+    assert_eq!(shown(&rt), mine(), "the card edit still restores");
+    assert_eq!(rt.state.editor.text, written);
+
+    // Restore all brings the card edit back first and keeps Write's text.
+    let (tmp, config, state_home) = crash_with_kanban_shaped_write(&written);
+    let mut rt = launch_with(tmp.path(), &config, &state_home);
+    frames(&mut rt, 2);
+    click(&mut rt, "recovery-restore-all");
+    assert_eq!(shown(&rt), mine(), "Restore all shows the card edit");
+    assert_eq!(rt.state.editor.text, written, "Restore all keeps Write");
+    assert_eq!(
+        fs::read_to_string(rt.state.kanban_recovery_path("Board.md")).unwrap(),
+        mine()
+    );
+    assert_eq!(
+        fs::read_to_string(rt.state.recovery_path("Board.md")).unwrap(),
+        written
+    );
+
+    // Each order. The card edit ends on the page; neither file is replaced.
+    for order in [
+        [RecoverySlot::Editor, RecoverySlot::Kanban],
+        [RecoverySlot::Kanban, RecoverySlot::Editor],
+    ] {
+        let (tmp, config, state_home) = crash_with_kanban_shaped_write(&written);
+        let mut rt = launch_with(tmp.path(), &config, &state_home);
+        frames(&mut rt, 2);
+        rt.update(|s, _| {
+            for slot in order {
+                assert!(s.restore_recovery_slot("Board.md", slot));
+            }
+        });
+        assert_eq!(shown(&rt), mine(), "card edit after {order:?}");
+        assert_eq!(
+            rt.state.editor.text, written,
+            "Write's text after {order:?}"
+        );
+        assert_eq!(
+            fs::read_to_string(rt.state.kanban_recovery_path("Board.md")).unwrap(),
+            mine(),
+            "card-edit file after {order:?}"
+        );
+        // Opening the Kanban page flushes a restored Write buffer into the
+        // note and then drops that recovery file. The text is still here.
+        let write_file = fs::read_to_string(rt.state.recovery_path("Board.md")).ok();
+        assert!(
+            write_file.as_deref() == Some(written.as_str()) || read(&tmp) == written,
+            "Write's text was dropped after {order:?}"
+        );
+    }
+}
+
+/// A dirty kanban and a kanban-shaped Write buffer, both copied, then a crash.
+/// The two sidecars share a timestamp so the banner lists Write first.
+fn crash_with_kanban_shaped_write(written: &str) -> (TempVault, PathBuf, PathBuf) {
+    let tmp = vault();
+    let mut s = on_board(&tmp, false);
+    act(&mut s.rt, |s| s.toggle_card_done(1, 0));
+    frames(&mut s.rt, 60);
+    act(&mut s.rt, |s| s.set_mode(Mode::Editor));
+    s.rt.state.editor.replace_text(written);
+    frames(&mut s.rt, 18);
+    assert_eq!(read(&tmp), BOARD, "Write has not saved yet");
+    assert_eq!(
+        fs::read_to_string(s.rt.state.kanban_recovery_path("Board.md")).unwrap(),
+        mine()
+    );
+    assert_eq!(
+        fs::read_to_string(s.rt.state.recovery_path("Board.md")).unwrap(),
+        written
+    );
+    let dir = s.state_home.join("muninn/recovery");
+    for entry in fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        let text = fs::read_to_string(&path).unwrap();
+        let text = text
+            .split("\"ts\":")
+            .enumerate()
+            .map(|(i, part)| {
+                if i == 0 {
+                    part.to_owned()
+                } else {
+                    let rest = part.trim_start_matches(|c: char| c.is_ascii_digit());
+                    format!("\"ts\":1{rest}")
+                }
+            })
+            .collect::<String>();
+        fs::write(&path, text).unwrap();
+    }
+    let (config, state_home) = (s.config.clone(), s.state_home.clone());
+    drop(s.rt);
+    (tmp, config, state_home)
+}
+
+fn text_of(rt: &Runtime<State>, key: &str) -> Option<String> {
+    rt.elements()
+        .into_iter()
+        .find(|el| el.key.as_deref() == Some(key) && !el.exiting)
+        .and_then(|el| el.text)
+}
+
 /// P1: Save copy on the Kanban page must not drop Write's dirty buffer for
 /// another note, nor leave the editor's conflict bar naming that note: a
 /// later Keep mine would write the kanban's text into it.

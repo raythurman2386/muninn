@@ -639,10 +639,12 @@ impl State {
         // Delete lane confirmation or press that named the old board ends
         // with it, and nothing is selected on the restored one.
         self.kanban_board_installed(None);
-        // A copy in the editor slot is the page's text (the slot both used
-        // to share). Move it to the kanban slot so Write can keep its own
-        // file, and so Load theirs clears this copy rather than Write's.
+        // A copy in the editor slot is the page's text only when the kanban
+        // slot is empty (the file both used to share). Move that one file
+        // over. An existing kanban copy is the card edit: Write's text,
+        // even when it is still a kanban, must not replace it.
         if slot == RecoverySlot::Editor
+            && self.recovery.load_slot(rel, RecoverySlot::Kanban).is_err()
             && self
                 .recovery
                 .save_slot(rel, RecoverySlot::Kanban, text)
