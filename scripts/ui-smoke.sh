@@ -3198,7 +3198,7 @@ JSON
     --snap "$out/screens/kanban-lanes-headless-open.png" --tree "$t/kanban-lanes-x11-open.json" || return 1
   python3 "$harness" tree-mode "$t/kanban-lanes-x11-open.json" kanban || return 1
   cmp "$v/Board.md" "$original" || { echo "a headless run wrote Board.md"; return 1; }
-  local add_xy card_xy collapse_xy
+  local lane_menu_xy card_xy collapse_xy
   lane_menu_xy="$(python3 "$harness" tree-center "$t/kanban-lanes-x11-open.json" kanban-lane-2-menu)" || return 1
   card_xy="$(python3 "$harness" tree-center "$t/kanban-lanes-x11-open.json" kanban-card-0-0)" || return 1
   # Adding the lane auto-scrolls the board, so the Done lane's collapse point
@@ -3223,7 +3223,7 @@ JSON
 JSON
   rm -rf "$work/config-kanban-lanes-x11-after"; mkdir -p "$work/config-kanban-lanes-x11-after"
   XDG_CONFIG_HOME="$work/config-kanban-lanes-x11-after" XDG_STATE_HOME="$work/state-kanban-lanes-x11-after" \
-    "$bin" --vault "$probe" --script "$m/after.json" --at mark:after+0.3 --tree "$t/kanban-lanes-x11-after.json" || return 1
+    "$bin" --vault "$probe" --script "$m/after.json" --at mark:after+0.3 --scale 1 --tree "$t/kanban-lanes-x11-after.json" || return 1
   collapse_xy="$(python3 "$harness" tree-center "$t/kanban-lanes-x11-after.json" kanban-lane-2-collapse)" || return 1
 
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
