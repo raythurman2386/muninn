@@ -6,6 +6,16 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Board colours.** The Board toolbar's colour button opens a small palette:
+  stroke colours in Excalidraw's primaries (black, grey, red, orange, yellow,
+  green, blue, purple) and fills in Excalidraw's pastel shades, plus
+  transparent. The picked colours ink every new shape, line, arrow, freehand
+  stroke and text, and picking one with a selection recolours the selected
+  elements as one undo step. Existing boards keep the colours already in the
+  file.
+
 ### Fixed
 
 - **Long unbroken card text on the Kanban board.** A card whose visible text

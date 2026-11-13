@@ -23,7 +23,7 @@
 
 use serde_json::{Map, Value, json};
 
-use super::{Board, Element, Shape, ShapeKind};
+use super::{Board, Element, Ink, Shape, ShapeKind};
 
 /// nanoid's URL-safe alphabet (64 symbols), in nanoid's order.
 const ID_ALPHABET: &[u8; 64] = b"useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
@@ -220,6 +220,19 @@ impl Board {
         ids: &mut IdSource,
         updated: i64,
     ) -> Option<&Shape> {
+        self.add_drawn_with(kind, points, Ink::DEFAULT, ids, updated)
+    }
+
+    /// [`Board::add_drawn`] in the palette's [`Ink`]: the new element's
+    /// `strokeColor` and `backgroundColor`, `transparent` for no fill.
+    pub fn add_drawn_with(
+        &mut self,
+        kind: ShapeKind,
+        points: &[[f64; 2]],
+        ink: Ink<'_>,
+        ids: &mut IdSource,
+        updated: i64,
+    ) -> Option<&Shape> {
         let (first, last) = (*points.first()?, *points.last()?);
         if points.iter().flatten().any(|v| !v.is_finite()) {
             return None;
@@ -263,6 +276,8 @@ impl Board {
             }
             ShapeKind::Text => return None,
         };
+        shape.stroke_color = ink.stroke.to_owned();
+        shape.background_color = ink.background.to_owned();
         // Never reuse an id already on the board (tombstones included).
         while self.elements.iter().any(|e| e.id() == Some(&shape.id)) {
             shape.id = ids.id();
@@ -361,6 +376,57 @@ mod tests {
         }
         assert!(v["seed"].is_i64() && v["versionNonce"].is_i64());
         assert!(v.get("points").is_none());
+    }
+
+    #[test]
+    fn a_drawn_element_keeps_the_palettes_stroke_and_fill() {
+        let mut board = Board::new();
+        let mut ids = IdSource::new(2);
+        let ink = Ink {
+            stroke: "#1971c2",
+            background: "#a5d8ff",
+        };
+        let s = board
+            .add_drawn_with(
+                ShapeKind::Rectangle,
+                &[[0.0, 0.0], [10.0, 10.0]],
+                ink,
+                &mut ids,
+                5,
+            )
+            .expect("drawn")
+            .clone();
+        assert_eq!(
+            (s.stroke_color.as_str(), s.background_color.as_str()),
+            ("#1971c2", "#a5d8ff")
+        );
+        let v = Element::from(s).to_value();
+        assert_eq!(v["strokeColor"], json!("#1971c2"));
+        assert_eq!(v["backgroundColor"], json!("#a5d8ff"));
+        // No fill stays Excalidraw's `transparent`.
+        let with_fill = board
+            .add_drawn_with(
+                ShapeKind::Ellipse,
+                &[[20.0, 0.0], [30.0, 10.0]],
+                Ink {
+                    stroke: "#e03131",
+                    background: "transparent",
+                },
+                &mut ids,
+                5,
+            )
+            .expect("drawn")
+            .id
+            .clone();
+        assert_eq!(
+            board.shape(&with_fill).unwrap().background_color,
+            "transparent"
+        );
+        let reloaded = Board::from_json(&board.to_json()).expect("reload");
+        assert_eq!(
+            reloaded.shape(&with_fill).map(|s| s.stroke_color.as_str()),
+            Some("#e03131")
+        );
     }
 
     #[test]

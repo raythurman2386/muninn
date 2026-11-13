@@ -28,9 +28,10 @@ mod wikilink;
 pub mod testing;
 
 pub use board::{
-    BOARD_EXTENSION, Board, BoardFile, Change, Element, HISTORY_BYTES, HISTORY_LIMIT, History,
-    IdSource, MUNINN_SOURCE, SCENE_VERSION, Shape, ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE,
-    TEXT_LINE_HEIGHT, TextBody, index_after, list_boards,
+    BOARD_EXTENSION, Board, BoardFile, Change, DEFAULT_BACKGROUND, DEFAULT_STROKE, Element,
+    HISTORY_BYTES, HISTORY_LIMIT, History, IdSource, Ink, MUNINN_SOURCE, SCENE_VERSION, Shape,
+    ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT, TextBody, index_after,
+    list_boards,
 };
 pub use frontmatter::{Frontmatter, FrontmatterValue};
 pub use kanban::{

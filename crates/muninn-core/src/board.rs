@@ -193,9 +193,29 @@ pub struct TextBody {
     pub font_size: f64,
 }
 
+/// Excalidraw's default ink, for a new element with no colour picked.
+pub const DEFAULT_STROKE: &str = "#1e1e1e";
+/// Excalidraw's default background: no fill.
+pub const DEFAULT_BACKGROUND: &str = "transparent";
+
+/// The stroke and background a new element is drawn with (Board's palette).
+/// Colours are Excalidraw's strings: `#rgb`, `#rrggbb`, `#rrggbbaa`, or
+/// `transparent` for no fill.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Ink<'a> {
+    pub stroke: &'a str,
+    pub background: &'a str,
+}
+
+impl Ink<'_> {
+    /// Excalidraw's defaults: [`DEFAULT_STROKE`] on [`DEFAULT_BACKGROUND`].
+    pub const DEFAULT: Ink<'static> = Ink {
+        stroke: DEFAULT_STROKE,
+        background: DEFAULT_BACKGROUND,
+    };
+}
+
 // Defaults match Excalidraw's `restore` for a missing field.
-const DEFAULT_STROKE: &str = "#1e1e1e";
-const DEFAULT_BACKGROUND: &str = "transparent";
 const DEFAULT_STROKE_WIDTH: f64 = 2.0;
 const DEFAULT_OPACITY: f64 = 100.0;
 const DEFAULT_FONT_SIZE: f64 = 20.0;

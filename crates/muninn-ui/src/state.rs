@@ -471,6 +471,13 @@ pub struct State {
     pub board_tool: Option<crate::BoardTool>,
     /// The hand tool (`H`): a drag on the canvas pans instead of selecting.
     pub board_hand: bool,
+    /// Issue #69: the palette's stroke colour, used by the next element drawn
+    /// and written to a selection. Excalidraw's string (`#rrggbb`).
+    pub board_stroke: &'static str,
+    /// Issue #69: the palette's fill colour; `transparent` for no fill.
+    pub board_fill: &'static str,
+    /// Issue #69: whether the palette panel is open beside the toolbar.
+    pub board_palette: bool,
     /// Ids, seeds and nonces for drawn elements.
     pub board_ids: muninn_core::IdSource,
     /// Slice 6: the text element whose in-canvas editor is open.
@@ -862,6 +869,9 @@ impl State {
             last_kanban_watch: 0.0,
             board_tool: None,
             board_hand: false,
+            board_stroke: muninn_core::Ink::DEFAULT.stroke,
+            board_fill: muninn_core::Ink::DEFAULT.background,
+            board_palette: false,
             board_ids: muninn_core::IdSource::new(crate::board_tools::id_seed()),
             board_text: None,
             board_text_field: TextEdit::default(),

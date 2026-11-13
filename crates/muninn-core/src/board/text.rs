@@ -18,7 +18,7 @@
 use serde_json::{Value, json};
 
 use super::edit::Change;
-use super::{Board, Element, IdSource, Shape, ShapeKind, TextBody};
+use super::{Board, DEFAULT_BACKGROUND, Element, IdSource, Ink, Shape, ShapeKind, TextBody};
 
 /// Excalidraw's default text size for a new element.
 pub const TEXT_FONT_SIZE: f64 = 20.0;
@@ -52,11 +52,29 @@ impl Board {
         ids: &mut IdSource,
         now: i64,
     ) -> Option<Change> {
+        self.add_text_with(at, text, size, Ink::DEFAULT, ids, now)
+    }
+
+    /// [`Board::add_text`] in the palette's ink: `ink.stroke` is the text's
+    /// `strokeColor`, the colour Excalidraw draws text in. Text has no fill,
+    /// so `ink.background` is ignored and `backgroundColor` stays
+    /// `transparent`.
+    pub fn add_text_with(
+        &mut self,
+        at: [f64; 2],
+        text: &str,
+        size: [f64; 2],
+        ink: Ink<'_>,
+        ids: &mut IdSource,
+        now: i64,
+    ) -> Option<Change> {
         let text = normalise(text);
         if text.trim().is_empty() || !at.iter().all(|v| v.is_finite()) || !usable(size) {
             return None;
         }
         let mut shape = Shape::drawn(ShapeKind::Text, ids, at[0], at[1], now);
+        shape.stroke_color = ink.stroke.to_owned();
+        shape.background_color = DEFAULT_BACKGROUND.to_owned();
         shape.width = round2(size[0]);
         shape.height = round2(size[1]);
         shape.text = Some(TextBody {
@@ -200,6 +218,33 @@ mod tests {
         assert!(s.extra.contains_key("index"));
         let again = Board::from_json(&b.to_json()).unwrap();
         assert_eq!(again.shape(&s.id), Some(&s));
+    }
+
+    #[test]
+    fn placed_text_takes_the_palettes_stroke_colour() {
+        let mut b = Board::new();
+        let mut ids = IdSource::new(3);
+        let c = b
+            .add_text_with(
+                [0.0, 0.0],
+                "blue",
+                [30.0, 25.0],
+                Ink {
+                    stroke: "#1971c2",
+                    background: "transparent",
+                },
+                &mut ids,
+                4,
+            )
+            .expect("added");
+        let s = b.shape(&c.after.id).unwrap();
+        assert_eq!(s.stroke_color, "#1971c2");
+        assert_eq!(s.background_color, "transparent");
+        let again = Board::from_json(&b.to_json()).unwrap();
+        assert_eq!(
+            again.shape(&c.after.id).map(|s| s.stroke_color.as_str()),
+            Some("#1971c2")
+        );
     }
 
     #[test]

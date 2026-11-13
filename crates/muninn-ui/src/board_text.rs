@@ -32,7 +32,7 @@
 //! - The text size of a new element is Excalidraw's default 20; existing text
 //!   keeps its `fontSize`, drawn and edited within the s3 clamp.
 
-use muninn_core::{ShapeKind, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
+use muninn_core::{DEFAULT_BACKGROUND, Ink, ShapeKind, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 use rune::{El, Key, KeyEvent, TextEdit, TextStyle, Tx, text_input};
 
 use crate::State;
@@ -48,6 +48,9 @@ pub struct BoardTextTarget {
     pub font_size: f64,
     pub line_height: f64,
     pub color: rune::Color,
+    /// The Excalidraw colour a new text element is written with (#69: the
+    /// palette's stroke); existing text keeps its own.
+    pub stroke: String,
     /// The text when the editor opened (empty for new text), so text being
     /// typed is known to be unsaved (#40 review M1).
     pub original: String,
@@ -96,13 +99,16 @@ impl State {
         if open.model.is_none() {
             return;
         }
+        // #69: new text is written in the palette's stroke colour.
+        let stroke = self.board_stroke;
         self.board_clear_selection();
         self.board_text = Some(BoardTextTarget {
             id: None,
             at,
             font_size: TEXT_FONT_SIZE,
             line_height: TEXT_LINE_HEIGHT,
-            color: default_ink(),
+            color: crate::board_scene::color(stroke).unwrap_or_else(default_ink),
+            stroke: stroke.to_owned(),
             original: String::new(),
             container: None,
         });
@@ -140,6 +146,7 @@ impl State {
             font_size: body.font_size,
             line_height,
             color,
+            stroke: shape.stroke_color.clone(),
             original: body.text.clone(),
             container: None,
         });
@@ -257,7 +264,17 @@ fn apply_text(
 ) -> Vec<muninn_core::Change> {
     match &target.id {
         None => model
-            .add_text(target.at, text, size, ids, now)
+            .add_text_with(
+                target.at,
+                text,
+                size,
+                Ink {
+                    stroke: &target.stroke,
+                    background: DEFAULT_BACKGROUND,
+                },
+                ids,
+                now,
+            )
             .into_iter()
             .collect(),
         Some(id) => {
