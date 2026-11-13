@@ -24,7 +24,7 @@
 
 use std::path::{Path, PathBuf};
 
-use muninn_core::{Board, BoardFile};
+use muninn_core::{Board, BoardFile, Ink};
 use rune::{
     Color, Cursor, Drag, El, KeyEvent, MagnifyEvent, Phase, PointerButton, TextStyle, Tx,
     WheelEvent, canvas, col, el, icon, row, spacer, text,
@@ -1154,7 +1154,13 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
                 ),
         );
     }
-    if let Some(layer) = board_tools::preview(open) {
+    if let Some(layer) = board_tools::preview(
+        open,
+        Ink {
+            stroke: s.board_stroke,
+            background: s.board_fill,
+        },
+    ) {
         canvas_el = canvas_el.child(layer);
     }
     if let Some(layer) = crate::board_edit::overlay(open) {
@@ -1162,6 +1168,8 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
     }
     canvas_el
         .child(board_tools::toolbar(s, k))
+        // #69: the palette opens under the toolbar's colour button.
+        .child(crate::board_palette::panel(s, k))
         .child(board_controls(s, k))
         .child(board_hint(k))
 }

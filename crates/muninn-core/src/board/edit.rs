@@ -523,6 +523,38 @@ impl Board {
         self.commit(&before, src, now)
     }
 
+    /// Set the stroke colour and/or the background colour of pickable
+    /// elements, as one edit: `stroke` and `background` are an Excalidraw
+    /// colour (`#rgb`, `#rrggbb`, `transparent` for no fill), and `None`
+    /// leaves that colour as it is. Bound labels go with their shape, as in
+    /// a move. Versions are bumped by [`Board::commit`].
+    pub fn recolor(
+        &mut self,
+        ids: &[String],
+        stroke: Option<&str>,
+        background: Option<&str>,
+        src: &mut IdSource,
+        now: i64,
+    ) -> Vec<Change> {
+        let before = self.snapshot(ids);
+        let ids = &self.with_labels(ids);
+        for e in &mut self.elements {
+            if let Element::Shape(s) = e
+                && ids.contains(&s.id)
+                && !s.is_deleted
+                && !s.is_locked()
+            {
+                if let Some(stroke) = stroke {
+                    s.stroke_color = stroke.to_owned();
+                }
+                if let Some(background) = background {
+                    s.background_color = background.to_owned();
+                }
+            }
+        }
+        self.commit(&before, src, now)
+    }
+
     /// Delete pickable elements: each becomes an `isDeleted: true` tombstone
     /// with a bumped version.
     pub fn delete(&mut self, ids: &[String], src: &mut IdSource, now: i64) -> Vec<Change> {
@@ -790,6 +822,87 @@ mod tests {
         assert!(h.can_redo());
         h.record(b.move_by(std::slice::from_ref(&a), 1.0, 0.0, &mut src, 140));
         assert!(!h.can_redo());
+    }
+
+    #[test]
+    fn recolouring_is_one_edit_and_undo_restores_the_old_colours() {
+        let mut b = board();
+        let mut src = IdSource::new(1);
+        let mut h = History::default();
+        let a = id(&b, 0);
+        let before = b.shape(&a).unwrap().clone();
+        // Stroke and fill in one call are one edit, so one undo.
+        h.record(b.recolor(
+            std::slice::from_ref(&a),
+            Some("#e03131"),
+            Some("#ffc9c9"),
+            &mut src,
+            50,
+        ));
+        let s = b.shape(&a).unwrap();
+        assert_eq!(
+            (s.stroke_color.as_str(), s.background_color.as_str()),
+            ("#e03131", "#ffc9c9")
+        );
+        assert_eq!(s.version, before.version + 1, "one bump for both");
+        assert_eq!(s.extra["updated"], json!(50));
+        h.undo(&mut b, &mut src, 60).unwrap();
+        let s = b.shape(&a).unwrap();
+        assert_eq!(s.stroke_color, before.stroke_color);
+        assert_eq!(s.background_color, before.background_color);
+        // A fill-only edit leaves the stroke, and comes back on its own.
+        h.record(b.recolor(
+            std::slice::from_ref(&a),
+            None,
+            Some("#ffc9c9"),
+            &mut src,
+            70,
+        ));
+        assert_eq!(b.shape(&a).unwrap().stroke_color, before.stroke_color);
+        assert_eq!(b.shape(&a).unwrap().background_color, "#ffc9c9");
+        h.undo(&mut b, &mut src, 80).unwrap();
+        assert_eq!(
+            b.shape(&a).unwrap().background_color,
+            before.background_color
+        );
+        // The same colour again changes nothing, so there is nothing to undo.
+        let v = b.shape(&a).unwrap().version;
+        assert!(
+            b.recolor(
+                std::slice::from_ref(&a),
+                Some(&before.stroke_color),
+                None,
+                &mut src,
+                90
+            )
+            .is_empty()
+        );
+        assert_eq!(b.shape(&a).unwrap().version, v);
+        // Locked elements are left alone, and so is the rest of the board.
+        if let Element::Shape(s) = &mut b.elements[1] {
+            s.extra.insert("locked".into(), json!(true));
+        }
+        let locked = b.shape(&id(&b, 1)).unwrap().clone();
+        assert!(
+            b.recolor(
+                std::slice::from_ref(&locked.id),
+                Some("#2f9e44"),
+                None,
+                &mut src,
+                100
+            )
+            .is_empty()
+        );
+        assert_eq!(b.shape(&locked.id).unwrap(), &locked);
+        let other = b.shape(&id(&b, 2)).unwrap().clone();
+        b.recolor(
+            std::slice::from_ref(&a),
+            Some("#1971c2"),
+            None,
+            &mut src,
+            110,
+        );
+        assert_eq!(b.shape(&other.id).unwrap(), &other);
     }
 
     #[test]

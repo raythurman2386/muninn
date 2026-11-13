@@ -40,7 +40,7 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use muninn_core::{Board, IdSource, ShapeKind};
+use muninn_core::{Board, IdSource, Ink, ShapeKind};
 use rune::{Cursor, Drag, El, Icon, Phase, Shape, Tx, canvas, icon, row};
 use rune_kit::Kit;
 
@@ -225,6 +225,9 @@ impl State {
     /// Pick a tool, or none. Dropping the tool also drops a half-drawn draft.
     pub fn set_board_tool(&mut self, tool: Option<BoardTool>) {
         self.board_tool = tool;
+        // #69: the palette is a picker for the canvas, so picking a tool puts
+        // it away (the chosen colours stay).
+        self.board_palette = false;
         if tool.is_some() {
             // Picking a drawing tool leaves selection and panning behind,
             // as in Excalidraw.
@@ -249,6 +252,11 @@ impl State {
     /// `Esc` on Board: clear the selection first, then drop the tool or the
     /// hand. `false` when there was nothing to drop (Esc then leaves Board).
     pub fn board_escape(&mut self) -> bool {
+        // #69: the palette is layered over the pointer, so it goes first.
+        if self.board_palette {
+            self.board_palette = false;
+            return true;
+        }
         if self.board_clear_selection() {
             return true;
         }
@@ -316,9 +324,17 @@ impl State {
                     *last = at;
                 }
                 let Some(model) = &mut open.model else { return };
-                if let Some(made) =
-                    model.add_drawn(tool.kind(), &draft.points, &mut self.board_ids, now_ms())
-                {
+                let ink = Ink {
+                    stroke: self.board_stroke,
+                    background: self.board_fill,
+                };
+                if let Some(made) = model.add_drawn_with(
+                    tool.kind(),
+                    &draft.points,
+                    ink,
+                    &mut self.board_ids,
+                    now_ms(),
+                ) {
                     // Undo takes a drawn element back as a tombstone.
                     let made = muninn_core::Change::created(made);
                     open.record(vec![made]);
@@ -402,10 +418,11 @@ fn write_board(open: &mut OpenBoard, root: &Path) -> Result<(), String> {
 }
 
 /// The draft as a stroke in canvas coordinates, for the live preview.
-pub(crate) fn draft_shape(draft: &Draft, view: BoardView) -> Shape {
+pub(crate) fn draft_shape(draft: &Draft, view: BoardView, ink: Ink<'_>) -> Shape {
     let mut scratch = Board::new();
     let mut ids = IdSource::new(0);
-    let Some(item) = scratch.add_drawn(draft.tool.kind(), &draft.points, &mut ids, 0) else {
+    let Some(item) = scratch.add_drawn_with(draft.tool.kind(), &draft.points, ink, &mut ids, 0)
+    else {
         return Shape::new();
     };
     paint_item(item, |p| view.screen(p), view.zoom)
@@ -447,7 +464,7 @@ pub(crate) fn toolbar(s: &State, k: &Kit) -> El {
             Some(tool),
         ));
     }
-    bar
+    bar.child(crate::board_palette::toggle(s, k))
 }
 
 fn tool_button(k: &Kit, on: bool, glyph: &'static Icon, name: &str, tool: Option<BoardTool>) -> El {
@@ -474,9 +491,9 @@ fn tool_button(k: &Kit, on: bool, glyph: &'static Icon, name: &str, tool: Option
 }
 
 /// The live preview layer over the canvas, empty without a draft.
-pub(crate) fn preview(open: &OpenBoard) -> Option<El> {
+pub(crate) fn preview(open: &OpenBoard, ink: Ink<'_>) -> Option<El> {
     let draft = open.draft.as_ref()?;
-    let shape = draft_shape(draft, open.cam.view());
+    let shape = draft_shape(draft, open.cam.view(), ink);
     if shape.is_empty() {
         return None;
     }
