@@ -115,7 +115,11 @@ kanban-plugin: board
 - **Contents.** The archive's items are cards in the same syntax as lane cards.
 - **A heading named "Archive" without the `***` line before it.**
   - **Open point A-1:** whether this is the archive or an ordinary lane. Muninn treats it as an ordinary lane, so it is never lost.
-- **Archiving with a date.** Some boards are set to add the date to a card's text when it is archived. That added date is just part of the card text.
+- **Archiving a card.** The card's lines leave its lane and arrive in the archive whole, with its checkbox character, continuation lines and block id; no other lane or passthrough line changes. The card goes after the archive's last card, or under the heading when the archive holds none. When the note has no archive, Muninn creates it: one blank line (unless the file already has one), `***`, a blank line, and `## Archive` (the English word, Q8), before the settings footer when there is one and at the end of the file otherwise. Creating an archive in a note that ends inside an unclosed code fence (section 10 rule 4) is refused. The archive word a file already uses is kept.
+- **Unarchiving a card.** The archived card's lines are put back whole at the end of the chosen lane. The archive heading stays even when it holds no cards.
+- **Deleting an archived card** removes only that card's lines.
+- **Archive limit.** With the `max-archive-cards` setting, the oldest archive cards in file order are removed after a card is appended, until the archive holds that many. A lane card is never removed by the limit. An absent key or `0` is no limit.
+- **Archiving with a date.** Some boards are set to add the date to a card's text when it is archived. That added date is just part of the card text, written with the date format tokens of section 7, never as a `@{…}` token. The `archive-with-date`, `archive-date-format`, `archive-date-position` and `archive-date-separator` settings (section 9) decide whether it is written, how, at the start or the end of the card's text, and the text between them. A block id stays the card's last text on the first line. A card with empty text gets the date alone, with no separator.
 
 ## 7. Dates, times and tags inside card text
 
@@ -288,19 +292,25 @@ The done-lane marker and the archive heading are written in the language of the 
   | `tag-colors` | array of objects | absent | A tag chip's colour, as `{ "tagKey": "work", "color": "1" }`. Kept as written; Muninn has no colour editor yet and viewing never rewrites it. |
   | `linked-page-metadata` | array of objects | absent | Keys to show from a card's first linked note, in written order, as `{ "key": "status", "containsMarkdown": false }`. An empty array, or an absent key, draws no metadata rows. A malformed entry is skipped. |
   | `show-missing-metadata` | boolean | `false` | Draw `key: —` for a configured key the linked note lacks, and for every configured key when the card's first link has no note. |
+  | `archive-with-date` | boolean | `false` | Add the date to a card's text when it is archived. |
+  | `archive-date-format` | string | `"YYYY-MM-DD"` | Format of that date, in the section 7 token language. Not a `@{…}` token. |
+  | `archive-date-position` | string | `"end"` | `start` or `end` of the card's text. Any other value is ignored. |
+  | `archive-date-separator` | string | `" "` | Text between the card and its date; an empty string joins them. |
+  | `max-archive-cards` | number | absent | How many archive cards to keep; `0` and an absent key are no limit. |
 
 - **App-wide defaults.** `settings.json` may hold a `kanban_defaults` object
-  with the same keys, including `linked-page-metadata` and
-  `show-missing-metadata` (with the same wrong-type rule: an unknown key and
-  a known key with the wrong JSON type are kept as written). It applies to
+  with the same keys, including `linked-page-metadata`, `show-missing-metadata`
+  and the archive keys, with the same wrong-type rule: an unknown key and
+  a known key with the wrong JSON type are kept as written. It applies to
   every board that has no value of its own.
   A key is resolved in this order: the board's settings footer, then
   `kanban_defaults`, then the built-in default in the table. An absent
   `kanban_defaults`, or an absent key in it, means the built-in default. The
   object is written with the keys that are set; a key this version does not
   know, and a known key with the wrong JSON type, is kept as written.
-- **When a footer key is written.** The date, time and tag display keys are
-  read only; they are not rewritten by viewing or by an unrelated card edit.
+- **When a footer key is written.** The date, time, tag, metadata and archive
+  keys are read only; they are not rewritten by viewing or by an unrelated
+  card edit.
   A picker adds its token to the card text, not to the footer. The footer
   changes only when a later settings panel writes one key, and then only that
   key's value changes (as for `list-collapse`).

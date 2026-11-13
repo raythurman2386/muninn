@@ -128,6 +128,7 @@ pub(super) fn parse(source: &str) -> io::Result<Kanban> {
                 word,
                 cards: Vec::new(),
                 span: line.start..source.len(),
+                heading_line: lines[heading].start..lines[heading].next,
             });
             i = heading + 1;
             continue;
