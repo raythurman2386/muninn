@@ -4,7 +4,7 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.0] - 2026-11-13
 
 ### Added
 
@@ -236,6 +236,26 @@ All notable changes to Muninn are documented here. The format is based on
   filter), Find outlines every matching card in both views, two empty lanes
   no longer share an element key, and each lane's rows are rebuilt only when
   what they draw changes instead of every frame.
+
+### Known limitations
+
+- The date picker's day grid is reached with Tab, not arrow keys; roving a
+  lane's list with a card's checkbox or menu button focused steps through
+  those controls too.
+- A Left/Right move across lanes changes the selection while keyboard focus
+  stays in the lane it was in.
+- An open menu closes on Escape or an action, not on a press outside it.
+- The table has a fixed 1080 pt width and scrolls sideways in narrow windows.
+- Metadata note embeds render as links; attachment embeds keep the reader's
+  filename placeholder.
+- `settings.json` is re-serialized (object order may change); kanban footer
+  bytes are untouched.
+- The list, table, archive and settings panels have headless coverage but no
+  X11 screenshot step yet; slice 16's release smoke is the full harness.
+- Checklist rows render as plain text, and a non-task sub-bullet under an item
+  can render at the card's top level.
+- A Cmd/Ctrl-click whose modifier is released in the same frame can toggle
+  instead of archive (one-frame window; the menu path has no window).
 
 ## [0.7.1] - 2026-11-11
 

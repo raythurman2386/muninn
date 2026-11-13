@@ -1,6 +1,6 @@
 # Muninn kanban note format
 
-Status: draft 1, for Muninn 0.8.0. This document is Muninn's own description of how a kanban board is stored in a markdown note. It is written to be compatible with files made by the Obsidian Kanban community plugin. It describes only behaviour and the syntax a user can see in a file. Anything not yet settled is marked **Open point**. Implementers must not guess at an open point; they report it instead.
+Status: final for Muninn 0.8.0. This document is Muninn's own description of how a kanban board is stored in a markdown note. It is written to be compatible with files made by the Obsidian Kanban community plugin. It describes only behaviour and the syntax a user can see in a file. Anything not yet settled is marked **Open point**. Implementers must not guess at an open point; they report it instead.
 
 ## 1. Terms
 
