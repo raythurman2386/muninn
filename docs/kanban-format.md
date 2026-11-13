@@ -203,8 +203,29 @@ without changing the file. Only an edit the user asks for writes a token.
     the vault's tags, like `[[` offers notes. Accepting inserts `#tag`; Escape
     closes the list and leaves the typed `#`. `#` inside a link target, a URL,
     an email or a heading marker does not open the list.
-- **Inline fields:** text like `[key:: value]`.
-  - **Open point T-1:** to be specified before the metadata slice. Kept as text.
+- **Inline fields:** `[key:: value]` or a line that begins `key:: value`.
+  - **T-1 (resolved).** A field's key is the text before `::`, with
+    surrounding space removed; the value is the rest of the line, trimmed and
+    kept as markdown. A bracket field ends at the first `]` outside inline code
+    and outside a `[[wikilink]]`; a line field ends at the line. Fields inside fenced
+    code or inline code are ordinary text, not fields. Matching is
+    case-insensitive and the first occurrence of a key wins: frontmatter is
+    read before the body, and within each, file order decides. A later
+    duplicate is ignored for display. A frontmatter list value is shown as
+    its items joined with `, `. Inline fields and their values are
+    display-only: Muninn never writes, rewrites or normalises one.
+- **Metadata from a linked note.** A card's first wikilink selects the note
+  to read: `[[Note]]`, `![[Note]]`, `[[Note#Heading]]`, `[[Note#^id]]` and
+  `[[Note|alias]]` all select `Note`. The first link is the only one; a
+  missing target draws nothing and a later link does not stand in for it. For
+  each key in the board's `linked-page-metadata` setting (section 9), the
+  value from the linked note's frontmatter or an inline field is shown at the
+  card's foot, after the dates and tags, as `key: value`. `containsMarkdown`
+  renders the value through the reader, so its links and embeds work;
+  otherwise it is plain text. A missing note or key draws nothing, unless
+  `show-missing-metadata` asks for `key: —`. This is display-only: viewing,
+  scrolling or a dirty board never changes the card, the linked note or any
+  other byte.
 
 ## 8. Marker words in other languages
 
@@ -264,9 +285,14 @@ The done-lane marker and the archive heading are written in the language of the 
   | `hide-tags-in-title` | boolean | `false` | Keep `#tag` tokens out of the card's main text. |
   | `show-tags-at-bottom` | boolean | `false` | Draw tag chips at the card's foot. |
   | `tag-colors` | array of objects | absent | A tag chip's colour, as `{ "tagKey": "work", "color": "1" }`. Kept as written; Muninn has no colour editor yet and viewing never rewrites it. |
+  | `linked-page-metadata` | array of objects | absent | Keys to show from a card's first linked note, in written order, as `{ "key": "status", "containsMarkdown": false }`. An empty array, or an absent key, draws no metadata rows. A malformed entry is skipped. |
+  | `show-missing-metadata` | boolean | `false` | Draw `key: —` for a configured key the linked note lacks, and for every configured key when the card's first link has no note. |
 
 - **App-wide defaults.** `settings.json` may hold a `kanban_defaults` object
-  with the same keys. It applies to every board that has no value of its own.
+  with the same keys, including `linked-page-metadata` and
+  `show-missing-metadata` (with the same wrong-type rule: an unknown key and
+  a known key with the wrong JSON type are kept as written). It applies to
+  every board that has no value of its own.
   A key is resolved in this order: the board's settings footer, then
   `kanban_defaults`, then the built-in default in the table. An absent
   `kanban_defaults`, or an absent key in it, means the built-in default. The

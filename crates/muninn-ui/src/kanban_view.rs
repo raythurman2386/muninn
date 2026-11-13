@@ -30,7 +30,9 @@
 //! title when the board asks, shows them at the card's foot, and opens the
 //! date/time picker from a card menu or a typed trigger. Slice 10
 //! (`kanban_tags.rs`) hides or chips a card's tags, completes `#` from the
-//! vault's tag index, and fills the Find bar from a chip.
+//! vault's tag index, and fills the Find bar from a chip. Slice 11
+//! (`kanban_metadata.rs`) draws configured metadata keys from the note a
+//! card's first wikilink names, at the card's foot.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -645,18 +647,22 @@ fn lane_version(lane: &Lane) -> u64 {
     h.finish()
 }
 
-/// A hash of the date settings and local day a card's text and foot depend on.
-fn date_version(dates: &DateSettings, today: CivilDate) -> u64 {
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    (dates, today).hash(&mut h);
-    h.finish()
-}
-
-/// A hash of the date and tag settings a card's text and foot depend on.
+/// A hash of the date, tag and metadata settings a card's text and foot
+/// depend on, plus the vault revision so a changed linked note's metadata is
+/// read again on the next lane rebuild.
 fn card_settings_version(s: &State, dates: &DateSettings, today: CivilDate) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     date_version(dates, today).hash(&mut h);
     s.kanban_tag_settings().hash(&mut h);
+    s.kanban_metadata_settings().hash(&mut h);
+    s.vault.revision().hash(&mut h);
+    h.finish()
+}
+
+/// The date part of a card's memo key: the settings and the local day.
+fn date_version(dates: &DateSettings, today: CivilDate) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (dates, today).hash(&mut h);
     h.finish()
 }
 
@@ -1085,6 +1091,14 @@ fn card_view(
                     &found,
                     i,
                     j,
+                ))
+                .child(crate::kanban_metadata::card_metadata_rows(
+                    s,
+                    k,
+                    note,
+                    card.text(),
+                    i,
+                    j,
                 )),
         )
         .child(
@@ -1199,7 +1213,7 @@ fn card_editor(s: &State, k: &Kit) -> El {
 /// links; attachment and board embeds keep it, and the reader's rewrite turns
 /// those into a filename placeholder. `text` is already what the card shows:
 /// `hide-date-in-title` removed the date and time tokens before this point.
-fn card_markdown(vault: &muninn_core::Vault, note: Option<usize>, text: &str) -> String {
+pub(crate) fn card_markdown(vault: &muninn_core::Vault, note: Option<usize>, text: &str) -> String {
     let text = plain_note_embeds(text);
     match note {
         Some(id) => vault.preview_with_attachments(&text, id),

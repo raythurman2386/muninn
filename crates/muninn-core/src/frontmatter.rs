@@ -111,6 +111,27 @@ impl Frontmatter {
             .map(|(_, value)| value)
     }
 
+    /// The value for `key`, matched case-insensitively. A repeated key keeps
+    /// its first value. Metadata keys are matched this way
+    /// (`docs/kanban-format.md` section 7, T-1).
+    #[must_use]
+    pub fn get_ignore_case(&self, key: &str) -> Option<&FrontmatterValue> {
+        let key = key.to_lowercase();
+        self.entries
+            .iter()
+            .find(|(name, _)| name.to_lowercase() == key)
+            .map(|(_, value)| value)
+    }
+
+    /// Every entry in file order, with its first spelling and value. A
+    /// reader that needs all keys (card metadata, slice 11) uses this; the
+    /// values are the flat reading described in the module docs.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &FrontmatterValue)> {
+        self.entries
+            .iter()
+            .map(|(key, value)| (key.as_str(), value))
+    }
+
     /// A scalar value for `key`; a list is not a scalar.
     #[must_use]
     pub fn text(&self, key: &str) -> Option<&str> {

@@ -276,7 +276,7 @@ fn scan_line(
 
 /// Inline code spans: a run of N backticks up to the next run of exactly N.
 /// An unmatched run is literal text, not an open code span.
-fn code_ranges(body: &str) -> Vec<Range<usize>> {
+pub(super) fn code_ranges(body: &str) -> Vec<Range<usize>> {
     let bytes = body.as_bytes();
     let mut ranges = Vec::new();
     let mut at = 0;
@@ -318,7 +318,7 @@ fn code_ranges(body: &str) -> Vec<Range<usize>> {
     ranges
 }
 
-fn in_code(ranges: &[Range<usize>], at: usize) -> bool {
+pub(super) fn in_code(ranges: &[Range<usize>], at: usize) -> bool {
     // Inclusive at both ends: a caret just after the opening run and just
     // before the closing run is still inside the span.
     ranges

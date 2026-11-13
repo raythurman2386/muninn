@@ -28,6 +28,7 @@
 
 mod dates;
 mod edit;
+mod metadata;
 mod parse;
 mod sort;
 mod tags;
@@ -47,6 +48,11 @@ pub use self::dates::{
     CivilDate, CivilTime, DATE_DISPLAY_FORMAT, DATE_FORMAT, DATE_TRIGGER, DateSettings,
     HIDE_DATE_IN_TITLE, KanbanDefaults, LINK_DATE_TO_DAILY_NOTE, SHOW_RELATIVE_DATE, TIME_FORMAT,
     TIME_TRIGGER, format_date, format_time,
+};
+pub use self::metadata::{
+    LINKED_PAGE_METADATA, MetadataEntry, MetadataField, MetadataRow, MetadataSettings,
+    SHOW_MISSING_METADATA, card_metadata, first_linked_note, inline_fields, metadata_fields,
+    metadata_fields_json, note_metadata,
 };
 pub use self::sort::CardOrder;
 pub use self::tags::{

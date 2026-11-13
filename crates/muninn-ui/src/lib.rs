@@ -23,6 +23,7 @@ mod kanban_drag;
 mod kanban_edit;
 mod kanban_lanes;
 mod kanban_links;
+mod kanban_metadata;
 mod kanban_sync;
 mod kanban_tags;
 mod kanban_view;

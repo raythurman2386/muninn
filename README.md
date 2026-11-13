@@ -288,6 +288,17 @@ Typing `#` at a word boundary in the card editor offers the vault's tags
 (`Enter`/`Tab` inserts, `Esc` leaves the typed `#`). `tag-colors` is kept as
 written for a later colour editor, and no display setting writes the board.
 
+A card's first wikilink (a heading, block id or alias does not change the
+note) supplies metadata for the card's foot. The board's
+`linked-page-metadata` key lists `{ "key": …, "containsMarkdown": false }`
+entries; each key is read case-insensitively from the linked note's
+frontmatter or from an inline field (`[key:: value]` or a line `key:: value`),
+first occurrence wins, and a list value is shown joined with `, `.
+`containsMarkdown` renders links and embeds through the reader.
+`show-missing-metadata` draws `key: —` when a key or the note is missing.
+App-wide defaults live under `kanban_defaults`; the footer wins. Viewing never
+writes a board or a linked note.
+
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
 full vault-relative stem, so a link keeps working when two notes share a title.
 `[[Note#Heading]]` opens the note at that heading (caret in Write, scroll in Read).
