@@ -197,7 +197,8 @@ without changing the file. Only an edit the user asks for writes a token.
     the card's main text and `show-tags-at-bottom` (default `false`) draws
     tag chips at the card's foot. Display never rewrites the file. Clicking a
     chip fills the Find bar with `#tag`; it does not filter cards in this
-    version.
+    version. The Find bar searches the note's text buffer, so after unsaved
+    card edits its matches can lag the board until the edit is saved.
   - **Completion.** In the card editor, typing `#` at a word boundary offers
     the vault's tags, like `[[` offers notes. Accepting inserts `#tag`; Escape
     closes the list and leaves the typed `#`. `#` inside a link target, a URL,

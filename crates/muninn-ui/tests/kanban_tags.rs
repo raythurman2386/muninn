@@ -300,6 +300,134 @@ fn clicking_a_tag_opens_find_with_the_tag_and_writes_nothing() {
 }
 
 #[test]
+fn closing_find_returns_the_keyboard_to_the_board() {
+    let footer = with_footer(r#"{"kanban-plugin":"board","show-tags-at-bottom":true}"#);
+    let tmp = vault_with(&footer);
+    let mut rt = on_board(&tmp);
+    click(&mut rt, "kanban-card-0-0-tag-0");
+    assert!(rt.state.find.is_some());
+
+    // Escape closes the bar through the field's own key path.
+    rt.key(key(Key::Escape));
+    frame(&mut rt);
+    assert!(rt.state.find.is_none(), "the Find bar closed");
+    assert!(
+        !rt.state.editor.focused && !rt.state.search.focused,
+        "the unmounted Write editor must not take the keyboard"
+    );
+
+    // The page owns the arrows again: Down selects the first card.
+    rt.key(key(Key::Down));
+    frame(&mut rt);
+    assert_eq!(
+        rt.state.kanban_selected,
+        Some((0, 0)),
+        "arrows work after the Find bar closed"
+    );
+}
+
+#[test]
+fn a_completion_with_no_matches_does_not_swallow_enter() {
+    let tmp = vault_with(BOARD);
+    let mut rt = on_board(&tmp);
+    edit_card(&mut rt, "#");
+    frame(&mut rt);
+    assert!(rt.state.tag_complete.is_some(), "the tag list opened");
+
+    // The query no longer matches any vault tag. Poll clears the hidden list.
+    act(&mut rt, |s| {
+        s.kanban_card_field.replace_text("#zzzz");
+        let end = s.kanban_card_field.text.len();
+        s.kanban_card_field.set_caret(end);
+        s.kanban_card_field.focused = true;
+    });
+    assert!(rt.state.tag_complete.is_none(), "the empty list is gone");
+
+    // The real key path: Enter reaches the card editor and commits.
+    rt.key(key(Key::Enter));
+    frame(&mut rt);
+    assert!(
+        rt.state.kanban_card.is_none(),
+        "Enter commits instead of being swallowed"
+    );
+    assert!(source(&rt).contains("- [ ] #zzzz"), "{}", source(&rt));
+
+    // The same for slice 8's `[[` list.
+    edit_card(&mut rt, "see [[");
+    frame(&mut rt);
+    assert!(rt.state.complete.is_some(), "the link list opened");
+    act(&mut rt, |s| {
+        s.kanban_card_field.replace_text("see [[zzzz");
+        let end = s.kanban_card_field.text.len();
+        s.kanban_card_field.set_caret(end);
+        s.kanban_card_field.focused = true;
+    });
+    assert!(rt.state.complete.is_none(), "the empty link list is gone");
+    rt.key(key(Key::Enter));
+    frame(&mut rt);
+    assert!(
+        rt.state.kanban_card.is_none(),
+        "Enter commits the card with the typed link text"
+    );
+    assert!(
+        source(&rt).contains("see [[zzzz]]") || source(&rt).contains("see [[zzzz"),
+        "{:?}",
+        source(&rt)
+    );
+}
+
+#[test]
+fn accepting_a_tag_mid_token_replaces_the_whole_token() {
+    let tmp = vault_with(BOARD);
+    let mut rt = on_board(&tmp);
+    edit_card(&mut rt, "#work");
+    rt.update(|s, _| {
+        s.kanban_card_field.set_caret(3);
+        s.kanban_card_field.focused = true;
+    });
+    frame(&mut rt);
+    assert_eq!(
+        rt.state.tag_complete.as_ref().map(|c| c.query.as_str()),
+        Some("wo"),
+        "the list opened on the prefix"
+    );
+    rt.key(key(Key::Enter));
+    frame(&mut rt);
+    assert_eq!(
+        rt.state.kanban_card_field.text, "#work",
+        "the tail after the caret is replaced, not kept"
+    );
+    assert!(
+        !rt.state.kanban_card_field.text.contains("#workrk"),
+        "no doubled token remains"
+    );
+}
+
+#[test]
+fn completion_stays_out_of_code_in_the_card_editor() {
+    let tmp = vault_with(BOARD);
+    let mut rt = on_board(&tmp);
+    // Inline code: caret before the closing backtick.
+    edit_card(&mut rt, "`see #wo`");
+    rt.update(|s, _| {
+        s.kanban_card_field.set_caret(8);
+        s.kanban_card_field.focused = true;
+    });
+    frame(&mut rt);
+    assert!(
+        rt.state.tag_complete.is_none(),
+        "no tag list inside an inline code span"
+    );
+    // A fenced block: caret on its last line.
+    edit_card(&mut rt, "```\n#wo");
+    frame(&mut rt);
+    assert!(
+        rt.state.tag_complete.is_none(),
+        "no tag list inside a fence"
+    );
+}
+
+#[test]
 fn a_board_with_tags_is_byte_identical_after_display_and_filter() {
     let footer = with_footer(
         r#"{"kanban-plugin":"board","show-tags-at-bottom":true,"hide-tags-in-title":true,"tag-colors":[{"tagKey":"release","color":"1"}]}"#,

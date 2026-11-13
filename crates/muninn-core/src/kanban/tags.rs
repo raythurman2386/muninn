@@ -5,7 +5,7 @@
 //! `kanban_defaults`, then the built-in default. A display setting never
 //! rewrites a board.
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use super::dates::KanbanDefaults;
 
@@ -81,22 +81,6 @@ pub fn tag_colors(value: Option<&Value>) -> Option<Vec<TagColor>> {
     Some(colors)
 }
 
-/// The `tag-colors` value as written: an array of `{tagKey, color}` objects.
-#[must_use]
-pub fn tag_colors_json(colors: &[TagColor]) -> Value {
-    Value::Array(
-        colors
-            .iter()
-            .map(|entry| {
-                let mut object = Map::new();
-                object.insert("tagKey".to_owned(), Value::String(entry.tag_key.clone()));
-                object.insert("color".to_owned(), Value::String(entry.color.clone()));
-                Value::Object(object)
-            })
-            .collect(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,10 +94,7 @@ mod tests {
         let app = KanbanDefaults {
             hide_tags_in_title: Some(true),
             show_tags_at_bottom: Some(true),
-            tag_colors: Some(vec![TagColor {
-                tag_key: "work".to_owned(),
-                color: "1".to_owned(),
-            }]),
+            tag_colors: Some(serde_json::json!([{"tagKey": "work", "color": "1"}])),
             ..KanbanDefaults::default()
         };
         let resolved = TagSettings::resolve(None, &app);
@@ -148,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn colors_round_trip_and_malformed_entries_are_skipped() {
+    fn color_entries_are_read_and_malformed_entries_are_skipped() {
         let value: Value = serde_json::from_str(
             r#"[{"tagKey":"a","color":"1"},{"tagKey":2,"color":"2"},{"tagKey":"b","color":"4","extra":true}]"#,
         )
@@ -166,10 +147,6 @@ mod tests {
                     color: "4".to_owned()
                 }
             ]
-        );
-        assert_eq!(
-            tag_colors_json(&colors),
-            serde_json::json!([{"tagKey":"a","color":"1"},{"tagKey":"b","color":"4"}])
         );
     }
 }

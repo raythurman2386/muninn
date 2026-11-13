@@ -45,10 +45,17 @@ impl Frontmatter {
         }
         let mut at = start + used;
         let mut entries: Vec<(String, Option<FrontmatterValue>)> = Vec::new();
+        // A leading `---` is also a thematic break. The block is frontmatter
+        // only when at least one line reads as `key: value`; otherwise the
+        // whole file is body (section 7's the-break case).
+        let mut saw_key = false;
         while let Some((body, used)) = next_line(source, at) {
             at += used;
             let line = body;
             if line.trim_end() == "---" || line.trim_end() == "..." {
+                if !saw_key {
+                    return Self::default();
+                }
                 return Self {
                     entries: entries
                         .into_iter()
@@ -60,8 +67,15 @@ impl Frontmatter {
             if line.trim().is_empty() || line.trim_start().starts_with('#') {
                 continue;
             }
+            // A list item belongs to the previous key whether it is indented
+            // (`  - work`) or not (`- work`); both are common in frontmatter.
+            let trimmed = line.trim_start();
+            if trimmed.starts_with('-') {
+                add_list_item(&mut entries, trimmed);
+                continue;
+            }
             if line.starts_with(' ') || line.starts_with('\t') {
-                add_list_item(&mut entries, line.trim_start());
+                // A nested map or other indented line: flat reading ignores it.
                 continue;
             }
             let Some(colon) = line.find(':') else {
@@ -71,6 +85,7 @@ impl Frontmatter {
             if key.is_empty() || key.contains(char::is_whitespace) {
                 continue;
             }
+            saw_key = true;
             let raw = line[colon + 1..].trim();
             let value = (!raw.is_empty()).then(|| parse_value(raw));
             entries.push((key.to_owned(), value));
@@ -299,6 +314,30 @@ mod tests {
         assert_eq!(front.text("tags"), Some("one, two"));
         assert_eq!(front.text("other"), Some("x # y"));
         assert_eq!(&source[front.body_start()..], "");
+    }
+
+    #[test]
+    fn list_items_belong_to_the_previous_key_with_or_without_indent() {
+        let flat = "---\ntags:\n- work\n- home/garden\n---\n";
+        let front = Frontmatter::parse(flat);
+        assert_eq!(
+            front.list("tags"),
+            Some(&["work".to_owned(), "home/garden".to_owned()][..])
+        );
+        let indented = "---\ntags:\n  - work\n  - home/garden\n---\n";
+        let front = Frontmatter::parse(indented);
+        assert_eq!(
+            front.list("tags"),
+            Some(&["work".to_owned(), "home/garden".to_owned()][..])
+        );
+    }
+
+    #[test]
+    fn a_leading_thematic_break_is_not_frontmatter_without_a_key() {
+        let source = "---\nfirst #one\n---\nsecond #two\n";
+        let front = Frontmatter::parse(source);
+        assert!(front.is_empty());
+        assert_eq!(front.body_start(), 0, "the whole file is body");
     }
 
     #[test]

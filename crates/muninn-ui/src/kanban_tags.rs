@@ -8,7 +8,8 @@
 //!   for a later colour editor; it is not interpreted here.
 //! - A click on a chip opens the existing Find bar with `#tag` in it. Slice
 //!   13 replaces this with the board's own filter model; this slice adds no
-//!   second filter state.
+//!   second filter state. The bar searches the note's text buffer, so its
+//!   matches can lag the board while card edits are unsaved.
 //! - Display and filtering never write the board: the file is the source of
 //!   truth and only an edit changes a byte.
 
@@ -46,6 +47,18 @@ impl State {
     }
 }
 
+/// The card's tags with case-insensitive duplicates removed, first spelling
+/// first. One chip per tag, and the same list decides a chip's stable index.
+fn unique_tags(found: &CardText) -> Vec<&str> {
+    let mut seen = HashSet::new();
+    found
+        .tags
+        .iter()
+        .filter(|token| seen.insert(token.tag.to_lowercase()))
+        .map(|token| token.tag.as_str())
+        .collect()
+}
+
 /// The card's tag chips, when `show-tags-at-bottom` asks for them. A tag
 /// repeated in one card is shown once, with the first spelling.
 pub(crate) fn card_tags(
@@ -58,18 +71,13 @@ pub(crate) fn card_tags(
     if !settings.show_tags_at_bottom || found.tags.is_empty() {
         return rune::el();
     }
-    let mut seen = HashSet::new();
     let mut line = row()
         .key(format!("kanban-card-{i}-{j}-tags"))
         .w_full()
         .gap(4.0)
         .center_y();
-    for (index, token) in found.tags.iter().enumerate() {
-        if !seen.insert(token.tag.to_lowercase()) {
-            continue;
-        }
-        let tag = token.tag.clone();
-        let filter = tag.clone();
+    for (index, tag) in unique_tags(found).into_iter().enumerate() {
+        let filter = tag.to_owned();
         line = line.child(
             row()
                 .key(format!("kanban-card-{i}-{j}-tag-{index}"))
@@ -96,20 +104,15 @@ pub(crate) fn card_tags(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use muninn_core::scan_card_text;
+
+    use super::unique_tags;
 
     #[test]
     fn a_repeated_tag_is_one_chip() {
         let found = scan_card_text("Ship #release and #release #docs", &Default::default());
-        let mut seen = HashSet::new();
-        let tags: Vec<&str> = found
-            .tags
-            .iter()
-            .filter(|token| seen.insert(token.tag.to_lowercase()))
-            .map(|token| token.tag.as_str())
-            .collect();
-        assert_eq!(tags, ["release", "docs"]);
+        assert_eq!(unique_tags(&found), ["release", "docs"]);
+        let case = scan_card_text("#Ops #ops #OPS", &Default::default());
+        assert_eq!(unique_tags(&case), ["Ops"], "the first spelling stays");
     }
 }

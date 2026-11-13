@@ -51,10 +51,10 @@ pub use self::dates::{
 pub use self::sort::CardOrder;
 pub use self::tags::{
     HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagColor, TagSettings, tag_colors,
-    tag_colors_json,
 };
 pub use self::text::{
-    CardText, DateKind, DateToken, TagToken, is_tag_char, is_tag_text, scan_card_text, scan_tags,
+    CardText, DateKind, DateToken, TagToken, in_code_at, is_tag_char, is_tag_text, scan_card_text,
+    scan_tags,
 };
 
 /// The settings key that says which lanes are shown collapsed
