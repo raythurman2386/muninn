@@ -792,11 +792,19 @@ fn restoring_a_kanban_shaped_write_copy_keeps_the_card_edit() {
     assert_eq!(rt.state.recovered[1].slot, RecoverySlot::Kanban);
     assert_eq!(
         text_of(&rt, "recovery-label-0").as_deref(),
-        Some("Board.md — Write edits")
+        Some("Board.md")
+    );
+    assert_eq!(
+        text_of(&rt, "recovery-slot-0").as_deref(),
+        Some("— Write edits")
     );
     assert_eq!(
         text_of(&rt, "recovery-label-1").as_deref(),
-        Some("Board.md — Kanban edits")
+        Some("Board.md")
+    );
+    assert_eq!(
+        text_of(&rt, "recovery-slot-1").as_deref(),
+        Some("— Kanban edits")
     );
     click(&mut rt, "recovery-restore-0");
     assert_eq!(rt.state.editor.text, written, "row 0 restores Write");

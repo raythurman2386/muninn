@@ -18,6 +18,11 @@ All notable changes to Muninn are documented here. The format is based on
   attachment embed (`![[Plan.excalidraw]]`, `![[pic.png]]`) as a broken link.
   A target that resolves to a file on disk is now skipped by the link checker;
   a genuinely missing note or file is still reported.
+- **Recovery banner.** When a crash leaves both Kanban and Write recovery
+  copies of one note, each row keeps its `— Kanban edits` / `— Write edits`
+  suffix visible even when the note's path is long: the path gives up the
+  width and truncates first, while its full text stays available as the row's
+  hover help.
 
 ## [0.8.0] - 2026-11-13
 
