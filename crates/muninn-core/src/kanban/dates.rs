@@ -771,6 +771,16 @@ impl DateSettings {
         )
     }
 
+    /// A new link-form date token (`@[[…]]`), trigger and brackets included.
+    #[must_use]
+    pub fn date_link_token(&self, date: CivilDate) -> String {
+        format!(
+            "{}[[{}]]",
+            self.date_trigger,
+            format_date(date, &self.date_format)
+        )
+    }
+
     /// A new time token, trigger and braces included.
     #[must_use]
     pub fn time_token(&self, time: CivilTime) -> String {
@@ -1251,6 +1261,7 @@ mod tests {
         assert_eq!(settings.date_token(date), "due:{12.11.2026}");
         let time = CivilTime::new(14, 30, 0).unwrap();
         assert_eq!(settings.time_token(time), "at:{02:30 PM}");
+        assert_eq!(settings.date_link_token(date), "due:[[12.11.2026]]");
         assert_eq!(settings.parse_date("12.11.2026"), Some(date));
         assert_eq!(settings.parse_time("02:30 PM"), Some(time));
     }

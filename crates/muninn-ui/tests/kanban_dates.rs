@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use muninn_core::{CivilDate, KanbanDefaults, format_date, testing::TempVault};
+use muninn_core::{CivilDate, KanbanDefaults, Vault, format_date, testing::TempVault};
 use muninn_ui::{Mode, PickerKind, Settings, State, on_key, poll, view};
 use rune::{Env, Ime, Key, KeyEvent, Mods, Runtime};
 
@@ -166,6 +166,13 @@ fn today_day(day: u32) -> String {
             CivilDate::new(today.year(), today.month(), day).expect("day"),
             "YYYY-MM-DD"
         )
+    )
+}
+
+fn day_in(year: i64, month: u32, day: u32) -> String {
+    format!(
+        "@{{{}}}",
+        format_date(CivilDate::new(year, month, day).expect("day"), "YYYY-MM-DD")
     )
 }
 
@@ -526,7 +533,7 @@ fn a_menu_date_replaces_the_existing_token_in_one_undo_step() {
     click(&mut rt, "kanban-picker-set");
     let want = format!(
         "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due {}\n",
-        today_day(15)
+        day_in(2026, 11, 15)
     );
     assert_eq!(source(&rt), want, "one token, replaced in place");
     assert_eq!(source(&rt).matches("@").count(), 1);
@@ -534,6 +541,107 @@ fn a_menu_date_replaces_the_existing_token_in_one_undo_step() {
     rt.key(command('z', false));
     frame(&mut rt);
     assert_eq!(source(&rt), board, "one undo step");
+}
+
+#[test]
+fn a_menu_date_keeps_a_link_form_folder_heading_and_alias() {
+    for (old, want) in [
+        ("@[[2026-11-11|Nov 11]]", "@[[2026-11-15|Nov 11]]"),
+        ("@[[daily/2026-11-11#Today]]", "@[[daily/2026-11-15#Today]]"),
+    ] {
+        let board = format!("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due {old}\n");
+        let tmp = vault_with(&board);
+        let mut rt = on_board(&tmp);
+        menu(&mut rt, "kanban-card-0-0-menu", "add_date");
+        click(&mut rt, "kanban-picker-day-15");
+        click(&mut rt, "kanban-picker-set");
+        assert_eq!(
+            source(&rt),
+            format!("---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Due {want}\n"),
+            "{old}"
+        );
+        assert_eq!(on_disk(&tmp), board);
+        rt.key(command('z', false));
+        frame(&mut rt);
+        assert_eq!(source(&rt), board, "{old}: one undo step");
+    }
+}
+
+#[test]
+fn enter_accepts_a_menu_date_picker() {
+    let tmp = vault_with(PLAIN);
+    let mut rt = on_board(&tmp);
+    menu(&mut rt, "kanban-card-0-0-menu", "add_date");
+    assert!(rt.state.kanban_picker.is_some());
+    press(&mut rt, Key::Enter, false);
+    assert!(
+        rt.state.kanban_picker.is_none(),
+        "Enter accepted the picker"
+    );
+    assert_eq!(
+        source(&rt),
+        format!(
+            "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Plain {}\n",
+            today_token()
+        )
+    );
+}
+
+#[test]
+fn shift_enter_with_a_picker_open_inserts_a_line_break() {
+    let tmp = vault_with(PLAIN);
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.begin_edit_card(0, 0));
+    type_text(&mut rt, " @");
+    assert!(rt.state.kanban_picker.is_some());
+    press(&mut rt, Key::Enter, true);
+    assert!(
+        rt.state.kanban_card_field.text.ends_with('\n'),
+        "Shift+Enter kept the line break: {:?}",
+        rt.state.kanban_card_field.text
+    );
+    press(&mut rt, Key::Escape, false);
+    assert!(!rt.state.is_typing());
+    assert_eq!(source(&rt), PLAIN, "nothing was committed");
+}
+
+#[test]
+fn a_date_link_resolves_at_press_time() {
+    let board = "---\nkanban-plugin: board\n---\n\n## To do\n\n\
+                 - [ ] Due @{2099-01-02}\n\n%% kanban:settings\n```\n{\"link-date-to-daily-note\":true}\n```\n%%\n";
+    let tmp = vault_with(board);
+    let mut rt = on_board(&tmp);
+    // Draw the lane first, then create the note behind the running page and
+    // rescan the vault. The memoised lane still has its date row.
+    fs::write(tmp.path().join("2099-01-02.md"), "# The day\n").unwrap();
+    rt.update(|s, _| {
+        s.vault = Vault::load(&s.vault.root).expect("reload the vault");
+    });
+    frame(&mut rt);
+    click(&mut rt, "kanban-card-0-0-date");
+    assert_eq!(
+        rt.state.selected_path,
+        Some(tmp.path().join("2099-01-02.md")),
+        "the link is resolved when pressed, not when the lane was built"
+    );
+    assert!(
+        !tmp.path().join("2099-01-02 2.md").exists(),
+        "a stale missing: handler would create a duplicate"
+    );
+    assert_eq!(on_disk(&tmp), board);
+}
+
+#[test]
+fn a_draft_card_picker_offers_no_clear() {
+    let tmp = vault_with(PLAIN);
+    let mut rt = on_board(&tmp);
+    act(&mut rt, |s| s.begin_add_card(0));
+    type_text(&mut rt, "@");
+    assert!(rt.state.kanban_picker.is_some());
+    assert!(
+        rt.find("kanban-picker-clear").is_none(),
+        "there is no token to clear on the draft card"
+    );
 }
 
 #[test]
