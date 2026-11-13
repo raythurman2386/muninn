@@ -27,6 +27,7 @@
 //! `x` is left as it is until toggled, and unknown footer keys are kept.
 
 mod archive;
+mod checklist;
 mod dates;
 mod edit;
 mod metadata;
@@ -49,6 +50,7 @@ pub use self::archive::{
     ARCHIVE_DATE_FORMAT, ARCHIVE_DATE_POSITION, ARCHIVE_DATE_SEPARATOR, ARCHIVE_WITH_DATE,
     ArchiveDatePosition, ArchiveSettings, MAX_ARCHIVE_CARDS,
 };
+pub use self::checklist::{ChecklistItem, card_checklist};
 pub use self::dates::{
     CivilDate, CivilTime, DATE_DISPLAY_FORMAT, DATE_FORMAT, DATE_TRIGGER, DateSettings,
     HIDE_DATE_IN_TITLE, KanbanDefaults, LINK_DATE_TO_DAILY_NOTE, SHOW_RELATIVE_DATE, TIME_FORMAT,

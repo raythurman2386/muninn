@@ -140,9 +140,16 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         // palette). Cmd/Ctrl+K stays search focus.
         s.open_link_picker();
     } else if e.is_command('f') {
-        // M2 EDT-01: find inside the open note. Cmd/Ctrl+F is the
-        // platform-standard chord and leaves Vim-style Ctrl+[ free.
-        s.open_find();
+        // M2 EDT-01: find inside the open note. Kanban slice 13: on the
+        // Kanban page the same chord opens the board's own Find bar, which
+        // searches the parsed board rather than the (unmounted) Write buffer.
+        // On a Kanban page with no board it does nothing: the note bar would
+        // be hidden and would leave the page without a keyboard owner.
+        if s.mode == Mode::Kanban {
+            s.open_kanban_find();
+        } else {
+            s.open_find();
+        }
     } else if e.is_command('[') {
         // M2 NAV-03: browser-standard Back. Chosen over Alt+Left because
         // Option+Left is word-wise caret movement inside text fields on macOS.

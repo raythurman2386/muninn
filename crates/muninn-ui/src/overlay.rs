@@ -19,6 +19,8 @@ pub enum Layer {
     Help,
     Complete,
     Find,
+    KanbanFind,
+    KanbanFilter,
     BrokenPanel,
     RenameConfirm,
     MoveConfirm,
@@ -249,7 +251,9 @@ impl State {
             // on the Kanban page; it doesn't hold the keyboard elsewhere, nor
             // once a click elsewhere on the page took its focus.
             || (self.mode == crate::Mode::Kanban
-                && ((self.kanban_card.is_some() && self.kanban_card_field.focused)
+                && (self.kanban_find.is_some()
+                    || self.kanban_filter_field_focused()
+                    || (self.kanban_card.is_some() && self.kanban_card_field.focused)
                     || (self.kanban_lane_edit.is_some() && self.kanban_lane_field.focused)
                     || self.kanban_hour_field.focused
                     || self.kanban_minute_field.focused))
@@ -432,6 +436,12 @@ impl State {
         if self.find.is_some() {
             return Some(Layer::Find);
         }
+        if self.kanban_find.is_some() {
+            return Some(Layer::KanbanFind);
+        }
+        if self.kanban_filter.open {
+            return Some(Layer::KanbanFilter);
+        }
         if self.broken_panel {
             return Some(Layer::BrokenPanel);
         }
@@ -485,6 +495,8 @@ impl State {
             Layer::Help => self.close_help(),
             Layer::Complete => self.dismiss_complete(),
             Layer::Find => self.close_find(),
+            Layer::KanbanFind => self.close_kanban_find(),
+            Layer::KanbanFilter => self.close_kanban_filter(),
             Layer::BrokenPanel => self.close_broken_links(),
             Layer::RenameConfirm => self.cancel_rename_confirm(),
             Layer::MoveConfirm => self.cancel_move_confirm(),

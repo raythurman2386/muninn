@@ -58,8 +58,8 @@ All notable changes to Muninn are documented here. The format is based on
   code, with frontmatter `tags:`/`tag:` (scalar or list) and ordinary note
   bodies in the same vault-wide, case-insensitive tag index. The footer's
   `hide-tags-in-title` keeps tags out of the card's main text and
-  `show-tags-at-bottom` draws chips at the card's foot; a chip click fills the
-  Find bar with `#tag`. In the card editor, `#` at a word boundary offers the
+  `show-tags-at-bottom` draws chips at the card's foot; a chip click sets the
+  board's tag filter. In the card editor, `#` at a word boundary offers the
   vault's tags and inserts one at the caret, while Escape leaves the typed
   `#`. `tag-colors` is kept as written for a later editor. Display settings
   never rewrite the board. App-wide defaults live under `kanban_defaults` in
@@ -89,7 +89,20 @@ All notable changes to Muninn are documented here. The format is based on
   archive date is ordinary card text written with the date tokens, not a
   `@{…}`. Every action is one undo step saved by `⌘S` (or autosave), and
   viewing the archive writes nothing.
-- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
+- **Finding and filtering the board.** On the Kanban page `⌘F` / `Ctrl+F`
+  opens the board's own Find bar: it searches the parsed cards
+  case-insensitively, outlines the current match's card, steps with `Enter` /
+  `↓` and `Shift+Enter` / `↑`, and `Esc` closes it and restores the previous
+  selection. The header's **Filter** panel hides cards by text, tag, date
+  (`today`, `overdue`, or a `YYYY-MM-DD` range) and open/done state; conditions
+  compose with AND, the header shows what is active with a Clear control, and
+  a tag chip's click sets the tag filter. Finding and filtering never change
+  the board, its file or its undo history, and filters are not saved.
+- **Card checklists.** Nested task-list items inside a card are drawn as an
+  interactive checklist at the card's foot with a `done/total` count. Clicking
+  one toggles exactly that character through the card edit path: the card's
+  own checkbox and every other line stay as they are, and one undo puts it
+  back. Fenced lines and the card's first line are not checklist items.- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
   Sort by text, date or tags, and Delete lane (a lane with cards asks first;

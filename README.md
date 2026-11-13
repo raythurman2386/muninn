@@ -261,7 +261,10 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | Click a card's checkbox (kanban) | Toggle its done mark; a lane's `⋯` has **Mark all cards done** |
 | `⌘`-click / `Ctrl`-click a card's checkbox (kanban) | Archive the card instead of toggling it |
 | The header's **Archive** button (kanban) | List the archive's cards from the same note; **Restore** to the first lane, **Restore to…** a lane, or **Delete** |
-| `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
+| Click / Shift+click (kanban) | A card's checkbox toggles its done mark; a nested checklist item toggles only its own character |
+| `⌘F` / `Ctrl+F` (kanban) | Find in the board (`Enter` / `↓` next, `Shift+Enter` / `↑` previous, `Esc` closes and restores the selection) |
+| **Filter** in the header (kanban) | Hide cards by text, tag, date (`Today`, `Overdue`, a `YYYY-MM-DD` range) and open/done; conditions combine with AND, and **Clear** removes them |
+| Click a tag chip (kanban) | Set the board's tag filter || `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
 | **+ Add lane**, a lane's `⋯` (kanban) | Add or insert a lane; rename it, set its card limit, mark it done or not done, sort its cards by text, date or tags, delete it |
 | A card's `⋯` (kanban) | Move it up, down, to the top or bottom, to the previous or next lane, or **Move to list…** |
 | Click a card, then arrows / `Alt+↑↓` / `Alt+Shift+↑↓` / `Alt+←→` (kanban) | Select a card; move it one place, to the top or bottom, or to the previous or next lane |
@@ -285,10 +288,19 @@ defaults live under `kanban_defaults` in `settings.json`, and the footer wins.
 Cards also read `#tag` (outside code, not a heading or only digits) and the
 note's frontmatter `tags:`/`tag:`, into one case-insensitive vault tag index.
 `hide-tags-in-title` keeps tags out of a card's text and `show-tags-at-bottom`
-draws chips at its foot; clicking a chip fills the Find bar with `#tag`.
+draws chips at its foot; clicking a chip sets the board's tag filter.
 Typing `#` at a word boundary in the card editor offers the vault's tags
 (`Enter`/`Tab` inserts, `Esc` leaves the typed `#`). `tag-colors` is kept as
 written for a later colour editor, and no display setting writes the board.
+
+On the Kanban page `⌘F` searches the board itself (card text, case-insensitively),
+outlines the current match and moves the selection with it; `Esc` restores the
+selection. The header's **Filter** hides cards by text, tag, date (`Today`,
+`Overdue`, or a `YYYY-MM-DD` range) and open/done state, combining conditions
+with AND. Filters are display state only: they are never written to the board
+or `settings.json`, and the header shows what is active with **Clear**. Nested
+task items inside a card appear at its foot as a checklist with a `done/total`
+count; clicking one changes exactly that character and is one undo step.
 
 A card's first wikilink (a heading, block id or alias does not change the
 note) supplies metadata for the card's foot. The board's

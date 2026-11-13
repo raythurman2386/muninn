@@ -585,7 +585,7 @@ impl Kanban {
         Ok(self.lane(index)?.cards.len())
     }
 
-    fn card(&self, lane: usize, index: usize) -> io::Result<&Card> {
+    pub(super) fn card(&self, lane: usize, index: usize) -> io::Result<&Card> {
         self.lane(lane)?
             .cards
             .get(index)

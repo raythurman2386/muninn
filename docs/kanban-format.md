@@ -103,6 +103,12 @@ kanban-plugin: board
   - An id is unique in the note: no two cards, in the lanes or the archive, share one. Adding or editing a card whose text names an id another card already has is refused, and the file is not changed.
   - Editing a card's text without an id keeps the card's id, so a `[[Note#^id]]` link still points at it. Giving the text a different id replaces the card's id and breaks links to the old one; that is the only edit that does.
 - **Card text.** The text after the checkbox, plus its continuation lines, is markdown. It may contain wikilinks `[[Note]]`, embeds `![[Note]]`, tags, dates and times (section 7).
+- **Checklist.** Nested task-list items in a card's continuation lines are the card's checklist: a bullet (`-`, `*`, `+`, or `1.` / `1)`) followed by a task checkbox, at any indentation inside the card. The card's own first line is the card's checkbox, never a checklist item. Items inside a fenced block or a line that starts as inline code are not checklist items. Malformed task lines stay ordinary card text. A card shows its checklist at its foot with a `done/total` count; clicking one item toggles exactly that character through the same edit path as the card's own checkbox, so it is one undo step and leaves the card's outer checkbox and every other line unchanged. A viewer reads the checklist from the card text; it never invents or rewrites one.
+- **Find and filter (view only).** On the Kanban page, Find (`⌘F` / `Ctrl+F`)
+  searches the parsed board's card text (the cards the filter shows, when one
+  is active) case-insensitively, draws the current match's card with an
+  outline, and steps through matches with `Enter` / `↓` and `Shift+Enter` /
+  `↑`; `Esc` closes it and restores the selection. The header's Filter hides cards that do not match a text query, a `#tag`, a date (`today`, `overdue`, or an inclusive `YYYY-MM-DD` range) and/or an open/done state. Conditions combine with AND. A tag chip's click sets the tag condition. Filtering and finding are display state: they do not change the board model, the file, or its undo history, and they are not saved in the settings footer or in `settings.json`. A card with no date does not match a date condition. Overdue means a date before the local calendar day.
 - **List items without a checkbox** (`- text`).
   - **Open point C-2:** whether these are cards. Muninn keeps them as passthrough and does not show them as cards in 0.8.0.
 - **Writing a new card.** `- [ ] ` + text. The text is not blank. A line of only spaces or tabs is written as a blank continuation. The continuation indent is taken from the first card in file order that has one, walking the lanes and then the archive. If none do, Muninn uses two spaces. If that indent is only spaces and is narrower than two columns, a new card uses two spaces.
@@ -200,9 +206,9 @@ without changing the file. Only an edit the user asks for writes a token.
   - **Display.** `hide-tags-in-title` (default `false`) keeps the tags out of
     the card's main text and `show-tags-at-bottom` (default `false`) draws
     tag chips at the card's foot. Display never rewrites the file. Clicking a
-    chip fills the Find bar with `#tag`; it does not filter cards in this
-    version. The Find bar searches the note's text buffer, so after unsaved
-    card edits its matches can lag the board until the edit is saved.
+    chip sets the board's tag filter (section 5, **Find and filter**); the
+    header then shows the active filter and a Clear control. The tag filter,
+    like every filter, is display state and is not saved.
   - **Completion.** In the card editor, typing `#` at a word boundary offers
     the vault's tags, like `[[` offers notes. Accepting inserts `#tag`; Escape
     closes the list and leaves the typed `#`. `#` inside a link target, a URL,

@@ -50,8 +50,8 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use muninn_core::{
-    Card, CivilDate, DateSettings, Kanban, Lane, MetadataCache, MetadataSettings, is_kanban,
-    parse_links, scan_card_text,
+    Card, ChecklistItem, CivilDate, DateSettings, Kanban, Lane, MetadataCache, MetadataSettings,
+    card_checklist, is_kanban, parse_links, scan_card_text,
 };
 use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
@@ -334,6 +334,9 @@ impl State {
         self.cancel_card_edit();
         self.cancel_lane_edit();
         self.close_picker();
+        self.close_kanban_find();
+        self.kanban_filter.clear();
+        self.close_kanban_filter();
         self.kanban_selected = None;
         self.kanban_archive_open = false;
         self.kanban_drag = None;
@@ -437,6 +440,12 @@ pub fn kanban(s: &State, k: &Kit) -> El {
         .grow(1.0)
         .min_h(0.0)
         .child(header(s, k))
+        .child(crate::kanban_search::find_bar(s, k))
+        .child(if s.kanban_filter.open {
+            crate::kanban_search::filter_panel(s, k)
+        } else {
+            el()
+        })
         .child(message(s, k))
         .child(
             col()
@@ -543,6 +552,14 @@ fn header(s: &State, k: &Kit) -> El {
         ),
         None => el(),
     })
+    .child(filter_summary(s, k))
+    .child(header_button(
+        k,
+        "kanban-filter-toggle",
+        &ic::OUTLINE_SLIDERS,
+        "Filter",
+        State::toggle_kanban_filter,
+    ))
     .child(header_button(
         k,
         "kanban-archive",
@@ -559,6 +576,37 @@ fn header(s: &State, k: &Kit) -> El {
     ))
 }
 
+/// The active filter in the header: how many cards it shows, what it asks
+/// for, and Clear. Nothing is drawn when no filter is active.
+fn filter_summary(s: &State, k: &Kit) -> El {
+    let Some(summary) = s.kanban_filter.summary() else {
+        return el();
+    };
+    let (shown, total) = s.kanban_filter_counts();
+    row()
+        .key("kanban-filter-summary")
+        .gap(6.0)
+        .center_y()
+        .child(
+            text(format!("{shown}/{total} · {summary}"))
+                .key("kanban-filter-summary-text")
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .shrink()
+                .truncate(),
+        )
+        .child(
+            text("Clear")
+                .key("kanban-filter-clear")
+                .font(k.ty.caption())
+                .color(k.c.text_accent)
+                .cursor(rune::Cursor::Pointer)
+                .role("button")
+                .label("Clear filters")
+                .on_press(|s: &mut State| s.clear_kanban_filter()),
+        )
+}
+
 /// The lanes, side by side, scrolling both ways. Each lane is built again
 /// only when what it draws changes (its cards, its selected card, the theme);
 /// a lane with the card editor, the lane field, a menu or a drag in it is
@@ -569,6 +617,8 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let today = crate::kanban_dates::local_today();
     let metadata_settings = s.kanban_metadata_settings();
     let card_key = card_settings_version(s, &dates, today, &metadata_settings);
+    let filter_hash = s.kanban_filter_hash();
+    let find_hash = s.kanban_find_hash();
     let kit = crate::omarchy::kit_id(s, k.dark);
     let new_lane = s
         .kanban_lane_edit
@@ -617,7 +667,15 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
             let metadata_settings = metadata_settings.clone();
             rune::memo(
                 format!("kanban-lane-{i}"),
-                (rel, kit, lane_version(lane), selected, card_key),
+                (
+                    rel,
+                    kit,
+                    lane_version(lane),
+                    selected,
+                    card_key,
+                    filter_hash,
+                    find_hash,
+                ),
                 move || {
                     // Parsed only when this memo is rebuilt, never on a hit.
                     lane_column(
@@ -714,13 +772,25 @@ struct MetadataRows<'a> {
 
 fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>) -> El {
     let (drop, _, dragged) = s.kanban_drag_in(i);
+    let filtering = s.kanban_filter_active();
+    let cards: Vec<(usize, &Card)> = lane
+        .cards()
+        .iter()
+        .enumerate()
+        .filter(|(_, card)| s.kanban_filter_matches_card(card, when.dates, when.today))
+        .collect();
     if lane.collapsed() {
-        return collapsed_lane(k, i, lane, drop.is_some(), dragged);
+        return collapsed_lane(k, i, lane, cards.len(), filtering, drop.is_some(), dragged);
     }
     // One cache for this lane rebuild: each distinct linked note is parsed
     // once, not once per card.
     let metadata = MetadataCache::for_lane(&s.vault, lane, when.note, when.metadata.clone());
-    let (count, over) = lane_load(lane);
+    let (base_count, over) = lane_load(lane);
+    let count = if filtering {
+        format!("{}/{}", cards.len(), lane.cards().len())
+    } else {
+        base_count
+    };
     let count_color = if over { k.c.warning.fg } else { k.c.text_faint };
     let mut head = row()
         .key(format!("kanban-lane-{i}-head"))
@@ -817,7 +887,7 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         .kanban_card
         .filter(|slot| slot.lane == i && slot.new)
         .map(|slot| slot.index);
-    for (j, card) in lane.cards().iter().enumerate() {
+    for &(j, card) in &cards {
         let picker_here = s
             .kanban_picker
             .as_ref()
@@ -880,8 +950,21 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
 /// A collapsed lane: a narrow strip with the expand control, the card count
 /// and the title. Slice 6: it drags as its lane's header, and is outlined
 /// while a card dragged over it would drop at its end.
-fn collapsed_lane(k: &Kit, i: usize, lane: &Lane, drop: bool, dragged: bool) -> El {
+fn collapsed_lane(
+    k: &Kit,
+    i: usize,
+    lane: &Lane,
+    visible: usize,
+    filtering: bool,
+    drop: bool,
+    dragged: bool,
+) -> El {
     let (count, over) = lane_load(lane);
+    let count = if filtering {
+        format!("{visible}/{}", lane.cards().len())
+    } else {
+        count
+    };
     col()
         .key(format!("kanban-lane-{i}"))
         .w(STRIP_W)
@@ -1046,11 +1129,16 @@ fn card_view(
         when.dates.hide_date_in_title,
         tag_settings.hide_tags_in_title,
     );
+    // Slice 13: nested task items are the card's checklist, drawn as
+    // interactive rows at the foot; they are removed from the main markdown
+    // so one item is not shown twice.
+    let checklist = card_checklist(card.text());
+    let display_text = without_checklist_lines(&title_text, &checklist);
     // Wikilinks open the note. A note embed stays a link: the spec allows
     // `![[Note]]` in a card and does not say to inline the note. An attachment
     // embed keeps the reader's filename placeholder.
-    let source = card_markdown(&s.vault, when.note, &title_text);
-    let first = title_text.lines().next().unwrap_or_default();
+    let source = card_markdown(&s.vault, when.note, &display_text);
+    let first = display_text.lines().next().unwrap_or_default();
     let mark = el()
         .key(format!("kanban-card-{i}-{j}-mark"))
         .size(14.0, 14.0)
@@ -1086,6 +1174,16 @@ fn card_view(
     };
     let selected = s.kanban_selected == Some((i, j));
     let dragged = s.kanban_drag_in(i).1 == Some(j);
+    let (matching, current) = s.kanban_find_mark(i, j);
+    let border = if current {
+        k.c.text_accent
+    } else if matching {
+        k.c.warning.fg
+    } else if selected {
+        k.c.text_accent
+    } else {
+        k.c.border_muted
+    };
     row()
         .key(format!("kanban-card-{i}-{j}"))
         .w_full()
@@ -1093,14 +1191,7 @@ fn card_view(
         .gap(8.0)
         .radius(8.0)
         .fill(k.c.layer_02)
-        .border(
-            1.0,
-            if selected {
-                k.c.text_accent
-            } else {
-                k.c.border_muted
-            },
-        )
+        .border(if current { 2.0 } else { 1.0 }, border)
         .role("listitem")
         .label(format!("{}: {first}", if done { "Done" } else { "Open" }))
         .on_press(move |s: &mut State| s.select_kanban_card(i, j))
@@ -1147,12 +1238,113 @@ fn card_view(
                     metadata.value_note,
                     i,
                     j,
-                )),
+                ))
+                .child(checklist_section(k, i, j, &checklist)),
         )
         .child(
             menu_button(k, format!("kanban-card-{i}-{j}-menu"), "Card actions")
                 .on_press(move |s: &mut State| s.open_card_menu(i, j)),
         )
+}
+
+/// The card's markdown without the lines that make up its checklist. The
+/// checklist rows at the foot are the one interactive copy.
+fn without_checklist_lines(text: &str, items: &[ChecklistItem]) -> String {
+    if items.is_empty() {
+        return text.to_owned();
+    }
+    let hidden: Vec<usize> = items.iter().map(ChecklistItem::line).collect();
+    text.split('\n')
+        .enumerate()
+        .filter(|(line, _)| !hidden.contains(line))
+        .map(|(_, line)| line)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The card's nested task items: a progress label and one interactive row per
+/// item. Each row toggles only its own character through the core edit path.
+fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistItem]) -> El {
+    if items.is_empty() {
+        return el();
+    }
+    let done = items.iter().filter(|item| item.is_done()).count();
+    let mut section = col()
+        .key(format!("kanban-card-{i}-{j}-checklist"))
+        .w_full()
+        .gap(2.0)
+        .pt(4.0)
+        .child(
+            row()
+                .key(format!("kanban-card-{i}-{j}-checklist-progress"))
+                .gap(5.0)
+                .center_y()
+                .child(icon(&ic::CHECKLIST, 11.0).color(k.c.text_faint))
+                .child(
+                    text(format!("{done}/{}", items.len()))
+                        .key(format!("kanban-card-{i}-{j}-checklist-progress-text"))
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
+                ),
+        );
+    for (n, item) in items.iter().enumerate() {
+        let line = item.line();
+        let checked = item.is_done();
+        let words = if item.text().is_empty() {
+            "Checklist item"
+        } else {
+            item.text()
+        };
+        section = section.child(
+            row()
+                .key(format!("kanban-card-{i}-{j}-task-{n}"))
+                .w_full()
+                .min_h(18.0)
+                .gap(6.0)
+                // The card indent is already stripped; deeper items keep
+                // their extra columns.
+                .pl((item.indent() as f32 * 4.0).min(32.0))
+                .center_y()
+                .radius(4.0)
+                .hover(k.c.hover)
+                .press(k.c.pressed)
+                .cursor(rune::Cursor::Pointer)
+                .role("checkbox")
+                .checked(checked)
+                .label(words.to_owned())
+                .on_press(move |s: &mut State| s.toggle_card_task(i, j, line))
+                .child(
+                    el().size(13.0, 13.0)
+                        .radius(3.0)
+                        .center()
+                        .border(
+                            1.0,
+                            if checked {
+                                k.c.text_accent
+                            } else {
+                                k.c.border_base
+                            },
+                        )
+                        .child(if checked {
+                            icon(&ic::CHECK, 9.0).color(k.c.text_accent)
+                        } else {
+                            el()
+                        }),
+                )
+                .child(
+                    text(item.text().to_owned())
+                        .font(k.ty.caption())
+                        .color(if checked {
+                            k.c.text_faint
+                        } else {
+                            k.c.text_muted
+                        })
+                        .wrap_anywhere()
+                        .grow(1.0),
+                ),
+        );
+    }
+    section
 }
 
 /// The card editor: Enter commits, Shift+Enter breaks the line, Esc cancels.

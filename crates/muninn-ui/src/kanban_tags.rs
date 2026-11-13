@@ -6,10 +6,9 @@
 //!   app-wide `kanban_defaults`) hide the tokens from the card's main text
 //!   and/or draw chips at the card's foot. `tag-colors` is kept as written
 //!   for a later colour editor; it is not interpreted here.
-//! - A click on a chip opens the existing Find bar with `#tag` in it. Slice
-//!   13 replaces this with the board's own filter model; this slice adds no
-//!   second filter state. The bar searches the note's text buffer, so its
-//!   matches can lag the board while card edits are unsaved.
+//! - A click on a chip sets the board's tag filter (slice 13,
+//!   `kanban_search.rs`), so the card list and the header's filter summary
+//!   agree. It does not write the board.
 //! - Display and filtering never write the board: the file is the source of
 //!   truth and only an edit changes a byte.
 
@@ -32,18 +31,11 @@ impl State {
         )
     }
 
-    /// A tag chip's click: open the existing Find bar with `#tag` in it.
-    /// Nothing is filtered or written yet; slice 13 adds the board filter.
+    /// A tag chip's click: set the board's tag filter to `tag`. The header
+    /// then shows what is filtered and its Clear control, and the cards
+    /// without the tag are hidden. Nothing is written.
     pub fn filter_by_tag(&mut self, tag: &str) {
-        let tag = tag.strip_prefix('#').unwrap_or(tag);
-        self.open_find();
-        if let Some(find) = self.find.as_mut() {
-            find.field.replace_text(format!("#{tag}"));
-            find.field.focused = true;
-            let end = find.field.text.len();
-            find.field.set_caret(end);
-        }
-        self.find_tick();
+        self.set_kanban_tag_filter(tag);
     }
 }
 

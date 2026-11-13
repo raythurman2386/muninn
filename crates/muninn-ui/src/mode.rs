@@ -65,6 +65,14 @@ impl State {
         // Kanban slice 9: a date/time picker belongs to the visible page.
         if mode != Mode::Kanban {
             self.close_picker();
+            // Slice 13: Board Find, the filter panel and its fields belong to
+            // the Kanban page; none may keep the keyboard on another page.
+            self.close_kanban_find();
+            self.close_kanban_filter();
+        } else {
+            // The note find bar searches the Write buffer, which is not
+            // mounted here; the Kanban page's own Find bar replaces it.
+            self.find = None;
         }
         // #43: a rename field in the Board panel or title goes with them.
         self.board_rename_left_board(mode);

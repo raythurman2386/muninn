@@ -463,7 +463,7 @@ fn folder_new_folder_button(k: &Kit, slug: &str, folder: &str) -> El {
 }
 
 /// Shared cursor/hover/press base for small pointer targets.
-fn pressable(k: &Kit, key: String) -> El {
+pub(crate) fn pressable(k: &Kit, key: String) -> El {
     let mut target = el().key(key);
     target = target.radius(6.0);
     target = target.hover(k.c.hover);
@@ -2017,7 +2017,7 @@ fn main(s: &State, k: &Kit) -> El {
         .min_w(0.0)
         .child(topbar(s, k))
         .child(divider_h(k));
-    if s.find.is_some() {
+    if s.find.is_some() && s.mode != Mode::Kanban {
         page = page.child(find_bar(s, k));
     }
     if s.startup_error.is_some() && !s.vault.notes.is_empty() {
@@ -2266,6 +2266,11 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
             "Edit",
             &[
                 ("⌘F / Ctrl+F", "Find in the open note"),
+                ("⌘F / Ctrl+F (Kanban)", "Find in the board"),
+                (
+                    "Filter (Kanban header)",
+                    "Hide cards by text, tag, date or state",
+                ),
                 ("⌘P / Ctrl+P", "Insert a wikilink"),
                 ("⌘N / Ctrl+N", "New note"),
                 ("⌘S / Ctrl+S", "Save now (autosave is on)"),

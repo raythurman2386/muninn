@@ -365,6 +365,17 @@ impl State {
         });
     }
 
+    /// A nested checklist item's checkbox: flip that one character in the
+    /// card's text. The outer card mark is untouched.
+    pub fn toggle_card_task(&mut self, lane: usize, index: usize, line: usize) {
+        let Some((lane, index)) = self.settle_card_edit(lane, index) else {
+            return;
+        };
+        self.edit_kanban("toggle the checklist item", |board| {
+            board.toggle_card_task(lane, index, line)
+        });
+    }
+
     /// Mark all cards done: every open card in `lane`.
     pub fn mark_lane_done(&mut self, lane: usize) {
         let open: Vec<usize> = self

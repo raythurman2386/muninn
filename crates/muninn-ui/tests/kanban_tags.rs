@@ -286,31 +286,45 @@ fn chips_render_and_hide_show_resolve_from_footer_and_app_defaults() {
 }
 
 #[test]
-fn clicking_a_tag_opens_find_with_the_tag_and_writes_nothing() {
+fn clicking_a_tag_sets_the_filter_and_writes_nothing() {
     let footer = with_footer(r#"{"kanban-plugin":"board","show-tags-at-bottom":true}"#);
     let tmp = vault_with(&footer);
     let mut rt = on_board(&tmp);
     click(&mut rt, "kanban-card-0-0-tag-0");
-    let find = rt.state.find.as_ref().expect("the Find bar opened");
-    assert_eq!(find.field.text, "#release");
-    assert_eq!(find.query, "#release");
-    assert!(!find.matches.is_empty(), "the board text has the tag");
+    assert_eq!(
+        rt.state.kanban_filter.tag_text(),
+        Some("release"),
+        "the chip sets the board's tag filter"
+    );
+    assert!(rt.state.find.is_none(), "the note Find bar is not involved");
+    assert!(
+        rt.state.kanban_filter_active(),
+        "the header shows an active filter"
+    );
     assert_eq!(source(&rt), footer, "a click changes no bytes");
     assert_eq!(on_disk(&tmp), footer);
 }
 
 #[test]
-fn closing_find_returns_the_keyboard_to_the_board() {
+fn closing_board_find_returns_the_keyboard_to_the_board() {
     let footer = with_footer(r#"{"kanban-plugin":"board","show-tags-at-bottom":true}"#);
     let tmp = vault_with(&footer);
     let mut rt = on_board(&tmp);
-    click(&mut rt, "kanban-card-0-0-tag-0");
-    assert!(rt.state.find.is_some());
+    rt.key(KeyEvent {
+        key: Key::Command('f'),
+        mods: Mods {
+            cmd: true,
+            ..Mods::default()
+        },
+    });
+    frame(&mut rt);
+    assert!(rt.state.kanban_find.is_some());
+    assert!(rt.state.find.is_none(), "the note finder stays closed");
 
     // Escape closes the bar through the field's own key path.
     rt.key(key(Key::Escape));
     frame(&mut rt);
-    assert!(rt.state.find.is_none(), "the Find bar closed");
+    assert!(rt.state.kanban_find.is_none(), "Board Find closed");
     assert!(
         !rt.state.editor.focused && !rt.state.search.focused,
         "the unmounted Write editor must not take the keyboard"
@@ -322,7 +336,7 @@ fn closing_find_returns_the_keyboard_to_the_board() {
     assert_eq!(
         rt.state.kanban_selected,
         Some((0, 0)),
-        "arrows work after the Find bar closed"
+        "arrows work after Board Find closed"
     );
 }
 

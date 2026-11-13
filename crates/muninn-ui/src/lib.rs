@@ -25,6 +25,7 @@ mod kanban_edit;
 mod kanban_lanes;
 mod kanban_links;
 mod kanban_metadata;
+mod kanban_search;
 mod kanban_sync;
 mod kanban_tags;
 mod kanban_view;
@@ -60,6 +61,9 @@ pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_short
 pub use kanban_dates::{KanbanPicker, PickerInsert, PickerKind};
 pub use kanban_edit::{CardSlot, KanbanHistory};
 pub use kanban_lanes::{CardStep, LaneField, LaneSlot};
+pub use kanban_search::{
+    KanbanDateFilter, KanbanDatePreset, KanbanDateRange, KanbanFilter, KanbanFindState, KanbanMatch,
+};
 pub use kanban_view::ShownKanban;
 pub use keys::{on_key, shortcut};
 pub use mode::{Mode, Scope};

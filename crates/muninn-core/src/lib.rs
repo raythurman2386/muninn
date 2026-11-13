@@ -35,15 +35,15 @@ pub use board::{
 pub use frontmatter::{Frontmatter, FrontmatterValue};
 pub use kanban::{
     ARCHIVE_DATE_FORMAT, ARCHIVE_DATE_POSITION, ARCHIVE_DATE_SEPARATOR, ARCHIVE_WITH_DATE, Archive,
-    ArchiveDatePosition, ArchiveSettings, Card, CardOrder, CardText, CivilDate, CivilTime,
-    DATE_DISPLAY_FORMAT, DATE_FORMAT, DATE_TRIGGER, DateKind, DateSettings, DateToken,
+    ArchiveDatePosition, ArchiveSettings, Card, CardOrder, CardText, ChecklistItem, CivilDate,
+    CivilTime, DATE_DISPLAY_FORMAT, DATE_FORMAT, DATE_TRIGGER, DateKind, DateSettings, DateToken,
     HIDE_DATE_IN_TITLE, HIDE_TAGS_IN_TITLE, Kanban, KanbanDefaults, KanbanFile,
     LINK_DATE_TO_DAILY_NOTE, LINKED_PAGE_METADATA, Lane, MAX_ARCHIVE_CARDS, MetadataCache,
     MetadataEntry, MetadataField, MetadataRow, MetadataSettings, SHOW_MISSING_METADATA,
     SHOW_RELATIVE_DATE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TIME_FORMAT, TIME_TRIGGER, TagColor,
-    TagSettings, TagToken, card_metadata, first_linked_note, format_date, format_time, in_code_at,
-    inline_fields, is_kanban, is_tag_char, is_tag_text, metadata_fields, metadata_rows,
-    note_metadata, scan_card_text, scan_tags, tag_colors,
+    TagSettings, TagToken, card_checklist, card_metadata, first_linked_note, format_date,
+    format_time, in_code_at, inline_fields, is_kanban, is_tag_char, is_tag_text, metadata_fields,
+    metadata_rows, note_metadata, scan_card_text, scan_tags, tag_colors,
 };
 pub use note::Note;
 pub use preview::Attachment;

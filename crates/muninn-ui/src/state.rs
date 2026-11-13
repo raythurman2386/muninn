@@ -404,6 +404,9 @@ pub struct State {
     pub kanban_selected: Option<(usize, usize)>,
     /// Kanban slice 12: the Archive page is open instead of the lanes.
     pub kanban_archive_open: bool,
+    /// Kanban slice 13: board Find, and the board's ephemeral filter.
+    pub kanban_find: Option<crate::kanban_search::KanbanFindState>,
+    pub kanban_filter: crate::kanban_search::KanbanFilter,
     /// Kanban slice 6: the card or lane pressed and held (cleared whenever
     /// the board changes), and where lanes and cards were laid out (the drop
     /// spot is measured against them).
@@ -779,6 +782,8 @@ impl State {
             kanban_minute_field: TextEdit::default(),
             kanban_selected: None,
             kanban_archive_open: false,
+            kanban_find: None,
+            kanban_filter: crate::kanban_search::KanbanFilter::default(),
             kanban_drag: None,
             kanban_rects: crate::kanban_drag::KanbanRects::default(),
             kanban_autosave_wait: None,
@@ -4882,7 +4887,7 @@ fn expand_path(raw: &str) -> PathBuf {
 /// `text`. The haystack is folded character by character with a byte-origin
 /// map so Unicode case folding (including a character that lowers to more than
 /// one) still reports offsets into the original note.
-fn find_matches(text: &str, query: &str) -> (Vec<usize>, Vec<usize>) {
+pub(crate) fn find_matches(text: &str, query: &str) -> (Vec<usize>, Vec<usize>) {
     let needle = query.to_lowercase();
     if needle.is_empty() {
         return (Vec::new(), Vec::new());
