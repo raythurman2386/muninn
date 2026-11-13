@@ -7,6 +7,10 @@
 
 use serde_json::{Map, Value};
 
+use super::metadata::{
+    LINKED_PAGE_METADATA, MetadataField, SHOW_MISSING_METADATA, metadata_fields,
+    metadata_fields_json,
+};
 use super::tags::{HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagSettings, tag_colors};
 
 /// The footer key: the text that starts a date (`@` by default).
@@ -846,6 +850,9 @@ pub struct KanbanDefaults {
     /// entries a later editor does not understand survive a settings save.
     /// [`TagSettings`] reads the entries it understands from it.
     pub tag_colors: Option<Value>,
+    // Card metadata defaults (slice 11).
+    pub linked_page_metadata: Option<Vec<MetadataField>>,
+    pub show_missing_metadata: Option<bool>,
     /// Keys this version does not know, kept so a newer Muninn's app defaults
     /// are not lost by an older one. A known key with the wrong JSON type is
     /// kept here too.
@@ -875,6 +882,8 @@ impl KanbanDefaults {
                 .get(TAG_COLORS)
                 .filter(|value| value.is_array())
                 .cloned(),
+            linked_page_metadata: metadata_fields(value.get(LINKED_PAGE_METADATA)),
+            show_missing_metadata: value.get(SHOW_MISSING_METADATA).and_then(Value::as_bool),
             other: Map::new(),
         };
         if let Some(object) = value.as_object() {
@@ -891,6 +900,8 @@ impl KanbanDefaults {
                     HIDE_TAGS_IN_TITLE => defaults.hide_tags_in_title.is_some(),
                     SHOW_TAGS_AT_BOTTOM => defaults.show_tags_at_bottom.is_some(),
                     TAG_COLORS => defaults.tag_colors.is_some(),
+                    LINKED_PAGE_METADATA => defaults.linked_page_metadata.is_some(),
+                    SHOW_MISSING_METADATA => defaults.show_missing_metadata.is_some(),
                     _ => false,
                 };
                 if !handled {
@@ -939,6 +950,15 @@ impl KanbanDefaults {
         if let Some(colors) = &self.tag_colors {
             object.insert(TAG_COLORS.to_owned(), colors.clone());
         }
+        if let Some(fields) = &self.linked_page_metadata {
+            object.insert(
+                LINKED_PAGE_METADATA.to_owned(),
+                metadata_fields_json(fields),
+            );
+        }
+        if let Some(value) = self.show_missing_metadata {
+            object.insert(SHOW_MISSING_METADATA.to_owned(), Value::Bool(value));
+        }
         Value::Object(object)
     }
 
@@ -955,6 +975,8 @@ impl KanbanDefaults {
             && self.hide_tags_in_title.is_none()
             && self.show_tags_at_bottom.is_none()
             && self.tag_colors.is_none()
+            && self.linked_page_metadata.is_none()
+            && self.show_missing_metadata.is_none()
             && self.other.is_empty()
     }
 

@@ -88,6 +88,10 @@ pub struct Vault {
     /// Tags (lower-cased key) → notes, with the first spelling seen for
     /// display. Rebuilt by [`Vault::reindex`].
     tag_index: BTreeMap<String, TagEntry>,
+    /// Bumped by every [`Vault::reindex`]. A view whose output depends on
+    /// note bodies (a card's linked-note metadata, slice 11) hashes it so a
+    /// changed note redraws without scanning that note every frame.
+    revision: u64,
 }
 
 /// One tag in a vault's index.
@@ -174,6 +178,7 @@ impl ScanJob {
             skipped: self.skipped,
             broken: Vec::new(),
             tag_index: BTreeMap::new(),
+            revision: 0,
         };
         vault.reindex();
         vault
@@ -206,6 +211,7 @@ impl Vault {
             skipped: 0,
             broken: Vec::new(),
             tag_index: BTreeMap::new(),
+            revision: 0,
         }
     }
 
@@ -256,6 +262,7 @@ impl Vault {
 
     /// Rebuild the title index, every note's link lists, and the tag index.
     pub fn reindex(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
         for note in &mut self.notes {
             note.kanban = crate::is_kanban(&note.source);
             note.tags = crate::note_tags(&note.source);
@@ -328,6 +335,14 @@ impl Vault {
                 entry.notes.push(note.id);
             }
         }
+    }
+
+    /// A counter that changes on every [`Vault::reindex`]. A view that reads
+    /// note bodies outside the index uses it to know the bodies may have
+    /// changed.
+    #[must_use]
+    pub fn revision(&self) -> u64 {
+        self.revision
     }
 
     /// The vault's tags, keyed by lower-case tag and sorted by that key. Each

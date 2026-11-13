@@ -64,6 +64,15 @@ All notable changes to Muninn are documented here. The format is based on
   `#`. `tag-colors` is kept as written for a later editor. Display settings
   never rewrite the board. App-wide defaults live under `kanban_defaults` in
   `settings.json`.
+- **Card metadata from linked notes.** A card's first wikilink selects a note,
+  and the board's `linked-page-metadata` keys draw that note's frontmatter and
+  inline fields (`[key:: value]` or `key:: value`) at the card's foot, after
+  dates and tags. `containsMarkdown` renders a value through the reader so its
+  links and embeds work; `show-missing-metadata` draws `key: —` for an absent
+  key or note. Keys match case-insensitively and the first occurrence wins.
+  App-wide defaults live under `kanban_defaults`; the footer wins, then the
+  app default, then the built-in. A missing note or key draws nothing by
+  default, and display never writes the board or the linked note.
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,
