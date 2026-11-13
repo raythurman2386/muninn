@@ -266,14 +266,14 @@ impl KanbanEffective {
         super::schema::kanban_key(key).map(|key| (key.get)(self))
     }
 
-    /// Set `key` in this resolved copy. `false` for an unknown key or a value
-    /// of the wrong kind for the key.
+    /// Set `key` in this resolved copy, reporting whether it applied: `false`
+    /// for an unknown key, a value of the wrong kind for the key, or a value
+    /// the key refuses (an unknown choice). A refused value changes nothing.
     pub fn set(&mut self, key: &str, value: &KanbanSettingValue) -> bool {
         let Some(entry) = super::schema::kanban_key(key) else {
             return false;
         };
-        (entry.set)(self, value);
-        true
+        (entry.set)(self, value)
     }
 }
 
@@ -289,7 +289,9 @@ pub struct KanbanKey {
     pub kind: KanbanSettingKind,
     pub builtin: KanbanBuiltin,
     pub get: fn(&KanbanEffective) -> KanbanSettingValue,
-    pub set: fn(&mut KanbanEffective, &KanbanSettingValue),
+    /// Apply `value`; `false` when its kind is wrong for this key or the key
+    /// refuses its content (an unknown choice).
+    pub set: fn(&mut KanbanEffective, &KanbanSettingValue) -> bool,
 }
 
 /// The key row with this name, when the schema owns it.
@@ -332,6 +334,9 @@ macro_rules! set_bool {
         |e: &mut KanbanEffective, v: &KanbanSettingValue| {
             if let KanbanSettingValue::Bool(value) = v {
                 e.$group.$field = *value;
+                true
+            } else {
+                false
             }
         }
     };
@@ -348,6 +353,9 @@ macro_rules! set_text {
         |e: &mut KanbanEffective, v: &KanbanSettingValue| {
             if let KanbanSettingValue::Text(text) = v {
                 e.$group.$field.clone_from(text);
+                true
+            } else {
+                false
             }
         }
     };
@@ -364,6 +372,9 @@ macro_rules! set_number {
         |e: &mut KanbanEffective, v: &KanbanSettingValue| {
             if let KanbanSettingValue::Number(value) = v {
                 e.$group.$field = *value;
+                true
+            } else {
+                false
             }
         }
     };
@@ -382,6 +393,9 @@ macro_rules! set_choice {
                 && let Some(value) = <$ty>::parse(text)
             {
                 e.$group.$field = value;
+                true
+            } else {
+                false
             }
         }
     };
@@ -544,6 +558,9 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
         set: |e, v| {
             if let KanbanSettingValue::TagColors(colors) = v {
                 e.tags.tag_colors.clone_from(colors);
+                true
+            } else {
+                false
             }
         },
     },
@@ -559,6 +576,9 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
         set: |e, v| {
             if let KanbanSettingValue::Metadata(fields) = v {
                 e.metadata.linked_page_metadata.clone_from(fields);
+                true
+            } else {
+                false
             }
         },
     },
@@ -609,6 +629,9 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
                 && let Some(position) = super::ArchiveDatePosition::parse(text)
             {
                 e.archive.date_position = position;
+                true
+            } else {
+                false
             }
         },
     },
@@ -634,11 +657,14 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
             max: 10_000,
             step: 1,
         }),
-        builtin: KanbanBuiltin::Number(0),
+        builtin: KanbanBuiltin::Absent,
         get: |e| KanbanSettingValue::Number(e.archive.max_cards.map_or(0, |n| n as u64)),
         set: |e, v| {
             if let KanbanSettingValue::Number(value) = v {
                 e.archive.max_cards = (*value > 0).then_some(*value as usize);
+                true
+            } else {
+                false
             }
         },
     },
@@ -757,6 +783,9 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
         set: |e, v| {
             if let KanbanSettingValue::Bool(value) = v {
                 e.autosave = *value;
+                true
+            } else {
+                false
             }
         },
     },
@@ -810,6 +839,9 @@ mod tests {
                         ) || matches!(
                             (&entry.kind, &value),
                             (KanbanSettingKind::TagColorList, KanbanSettingValue::TagColors(v)) if v.is_empty()
+                        ) || matches!(
+                            (&entry.kind, &value),
+                            (KanbanSettingKind::Number(_), KanbanSettingValue::Number(0))
                         ),
                         "{} has no builtin but resolved to {value:?}",
                         entry.key
@@ -888,6 +920,58 @@ mod tests {
         assert!(effective.set(LANE_WIDTH, &KanbanSettingValue::Number(320)));
         assert_eq!(effective.board.lane_width, 320);
         assert!(!effective.set("not-a-kanban-key", &KanbanSettingValue::Bool(true)));
+        assert!(
+            !effective.set(LANE_WIDTH, &KanbanSettingValue::Bool(true)),
+            "a value of the wrong kind is refused"
+        );
+        assert_eq!(
+            effective.board.lane_width, 320,
+            "a refused value changes nothing"
+        );
+        assert!(
+            !effective.set(
+                NEW_LINE_TRIGGER,
+                &KanbanSettingValue::Choice("tab".to_owned())
+            ),
+            "a choice the key does not know is refused"
+        );
+        assert_eq!(
+            effective.board.new_line_trigger,
+            super::super::NewLineTrigger::Enter
+        );
+    }
+
+    #[test]
+    fn every_key_accepts_its_own_kind_and_refuses_another() {
+        let mut effective = KanbanEffective::resolve(Some(&footer()), &KanbanDefaults::default());
+        for entry in KANBAN_KEYS {
+            let own = entry
+                .builtin
+                .value()
+                .unwrap_or_else(|| empty_for_test(entry.kind));
+            assert!(
+                effective.set(entry.key, &own),
+                "{} accepts a value of its kind",
+                entry.key
+            );
+            let wrong = wrong_kind(entry.kind);
+            assert!(
+                !effective.set(entry.key, &wrong),
+                "{} refuses {wrong:?}",
+                entry.key
+            );
+            assert_eq!(
+                effective.get(entry.key),
+                Some(
+                    entry
+                        .builtin
+                        .value()
+                        .unwrap_or_else(|| empty_for_test(entry.kind))
+                ),
+                "{} keeps its value after the refusal",
+                entry.key
+            );
+        }
     }
 
     #[test]
@@ -1001,11 +1085,25 @@ mod tests {
         );
     }
 
+    /// A resolved value of the key's kind with nothing set: the shape an
+    /// absent built-in takes.
     fn empty_for_test(kind: KanbanSettingKind) -> KanbanSettingValue {
         match kind {
+            KanbanSettingKind::Bool => KanbanSettingValue::Bool(false),
+            KanbanSettingKind::Number(_) => KanbanSettingValue::Number(0),
             KanbanSettingKind::MetadataList => KanbanSettingValue::Metadata(Vec::new()),
             KanbanSettingKind::TagColorList => KanbanSettingValue::TagColors(Vec::new()),
-            _ => KanbanSettingValue::Text(String::new()),
+            KanbanSettingKind::Text | KanbanSettingKind::Choice(_) => {
+                KanbanSettingValue::Text(String::new())
+            }
+        }
+    }
+
+    /// A value of some other kind than `kind`.
+    fn wrong_kind(kind: KanbanSettingKind) -> KanbanSettingValue {
+        match kind {
+            KanbanSettingKind::Bool => KanbanSettingValue::Text("true".to_owned()),
+            _ => KanbanSettingValue::Bool(true),
         }
     }
 }

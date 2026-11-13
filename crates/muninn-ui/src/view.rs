@@ -1614,12 +1614,21 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
         ],
         MenuTarget::Board(..) => vec![("Rename", "rename")],
         MenuTarget::Card(lane, index) => {
+            let done = s
+                .kanban
+                .as_ref()
+                .and_then(|shown| shown.board.as_ref())
+                .and_then(|board| board.lanes().get(*lane)?.cards().get(*index))
+                .is_some_and(muninn_core::Card::is_done);
             let mut items = vec![
                 ("Edit", "edit"),
                 ("Insert card before", "insert_before"),
                 ("Insert card after", "insert_after"),
                 ("Duplicate", "duplicate"),
             ];
+            // Slice 14: the card's checkbox can be hidden by `show-checkboxes`;
+            // the menu still toggles the done mark.
+            items.push((if done { "Mark open" } else { "Mark done" }, "toggle_done"));
             items.push((
                 if crate::kanban_dates::has_token(s, *lane, *index, crate::PickerKind::Date) {
                     "Change date…"

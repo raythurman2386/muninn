@@ -331,11 +331,19 @@ The done-lane marker and the archive heading are written in the language of the 
   board's footer. Both are generated from one list of keys, so a key appears
   once and its label, help, type and built-in value are written once. Each
   control says whether its value is a **Board override**, an **App default** or
-  the built-in **Default**, and offers **Reset board** (removes the footer key)
-  and, when an app default is set, **Reset app default** (removes it from
-  `settings.json`). A board change writes exactly one footer key and is one
-  undo step; an app change writes `settings.json`. Opening or closing either
-  surface writes nothing.
+  the built-in **Default**; a stored value the key's type cannot read is named
+  **Board value ignored** / **App value ignored** while the control shows the
+  value that actually applies. Each offers **Reset board** (removes the footer
+  key) and, when an app default is set, **Reset app default** (removes it from
+  `settings.json`); Reset is offered even for a wrong-typed value. A board
+  change writes exactly one footer key and is one undo step — a typed text
+  value is one step for the whole value, not one per character — and a typed
+  app default is written once it rests. Opening or closing either surface
+  writes nothing; switching boards, opening the archive or opening Settings
+  closes the panel.
+  A `linked-page-metadata` row edits only its own stored entry, so extra fields
+  and malformed entries keep their bytes. A card's menu offers **Mark done** /
+  **Mark open**, so hiding `show-checkboxes` does not remove the only toggle.
 - **`kanban_autosave`** is app-wide only: it lives at the top level of
   `settings.json`, never in the footer or `kanban_defaults`. `true` (the
   built-in) saves unsaved edits once they rest; `false` leaves saving to `⌘S`

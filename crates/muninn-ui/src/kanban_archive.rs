@@ -41,6 +41,12 @@ impl State {
     /// The header's Archive button: show the archive page, or the lanes.
     pub fn toggle_kanban_archive(&mut self) {
         self.kanban_archive_open = !self.kanban_archive_open;
+        if self.kanban_archive_open {
+            // One body at a time: the settings panel gives place to the
+            // archive instead of covering it.
+            self.close_kanban_settings();
+            self.close_kanban_filter();
+        }
         self.menu = None;
     }
 

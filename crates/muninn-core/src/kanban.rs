@@ -67,7 +67,7 @@ pub use self::layout::{
 pub use self::metadata::{
     LINKED_PAGE_METADATA, MetadataCache, MetadataEntry, MetadataField, MetadataRow,
     MetadataSettings, SHOW_MISSING_METADATA, card_metadata, first_linked_note, inline_fields,
-    metadata_fields, metadata_rows, note_metadata,
+    metadata_field_indices, metadata_fields, metadata_rows, note_metadata,
 };
 pub use self::schema::{
     KANBAN_AUTOSAVE, KANBAN_KEYS, KanbanBuiltin, KanbanChoice, KanbanEffective, KanbanKey,

@@ -108,19 +108,27 @@ All notable changes to Muninn are documented here. The format is based on
   `kanban_autosave`), and the Kanban page's **Board settings** panel edits the
   shown board's footer. Both are generated from one schema, so every key has
   one label, help text, type and built-in value. Each control says whether it
-  is a **Board override**, an **App default** or the built-in **Default**, and
-  can reset one key: **Reset board** removes the footer key, **Reset app
-  default** removes it from `settings.json`. A board change writes only that
-  key through the normal edit/undo/save path; an app change writes
-  `settings.json`; opening or closing a surface writes nothing and unknown
-  footer keys stay byte for byte. Alongside slices 9–13's keys, a board can set
+  is a **Board override**, an **App default** or the built-in **Default** — a
+  value that is present but the wrong JSON type is named **Board value
+  ignored** / **App value ignored** instead — and can reset one key: **Reset
+  board** removes the footer key, **Reset app default** removes it from
+  `settings.json`. A board change writes only that key through the normal
+  edit/undo/save path; a typed text value is one undo step, and an app text
+  default is written once typing rests, not once per character. Opening,
+  closing or switching a board writes nothing and unknown footer keys stay byte
+  for byte; the panel closes when another board is shown, the archive opens or
+  the Settings modal opens, so one board's text can never be typed into
+  another. A `linked-page-metadata`
+  edit changes only the row's own entry, keeping extra fields, a wrong-typed
+  flag and malformed entries. Alongside slices 9–13's keys, a board can set
   `lane-width` (272, drawn between 120 and 720), `new-line-trigger` (`enter` or
   `shift+enter` in the card editor), `new-card-insertion-method` (`prepend` or
   `append` for **+ Add card**), `show-checkboxes`, the header's
   `show-filter-button`, `show-archive-button` and `show-open-markdown-button`,
   and `new-note-folder` / `new-note-template` for **New note from card**.
   Lane width, the new-line trigger and hidden header buttons take effect at
-  once.
+  once, and a card's menu still offers **Mark done** / **Mark open** when its
+  checkbox is hidden.
 
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written

@@ -42,6 +42,8 @@ struct Fixture {
     rt: Runtime<State>,
     config: PathBuf,
     _vault: TempVault,
+    /// The note the fixture opened first, for `disk`.
+    first: String,
 }
 
 impl Fixture {
@@ -70,14 +72,40 @@ impl Fixture {
     }
 
     fn disk(&self) -> String {
-        fs::read_to_string(self._vault.path().join("Board.md")).expect("Board.md")
+        fs::read_to_string(self._vault.path().join(&self.first)).expect("the first note")
     }
 }
 
 fn on_board(tag: &str, board: &str) -> Fixture {
-    let vault = TempVault::new(&[("Board.md", board)]);
+    on_boards(tag, &[("Board.md", board)])
+}
+
+/// A vault with several kanban notes; the first is opened.
+fn on_boards(tag: &str, notes: &[(&str, &str)]) -> Fixture {
+    fixture(tag, notes, None)
+}
+
+/// A vault whose `settings.json` already holds `kanban_defaults`.
+fn on_boards_with_defaults(
+    tag: &str,
+    notes: &[(&str, &str)],
+    defaults: &serde_json::Value,
+) -> Fixture {
+    fixture(tag, notes, Some(defaults))
+}
+
+fn fixture(tag: &str, notes: &[(&str, &str)], defaults: Option<&serde_json::Value>) -> Fixture {
+    let vault = TempVault::new(notes);
     let config = unique_dir(&format!("{tag}-config"));
     let state_home = unique_dir(&format!("{tag}-state"));
+    let settings = Settings {
+        kanban_autosave: false,
+        kanban_defaults: defaults.map_or_else(muninn_core::KanbanDefaults::default, |value| {
+            muninn_core::KanbanDefaults::from_json(Some(value))
+        }),
+        ..Settings::default()
+    };
+    settings.save_to(&config).expect("settings file");
     let state = State::with_settings(
         vault.path().to_path_buf(),
         state_home.clone(),
@@ -91,13 +119,16 @@ fn on_board(tag: &str, board: &str) -> Fixture {
     rt.poll = Some(poll);
     rt.on_key = Some(on_key);
     rt.frame(0.0);
-    let id = rt.state.vault.resolve("Board").expect("Board");
+    let first = notes[0].0.to_owned();
+    let stem = first.trim_end_matches(".md");
+    let id = rt.state.vault.resolve(stem).expect("the first note");
     rt.update(|s, _| s.open_kanban(id));
     rt.frame(1.0 / 60.0);
     Fixture {
         rt,
         config,
         _vault: vault,
+        first,
     }
 }
 
@@ -151,6 +182,41 @@ fn has(rt: &Runtime<State>, key: &str) -> bool {
     rt.elements()
         .into_iter()
         .any(|element| element.key.as_deref() == Some(key) && !element.exiting)
+}
+
+fn text_of(rt: &Runtime<State>, key: &str) -> Option<String> {
+    rt.elements()
+        .into_iter()
+        .find(|element| element.key.as_deref() == Some(key) && !element.exiting)
+        .and_then(|element| element.text.clone())
+}
+
+/// Focus a settings text field and select its value.
+fn focus_field(rt: &mut Runtime<State>, field: &str) {
+    click(rt, field);
+    rt.key(KeyEvent {
+        key: Key::Command('a'),
+        mods: Mods {
+            cmd: true,
+            ..Mods::default()
+        },
+    });
+    frame(rt);
+}
+
+/// Focus a settings text field, select its value, and type `text` over it.
+fn type_text(rt: &mut Runtime<State>, field: &str, text: &str) {
+    focus_field(rt, field);
+    rt.ime(Ime::Commit(text.to_owned()));
+    for _ in 0..3 {
+        frame(rt);
+    }
+}
+
+fn advance(rt: &mut Runtime<State>, frames: usize) {
+    for _ in 0..frames {
+        frame(rt);
+    }
 }
 
 #[test]
@@ -352,4 +418,435 @@ fn opening_and_closing_a_surface_writes_nothing() {
     assert_eq!(f.source(), disk, "the parsed board is unchanged");
     assert!(!f.rt.state.kanban_dirty());
     assert_eq!(f.settings_json(), settings, "settings.json is unchanged");
+}
+
+fn text_board(trigger: &str) -> String {
+    format!(
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] a
+
+%% kanban:settings
+```
+{{\"kanban-plugin\":\"board\",\"date-trigger\":\"{trigger}\"}}
+```
+%%
+"
+    )
+}
+
+#[test]
+fn switching_boards_closes_the_panel_and_the_next_board_shows_its_own_text() {
+    let a = text_board("#");
+    let b = text_board("$");
+    let mut f = on_boards("switch", &[("Board.md", &a), ("Other.md", &b)]);
+    click(&mut f.rt, "kanban-settings");
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("#")
+    );
+
+    let other = f.rt.state.vault.resolve("Other").expect("Other");
+    act(&mut f.rt, |s| s.open_kanban(other));
+    advance(&mut f.rt, 3);
+    assert!(
+        !f.rt.state.kanban_settings_open,
+        "the panel belongs to the board it opened on"
+    );
+
+    click(&mut f.rt, "kanban-settings");
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("$"),
+        "the panel shows the new board's value, not the old one's"
+    );
+    assert_eq!(f.footer()["date-trigger"], "$");
+}
+
+#[test]
+fn a_typed_text_setting_is_one_undo_step_and_does_not_evict_card_edits() {
+    let mut f = on_board("typed-text", BOARD);
+    // One card edit already in the history: the typing must not evict it.
+    act(&mut f.rt, |s| s.begin_edit_card(0, 0));
+    act(&mut f.rt, |s| {
+        s.kanban_card_field.replace_text("edited card")
+    });
+    key(&mut f.rt, Key::Enter, false);
+    assert_eq!(f.board().lanes()[0].cards()[0].text(), "edited card");
+
+    click(&mut f.rt, "kanban-settings");
+    focus_field(&mut f.rt, "kanban-setting-date-trigger-text");
+    for chunk in ["X", "Y", "Z"] {
+        f.rt.ime(Ime::Commit(chunk.to_owned()));
+        frame(&mut f.rt);
+    }
+    advance(&mut f.rt, 2);
+    assert_eq!(f.footer()["date-trigger"], "XYZ");
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("XYZ")
+    );
+
+    act(&mut f.rt, State::undo_kanban);
+    assert!(
+        f.footer().get("date-trigger").is_none(),
+        "one undo reverts the whole typed value, not one character"
+    );
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("@"),
+        "the field shows the builtin again, not the undone text"
+    );
+
+    act(&mut f.rt, State::undo_kanban);
+    assert_eq!(
+        f.board().lanes()[0].cards()[0].text(),
+        "first card",
+        "the card edit is still the next undo step: typing did not consume the history"
+    );
+
+    // The resynced field must not put the undone text back on the next key.
+    f.rt.ime(Ime::Commit("Q".to_owned()));
+    frame(&mut f.rt);
+    assert_eq!(
+        f.footer()["date-trigger"],
+        "@Q",
+        "typing appends to the builtin, not to the undone value"
+    );
+}
+
+#[test]
+fn resetting_the_app_default_from_the_board_panel_refills_both_surfaces() {
+    let mut f = on_board("reset-app-panel", BOARD);
+    act(&mut f.rt, |s| {
+        s.set_kanban_app_value(
+            "date-trigger",
+            muninn_core::KanbanSettingValue::Text("!".to_owned()),
+        );
+    });
+    assert!(f.rt.state.kanban_app_sets("date-trigger"));
+
+    click(&mut f.rt, "kanban-settings");
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("!"),
+        "the board panel shows the app default"
+    );
+    click(&mut f.rt, "kanban-reset-app-date-trigger");
+    assert!(!f.rt.state.kanban_app_sets("date-trigger"));
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("@"),
+        "the board panel's field falls back to the builtin, not empty"
+    );
+    assert_eq!(
+        f.rt.state.kanban_setting_text(true, "date-trigger"),
+        Some("@"),
+        "the app tab's field is refilled too"
+    );
+}
+
+#[test]
+fn a_wrong_typed_stored_value_is_named_ignored_and_can_still_be_reset() {
+    let board = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+%% kanban:settings
+```
+{\"kanban-plugin\":\"board\",\"lane-width\":\"wide\"}
+```
+%%
+";
+    let mut f = on_boards_with_defaults(
+        "wrong-type-label",
+        &[("Board.md", board)],
+        &serde_json::json!({"lane-width": "wide"}),
+    );
+    click(&mut f.rt, "kanban-settings");
+    assert_eq!(
+        text_of(&f.rt, "kanban-setting-lane-width-source").as_deref(),
+        Some("Board value ignored"),
+        "a present-but-wrong-typed value is not called an override"
+    );
+    assert!(
+        has(&f.rt, "kanban-reset-board-lane-width"),
+        "Reset board is still offered for the ignored value"
+    );
+
+    click(&mut f.rt, "kanban-reset-board-lane-width");
+    assert!(f.footer().get("lane-width").is_none());
+    assert_eq!(
+        text_of(&f.rt, "kanban-setting-lane-width-source").as_deref(),
+        Some("App value ignored"),
+        "the wrong-typed app default is named as ignored too"
+    );
+    assert!(has(&f.rt, "kanban-reset-app-lane-width"));
+
+    click(&mut f.rt, "kanban-reset-app-lane-width");
+    assert!(!f.rt.state.kanban_app_sets("lane-width"));
+    assert_eq!(
+        text_of(&f.rt, "kanban-setting-lane-width-source").as_deref(),
+        Some("Default")
+    );
+    assert_eq!(f.rt.state.kanban_board_settings().lane_width, 272);
+}
+
+#[test]
+fn opening_the_archive_closes_the_board_settings_panel() {
+    let mut f = on_board("archive-closes", BOARD);
+    click(&mut f.rt, "kanban-settings");
+    assert!(f.rt.state.kanban_settings_open);
+    click(&mut f.rt, "kanban-archive");
+    assert!(f.rt.state.kanban_archive_open);
+    assert!(
+        !f.rt.state.kanban_settings_open,
+        "the archive takes the body from the panel"
+    );
+}
+
+#[test]
+fn editing_one_metadata_entry_keeps_its_extra_fields_and_malformed_entries() {
+    let board = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+%% kanban:settings
+```
+{\"kanban-plugin\":\"board\",\"linked-page-metadata\":[{\"key\":\"status\",\"label\":\"Status\",\"containsMarkdown\":\"yes\"},{\"broken\":1},{\"key\":\"owner\",\"containsMarkdown\":false}]}
+```
+%%
+";
+    let mut f = on_board("metadata-raw", board);
+    click(&mut f.rt, "kanban-settings");
+    click(
+        &mut f.rt,
+        "kanban-setting-linked-page-metadata-row-1-markdown",
+    );
+    assert_eq!(
+        f.footer()["linked-page-metadata"],
+        serde_json::json!([
+            {"key": "status", "label": "Status", "containsMarkdown": "yes"},
+            {"broken": 1},
+            {"key": "owner", "containsMarkdown": true}
+        ]),
+        "only the toggled entry changes; extras and malformed entries stay"
+    );
+
+    click(
+        &mut f.rt,
+        "kanban-setting-linked-page-metadata-row-0-remove",
+    );
+    assert_eq!(
+        f.footer()["linked-page-metadata"],
+        serde_json::json!([
+            {"broken": 1},
+            {"key": "owner", "containsMarkdown": true}
+        ])
+    );
+}
+
+#[test]
+fn a_card_menu_marks_done_when_the_checkbox_is_hidden() {
+    let board = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+%% kanban:settings
+```
+{\"kanban-plugin\":\"board\",\"show-checkboxes\":false}
+```
+%%
+";
+    let mut f = on_board("card-menu-done", board);
+    act(&mut f.rt, |s| s.open_card_menu(0, 0));
+    advance(&mut f.rt, 2);
+    assert!(
+        !has(&f.rt, "kanban-card-0-0-mark"),
+        "show-checkboxes:false hides the only visible toggle"
+    );
+    assert!(
+        has(&f.rt, "menu-toggle_done"),
+        "the card menu offers the done toggle"
+    );
+    assert!(
+        f.rt.elements()
+            .iter()
+            .filter_map(|element| element.text.as_deref())
+            .any(|label| label == "Mark done"),
+        "the menu names what it will do"
+    );
+    click(&mut f.rt, "menu-toggle_done");
+    assert!(f.board().lanes()[0].cards()[0].is_done());
+}
+
+#[test]
+fn a_number_stepper_clamps_a_stored_value_up_to_its_minimum() {
+    let board = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+%% kanban:settings
+```
+{\"kanban-plugin\":\"board\",\"lane-width\":50}
+```
+%%
+";
+    let mut f = on_board("number-clamp", board);
+    click(&mut f.rt, "kanban-settings");
+    assert_eq!(f.footer()["lane-width"], 50);
+    click(&mut f.rt, "kanban-setting-lane-width-plus");
+    assert_eq!(f.footer()["lane-width"], 120, "clamped up to the minimum");
+}
+
+#[test]
+fn an_unreadable_board_has_no_settings_button() {
+    let board = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+%% kanban:settings
+```
+{not json
+```
+%%
+";
+    let mut f = on_board("unreadable-settings", board);
+    assert!(
+        f.rt.state
+            .kanban
+            .as_ref()
+            .is_some_and(|shown| shown.board.is_none()),
+        "the footer does not parse"
+    );
+    assert!(
+        has(&f.rt, "kanban-placeholder"),
+        "the unreadable board shows its placeholder"
+    );
+    assert!(!has(&f.rt, "kanban-settings"), "there is no panel to open");
+    act(&mut f.rt, State::toggle_kanban_settings);
+    assert!(!f.rt.state.kanban_settings_open);
+}
+
+#[test]
+fn an_external_reload_refreshes_the_open_panel_text() {
+    let mut f = on_board("external-reload", &text_board("#"));
+    click(&mut f.rt, "kanban-settings");
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("#")
+    );
+    // Another app rewrites the board's footer while the panel is open.
+    fs::write(f._vault.path().join("Board.md"), text_board("$")).expect("write the board");
+    act(&mut f.rt, State::refresh_kanban);
+    assert!(
+        f.rt.state.kanban_settings_open,
+        "the same board stays shown"
+    );
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("$"),
+        "the field follows the reloaded footer"
+    );
+}
+
+#[test]
+fn resetting_the_autosave_app_default_turns_it_back_on() {
+    let mut f = on_board("autosave-reset", BOARD);
+    act(&mut f.rt, |s| {
+        s.set_kanban_app_value(
+            muninn_core::KANBAN_AUTOSAVE,
+            muninn_core::KanbanSettingValue::Bool(false),
+        );
+    });
+    assert!(!f.rt.state.kanban_app_effective().autosave);
+    assert!(f.settings_json().contains("\"kanban_autosave\": false"));
+    assert!(f.rt.state.kanban_app_sets(muninn_core::KANBAN_AUTOSAVE));
+
+    act(&mut f.rt, |s| {
+        s.reset_kanban_app_value(muninn_core::KANBAN_AUTOSAVE);
+    });
+    assert!(
+        f.rt.state.kanban_app_effective().autosave,
+        "the builtin is on again"
+    );
+    assert!(!f.rt.state.kanban_app_sets(muninn_core::KANBAN_AUTOSAVE));
+    assert!(f.settings_json().contains("\"kanban_autosave\": true"));
+}
+
+#[test]
+fn opening_settings_closes_the_board_panel() {
+    let mut f = on_board("modal-over-panel", BOARD);
+    click(&mut f.rt, "kanban-settings");
+    assert!(f.rt.state.kanban_settings_open);
+    open_settings(&mut f.rt);
+    assert!(
+        !f.rt.state.kanban_settings_open,
+        "the two settings surfaces are never open together"
+    );
+    click(&mut f.rt, "settings-tabs/segment5");
+    type_text(&mut f.rt, "kanban-setting-date-trigger-text", "!!");
+    assert_eq!(
+        f.rt.state.kanban_setting_text(true, "date-trigger"),
+        Some("!!")
+    );
+    act(&mut f.rt, State::close_settings);
+    click(&mut f.rt, "kanban-settings");
+    assert_eq!(
+        f.rt.state.kanban_setting_text(false, "date-trigger"),
+        Some("!!"),
+        "reopening the panel shows the app default set above it"
+    );
+}
+
+#[test]
+fn an_app_text_default_is_written_once_typing_rests() {
+    let mut f = on_board("app-text-debounce", BOARD);
+    open_settings(&mut f.rt);
+    click(&mut f.rt, "settings-tabs/segment5");
+    type_text(&mut f.rt, "kanban-setting-date-trigger-text", "XY");
+    assert_eq!(
+        f.rt.state.kanban_setting_text(true, "date-trigger"),
+        Some("XY")
+    );
+    assert!(
+        !f.settings_json().contains("\"XY\""),
+        "typing does not write settings.json once per character"
+    );
+    advance(&mut f.rt, 40);
+    assert!(
+        f.settings_json().contains("\"date-trigger\": \"XY\""),
+        "the idle write lands once typing rests: {}",
+        f.settings_json()
+    );
 }

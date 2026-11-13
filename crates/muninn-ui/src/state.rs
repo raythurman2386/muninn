@@ -4430,6 +4430,9 @@ impl State {
                 self.begin_insert_card(lane, index + 1);
             }
             (MenuTarget::Card(lane, index), "duplicate") => self.duplicate_card(lane, index),
+            (MenuTarget::Card(lane, index), "toggle_done") => {
+                self.toggle_card_done(lane, index);
+            }
             (MenuTarget::Card(lane, index), "split") => self.split_card(lane, index),
             (MenuTarget::Card(lane, index), "add_date") => {
                 self.open_card_date_picker(lane, index);

@@ -210,6 +210,13 @@ impl State {
         // board starts with both clear; a re-read of the same board keeps them.
         if !same_rel {
             self.reset_kanban_search();
+            // Slice 14: the Board settings panel and its text fields belong to
+            // the board they opened on, so switching boards closes it rather
+            // than leaving one board's text over another's values.
+            self.close_kanban_settings();
+        } else if shown.as_ref().is_some_and(|shown| shown.board.is_none()) {
+            // The file stopped parsing: there is no board to configure.
+            self.close_kanban_settings();
         }
         // A re-read can move the selected card down its lane; another
         // kanban's selection goes with that kanban.
@@ -532,72 +539,76 @@ fn header(s: &State, k: &Kit) -> El {
         BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
         BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
     };
-    head.child(
-        text(title)
-            .key("kanban-title")
-            .font(k.ty.ui_medium)
-            .color(k.c.text_base),
-    )
-    .child(
-        text(shown.rel.clone())
-            .key("kanban-detail")
-            .font(k.ty.caption())
-            .color(k.c.text_faint)
-            .shrink()
-            .truncate(),
-    )
-    .child(
-        text(status)
-            .key("kanban-status")
-            .font(k.ty.caption())
-            .color(status_color)
-            .grow(1.0)
-            .truncate(),
-    )
-    .child(match shown.conflict {
-        Some(conflict) => conflict_bar(
-            k,
-            "kanban",
-            conflict,
-            [
-                State::kanban_keep_mine,
-                State::kanban_save_copy,
-                State::kanban_discard,
-            ],
-        ),
-        None => el(),
-    })
-    .child(filter_summary(s, k))
-    .child(if s.kanban_board_settings().show_filter_button {
-        header_button(
+    let head = head
+        .child(
+            text(title)
+                .key("kanban-title")
+                .font(k.ty.ui_medium)
+                .color(k.c.text_base),
+        )
+        .child(
+            text(shown.rel.clone())
+                .key("kanban-detail")
+                .font(k.ty.caption())
+                .color(k.c.text_faint)
+                .shrink()
+                .truncate(),
+        )
+        .child(
+            text(status)
+                .key("kanban-status")
+                .font(k.ty.caption())
+                .color(status_color)
+                .grow(1.0)
+                .truncate(),
+        )
+        .child(match shown.conflict {
+            Some(conflict) => conflict_bar(
+                k,
+                "kanban",
+                conflict,
+                [
+                    State::kanban_keep_mine,
+                    State::kanban_save_copy,
+                    State::kanban_discard,
+                ],
+            ),
+            None => el(),
+        })
+        .child(filter_summary(s, k));
+    // Resolve the board's layout once for the header's three switches: each
+    // call would parse the footer JSON again.
+    let layout = s.kanban_board_settings();
+    let mut head = head;
+    if layout.show_filter_button {
+        head = head.child(header_button(
             k,
             "kanban-filter-toggle",
             &ic::OUTLINE_SLIDERS,
             "Filter",
             State::toggle_kanban_filter,
-        )
-    } else {
-        el()
-    })
-    .child(if s.kanban_board_settings().show_archive_button {
-        header_button(
+        ));
+    }
+    if layout.show_archive_button {
+        head = head.child(header_button(
             k,
             "kanban-archive",
             &ic::ARCHIVE,
             "Archive",
             State::toggle_kanban_archive,
-        )
-    } else {
-        el()
-    })
-    .child(header_button(
-        k,
-        "kanban-settings",
-        &ic::SETTINGS_GEAR,
-        "Board settings",
-        State::toggle_kanban_settings,
-    ))
-    .child(if s.kanban_board_settings().show_open_markdown_button {
+        ));
+    }
+    // An unreadable board has no settings panel to open.
+    if shown.board.is_some() {
+        head = head.child(header_button(
+            k,
+            "kanban-settings",
+            &ic::SETTINGS_GEAR,
+            "Board settings",
+            State::toggle_kanban_settings,
+        ));
+    }
+    head.child(if layout.show_open_markdown_button {
         header_button(
             k,
             "kanban-open-markdown",

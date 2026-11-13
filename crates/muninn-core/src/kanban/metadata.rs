@@ -81,6 +81,25 @@ impl MetadataSettings {
     }
 }
 
+/// The positions in a `linked-page-metadata` array that [`metadata_fields`]
+/// keeps, in order: the raw index of every entry that is an object with a
+/// non-empty string `key`. A malformed entry has no position, so a list
+/// editor can change one kept entry and leave the others byte for byte.
+#[must_use]
+pub fn metadata_field_indices(value: Option<&Value>) -> Vec<usize> {
+    let Some(items) = value.and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| {
+            let key = item.get("key").and_then(Value::as_str)?;
+            (!key.trim().is_empty()).then_some(index)
+        })
+        .collect()
+}
+
 /// Read a `linked-page-metadata` value: an array of objects with a string
 /// `key` and an optional boolean `containsMarkdown`. A malformed entry is
 /// ignored; the rest stay. `None` means the value is absent or not an array,
@@ -88,23 +107,20 @@ impl MetadataSettings {
 #[must_use]
 pub fn metadata_fields(value: Option<&Value>) -> Option<Vec<MetadataField>> {
     let items = value?.as_array()?;
-    let mut fields = Vec::with_capacity(items.len());
-    for item in items {
-        let Some(key) = item.get("key").and_then(Value::as_str) else {
-            continue;
-        };
-        let key = key.trim();
-        if key.is_empty() {
-            continue;
-        }
-        fields.push(MetadataField {
-            key: key.to_owned(),
-            contains_markdown: item
-                .get("containsMarkdown")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-        });
-    }
+    let fields = metadata_field_indices(value)
+        .into_iter()
+        .filter_map(|index| {
+            let item = items.get(index)?;
+            let key = item.get("key").and_then(Value::as_str)?.trim();
+            Some(MetadataField {
+                key: key.to_owned(),
+                contains_markdown: item
+                    .get("containsMarkdown")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            })
+        })
+        .collect();
     Some(fields)
 }
 
@@ -664,6 +680,11 @@ mod tests {
                     contains_markdown: false
                 }
             ]
+        );
+        assert_eq!(
+            metadata_field_indices(Some(&value)),
+            [0, 2, 4],
+            "each kept field names its raw entry, so an editor changes only that one"
         );
         assert_eq!(metadata_fields(None), None);
         assert_eq!(

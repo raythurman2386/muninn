@@ -48,7 +48,8 @@ pub use kanban::{
     SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TIME_FORMAT, TIME_TRIGGER, TagColor, TagSettings, TagToken,
     card_checklist, card_metadata, first_linked_note, format_date, format_time, in_code_at,
     inline_fields, is_kanban, is_tag_char, is_tag_text, kanban_key, kanban_keys_in,
-    metadata_fields, metadata_rows, note_metadata, scan_card_text, scan_tags, tag_colors,
+    metadata_field_indices, metadata_fields, metadata_rows, note_metadata, scan_card_text,
+    scan_tags, tag_colors,
 };
 pub use note::Note;
 pub use preview::Attachment;

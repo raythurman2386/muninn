@@ -266,7 +266,15 @@ impl State {
                     || (self.kanban_card.is_some() && self.kanban_card_field.focused)
                     || (self.kanban_lane_edit.is_some() && self.kanban_lane_field.focused)
                     || self.kanban_hour_field.focused
-                    || self.kanban_minute_field.focused))
+                    || self.kanban_minute_field.focused
+                    // Slice 14: the Board settings panel's text fields own
+                    // typing (and undo) while they are focused.
+                    || self.kanban_settings_open
+                        && (self
+                            .kanban_board_text
+                            .values()
+                            .any(|field| field.focused)
+                            || self.kanban_board_new_metadata.focused)))
     }
 
     /// DES-01: help overlay.
@@ -305,6 +313,10 @@ impl State {
         self.settings_return_editor = self.editor.focused;
         self.settings_return_search = self.search.focused;
         self.settings_modal = true;
+        // Slice 14: the app-wide Kanban tab and the page's Board settings
+        // panel are one surface at a time, so the panel (and its text fields)
+        // cannot sit under the modal holding another board's values.
+        self.close_kanban_settings();
         self.settings_tab = SettingsTab::default();
         // Settings is the top layer; a help page or sidebar menu cannot stay
         // live underneath it.
@@ -323,6 +335,11 @@ impl State {
         self.settings_modal = false;
         self.vault_field.focused = false;
         self.sync_ui.blur();
+        // Slice 14: a Kanban text default is written once typing rests; do it
+        // now rather than leave it for the next idle frame.
+        if self.settings_due.take().is_some() {
+            self.save_settings();
+        }
         if self.settings_return_search {
             self.focus_search();
         } else if self.settings_return_editor {

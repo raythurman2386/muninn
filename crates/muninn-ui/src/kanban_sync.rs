@@ -288,8 +288,11 @@ impl State {
             let copy = shown.dirty() && shown.recovered != Some((shown.generation, None));
             autosave || copy
         });
-        let pending =
-            unwritten || self.kanban_autosave_wait.is_some() || self.kanban_recovery_wait.is_some();
+        let pending = unwritten
+            || self.kanban_autosave_wait.is_some()
+            || self.kanban_recovery_wait.is_some()
+            // Slice 14: an app-wide text default waits for its idle write.
+            || self.settings_due.is_some();
         let watch = (self.mode == Mode::Kanban)
             .then(|| (WATCH_INTERVAL - (t - self.last_kanban_watch)).max(0.0));
         let next = match (pending.then_some(PENDING), watch) {

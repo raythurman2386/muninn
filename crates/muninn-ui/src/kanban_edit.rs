@@ -143,12 +143,17 @@ impl CardRef {
 pub struct KanbanHistory {
     undo: VecDeque<String>,
     redo: Vec<String>,
+    /// The text key whose typing has one entry in `undo` (slice 14): further
+    /// changes to it replace the board without recording another copy, so a
+    /// typed field is one undo step and does not evict card edits.
+    coalescing: Option<&'static str>,
 }
 
 impl KanbanHistory {
     /// Remember the text before an edit. A new edit clears redo.
     fn record(&mut self, before: String) {
         self.redo.clear();
+        self.coalescing = None;
         self.undo.push_back(before);
         let mut bytes: usize = self.undo.iter().map(String::len).sum();
         while self.undo.len() > 1 && (self.undo.len() > HISTORY_LIMIT || bytes > HISTORY_BYTES) {
@@ -156,6 +161,22 @@ impl KanbanHistory {
                 bytes -= old.len();
             }
         }
+    }
+
+    /// Remember `before` unless the last entry is this typing run's: a text
+    /// setting's changes coalesce into one entry until another edit, undo,
+    /// redo or surface change ends the run.
+    fn record_coalesced(&mut self, key: &'static str, before: String) {
+        if self.coalescing == Some(key) {
+            return;
+        }
+        self.record(before);
+        self.coalescing = Some(key);
+    }
+
+    /// End a typing run, so the next change to the same key is a new entry.
+    fn end_run(&mut self) {
+        self.coalescing = None;
     }
 }
 
@@ -411,6 +432,19 @@ impl State {
         what: &str,
         op: impl FnOnce(&mut Kanban) -> io::Result<()>,
     ) -> bool {
+        self.edit_kanban_tagged(what, None, op)
+    }
+
+    /// [`State::edit_kanban`], with consecutive changes to `coalesce` sharing
+    /// the newest history entry. Slice 14 uses it for a text setting, so one
+    /// typed value is one undo step and does not copy the whole board into
+    /// the 100-entry history per character.
+    pub(crate) fn edit_kanban_tagged(
+        &mut self,
+        what: &str,
+        coalesce: Option<&'static str>,
+        op: impl FnOnce(&mut Kanban) -> io::Result<()>,
+    ) -> bool {
         let Some(mut next) = self.kanban_board().cloned() else {
             return true;
         };
@@ -429,7 +463,12 @@ impl State {
             return true;
         }
         let replaced = if let Some(board) = shown.board.replace(next) {
-            shown.history.record(board.source().to_owned());
+            match coalesce {
+                Some(key) => shown
+                    .history
+                    .record_coalesced(key, board.source().to_owned()),
+                None => shown.history.record(board.source().to_owned()),
+            }
             shown.mark_changed();
             true
         } else {
@@ -456,6 +495,14 @@ impl State {
     /// `⇧⌘Z` / `⌘Y` on the page: apply the newest undone edit again.
     pub fn redo_kanban(&mut self) {
         self.step_kanban_history(false);
+    }
+
+    /// End a text setting's coalesced typing run (slice 14), so the next
+    /// change to that key is a new undo step instead of joining the last one.
+    pub fn end_kanban_text_run(&mut self) {
+        if let Some(shown) = &mut self.kanban {
+            shown.history.end_run();
+        }
     }
 
     fn step_kanban_history(&mut self, undo: bool) {
@@ -494,6 +541,9 @@ impl State {
         } else {
             history.undo.push_back(current);
         }
+        // Slice 14: the step ends a text setting's typing run, and a field
+        // left showing the undone value would put it back on the next key.
+        history.end_run();
         shown.board = Some(next);
         shown.error = None;
         shown.mark_changed();
@@ -501,6 +551,9 @@ impl State {
         // The text is another version of the board: keep the selection on
         // the same card when it is still there, else drop it.
         self.restore_kanban_selection(kept);
+        // Both settings surfaces show the resolved value again. Undo can
+        // change a footer key that a text field was showing.
+        self.resync_kanban_setting_text();
     }
 
     /// Undo or redo in an open kanban field, when one is open. `false` when
@@ -663,6 +716,11 @@ impl State {
         self.kanban_drag = None;
         self.menu = None;
         self.restore_kanban_selection(selected);
+        // Slice 14: a board replaced under an open Board settings panel can
+        // change a footer key a text field shows; a stale field would write
+        // its old text back on the next key. Re-reads, watcher reloads and
+        // recovery restores all land here.
+        self.resync_kanban_setting_text();
     }
 
     /// Put the selection back on `card` after the board was replaced, or
@@ -783,5 +841,26 @@ mod tests {
         history.redo.push("r".to_owned());
         history.record("next".to_owned());
         assert!(history.redo.is_empty(), "a new edit clears redo");
+    }
+
+    #[test]
+    fn a_typing_run_keeps_one_entry_and_another_key_starts_a_new_one() {
+        let mut history = KanbanHistory::default();
+        for (before, key) in [
+            ("a", "date-trigger"),
+            ("ab", "date-trigger"),
+            ("abc", "date-trigger"),
+            ("abcd", "date-trigger"),
+        ] {
+            history.record_coalesced(key, before.to_owned());
+        }
+        assert_eq!(history.undo.len(), 1, "typing four characters is one step");
+        assert_eq!(history.undo.front().map(String::as_str), Some("a"));
+
+        history.record_coalesced("time-trigger", "x".to_owned());
+        assert_eq!(history.undo.len(), 2, "another key is another step");
+        history.end_run();
+        history.record_coalesced("time-trigger", "y".to_owned());
+        assert_eq!(history.undo.len(), 3, "a new run after a gap is a new step");
     }
 }
