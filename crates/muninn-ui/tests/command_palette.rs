@@ -233,14 +233,14 @@ fn palette_runs_actions_and_closes_itself() {
     rt.key(key(Key::Enter));
     frame(&mut rt);
     assert!(!rt.state.palette_open());
-    assert!(rt.state.settings_modal);
+    assert!(rt.state.settings_open);
     assert!(rt.state.vault_field.focused);
     assert!(rt.state.vault_field.focused);
 
     // Escape closes Settings; the palette still runs the Open settings action.
     rt.key(key(Key::Escape));
     frame(&mut rt);
-    assert!(!rt.state.settings_modal);
+    assert!(!rt.state.settings_open);
     assert!(!rt.state.vault_field.focused);
     rt.key(palette_chord());
     frame(&mut rt);
@@ -254,8 +254,12 @@ fn palette_runs_actions_and_closes_itself() {
     frame(&mut rt);
     assert!(!rt.state.palette_open());
     assert!(
-        rt.state.settings_modal,
-        "Open settings opens the settings modal"
+        rt.state.settings_open,
+        "Open settings opens the Settings page"
+    );
+    assert!(
+        rt.find("settings-panel").is_some(),
+        "the Settings page replaces the main column"
     );
 
     // New note opens the inline name field.

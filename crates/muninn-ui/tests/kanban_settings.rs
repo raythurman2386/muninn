@@ -175,7 +175,7 @@ fn open_settings(rt: &mut Runtime<State>) {
     for _ in 0..8 {
         frame(rt);
     }
-    assert!(rt.state.settings_modal);
+    assert!(rt.state.settings_open);
 }
 
 fn has(rt: &Runtime<State>, key: &str) -> bool {

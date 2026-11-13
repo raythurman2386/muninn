@@ -354,7 +354,7 @@ The done-lane marker and the archive heading are written in the language of the 
   `kanban_defaults`, or an absent key in it, means the built-in default. The
   object is written with the keys that are set; a key this version does not
   know, and a known key with the wrong JSON type, is kept as written.
-- **Settings surfaces.** The **Kanban** tab of the app Settings modal edits the
+- **Settings surfaces.** The **Kanban** tab of the app Settings page edits the
   app-wide defaults; the Kanban page's **Board settings** panel edits the shown
   board's footer. Both are generated from one list of keys, so a key appears
   once and its label, help, type and built-in value are written once. Each

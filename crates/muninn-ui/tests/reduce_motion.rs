@@ -347,10 +347,15 @@ fn the_graph_tab_picker_persists_and_applies_immediately() {
 }
 
 /// Whether any element is mid-transition this frame (Rune's `moving` flag).
+/// A Kanban choice is a segmented control with a sliding indicator, so it
+/// exercises the same control motion the Settings tab bar used to, without
+/// changing the theme or the motion setting under test.
 fn indicator_moving(rt: &Runtime<State>) -> bool {
-    rt.elements()
-        .iter()
-        .any(|e| e.path.contains("settings-tabs") && e.path.ends_with("indicator") && e.moving)
+    rt.elements().iter().any(|e| {
+        e.path.contains("kanban-setting-new-line-trigger-choice")
+            && e.path.ends_with("indicator")
+            && e.moving
+    })
 }
 
 #[test]
@@ -366,8 +371,11 @@ fn reduced_motion_makes_ui_transitions_land_at_once() {
         let mut rt = runtime(&tmp, &config, mode, os);
         rt.update(|s, _| s.open_settings());
         frames(&mut rt, 30);
-        // The tab bar's selection indicator slides between segments.
-        click(&mut rt, "settings-tabs/segment4");
+        // A choice control's selection indicator slides between segments; the
+        // Settings tab bar itself is a wrapping page bar now.
+        click(&mut rt, "settings-tabs/segment5");
+        frames(&mut rt, 30);
+        click(&mut rt, "kanban-setting-new-line-trigger-choice/segment1");
         rt.frame(1.0 / 60.0);
         seen.push((mode, os, indicator_moving(&rt)));
     }

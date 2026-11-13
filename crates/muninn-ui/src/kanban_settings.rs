@@ -1,10 +1,10 @@
-//! Kanban slice 14: the Board settings panel and the Settings modal's
+//! Kanban slice 14: the Board settings panel and the Settings page's
 //! **Kanban** tab.
 //!
 //! Both surfaces are generated from one schema ([`muninn_core::KANBAN_KEYS`]):
 //! a key, its label, help, control kind and built-in value are written once.
-//! The modal edits the app-wide defaults in `settings.json`
-//! (`kanban_defaults`, plus the top-level `kanban_autosave`); the page's panel
+//! The Settings page edits the app-wide defaults in `settings.json`
+//! (`kanban_defaults`, plus the top-level `kanban_autosave`); the board page's panel
 //! edits the shown board's footer. A footer value wins over an app default,
 //! which wins over the built-in value.
 //!

@@ -5,7 +5,7 @@ use rune::{
     TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
 use rune_kit::{
-    Button, ButtonVariant, Dialog, Kit, Markdown, MarkdownStyle, SegmentedControl, Switch, TextArea,
+    Button, ButtonVariant, Kit, Markdown, MarkdownStyle, SegmentedControl, Switch, TextArea,
 };
 use rune_theme_opencode::icons as ic;
 
@@ -70,15 +70,7 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
     if s.palette.is_some() {
         base = base.child(palette_layer(s, &k));
     }
-    if !s.settings_modal {
-        return base;
-    }
-    // v0.5: rune-kit dialogs render on their own scrim/layer above the whole
-    // window, unlike the help page (which replaces the main column). Mount the
-    // layer only while open so the ordinary view tree is unchanged otherwise.
-    let mut layer = Vec::new();
-    settings_dialog(s, &k).build(&k, &mut layer);
-    rune_kit::root(base, layer)
+    base
 }
 
 fn sidebar(s: &State, k: &Kit) -> El {
@@ -903,30 +895,22 @@ fn sync_field(
         )
 }
 
-/// v0.5: the settings surface. Preferences write through their existing
-/// `State` setters, so a click or key press is persisted before the next
-/// frame; there is no separate Save button.
-///
-/// v0.6: the preferences are split across tabs ([`SettingsTab`]) so the modal
-/// shows one group at a time. The tab bar is a segmented control keyed
-/// `settings-tabs`; each tab's body is its own function below and is keyed
-/// `settings-tab-<name>`, so a later section (sync, graph effects) lands by
-/// editing one function rather than the dialog shell.
-fn settings_dialog(s: &State, k: &Kit) -> Dialog {
-    let labels: Vec<&str> = SettingsTab::ALL.iter().map(|tab| tab.label()).collect();
-    let tabs = SegmentedControl::new(&labels, Some(s.settings_tab.index()))
-        .label("Settings section")
-        // Equal cells with a sliding indicator (the theme picker's style);
-        // the indicator's travel obeys reduced motion like every transition.
-        .fit()
-        .on_pick(|s: &mut State, index, _: &mut Tx| {
-            if let Some(tab) = SettingsTab::ALL.get(index) {
-                s.set_settings_tab(*tab);
-            }
-        })
-        .build(k)
-        .key("settings-tabs");
+/// Horizontal padding of the Settings page. The tab strip and the tab bodies
+/// share it, so the page lines up with Help and Board settings.
+const SETTINGS_PAD_X: f32 = 24.0;
 
+/// The Settings page. It replaces the main column like Help and the Kanban
+/// Board settings panel (the sidebar stays), uses the whole width and height
+/// left after it, and scrolls its body. Preferences still write through their
+/// existing `State` setters, so a click or key press is persisted before the
+/// next frame; there is no separate Save button.
+///
+/// The six tabs ([`SettingsTab`]) keep their old bodies. The tab bar keyed
+/// `settings-tabs` wraps its segments instead of overflowing a narrow column,
+/// and each tab's body is still keyed `settings-tab-<name>`, so a later
+/// section (sync, graph effects) lands by editing one function rather than
+/// the page shell.
+fn settings_panel(s: &State, k: &Kit) -> El {
     let content = match s.settings_tab {
         SettingsTab::Vaults => settings_vaults_tab(s, k),
         SettingsTab::Editor => settings_editor_tab(s, k),
@@ -935,54 +919,125 @@ fn settings_dialog(s: &State, k: &Kit) -> Dialog {
         SettingsTab::Sync => settings_sync_tab(s, k),
         SettingsTab::Kanban => crate::kanban_settings::app_tab(s, k),
     };
-    // The Kanban defaults are many rows; the other tabs stay short. A scroll
-    // bounded by the window keeps the dialog and its Close button on screen,
-    // and still shows every row on a tall window.
-    let content = if s.settings_tab == SettingsTab::Kanban {
-        col()
-            .key("settings-kanban-scroll")
-            .w_full()
-            .max_h((s.window_height - 220.0).max(260.0))
-            .scroll(ScrollSpec {
-                stick_bottom: false,
-            })
-            .child(content)
-    } else {
-        content
-    };
-
-    let body = col()
-        .key("settings-body")
+    col()
+        .key("settings-panel")
         .w_full()
-        .padding(16.0)
-        .gap(16.0)
-        .child(tabs)
-        // A floor on the content height keeps the dialog (and its Close
-        // button) from jumping as short tabs swap with tall ones.
+        .grow(1.0)
+        .min_w(0.0)
+        .min_h(0.0)
+        .child(settings_header(k))
+        .child(divider_h(k))
         .child(
             col()
-                .key("settings-tab-content")
+                .key("settings-tab-strip")
                 .w_full()
-                .min_h(260.0)
-                .child(content),
+                .min_w(0.0)
+                .px(SETTINGS_PAD_X)
+                .pt(14.0)
+                .pb(10.0)
+                .gap(6.0)
+                .child(settings_tab_bar(s, k))
+                .child(
+                    text("Preferences are saved as you change them.")
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted)
+                        .wrap(),
+                ),
         )
+        .child(divider_h(k))
+        // One inner scroll for every tab, the way `help-scroll` fills its
+        // page. The Kanban tab has many rows but no dialog-height cap now.
         .child(
-            row().w_full().justify_end().child(
-                Button::new("Close")
-                    .variant(ButtonVariant::Ghost)
-                    .on_press(|s: &mut State| s.close_settings())
-                    .build(k)
-                    .key("settings-close"),
-            ),
-        );
+            col()
+                .key("settings-scroll")
+                .w_full()
+                .grow(1.0)
+                .min_h(0.0)
+                .min_w(0.0)
+                .scroll(ScrollSpec {
+                    stick_bottom: false,
+                })
+                .child(
+                    col()
+                        .key("settings-body")
+                        .w_full()
+                        .min_w(0.0)
+                        .px(SETTINGS_PAD_X)
+                        .pt(18.0)
+                        .pb(28.0)
+                        .gap(18.0)
+                        .child(
+                            col()
+                                .key("settings-tab-content")
+                                .w_full()
+                                .min_w(0.0)
+                                .child(content),
+                        ),
+                ),
+        )
+}
 
-    Dialog::new("settings", "Settings")
-        .description("Preferences are saved as you change them.")
-        .width(540.0)
-        .fit()
-        .open(true)
-        .on_close(|s: &mut State| s.close_settings())
-        .child(body)
+fn settings_header(k: &Kit) -> El {
+    row()
+        .h(54.0)
+        .px(SETTINGS_PAD_X)
+        .gap(12.0)
+        .center_y()
+        .child(
+            text("Settings")
+                .font(TextStyle::new(16.0, 600.0).lh(22.0))
+                .color(k.c.text_base),
+        )
+        .child(spacer())
+        .child(
+            pressable(k, "settings-close".to_owned())
+                .px(10.0)
+                .py(5.0)
+                .border(1.0, k.c.border_base)
+                .child(text("Close").font(k.ty.ui_compact).color(k.c.text_base))
+                .on_press(|s: &mut State| s.close_settings()),
+        )
+}
+
+/// The six-section tab bar. Pills wrap onto another line in a narrow main
+/// column instead of being squeezed or painting past the page.
+fn settings_tab_bar(s: &State, k: &Kit) -> El {
+    let mut bar = row()
+        .key("settings-tabs")
+        .w_full()
+        .min_w(0.0)
+        .gap(4.0)
+        .flex_wrap()
+        .role("radiogroup")
+        .focus_group()
+        .label("Settings section");
+    for (index, tab) in SettingsTab::ALL.iter().enumerate() {
+        let selected = s.settings_tab == *tab;
+        bar = bar.child(
+            pressable(k, format!("segment{index}"))
+                .h(28.0)
+                .px(12.0)
+                .center_y()
+                .fill(if selected {
+                    k.c.layer_03
+                } else {
+                    Color::TRANSPARENT
+                })
+                .role("radio")
+                .focusable(true)
+                .focus_selected(selected)
+                .focus_ring(2.0, 1.0, k.c.border_focus)
+                .label(tab.label())
+                .position_in_set(index + 1, SettingsTab::ALL.len())
+                .on_press(move |s: &mut State| s.set_settings_tab(*tab))
+                .child(text(tab.label()).font(k.ty.ui_compact).color(if selected {
+                    k.c.text_base
+                } else {
+                    k.c.text_muted
+                })),
+        );
+    }
+    bar
 }
 
 /// One titled group inside a Settings tab: a heading, an optional caption,
@@ -1375,7 +1430,7 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
                 .on_edit(|s: &mut State| &mut s.vault_field)
                 .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                     if e.key == Key::Escape {
-                        // Esc closes the Settings modal even while the field
+                        // Esc closes the Settings page even while the field
                         // owns typing.
                         s.close_settings();
                         tx.blur();
@@ -2192,9 +2247,13 @@ fn main_body(s: &State, k: &Kit) -> El {
     content
 }
 
-/// M3 wrapper around [`main`]: the Help overlay takes the whole column, and a
-/// first-run welcome banner sits above the ordinary page.
+/// M3 wrapper around [`main`]: Settings and Help take the whole main column
+/// while the sidebar stays, and a first-run welcome banner sits above the
+/// ordinary page.
 fn main_column(s: &State, k: &Kit) -> El {
+    if s.settings_open {
+        return settings_panel(s, k);
+    }
     if s.help {
         return help_panel(s, k);
     }

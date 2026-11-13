@@ -1,6 +1,6 @@
-//! v0.6: the Settings modal is split into tabs (Vaults, Editor, Appearance,
-//! Graph, Sync). Each tab mounts only its own section; the selected tab is
-//! ephemeral and resets when Settings reopens.
+//! v0.6: the Settings page is split into tabs (Vaults, Editor, Appearance,
+//! Graph, Sync, Kanban). Each tab mounts only its own section; the selected
+//! tab is ephemeral and resets when Settings reopens.
 //!
 //! Tests use explicit config/state roots so the user's real
 //! `~/.config/muninn/settings.json` is never touched.
@@ -88,7 +88,12 @@ fn open_settings(rt: &mut Runtime<State>) {
         },
     });
     frames(rt, 8);
-    assert!(rt.state.settings_modal, "Ctrl/Cmd+, opens Settings");
+    assert!(rt.state.settings_open, "Ctrl/Cmd+, opens Settings");
+    assert!(
+        rt.find("settings-panel").is_some(),
+        "Settings is the main-column page, not a dialog"
+    );
+    assert!(rt.find("settings-dialog").is_none());
 }
 
 fn click(rt: &mut Runtime<State>, key: &str) {
@@ -130,6 +135,10 @@ fn each_tab_mounts_only_its_own_section() {
         "the tab bar is mounted"
     );
     assert!(f.rt.find("settings-close").is_some());
+    assert!(
+        f.rt.find("settings-scroll").is_some(),
+        "the page body is the one inner scroll"
+    );
 
     // Signature controls per tab, so a section that moves tabs fails loudly.
     let signatures: [&[&str]; 6] = [
@@ -239,7 +248,7 @@ fn escape_closes_settings_from_any_tab() {
             mods: Mods::default(),
         });
         frames(&mut f.rt, 4);
-        assert!(!f.rt.state.settings_modal, "Escape closes from tab {index}");
-        assert!(f.rt.find("settings-dialog").is_none());
+        assert!(!f.rt.state.settings_open, "Escape closes from tab {index}");
+        assert!(f.rt.find("settings-panel").is_none());
     }
 }

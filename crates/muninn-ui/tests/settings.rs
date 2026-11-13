@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{Mode, Scope, Settings, State, ThemeMode, on_key, poll, view};
+use muninn_ui::{Mode, Scope, Settings, SettingsTab, State, ThemeMode, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -259,11 +259,8 @@ fn settings_vaults_section_opens_and_creates_vaults() {
     for _ in 0..8 {
         rt.frame(1.0 / 60.0);
     }
-    assert!(rt.state.settings_modal);
-    assert!(
-        rt.find("settings-dialog").is_some(),
-        "the dialog is mounted"
-    );
+    assert!(rt.state.settings_open);
+    assert!(rt.find("settings-panel").is_some(), "the page is mounted");
     assert!(
         rt.find("vault-prompt").is_some(),
         "the typed-path card lives in the Vaults section"
@@ -292,10 +289,7 @@ fn settings_vaults_section_opens_and_creates_vaults() {
     for _ in 0..4 {
         rt.frame(1.0 / 60.0);
     }
-    assert!(
-        !rt.state.settings_modal,
-        "a successful open closes Settings"
-    );
+    assert!(!rt.state.settings_open, "a successful open closes Settings");
     assert_eq!(rt.state.vault.root, opened);
 
     // New vault creates a missing folder and closes Settings the same way.
@@ -317,7 +311,7 @@ fn settings_vaults_section_opens_and_creates_vaults() {
     for _ in 0..4 {
         rt.frame(1.0 / 60.0);
     }
-    assert!(!rt.state.settings_modal);
+    assert!(!rt.state.settings_open);
     assert!(created.is_dir(), "New vault creates the missing folder");
     assert_eq!(rt.state.vault.root, created);
 
@@ -337,7 +331,7 @@ fn settings_vaults_section_opens_and_creates_vaults() {
     for _ in 0..4 {
         rt.frame(1.0 / 60.0);
     }
-    assert!(!rt.state.settings_modal, "Escape closes Settings");
+    assert!(!rt.state.settings_open, "Escape closes Settings");
     assert!(
         !rt.state.vault_field.focused,
         "the hidden field drops focus"
@@ -377,7 +371,38 @@ fn help_overlay_opens_with_command_question_and_escape_closes() {
 }
 
 #[test]
-fn settings_modal_opens_by_shortcut_changes_persist_and_returns_focus() {
+fn opening_settings_replaces_the_help_page() {
+    let vault = vault_fixture();
+    let state_home = unique_dir("settings-over-help-state");
+    let mut rt = Runtime::new(
+        State::with_state_home(vault.path().to_path_buf(), state_home.clone()),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+
+    rt.key(command('?'));
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.help, "Cmd+? opens Help");
+    assert!(rt.find("help-panel").is_some());
+
+    rt.key(command(','));
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.state.settings_open, "Cmd+, opens Settings");
+    assert!(!rt.state.help, "Settings dismisses Help");
+    assert!(rt.find("help-panel").is_none());
+    assert!(rt.find("settings-panel").is_some());
+
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn settings_page_opens_by_shortcut_changes_persist_and_returns_focus() {
     let vault = vault_fixture();
     let config = unique_dir("modal-config");
     let state_home = unique_dir("modal-state");
@@ -401,7 +426,7 @@ fn settings_modal_opens_by_shortcut_changes_persist_and_returns_focus() {
     rt.on_key = Some(on_key);
     rt.frame(0.0);
 
-    // Typing focus is the invoker: the modal must take it and give it back.
+    // Typing focus is the invoker: the page must take it and give it back.
     rt.state.focus_editor();
     rt.frame(1.0 / 60.0);
     assert!(rt.state.editor.focused);
@@ -410,22 +435,21 @@ fn settings_modal_opens_by_shortcut_changes_persist_and_returns_focus() {
     for _ in 0..8 {
         rt.frame(1.0 / 60.0);
     }
-    assert!(rt.state.settings_modal, "Ctrl/Cmd+, opens Settings");
-    assert!(
-        rt.find("settings-dialog").is_some(),
-        "the dialog is mounted"
-    );
+    assert!(rt.state.settings_open, "Ctrl/Cmd+, opens Settings");
+    assert!(rt.find("settings-panel").is_some(), "the page is mounted");
     assert!(
         !rt.state.editor.focused,
-        "the overlay owns the keyboard while open"
+        "the page's controls own the keyboard while open"
     );
-
-    // Other app shortcuts must not reach the page behind the scrim.
-    let notes = rt.state.vault.notes.len();
-    rt.key(command('n'));
-    rt.frame(1.0 / 60.0);
-    assert_eq!(rt.state.vault.notes.len(), notes);
-    assert!(rt.state.new_note_prompt.is_none());
+    // A page replaces the main column; the sidebar and its controls stay.
+    assert!(
+        rt.find("search-box").is_some(),
+        "the sidebar remains beside the Settings page"
+    );
+    assert!(
+        rt.find("settings-dialog").is_none(),
+        "Settings is no longer a dialog"
+    );
 
     // Theme lives on the Appearance tab (the third tab); it is a segmented
     // control whose fourth segment is Light.
@@ -466,8 +490,8 @@ fn settings_modal_opens_by_shortcut_changes_persist_and_returns_focus() {
     for _ in 0..4 {
         rt.frame(1.0 / 60.0);
     }
-    assert!(!rt.state.settings_modal, "Escape closes Settings");
-    assert!(rt.find("settings-dialog").is_none());
+    assert!(!rt.state.settings_open, "Escape closes Settings");
+    assert!(rt.find("settings-panel").is_none());
     assert!(
         rt.state.editor.focused,
         "Escape returns typing focus to the editor"
@@ -478,9 +502,10 @@ fn settings_modal_opens_by_shortcut_changes_persist_and_returns_focus() {
 }
 
 #[test]
-fn vault_prompt_text_stays_inside_the_dialog() {
-    // The hint (and any vault error) now lives in the Settings Vaults card, so
-    // an unwrapped line would paint past the card border and the dialog.
+fn vault_prompt_text_stays_inside_the_page() {
+    // The hint (and any vault error) lives in the Settings Vaults card, which
+    // now fills the page's scroll body, so an unwrapped line would paint past
+    // the card and the main column.
     for (width, height) in [(1180.0, 780.0), (840.0, 640.0)] {
         let vault = vault_fixture();
         let config = unique_dir("prompt-config");
@@ -507,10 +532,16 @@ fn vault_prompt_text_stays_inside_the_dialog() {
         for _ in 0..4 {
             rt.frame(1.0 / 60.0);
         }
-        assert!(rt.state.settings_modal);
+        assert!(rt.state.settings_open);
 
+        let page = rt.presented("settings-panel").expect("settings page").0;
+        let page_right = page[0] + page[2];
         let card = rt.presented("vault-prompt").expect("prompt card").0;
         let card_right = card[0] + card[2];
+        assert!(
+            card_right <= page_right + 1.0,
+            "the prompt card overflows the page at {width}pt window: page {page:?} card {card:?}"
+        );
         let elements = rt.elements();
         let hint = elements
             .iter()
@@ -535,14 +566,13 @@ fn vault_prompt_text_stays_inside_the_dialog() {
             );
         }
 
-        // Vault errors (path plus OS reason) can be longer than the card (540 pt
-        // since the tabbed layout), so the
-        // error line must wrap too instead of painting past the border.
+        // Vault errors (path plus OS reason) can be longer than the card, so
+        // the error line must wrap too instead of painting past the page.
         rt.update(|s, _| {
-            s.error = Some(
-                "Could not create the vault: /very/long/path/without/spaces/to/a/deeply/nested/notes denied (os error 13)"
-                    .to_owned(),
-            );
+            s.error = Some(format!(
+                "Could not create the vault: /very/long/path/without/spaces/{}/notes denied (os error 13)",
+                "a".repeat(180)
+            ));
         });
         for _ in 0..4 {
             rt.frame(1.0 / 60.0);
@@ -553,8 +583,8 @@ fn vault_prompt_text_stays_inside_the_dialog() {
             .find(|element| element.key.as_deref() == Some("vault-prompt-error"))
             .expect("error line");
         assert!(
-            error.rect[0] + error.rect[2] <= card_right + 1.0,
-            "error overflows the card at {width}pt window: card {card:?} error {:?}",
+            error.rect[0] + error.rect[2] <= page_right + 1.0,
+            "error overflows the page at {width}pt window: page {page:?} error {:?}",
             error.rect
         );
         assert!(
@@ -562,6 +592,158 @@ fn vault_prompt_text_stays_inside_the_dialog() {
             "error is one unwrapped line at {width}pt window: error {:?}",
             error.rect
         );
+
+        let _ = fs::remove_dir_all(&config);
+        let _ = fs::remove_dir_all(&state_home);
+    }
+}
+
+#[test]
+fn sidebar_gear_opens_the_page_and_the_toggle_chord_closes_it() {
+    let vault = vault_fixture();
+    let config = unique_dir("gear-config");
+    let state_home = unique_dir("gear-state");
+    let settings = Settings {
+        last_vault: Some(vault.path().to_path_buf()),
+        ..Settings::default()
+    };
+    let mut rt = Runtime::new(
+        State::with_settings(
+            vault.path().to_path_buf(),
+            state_home.clone(),
+            config.clone(),
+            settings,
+        ),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+
+    let (x, y) = rt.find("settings-open").expect("sidebar gear");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.state.settings_open, "the gear opens Settings");
+    assert!(rt.find("settings-panel").is_some(), "the page is mounted");
+    assert!(rt.find("settings-dialog").is_none(), "not a dialog");
+    assert!(rt.find("search-box").is_some(), "the sidebar stays");
+
+    // Cmd/Ctrl+, is a toggle, so it puts the page away as well.
+    rt.key(command(','));
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(!rt.state.settings_open, "the same chord closes Settings");
+    assert!(rt.find("settings-panel").is_none());
+
+    // Close dismisses the page the same way and leaves nothing behind.
+    let (x, y) = rt.find("settings-open").expect("sidebar gear");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.state.settings_open);
+    let (x, y) = rt.find("settings-close").expect("Close");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(!rt.state.settings_open, "Close dismisses Settings");
+    assert!(rt.find("settings-panel").is_none());
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn settings_page_uses_the_main_column_and_wraps_its_tabs_when_narrow() {
+    for (width, height) in [(1180.0, 780.0), (840.0, 640.0), (560.0, 600.0)] {
+        let vault = vault_fixture();
+        let config = unique_dir("page-layout-config");
+        let state_home = unique_dir("page-layout-state");
+        let settings = Settings {
+            last_vault: Some(vault.path().to_path_buf()),
+            ..Settings::default()
+        };
+        let mut rt = Runtime::new(
+            State::with_settings(
+                vault.path().to_path_buf(),
+                state_home.clone(),
+                config.clone(),
+                settings,
+            ),
+            view,
+            (width, height),
+            Env::new(true, 2.0),
+        );
+        rt.poll = Some(poll);
+        rt.on_key = Some(on_key);
+        rt.frame(0.0);
+        rt.update(|s, _| s.open_settings());
+        for _ in 0..6 {
+            rt.frame(1.0 / 60.0);
+        }
+
+        let page = rt.presented("settings-panel").expect("settings page").0;
+        let search = rt.presented("search-box").expect("sidebar search").0;
+        assert!(
+            page[0] >= search[0] + search[2] - 1.0,
+            "the page starts after the sidebar at {width}pt: page {page:?} search {search:?}"
+        );
+        assert!(
+            page[3] >= height - 1.0,
+            "the page fills the window height at {width}pt: page {page:?}"
+        );
+        assert!(
+            page[0] + page[2] <= width + 1.0,
+            "the page stays inside the window at {width}pt: page {page:?}"
+        );
+        assert!(rt.find("settings-scroll").is_some(), "the body scrolls");
+        assert!(
+            rt.find("settings-kanban-scroll").is_none(),
+            "the Kanban tab no longer has a dialog-height scroll cap"
+        );
+
+        let mut rows: Vec<f32> = Vec::new();
+        for index in 0..SettingsTab::ALL.len() {
+            let (x, y) = rt
+                .find(&format!("settings-tabs/segment{index}"))
+                .unwrap_or_else(|| panic!("segment{index} at {width}pt"));
+            assert!(
+                x >= page[0] - 1.0 && x <= page[0] + page[2] + 1.0,
+                "segment{index} leaves the page at {width}pt: ({x}, {y}) page {page:?}"
+            );
+            if !rows.iter().any(|row| (row - y).abs() < 2.0) {
+                rows.push(y);
+            }
+            // Every Settings control stays inside the main column too.
+        }
+        for element in rt.elements() {
+            let key = element.key.as_deref().unwrap_or("");
+            if !key.starts_with("settings-") || key == "settings-open" {
+                continue;
+            }
+            assert!(
+                element.rect[0] + element.rect[2] <= width + 1.0,
+                "{key} overflows a {width}pt window: {:?}",
+                element.rect
+            );
+        }
+        if width < 840.0 {
+            assert!(
+                rows.len() > 1,
+                "the six tabs wrap in a narrow column: rows {rows:?}"
+            );
+        } else {
+            assert_eq!(rows.len(), 1, "the tabs share one row at {width}pt");
+        }
 
         let _ = fs::remove_dir_all(&config);
         let _ = fs::remove_dir_all(&state_home);
