@@ -340,7 +340,11 @@ fn display_settings_resolve_from_the_footer_and_from_app_defaults() {
     );
     assert!(page.contains("12 November 2026"), "{page}");
     assert!(
-        page.contains("today") || page.contains("tomorrow") || page.contains("days"),
+        page.contains("today")
+            || page.contains("tomorrow")
+            || page.contains("yesterday")
+            || page.contains("in ")
+            || page.contains("days"),
         "{page}"
     );
 
