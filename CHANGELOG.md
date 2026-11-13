@@ -16,6 +16,15 @@ All notable changes to Muninn are documented here. The format is based on
   elements as one undo step. Existing boards keep the colours already in the
   file.
 
+### Changed
+
+- **Board accessibility (#72).** The Board toolbar is a named `toolbar` whose
+  hand, select and drawing-tool buttons are named, focusable toggle buttons
+  with help naming their keys, a focus ring and a 30 pt target; Tab reaches
+  them, Space picks a tool and the press still returns the keyboard to the
+  canvas. The canvas is a named `canvas` reporting its element count, tool and
+  selection, and Help gains a Board group matching the README's keys.
+
 ### Fixed
 
 - **Long unbroken card text on the Kanban board.** A card whose visible text

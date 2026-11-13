@@ -982,6 +982,25 @@ pub(crate) fn placeholder(
         )
 }
 
+/// The canvas's accessible name (#72): the element count, the picked tool and
+/// the selection, so a screen reader says more than "canvas".
+fn board_canvas_label(s: &State, scene: &BoardScene) -> String {
+    let tool = if s.board_hand {
+        "hand"
+    } else {
+        s.board_tool.map_or("select", crate::BoardTool::name)
+    };
+    let mut label = format!(
+        "Board canvas, {}, {tool} tool",
+        plural(scene.drawn + scene.outlined, "element", "elements")
+    );
+    let selected = s.board_selection().len();
+    if selected > 0 {
+        label.push_str(&format!(", {selected} selected"));
+    }
+    label
+}
+
 /// The read-only drawing: a world element sized to the board's content that
 /// the camera offsets and scales, as the graph canvas does.
 fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El {
@@ -1027,6 +1046,11 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
     }
     let mut canvas_el = el()
         .key("board-canvas")
+        // #72: the canvas is named for assistive technology: what is drawn,
+        // the picked tool, and the selection. The keyboard still drives it
+        // through the global Board keys, so it need not take focus itself.
+        .role("canvas")
+        .label(board_canvas_label(s, scene))
         .w_full()
         .grow(1.0)
         .min_h(0.0)
