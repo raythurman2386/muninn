@@ -18,6 +18,7 @@ mod camera;
 mod doc_sync;
 mod global_shortcut;
 mod graph_view;
+mod kanban_archive;
 mod kanban_dates;
 mod kanban_drag;
 mod kanban_edit;

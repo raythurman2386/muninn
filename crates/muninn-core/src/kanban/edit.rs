@@ -593,7 +593,7 @@ impl Kanban {
     }
 
     /// Byte offset at which a card inserted at `index` should start.
-    fn insert_offset(&self, lane: usize, index: usize) -> io::Result<usize> {
+    pub(super) fn insert_offset(&self, lane: usize, index: usize) -> io::Result<usize> {
         let lane = self.lane(lane)?;
         if index > lane.cards.len() {
             return Err(invalid_input("card index out of range"));
@@ -799,7 +799,7 @@ fn render_card(nl: &str, mark: char, text: &str, block_id: Option<&str>, indent:
     out
 }
 
-fn splice(source: &str, range: Range<usize>, with: &str) -> String {
+pub(super) fn splice(source: &str, range: Range<usize>, with: &str) -> String {
     let mut next = String::with_capacity(source.len() - (range.end - range.start) + with.len());
     next.push_str(&source[..range.start]);
     next.push_str(with);
@@ -813,7 +813,7 @@ fn splice(source: &str, range: Range<usize>, with: &str) -> String {
 /// A file with no final newline keeps that (spec section 10 rule 5). A block
 /// put at the end there loses its trailing blank-line run, and the ending of
 /// its last line, rather than giving the file a newline after it.
-fn insert_block(source: &str, at: usize, mut block: String, nl: &str) -> String {
+pub(super) fn insert_block(source: &str, at: usize, mut block: String, nl: &str) -> String {
     if at > 0 && !source[..at].ends_with('\n') {
         block.insert_str(0, nl);
     }

@@ -74,6 +74,21 @@ All notable changes to Muninn are documented here. The format is based on
   App-wide defaults live under `kanban_defaults`; the footer wins, then the
   app default, then the built-in. A missing note or key draws nothing by
   default, and display never writes the board or the linked note.
+- **Archiving cards.** A card's menu has **Archive**, and `Cmd`/`Ctrl`-clicking
+  its checkbox archives it (a plain click still toggles the done mark). The
+  card's lines move whole into the note's archive, after a `***` line and
+  `## Archive`, which the first archive creates with the English word; a file
+  that already has an archive keeps its own word (German `Archiv`, Japanese
+  `アーカイブ` and the other marker words). The header's **Archive** page lists
+  the archived cards from the same note, with the count, **Restore** (to the
+  first lane, or **Restore to…** for a lane picked by name) and **Delete**.
+  `archive-with-date`, `archive-date-format`, `archive-date-position`,
+  `archive-date-separator` and `max-archive-cards` (absent or `0` is no limit;
+  the oldest archive cards go, never a lane card) read from the board footer,
+  then `kanban_defaults` in `settings.json`, then the built-in value. The
+  archive date is ordinary card text written with the date tokens, not a
+  `@{…}`. Every action is one undo step saved by `⌘S` (or autosave), and
+  viewing the archive writes nothing.
 - **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
   lane's menu: Insert lane before / after, Rename lane, Card limit… (written
   as `## Title (N)`; blank clears it), Mark as done lane / not done lane,

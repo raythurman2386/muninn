@@ -1631,6 +1631,7 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             items.extend(crate::kanban_lanes::card_move_items(s, *lane, *index));
             items.push(("Copy link to card", "copy_link"));
             items.push(("New note from card", "new_note"));
+            items.push(("Archive", "archive"));
             items.push(("Delete", "delete"));
             items
         }
@@ -1648,6 +1649,7 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
         MenuTarget::MoveCard(lane, index) => {
             return crate::kanban_lanes::lane_picker(s, k, *lane, *index);
         }
+        MenuTarget::ArchiveRestore(_) => return el(),
     };
     let mut col_menu = col()
         .key("context-menu")

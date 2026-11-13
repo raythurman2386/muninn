@@ -678,7 +678,7 @@ impl State {
         self.kanban_selected = found;
     }
 
-    fn kanban_lane_len(&self, lane: usize) -> Option<usize> {
+    pub(crate) fn kanban_lane_len(&self, lane: usize) -> Option<usize> {
         Some(self.kanban_board()?.lanes().get(lane)?.cards().len())
     }
 

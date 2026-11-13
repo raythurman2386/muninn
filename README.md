@@ -255,10 +255,12 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (board) | Undo / redo drawing, moves and deletes (last 100) |
 | `⌘S` / `Ctrl+S` (board) | Save the board's drawing now (atomically, to the open board only; autosave also saves it once it rests, unless `"board_autosave": false`) |
 | `Esc` (board) | Clear the selection, else drop the tool, else leave Board for the last note mode |
-| **+ Add card**, a card's `⋯` or right-click (kanban) | Add a card at the lane's end; Edit, Insert card before / after, Duplicate, Split card, Add/Change date…, Add/Change time…, Delete |
+| **+ Add card**, a card's `⋯` or right-click (kanban) | Add a card at the lane's end; Edit, Insert card before / after, Duplicate, Split card, Add/Change date…, Add/Change time…, Archive, Delete |
 | Double-click a card (kanban) | Edit it in place: `Enter` commits, `Shift+Enter` breaks the line, `Esc` cancels |
 | Type `@` or `@@` in the card editor (kanban) | Open the date or time picker at the caret; the picker's Add replaces the trigger, and `Esc` leaves it |
 | Click a card's checkbox (kanban) | Toggle its done mark; a lane's `⋯` has **Mark all cards done** |
+| `⌘`-click / `Ctrl`-click a card's checkbox (kanban) | Archive the card instead of toggling it |
+| The header's **Archive** button (kanban) | List the archive's cards from the same note; **Restore** to the first lane, **Restore to…** a lane, or **Delete** |
 | `⌘Z` / `Ctrl+Z`, `⌘⇧Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (kanban) | Undo / redo card edits (last 100) |
 | **+ Add lane**, a lane's `⋯` (kanban) | Add or insert a lane; rename it, set its card limit, mark it done or not done, sort its cards by text, date or tags, delete it |
 | A card's `⋯` (kanban) | Move it up, down, to the top or bottom, to the previous or next lane, or **Move to list…** |
@@ -299,6 +301,18 @@ link and an attachment embed keeps the reader's filename placeholder.
 `show-missing-metadata` draws `key: —` when a key or the note is missing.
 App-wide defaults live under `kanban_defaults`; the footer wins. Viewing never
 writes a board or a linked note.
+
+A card's menu has **Archive**, and `Cmd`/`Ctrl`-clicking a card's checkbox
+archives it too (a plain click toggles it). The card's lines move whole into
+the note's archive, after `***` and `## Archive` (created on the first archive
+with the English word; a file's own word, such as `## Archiv`, is kept). The
+header's **Archive** page lists those cards read from the same note, with the
+count, **Restore** to the first lane, **Restore to…** a named lane, and
+**Delete**. `archive-with-date`, `archive-date-format`,
+`archive-date-position`, `archive-date-separator` and `max-archive-cards`
+(absent or `0` is unlimited) follow the same footer → app default → built-in
+order; the date is ordinary card text, and the limit drops the oldest archive
+cards only. Each action is one undo step and viewing the page writes nothing.
 
 Typing `[[` shows notes whose title or path matches what follows; the list inserts the
 full vault-relative stem, so a link keeps working when two notes share a title.

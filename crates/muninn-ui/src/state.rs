@@ -32,6 +32,8 @@ pub enum MenuTarget {
     /// picker for a card.
     DeleteLane(usize),
     MoveCard(usize, usize),
+    /// Kanban slice 12: the lane picker for Restore on archive card `index`.
+    ArchiveRestore(usize),
 }
 
 impl MenuTarget {
@@ -400,6 +402,8 @@ pub struct State {
     pub kanban_minute_field: TextEdit,
     /// Kanban slice 5: the card (lane, index) the arrow keys act on.
     pub kanban_selected: Option<(usize, usize)>,
+    /// Kanban slice 12: the Archive page is open instead of the lanes.
+    pub kanban_archive_open: bool,
     /// Kanban slice 6: the card or lane pressed and held (cleared whenever
     /// the board changes), and where lanes and cards were laid out (the drop
     /// spot is measured against them).
@@ -774,6 +778,7 @@ impl State {
             kanban_hour_field: TextEdit::default(),
             kanban_minute_field: TextEdit::default(),
             kanban_selected: None,
+            kanban_archive_open: false,
             kanban_drag: None,
             kanban_rects: crate::kanban_drag::KanbanRects::default(),
             kanban_autosave_wait: None,
@@ -4394,6 +4399,7 @@ impl State {
                 let _ = self.copy_card_link(lane, index);
             }
             (MenuTarget::Card(lane, index), "new_note") => self.new_note_from_card(lane, index),
+            (MenuTarget::Card(lane, index), "archive") => self.archive_card(lane, index),
             (MenuTarget::Card(lane, index), "delete") => self.delete_card(lane, index),
             (MenuTarget::Lane(lane), "add_card") => self.begin_add_card(lane),
             (MenuTarget::Lane(lane), "mark_done") => self.mark_lane_done(lane),

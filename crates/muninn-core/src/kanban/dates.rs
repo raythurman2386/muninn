@@ -7,6 +7,10 @@
 
 use serde_json::{Map, Value};
 
+use super::archive::{
+    ARCHIVE_DATE_FORMAT, ARCHIVE_DATE_POSITION, ARCHIVE_DATE_SEPARATOR, ARCHIVE_WITH_DATE,
+    MAX_ARCHIVE_CARDS,
+};
 use super::metadata::{LINKED_PAGE_METADATA, SHOW_MISSING_METADATA};
 use super::tags::{HIDE_TAGS_IN_TITLE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TagSettings, tag_colors};
 
@@ -818,12 +822,77 @@ fn trimmed_format(value: &str, fallback: &str) -> String {
     }
 }
 
+/// A settings key is one string; `None` for a missing or non-string value.
 fn text_value(value: &Value, key: &str) -> Option<String> {
     value
         .get(key)
         .and_then(Value::as_str)
         .filter(|text| !text.is_empty())
         .map(str::to_owned)
+}
+
+/// Whether `key` is one this version reads from `kanban_defaults` with a
+/// value of the right type. Anything else is kept in
+/// [`KanbanDefaults::other`] byte for byte.
+fn handles_default_key(key: &str, defaults: &KanbanDefaults) -> bool {
+    match key {
+        DATE_TRIGGER => defaults.date_trigger.is_some(),
+        TIME_TRIGGER => defaults.time_trigger.is_some(),
+        DATE_FORMAT => defaults.date_format.is_some(),
+        TIME_FORMAT => defaults.time_format.is_some(),
+        DATE_DISPLAY_FORMAT => defaults.date_display_format.is_some(),
+        SHOW_RELATIVE_DATE => defaults.show_relative_date.is_some(),
+        HIDE_DATE_IN_TITLE => defaults.hide_date_in_title.is_some(),
+        LINK_DATE_TO_DAILY_NOTE => defaults.link_date_to_daily_note.is_some(),
+        HIDE_TAGS_IN_TITLE => defaults.hide_tags_in_title.is_some(),
+        SHOW_TAGS_AT_BOTTOM => defaults.show_tags_at_bottom.is_some(),
+        TAG_COLORS => defaults.tag_colors.is_some(),
+        LINKED_PAGE_METADATA => defaults.linked_page_metadata.is_some(),
+        SHOW_MISSING_METADATA => defaults.show_missing_metadata.is_some(),
+        ARCHIVE_WITH_DATE => defaults.archive_with_date.is_some(),
+        ARCHIVE_DATE_FORMAT => defaults.archive_date_format.is_some(),
+        ARCHIVE_DATE_POSITION => defaults.archive_date_position.is_some(),
+        ARCHIVE_DATE_SEPARATOR => defaults.archive_date_separator.is_some(),
+        MAX_ARCHIVE_CARDS => defaults.max_archive_cards.is_some(),
+        _ => false,
+    }
+}
+
+/// The archive keys of one `kanban_defaults` object.
+fn apply_archive_defaults(value: &Value, defaults: &mut KanbanDefaults) {
+    defaults.archive_with_date = value.get(ARCHIVE_WITH_DATE).and_then(Value::as_bool);
+    defaults.archive_date_format = text_value(value, ARCHIVE_DATE_FORMAT);
+    defaults.archive_date_position = text_value(value, ARCHIVE_DATE_POSITION);
+    defaults.archive_date_separator = value
+        .get(ARCHIVE_DATE_SEPARATOR)
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    defaults.max_archive_cards = value.get(MAX_ARCHIVE_CARDS).and_then(Value::as_u64);
+}
+
+/// The archive keys of [`KanbanDefaults::to_json`].
+fn insert_archive_defaults(object: &mut Map<String, Value>, defaults: &KanbanDefaults) {
+    if let Some(value) = defaults.archive_with_date {
+        object.insert(ARCHIVE_WITH_DATE.to_owned(), Value::Bool(value));
+    }
+    if let Some(value) = &defaults.archive_date_format {
+        object.insert(ARCHIVE_DATE_FORMAT.to_owned(), Value::String(value.clone()));
+    }
+    if let Some(value) = &defaults.archive_date_position {
+        object.insert(
+            ARCHIVE_DATE_POSITION.to_owned(),
+            Value::String(value.clone()),
+        );
+    }
+    if let Some(value) = &defaults.archive_date_separator {
+        object.insert(
+            ARCHIVE_DATE_SEPARATOR.to_owned(),
+            Value::String(value.clone()),
+        );
+    }
+    if let Some(value) = defaults.max_archive_cards {
+        object.insert(MAX_ARCHIVE_CARDS.to_owned(), Value::from(value));
+    }
 }
 
 /// The app-wide `kanban_defaults` object in `settings.json`. Every known
@@ -854,6 +923,13 @@ pub struct KanbanDefaults {
     /// it understands from it.
     pub linked_page_metadata: Option<Value>,
     pub show_missing_metadata: Option<bool>,
+    // Archive defaults (slice 12). `archive_date_position` keeps the written
+    // string so an unknown value survives a settings save.
+    pub archive_with_date: Option<bool>,
+    pub archive_date_format: Option<String>,
+    pub archive_date_position: Option<String>,
+    pub archive_date_separator: Option<String>,
+    pub max_archive_cards: Option<u64>,
     /// Keys this version does not know, kept so a newer Muninn's app defaults
     /// are not lost by an older one. A known key with the wrong JSON type is
     /// kept here too.
@@ -888,27 +964,17 @@ impl KanbanDefaults {
                 .filter(|value| value.is_array())
                 .cloned(),
             show_missing_metadata: value.get(SHOW_MISSING_METADATA).and_then(Value::as_bool),
+            archive_with_date: None,
+            archive_date_format: None,
+            archive_date_position: None,
+            archive_date_separator: None,
+            max_archive_cards: None,
             other: Map::new(),
         };
+        apply_archive_defaults(value, &mut defaults);
         if let Some(object) = value.as_object() {
             for (key, item) in object {
-                let handled = match key.as_str() {
-                    DATE_TRIGGER => defaults.date_trigger.is_some(),
-                    TIME_TRIGGER => defaults.time_trigger.is_some(),
-                    DATE_FORMAT => defaults.date_format.is_some(),
-                    TIME_FORMAT => defaults.time_format.is_some(),
-                    DATE_DISPLAY_FORMAT => defaults.date_display_format.is_some(),
-                    SHOW_RELATIVE_DATE => defaults.show_relative_date.is_some(),
-                    HIDE_DATE_IN_TITLE => defaults.hide_date_in_title.is_some(),
-                    LINK_DATE_TO_DAILY_NOTE => defaults.link_date_to_daily_note.is_some(),
-                    HIDE_TAGS_IN_TITLE => defaults.hide_tags_in_title.is_some(),
-                    SHOW_TAGS_AT_BOTTOM => defaults.show_tags_at_bottom.is_some(),
-                    TAG_COLORS => defaults.tag_colors.is_some(),
-                    LINKED_PAGE_METADATA => defaults.linked_page_metadata.is_some(),
-                    SHOW_MISSING_METADATA => defaults.show_missing_metadata.is_some(),
-                    _ => false,
-                };
-                if !handled {
+                if !handles_default_key(key, &defaults) {
                     defaults.other.insert(key.clone(), item.clone());
                 }
             }
@@ -960,6 +1026,7 @@ impl KanbanDefaults {
         if let Some(value) = self.show_missing_metadata {
             object.insert(SHOW_MISSING_METADATA.to_owned(), Value::Bool(value));
         }
+        insert_archive_defaults(&mut object, self);
         Value::Object(object)
     }
 
@@ -978,6 +1045,11 @@ impl KanbanDefaults {
             && self.tag_colors.is_none()
             && self.linked_page_metadata.is_none()
             && self.show_missing_metadata.is_none()
+            && self.archive_with_date.is_none()
+            && self.archive_date_format.is_none()
+            && self.archive_date_position.is_none()
+            && self.archive_date_separator.is_none()
+            && self.max_archive_cards.is_none()
             && self.other.is_empty()
     }
 
@@ -1007,6 +1079,34 @@ impl KanbanDefaults {
         if let Some(value) = self.link_date_to_daily_note {
             settings.link_date_to_daily_note = value;
         }
+        settings
+    }
+
+    /// The archive settings these defaults supply; missing keys stay
+    /// built-in.
+    #[must_use]
+    pub fn to_archive_settings(&self) -> super::ArchiveSettings {
+        let mut settings = super::ArchiveSettings::default();
+        if let Some(value) = self.archive_with_date {
+            settings.with_date = value;
+        }
+        if let Some(value) = &self.archive_date_format {
+            settings.date_format.clone_from(value);
+        }
+        if let Some(position) = self
+            .archive_date_position
+            .as_deref()
+            .and_then(super::ArchiveDatePosition::parse)
+        {
+            settings.date_position = position;
+        }
+        if let Some(value) = &self.archive_date_separator {
+            settings.date_separator.clone_from(value);
+        }
+        settings.max_cards = self
+            .max_archive_cards
+            .and_then(|n| usize::try_from(n).ok())
+            .filter(|n| *n > 0);
         settings
     }
 

@@ -9,7 +9,10 @@ use std::path::PathBuf;
 
 use serde_json::json;
 
-use super::{CardOrder, DateSettings, Kanban, Lane, is_kanban, scan_card_text};
+use super::{
+    Archive, ArchiveDatePosition, ArchiveSettings, CardOrder, CivilDate, DateSettings, Kanban,
+    KanbanDefaults, Lane, is_kanban, scan_card_text,
+};
 use crate::Vault;
 use crate::testing::TempVault;
 
@@ -2449,4 +2452,690 @@ fn a_block_id_on_a_crlf_card_keeps_the_line_ending() {
         board.source(),
         "---\r\nkanban-plugin: board\r\n---\r\n\r\n## To do\r\n\r\n- [ ] Write ^card-1\r\n"
     );
+}
+
+// --- Slice 12: the archive ------------------------------------------------
+
+#[test]
+fn archiving_the_first_card_creates_the_rule_and_heading_before_the_footer() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+- [x] two
+
+## Done
+
+**Complete**
+- [x] shipped
+
+%% kanban:settings
+```
+{\"kanban-plugin\":\"board\"}
+```
+%%
+";
+    let mut board = parse(source);
+    board.archive_card(1, 0).expect("archive");
+    assert_eq!(
+        board.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+- [x] two
+
+## Done
+
+**Complete**
+
+***
+
+## Archive
+
+- [x] shipped
+
+%% kanban:settings
+```
+{\"kanban-plugin\":\"board\"}
+```
+%%
+"
+    );
+    let archive = board.archive().expect("archive");
+    assert_eq!(archive.word(), "Archive");
+    assert_eq!(archive.cards().len(), 1);
+    assert_eq!(archive.cards()[0].text(), "shipped");
+    assert!(archive.cards()[0].is_done());
+    // The card's own bytes moved, not a re-rendering of them.
+    assert!(
+        board
+            .source()
+            .contains("- [x] shipped\n\n%% kanban:settings")
+    );
+}
+
+#[test]
+fn archiving_without_a_footer_appends_the_section_at_the_end() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n- [ ] two\n";
+    let mut board = parse(source);
+    board.archive_card(0, 0).expect("archive");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] two\n\n\
+         ***\n\n## Archive\n\n- [ ] one\n"
+    );
+}
+
+#[test]
+fn an_existing_archive_heading_keeps_the_files_own_word() {
+    for word in [
+        "Archive",
+        "Archiv",
+        "Archivio",
+        "アーカイブ",
+        "보관됨",
+        "Arquivado",
+        "Архивировать",
+        "归档",
+    ] {
+        let source = format!(
+            "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n\n***\n\n## {word}\n\n- [x] old\n"
+        );
+        let mut board = parse(&source);
+        board.archive_card(0, 0).expect("archive");
+        assert_eq!(
+            board.archive().map(Archive::word),
+            Some(word),
+            "{word}: the file's word is kept"
+        );
+        assert_eq!(board.archive().expect("archive").cards().len(), 2);
+        assert_eq!(
+            board.source(),
+            format!(
+                "---\nkanban-plugin: board\n---\n\n## To do\n\n\n***\n\n## {word}\n\n- [x] old\n- [ ] one\n"
+            ),
+            "{word}"
+        );
+    }
+}
+
+#[test]
+fn an_empty_existing_archive_takes_the_card_under_its_heading() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n\n***\n\n## Archiv\n\n%% kanban:settings\n```\n{}\n```\n%%\n";
+    let mut board = parse(source);
+    board.archive_card(0, 0).expect("archive");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n\n***\n\n## Archiv\n\n- [ ] one\n\n%% kanban:settings\n```\n{}\n```\n%%\n"
+    );
+}
+
+#[test]
+fn the_archive_date_is_plain_text_at_the_start_or_the_end() {
+    let day = CivilDate::new(2026, 11, 12).expect("date");
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n";
+
+    let mut end = parse(source);
+    let end_settings = ArchiveSettings {
+        with_date: true,
+        date_format: "DD.MM.YYYY".to_owned(),
+        date_position: ArchiveDatePosition::End,
+        ..ArchiveSettings::default()
+    };
+    end.archive_card_with(0, 0, &end_settings, Some(day))
+        .expect("archive");
+    assert!(end.source().contains("- [ ] one 12.11.2026\n"));
+    assert_eq!(
+        end.archive().expect("archive").cards()[0].text(),
+        "one 12.11.2026"
+    );
+
+    let mut start = parse(source);
+    let start_settings = ArchiveSettings {
+        with_date: true,
+        date_format: "YYYY-MM-DD".to_owned(),
+        date_position: ArchiveDatePosition::Start,
+        date_separator: " · ".to_owned(),
+        ..ArchiveSettings::default()
+    };
+    start
+        .archive_card_with(0, 0, &start_settings, Some(day))
+        .expect("archive");
+    assert!(
+        start.source().contains("- [ ] 2026-11-12 · one\n"),
+        "{}",
+        start.source()
+    );
+
+    let mut tight = parse(source);
+    let tight_settings = ArchiveSettings {
+        with_date: true,
+        date_position: ArchiveDatePosition::End,
+        date_separator: String::new(),
+        ..ArchiveSettings::default()
+    };
+    tight
+        .archive_card_with(0, 0, &tight_settings, Some(day))
+        .expect("archive");
+    assert!(tight.source().contains("- [ ] one2026-11-12\n"));
+
+    // No date given writes none, whatever the setting says; the off setting
+    // writes none either.
+    let mut none = parse(source);
+    none.archive_card_with(0, 0, &end_settings, None)
+        .expect("archive");
+    assert!(none.source().contains("- [ ] one\n"));
+    let mut off = parse(source);
+    off.archive_card_with(0, 0, &ArchiveSettings::default(), Some(day))
+        .expect("archive");
+    assert!(off.source().contains("- [ ] one\n"));
+}
+
+#[test]
+fn the_archive_date_keeps_a_block_id_at_the_end_of_the_line() {
+    let day = CivilDate::new(2026, 11, 12).expect("date");
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one ^card-1\n";
+    let mut board = parse(source);
+    board
+        .archive_card_with(
+            0,
+            0,
+            &ArchiveSettings {
+                with_date: true,
+                ..ArchiveSettings::default()
+            },
+            Some(day),
+        )
+        .expect("archive");
+    assert!(board.source().contains("- [ ] one 2026-11-12 ^card-1\n"));
+    assert_eq!(
+        board.archive().expect("archive").cards()[0].block_id(),
+        Some("card-1")
+    );
+    assert_eq!(
+        board.archive().expect("archive").cards()[0].text(),
+        "one 2026-11-12"
+    );
+}
+
+#[test]
+fn the_archive_limit_drops_the_oldest_cards_and_never_a_lane_card() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] lane one
+- [ ] lane two
+
+***
+
+## Archive
+
+- [x] oldest
+- [x] older
+- [x] old
+";
+    let settings = ArchiveSettings {
+        max_cards: Some(2),
+        ..ArchiveSettings::default()
+    };
+    let mut board = parse(source);
+    board
+        .archive_card_with(0, 0, &settings, None)
+        .expect("archive");
+    assert_eq!(
+        board.archive().expect("archive").cards().len(),
+        2,
+        "the limit holds"
+    );
+    let archive: Vec<&str> = board
+        .archive()
+        .expect("archive")
+        .cards()
+        .iter()
+        .map(|card| card.text())
+        .collect();
+    assert_eq!(archive, ["old", "lane one"]);
+    assert_eq!(board.lanes()[0].cards().len(), 1, "the lane is untouched");
+    assert_eq!(board.lanes()[0].cards()[0].text(), "lane two");
+    assert!(!board.source().contains("- [x] oldest\n"));
+
+    // Absent, and a written 0, are unlimited.
+    for max in [None, Some(0)] {
+        let mut board = parse(source);
+        board
+            .archive_card_with(
+                0,
+                0,
+                &ArchiveSettings {
+                    max_cards: max,
+                    ..ArchiveSettings::default()
+                },
+                None,
+            )
+            .expect("archive");
+        assert_eq!(
+            board.archive().expect("archive").cards().len(),
+            4,
+            "{max:?}: unlimited"
+        );
+    }
+}
+
+#[test]
+fn max_archive_cards_resolves_footer_then_defaults() {
+    let footer = r#"{"kanban-plugin":"board","max-archive-cards":1,"archive-with-date":true}"#;
+    let settings = ArchiveSettings::resolve(Some(footer), &KanbanDefaults::default());
+    assert_eq!(settings.max_cards, Some(1));
+    assert!(settings.with_date);
+
+    let defaults = KanbanDefaults::from_json(Some(&json!({
+        "max-archive-cards": 3,
+        "archive-date-format": "DD.MM.YYYY",
+        "archive-date-position": "start",
+        "archive-date-separator": " — ",
+    })));
+    let settings = ArchiveSettings::resolve(None, &defaults);
+    assert_eq!(settings.max_cards, Some(3));
+    assert_eq!(settings.date_format, "DD.MM.YYYY");
+    assert_eq!(settings.date_position, ArchiveDatePosition::Start);
+    assert_eq!(settings.date_separator, " — ");
+
+    // The footer wins; an unknown value leaves the built-in.
+    let settings = ArchiveSettings::resolve(
+        Some(r#"{"archive-date-position":"sideways","max-archive-cards":0}"#),
+        &defaults,
+    );
+    assert_eq!(settings.date_position, ArchiveDatePosition::Start);
+    assert_eq!(settings.max_cards, None, "0 is unlimited");
+    let built_in = ArchiveSettings::resolve(
+        Some(r#"{"archive-date-position":"sideways"}"#),
+        &KanbanDefaults::default(),
+    );
+    assert_eq!(built_in.date_position, ArchiveDatePosition::End);
+    assert_eq!(built_in.date_format, "YYYY-MM-DD");
+    assert_eq!(built_in.date_separator, " ");
+    assert!(!built_in.with_date);
+}
+
+#[test]
+fn unarchiving_puts_the_card_whole_at_the_end_of_the_chosen_lane() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+## Done
+
+**Complete**
+- [x] old
+
+***
+
+## Archive
+
+- [x] first
+- [x] second
+  with a second line
+  - [ ] nested
+- [x] third ^card-9
+";
+    let mut board = parse(source);
+    board.unarchive_card(1, 1).expect("unarchive");
+    assert_eq!(
+        board.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+## Done
+
+**Complete**
+- [x] old
+- [x] second
+  with a second line
+  - [ ] nested
+
+***
+
+## Archive
+
+- [x] first
+- [x] third ^card-9
+"
+    );
+    assert_eq!(
+        board.lanes()[1].cards()[1].text(),
+        "second\nwith a second line\n- [ ] nested"
+    );
+
+    // Back to the archive: the same bytes as the start, in the file order
+    // the moves left.
+    board.archive_card(1, 1).expect("archive again");
+    assert_eq!(board.archive().expect("archive").cards().len(), 3);
+    assert!(
+        board
+            .source()
+            .contains("- [x] second\n  with a second line\n  - [ ] nested\n")
+    );
+    assert_eq!(
+        board.archive().expect("archive").cards()[2].block_id(),
+        None
+    );
+
+    // A card with an id keeps it when it returns.
+    board.unarchive_card(1, 1).expect("unarchive third");
+    let last = board.lanes()[1].cards().last().expect("restored");
+    assert_eq!(last.block_id(), Some("card-9"));
+    assert_eq!(last.text(), "third");
+    let words: Vec<&str> = board
+        .archive()
+        .expect("archive")
+        .cards()
+        .iter()
+        .map(|card| card.text())
+        .collect();
+    assert_eq!(words, ["first", "second\nwith a second line\n- [ ] nested"]);
+}
+
+#[test]
+fn deleting_an_archived_card_removes_only_its_lines() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+***
+
+## Archive
+
+- [x] keep
+
+- [x] gone
+  second line
+
+%% kanban:settings
+```
+{\"kanban-plugin\":\"board\"}
+```
+%%
+";
+    let mut board = parse(source);
+    board.delete_archived_card(1).expect("delete");
+    assert_eq!(
+        board.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+***
+
+## Archive
+
+- [x] keep
+
+
+%% kanban:settings
+```
+{\"kanban-plugin\":\"board\"}
+```
+%%
+"
+    );
+    assert_eq!(board.archive().expect("archive").cards().len(), 1);
+}
+
+#[test]
+fn archiving_a_crlf_card_keeps_every_line_ending() {
+    let source = "---\r\nkanban-plugin: board\r\n---\r\n\r\n## To do\r\n\r\n- [ ] one\r\n  second\r\n- [ ] two\r\n";
+    let mut board = parse(source);
+    board.archive_card(0, 0).expect("archive");
+    assert_eq!(
+        board.source(),
+        "---\r\nkanban-plugin: board\r\n---\r\n\r\n## To do\r\n\r\n- [ ] two\r\n\r\n\
+         ***\r\n\r\n## Archive\r\n\r\n- [ ] one\r\n  second\r\n"
+    );
+    assert!(!board.source().replace("\r\n", "").contains('\n'));
+
+    let mut restored = parse(board.source());
+    restored.unarchive_card(0, 0).expect("unarchive");
+    assert_eq!(
+        restored.source(),
+        "---\r\nkanban-plugin: board\r\n---\r\n\r\n## To do\r\n\r\n- [ ] two\r\n\
+         - [ ] one\r\n  second\r\n\r\n***\r\n\r\n## Archive\r\n\r\n"
+    );
+    assert!(!restored.source().replace("\r\n", "").contains('\n'));
+}
+
+#[test]
+fn archiving_keeps_passthrough_text_where_it_was() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+
+A paragraph between lanes.
+
+  an indented note
+
+## Done
+
+**Complete**
+- [x] shipped
+
+***
+
+## Archive
+
+A note the board doesn't show.
+
+- [x] old
+";
+    let mut board = parse(source);
+    board.archive_card(0, 0).expect("archive");
+    assert_eq!(
+        board.source(),
+        "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+
+A paragraph between lanes.
+
+  an indented note
+
+## Done
+
+**Complete**
+- [x] shipped
+
+***
+
+## Archive
+
+A note the board doesn't show.
+
+- [x] old
+- [ ] one
+"
+    );
+
+    // A card with an indented continuation arrives whole.
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n  second\n  third\n";
+    let mut board = parse(source);
+    board.archive_card(0, 0).expect("archive");
+    assert!(board.source().contains("- [ ] one\n  second\n  third\n"));
+    assert_eq!(
+        board.archive().expect("archive").cards()[0].text(),
+        "one\nsecond\nthird"
+    );
+}
+
+#[test]
+fn archiving_an_indented_fenced_card_keeps_the_fence_with_it() {
+    let source = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] one
+  ```md
+  - [ ] not a card
+  ```
+- [ ] two
+";
+    let mut board = parse(source);
+    board.archive_card(0, 0).expect("archive");
+    assert!(
+        board
+            .source()
+            .contains("***\n\n## Archive\n\n- [ ] one\n  ```md\n  - [ ] not a card\n  ```\n")
+    );
+    assert_eq!(board.lanes()[0].cards().len(), 1);
+    assert_eq!(board.lanes()[0].cards()[0].text(), "two");
+    assert_eq!(board.archive().expect("archive").cards().len(), 1);
+}
+
+#[test]
+fn a_heading_named_archive_without_a_rule_is_an_ordinary_lane() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n\n## Archive\n\n- [x] a lane card\n";
+    let mut board = parse(source);
+    assert!(board.archive().is_none());
+    board.archive_card(0, 0).expect("archive");
+    assert_eq!(board.lanes().len(), 2, "the lane named Archive stays");
+    assert_eq!(
+        board.archive().expect("archive").word(),
+        "Archive",
+        "the new section is English"
+    );
+    assert_eq!(board.archive().expect("archive").cards()[0].text(), "one");
+}
+
+#[test]
+fn archiving_into_a_note_that_ends_in_an_open_fence_is_refused() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n\n```\nnever closed\n";
+    let mut board = parse(source);
+    let error = board.archive_card(0, 0).unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::InvalidData);
+    assert_eq!(board.source(), source);
+}
+
+#[test]
+fn archiving_an_unknown_card_changes_nothing() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n";
+    let mut board = parse(source);
+    assert_eq!(
+        board.archive_card(0, 1).unwrap_err().kind(),
+        ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        board.archive_card(9, 0).unwrap_err().kind(),
+        ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        board.unarchive_card(0, 0).unwrap_err().kind(),
+        ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        board.delete_archived_card(0).unwrap_err().kind(),
+        ErrorKind::InvalidInput
+    );
+    assert_eq!(board.source(), source);
+}
+
+#[test]
+fn the_archive_keeps_a_non_default_block_id_shape_and_multibyte() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] 漢字 🎉 ^card-α\n";
+    let mut board = parse(source);
+    // The parser's id shape is ASCII: the card text keeps the tail.
+    assert_eq!(board.lanes()[0].cards()[0].block_id(), None);
+    board.archive_card(0, 0).expect("archive");
+    assert_eq!(
+        board.archive().expect("archive").cards()[0].text(),
+        "漢字 🎉 ^card-α"
+    );
+}
+
+#[test]
+fn an_empty_card_gets_the_date_and_stays_a_card() {
+    let day = CivilDate::new(2026, 11, 12).expect("date");
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ]\n- [ ] two\n";
+    let mut board = parse(source);
+    board
+        .archive_card_with(
+            0,
+            0,
+            &ArchiveSettings {
+                with_date: true,
+                ..ArchiveSettings::default()
+            },
+            Some(day),
+        )
+        .expect("archive");
+    assert!(board.source().contains("- [ ] 2026-11-12\n"));
+    assert_eq!(
+        board.archive().expect("archive").cards()[0].text(),
+        "2026-11-12"
+    );
+}
+
+#[test]
+fn archiving_into_a_file_with_no_final_newline_keeps_that_ending() {
+    let source = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] one\n- [ ] two";
+    let mut board = parse(source);
+    board.archive_card(0, 0).expect("archive");
+    assert_eq!(
+        board.source(),
+        "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] two\n\n\
+         ***\n\n## Archive\n\n- [ ] one"
+    );
+    assert!(!board.source().ends_with('\n'));
+    board.unarchive_card(0, 0).expect("restore");
+    // The archive's last line was the file's last line; taking it out leaves
+    // the blank line before it, as deleting any last line does. The card
+    // itself arrives whole.
+    assert_eq!(
+        board.lanes()[0].cards().last().expect("restored").text(),
+        "one"
+    );
+    assert!(board.source().contains("- [ ] two\n- [ ] one\n"));
 }

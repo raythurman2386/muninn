@@ -26,6 +26,7 @@
 //! lane limit of `0` is no limit and is never written, a done mark other than
 //! `x` is left as it is until toggled, and unknown footer keys are kept.
 
+mod archive;
 mod dates;
 mod edit;
 mod metadata;
@@ -44,6 +45,10 @@ use std::path::{Path, PathBuf};
 
 use crate::vault::{Vault, atomic_write};
 
+pub use self::archive::{
+    ARCHIVE_DATE_FORMAT, ARCHIVE_DATE_POSITION, ARCHIVE_DATE_SEPARATOR, ARCHIVE_WITH_DATE,
+    ArchiveDatePosition, ArchiveSettings, MAX_ARCHIVE_CARDS,
+};
 pub use self::dates::{
     CivilDate, CivilTime, DATE_DISPLAY_FORMAT, DATE_FORMAT, DATE_TRIGGER, DateSettings,
     HIDE_DATE_IN_TITLE, KanbanDefaults, LINK_DATE_TO_DAILY_NOTE, SHOW_RELATIVE_DATE, TIME_FORMAT,
@@ -150,6 +155,9 @@ pub struct Archive {
     word: String,
     cards: Vec<Card>,
     span: Range<usize>,
+    /// The heading line, with its line ending: a new card goes under it when
+    /// the archive holds none.
+    heading_line: Range<usize>,
 }
 
 /// The settings footer. `json` is the raw JSON line, not a re-serialisation.

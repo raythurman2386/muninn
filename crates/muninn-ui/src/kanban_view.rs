@@ -32,7 +32,10 @@
 //! (`kanban_tags.rs`) hides or chips a card's tags, completes `#` from the
 //! vault's tag index, and fills the Find bar from a chip. Slice 11
 //! (`kanban_metadata.rs`) draws configured metadata keys from the note a
-//! card's first wikilink names, at the card's foot.
+//! card's first wikilink names, at the card's foot. Slice 12
+//! (`kanban_archive.rs`) moves cards into the archive from the card menu or a
+//! `Cmd`/`Ctrl`-click, and draws the header's Archive page with Restore and
+//! Delete.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -332,6 +335,7 @@ impl State {
         self.cancel_lane_edit();
         self.close_picker();
         self.kanban_selected = None;
+        self.kanban_archive_open = false;
         self.kanban_drag = None;
         self.kanban_autosave_wait = None;
         self.kanban_recovery_wait = None;
@@ -409,6 +413,11 @@ pub fn kanban(s: &State, k: &Kit) -> El {
             "No kanban open",
             "Select a kanban note, then press ⌘5 to see it as a board.",
         ),
+        Some(ShownKanban {
+            rel,
+            board: Some(board),
+            ..
+        }) if s.kanban_archive_open => crate::kanban_archive::archive_panel(s, k, board),
         Some(ShownKanban {
             rel,
             board: Some(board),
@@ -534,6 +543,13 @@ fn header(s: &State, k: &Kit) -> El {
         ),
         None => el(),
     })
+    .child(header_button(
+        k,
+        "kanban-archive",
+        &ic::ARCHIVE,
+        "Archive",
+        State::toggle_kanban_archive,
+    ))
     .child(header_button(
         k,
         "kanban-open-markdown",
@@ -1054,7 +1070,15 @@ fn card_view(
         .role("checkbox")
         .checked(done)
         .label(if done { "Done" } else { "Open" })
-        .on_press(move |s: &mut State| s.toggle_card_done(i, j));
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            // Slice 12: Cmd/Ctrl-click archives; a plain click still toggles.
+            let mods = tx.mods();
+            if mods.cmd || mods.ctrl {
+                s.archive_card(i, j);
+            } else {
+                s.toggle_card_done(i, j);
+            }
+        });
     let mark = if done {
         mark.child(icon(&ic::CHECK, 10.0).color(k.c.text_accent))
     } else {
