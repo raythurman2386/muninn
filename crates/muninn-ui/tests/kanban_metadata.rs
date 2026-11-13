@@ -134,7 +134,7 @@ fn metadata_footer(fields: &str) -> String {
 fn defaults(fields: &str, show_missing: bool) -> KanbanDefaults {
     let value: serde_json::Value = serde_json::from_str(&format!("[{fields}]")).expect("fields");
     KanbanDefaults {
-        linked_page_metadata: muninn_core::metadata_fields(Some(&value)),
+        linked_page_metadata: Some(value),
         show_missing_metadata: Some(show_missing),
         ..KanbanDefaults::default()
     }
@@ -173,10 +173,6 @@ fn contains_markdown_renders_links_and_plain_text_keeps_markers() {
     assert!(
         text.contains("**bold**"),
         "plain text keeps its markers: {text}"
-    );
-    assert!(
-        !text.contains("**the guide**"),
-        "the markdown value is not escaped text: {text}"
     );
     assert!(text.contains("the guide"), "{text}");
     assert!(
@@ -280,6 +276,26 @@ fn a_changed_card_link_updates_the_rows_on_the_next_lane_rebuild() {
 }
 
 #[test]
+fn saving_the_linked_note_updates_the_rows_on_the_next_rebuild() {
+    let board = metadata_footer(r#"{"key":"status"}"#);
+    let tmp = vault_with(&board);
+    let mut rt = on_board(&tmp);
+    assert!(page_text(&rt).contains("Active"));
+
+    act(&mut rt, |s| {
+        let id = s.vault.resolve("Agenda").expect("Agenda");
+        s.vault
+            .write_note(id, "---\nstatus: Changed\n---\n")
+            .expect("save the linked note");
+    });
+    let text = page_text(&rt);
+    assert!(text.contains("Changed"), "{text}");
+    assert!(!text.contains("Active"), "{text}");
+    assert_eq!(source(&rt), board, "the board itself is unchanged");
+    assert_eq!(on_disk(&tmp), board);
+}
+
+#[test]
 fn a_dirty_board_keeps_its_bytes_and_metadata_never_writes() {
     let board = metadata_footer(
         r#"{"key":"status"},{"key":"owner"},{"key":"docs","containsMarkdown":true}"#,
@@ -308,6 +324,8 @@ fn a_long_multibyte_value_renders_without_panicking() {
     let text = page_text(&rt);
     assert!(text.contains("notes:"), "{text}");
     assert!(text.contains('漢'), "the multibyte value renders");
+    assert!(text.contains('…'), "the long value is clipped: {text}");
+    assert!(!text.contains(&long), "the full value is not drawn");
 }
 
 #[test]

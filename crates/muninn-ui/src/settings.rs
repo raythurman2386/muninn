@@ -942,6 +942,31 @@ mod tests {
     }
 
     #[test]
+    fn kanban_defaults_keep_raw_linked_page_metadata_through_a_save() {
+        let home = temp_config("kanban-defaults-metadata-raw");
+        let raw = json!([
+            {"key": "status", "label": "Status", "containsMarkdown": "yes"}
+        ]);
+        let settings = Settings {
+            kanban_defaults: muninn_core::KanbanDefaults::from_json(Some(&json!({
+                "linked-page-metadata": raw,
+            }))),
+            ..Settings::default()
+        };
+        settings.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"label\": \"Status\""), "{text}");
+        assert!(text.contains("\"containsMarkdown\": \"yes\""), "{text}");
+        let loaded = Settings::load_from(&home);
+        assert_eq!(
+            loaded.kanban_defaults.to_json()["linked-page-metadata"],
+            raw,
+            "extra fields, order and the wrong type survive the round trip"
+        );
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
     fn corrupt_settings_fall_back_to_defaults() {
         let home = temp_config("corrupt");
         let path = settings_path(&home);

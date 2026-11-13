@@ -221,7 +221,8 @@ without changing the file. Only an edit the user asks for writes a token.
   each key in the board's `linked-page-metadata` setting (section 9), the
   value from the linked note's frontmatter or an inline field is shown at the
   card's foot, after the dates and tags, as `key: value`. `containsMarkdown`
-  renders the value through the reader, so its links and embeds work;
+  renders the value through the reader: a link works, a note embed becomes a
+  link, and an attachment embed keeps the reader's filename placeholder;
   otherwise it is plain text. A missing note or key draws nothing, unless
   `show-missing-metadata` asks for `key: —`. This is display-only: viewing,
   scrolling or a dirty board never changes the card, the linked note or any

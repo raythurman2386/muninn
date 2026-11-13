@@ -47,7 +47,8 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use muninn_core::{
-    Card, CivilDate, DateSettings, Kanban, Lane, is_kanban, parse_links, scan_card_text,
+    Card, CivilDate, DateSettings, Kanban, Lane, MetadataCache, MetadataSettings, is_kanban,
+    parse_links, scan_card_text,
 };
 use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
@@ -550,7 +551,8 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
     let note = s.note_id(rel);
     let dates = s.kanban_date_settings();
     let today = crate::kanban_dates::local_today();
-    let card_key = card_settings_version(s, &dates, today);
+    let metadata_settings = s.kanban_metadata_settings();
+    let card_key = card_settings_version(s, &dates, today, &metadata_settings);
     let kit = crate::omarchy::kit_id(s, k.dark);
     let new_lane = s
         .kanban_lane_edit
@@ -579,33 +581,39 @@ fn lanes(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
                 _ => false,
             });
         columns.push(if live {
+            // A live lane is rebuilt every frame; the lane still parses each
+            // of its distinct linked notes once for that rebuild.
             lane_column(
                 s,
                 k,
-                note,
                 i,
                 lane,
                 &DateContext {
                     dates: &dates,
                     today,
+                    note,
+                    metadata: &metadata_settings,
                 },
             )
         } else {
             let selected = s.kanban_selected.filter(|(l, _)| *l == i).map(|(_, j)| j);
             let dates = dates.clone();
+            let metadata_settings = metadata_settings.clone();
             rune::memo(
                 format!("kanban-lane-{i}"),
                 (rel, kit, lane_version(lane), selected, card_key),
                 move || {
+                    // Parsed only when this memo is rebuilt, never on a hit.
                     lane_column(
                         s,
                         k,
-                        note,
                         i,
                         lane,
                         &DateContext {
                             dates: &dates,
                             today,
+                            note,
+                            metadata: &metadata_settings,
                         },
                     )
                 },
@@ -650,11 +658,16 @@ fn lane_version(lane: &Lane) -> u64 {
 /// A hash of the date, tag and metadata settings a card's text and foot
 /// depend on, plus the vault revision so a changed linked note's metadata is
 /// read again on the next lane rebuild.
-fn card_settings_version(s: &State, dates: &DateSettings, today: CivilDate) -> u64 {
+fn card_settings_version(
+    s: &State,
+    dates: &DateSettings,
+    today: CivilDate,
+    metadata: &MetadataSettings,
+) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     date_version(dates, today).hash(&mut h);
     s.kanban_tag_settings().hash(&mut h);
-    s.kanban_metadata_settings().hash(&mut h);
+    metadata.hash(&mut h);
     s.vault.revision().hash(&mut h);
     h.finish()
 }
@@ -671,20 +684,26 @@ fn date_version(dates: &DateSettings, today: CivilDate) -> u64 {
 struct DateContext<'a> {
     dates: &'a DateSettings,
     today: CivilDate,
+    /// The board's own note, for a self-link and for markdown embeds.
+    note: Option<usize>,
+    metadata: &'a MetadataSettings,
 }
 
-fn lane_column(
-    s: &State,
-    k: &Kit,
-    note: Option<usize>,
-    i: usize,
-    lane: &Lane,
-    when: &DateContext<'_>,
-) -> El {
+/// The metadata rows a card's foot draws, resolved once by its lane.
+struct MetadataRows<'a> {
+    rows: &'a [muninn_core::MetadataRow],
+    /// The linked note a markdown value's relative embeds resolve against.
+    value_note: Option<usize>,
+}
+
+fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>) -> El {
     let (drop, _, dragged) = s.kanban_drag_in(i);
     if lane.collapsed() {
         return collapsed_lane(k, i, lane, drop.is_some(), dragged);
     }
+    // One cache for this lane rebuild: each distinct linked note is parsed
+    // once, not once per card.
+    let metadata = MetadataCache::for_lane(&s.vault, lane, when.note, when.metadata.clone());
     let (count, over) = lane_load(lane);
     let count_color = if over { k.c.warning.fg } else { k.c.text_faint };
     let mut head = row()
@@ -797,7 +816,12 @@ fn lane_column(
         if drop == Some(j) {
             column = column.child(card_drop_bar(k));
         }
-        column = column.child(card_view(s, k, note, i, j, card, when));
+        let (metadata_rows, value_note) = metadata.rows(&s.vault, when.note, card.text());
+        let metadata_rows = MetadataRows {
+            rows: &metadata_rows,
+            value_note,
+        };
+        column = column.child(card_view(s, k, i, j, card, when, &metadata_rows));
         if picker_here && !new_here {
             column = column.child(crate::kanban_dates::picker(s, k));
         }
@@ -983,11 +1007,11 @@ fn icon_button(
 fn card_view(
     s: &State,
     k: &Kit,
-    note: Option<usize>,
     i: usize,
     j: usize,
     card: &Card,
     when: &DateContext<'_>,
+    metadata: &MetadataRows<'_>,
 ) -> El {
     let editing = s.kanban_card
         == Some(CardSlot {
@@ -1009,7 +1033,7 @@ fn card_view(
     // Wikilinks open the note. A note embed stays a link: the spec allows
     // `![[Note]]` in a card and does not say to inline the note. An attachment
     // embed keeps the reader's filename placeholder.
-    let source = card_markdown(&s.vault, note, &title_text);
+    let source = card_markdown(&s.vault, when.note, &title_text);
     let first = title_text.lines().next().unwrap_or_default();
     let mark = el()
         .key(format!("kanban-card-{i}-{j}-mark"))
@@ -1095,8 +1119,8 @@ fn card_view(
                 .child(crate::kanban_metadata::card_metadata_rows(
                     s,
                     k,
-                    note,
-                    card.text(),
+                    metadata.rows,
+                    metadata.value_note,
                     i,
                     j,
                 )),
