@@ -841,7 +841,7 @@ step_x11_modes() {
   # A private display well above the ones a desktop session (Xwayland) uses.
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -921,7 +921,7 @@ step_x11_board() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-board.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-board.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1002,7 +1002,7 @@ step_x11_draw() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-draw.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-draw.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1074,7 +1074,7 @@ step_x11_board_safety() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"; chmod -R u+w "$work" 2>/dev/null' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-safety.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-safety.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1205,7 +1205,7 @@ step_x11_edit() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-edit.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-edit.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1364,7 +1364,7 @@ step_x11_text() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-text.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-text.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1482,7 +1482,7 @@ step_x11_sync() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-sync.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-sync.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1633,7 +1633,7 @@ step_x11_chrome() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-chrome.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-chrome.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1757,7 +1757,7 @@ step_x11_new_board() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-new.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-new.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1825,7 +1825,7 @@ step_x11_board_rename() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-rename.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-rename.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -1948,7 +1948,7 @@ step_x11_single_instance() {
   printf '{"tray_icon": true, "close_to_tray": true}\n' >"$XDG_CONFIG_HOME/muninn/settings.json"
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-single.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-single.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -2158,7 +2158,7 @@ step_x11_kanban_model() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban.log" 2>&1 &
   xvfb_pid=$!
   local i
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
@@ -2452,7 +2452,7 @@ step_x11_kanban() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n i
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-view.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban-view.log" 2>&1 &
   xvfb_pid=$!
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"
@@ -2664,7 +2664,7 @@ step_x11_new_kanban() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n i
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-new.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban-new.log" 2>&1 &
   xvfb_pid=$!
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"
@@ -2749,7 +2749,7 @@ step_x11_kanban_open() {
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n i
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-open.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban-open.log" 2>&1 &
   xvfb_pid=$!
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"
@@ -3006,7 +3006,7 @@ JSON
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n i
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-edit.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban-edit.log" 2>&1 &
   xvfb_pid=$!
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"
@@ -3201,7 +3201,7 @@ JSON
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n i
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-lanes.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban-lanes.log" 2>&1 &
   xvfb_pid=$!
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"
@@ -3471,7 +3471,7 @@ JSON
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n i
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-drag.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban-drag.log" 2>&1 &
   xvfb_pid=$!
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"
@@ -3688,7 +3688,7 @@ kanban_x11_up() { # kanban_x11_up NAME SETTINGS: Xvfb (once) and the app on $kan
   if [ -z "${xvfb_pid:-}" ]; then
     local n i
     n="$(pick_display)" || return 1
-    Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-sync-$1.log" 2>&1 &
+    Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban-sync-$1.log" 2>&1 &
     xvfb_pid=$!
     for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
     export DISPLAY=":$n"
@@ -4111,7 +4111,7 @@ JSON
   trap '[ -n "${app_pid:-}" ] && kill "$app_pid"; [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid"' EXIT
   local n i
   n="$(pick_display)" || return 1
-  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp >"$out/logs/xvfb-kanban-links.log" 2>&1 &
+  Xvfb ":$n" -screen 0 1280x860x24 -dpi 96 -nolisten tcp -noreset >"$out/logs/xvfb-kanban-links.log" 2>&1 &
   xvfb_pid=$!
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"

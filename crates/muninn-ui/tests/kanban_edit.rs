@@ -762,7 +762,7 @@ fn a_file_changed_on_disk_refuses_the_save_and_keeps_the_edits() {
     assert_eq!(source(&rt), edited);
     // Slice 7: the quit goes ahead with the edits in the recovery copy.
     assert!(rt.state.flush_before_quit(), "kept in the recovery copy");
-    let copy = rt.state.recovery_path("Board.md");
+    let copy = rt.state.kanban_recovery_path("Board.md");
     assert_eq!(fs::read_to_string(copy).unwrap(), edited);
     assert_eq!(on_disk(&tmp), theirs);
 }

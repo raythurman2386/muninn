@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{BoardStatus, DocConflict, Mode, Settings, State, on_key, poll, view};
+use muninn_ui::{
+    BoardStatus, DocConflict, Mode, RecoverySlot, Settings, State, on_key, poll, view,
+};
 use rune::{Env, Runtime};
 
 const BOARD: &str = include_str!("../../muninn-core/tests/fixtures/kanban/edit-board.md");
@@ -272,7 +274,7 @@ fn a_dirty_kanban_whose_file_is_deleted_offers_save_copy_and_quits_with_a_copy()
     // Quitting is not blocked: the recovery copy holds the edits.
     assert!(s.rt.state.flush_before_quit());
     assert!(s.rt.state.can_quit());
-    let copy = s.rt.state.recovery_path("Board.md");
+    let copy = s.rt.state.kanban_recovery_path("Board.md");
     assert_eq!(fs::read_to_string(&copy).unwrap(), mine());
     click(&mut s.rt, "kanban-save-copy");
     let rel = s.rt.state.kanban.as_ref().unwrap().rel.clone();
@@ -295,7 +297,7 @@ fn discard_drops_the_edits_of_a_deleted_kanban() {
     click(&mut s.rt, "kanban-load-theirs");
     assert!(s.rt.state.kanban.is_none(), "nothing left to show");
     assert!(!file(&tmp).exists());
-    assert!(!s.rt.state.recovery_path("Board.md").exists());
+    assert!(!s.rt.state.kanban_recovery_path("Board.md").exists());
 }
 
 #[test]
@@ -323,7 +325,7 @@ fn a_recovery_copy_comes_back_on_the_next_launch_flagged_and_keep_mine_writes_it
     let mut s = on_board(&tmp, false);
     act(&mut s.rt, |s| s.toggle_card_done(1, 0));
     frames(&mut s.rt, 60);
-    let copy = s.rt.state.recovery_path("Board.md");
+    let copy = s.rt.state.kanban_recovery_path("Board.md");
     assert_eq!(
         fs::read_to_string(&copy).unwrap(),
         mine(),
@@ -477,7 +479,7 @@ fn a_refused_lane_field_does_not_stop_the_committed_edits_recovery_copy() {
     act(&mut s.rt, |s| s.begin_lane_limit(1));
     act(&mut s.rt, |s| s.kanban_lane_field.replace_text("abc"));
     frames(&mut s.rt, 90);
-    let copy = s.rt.state.recovery_path("Board.md");
+    let copy = s.rt.state.kanban_recovery_path("Board.md");
     assert_eq!(
         fs::read_to_string(&copy).unwrap(),
         mine(),
@@ -505,7 +507,7 @@ fn a_refused_lane_field_does_not_stop_the_committed_edits_recovery_copy() {
     act(&mut s.rt, |s| s.kanban_lane_field.replace_text("abc"));
     frames(&mut s.rt, 90);
     assert!(
-        !s.rt.state.recovery_path("Board.md").exists(),
+        !s.rt.state.kanban_recovery_path("Board.md").exists(),
         "no copy for an unchanged board"
     );
     assert!(s.rt.state.error.is_none(), "{:?}", s.rt.state.error);
@@ -527,7 +529,7 @@ fn a_restored_kanban_is_not_renamed_onto_an_empty_note() {
     // the crash leaves both a dirty board and its copy.
     frames(&mut s.rt, 45);
     assert!(
-        s.rt.state.recovery_path("Board.md").exists(),
+        s.rt.state.kanban_recovery_path("Board.md").exists(),
         "copy written"
     );
     drop(s.rt);
@@ -598,7 +600,7 @@ fn saving_a_shown_kanban_that_is_not_selected_clears_its_recovery_copy() {
     let mut s = on_board(&tmp, false);
     act(&mut s.rt, |s| s.toggle_card_done(1, 0));
     frames(&mut s.rt, 60);
-    let copy = s.rt.state.recovery_path("Board.md");
+    let copy = s.rt.state.kanban_recovery_path("Board.md");
     assert_eq!(fs::read_to_string(&copy).unwrap(), mine());
     // Select a plain note: the page keeps showing the kanban.
     let agenda = s.rt.state.vault.resolve("Agenda").unwrap();
@@ -630,16 +632,16 @@ fn saving_a_shown_kanban_that_is_not_selected_clears_its_recovery_copy() {
     );
 }
 
-/// MF1: Write and the Kanban page share one recovery slot per note. Write's
-/// save of the same note must not clear the board's unfinalized copy, or a
-/// crash (or a quit the refused save lets through) loses the card edit.
+/// MF1: Write's save of the same note must not clear the board's unfinalized
+/// copy, or a crash (or a quit the refused save lets through) loses the card
+/// edit.
 #[test]
 fn a_write_save_does_not_strand_a_dirty_kanbans_recovery_copy() {
     let tmp = vault();
     let mut s = on_board(&tmp, false);
     act(&mut s.rt, |s| s.toggle_card_done(1, 0));
     frames(&mut s.rt, 60);
-    let copy = s.rt.state.recovery_path("Board.md");
+    let copy = s.rt.state.kanban_recovery_path("Board.md");
     assert_eq!(
         fs::read_to_string(&copy).unwrap(),
         mine(),
@@ -678,6 +680,97 @@ fn a_write_save_does_not_strand_a_dirty_kanbans_recovery_copy() {
         !s.rt.state.recovered.iter().any(|r| r.rel == "Board.md"),
         "a live copy is not also offered as a crash leftover"
     );
+}
+
+/// MF1b: a crash before Write saves still loses the card edit when both
+/// buffers share one recovery file. Write's recovery autosave overwrites
+/// that file, and the Kanban page does not rewrite it. The same window stays
+/// open for as long as a conflict refuses Write's save. Both texts have to
+/// come back.
+#[test]
+fn a_crash_before_write_saves_keeps_the_card_edit_and_writes_text() {
+    // Inside the autosave delay: recovery has copied Write's text, the file
+    // has not been saved.
+    crash_with_unsaved_write(false);
+    // A conflict refuses the save, so the delay never ends.
+    crash_with_unsaved_write(true);
+}
+
+fn crash_with_unsaved_write(conflict: bool) {
+    let tmp = vault();
+    let mut s = on_board(&tmp, false);
+    act(&mut s.rt, |s| s.toggle_card_done(1, 0));
+    frames(&mut s.rt, 60);
+    assert_eq!(
+        fs::read_to_string(s.rt.state.kanban_recovery_path("Board.md")).unwrap(),
+        mine(),
+        "the card edit is copied first"
+    );
+
+    let typed = "Written in Write, and not a kanban.\n";
+    act(&mut s.rt, |s| s.set_mode(Mode::Editor));
+    s.rt.state.editor.replace_text(typed);
+    if conflict {
+        atomic_write(&file(&tmp), &theirs());
+        let mut raised = false;
+        act(&mut s.rt, |s| raised = s.save_now());
+        assert!(raised, "the refused save surfaces the conflict");
+        assert!(s.rt.state.conflict.is_some(), "autosave stays paused");
+        frames(&mut s.rt, 90);
+        assert_eq!(read(&tmp), theirs(), "the refused save wrote nothing");
+    } else {
+        // Recovery debounce is 0.2s; note autosave is 0.55s.
+        frames(&mut s.rt, 18);
+        assert_eq!(read(&tmp), BOARD, "Write has not saved yet");
+    }
+    assert_eq!(
+        fs::read_to_string(s.rt.state.recovery_path("Board.md")).unwrap(),
+        typed,
+        "Write's text has its own copy"
+    );
+    assert_eq!(
+        fs::read_to_string(s.rt.state.kanban_recovery_path("Board.md")).unwrap(),
+        mine(),
+        "Write's copy did not replace the card edit"
+    );
+
+    let (config, state_home) = (s.config.clone(), s.state_home.clone());
+    drop(s.rt);
+
+    let mut rt = launch_with(tmp.path(), &config, &state_home);
+    frames(&mut rt, 2);
+    let kanban_i = rt
+        .state
+        .recovered
+        .iter()
+        .position(|r| r.rel == "Board.md" && r.slot == RecoverySlot::Kanban)
+        .expect("the card edit is offered");
+    assert!(
+        rt.state
+            .recovered
+            .iter()
+            .any(|r| { r.rel == "Board.md" && r.slot == RecoverySlot::Editor }),
+        "Write's text is offered too"
+    );
+    click(&mut rt, &format!("recovery-restore-{kanban_i}"));
+    assert_eq!(rt.state.mode, Mode::Kanban);
+    assert_eq!(shown(&rt), mine(), "relaunch restores the card edit");
+    assert_eq!(
+        fs::read_to_string(rt.state.recovery_path("Board.md")).unwrap(),
+        typed,
+        "restoring the card edit leaves Write's text"
+    );
+    assert!(
+        rt.state
+            .recovered
+            .iter()
+            .any(|r| r.rel == "Board.md" && r.slot == RecoverySlot::Editor),
+        "Write's row stays on the banner"
+    );
+    rt.update(|s, _| {
+        assert!(s.restore_recovery_slot("Board.md", RecoverySlot::Editor));
+    });
+    assert_eq!(rt.state.editor.text, typed, "Write's text restores as well");
 }
 
 /// P1: Save copy on the Kanban page must not drop Write's dirty buffer for
@@ -828,7 +921,7 @@ fn each_card_edit_renews_the_recovery_copy() {
     let mut s = on_board(&tmp, false);
     act(&mut s.rt, |s| s.toggle_card_done(1, 0));
     frames(&mut s.rt, 60);
-    let copy = s.rt.state.recovery_path("Board.md");
+    let copy = s.rt.state.kanban_recovery_path("Board.md");
     assert_eq!(fs::read_to_string(&copy).unwrap(), mine());
     act(&mut s.rt, |s| s.toggle_card_done(0, 0));
     let want = shown(&s.rt);
@@ -865,7 +958,7 @@ fn following_a_rename_moves_the_recovery_copy_before_forgetting_it() {
     let mut s = on_board(&tmp, false);
     act(&mut s.rt, |s| s.toggle_card_done(1, 0));
     frames(&mut s.rt, 60);
-    let old = s.rt.state.recovery_path("Board.md");
+    let old = s.rt.state.kanban_recovery_path("Board.md");
     assert_eq!(fs::read_to_string(&old).unwrap(), mine());
     fs::rename(file(&tmp), tmp.path().join("Renamed.md")).unwrap();
     // Stop in the frame the page follows: the copy must already be there, not
@@ -880,7 +973,7 @@ fn following_a_rename_moves_the_recovery_copy_before_forgetting_it() {
     }
     assert!(followed, "the rename is followed");
     assert_eq!(
-        fs::read_to_string(s.rt.state.recovery_path("Renamed.md")).unwrap(),
+        fs::read_to_string(s.rt.state.kanban_recovery_path("Renamed.md")).unwrap(),
         mine(),
         "the edits are under the new name as soon as the rename is followed"
     );
@@ -895,7 +988,7 @@ fn following_a_rename_clears_the_old_paths_recovery_copy() {
     let mut s = on_board(&tmp, false);
     act(&mut s.rt, |s| s.toggle_card_done(1, 0));
     frames(&mut s.rt, 60);
-    let old = s.rt.state.recovery_path("Board.md");
+    let old = s.rt.state.kanban_recovery_path("Board.md");
     assert!(old.exists(), "old copy written");
     fs::rename(file(&tmp), tmp.path().join("Renamed.md")).unwrap();
     wait(&mut s.rt);
@@ -912,7 +1005,7 @@ fn following_a_rename_clears_the_old_paths_recovery_copy() {
         mine()
     );
     assert!(
-        !s.rt.state.recovery_path("Renamed.md").exists(),
+        !s.rt.state.kanban_recovery_path("Renamed.md").exists(),
         "a save leaves no copy"
     );
     assert!(s.rt.state.recovered.is_empty());
@@ -946,7 +1039,7 @@ fn restoring_another_kanban_closes_a_menu_opened_on_the_old_one() {
     rt.update(|s, _| s.toggle_card_done(0, 0));
     frames(&mut rt, 60);
     assert_eq!(
-        fs::read_to_string(rt.state.recovery_path("B.md")).unwrap(),
+        fs::read_to_string(rt.state.kanban_recovery_path("B.md")).unwrap(),
         b_mine
     );
     drop(rt);

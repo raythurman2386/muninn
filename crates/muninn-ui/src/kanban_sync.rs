@@ -47,6 +47,7 @@ use crate::doc_sync::{
 use crate::kanban_edit::apply_card_field;
 use crate::kanban_lanes::{LaneField, apply_lane_field};
 use crate::kanban_view::ShownKanban;
+use crate::recovery::RecoverySlot;
 use crate::state::{WATCH_INTERVAL, conflict_stamp, safe_rel};
 use crate::{Mode, State};
 
@@ -175,8 +176,13 @@ impl State {
         // The copy is keyed by the path; the move below updates the record.
         shown.recovered = None;
         self.kanban_rel = Some(rel.clone());
-        match self.recovery.load(&old) {
-            Ok(text) if self.recovery.save(&rel, &text).is_ok() => {
+        match self.recovery.load_slot(&old, RecoverySlot::Kanban) {
+            Ok(text)
+                if self
+                    .recovery
+                    .save_slot(&rel, RecoverySlot::Kanban, &text)
+                    .is_ok() =>
+            {
                 self.forget_kanban_recovery(&old);
             }
             Ok(_) => {
@@ -340,7 +346,7 @@ impl State {
                 },
                 Err(_) => return Ok(()),
             };
-            self.recovery.save(&rel, &text)?;
+            self.recovery.save_slot(&rel, RecoverySlot::Kanban, &text)?;
             if let Some(shown) = &mut self.kanban {
                 shown.recovered = Some(key);
             }
@@ -350,21 +356,19 @@ impl State {
         if let Some(shown) = &mut self.kanban
             && shown.recovered.take().is_some()
         {
-            self.recovery.clear(&rel);
-            self.recovered.retain(|entry| entry.rel != rel);
+            self.recovery.clear_slot(&rel, RecoverySlot::Kanban);
+            self.recovered
+                .retain(|entry| !(entry.rel == rel && entry.slot == RecoverySlot::Kanban));
         }
         Ok(())
     }
 
-    /// Forget the recovery copy for `rel`: the store's file, the startup
-    /// banner's entry, and the page's record when it names that rel. A save,
-    /// Keep mine and a followed rename all leave no copy behind, as Board
-    /// does, even when the shown kanban is not the selected note. Write's
-    /// recovery record for the same note is reset too, so its next tick
-    /// rewrites a copy instead of trusting the one this just cleared.
+    /// Forget the Kanban page's recovery copy for `rel`: its own file, the
+    /// startup banner's row for that slot, and the page's record when it
+    /// names that rel. Write's copy of the same note is a different file and
+    /// stays put.
     pub(crate) fn forget_kanban_recovery(&mut self, rel: &str) {
-        self.clear_recovery(rel);
-        self.recovered.retain(|entry| entry.rel != rel);
+        self.clear_recovery_slot(rel, RecoverySlot::Kanban);
         if let Some(shown) = &mut self.kanban
             && shown.rel == rel
         {
@@ -576,8 +580,7 @@ impl State {
         self.kanban = None;
         self.kanban_autosave_wait = None;
         self.kanban_recovery_wait = None;
-        self.recovery.clear(&rel);
-        self.recovered.retain(|entry| entry.rel != rel);
+        self.clear_recovery_slot(&rel, RecoverySlot::Kanban);
         self.log_event("kanban", "dropped the unsaved edits for the file on disk");
         self.refresh_kanban();
         self.prune_kanban_selection();
@@ -586,7 +589,12 @@ impl State {
 
     /// Restore a kanban from its recovery copy (the startup banner's Restore
     /// for a kanban note's text): show it on the Kanban page, unsaved.
-    pub(crate) fn restore_kanban_recovery(&mut self, rel: &str, text: &str) -> bool {
+    pub(crate) fn restore_kanban_recovery(
+        &mut self,
+        rel: &str,
+        text: &str,
+        slot: RecoverySlot,
+    ) -> bool {
         let root = self.vault.root.clone();
         let path = root.join(rel);
         if !safe_rel(rel) || !inside_vault(&root, &path) {
@@ -631,7 +639,19 @@ impl State {
         // Delete lane confirmation or press that named the old board ends
         // with it, and nothing is selected on the restored one.
         self.kanban_board_installed(None);
-        self.recovered.retain(|entry| entry.rel != rel);
+        // A copy in the editor slot is the page's text (the slot both used
+        // to share). Move it to the kanban slot so Write can keep its own
+        // file, and so Load theirs clears this copy rather than Write's.
+        if slot == RecoverySlot::Editor
+            && self
+                .recovery
+                .save_slot(rel, RecoverySlot::Kanban, text)
+                .is_ok()
+        {
+            self.clear_recovery_slot(rel, RecoverySlot::Editor);
+        }
+        self.recovered
+            .retain(|entry| !(entry.rel == rel && entry.slot == slot));
         self.log_event("recovery", &format!("restored kanban {rel}"));
         true
     }

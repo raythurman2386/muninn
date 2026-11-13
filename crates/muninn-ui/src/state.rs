@@ -14,7 +14,7 @@ use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::{Camera, CameraGlide};
 use crate::mode::{Mode, Scope};
-use crate::recovery::{RecoveryEntry, RecoveryStore, state_home};
+use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
 use crate::settings::{ReduceMotion, Settings, ThemeMode, clamp_note_template, config_home};
 use crate::watch::{self, VaultSnapshot};
 
@@ -2781,10 +2781,18 @@ impl State {
 
     // ---- SAF-05: dirty-buffer crash recovery ---------------------------------
 
-    /// Where the recovery copy for `rel` lives. Exposed for tests and support.
+    /// Where the editor's recovery copy for `rel` lives. Exposed for tests
+    /// and support.
     #[must_use]
     pub fn recovery_path(&self, rel: &str) -> PathBuf {
         self.recovery.path_for(rel)
+    }
+
+    /// Where the Kanban page's recovery copy for `rel` lives. A different
+    /// file from [`State::recovery_path`], so Write's copy cannot replace it.
+    #[must_use]
+    pub fn kanban_recovery_path(&self, rel: &str) -> PathBuf {
+        self.recovery.path_for_slot(rel, RecoverySlot::Kanban)
     }
 
     /// One recovery tick: once the buffer has been idle for
@@ -2849,6 +2857,9 @@ impl State {
             return Ok(());
         }
         let text = self.editor.text.clone();
+        // The editor slot only. The Kanban page keeps its own file, so this
+        // write cannot replace the card edit or make the page believe a
+        // copy is current when that file now holds Write's text.
         self.recovery.save(&rel, &text)?;
         self.recovery_rel = Some(rel);
         self.recovery_text = Some(text);
@@ -2856,60 +2867,88 @@ impl State {
     }
 
     pub(crate) fn clear_recovery(&mut self, rel: &str) {
-        self.recovery.clear(rel);
-        self.recovered.retain(|entry| entry.rel != rel);
-        if self.recovery_rel.as_deref() == Some(rel) {
+        self.clear_recovery_slot(rel, RecoverySlot::Editor);
+    }
+
+    pub(crate) fn clear_recovery_slot(&mut self, rel: &str, slot: RecoverySlot) {
+        self.recovery.clear_slot(rel, slot);
+        self.recovered
+            .retain(|entry| !(entry.rel == rel && entry.slot == slot));
+        if slot == RecoverySlot::Editor && self.recovery_rel.as_deref() == Some(rel) {
             self.recovery_rel = None;
             self.recovery_text = None;
-        }
-        // MF1: Write and the Kanban page share one recovery slot per note.
-        // The page's edits are not in the file yet when Write saves (or Keep
-        // mine rewrites) the same note, so its record must not keep claiming
-        // a copy that just went: the next kanban tick writes the board's text
-        // again, and a quit cannot trust a record whose copy is gone.
-        if let Some(shown) = &mut self.kanban
-            && shown.rel == rel
-        {
-            shown.recovered = None;
         }
     }
 
     /// Dismiss the startup banner by discarding every listed copy. This is the
     /// explicit "I do not want these edits" action; it never touches the notes.
     pub fn dismiss_recovery(&mut self) -> bool {
-        let rels: Vec<String> = self
+        let entries: Vec<(String, RecoverySlot)> = self
             .recovered
             .iter()
-            .map(|entry| entry.rel.clone())
+            .map(|entry| (entry.rel.clone(), entry.slot))
             .collect();
-        for rel in rels {
-            self.clear_recovery(&rel);
+        for (rel, slot) in entries {
+            self.clear_recovery_slot(&rel, slot);
         }
         self.recovered.clear();
         true
     }
 
-    /// Throw away one recovery copy (and its banner row).
+    /// Throw away the recovery copies for `rel` (and their banner rows).
     pub fn discard_recovery(&mut self, rel: &str) -> bool {
-        self.clear_recovery(rel);
+        self.clear_recovery_slot(rel, RecoverySlot::Editor);
+        self.clear_recovery_slot(rel, RecoverySlot::Kanban);
         true
     }
 
     /// Load one recovered buffer into the editor as dirty. If the note no
     /// longer exists it is recreated at its original vault-relative path.
+    ///
+    /// When only the Kanban page's copy exists, that is what comes back.
+    /// When both slots exist, this loads the editor's; the banner passes
+    /// the slot so the card edit can be restored on its own.
     pub fn restore_recovery(&mut self, rel: &str) -> bool {
+        let slot = if self.recovery.load(rel).is_ok() {
+            RecoverySlot::Editor
+        } else if self.recovery.load_slot(rel, RecoverySlot::Kanban).is_ok() {
+            RecoverySlot::Kanban
+        } else {
+            RecoverySlot::Editor
+        };
+        self.restore_recovery_slot(rel, slot)
+    }
+
+    /// Load one slot's copy. The other slot for the same note stays on disk
+    /// and on the banner.
+    pub fn restore_recovery_slot(&mut self, rel: &str, slot: RecoverySlot) -> bool {
+        if slot == RecoverySlot::Kanban {
+            return match self.recovery.load_slot(rel, slot) {
+                Ok(text)
+                    if muninn_core::is_kanban(&text)
+                        && muninn_core::Kanban::parse(&text).is_ok() =>
+                {
+                    self.restore_kanban_recovery(rel, &text, RecoverySlot::Kanban)
+                }
+                Ok(_) => false,
+                Err(e) => {
+                    self.error = Some(format!("Could not read recovery copy: {e}"));
+                    false
+                }
+            };
+        }
         // #38 review B2: a board's copy opens on Board, never as a note.
         if crate::board_safety::is_board_rel(rel) {
             return self.restore_board_recovery(rel);
         }
-        // Kanban slice 7: a kanban note's copy opens on the Kanban page,
-        // flagged when the file is gone or holds something else, never
-        // written over it unasked.
+        // A kanban note's editor copy opens on the Kanban page, flagged when
+        // the file is gone or holds something else, never written over it
+        // unasked.
         if let Ok(text) = self.recovery.load(rel)
             && muninn_core::is_kanban(&text)
             && muninn_core::Kanban::parse(&text).is_ok()
         {
-            return self.restore_kanban_recovery(rel, &text);
+            return self.restore_kanban_recovery(rel, &text, RecoverySlot::Editor);
         }
         let Some(id) = self.vault.notes.iter().find(|n| n.rel == rel).map(|n| n.id) else {
             return self.restore_missing_note(rel);
@@ -2959,21 +2998,23 @@ impl State {
             self.error = Some(format!("Could not persist recovery copy: {e}"));
         }
         self.log_event("recovery", &format!("restored {rel}"));
-        self.recovered.retain(|entry| entry.rel != rel);
+        self.recovered
+            .retain(|entry| !(entry.rel == rel && entry.slot == RecoverySlot::Editor));
         true
     }
 
-    /// Restore every listed buffer. Each restored note is flushed to disk
-    /// before the next one opens, so the last one stays in the editor.
+    /// Restore every listed buffer, each from its own slot. Each restored
+    /// note is flushed to disk before the next one opens, so the last one
+    /// stays in the editor.
     pub fn restore_all_recovery(&mut self) -> bool {
-        let rels: Vec<String> = self
+        let entries: Vec<(String, RecoverySlot)> = self
             .recovered
             .iter()
-            .map(|entry| entry.rel.clone())
+            .map(|entry| (entry.rel.clone(), entry.slot))
             .collect();
         let mut restored = true;
-        for rel in rels {
-            restored &= self.restore_recovery(&rel);
+        for (rel, slot) in entries {
+            restored &= self.restore_recovery_slot(&rel, slot);
         }
         restored
     }

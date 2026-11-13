@@ -3300,12 +3300,13 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
         );
     for (index, entry) in s.recovered.iter().take(3).enumerate() {
         let rel = entry.rel.clone();
+        let slot = entry.slot;
         banner = banner.child(
             row()
                 .gap(4.0)
                 .center_y()
                 .child(
-                    text(entry.rel.clone())
+                    text(rel.clone())
                         .font(k.ty.caption())
                         .color(k.c.text_muted)
                         .max_w(190.0)
@@ -3317,7 +3318,7 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
                         .py(3.0)
                         .child(text("Restore").font(k.ty.caption()).color(k.c.text_base))
                         .on_press(move |s: &mut State| {
-                            s.restore_recovery(&rel);
+                            s.restore_recovery_slot(&rel, slot);
                         }),
                 ),
         );
