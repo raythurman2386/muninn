@@ -24,6 +24,7 @@ mkdirSync(join(OUT, 'shots'), { recursive: true });
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript',
   '.svg': 'image/svg+xml', '.webp': 'image/webp', '.png': 'image/png', '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
   '.woff2': 'font/woff2', '.txt': 'text/plain', '.json': 'application/json',
 };
 
@@ -80,7 +81,13 @@ async function capture(browser, url, vp, theme, file, reducedMotion = 'no-prefer
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error' && !/umami|ERR_FAILED/i.test(m.text())) errors.push(m.text()); });
   await page.goto(url, { waitUntil: 'load' });
-  await page.addStyleTag({ content: FREEZE_CSS });
+  // Adopted stylesheets are applied by the CSSOM, so this freeze still works
+  // when the page is served with style-src 'self' (NEW_URL against nginx).
+  await page.evaluate((css) => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  }, FREEZE_CSS);
   // Load lazy stills, wait for fonts, and freeze the hero loop on frame 0 so diffs are deterministic.
   const state = await page.evaluate(async () => {
     for (const img of document.images) img.loading = 'eager';
@@ -93,9 +100,15 @@ async function capture(browser, url, vp, theme, file, reducedMotion = 'no-prefer
       v.pause();
       await new Promise((r) => { v.addEventListener('seeked', r, { once: true }); v.currentTime = 0; });
     }
+    const videoSrc = v
+      ? (v.getAttribute('src')
+        || Array.from(v.querySelectorAll('source')).map((s) => s.getAttribute('src')).filter(Boolean).join(',')
+        || v.currentSrc
+        || 'mounted')
+      : null;
     return {
       theme: document.documentElement.getAttribute('data-theme'),
-      video: v ? v.getAttribute('src') : null,
+      video: videoSrc,
       pauseHidden: document.querySelector('.motion-toggle').hidden,
       umamiTags: document.querySelectorAll('script[src*="umami-app.ravenwoodsoftware.dev"]').length,
       title: document.title,

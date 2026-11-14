@@ -2,30 +2,13 @@
 // Muninn marketing page, ported 1:1 from the static site/index.html (Astro W1).
 // Copy, markup and class names are unchanged; asset URLs are root-absolute (served from public/).
 import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { OG } from '../lib/og';
 ---
-<Base>
+<Base ogImage={OG.home.image} ogImageAlt={OG.home.alt}>
   <a class="skip" href="#main">Skip to content</a>
-
-  <header class="site-header">
-    <div class="wrap header-row">
-      <a class="brand" href="#top" aria-label="Muninn, back to top">
-        <img src="/assets/logo.svg" alt="" width="28" height="28">
-        <span>Muninn</span>
-      </a>
-      <nav aria-label="Primary">
-        <ul class="nav">
-          <li><a href="#features">Features</a></li>
-          <li><a href="/download/">Download</a></li>
-          <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
-        </ul>
-      </nav>
-      <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Use light theme">
-        <svg class="i-sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 1.75v2M10 16.25v2M1.75 10h2M16.25 10h2M4.17 4.17l1.41 1.41M14.42 14.42l1.41 1.41M4.17 15.83l1.41-1.41M14.42 5.58l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <svg class="i-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A6.75 6.75 0 0 1 7.8 3.5a6.75 6.75 0 1 0 8.7 8.7Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-        <span class="toggle-label">Light</span>
-      </button>
-    </div>
-  </header>
+  <Header home />
 
   <main id="main">
     <section class="hero" id="top" aria-labelledby="hero-title">
@@ -52,11 +35,11 @@ import Base from '../layouts/Base.astro';
         <figure class="hero-media frame">
           <div class="media" data-hero>
             <!-- Still first; main.js swaps in the loop only when motion is allowed. -->
-            <img class="hero-still only-dark" src="/assets/img/dark/preview-1600.webp" width="1600" height="1058" alt="Muninn in Read mode: the note “Huginn and Muninn” open in the middle, the note list on the left, and outgoing links and backlinks on the right.">
-            <img class="hero-still only-light" src="/assets/img/light/preview-1600.webp" width="1600" height="1058" alt="Muninn in Read mode, light theme: the note “Huginn and Muninn” with its note list, outgoing links, and backlinks." loading="lazy">
+            <img class="hero-still only-dark" src="/assets/img/dark/preview-1600.webp" width="1600" height="1058" alt="Muninn in Read mode: the note “Launch Checklist” open in the middle, the note list on the left, and outgoing links and backlinks on the right.">
+            <img class="hero-still only-light" src="/assets/img/light/preview-1600.webp" width="1600" height="1058" alt="Muninn in Read mode, light theme: the note “Launch Checklist” with its note list, outgoing links, and backlinks." loading="lazy">
           </div>
           <figcaption>
-            <span>Search, open a note, glide across the graph, then drop into its local neighborhood.</span>
+            <span>Read a note, search, glide the graph, then open Board and Kanban.</span>
             <button class="motion-toggle" type="button" hidden aria-pressed="false">Pause</button>
           </figcaption>
         </figure>
@@ -74,8 +57,8 @@ import Base from '../layouts/Base.astro';
           <p>Write, Read, and Graph are three views of the same file. Links rail on the right: outgoing links, backlinks, and the line that made each one.</p>
         </div>
         <figure class="frame">
-          <img class="only-dark" src="/assets/img/dark/notes-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn in Write mode, editing the Markdown source of a note, with the note list and links rail.">
-          <img class="only-light" src="/assets/img/light/notes-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn in Write mode, light theme, editing the Markdown source of a note.">
+          <img class="only-dark" src="/assets/img/dark/notes-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn in Write mode, editing the Markdown source of “Product Roadmap”, with the note list and links rail.">
+          <img class="only-light" src="/assets/img/light/notes-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn in Write mode, light theme, editing the Markdown source of “Product Roadmap”.">
         </figure>
       </article>
 
@@ -85,8 +68,8 @@ import Base from '../layouts/Base.astro';
           <p>Every <code>[[wikilink]]</code> becomes an edge. Select a node and the camera glides to it; hub notes draw larger.</p>
         </div>
         <figure class="frame">
-          <img class="only-dark" src="/assets/img/dark/graph-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's global knowledge graph: 34 notes and their links, with “Huginn and Muninn” selected.">
-          <img class="only-light" src="/assets/img/light/graph-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's global knowledge graph in the light theme, with “Huginn and Muninn” selected.">
+          <img class="only-dark" src="/assets/img/dark/graph-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's global knowledge graph: 15 notes and their links, with “Home” selected.">
+          <img class="only-light" src="/assets/img/light/graph-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's global knowledge graph in the light theme, with “Home” selected.">
         </figure>
       </article>
 
@@ -96,8 +79,8 @@ import Base from '../layouts/Base.astro';
           <p>Local graph keeps the open note and the notes it touches. One click from the links rail, one shortcut from anywhere.</p>
         </div>
         <figure class="frame">
-          <img class="only-dark" src="/assets/img/dark/local-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's local graph: the note “Knowledge Graph” selected, with only the notes it links to or from.">
-          <img class="only-light" src="/assets/img/light/local-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's local graph in the light theme: “Knowledge Graph” selected, with only its direct neighbors.">
+          <img class="only-dark" src="/assets/img/dark/local-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's local graph: the note “Home” selected, with only the notes it links to or from.">
+          <img class="only-light" src="/assets/img/light/local-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's local graph in the light theme: “Home” selected, with only its direct neighbors.">
         </figure>
       </article>
     </section>
@@ -120,7 +103,7 @@ import Base from '../layouts/Base.astro';
           </li>
           <li>
             <h3>Sync is optional</h3>
-            <p>Off until you connect Google Drive, a GitHub repository, or a device on your Tailscale network. No Muninn account. <a href="https://github.com/raythurman2386/muninn/blob/main/PRIVACY.md">Privacy</a></p>
+            <p>Off until you connect Google Drive, a GitHub repository, or a device on your Tailscale network. No Muninn account. <a href="/privacy/">Privacy</a></p>
           </li>
         </ul>
       </div>
@@ -136,15 +119,5 @@ import Base from '../layouts/Base.astro';
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="wrap footer-row">
-      <p class="footer-brand"><img src="/assets/logo.svg" alt="" width="18" height="18"> Muninn · Ravenwood Software</p>
-      <ul class="footer-links">
-        <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
-        <li><a href="https://github.com/raythurman2386/muninn/blob/main/LICENSE">MIT License</a></li>
-        <li><a href="https://github.com/raythurman2386/muninn/blob/main/PRIVACY.md">Privacy</a></li>
-      </ul>
-      <p class="credit">Built with <a href="https://github.com/anomalyco/rune">Rune</a></p>
-    </div>
-  </footer>
+  <Footer />
 </Base>

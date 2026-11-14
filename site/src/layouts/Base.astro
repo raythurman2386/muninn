@@ -2,7 +2,7 @@
 /*
   Muninn marketing page, live at https://muninn.ravenwoodsoftware.dev (deployed with GoForge).
   Theme tokens: rune-theme-opencode (anomalyco/rune @ b39c24f7), as pinned by muninn main 847f1aa.
-  Base layout for the Astro port (W1): the <head> of the old static site/index.html, unchanged.
+  Base layout: the W1 <head>, plus W3 favicons, canonical URL and social meta.
 */
 import '../styles/tokens.css';
 import '../styles/site.css';
@@ -10,12 +10,37 @@ import '../styles/site.css';
 interface Props {
   title?: string;
   description?: string;
+  canonicalPath?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogType?: string;
+  ogImage?: string;
+  ogImageAlt?: string;
+  noindex?: boolean;
 }
 
+export const SITE_ORIGIN = 'https://muninn.ravenwoodsoftware.dev';
+const DEFAULT_TITLE = 'Muninn — a local-first Markdown vault with a knowledge graph';
+const DEFAULT_DESCRIPTION = 'Muninn is a local-first Markdown vault with [[wikilinks]] and a knowledge graph. Every note is a plain file you can read, move, diff, and version-control. MIT licensed.';
+const DEFAULT_OG_DESCRIPTION = 'A local-first Markdown vault with [[wikilinks]] and a knowledge graph.';
+const DEFAULT_OG_IMAGE = '/assets/og.png';
+
 const {
-  title = 'Muninn — a local-first Markdown vault with a knowledge graph',
-  description = 'Muninn is a local-first Markdown vault with [[wikilinks]] and a knowledge graph. Every note is a plain file you can read, move, diff, and version-control. MIT licensed.',
+  title = DEFAULT_TITLE,
+  description = DEFAULT_DESCRIPTION,
+  canonicalPath,
+  ogTitle = title === DEFAULT_TITLE ? 'Muninn' : title,
+  ogDescription = DEFAULT_OG_DESCRIPTION,
+  ogType = 'website',
+  ogImage = DEFAULT_OG_IMAGE,
+  ogImageAlt = 'Muninn logo and the words “Muninn — a local-first Markdown vault with a knowledge graph.”',
+  noindex = false,
 } = Astro.props;
+
+const rawPath = canonicalPath ?? Astro.url.pathname;
+const path = rawPath === '' || rawPath === '/' ? '/' : rawPath.endsWith('/') ? rawPath : `${rawPath}/`;
+const canonical = `${SITE_ORIGIN}${path}`;
+const ogImageAbs = ogImage.startsWith('http') ? ogImage : `${SITE_ORIGIN}${ogImage}`;
 ---
 <!doctype html>
 <html lang="en" data-theme="dark">
@@ -24,13 +49,32 @@ const {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title}</title>
   <meta name="description" content={description}>
+  {noindex && <meta name="robots" content="noindex">}
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#080808" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
-  <meta property="og:title" content="Muninn">
-  <meta property="og:description" content="A local-first Markdown vault with [[wikilinks]] and a knowledge graph.">
-  <meta property="og:type" content="website">
-  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  {!noindex && <link rel="canonical" href={canonical}>}
+  {!noindex && <meta property="og:url" content={canonical}>}
+  <meta property="og:title" content={ogTitle}>
+  <meta property="og:description" content={ogDescription}>
+  <meta property="og:type" content={ogType}>
+  <meta property="og:site_name" content="Muninn">
+  <meta property="og:image" content={ogImageAbs}>
+  <meta property="og:image:alt" content={ogImageAlt}>
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content={ogTitle}>
+  <meta name="twitter:description" content={ogDescription}>
+  <meta name="twitter:image" content={ogImageAbs}>
+  <meta name="twitter:image:alt" content={ogImageAlt}>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16">
+  <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/icon-192x192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
+  <link rel="manifest" href="/site.webmanifest">
   <link rel="preload" href="/assets/fonts/InterVariable-latin.woff2" as="font" type="font/woff2" crossorigin>
   <script is:inline>
     // First paint: saved choice, else the system appearance, else dark.

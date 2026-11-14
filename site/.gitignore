@@ -3,3 +3,7 @@ node_modules/
 dist/
 .astro/
 .proof-w1/
+.proof-w3/
+.proof-w8/
+# Generated from dist/ by scripts/csp.mjs after astro build.
+nginx/security-headers.conf

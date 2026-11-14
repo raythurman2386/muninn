@@ -9,12 +9,14 @@ on:
       - "site/**"
       - "Dockerfile.marketing"
       - ".dockerignore"
+      - "PRIVACY.md"
       - ".github/workflows/site.yml"
   pull_request:
     paths:
       - "site/**"
       - "Dockerfile.marketing"
       - ".dockerignore"
+      - "PRIVACY.md"
       - ".github/workflows/site.yml"
 
 permissions:
@@ -52,9 +54,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Privacy text
+        run: npm run verify:privacy
+
+      - name: CSP hashes
+        run: npm run verify:csp
+
       - name: Build output
         run: |
           test -f dist/index.html
+          test -f nginx/security-headers.conf
           du -sh dist
           find dist -maxdepth 2 -type f -not -path 'dist/assets/*' | sort
 

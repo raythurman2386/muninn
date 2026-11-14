@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # HTTP smoke test for the served marketing site (the Docker image in CI, or a local nginx).
 # Usage: site/scripts/smoke-http.sh http://127.0.0.1:8080
-# Checks status codes, content types, cache headers, security headers, gzip, video Range support and /download/.
+# Checks status codes, content types, cache headers, security headers (including CSP),
+# gzip, video Range support, /privacy/, /download/, sitemap, robots.txt, the branded 404,
+# /sponsor/ and /press/.
 set -euo pipefail
 BASE="${1:?usage: smoke-http.sh BASE_URL}"
 BASE="${BASE%/}"
@@ -58,9 +60,113 @@ expect "video Range length" "$h" '^content-length: 1024'
 h=$(hdr -H 'Range: bytes=1000000-' "$v")
 expect "video open Range 206" "$h" '^HTTP/[0-9.]+ 206'
 
+check_webm() {
+  local name="$1" w="$2"
+  local h
+  h=$(hdr "$w")
+  expect "$name 200" "$h" '^HTTP/[0-9.]+ 200'
+  expect "$name video/webm" "$h" '^content-type: video/webm'
+  expect "$name accept-ranges" "$h" '^accept-ranges: bytes'
+  h=$(hdr -H 'Range: bytes=0-1023' "$w")
+  expect "$name Range 206" "$h" '^HTTP/[0-9.]+ 206'
+  expect "$name Range content-range" "$h" '^content-range: bytes 0-1023/[0-9]+'
+  expect "$name Range length" "$h" '^content-length: 1024'
+}
+check_webm "dark webm" "$BASE/assets/video/dark-hero-tour.webm"
+check_webm "light webm" "$BASE/assets/video/light-hero-tour.webm"
+
 h=$(hdr "$BASE/definitely-not-here")
 expect "missing page 404" "$h" '^HTTP/[0-9.]+ 404'
 expect "404 keeps nosniff" "$h" '^x-content-type-options: nosniff'
+expect "404 has CSP" "$h" '^content-security-policy:'
+body404=$(curl -sS "$BASE/definitely-not-here")
+expect "404 is branded" "$body404" 'Page not found'
+
+# W3: CSP and the rest of the security headers on /
+h=$(hdr "$BASE/")
+expect "/ CSP header" "$h" '^content-security-policy:'
+expect "/ CSP default-src self" "$h" "content-security-policy:.*default-src 'self'"
+if grep -qiE "content-security-policy:.*unsafe-inline" <<<"$h"; then echo "FAIL / CSP contains unsafe-inline"; fail=1; else echo "ok   / CSP has no unsafe-inline"; fi
+expect "/ CSP allows Umami" "$h" "content-security-policy:.*umami-app\\.ravenwoodsoftware\\.dev"
+expect "/ permissions-policy" "$h" '^permissions-policy: camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)'
+
+h=$(hdr "$BASE/privacy/")
+expect "/privacy/ 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/privacy/ text/html" "$h" '^content-type: text/html'
+privacy=$(curl -sS "$BASE/privacy/")
+expect "/privacy/ has the policy heading" "$privacy" 'Privacy Policy'
+expect "/privacy/ has the effective date" "$privacy" 'Effective date: November 9, 2026'
+expect "/privacy/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$privacy" | wc -l)" '^1$'
+# The page must render the repo file, not a hand-copied fork: a distinctive sentence.
+expect "/privacy/ matches PRIVACY.md" "$privacy" 'Muninn does not create a Muninn account'
+
+h=$(hdr "$BASE/robots.txt")
+expect "/robots.txt 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/robots.txt text/plain" "$h" '^content-type: text/plain'
+robots=$(curl -sS "$BASE/robots.txt")
+expect "/robots.txt has a Sitemap" "$robots" 'Sitemap: https://muninn.ravenwoodsoftware.dev/sitemap-index.xml'
+expect "/robots.txt keeps content signals" "$robots" 'Content-Signal: search=yes,ai-train=no,use=reference'
+
+h=$(hdr "$BASE/sitemap-index.xml")
+expect "/sitemap-index.xml 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/sitemap-index.xml xml" "$h" '^content-type: application/(xml|xml-sitemap|rss\+xml)|text/xml'
+sitemap=$(curl -sS "$BASE/sitemap-index.xml")
+expect "/sitemap-index.xml is a sitemap index" "$sitemap" 'sitemapindex'
+
+h=$(hdr "$BASE/sitemap.xml")
+expect "/sitemap.xml 200 (alias)" "$h" '^HTTP/[0-9.]+ 200'
+
+h=$(hdr "$BASE/favicon.ico")
+expect "/favicon.ico 200" "$h" '^HTTP/[0-9.]+ 200'
+h=$(hdr "$BASE/favicon.svg")
+expect "/favicon.svg 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/favicon.svg svg" "$h" '^content-type: image/svg\+xml'
+h=$(hdr "$BASE/site.webmanifest")
+expect "/site.webmanifest 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/site.webmanifest type" "$h" '^content-type: application/manifest\+json'
+h=$(hdr "$BASE/assets/og.png")
+expect "/assets/og.png 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/assets/og.png png" "$h" '^content-type: image/png'
+
+# Every inline script in the served HTML must have a sha256 in the CSP header.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! node "$SCRIPT_DIR/csp.mjs" check --url "$BASE"; then
+  echo "FAIL CSP hashes vs served HTML"
+  fail=1
+fi
+
+# /sponsor/ and /press/ (W8). Kept at the end so a merge with W3/W4's
+# extra checks applies cleanly above this block.
+body=$(curl -sS "$BASE/sponsor/")
+h=$(hdr "$BASE/sponsor/")
+expect "/sponsor/ 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/sponsor/ text/html" "$h" '^content-type: text/html'
+expect "/sponsor/ heading" "$body" 'Sponsor Muninn'
+expect "/sponsor/ GitHub Sponsors" "$body" 'https://github.com/sponsors/raythurman2386'
+expect "/sponsor/ no payment form" "$(grep -ciE '<form' <<<"$body")" '^0$'
+expect "/sponsor/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$body" | wc -l)" '^1$'
+expect "/sponsor/ og:image" "$body" 'property="og:image" content="https://muninn.ravenwoodsoftware.dev/assets/og/sponsor.png"'
+
+body=$(curl -sS "$BASE/press/")
+h=$(hdr "$BASE/press/")
+expect "/press/ 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/press/ text/html" "$h" '^content-type: text/html'
+expect "/press/ heading" "$body" '<h1>Press</h1>'
+expect "/press/ logo svg" "$body" '/assets/logo.svg'
+expect "/press/ logo png" "$body" '/assets/logo.png'
+expect "/press/ version" "$body" 'v0\.8\.2'
+expect "/press/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$body" | wc -l)" '^1$'
+expect "/press/ og:image" "$body" 'property="og:image" content="https://muninn.ravenwoodsoftware.dev/assets/og/press.png"'
+
+h=$(hdr "$BASE/assets/og.png")
+expect "og home 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "og home png" "$h" '^content-type: image/png'
+h=$(hdr "$BASE/assets/og/sponsor.png")
+expect "og sponsor 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "og sponsor png" "$h" '^content-type: image/png'
+h=$(hdr "$BASE/assets/logo.png")
+expect "logo png 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "logo png type" "$h" '^content-type: image/png'
 
 # W4: /download/ is built from the latest GitHub Release (or the committed snapshot).
 h=$(hdr "$BASE/download/")
@@ -72,6 +178,10 @@ expect "/download/ names the glibc requirement" "$download" 'glibc 2.43'
 expect "/download/ has a checksum" "$download" 'SHA-256'
 expect "/download/ has a cosign verify snippet" "$download" 'cosign verify-blob'
 expect "/download/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$download" | wc -l)" '^1$'
+expect "/download/ nav points at /download/" "$download" 'href="/download/"'
+expect "/download/ footer Privacy is /privacy/" "$download" 'href="/privacy/"'
+expect "/download/ names Intel Macs not supported" "$download" 'Intel Macs not supported'
+expect "/download/ og:image" "$download" 'property="og:image" content="https://muninn.ravenwoodsoftware.dev/assets/og/download.png"'
 
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"

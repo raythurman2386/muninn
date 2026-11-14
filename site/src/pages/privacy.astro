@@ -1,0 +1,28 @@
+---
+// /privacy/ is rendered from the repo's PRIVACY.md at build time. The site
+// does not keep a second copy of the text. Dockerfile.marketing copies
+// PRIVACY.md into the image build context next to site/.
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { renderRepoMarkdown } from '../lib/repo-markdown';
+import { OG } from '../lib/og';
+
+const { code } = await renderRepoMarkdown('PRIVACY.md');
+---
+<Base
+  title="Privacy Policy — Muninn"
+  description="Muninn is a local-first notes app. This policy describes what happens when you use optional sync and when you visit the Muninn website."
+  canonicalPath="/privacy/"
+  ogTitle="Privacy Policy — Muninn"
+  ogDescription="What happens when you use optional sync in Muninn, and when you visit the Muninn website."
+  ogImage={OG.privacy.image}
+  ogImageAlt={OG.privacy.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header />
+  <main id="main" class="page-main">
+    <article class="wrap doc" set:html={code} />
+  </main>
+  <Footer />
+</Base>

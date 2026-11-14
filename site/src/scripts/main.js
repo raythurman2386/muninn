@@ -1,5 +1,7 @@
 // Muninn site: theme toggle (page chrome + product stills + hero loop) and a motion-safe hero video.
 // Bundled by Astro as a module script (deferred, like the old <script defer src="main.js">).
+// The hero and pause button exist only on the home page; the theme toggle must still
+// run on /privacy/ and the 404 page when those elements are absent.
 (function () {
   var root = document.documentElement;
   var KEY = 'muninn-theme';
@@ -13,6 +15,7 @@
   function theme() { return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
 
   function syncToggle() {
+    if (!toggle) return;
     var next = theme() === 'dark' ? 'light' : 'dark';
     toggle.setAttribute('aria-label', 'Use ' + next + ' theme');
     toggle.setAttribute('aria-pressed', String(theme() === 'light'));
@@ -21,11 +24,29 @@
     for (var i = 0; i < meta.length; i++) meta[i].setAttribute('content', theme() === 'dark' ? '#080808' : '#fafafa');
   }
 
-  function heroSrc() { return '/assets/video/' + theme() + '-hero-tour.mp4'; }
+  function heroBase() { return '/assets/video/' + theme() + '-hero-tour'; }
   function posterSrc() { return '/assets/img/' + theme() + '/preview-1600.webp'; }
 
+  function applyHeroSources() {
+    var base = heroBase();
+    if (video.getAttribute('data-hero-base') === base) return;
+    video.setAttribute('data-hero-base', base);
+    video.setAttribute('poster', posterSrc());
+    video.removeAttribute('src');
+    while (video.firstChild) video.removeChild(video.firstChild);
+    var webm = document.createElement('source');
+    webm.type = 'video/webm; codecs=vp9';
+    webm.src = base + '.webm';
+    var mp4 = document.createElement('source');
+    mp4.type = 'video/mp4';
+    mp4.src = base + '.mp4';
+    video.appendChild(webm);
+    video.appendChild(mp4);
+    video.load();
+  }
+
   function mountVideo() {
-    if (!hero) return;
+    if (!hero || !pauseBtn) return;
     if (reduce.matches) { unmountVideo(); return; }
     if (!video) {
       video = document.createElement('video');
@@ -33,16 +54,11 @@
       video.loop = true; video.playsInline = true; video.autoplay = true;
       video.setAttribute('muted', ''); video.setAttribute('playsinline', '');
       video.setAttribute('preload', 'auto');
-      video.setAttribute('aria-label', 'Muninn tour: search for a note, open it, glide across the global graph, then open the local graph from the command palette.');
+      video.setAttribute('aria-label', 'Muninn tour: Read a note, search, glide the graph, then open Board and Kanban.');
       hero.appendChild(video);
       if (pauseBtn) pauseBtn.hidden = false;
     }
-    var src = heroSrc();
-    if (video.getAttribute('src') !== src) {
-      video.setAttribute('poster', posterSrc());
-      video.setAttribute('src', src);
-      video.load();
-    }
+    applyHeroSources();
     if (!userPaused) { var p = video.play(); if (p && p.catch) p.catch(function () {}); }
     syncPause();
   }
@@ -60,13 +76,15 @@
     pauseBtn.setAttribute('aria-label', paused ? 'Play the tour video' : 'Pause the tour video');
   }
 
-  toggle.addEventListener('click', function () {
-    var next = theme() === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    try { localStorage.setItem(KEY, next); } catch (e) {}
-    syncToggle();
-    if (video) mountVideo();
-  });
+  if (toggle) {
+    toggle.addEventListener('click', function () {
+      var next = theme() === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+      syncToggle();
+      if (video) mountVideo();
+    });
+  }
 
   if (pauseBtn) {
     pauseBtn.addEventListener('click', function () {

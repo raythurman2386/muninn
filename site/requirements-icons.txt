@@ -1,0 +1,4 @@
+# Python deps for site/scripts/generate-og-wordmark.py (regenerating the OG
+# wordmark from Inter). The usual icon pipeline (generate-icons.mjs) rasterizes
+# the committed SVG and does not need these.
+fonttools==4.65.0

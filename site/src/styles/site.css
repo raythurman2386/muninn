@@ -134,7 +134,7 @@ h1 .soft { color: var(--text-muted); }
 .footer-row p { margin: 0; }
 .footer-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text-base); font-weight: 500; }
 .footer-brand img { border-radius: var(--r-sm); }
-.footer-links { display: flex; gap: 20px; list-style: none; margin: 0 auto 0 0; padding: 0; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 12px 20px; list-style: none; margin: 0 auto 0 0; padding: 0; }
 .footer-links a, .credit a { color: var(--text-muted); }
 .footer-links a:hover, .credit a:hover { color: var(--text-base); }
 .credit { font-size: 13px; }
@@ -160,4 +160,81 @@ h1 .soft { color: var(--text-muted); }
 
 @media (forced-colors: active) {
   .dl, .theme-toggle, .motion-toggle { border: 1px solid CanvasText; }
+}
+
+/* Document pages (/privacy/) and the branded 404. Rules are scoped so the
+   landing-page typography (bare h1, .cta, .section-title) stays unchanged. */
+.page-main {
+  padding: clamp(48px, 8vw, 96px) 0 clamp(64px, 10vw, 120px);
+}
+.doc {
+  max-width: 720px;
+  margin-inline: auto;
+}
+.doc h1 {
+  margin: 0 0 0.4em;
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 640;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.doc h2 {
+  margin: 2.2em 0 0.6em;
+  font-size: 1.25rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.doc h3 {
+  margin: 1.6em 0 0.45em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.doc p, .doc li {
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.65;
+}
+.doc p { margin: 0 0 1em; }
+.doc ul, .doc ol { margin: 0 0 1em; padding-left: 1.25em; }
+.doc li + li { margin-top: 0.35em; }
+.doc code { font-size: 0.875em; }
+
+/* Keep the 404 footer at the bottom of the viewport; does not apply to home. */
+body:has(.not-found) {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+body:has(.not-found) main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.not-found {
+  text-align: center;
+  padding: clamp(48px, 8vw, 80px) 0;
+}
+.not-found img { display: block; margin: 0 auto 28px; }
+.not-found h1 {
+  margin: 0;
+  font-size: clamp(32px, 4.4vw, 52px);
+  font-weight: 640;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.not-found p {
+  margin: 16px auto 0;
+  max-width: 28em;
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1.6;
+}
+.not-found-cta {
+  margin: 32px auto 0;
+  display: flex;
+  justify-content: center;
 }
