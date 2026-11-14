@@ -2507,6 +2507,10 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("[[", "Wikilink completion"),
                 ("# (card editor)", "Vault tag completion"),
                 ("Tab (editor)", "Indent four spaces"),
+                (
+                    "Paste (editor)",
+                    "Rich text becomes Markdown; a URL over a selection becomes a link",
+                ),
                 ("F2", "Rename the selected note (on Board: the board)"),
                 ("Del", "Delete the selected note"),
             ],
@@ -4018,6 +4022,10 @@ fn editor(s: &State, k: &Kit) -> El {
                 k.c.text_faint,
             )
             .on_edit(|s: &mut State| &mut s.editor)
+            // #111: rich clipboard text becomes Markdown, and a URL pasted over
+            // a selection becomes a link. Anything else declines, so Rune's
+            // plain-text paste (already-Markdown included) is unchanged.
+            .on_input_paste(|s: &mut State, content, _| s.editor_paste(content))
             // EDT-05: Enter closes `[[`, continues lists, or inserts a newline.
             .on_submit(|s: &mut State, _| s.editor_enter())
             .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {

@@ -218,6 +218,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `[[` (editor) | Open wikilink completion for the note being typed |
 | `Enter` (editor) | Continue a list item, end an empty one, or close an open `[[` when completion is not showing |
 | `Tab` (editor) | Indent four spaces instead of leaving the note |
+| Paste (editor) | Rich text from a browser or document pastes as Markdown (headings, lists, links, emphasis); a single URL pasted over a selection becomes `[selection](url)`, and plain text — Markdown included — pastes unchanged |
 | `↑` / `↓` (completion) | Move the highlighted suggested note |
 | `Enter` / `Tab` (completion) | Insert `[[stem]]` for the highlighted note |
 | `Esc` (completion) | Dismiss the list, then find, then prompts and menus |
