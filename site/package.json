@@ -10,14 +10,21 @@
   },
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
-    "build": "astro build",
+    "build": "astro build && node scripts/csp.mjs generate",
     "preview": "astro preview --host 127.0.0.1",
     "check": "astro check",
     "verify:w1": "bash scripts/verify-w1.sh",
+    "generate:icons": "node scripts/generate-icons.mjs",
+    "verify:privacy": "node scripts/verify-privacy.mjs",
+    "verify:csp": "node scripts/csp.mjs prove",
+    "verify:pages": "node scripts/verify-pages.mjs",
     "generate:og": "node scripts/generate-og.mjs",
     "verify:w8": "node scripts/verify-w8.mjs"
   },
   "dependencies": {
+    "@astrojs/internal-helpers": "0.13.2",
+    "@astrojs/markdown-satteri": "0.4.10",
+    "@astrojs/sitemap": "3.7.5",
     "astro": "7.4.12"
   },
   "devDependencies": {
