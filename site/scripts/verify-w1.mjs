@@ -17,7 +17,7 @@ const OLD = resolve(args.old);
 const NEW = resolve(args.new);
 const OUT = resolve(args.out);
 const CHROME = process.env.CHROME_PATH || '/usr/bin/google-chrome';
-const MAX_DIFF_PCT = Number(process.env.MAX_DIFF_PCT || 1);
+const MAX_DIFF_PIXELS = Number(process.env.MAX_DIFF_PIXELS || 0);
 const UMAMI = /umami-app\.ravenwoodsoftware\.dev/;
 mkdirSync(join(OUT, 'shots'), { recursive: true });
 
@@ -117,15 +117,20 @@ function diff(aFile, bFile, outFile) {
   const w = Math.max(a.width, b.width), h = Math.max(a.height, b.height);
   const pad = (img) => {
     if (img.width === w && img.height === h) return img;
-    const p = new PNG({ width: w, height: h }); p.data.fill(0); // pad with transparent black: counts as diff
+    const p = new PNG({ width: w, height: h }); p.data.fill(0); // transparent black padding: counts as diff
     PNG.bitblt(img, p, 0, 0, img.width, img.height, 0, 0);
     return p;
   };
   const A = pad(a), B = pad(b), D = new PNG({ width: w, height: h });
-  const n = pixelmatch(A.data, B.data, D.data, w, h, { threshold: 0.1 });
+  let n = 0;
+  for (let i = 0; i < A.data.length; i += 4) {
+    if (A.data[i] !== B.data[i] || A.data[i + 1] !== B.data[i + 1] || A.data[i + 2] !== B.data[i + 2] || A.data[i + 3] !== B.data[i + 3]) n++;
+  }
+  pixelmatch(A.data, B.data, D.data, w, h, { threshold: 0, includeAA: true });
   writeFileSync(outFile, PNG.sync.write(D));
-  return { pixels: n, total: w * h, pct: (100 * n) / (w * h), oldSize: `${a.width}x${a.height}`, newSize: `${b.width}x${b.height}` };
+  return { pixels: n, total: w * h, pct: (100 * n) / (w * h), oldSize: `${a.width}x${a.height}`, newSize: `${b.width}x${b.height}`, sameSize: a.width === b.width && a.height === b.height };
 }
+const within = (d) => d.sameSize && d.pixels <= MAX_DIFF_PIXELS;
 
 const oldServer = await serve(OLD);
 const newServer = await serve(NEW);
