@@ -63,7 +63,7 @@ prefixed `missing:`. `muninn --help` prints this usage without starting Rune, an
 Preferences live in `$XDG_CONFIG_HOME/muninn/settings.json` (fallback
 `~/.config/muninn/`). The file is small JSON and is updated as you change things; a corrupt or
 missing file starts from defaults instead of blocking startup. It remembers the theme,
-collapsed folders, the last vault and note, Write/Read/Graph/Board mode, Global/Local scope, the
+collapsed folders, the last vault and note, Write/Read/Graph/Board/Kanban mode, Global/Local scope, the
 autosave delay (0.55 s by default), the default note template, the Reduce motion choice, the tray, start-at-login and shortcut switches and up to five recent vaults. `Cmd/Ctrl+,`
 opens the in-window Settings page, split into tabs: **Vaults** (open or create a vault,
 or reopen a recent one), **Editor** (step the autosave delay, 0.05–10 s, and the default
@@ -96,7 +96,7 @@ always opens on the Vaults tab; the selected tab is not saved. A non-empty defau
 every new note (a trailing newline is added when missing); an empty template
 keeps the plain `# Title` body. Choices persist immediately,
 and `Esc` returns to the editor or search field that opened it. While Omarchy is
-followed the modal says so instead of offering a theme choice, matching the
+followed the page says so instead of offering a theme choice, matching the
 hidden sidebar theme toggle.
 
 The default theme follows the shared Omarchy system theme
@@ -136,7 +136,9 @@ counts, results) and **never note bodies**, so the file is safe to attach to a b
 `--trace` adds every autosave tick. The Help overlay shows the last five lines plus the
 version, Rune revision and vault counts, with a **Copy diagnostics** button.
 
-**Reduce motion** (Settings › Graph) is System by default, which follows the operating
+### Reduce motion
+
+The **Reduce motion** setting (Settings › Graph) is System by default, which follows the operating
 system's reduce-motion preference; On and Off override the OS. Files saved before the
 setting existed load as System. `MUNINN_REDUCED_MOTION=1` (also `true`, `yes` or `on`)
 forces reduced motion on whatever the setting says (handy for tests, CI and recorded
@@ -150,7 +152,7 @@ theme when motion is a problem.
 
 ## What it does
 
-- **Write / Read / Graph** modes for the same note.
+- **Write / Read / Graph / Board / Kanban** modes: Write, Read and Graph for a note, **Board** for a `.excalidraw` whiteboard, and **Kanban** for a kanban note.
 - Autosave after a short idle, with a `Saved` indicator in the status bar.
 - Searchable note list grouped by folder with collapsing sections, a links rail with outgoing links
   and backlinks (including the line that made each link), and a one-click local graph.
