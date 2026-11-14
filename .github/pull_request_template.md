@@ -23,6 +23,15 @@ for UI changes. Paste or link it here; never commit proof files.
 No secrets or private note contents.
 -->
 
+## Provenance
+
+<!--
+Where the work came from. Link the gather brief or issue that scoped it, or
+write "no brief" for a small self-contained fix.
+-->
+
+-
+
 ## Docs and changelog
 
 - [ ] `CHANGELOG.md` updated under `## [Unreleased]` (or not user-visible)

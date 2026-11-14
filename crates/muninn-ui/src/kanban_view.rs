@@ -637,10 +637,13 @@ fn header(s: &State, k: &Kit) -> El {
     };
     let head = head
         .child(
-            text(title)
+            text(title.clone())
                 .key("kanban-title")
                 .font(k.ty.ui_medium)
-                .color(k.c.text_base),
+                .color(k.c.text_base)
+                .shrink()
+                .truncate()
+                .help_when_truncated(title),
         )
         .child(
             text(shown.rel.clone())
