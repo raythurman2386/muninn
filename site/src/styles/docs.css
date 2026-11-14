@@ -222,3 +222,8 @@ body:has(.docs-shell) .page-main {
   font-size: 15px;
   font-weight: 400;
 }
+
+/* Nits: deep links must clear the sticky 61 px header, and long inline
+   code or URLs must wrap at 390 px instead of widening the page. */
+.doc :is(h1, h2, h3, h4) { scroll-margin-top: 80px; }
+.doc code, .doc a { overflow-wrap: anywhere; }
