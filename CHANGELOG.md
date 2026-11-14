@@ -4,6 +4,19 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Paste rich text as Markdown, and wrap a selection in a link (#111).**
+  Pasting from a browser or another document now keeps its structure: headings,
+  ordered and unordered lists, links, emphasis, blockquotes and line breaks
+  arrive as Markdown instead of a flat run of text. Pasting a single
+  `http`/`https` URL over a selected phrase replaces the selection with
+  `[selection](url)`; with nothing selected it stays plain text. Plain text —
+  already-Markdown text included — pastes exactly as before, and every paste is
+  one undo step saved by the normal autosave/`⌘S` path.
+
 ## [0.8.3] - 2026-11-14
 
 ### Changed

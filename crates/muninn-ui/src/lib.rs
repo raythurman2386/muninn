@@ -38,6 +38,7 @@ mod keys;
 mod mode;
 mod omarchy;
 mod overlay;
+mod paste;
 mod poll;
 mod recovery;
 mod settings;

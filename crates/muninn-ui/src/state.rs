@@ -2501,6 +2501,18 @@ impl State {
         self.editor.insert("    ");
     }
 
+    /// #111: paste into the Write editor.
+    ///
+    /// A single http(s) URL over a non-empty selection replaces the selection
+    /// with `[selection](url)`; rich clipboard text (HTML) becomes Markdown
+    /// through `crate::paste::html_to_markdown`. Both land in
+    /// `State.editor` as one undo step, so the ordinary autosave/`⌘S` path
+    /// saves them. Returns `false` for anything else, leaving Rune's plain
+    /// paste — and already-Markdown plain text — untouched.
+    pub fn editor_paste(&mut self, content: &rune::ClipboardContent) -> bool {
+        crate::paste::paste_into(&mut self.editor, content)
+    }
+
     /// DES-03: one layout tick. Reduced motion pins heat to zero and never
     /// moves a node; the deterministic seed positions stay where they are.
     ///
