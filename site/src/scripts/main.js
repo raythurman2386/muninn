@@ -32,7 +32,7 @@
     video.removeAttribute('src');
     while (video.firstChild) video.removeChild(video.firstChild);
     var webm = document.createElement('source');
-    webm.type = 'video/webm';
+    webm.type = 'video/webm; codecs=vp9';
     webm.src = base + '.webm';
     var mp4 = document.createElement('source');
     mp4.type = 'video/mp4';

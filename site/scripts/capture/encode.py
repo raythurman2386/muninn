@@ -43,9 +43,17 @@ def probe(path):
     return st["width"], st["height"], float(j["format"]["duration"]), st["codec_name"]
 
 
+def scale_size(src_w, src_h, width):
+    """Width x even height, same rounding as ffmpeg scale=W:-2."""
+    h = int(src_h * width / src_w)  # floor
+    if h % 2:
+        h -= 1
+    return width, max(h, 2)
+
+
 def save_still(src, dst_base, width):
     im = Image.open(src).convert("RGB")
-    h = round(im.height * width / im.width)
+    width, h = scale_size(im.width, im.height, width)
     im = im.resize((width, h), Image.LANCZOS)
     im.save(dst_base + ".png", optimize=True)
     im.save(dst_base + ".webp", quality=86, method=6)
@@ -114,7 +122,7 @@ def main():
                 dd = os.path.join(out, "dropin", "site", "public", "assets", "img", theme)
                 os.makedirs(dd, exist_ok=True)
                 im = Image.open(png).convert("RGB")
-                im = im.resize((1600, round(im.height * 1600 / im.width)), Image.LANCZOS)
+                im = im.resize(scale_size(im.width, im.height, 1600), Image.LANCZOS)
                 f = os.path.join(dd, DROPIN_IMG[name] + ".webp")
                 im.save(f, quality=86, method=6)
                 add(f, kind="dropin-still", theme=theme, scene=name)

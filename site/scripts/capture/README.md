@@ -8,10 +8,12 @@ CAPTURE_FETCH_RUNTIME=1 site/scripts/capture/capture.sh /path/to/scratch v0.8.2
 ```
 
 It downloads `muninn_<tag>_linux_x86_64.tar.gz` with `gh`, checks it against
-`checksums.txt` (and the cosign bundle when `sigstore` is installed), builds the
+`checksums.txt`, and verifies the cosign bundle with
+`sigstore verify identity` (workflow identity pinned to
+`release.yml@refs/tags/<tag>`). The sigstore check is required unless you pass
+`MUNINN_BIN=/path/muninn` or set `CAPTURE_SKIP_SIGSTORE=1`. It then builds the
 synthetic **Tidepool** vault (`make_vault.py`: a fake habit-tracker startup, no
 real data, 0 broken links), drives the app, and encodes the results.
-`MUNINN_BIN=/path/muninn` skips the download.
 
 | File | What it does |
 |---|---|
@@ -28,10 +30,12 @@ real data, 0 broken links), drives the app, and encodes the results.
 - `HOME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`,
   `XDG_RUNTIME_DIR` (0700) and `TMPDIR` under `WORKDIR/run/<scene>-<theme>/`,
   a fresh vault per scene, `dbus-run-session`, always `--new-instance`.
-- `WAYLAND_DISPLAY`, `DBUS_SESSION_BUS_ADDRESS`, `MUNINN_VAULT` and
-  `MUNINN_GOOGLE_CLIENT_SECRET` are removed from the app's environment.
+- The app is started with an environment allowlist (`PATH`, locale, `TZ`, plus
+  the throwaway dirs and the display/Vulkan vars we set). Caller secrets such
+  as `GH_TOKEN` and `GITHUB_TOKEN` are not passed through.
 - Every process it starts runs in its own session and is stopped by process
-  group; nothing else is signalled.
+  group; nothing else is signalled. Xvfb must come up before the app starts;
+  a stuck ffmpeg is killed if it ignores the stop timeout.
 
 ## Rendering
 
@@ -41,9 +45,13 @@ published at 1600x1000 and 960x600). The hero and its poster use 1200x794, which
 publishes at 1600x1058, the size the site already uses.
 
 The release binaries link `GLIBC_2.43` (built on `ubuntu-latest`). On an older
-host, `CAPTURE_FETCH_RUNTIME=1` unpacks Debian's `libc6` 2.43 and
-`mesa-vulkan-drivers` into `WORKDIR/tools` and starts the binary through that
-`ld-linux` with `--library-path`. Nothing is installed system-wide.
+host, `CAPTURE_FETCH_RUNTIME=1` fetches Debian's `libc6` 2.43 and
+`mesa-vulkan-drivers` over **https**, checks a pinned sha256 (and, when
+`debian-archive-keyring` is present, Debian's signed `InRelease`/`Packages`),
+unpacks them into `WORKDIR/tools`, and starts the binary through that
+`ld-linux` with `--library-path`. Nothing is installed system-wide. A URL
+override (`LIBC6_DEB_URL` / `MESA_VK_DEB_URL`) is refused unless the matching
+`*_SHA256` is also set.
 
 ## Budgets
 

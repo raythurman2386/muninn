@@ -41,10 +41,16 @@ class Session:
         xvfb = subprocess.Popen(["Xvfb", disp, "-screen", "0", f"{sw}x{sh}x24", "-nolisten", "tcp", "-noreset"],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         self.procs.append(xvfb)
+        up = False
         for _ in range(50):
+            if xvfb.poll() is not None:
+                raise SystemExit(f"Xvfb {disp} exited before the display came up (code {xvfb.returncode})")
             if os.path.exists(f"/tmp/.X11-unix/X{n}"):
+                up = True
                 break
             time.sleep(0.1)
+        if not up:
+            raise SystemExit(f"Xvfb {disp} did not come up")
         env = self.env()
         assert env["DISPLAY"] == disp and "WAYLAND_DISPLAY" not in env
         cmd = list(cfg.get("loader", [])) + [cfg["bin"], "--new-instance", "--vault", vault, "--theme", self.theme]
@@ -60,9 +66,9 @@ class Session:
 
     def env(self):
         cfg, r = self.cfg, os.path.join(self.cfg["root"], "run")
-        env = {k: v for k, v in os.environ.items()
-               if k not in ("WAYLAND_DISPLAY", "MUNINN_VAULT", "MUNINN_GOOGLE_CLIENT_SECRET",
-                            "DBUS_SESSION_BUS_ADDRESS", "XDG_SESSION_TYPE", "SESSION_MANAGER")}
+        # Allowlist only: never pass GH_TOKEN, GITHUB_TOKEN or other caller secrets through.
+        env = {k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "LANGUAGE", "TZ")
+               if k in os.environ}
         dirs = dict(HOME="home", XDG_CONFIG_HOME="config", XDG_DATA_HOME="data", XDG_STATE_HOME="state",
                     XDG_CACHE_HOME="cache", XDG_RUNTIME_DIR="xdg-runtime", TMPDIR="tmp")
         for k, sub in dirs.items():
@@ -231,14 +237,42 @@ class Session:
              "-framerate", str(fps), "-video_size", f"{w}x{h}", "-i", self.cfg["display"],
              "-c:v", "libx264rgb", "-crf", "0", "-preset", "ultrafast", path],
             stdin=subprocess.PIPE, start_new_session=True)
+        self.procs.append(self.rec)
         self.rec_path, self.rec_t0 = path, time.monotonic()
         time.sleep(0.6)
 
     def mark(self):
         return time.monotonic() - self.rec_t0
 
+    def _kill_pg(self, proc, sig):
+        if proc.poll() is not None:
+            return
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            pass
+
     def stop_record(self):
-        self.rec.stdin.write(b"q"); self.rec.stdin.flush()
-        self.rec.wait(30)
+        rec = self.rec
+        if not rec:
+            return
+        try:
+            if rec.poll() is None and rec.stdin:
+                rec.stdin.write(b"q")
+                rec.stdin.flush()
+            rec.wait(30)
+        except (subprocess.TimeoutExpired, BrokenPipeError, OSError):
+            self._kill_pg(rec, signal.SIGTERM)
+            try:
+                rec.wait(5)
+            except subprocess.TimeoutExpired:
+                self._kill_pg(rec, signal.SIGKILL)
+                rec.wait()
+        finally:
+            if rec.stdin:
+                try:
+                    rec.stdin.close()
+                except OSError:
+                    pass
+            self.rec = None
         log("recorded", self.rec_path)
-        self.rec = None
