@@ -692,6 +692,9 @@ impl State {
         state.sync_ui = crate::sync_ui::SyncUi::native();
         state.sync_ui.github_client_id.replace_text(&github);
         state.sync_ui.google_client_id.replace_text(&google);
+        // `build` rehydrated the memory-store SyncUi; the native one needs the
+        // same treatment before the host starts and writes its status.
+        state.reflect_sync_binding();
         state.resume_tailnet_host();
         state
     }
@@ -1031,6 +1034,9 @@ impl State {
         if !state.loading() {
             state.refresh_watch();
         }
+        // The Sync tab starts on its defaults; show what this vault is
+        // actually bound to instead of "Not connected".
+        state.reflect_sync_binding();
         state
     }
 
@@ -1352,6 +1358,9 @@ impl State {
                 }
                 self.save_settings();
                 self.refresh_watch();
+                // Settings › Sync belongs to the vault, not the window.
+                self.reflect_sync_binding();
+                self.resume_tailnet_host();
                 true
             }
             Err(e) => {
@@ -3809,6 +3818,10 @@ impl State {
         self.settings.last_vault = Some(root);
         self.save_settings();
         self.refresh_watch();
+        // A finished (or retried) startup scan replaces the vault: rehydrate
+        // the Sync form from the binding saved for this canonical root.
+        self.reflect_sync_binding();
+        self.resume_tailnet_host();
         true
     }
 

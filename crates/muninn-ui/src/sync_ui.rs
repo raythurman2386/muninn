@@ -26,6 +26,10 @@ pub const TAILNET_KEY_CLIPBOARD: Duration = Duration::from_secs(60);
 /// Default Drive store name. Two vaults on one Google account need two names.
 pub const DEFAULT_DRIVE_STORE: &str = "Muninn";
 
+/// The Sync tab's status when this vault has no saved binding.
+pub const NOT_CONNECTED: &str =
+    "Not connected. Choose a provider and an explicit remote, then Connect.";
+
 pub struct SyncUi {
     pub provider_index: usize,
     pub status: String,
@@ -180,8 +184,7 @@ impl SyncUi {
     fn with_store(credentials: Arc<dyn CredentialStore>) -> Self {
         Self {
             provider_index: 0,
-            status: "Not connected. Choose a provider and an explicit remote, then Connect."
-                .to_owned(),
+            status: NOT_CONNECTED.to_owned(),
             github_owner: TextEdit::new(""),
             github_repo: TextEdit::new(""),
             github_branch: TextEdit::new("muninn-sync"),
@@ -294,6 +297,84 @@ impl State {
             }
             Err(error) => self.sync_ui.status = error,
         }
+    }
+
+    /// Rebuild the Settings › Sync form from this vault's saved binding.
+    ///
+    /// Startup and a vault switch both hand the app a fresh [`SyncUi`] with
+    /// GitHub selected and "Not connected"; without this the tab and the tray
+    /// forget a working Drive, GitHub or Tailscale connection. A run or a
+    /// sign-in in flight owns the form and is left alone.
+    pub fn reflect_sync_binding(&mut self) {
+        if !self.sync_ui.phase.is_idle() {
+            return;
+        }
+        let Some(binding) = self.current_binding().cloned() else {
+            // Keep a failed Connect's reason visible: it is the only place it
+            // is shown, and Sync Now repeats it.
+            if self.sync_ui.sign_in_error.is_none() {
+                self.sync_ui.status = NOT_CONNECTED.to_owned();
+            }
+            return;
+        };
+        match binding.provider.as_str() {
+            "github" => {
+                self.sync_ui.provider_index = 0;
+                self.sync_ui
+                    .github_owner
+                    .replace_text(&binding.github_owner);
+                self.sync_ui.github_repo.replace_text(&binding.github_repo);
+                self.sync_ui
+                    .github_branch
+                    .replace_text(&binding.github_branch);
+                self.sync_ui
+                    .github_prefix
+                    .replace_text(&binding.github_prefix);
+            }
+            "google_drive" => {
+                self.sync_ui.provider_index = 1;
+                self.sync_ui.drive_store.replace_text(&binding.drive_store);
+            }
+            "tailscale" => {
+                self.sync_ui.provider_index = 2;
+                self.sync_ui.tailnet_role_index = usize::from(binding.tailnet_role == "peer");
+                self.sync_ui
+                    .tailnet_host
+                    .replace_text(&binding.tailnet_host);
+                if binding.tailnet_port != 0 {
+                    self.sync_ui
+                        .tailnet_port
+                        .replace_text(binding.tailnet_port.to_string());
+                }
+                self.sync_ui
+                    .tailnet_allowed
+                    .replace_text(&binding.tailnet_allowed);
+            }
+            // Settings refuse unknown providers, so this cannot happen in a
+            // state built from disk; leave the form as it was.
+            _ => return,
+        }
+        // The hosting callers (`State::new`, a vault switch) start the server
+        // through `resume_tailnet_host`; they own the status line while it is
+        // up, so do not replace their "Hosting on …" line here.
+        if binding.provider == "tailscale"
+            && binding.tailnet_role == "host"
+            && self.sync_ui.host.is_some()
+        {
+            return;
+        }
+        self.sync_ui.status = if binding.provider == "tailscale" {
+            // The Tailscale secret is a shared key, not an OAuth token.
+            "Connected. The shared key is in the OS credential store. Sync Now when ready."
+                .to_owned()
+        } else if binding.account.is_empty() {
+            "Connected. The token is in the OS credential store. Sync Now when ready.".to_owned()
+        } else {
+            format!(
+                "Connected as {}. The token is in the OS credential store. Sync Now when ready.",
+                binding.account
+            )
+        };
     }
 
     fn start_tailnet_host(&self, binding: &VaultSyncBinding) -> Result<TailnetHost, String> {
@@ -443,26 +524,37 @@ impl State {
             .retain(|known| known.identity != binding.identity);
         self.settings.sync.vaults.push(binding.clone());
         self.save_settings();
-        let Some(old) = old.filter(|old| old.binding_id != binding.binding_id) else {
-            return Ok(());
+        let leftover = match old.filter(|old| old.binding_id != binding.binding_id) {
+            None => Ok(()),
+            Some(old) => {
+                if old.provider == "tailscale" && old.tailnet_role == "host" {
+                    self.sync_ui.host = None;
+                    self.sync_ui.revealed_key = None;
+                }
+                match BindingId::parse(&old.binding_id) {
+                    Err(_) => Ok(()),
+                    Ok(id) => {
+                        let provider =
+                            ProviderKind::parse(&old.provider).unwrap_or(ProviderKind::GitHub);
+                        self.sync_ui
+                            .credentials
+                            .delete(&muninn_sync::CredentialKey {
+                                provider,
+                                binding: id,
+                            })
+                            .map_err(|error| {
+                                format!(
+                                    " The previous connection's credential could not be removed: {error}"
+                                )
+                            })
+                    }
+                }
+            }
         };
-        if old.provider == "tailscale" && old.tailnet_role == "host" {
-            self.sync_ui.host = None;
-            self.sync_ui.revealed_key = None;
-        }
-        let Ok(id) = BindingId::parse(&old.binding_id) else {
-            return Ok(());
-        };
-        let provider = ProviderKind::parse(&old.provider).unwrap_or(ProviderKind::GitHub);
-        self.sync_ui
-            .credentials
-            .delete(&muninn_sync::CredentialKey {
-                provider,
-                binding: id,
-            })
-            .map_err(|error| {
-                format!(" The previous connection's credential could not be removed: {error}")
-            })
+        // Show the binding that just replaced the old one, so the form does
+        // not keep the previous provider's values.
+        self.reflect_sync_binding();
+        leftover
     }
 
     /// Sign in on a worker thread: GitHub device flow or Google OAuth with
@@ -806,6 +898,9 @@ impl State {
             .retain(|known| known.identity != identity);
         self.save_settings();
         self.sync_ui.phase = SyncPhase::Idle;
+        // The vault now has no binding; reset the form before saying why, so a
+        // stale provider hint never outlives the connection.
+        self.reflect_sync_binding();
         self.sync_ui.status =
             "Disconnected. Credentials for this binding were removed. Local and remote notes were not deleted."
                 .to_owned();
@@ -1674,6 +1769,258 @@ mod tests {
             "the old host stopped"
         );
         state.disconnect_sync();
+        remove_temp(&root);
+    }
+
+    fn current_identity(state: &State) -> String {
+        super::VaultIdentity::of_canonical(&state.vault.root)
+            .unwrap()
+            .as_str()
+            .to_owned()
+    }
+
+    /// A binding for `provider` on the vault `state` has open.
+    fn binding_for(state: &State, provider: &str) -> crate::settings::VaultSyncBinding {
+        crate::settings::VaultSyncBinding {
+            identity: current_identity(state),
+            provider: provider.to_owned(),
+            binding_id: muninn_sync::BindingId::fresh().as_str().to_owned(),
+            ..Default::default()
+        }
+    }
+
+    /// After a restart the Sync tab and the tray must show the saved Drive
+    /// binding instead of the fresh form's GitHub/"Not connected" defaults.
+    #[test]
+    fn sync_ui_rehydrates_a_drive_binding_after_a_restart() {
+        let (state, root) = temp_state("rehydrate-drive");
+        let mut settings = state.settings.clone();
+        settings
+            .sync
+            .vaults
+            .push(crate::settings::VaultSyncBinding {
+                account: "person@example.com".to_owned(),
+                drive_store: "Work".to_owned(),
+                ..binding_for(&state, "google_drive")
+            });
+        drop(state);
+
+        // A fresh State stands in for restarting the app: build only has the
+        // persisted settings and must rehydrate the form from the binding.
+        let mut restarted = State::with_settings(
+            root.clone(),
+            root.with_extension("state"),
+            root.with_extension("config"),
+            settings,
+        );
+        assert_eq!(restarted.sync_ui.provider_index, 1);
+        assert_eq!(restarted.sync_ui.drive_store.text, "Work");
+        assert!(
+            !restarted.sync_status().starts_with("Not connected"),
+            "{}",
+            restarted.sync_status()
+        );
+        assert!(
+            restarted
+                .sync_status()
+                .starts_with("Connected as person@example.com."),
+            "{}",
+            restarted.sync_status()
+        );
+        assert!(restarted.sync_ready());
+        assert_eq!(
+            crate::tray::tray_status_label(restarted.sync_status()),
+            "Sync: Connected as person@example.com."
+        );
+
+        // Disconnect still works against a rehydrated form.
+        restarted.disconnect_sync();
+        assert!(restarted.settings.sync.vaults.is_empty());
+        assert!(!restarted.sync_ready());
+        assert!(
+            restarted.sync_status().starts_with("Disconnected."),
+            "{}",
+            restarted.sync_status()
+        );
+        drop(restarted);
+        remove_temp(&root);
+    }
+
+    /// GitHub and Tailscale bindings map onto their tab indexes and fields.
+    #[test]
+    fn sync_ui_rehydrates_github_and_tailscale_mappings() {
+        let (mut state, root) = temp_state("rehydrate-map");
+        state
+            .settings
+            .sync
+            .vaults
+            .push(crate::settings::VaultSyncBinding {
+                account: "octo".to_owned(),
+                github_owner: "muninn".to_owned(),
+                github_repo: "notes".to_owned(),
+                github_branch: "sync".to_owned(),
+                github_prefix: "vault".to_owned(),
+                ..binding_for(&state, "github")
+            });
+        state.reflect_sync_binding();
+        assert_eq!(state.sync_ui.provider_index, 0);
+        assert_eq!(state.sync_ui.github_owner.text, "muninn");
+        assert_eq!(state.sync_ui.github_repo.text, "notes");
+        assert_eq!(state.sync_ui.github_branch.text, "sync");
+        assert_eq!(state.sync_ui.github_prefix.text, "vault");
+        assert!(
+            state.sync_status().starts_with("Connected as octo."),
+            "{}",
+            state.sync_status()
+        );
+        assert!(state.sync_ready());
+
+        // The same vault bound to a Tailscale host: index 2, host role and
+        // the port/allow list come back from settings.
+        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = free.local_addr().unwrap().port();
+        drop(free);
+        let host = crate::settings::VaultSyncBinding {
+            tailnet_role: "host".to_owned(),
+            tailnet_port: port,
+            tailnet_allowed: "alice@example.com".to_owned(),
+            ..binding_for(&state, "tailscale")
+        };
+        state
+            .sync_ui
+            .credentials
+            .put(
+                &muninn_sync::CredentialKey {
+                    provider: muninn_sync::ProviderKind::Tailscale,
+                    binding: muninn_sync::BindingId::parse(&host.binding_id).unwrap(),
+                },
+                &muninn_sync::TokenSet {
+                    access: muninn_sync::new_shared_key(),
+                    refresh: None,
+                    expires_unix_ms: None,
+                    account: String::new(),
+                },
+            )
+            .unwrap();
+        state.settings.sync.vaults.clear();
+        state.settings.sync.vaults.push(host);
+        state.reflect_sync_binding();
+        state.resume_tailnet_host();
+        assert_eq!(state.sync_ui.provider_index, 2);
+        assert_eq!(state.sync_ui.tailnet_role_index, 0);
+        assert_eq!(state.sync_ui.tailnet_port.text, port.to_string());
+        assert_eq!(state.sync_ui.tailnet_allowed.text, "alice@example.com");
+        assert!(
+            state.sync_status().contains("Hosting on 127.0.0.1:"),
+            "{}",
+            state.sync_status()
+        );
+        assert!(state.sync_ready());
+        state.disconnect_sync();
+
+        // A peer keeps its host name and the join role.
+        let peer = crate::settings::VaultSyncBinding {
+            tailnet_role: "peer".to_owned(),
+            tailnet_host: "minis.tail1234.ts.net".to_owned(),
+            ..binding_for(&state, "tailscale")
+        };
+        state.settings.sync.vaults.push(peer);
+        state.reflect_sync_binding();
+        assert_eq!(state.sync_ui.provider_index, 2);
+        assert_eq!(state.sync_ui.tailnet_role_index, 1);
+        assert_eq!(state.sync_ui.tailnet_host.text, "minis.tail1234.ts.net");
+        assert!(
+            state.sync_status().contains("shared key"),
+            "{}",
+            state.sync_status()
+        );
+        assert!(state.sync_ready());
+        state.disconnect_sync();
+        remove_temp(&root);
+    }
+
+    /// Switching vaults changes the binding the form shows.
+    #[test]
+    fn switching_vaults_rehydrates_that_vaults_binding() {
+        let (mut state, root) = temp_state("rehydrate-switch");
+        let other = root.join("other-vault");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("Note.md"), "other").unwrap();
+        state
+            .settings
+            .sync
+            .vaults
+            .push(crate::settings::VaultSyncBinding {
+                account: "octo".to_owned(),
+                github_owner: "muninn".to_owned(),
+                github_repo: "notes".to_owned(),
+                ..binding_for(&state, "github")
+            });
+        state
+            .settings
+            .sync
+            .vaults
+            .push(crate::settings::VaultSyncBinding {
+                identity: super::VaultIdentity::of_canonical(&other)
+                    .unwrap()
+                    .as_str()
+                    .to_owned(),
+                provider: "google_drive".to_owned(),
+                binding_id: muninn_sync::BindingId::fresh().as_str().to_owned(),
+                account: "other@example.com".to_owned(),
+                drive_store: "OtherVault".to_owned(),
+                ..Default::default()
+            });
+        state.reflect_sync_binding();
+        assert_eq!(state.sync_ui.provider_index, 0);
+
+        assert!(state.switch_vault(other.clone()));
+        assert_eq!(state.sync_ui.provider_index, 1);
+        assert_eq!(state.sync_ui.drive_store.text, "OtherVault");
+        assert!(
+            state
+                .sync_status()
+                .starts_with("Connected as other@example.com."),
+            "{}",
+            state.sync_status()
+        );
+
+        assert!(state.switch_vault(root.clone()));
+        assert_eq!(state.sync_ui.provider_index, 0);
+        assert_eq!(state.sync_ui.github_owner.text, "muninn");
+        assert!(
+            state.sync_status().starts_with("Connected as octo."),
+            "{}",
+            state.sync_status()
+        );
+        remove_temp(&root);
+    }
+
+    /// A run or sign-in in flight owns the form; rehydration must not move it.
+    #[test]
+    fn rehydration_leaves_a_busy_sync_form_alone() {
+        let (mut state, root) = temp_state("rehydrate-busy");
+        state
+            .settings
+            .sync
+            .vaults
+            .push(binding_for(&state, "google_drive"));
+        state.sync_ui.provider_index = 2;
+        state.sync_ui.status = "Sync started. The window stays responsive.".to_owned();
+        state.sync_ui.phase = super::SyncPhase::Running;
+        state.reflect_sync_binding();
+        assert_eq!(state.sync_ui.provider_index, 2);
+        assert_eq!(
+            state.sync_ui.status,
+            "Sync started. The window stays responsive."
+        );
+
+        state.sync_ui.phase = super::SyncPhase::Connecting;
+        state.sync_ui.status = "Waiting for the browser.".to_owned();
+        state.reflect_sync_binding();
+        assert_eq!(state.sync_ui.provider_index, 2);
+        assert_eq!(state.sync_ui.status, "Waiting for the browser.");
+        state.sync_ui.phase = super::SyncPhase::Idle;
         remove_temp(&root);
     }
 
