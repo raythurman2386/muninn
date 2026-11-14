@@ -7,6 +7,7 @@
 *.icns binary
 *.rgba binary
 *.mp4 binary
+*.webm binary
 *.webp binary
 *.woff2 binary
 # Upstream font licences are kept byte-for-byte (CRLF).

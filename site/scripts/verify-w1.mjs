@@ -24,6 +24,7 @@ mkdirSync(join(OUT, 'shots'), { recursive: true });
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript',
   '.svg': 'image/svg+xml', '.webp': 'image/webp', '.png': 'image/png', '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
   '.woff2': 'font/woff2', '.txt': 'text/plain', '.json': 'application/json',
 };
 
@@ -99,9 +100,15 @@ async function capture(browser, url, vp, theme, file, reducedMotion = 'no-prefer
       v.pause();
       await new Promise((r) => { v.addEventListener('seeked', r, { once: true }); v.currentTime = 0; });
     }
+    const videoSrc = v
+      ? (v.getAttribute('src')
+        || Array.from(v.querySelectorAll('source')).map((s) => s.getAttribute('src')).filter(Boolean).join(',')
+        || v.currentSrc
+        || 'mounted')
+      : null;
     return {
       theme: document.documentElement.getAttribute('data-theme'),
-      video: v ? v.getAttribute('src') : null,
+      video: videoSrc,
       pauseHidden: document.querySelector('.motion-toggle').hidden,
       umamiTags: document.querySelectorAll('script[src*="umami-app.ravenwoodsoftware.dev"]').length,
       title: document.title,
