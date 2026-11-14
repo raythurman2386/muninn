@@ -62,6 +62,17 @@ fn plain(rt: &mut Runtime<State>, key: Key) {
     });
 }
 
+fn command(rt: &mut Runtime<State>, c: char) {
+    rt.key(KeyEvent {
+        key: Key::Command(c),
+        mods: Mods {
+            cmd: true,
+            ..Mods::default()
+        },
+    });
+    frames(rt, 2);
+}
+
 fn open(rt: &mut Runtime<State>) {
     rt.key(KeyEvent {
         key: Key::Command('4'),
@@ -627,5 +638,105 @@ fn the_hint_bar_and_canvas_chrome_stay_put_when_the_selection_changes() {
     assert!(
         !app.rt.state.board_selection().is_empty(),
         "the clicks did select"
+    );
+}
+
+// Raymond's report: drawing an item and saving made the board look, for a
+// frame, like it had just been loaded again. What can reload the open board
+// is a file whose *bytes* differ from what Muninn last read or wrote, and a
+// save of its own is recognised and skipped. The other way in was a writer
+// that rewrote the file without changing the drawing: the bytes differ, so
+// the board was re-read, its scene rebuilt, its history dropped, its
+// selection cleared and its camera rebased, for nothing.
+
+/// The open board's camera, its world element and what it would lose to a
+/// reload: `(view, world rect, selection, undo steps)`.
+fn board_state(
+    rt: &Runtime<State>,
+) -> (muninn_ui::BoardView, Option<[f32; 4]>, Vec<String>, usize) {
+    let open = rt.state.board_open.as_ref().expect("an open board");
+    (
+        open.cam.view(),
+        rt.presented("board-world").map(|(r, ..)| r),
+        rt.state.board_selection().to_vec(),
+        open.edit.history.undo_len(),
+    )
+}
+
+fn close(a: [f32; 4], b: [f32; 4]) -> bool {
+    (0..4).all(|i| (a[i] - b[i]).abs() < 0.05)
+}
+
+#[test]
+fn muninns_own_save_does_not_reload_or_move_the_board_under_the_user() {
+    let tmp = vault();
+    let mut app = launch(tmp.path());
+    open(&mut app.rt);
+    frames(&mut app.rt, 60);
+    nudge(&mut app.rt); // select keep-rect and move it: unsaved
+    let (view, world, selection, steps) = board_state(&app.rt);
+    assert!(
+        !selection.is_empty() && steps > 0,
+        "the move is selected and undoable before the save"
+    );
+    command(&mut app.rt, 's');
+    assert_eq!(status(&app.rt), BoardStatus::Saved);
+    // The autosave, the watcher and the settings write all run untouched.
+    frames(&mut app.rt, 240);
+    let (after, after_world, after_selection, after_steps) = board_state(&app.rt);
+    assert_eq!(
+        status(&app.rt),
+        BoardStatus::Saved,
+        "still the saved drawing"
+    );
+    assert_eq!(after, view, "the view did not move");
+    let (Some(world), Some(after_world)) = (world, after_world) else {
+        panic!("the board's world element is on screen");
+    };
+    assert!(close(world, after_world), "{world:?} -> {after_world:?}");
+    assert_eq!(after_selection, selection, "the selection stayed");
+    assert_eq!(after_steps, steps, "the undo history stayed");
+    assert!(!app.rt.state.board_dirty());
+}
+
+#[test]
+fn a_rewrite_that_keeps_the_content_does_not_reload_the_board() {
+    let tmp = vault();
+    let mut app = launch(tmp.path());
+    open(&mut app.rt);
+    nudge(&mut app.rt);
+    command(&mut app.rt, 's');
+    assert_eq!(status(&app.rt), BoardStatus::Saved);
+    let (view, world, selection, steps) = board_state(&app.rt);
+    assert!(
+        !selection.is_empty() && steps > 0,
+        "the move is selected and undoable before theirs lands"
+    );
+    // Another writer (a sync client, or Excalidraw itself) rewrites the same
+    // drawing with different bytes: the same JSON, compact.
+    let path = board_file(&tmp);
+    let text = fs::read_to_string(&path).expect("the saved board");
+    let doc: serde_json::Value = serde_json::from_str(&text).expect("valid JSON");
+    fs::write(&path, serde_json::to_string(&doc).unwrap()).expect("rewrite");
+    frames(&mut app.rt, 240); // the watcher's next looks
+    let (after, after_world, after_selection, after_steps) = board_state(&app.rt);
+    assert_eq!(after, view, "the view did not move");
+    assert_eq!(after_world, world, "the board was not redrawn");
+    assert_eq!(after_selection, selection, "the selection was not cleared");
+    assert_eq!(after_steps, steps, "the undo history was not dropped");
+    assert_eq!(
+        status(&app.rt),
+        BoardStatus::Saved,
+        "the board was not re-read"
+    );
+    // The rewritten bytes are the ones Muninn last read, so the next save
+    // writes over them instead of being refused as someone else's change.
+    nudge(&mut app.rt);
+    command(&mut app.rt, 's');
+    assert_eq!(status(&app.rt), BoardStatus::Saved);
+    let saved = Board::load(&path).unwrap();
+    assert_eq!(
+        saved.shape("keep-rect").unwrap().x,
+        shape(&app.rt, "keep-rect").x
     );
 }

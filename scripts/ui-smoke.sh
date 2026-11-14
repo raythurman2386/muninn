@@ -631,6 +631,9 @@ step_headless_draw() {
   python3 "$draw" pixels "$s/draw-before.png" "$s/draw-drawn.png" "$t/draw-before.json" || return 1
   draw_run saved "$m/draw.json" saved || return 1
   python3 "$harness" tree-text "$t/draw-saved.json" board-save-state Saved || return 1
+  # Raymond's report: the save must not bump the whiteboard. Nothing on the
+  # canvas moves, redraws or fades when the board is written.
+  python3 "$draw" same "$s/draw-drawn.png" "$s/draw-saved.png" "$t/draw-before.json" || return 1
   cp "$draw_board" "$out/logs/draw-saved.excalidraw"
   "$resave" "$draw_fixture" "$m/resaved.excalidraw" || return 1
   python3 "$draw" file "$draw_board" "$draw_fixture" "$m/resaved.excalidraw" "$t/draw-before.json" || return 1
@@ -1052,6 +1055,9 @@ step_x11_draw() {
   python3 "$harness" x11-chord "$wid" ctrl+s && shot 3-saved || return 1
   [ "$(sha256sum <"$draw_board")" != "$fixture_sha" ] || { echo "Ctrl+S did not write the board"; return 1; }
   echo "ok Ctrl+S wrote the board"
+  # The save itself changes nothing on the canvas: the drawn shot and the shot
+  # after Ctrl+S are the same pixels (no re-read, no refit, no fade).
+  python3 "$draw" same "$s/x11-draw-2-drawn.png" "$s/x11-draw-3-saved.png" "$tree" || return 1
   close_app || return 1
   cp "$draw_board" "$out/logs/x11-draw-saved.excalidraw"
   "$resave" "$draw_fixture" "$m/resaved.excalidraw" || return 1
