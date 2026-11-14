@@ -1,0 +1,233 @@
+/* Document pages (/changelog/, /docs/). Scoped so landing-page typography
+   (bare h1, .cta, .section-title) stays unchanged. Imported only by those
+   pages, not by the shared Base layout. */
+
+.page-main {
+  padding: clamp(48px, 8vw, 96px) 0 clamp(64px, 10vw, 120px);
+}
+
+body:has(.docs-shell) {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body:has(.docs-shell) .page-main {
+  flex: 1;
+}
+
+.docs-shell {
+  display: grid;
+  gap: 36px 56px;
+}
+
+@media (min-width: 900px) {
+  .docs-shell {
+    grid-template-columns: 200px minmax(0, 1fr);
+    align-items: start;
+  }
+  .docs-sidebar, .version-nav {
+    position: sticky;
+    top: 76px;
+  }
+}
+
+.docs-sidebar, .version-nav {
+  font-size: 14px;
+}
+
+.docs-sidebar-title, .version-nav-title {
+  margin: 0 0 10px;
+  font: 500 12px/16px var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.docs-sidebar-title a, .version-nav-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.docs-sidebar-title a:hover, .version-nav-title a:hover {
+  color: var(--text-base);
+}
+
+.docs-sidebar ul, .version-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.docs-sidebar a, .version-nav a {
+  display: block;
+  padding: 6px 10px;
+  margin-left: -10px;
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.docs-sidebar a:hover, .version-nav a:hover {
+  color: var(--text-base);
+  background: var(--hover);
+}
+
+.docs-sidebar a[aria-current="page"], .version-nav a[aria-current="location"] {
+  color: var(--text-base);
+  background: var(--hover);
+  font-weight: 600;
+}
+
+.docs-shell > * { min-width: 0; }
+
+.doc {
+  max-width: min(720px, 100%);
+  min-width: 0;
+}
+
+.doc h1 {
+  margin: 0 0 0.4em;
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 640;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.doc h2 {
+  margin: 2.2em 0 0.6em;
+  font-size: 1.25rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.doc h3 {
+  margin: 1.6em 0 0.45em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.doc h4 {
+  margin: 1.4em 0 0.4em;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.doc p, .doc li {
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.doc p { margin: 0 0 1em; }
+.doc ul, .doc ol { margin: 0 0 1em; padding-left: 1.25em; }
+.doc li + li { margin-top: 0.35em; }
+.doc li { color: var(--text-muted); }
+.doc li::marker { color: var(--text-muted); }
+.doc code { font-size: 0.875em; }
+
+.doc pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 14px 16px;
+  margin: 0 0 1.25em;
+  background: var(--hover);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.55;
+}
+
+.doc pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  color: var(--text-base);
+}
+
+.doc table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 1.25em;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.doc th, .doc td {
+  border: 1px solid var(--border-muted);
+  padding: 0.45em 0.7em;
+  text-align: left;
+  vertical-align: top;
+  color: var(--text-muted);
+}
+
+.doc th {
+  font-weight: 600;
+  color: var(--text-base);
+  background: var(--hover);
+  white-space: nowrap;
+}
+
+.doc blockquote {
+  margin: 0 0 1.25em;
+  padding: 0.2em 0 0.2em 1em;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-muted);
+}
+
+.doc hr {
+  border: 0;
+  border-top: 1px solid var(--border-muted);
+  margin: 2em 0;
+}
+
+.doc-index {
+  list-style: none;
+  margin: 1.5em 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.doc-index a {
+  display: block;
+  padding: 16px 18px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--r-lg);
+  text-decoration: none;
+  color: var(--text-base);
+}
+
+.doc-index a:hover {
+  background: var(--hover);
+  border-color: var(--border-base);
+}
+
+.doc-index h2 {
+  margin: 0 0 0.25em;
+  font-size: 1.05rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.doc-index p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+/* Nits: deep links must clear the sticky 61 px header, and long inline
+   code or URLs must wrap at 390 px instead of widening the page. */
+.doc :is(h1, h2, h3, h4) { scroll-margin-top: 80px; }
+.doc code, .doc a { overflow-wrap: anywhere; }

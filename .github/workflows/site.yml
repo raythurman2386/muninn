@@ -10,6 +10,9 @@ on:
       - "Dockerfile.marketing"
       - ".dockerignore"
       - "PRIVACY.md"
+      - "CHANGELOG.md"
+      - "README.md"
+      - "docs/**"
       - ".github/workflows/site.yml"
   pull_request:
     paths:
@@ -17,6 +20,9 @@ on:
       - "Dockerfile.marketing"
       - ".dockerignore"
       - "PRIVACY.md"
+      - "CHANGELOG.md"
+      - "README.md"
+      - "docs/**"
       - ".github/workflows/site.yml"
 
 permissions:
