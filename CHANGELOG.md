@@ -252,8 +252,6 @@ All notable changes to Muninn are documented here. The format is based on
   once, and a card's menu still offers **Mark done** / **Mark open** when its
   checkbox is hidden.
 
-- **Lanes, moving and sorting.** **+ Add lane** after the last lane, and each
-  once.
 - **List and table views.** A board whose frontmatter says
   `kanban-plugin: list` opens as one scrollable list of lane sections, and
   `kanban-plugin: table` opens as a table with Lane, Card, Date, Tags and
