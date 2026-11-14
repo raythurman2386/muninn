@@ -1,0 +1,8 @@
+{"events":[
+  {"t":0.9,"type":"tap","key":"graph-node-3"},
+  {"t":1.9,"type":"tap","key":"graph-node-7"},
+  {"t":2.9,"type":"tap","key":"graph-node-5"},
+  {"t":3.7,"type":"key","name":"Delete"},
+  {"t":4.1,"type":"tap","key":"delete-yes"},
+  {"t":5.4,"type":"mark","name":"end"}
+]}
