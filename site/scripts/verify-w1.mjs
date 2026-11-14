@@ -198,6 +198,7 @@ console.log(`${within(rd) ? 'PASS' : 'FAIL'} 1440x900-dark-reduced: ${rd.pixels}
 await browser.close();
 
 // Optional Lighthouse on the new build (Umami blocked so no pageview is recorded).
+// Runs the lighthouse devDependency pinned in package-lock.json (npx --no-install never fetches).
 let lighthouse = null;
 if (process.env.LIGHTHOUSE === '1') {
   lighthouse = {};
