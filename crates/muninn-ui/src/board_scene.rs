@@ -19,11 +19,19 @@
 //!
 //! Colours follow Excalidraw's light theme on the board's own
 //! `viewBackgroundColor`, so a board reads the way it does on excalidraw.com.
+//!
+//! A colour the file already stores is painted as itself — except when it
+//! would vanish into the paper (#88): a committed `#1e1e1e` stroke or fill on
+//! a `#121212` board is painted with a hue-preserving legible substitute
+//! while the stored string, and so the `.excalidraw` file, keeps the ink it
+//! was saved with.
 
 use muninn_core::{Board, Element, Shape as Item, ShapeKind};
 use rune::color::hex;
 use rune::{Color, LineCap, Shape};
 use serde_json::Value;
+
+use crate::contrast;
 
 /// Space around the content inside the world element, in scene units, so
 /// strokes on the bounding box are not cut at the element's edge.
@@ -96,6 +104,7 @@ enum Piece {
 impl BoardScene {
     #[must_use]
     pub fn build(board: &Board) -> BoardScene {
+        let paper = board_paper(board);
         let mut pieces = Vec::new();
         let mut bounds: Option<[f32; 4]> = None;
         let (mut drawn, mut outlined) = (0, 0);
@@ -103,12 +112,12 @@ impl BoardScene {
             let (box_, mut parts) = match element {
                 Element::Shape(item) => {
                     drawn += 1;
-                    (item_bounds(item), item_pieces(item))
+                    (item_bounds(item), item_pieces(item, paper))
                 }
                 Element::Raw(value) => {
                     let Some(b) = raw_bounds(value) else { continue };
                     outlined += 1;
-                    (Some(b), raw_pieces(b))
+                    (Some(b), raw_pieces(b, paper))
                 }
             };
             if let Some(b) = box_ {
@@ -157,12 +166,6 @@ impl BoardScene {
                 }
             }
         }
-        let paper = board
-            .app_state
-            .get("viewBackgroundColor")
-            .and_then(Value::as_str)
-            .and_then(color)
-            .unwrap_or_else(|| color(PAPER).unwrap_or(Color::WHITE));
         BoardScene {
             origin,
             size,
@@ -176,12 +179,27 @@ impl BoardScene {
     }
 }
 
+/// The board's own paper: its `viewBackgroundColor`, or Excalidraw's white.
+fn board_paper(board: &Board) -> Color {
+    board
+        .app_state
+        .get("viewBackgroundColor")
+        .and_then(Value::as_str)
+        .and_then(color)
+        .unwrap_or_else(|| color(PAPER).unwrap_or(Color::WHITE))
+}
+
 /// One element painted through `map` (scene point to canvas point) with its
 /// stroke widths scaled by `scale`: the draft preview while drawing. Text is
 /// not drawn this way.
-pub(crate) fn paint_item(item: &Item, map: impl Fn([f32; 2]) -> [f32; 2], scale: f32) -> Shape {
+pub(crate) fn paint_item(
+    item: &Item,
+    paper: Color,
+    map: impl Fn([f32; 2]) -> [f32; 2],
+    scale: f32,
+) -> Shape {
     let mut shape = Shape::new();
-    for piece in item_pieces(item) {
+    for piece in item_pieces(item, paper) {
         match piece {
             Piece::Fill(points, color) => {
                 shape = shape.fill(points.into_iter().map(&map).collect::<Vec<_>>(), color);
@@ -281,23 +299,38 @@ fn item_bounds(item: &Item) -> Option<[f32; 4]> {
     ])
 }
 
-/// Ink and fill for an element, with its opacity applied.
-fn paints(item: &Item) -> (Color, Option<Color>) {
+/// Ink and fill for an element, with its opacity applied (and made legible
+/// against `paper`, see [`BoardScene::build`]).
+///
+/// The stored `strokeColor` / `backgroundColor` are read, never written: only
+/// the colour handed to the paint call is substituted (#88).
+fn paints(item: &Item, paper: Color) -> (Color, Option<Color>) {
     let opacity = (f(item.opacity) / 100.0).clamp(0.0, 1.0);
+    // Text is read, so it keeps WCAG's text floor; a shape's stroke and fill
+    // are non-text UI and keep the lower one.
+    let floor = if item.kind == ShapeKind::Text {
+        contrast::TEXT
+    } else {
+        contrast::UI
+    };
     let ink = color(&item.stroke_color)
         .or_else(|| {
             (!item.stroke_color.eq_ignore_ascii_case("transparent"))
                 .then(|| color(INK))
                 .flatten()
         })
-        .map_or(Color::TRANSPARENT, |c| c.alpha(c.a * opacity));
+        .map_or(Color::TRANSPARENT, |c| {
+            contrast::at_least(c, paper, floor).alpha(c.a * opacity)
+        });
     let solid = item
         .extra
         .get("fillStyle")
         .and_then(Value::as_str)
         .is_none_or(|s| s == "solid");
-    let fill = color(&item.background_color)
-        .map(|c| c.alpha(c.a * opacity * if solid { 1.0 } else { 0.35 }));
+    let fill = color(&item.background_color).map(|c| {
+        contrast::at_least(c, paper, contrast::UI)
+            .alpha(c.a * opacity * if solid { 1.0 } else { 0.35 })
+    });
     (ink, fill)
 }
 
@@ -306,14 +339,14 @@ fn width(item: &Item) -> f32 {
     if w.is_finite() && w > 0.0 { w } else { 1.0 }
 }
 
-fn item_pieces(item: &Item) -> Vec<Piece> {
+fn item_pieces(item: &Item, paper: Color) -> Vec<Piece> {
     let b = item_box(item);
     if !b.iter().all(|v| v.is_finite()) {
         return Vec::new();
     }
     let centre = [b[0] + b[2] / 2.0, b[1] + b[3] / 2.0];
     let angle = f(item.angle);
-    let (ink, fill) = paints(item);
+    let (ink, fill) = paints(item, paper);
     let stroke = |points: Vec<[f32; 2]>, closed: bool| Piece::Stroke {
         points,
         closed,
@@ -478,13 +511,16 @@ fn raw_bounds(value: &Value) -> Option<[f32; 4]> {
     b.iter().all(|v| v.is_finite()).then_some(b)
 }
 
-fn raw_pieces(b: [f32; 4]) -> Vec<Piece> {
+fn raw_pieces(b: [f32; 4], paper: Color) -> Vec<Piece> {
     let grey = Color {
         r: 0.5,
         g: 0.5,
         b: 0.5,
         a: 0.45,
     };
+    // Muninn's own outline is canvas ink too: `#808080` clears the UI floor on
+    // white paper and would vanish on a dark one (#72, #88).
+    let grey = contrast::at_least(grey, paper, contrast::UI).alpha(grey.a);
     vec![Piece::Stroke {
         points: rect_points([b[0], b[1], b[2] - b[0], b[3] - b[1]], 0.0),
         closed: true,
@@ -572,6 +608,16 @@ mod tests {
         let scene = BoardScene::build(&b);
         assert_eq!((scene.drawn, scene.outlined), (0, 1));
         assert_eq!(scene.bounds, Some([0.0, 0.0, 40.0, 30.0]));
+
+        // The outline is Muninn's own canvas ink: legible on either paper.
+        for paper in ["#ffffff", "#121212"] {
+            let paper = hex(paper).unwrap();
+            let [Piece::Stroke { color, .. }] = raw_pieces([0.0, 0.0, 40.0, 30.0], paper)[..]
+            else {
+                panic!("one stroke");
+            };
+            assert!(contrast::meets(color, paper, contrast::UI));
+        }
     }
 
     #[test]
@@ -580,5 +626,138 @@ mod tests {
         assert_eq!(scene.bounds, None);
         assert!(scene.shape.is_empty());
         assert_eq!(scene.paper, hex(PAPER).unwrap());
+    }
+
+    fn papered(paper: &str, elements: &str) -> Board {
+        Board::from_json(&format!(
+            r##"{{"type":"excalidraw","version":2,"source":"test","elements":{elements},"appState":{{"viewBackgroundColor":"{paper}"}},"files":{{}}}}"##
+        ))
+        .unwrap()
+    }
+
+    /// Every colour `item` is painted with on `paper`: strokes, fills and text.
+    fn painted(item: &Item, paper: Color) -> Vec<Color> {
+        item_pieces(item, paper)
+            .into_iter()
+            .flat_map(|piece| match piece {
+                Piece::Fill(_, color) => vec![color],
+                Piece::Stroke { color, .. } => vec![color],
+                Piece::Text { text, .. } => vec![text.color],
+            })
+            .collect()
+    }
+
+    /// #88: the file's dark ink is painted with a legible substitute, and the
+    /// substitute is display-only — the stored strings and the written bytes
+    /// are exactly `#1e1e1e`.
+    #[test]
+    fn committed_dark_ink_is_painted_legibly_on_a_dark_paper() {
+        let b = papered(
+            "#121212",
+            r##"[{"type":"rectangle","id":"r","x":0,"y":0,"width":80,"height":40,
+                 "strokeColor":"#1e1e1e","backgroundColor":"#1e1e1e"}]"##,
+        );
+        let paper = hex("#121212").unwrap();
+        let scene = BoardScene::build(&b);
+        assert_eq!(scene.paper, paper);
+        let colours = painted(b.shape("r").expect("the shape"), paper);
+        assert!(colours.len() >= 2, "a stroke and a fill are painted");
+        for colour in &colours {
+            assert!(
+                contrast::meets(*colour, paper, contrast::UI),
+                "{} on {} is {:.2}",
+                colour.hex(),
+                paper.hex(),
+                contrast::ratio(*colour, paper),
+            );
+        }
+        assert!(
+            colours.iter().all(|c| *c != hex("#1e1e1e").unwrap()),
+            "the committed ink is not painted as stored"
+        );
+
+        // Display-only: the model and the bytes it writes keep the file's ink.
+        let stored = b.shape("r").expect("the shape");
+        assert_eq!(stored.stroke_color, "#1e1e1e");
+        assert_eq!(stored.background_color, "#1e1e1e");
+        let json = b.to_json();
+        assert_eq!(json.matches("\"strokeColor\": \"#1e1e1e\"").count(), 1);
+        assert_eq!(json.matches("\"backgroundColor\": \"#1e1e1e\"").count(), 1);
+    }
+
+    /// Excalidraw's default ink on its own white paper is already legible:
+    /// nothing is substituted.
+    #[test]
+    fn excalidraws_default_ink_on_a_light_paper_is_painted_as_stored() {
+        let b = papered(
+            "#ffffff",
+            r##"[{"type":"rectangle","id":"r","x":0,"y":0,"width":80,"height":40,
+                 "strokeColor":"#1e1e1e","backgroundColor":"transparent"}]"##,
+        );
+        let scene = BoardScene::build(&b);
+        let colours = painted(b.shape("r").expect("the shape"), scene.paper);
+        assert_eq!(colours, [hex("#1e1e1e").unwrap()]);
+    }
+
+    /// A picked colour that clears the floor is painted unchanged, on either
+    /// paper.
+    #[test]
+    fn a_picked_colour_that_clears_the_floor_is_painted_unchanged() {
+        for paper in ["#121212", "#ffffff"] {
+            let b = papered(
+                paper,
+                r##"[{"type":"rectangle","id":"r","x":0,"y":0,"width":80,"height":40,
+                     "strokeColor":"#e03131","backgroundColor":"transparent"}]"##,
+            );
+            let paper = hex(paper).unwrap();
+            let colours = painted(b.shape("r").expect("the shape"), paper);
+            assert_eq!(colours.len(), 1);
+            assert_eq!(colours[0], hex("#e03131").unwrap(), "on {}", paper.hex());
+        }
+    }
+
+    /// Text is read: its ink keeps the 4.5:1 text floor, while a shape stroke
+    /// stops at the 3:1 UI floor.
+    #[test]
+    fn text_ink_clears_the_text_floor_where_a_shape_stops_at_ui() {
+        let paper = hex("#121212").unwrap();
+        // An ink repaired to exactly the UI floor: legible as a stroke, not as
+        // text.
+        let ui_ink = contrast::at_least(hex("#1e1e1e").unwrap(), paper, contrast::UI);
+        assert!(contrast::meets(ui_ink, paper, contrast::UI));
+        assert!(!contrast::meets(ui_ink, paper, contrast::TEXT));
+
+        let b = papered(
+            "#121212",
+            &format!(
+                r##"[{{"type":"rectangle","id":"r","x":0,"y":0,"width":80,"height":40,
+                        "strokeColor":"{ink}","backgroundColor":"transparent"}},
+                    {{"type":"text","id":"t","x":0,"y":0,"width":40,"height":20,
+                        "text":"dark ink","fontSize":20,"strokeColor":"{ink}",
+                        "backgroundColor":"transparent"}}]"##,
+                ink = ui_ink.hex(),
+            ),
+        );
+        let scene = BoardScene::build(&b);
+        assert_eq!(scene.texts.len(), 1);
+        let text_ink = scene.texts[0].color;
+        assert!(
+            contrast::meets(text_ink, paper, contrast::TEXT),
+            "{} on {} is {:.2}",
+            text_ink.hex(),
+            paper.hex(),
+            contrast::ratio(text_ink, paper),
+        );
+        // The same ink on a shape is only held to the UI floor, so it is not
+        // lifted to the text floor.
+        let shape_ink = painted(b.shape("r").expect("the shape"), paper)[0];
+        assert!(contrast::meets(shape_ink, paper, contrast::UI));
+        assert!(!contrast::meets(shape_ink, paper, contrast::TEXT));
+        assert!(
+            contrast::ratio(text_ink, paper) > contrast::ratio(shape_ink, paper),
+            "text {} is lifted further than the shape's {}",
+            text_ink.hex(),
+            shape_ink.hex(),
+        );
     }
 }
