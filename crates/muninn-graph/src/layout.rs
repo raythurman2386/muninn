@@ -29,7 +29,7 @@ pub const WORLD: [f32; 2] = [1800.0, 1300.0];
 pub const NODE_W: f32 = 136.0;
 pub const NODE_H: f32 = 38.0;
 
-const REPULSION: f32 = 10500.0;
+const REPULSION: f32 = 13000.0;
 /// Small vaults keep the original exhaustive 800 cutoff, bit for bit, so the
 /// sample vault, its snapshots and the small deterministic tests do not move.
 /// Above this many nodes the cutoff tapers with `1/sqrt(n)`: a 2000-note
@@ -43,8 +43,8 @@ const REPULSION_CUTOFF_MIN: f32 = 220.0;
 const REPULSION_CELL_DIVISOR: f32 = 2.0;
 /// A node card may grow to 1.18× for a hub (see the UI), which stays inside
 /// the separation pads below.
-const SEP_PAD_X: f32 = 28.0;
-const SEP_PAD_Y: f32 = 15.0;
+const SEP_PAD_X: f32 = 40.0;
+const SEP_PAD_Y: f32 = 22.0;
 /// Separation only acts when both spans overlap, so cells are the overlap
 /// reach in each axis: a 3×3 window is the whole candidate set.
 const SEP_CELL_X: f32 = NODE_W + SEP_PAD_X;
@@ -56,7 +56,7 @@ const SEP_AREA: f32 = SEP_CELL_X * SEP_CELL_Y;
 /// view draws those densities as dots (see `LOD_ZOOM`).
 const SEP_FULL_FILL: f32 = 0.35;
 const SPRING: f32 = 0.008;
-const LINK_LEN: f32 = 150.0;
+const LINK_LEN: f32 = 175.0;
 const GRAVITY: f32 = 0.0016;
 /// Velocity retained per step. Small vaults keep the original constant so their
 /// settled positions stay bit-identical; dense vaults are damped a little more
