@@ -706,68 +706,71 @@ fn sync_section(s: &State, k: &Kit) -> El {
                 |state| &mut state.sync_ui.google_client_id,
             ))
     };
-    col()
+    settings_card(k)
         .key("settings-sync")
-        .w_full()
-        .gap(8.0)
-        .child(text("Sync").font(k.ty.ui_medium).color(k.c.text_base))
-        .child(
-            text(
-                "Manual Sync Now only. One provider for this vault. Disconnect removes credentials, not notes.",
-            )
-            .font(k.ty.caption())
-            .color(k.c.text_muted)
-            .wrap(),
-        )
+        .child(settings_heading(
+            k,
+            "Sync provider",
+            Some(
+                "Manual Sync Now only. One provider for this vault. \
+                 Disconnect removes credentials, not notes.",
+            ),
+        ))
         .child(
             SegmentedControl::new(
                 &["GitHub", "Drive", "Tailscale"],
                 Some(s.sync_ui.provider_index),
             )
-                .label("Sync provider")
-                .on_pick(|state: &mut State, index, _: &mut Tx| state.set_sync_provider(index))
-                .build(k),
+            .label("Sync provider")
+            .on_pick(|state: &mut State, index, _: &mut Tx| state.set_sync_provider(index))
+            .build(k),
         )
         .child(fields)
+        .child(divider_h(k))
         .child(
-            text(format!("{provider}. {}", s.sync_status()))
-                .key("settings-sync-status")
-                .font(k.ty.caption())
-                .color(k.c.text_base)
-                .wrap(),
-        )
-        .child(
-            row()
+            col()
                 .w_full()
-                .gap(6.0)
-                .flex_wrap()
+                .gap(10.0)
                 .child(
-                    Button::new("Connect")
-                        .variant(ButtonVariant::Ghost)
-                        .on_press(|state: &mut State| state.connect_sync())
-                        .build(k)
-                        .key("settings-sync-connect"),
+                    text(format!("{provider}. {}", s.sync_status()))
+                        .key("settings-sync-status")
+                        .font(k.ty.caption())
+                        .color(k.c.text_base)
+                        .wrap(),
                 )
                 .child(
-                    Button::new("Sync now")
-                        .variant(ButtonVariant::Ghost)
-                        .on_press(|state: &mut State| state.sync_now())
-                        .build(k)
-                        .key("settings-sync-now"),
-                )
-                .child(
-                    Button::new("Cancel")
-                        .variant(ButtonVariant::Ghost)
-                        .on_press(|state: &mut State| state.cancel_sync())
-                        .build(k)
-                        .key("settings-sync-cancel"),
-                )
-                .child(
-                    Button::new("Disconnect")
-                        .variant(ButtonVariant::Ghost)
-                        .on_press(|state: &mut State| state.disconnect_sync())
-                        .build(k)
-                        .key("settings-sync-disconnect"),
+                    row()
+                        .w_full()
+                        .gap(6.0)
+                        .flex_wrap()
+                        .child(
+                            Button::new("Connect")
+                                .variant(ButtonVariant::Ghost)
+                                .on_press(|state: &mut State| state.connect_sync())
+                                .build(k)
+                                .key("settings-sync-connect"),
+                        )
+                        .child(
+                            Button::new("Sync now")
+                                .variant(ButtonVariant::Ghost)
+                                .on_press(|state: &mut State| state.sync_now())
+                                .build(k)
+                                .key("settings-sync-now"),
+                        )
+                        .child(
+                            Button::new("Cancel")
+                                .variant(ButtonVariant::Ghost)
+                                .on_press(|state: &mut State| state.cancel_sync())
+                                .build(k)
+                                .key("settings-sync-cancel"),
+                        )
+                        .child(
+                            Button::new("Disconnect")
+                                .variant(ButtonVariant::Ghost)
+                                .on_press(|state: &mut State| state.disconnect_sync())
+                                .build(k)
+                                .key("settings-sync-disconnect"),
+                        ),
                 ),
         )
 }
@@ -895,9 +898,9 @@ fn sync_field(
         )
 }
 
-/// Horizontal padding of the Settings page. The tab strip and the tab bodies
-/// share it, so the page lines up with Help and Board settings.
-const SETTINGS_PAD_X: f32 = 24.0;
+/// Horizontal padding of the Settings page. The header, the tab strip and the
+/// tab bodies share it, so the page lines up with the Board page's gutter.
+const SETTINGS_PAD_X: f32 = 28.0;
 
 /// The Settings page. It replaces the main column like Help and the Kanban
 /// Board settings panel (the sidebar stays), uses the whole width and height
@@ -927,6 +930,9 @@ fn settings_panel(s: &State, k: &Kit) -> El {
         .min_h(0.0)
         .child(settings_header(k))
         .child(divider_h(k))
+        // The tab strip is page navigation, not a dialog footer: it sits on
+        // the page surface with one hairline under the header, and the cards
+        // below scroll on their own.
         .child(
             col()
                 .key("settings-tab-strip")
@@ -934,17 +940,9 @@ fn settings_panel(s: &State, k: &Kit) -> El {
                 .min_w(0.0)
                 .px(SETTINGS_PAD_X)
                 .pt(14.0)
-                .pb(10.0)
-                .gap(6.0)
-                .child(settings_tab_bar(s, k))
-                .child(
-                    text("Preferences are saved as you change them.")
-                        .font(k.ty.caption())
-                        .color(k.c.text_muted)
-                        .wrap(),
-                ),
+                .pb(6.0)
+                .child(settings_tab_bar(s, k)),
         )
-        .child(divider_h(k))
         // One inner scroll for every tab, the way `help-scroll` fills its
         // page. The Kanban tab has many rows but no dialog-height cap now.
         .child(
@@ -963,9 +961,9 @@ fn settings_panel(s: &State, k: &Kit) -> El {
                         .w_full()
                         .min_w(0.0)
                         .px(SETTINGS_PAD_X)
-                        .pt(18.0)
-                        .pb(28.0)
-                        .gap(18.0)
+                        .pt(16.0)
+                        .pb(32.0)
+                        .gap(16.0)
                         .child(
                             col()
                                 .key("settings-tab-content")
@@ -977,36 +975,56 @@ fn settings_panel(s: &State, k: &Kit) -> El {
         )
 }
 
+/// The page heading, at the same height and rhythm as the Board and Help
+/// pages: title and a faint "saved automatically" line on the left, an
+/// affordance on the right. The close control is a quiet icon button that
+/// names its Esc chord, so it reads as leaving a page rather than dismissing
+/// a dialog.
 fn settings_header(k: &Kit) -> El {
     row()
-        .h(54.0)
+        .h(58.0)
         .px(SETTINGS_PAD_X)
-        .gap(12.0)
+        .gap(10.0)
         .center_y()
         .child(
             text("Settings")
                 .font(TextStyle::new(16.0, 600.0).lh(22.0))
                 .color(k.c.text_base),
         )
+        .child(
+            text("Changes save automatically.")
+                .font(k.ty.caption())
+                .color(k.c.text_faint)
+                .truncate(),
+        )
         .child(spacer())
         .child(
             pressable(k, "settings-close".to_owned())
-                .px(10.0)
-                .py(5.0)
-                .border(1.0, k.c.border_base)
-                .child(text("Close").font(k.ty.ui_compact).color(k.c.text_base))
-                .on_press(|s: &mut State| s.close_settings()),
+                .size(28.0, 28.0)
+                .center()
+                .focusable(true)
+                .focus_ring(2.0, 1.0, k.c.border_focus)
+                .role("button")
+                .label("Close settings (Esc)")
+                .help("Close settings (Esc)")
+                .on_press(|s: &mut State| s.close_settings())
+                .child(icon(&ic::CLOSE, 14.0).color(k.c.icon_muted)),
         )
 }
 
-/// The six-section tab bar. Pills wrap onto another line in a narrow main
-/// column instead of being squeezed or painting past the page.
+/// The six-section tab bar: one raised lane holds the segments, the way the
+/// kit's `SegmentedControl` does, but the lane wraps onto another line in a
+/// narrow main column instead of squeezing or painting past the page.
 fn settings_tab_bar(s: &State, k: &Kit) -> El {
     let mut bar = row()
         .key("settings-tabs")
         .w_full()
         .min_w(0.0)
-        .gap(4.0)
+        .padding(3.0)
+        .radius(k.radius.lg)
+        .fill(k.c.layer_01)
+        .border(1.0, k.c.border_muted)
+        .gap(2.0)
         .flex_wrap()
         .role("radiogroup")
         .focus_group()
@@ -1015,14 +1033,16 @@ fn settings_tab_bar(s: &State, k: &Kit) -> El {
         let selected = s.settings_tab == *tab;
         bar = bar.child(
             pressable(k, format!("segment{index}"))
-                .h(28.0)
-                .px(12.0)
+                .h(30.0)
+                .px(14.0)
                 .center_y()
+                .radius(k.radius.md)
                 .fill(if selected {
-                    k.c.layer_03
+                    k.c.bg_base
                 } else {
                     Color::TRANSPARENT
                 })
+                .border(if selected { 1.0 } else { 0.0 }, k.c.border_base)
                 .role("radio")
                 .focusable(true)
                 .focus_selected(selected)
@@ -1040,22 +1060,46 @@ fn settings_tab_bar(s: &State, k: &Kit) -> El {
     bar
 }
 
-/// One titled group inside a Settings tab: a heading, an optional caption,
-/// then the control.
-fn settings_section(k: &Kit, title: &str, caption: Option<&str>, control: El) -> El {
-    let mut section = col()
+/// The card surface one Settings group sits on, matching the Help page's
+/// section cards: `layer_02`, a hairline border and the kit's large radius.
+pub(crate) fn settings_card(k: &Kit) -> El {
+    col()
         .w_full()
-        .gap(8.0)
+        .min_w(0.0)
+        .gap(12.0)
+        .radius(k.radius.lg)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .px(16.0)
+        .pt(14.0)
+        .pb(16.0)
+}
+
+/// A card's heading: the group title, then its explanation in muted caption
+/// text, so every card opens with the same vertical rhythm.
+pub(crate) fn settings_heading(k: &Kit, title: &str, caption: Option<&str>) -> El {
+    let mut heading = col()
+        .w_full()
+        .min_w(0.0)
+        .gap(3.0)
         .child(text(title).font(k.ty.ui_medium).color(k.c.text_base));
     if let Some(caption) = caption {
-        section = section.child(
+        heading = heading.child(
             text(caption)
                 .font(k.ty.caption())
                 .color(k.c.text_muted)
                 .wrap(),
         );
     }
-    section.child(control)
+    heading
+}
+
+/// One titled group inside a Settings tab: a card with a heading, an optional
+/// caption, then the control.
+pub(crate) fn settings_section(k: &Kit, title: &str, caption: Option<&str>, control: El) -> El {
+    settings_card(k)
+        .child(settings_heading(k, title, caption))
+        .child(control)
 }
 
 /// Vaults tab: the typed-path card and the recent-vault list.
@@ -1065,7 +1109,8 @@ fn settings_vaults_tab(s: &State, k: &Kit) -> El {
         recents = recents.child(
             text("No recent vaults yet")
                 .font(k.ty.caption())
-                .color(k.c.text_faint),
+                .color(k.c.text_faint)
+                .padding(4.0),
         );
     } else {
         for (index, path) in s.recent_vaults().iter().enumerate() {
@@ -1073,9 +1118,9 @@ fn settings_vaults_tab(s: &State, k: &Kit) -> El {
                 row()
                     .key(format!("settings-recent-{index}"))
                     .w_full()
-                    .h(28.0)
+                    .h(30.0)
                     .px(8.0)
-                    .radius(6.0)
+                    .radius(k.radius.md)
                     .center_y()
                     .cursor(Cursor::Pointer)
                     .hover(k.c.hover)
@@ -1099,21 +1144,19 @@ fn settings_vaults_tab(s: &State, k: &Kit) -> El {
     col()
         .key("settings-tab-vaults")
         .w_full()
-        .gap(6.0)
-        .child(text("Vaults").font(k.ty.ui_medium).color(k.c.text_base))
-        .child(
-            text("Open a folder by path, or create a new vault.")
-                .font(k.ty.caption())
-                .color(k.c.text_muted),
-        )
-        .child(vault_prompt_row(s, k))
-        .child(
-            text("Recent vaults")
-                .font(k.ty.caption())
-                .color(k.c.text_muted)
-                .pt(8.0),
-        )
-        .child(recents)
+        .gap(14.0)
+        .child(settings_section(
+            k,
+            "Open a vault",
+            Some("Paste a folder path, or create a new vault in a new folder."),
+            vault_prompt_row(s, k),
+        ))
+        .child(settings_section(
+            k,
+            "Recent vaults",
+            Some("Vaults you have opened recently, most recent first."),
+            recents,
+        ))
 }
 
 /// Editor tab: autosave delay and the default note template.
@@ -1414,11 +1457,13 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
         .key("vault-prompt")
         .w_full()
         .gap(4.0)
-        .px(8.0)
-        .py(6.0)
-        .radius(8.0)
-        .fill(k.c.layer_02)
-        .border(1.0, k.c.border_base)
+        .px(10.0)
+        .py(8.0)
+        .radius(k.radius.md)
+        // Inset well inside the card, so the field reads as the card's input
+        // rather than a second card.
+        .fill(k.c.layer_01)
+        .border(1.0, k.c.border_muted)
         .child(
             text_input(&s.vault_field, k.ty.ui_compact)
                 .key("vault-path")
