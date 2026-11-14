@@ -81,8 +81,10 @@ body:has(.docs-shell) .page-main {
   font-weight: 600;
 }
 
+.docs-shell > * { min-width: 0; }
+
 .doc {
-  max-width: 720px;
+  max-width: min(720px, 100%);
   min-width: 0;
 }
 
@@ -130,6 +132,7 @@ body:has(.docs-shell) .page-main {
 .doc code { font-size: 0.875em; }
 
 .doc pre {
+  max-width: 100%;
   overflow-x: auto;
   padding: 14px 16px;
   margin: 0 0 1.25em;
@@ -152,6 +155,7 @@ body:has(.docs-shell) .page-main {
 .doc table {
   display: block;
   width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   border-collapse: collapse;
   margin: 0 0 1.25em;
