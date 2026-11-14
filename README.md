@@ -42,7 +42,8 @@ connections as a graph.
 - **Sync when you choose.** GitHub, Google Drive or Tailscale, with a manual Sync Now and sync
   credentials kept in the OS key store.
 - **Matches your desktop.** Follows the Omarchy system theme by default, with System, Dark and
-  Light alternatives and a working Reduce motion setting.
+  Light alternatives, a working Reduce motion setting, and Graph effects presets (Classic,
+  Electric, Off) that treat the selection's border and its edges as one style.
 - **Focus.** One chord hides everything but the note, dims the other paragraphs and keeps the
   caret's line centred.
 - **Small comforts.** An opt-in tray icon, start at login and a global shortcut that summons the
@@ -80,7 +81,8 @@ MUNINN_VAULT=~/notes cargo run -p muninn-app
 
 Without either, Muninn reopens the last vault you used, falling back to `~/Muninn` (created
 when needed). `⌘,` / `Ctrl+,` opens Settings, where you can switch vaults, pick a theme, adjust
-the autosave delay and default template, or set up sync.
+the autosave delay and default template, choose a graph effect preset or reduced motion, or set
+up sync.
 
 ### Inspect a vault
 

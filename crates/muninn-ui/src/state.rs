@@ -17,7 +17,9 @@ use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 use crate::camera::{Camera, CameraGlide};
 use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
-use crate::settings::{ReduceMotion, Settings, ThemeMode, clamp_note_template, config_home};
+use crate::settings::{
+    GraphEffects, ReduceMotion, Settings, ThemeMode, clamp_note_template, config_home,
+};
 use crate::watch::{self, VaultSnapshot};
 
 /// What a sidebar context menu acts on.
@@ -184,6 +186,47 @@ pub struct TrashUndo {
     /// Human label shown in the status bar (`Alpha` or `folder/Alpha`).
     pub label: String,
     pub trash_rel: String,
+}
+
+/// The graph footprint of a note deleted this session, kept briefly so the
+/// knowledge graph can burn its node out instead of it vanishing between two
+/// frames.
+///
+/// Recorded in Graph mode from the layout that drew the node, before
+/// [`State::confirm_delete`] reloads the vault and rebuilds the graph (ids are
+/// positions in a scan and do not survive the reload). The world position is
+/// anchored inside the graph, so the burn follows the camera; no layout work is
+/// done for the ghost.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BurnMark {
+    /// Vault-relative path of the deleted note, for logging and tests.
+    pub rel: String,
+    /// Label the node card drew, so the ghost reads as the note that left.
+    pub label: String,
+    /// World-space centre of the node when it was deleted.
+    pub pos: [f32; 2],
+    /// Card size at deletion, so the burn covers the node's footprint.
+    pub size: [f32; 2],
+    /// Runtime clock (`State::now`) the deletion landed.
+    pub started: f64,
+}
+
+impl BurnMark {
+    /// How long the burn stays on screen. Short on purpose: deletion feedback
+    /// should not become a screen element of its own.
+    pub const LIFE: f64 = 0.85;
+
+    /// Progress through the burn, `0.0` at the deletion and `1.0` when it ends.
+    #[must_use]
+    pub fn progress(&self, now: f64) -> f32 {
+        ((now - self.started) / Self::LIFE).clamp(0.0, 1.0) as f32
+    }
+
+    /// Whether the burn is still worth a frame at `now`.
+    #[must_use]
+    pub fn alive(&self, now: f64) -> bool {
+        now - self.started < Self::LIFE
+    }
 }
 
 /// M2 NAV-03: one point in the note-navigation history.
@@ -600,6 +643,15 @@ pub struct State {
     pub startup_error: Option<String>,
     /// Last note moved to the trash, offered as Undo in the status bar.
     pub trash_undo: Option<TrashUndo>,
+    /// The note deleted last, kept for [`BurnMark::LIFE`] so the graph can burn
+    /// its node out. `None` until the first deletion and after it ends.
+    pub burn: Option<BurnMark>,
+    /// Theme accent in linear RGB, published by `view` for the FX compositor
+    /// (which runs outside the view's borrow of `State`).
+    pub fx_accent: std::cell::Cell<[f32; 3]>,
+    /// Theme muted text in linear RGB, for the calmer cold edges and
+    /// neighbour borders.
+    pub fx_muted: std::cell::Cell<[f32; 3]>,
     /// SAF-05 recovery files for this vault (XDG state, never the vault).
     pub(crate) recovery: RecoveryStore,
     /// Dirty buffers found at startup; the banner lists and restores these.
@@ -942,6 +994,9 @@ impl State {
             move_picker: None,
             startup_error,
             trash_undo: None,
+            burn: None,
+            fx_accent: std::cell::Cell::new([0.35, 0.55, 0.95]),
+            fx_muted: std::cell::Cell::new([0.45, 0.48, 0.55]),
             recovery,
             recovered,
             recovery_at: None,
@@ -2576,14 +2631,46 @@ impl State {
 
     /// Whether motion is reduced right now: the single resolved value that the
     /// graph layout, the camera, graph press colours, Rune's own transitions
-    /// (and any future graph-effects style) all read. See
-    /// [`ReduceMotion::resolve`] for how `MUNINN_REDUCED_MOTION`, the Settings
-    /// choice and the OS preference combine.
+    /// (and the graph effects) all read. See [`ReduceMotion::resolve`] for how
+    /// `MUNINN_REDUCED_MOTION`, the Settings choice and the OS preference
+    /// combine.
     #[must_use]
     pub fn reduced_motion(&self) -> bool {
         self.settings
             .reduce_motion
             .resolve(self.reduced_motion_env, self.system_reduced_motion.get())
+    }
+
+    /// The graph effect preset (Settings › Graph). Read by the graph view when
+    /// building edges and node borders, and by the FX compositor.
+    #[must_use]
+    pub fn graph_effects(&self) -> GraphEffects {
+        self.settings.graph_effects
+    }
+
+    /// Set and persist the graph effect preset. Takes effect on the next frame:
+    /// the graph view adds or drops its effect slots, so the picture changes
+    /// without a restart.
+    pub fn set_graph_effects(&mut self, effects: GraphEffects) {
+        if self.settings.graph_effects == effects {
+            return;
+        }
+        self.settings.graph_effects = effects;
+        self.save_settings();
+    }
+
+    /// Per frame: retire the delete burn once its short life is over. Returns
+    /// true while the burn is on screen (the view's slot data changes every
+    /// frame, so the window must keep drawing).
+    pub(crate) fn burn_tick(&mut self, now: f64) -> bool {
+        match self.burn.as_ref() {
+            Some(burn) if burn.alive(now) => true,
+            Some(_) => {
+                self.burn = None;
+                true
+            }
+            None => false,
+        }
     }
 
     /// Record the OS reduce-motion preference. `view` calls this every frame
@@ -4114,6 +4201,24 @@ impl State {
                 };
                 let was_selected = self.selected == Some(id);
                 self.flush();
+                // Record the node's footprint before the reload throws the
+                // graph ids away: the burn plays where the node used to be.
+                // Only the graph draws it (and only while motion is on), so a
+                // deletion elsewhere does not start one.
+                let burn = if self.mode == Mode::Graph
+                    && self.graph_effects() != GraphEffects::Off
+                    && !self.reduced_motion()
+                {
+                    crate::graph_view::node_footprint(self, id).map(|(pos, size)| BurnMark {
+                        rel: self.vault.notes[id].rel.clone(),
+                        label: label.clone(),
+                        pos,
+                        size,
+                        started: self.now,
+                    })
+                } else {
+                    None
+                };
                 match self.vault.delete_note_to_trash(id) {
                     Ok(trash_rel) => {
                         self.error = None;
@@ -4127,6 +4232,7 @@ impl State {
                         // Reload first: opening the next note expires any
                         // previous Undo, so record this deletion afterwards.
                         self.reload(None);
+                        self.burn = burn;
                         self.trash_undo = Some(TrashUndo { label, trash_rel });
                     }
                     Err(e) => self.error = Some(format!("Could not delete note: {e}")),

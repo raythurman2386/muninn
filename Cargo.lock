@@ -1980,8 +1980,10 @@ dependencies = [
  "muninn-core",
  "muninn-ui",
  "rune",
+ "rune-fx",
  "rune-theme-opencode",
  "serde_json",
+ "wgpu",
 ]
 
 [[package]]
@@ -3351,6 +3353,17 @@ dependencies = [
  "xkbcommon",
  "zbus 6.2.1",
  "zeroize",
+]
+
+[[package]]
+name = "rune-fx"
+version = "0.0.1"
+source = "git+https://github.com/anomalyco/rune.git?rev=b39c24f7fb588defba035113f3cc8431fae15935#b39c24f7fb588defba035113f3cc8431fae15935"
+dependencies = [
+ "bytemuck",
+ "rune-motion",
+ "rune-staging",
+ "wgpu",
 ]
 
 [[package]]
