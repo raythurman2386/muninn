@@ -13,9 +13,13 @@
     "build": "astro build",
     "preview": "astro preview --host 127.0.0.1",
     "check": "astro check",
-    "verify:w1": "bash scripts/verify-w1.sh"
+    "verify:w1": "bash scripts/verify-w1.sh",
+    "generate:icons": "node scripts/generate-icons.mjs",
+    "verify:privacy": "node scripts/verify-privacy.mjs"
   },
   "dependencies": {
+    "@astrojs/markdown-satteri": "0.4.10",
+    "@astrojs/sitemap": "3.7.5",
     "astro": "7.4.12"
   },
   "devDependencies": {

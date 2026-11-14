@@ -15,9 +15,11 @@ ENV ASTRO_TELEMETRY_DISABLED=1 \
     NPM_CONFIG_AUDIT=false
 WORKDIR /src/site
 COPY site/package.json site/package-lock.json ./
-# astro is the only runtime dependency; astro check, Lighthouse and the screenshot proof are
-# devDependencies and stay out of the image build entirely.
+# astro and @astrojs/sitemap are the runtime dependencies; astro check, Lighthouse and the
+# screenshot proof are devDependencies and stay out of the image build entirely.
 RUN npm ci --omit=dev
+# PRIVACY.md is read at build time by /privacy/; it is not copied into the site tree.
+COPY PRIVACY.md /src/PRIVACY.md
 COPY site/ ./
 RUN npm run build
 

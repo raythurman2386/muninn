@@ -16,8 +16,9 @@ The site is an Astro project rooted at `site/`. It builds to `site/dist/` and sh
    - `NEW_DIR`, `SKIP_BUILD=1` and `PROOF_DIR` are documented in the script header.
    - `CHROME_PATH` points at a system Chrome; nothing downloads a browser.
    - Only raise `MAX_DIFF_PIXELS` for an intended visual change, and say so in the PR.
-3. **Served behaviour.** Run `bash site/scripts/smoke-http.sh BASE_URL` against the image or any nginx running `site/nginx/default.conf`. It checks status codes, content types, cache headers (immutable `/_astro/*`, 1 h `/assets/*`, no-cache HTML), security headers, gzip, mp4 Range (206) and 404.
-4. **Image.** CI (`.github/workflows/site.yml`) builds `Dockerfile.marketing` and asserts `EXPOSE 80` and the exact `HEALTHCHECK`. It runs the container, waits for healthy and runs `smoke-http.sh`. GoForge depends on that port and health check, so never change them silently.
+3. **Served behaviour.** Run `bash site/scripts/smoke-http.sh BASE_URL` against the image or any nginx running `site/nginx/default.conf`. It checks status codes, content types, cache headers (immutable `/_astro/*`, 1 h `/assets/*`, no-cache HTML), security headers including CSP, gzip, mp4 Range (206), the branded 404, `/privacy/`, `/robots.txt`, `/sitemap-index.xml` and the favicon set.
+4. **Privacy text.** After a build, run `npm run verify:privacy` in `site/`. It diffs the rendered `/privacy/` text against `PRIVACY.md` (normalized). They must be identical: the page is built from that file, not a copy.
+5. **Image.** CI (`.github/workflows/site.yml`) builds `Dockerfile.marketing` and asserts `EXPOSE 80` and the exact `HEALTHCHECK`. It runs the container, waits for healthy and runs `smoke-http.sh`. GoForge depends on that port and health check, so never change them silently. `PRIVACY.md` must stay in the Docker build context (see `.dockerignore`) because `/privacy/` reads it at build time.
 
 ## Rules
 

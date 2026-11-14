@@ -1,8 +1,9 @@
-# Build context for Dockerfile.marketing: only site/ is needed.
-# Ignore everything, then re-include the site sources.
+# Build context for Dockerfile.marketing: the Astro project in site/ plus
+# PRIVACY.md at the repo root (read at build time for /privacy/).
 *
 !site/
 !Dockerfile.marketing
+!PRIVACY.md
 # Local build output and tooling never enter the context (the image runs npm ci itself).
 site/node_modules
 site/dist
