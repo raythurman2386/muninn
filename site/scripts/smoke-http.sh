@@ -140,5 +140,39 @@ for path in /changelog/ /docs/ /docs/getting-started/ /docs/keyboard-shortcuts/ 
   expect "$path text/html" "$h" '^content-type: text/html'
 done
 
+# /sponsor/ and /press/ (W8). Kept at the end so a merge with W3/W4's
+# extra checks applies cleanly above this block.
+body=$(curl -sS "$BASE/sponsor/")
+h=$(hdr "$BASE/sponsor/")
+expect "/sponsor/ 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/sponsor/ text/html" "$h" '^content-type: text/html'
+expect "/sponsor/ heading" "$body" 'Sponsor Muninn'
+expect "/sponsor/ GitHub Sponsors" "$body" 'https://github.com/sponsors/raythurman2386'
+expect "/sponsor/ no payment form" "$(grep -ciE '<form' <<<"$body")" '^0$'
+expect "/sponsor/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$body" | wc -l)" '^1$'
+expect "/sponsor/ og:image" "$body" 'property="og:image" content="https://muninn.ravenwoodsoftware.dev/assets/og/sponsor.png"'
+
+body=$(curl -sS "$BASE/press/")
+h=$(hdr "$BASE/press/")
+expect "/press/ 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/press/ text/html" "$h" '^content-type: text/html'
+expect "/press/ heading" "$body" '<h1>Press</h1>'
+expect "/press/ logo svg" "$body" '/assets/logo.svg'
+expect "/press/ logo png" "$body" '/assets/logo.png'
+expect "/press/ version" "$body" 'v0\.8\.2'
+expect "/press/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$body" | wc -l)" '^1$'
+expect "/press/ og:image" "$body" 'property="og:image" content="https://muninn.ravenwoodsoftware.dev/assets/og/press.png"'
+
+h=$(hdr "$BASE/assets/og.png")
+expect "og home 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "og home png" "$h" '^content-type: image/png'
+h=$(hdr "$BASE/assets/og/sponsor.png")
+expect "og sponsor 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "og sponsor png" "$h" '^content-type: image/png'
+h=$(hdr "$BASE/assets/logo.png")
+expect "logo png 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "logo png type" "$h" '^content-type: image/png'
+
+
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"

@@ -4,6 +4,7 @@ import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import DocsSidebar from '../../components/DocsSidebar.astro';
 import { DOC_PAGES, docPage, renderDocPage } from '../../lib/docs';
+import { OG } from '../../lib/og';
 import '../../styles/docs.css';
 
 export function getStaticPaths() {
@@ -17,6 +18,8 @@ const code = await renderDocPage(page);
 <Base
   title={`${page.title} — Muninn`}
   description={page.description}
+  ogImage={OG.docs.image}
+  ogImageAlt={OG.docs.alt}
 >
   <a class="skip" href="#main">Skip to content</a>
   <Header current="docs" />
