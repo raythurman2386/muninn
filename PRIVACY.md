@@ -50,11 +50,13 @@ Double opt-in: we send one confirmation email. You are not on the list until you
 
 Where it is stored: in Listmonk, which we host ourselves on our own server, together with your subscription status and the times you signed up and confirmed. We do not record the IP address you confirm from, and emails to this list do not use tracking pixels or tracked links.
 
-Spam protection: the form uses Cloudflare Turnstile to check that a person is signing up. Turnstile runs in your browser, and Cloudflare processes your IP address and browser signals to issue the check, under Cloudflare's privacy policy. Our signup service keeps rate-limit counters in memory only, keyed by a hash of your IP address and of your email address; they are discarded when idle or when the service restarts. It does not write your IP address or email address to disk or to its logs.
+Spam protection: the form uses Cloudflare Turnstile to check that a person is signing up. Turnstile runs in your browser, and Cloudflare processes your IP address and browser signals to issue the check, under [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/) and its [Turnstile privacy addendum](https://www.cloudflare.com/turnstile-privacy-policy/). Our signup service keeps rate-limit counters in memory only, keyed by a hash of your IP address (for an IPv6 address, of its /64 network prefix) and by a hash of your email address; they are discarded when idle, when the service restarts, or to make room for newer entries. It does not write your IP address or email address to disk or to its logs.
+
+Server logs: like any web server, our server keeps short-lived technical logs for the website, the signup service, and Listmonk, including when you click the confirmation link. They can include request details such as the time, URL, user agent, and an IP address. They are rotated automatically and are not used to build a profile of you.
 
 Email delivery: the confirmation email and any list emails are sent through our email provider, which processes your address to deliver them.
 
-Retention: unconfirmed signups are deleted after 30 days. Confirmed addresses are kept until you unsubscribe or the Early access list ends.
+Retention: signups that are still unconfirmed after 30 days are deleted by a regular cleanup in Listmonk. The cleanup first removes the unconfirmed subscription, then deletes email addresses that are no longer on any list, so the address itself is removed. Confirmed addresses are kept until you unsubscribe or the Early access list ends.
 
 Unsubscribe, export, and delete: every email has an unsubscribe link. To get a copy of your data or have it deleted, use the contact details below.
 
