@@ -222,15 +222,21 @@ fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)], viewport: [f32; 4])
         if is_culled(from.pos, 1.0, 1.0, viewport) && is_culled(to.pos, 1.0, 1.0, viewport) {
             continue;
         }
-        shape = shape.line(
-            from.pos,
-            to.pos,
-            if touches { 1.7 } else { 1.15 },
-            LineCap::Round,
-            if touches { hot } else { base },
-        );
+        let arc = electric && fx_used < EDGE_FX_BUDGET;
+        // An edge that gets a lightning arc does not also draw its plain line:
+        // the arc is the edge, and the line underneath would read as a ghost
+        // behind it. Edges past the FX budget keep their line so they stay.
+        if !arc {
+            shape = shape.line(
+                from.pos,
+                to.pos,
+                if touches { 1.7 } else { 1.15 },
+                LineCap::Round,
+                if touches { hot } else { base },
+            );
+        }
 
-        if electric && fx_used < EDGE_FX_BUDGET {
+        if arc {
             // The arc is drawn in the slot's local space: `effect_data` carries
             // the two endpoints as 0..1 fractions of the slot rect.
             let minx = from.pos[0].min(to.pos[0]);
