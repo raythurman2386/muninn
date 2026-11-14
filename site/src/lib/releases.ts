@@ -138,12 +138,17 @@ const CARD_META: Record<string, Pick<OsCard, 'os' | 'arch' | 'title' | 'archLabe
     archLabel: 'arm64',
     notes: ['Needs glibc 2.43 or newer. Ubuntu 24.04 and Debian 13 are too old.'],
   },
+  // v0.8.2 muninn binary is thin Mach-O 64-bit ARM64 (MH_MAGIC_64, cputype
+  // 0x0100000c), not a universal/fat binary. Keep this wording until a
+  // universal or Intel build actually ships.
   'macos-aarch64': {
     os: 'macos',
     arch: 'aarch64',
     title: 'macOS',
-    archLabel: 'Apple Silicon',
-    notes: ['Apple Silicon only. This build is not notarized, so Gatekeeper may warn on first open.'],
+    archLabel: 'Apple Silicon only',
+    notes: [
+      'Apple Silicon only (Intel Macs not supported). This build is not notarized, so Gatekeeper may warn on first open.',
+    ],
   },
   'macos-x86_64': {
     os: 'macos',
