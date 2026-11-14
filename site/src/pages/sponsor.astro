@@ -1,0 +1,45 @@
+---
+// /sponsor/ is a simple support page. The GitHub Sponsors profile for
+// raythurman2386 was confirmed live (HTTP 200 at https://github.com/sponsors/raythurman2386,
+// title "Sponsor @raythurman2386") on 14 Nov 2026. Buy Me a Coffee is listed
+// in .github/FUNDING.yml. There is no payment form on this page.
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { OG } from '../lib/og';
+import '../styles/pages.css';
+
+const sponsorsUrl = 'https://github.com/sponsors/raythurman2386';
+const coffeeUrl = 'https://buymeacoffee.com/raythurman';
+const sourceUrl = 'https://github.com/raythurman2386/muninn';
+---
+<Base
+  title="Sponsor — Muninn"
+  description="Support Muninn's development through GitHub Sponsors or Buy Me a Coffee. Muninn is free and MIT-licensed."
+  ogTitle="Sponsor — Muninn"
+  ogDescription="Support Muninn's development through GitHub Sponsors or Buy Me a Coffee."
+  ogImage={OG.sponsor.image}
+  ogImageAlt={OG.sponsor.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <Header />
+
+  <main id="main" class="simple-page">
+    <div class="wrap simple-inner">
+      <h1>Sponsor Muninn</h1>
+      <p class="lede">Muninn is free and open source under the MIT license. If you want to support the work, these are the two places listed in the project's funding file.</p>
+
+      <div class="cta-row">
+        <a class="btn btn-primary" href={sponsorsUrl}>Sponsor on GitHub</a>
+        <a class="btn btn-secondary" href={coffeeUrl}>Buy Me a Coffee</a>
+      </div>
+
+      <h2>Where it goes</h2>
+      <p>There is no paid product and no sponsor tier on this site. Contributions help cover the time spent on the app and the cost of running the website and related services. Nothing here is required to download or use Muninn.</p>
+      <p>You can also <a href={sourceUrl}>star the repository</a> or <a href="https://github.com/raythurman2386/muninn/blob/main/CONTRIBUTING.md">contribute a change</a>.</p>
+    </div>
+  </main>
+
+  <Footer />
+</Base>

@@ -4,8 +4,9 @@
 import Base from '../layouts/Base.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import { OG } from '../lib/og';
 ---
-<Base>
+<Base ogImage={OG.home.image} ogImageAlt={OG.home.alt}>
   <a class="skip" href="#main">Skip to content</a>
   <Header home />
 

@@ -134,7 +134,7 @@ h1 .soft { color: var(--text-muted); }
 .footer-row p { margin: 0; }
 .footer-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text-base); font-weight: 500; }
 .footer-brand img { border-radius: var(--r-sm); }
-.footer-links { display: flex; gap: 20px; list-style: none; margin: 0 auto 0 0; padding: 0; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 12px 20px; list-style: none; margin: 0 auto 0 0; padding: 0; }
 .footer-links a, .credit a { color: var(--text-muted); }
 .footer-links a:hover, .credit a:hover { color: var(--text-base); }
 .credit { font-size: 13px; }
