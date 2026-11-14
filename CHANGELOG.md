@@ -8,6 +8,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- **Per-note lock: design and core encryption prototype (#113).** A note can
+  now be sealed into a versioned ASCII envelope with its own password: the
+  body, tags and content-derived links become AES-256-GCM ciphertext under an
+  Argon2id key, while the filename stays a valid `.md` note so the vault walk
+  still lists it. `docs/per-note-encryption.md` records the threat model,
+  format and integration plan. This is not user-visible yet: the editor,
+  search, sync and UI are not wired to it, and there is no password reset.
+
 - **Paste rich text as Markdown, and wrap a selection in a link (#111).**
   Pasting from a browser or another document now keeps its structure: headings,
   ordered and unordered lists, links, emphasis, blockquotes and line breaks

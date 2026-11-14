@@ -18,6 +18,7 @@ mod board;
 mod frontmatter;
 mod kanban;
 mod note;
+mod note_lock;
 mod preview;
 mod search;
 mod tags;
@@ -53,6 +54,7 @@ pub use kanban::{
     metadata_rows, note_metadata, scan_card_text, scan_tags, tag_colors,
 };
 pub use note::Note;
+pub use note_lock::{LOCK_MAGIC, LOCK_VERSION, LockError, is_locked, lock, unlock};
 pub use preview::Attachment;
 pub use tags::{note_tags, tag_key, unclosed_tag};
 pub use vault::{BrokenLink, ScanJob, TagEntry, Vault, atomic_copy, atomic_write, board_name};
