@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # HTTP smoke test for the served marketing site (the Docker image in CI, or a local nginx).
 # Usage: site/scripts/smoke-http.sh http://127.0.0.1:8080
-# Checks status codes, content types, cache headers, security headers, gzip and video Range support.
+# Checks status codes, content types, cache headers, security headers, gzip, video Range support and /download/.
 set -euo pipefail
 BASE="${1:?usage: smoke-http.sh BASE_URL}"
 BASE="${BASE%/}"
@@ -61,6 +61,17 @@ expect "video open Range 206" "$h" '^HTTP/[0-9.]+ 206'
 h=$(hdr "$BASE/definitely-not-here")
 expect "missing page 404" "$h" '^HTTP/[0-9.]+ 404'
 expect "404 keeps nosniff" "$h" '^x-content-type-options: nosniff'
+
+# W4: /download/ is built from the latest GitHub Release (or the committed snapshot).
+h=$(hdr "$BASE/download/")
+expect "/download/ 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/download/ text/html" "$h" '^content-type: text/html'
+download=$(curl -sS "$BASE/download/")
+expect "/download/ has the heading" "$download" 'Download Muninn'
+expect "/download/ names the glibc requirement" "$download" 'glibc 2.43'
+expect "/download/ has a checksum" "$download" 'SHA-256'
+expect "/download/ has a cosign verify snippet" "$download" 'cosign verify-blob'
+expect "/download/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$download" | wc -l)" '^1$'
 
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"
