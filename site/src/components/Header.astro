@@ -1,14 +1,16 @@
 ---
 // Shared site header. `home` keeps the landing-page fragment links (#top, #features)
-// so the home markup stays pixel-identical to the W1 port.
+// so the home Features item still jumps to the three pillars. Other pages point
+// Features at /features/. `current` marks the active features page.
 interface Props {
   home?: boolean;
+  current?: 'features';
 }
 
-const { home = false } = Astro.props;
+const { home = false, current } = Astro.props;
 const brandHref = home ? '#top' : '/';
 const brandLabel = home ? 'Muninn, back to top' : 'Muninn, home';
-const featuresHref = home ? '#features' : '/#features';
+const featuresHref = home ? '#features' : '/features/';
 const downloadHref = home ? '#download' : '/#download';
 ---
   <header class="site-header">
@@ -19,7 +21,7 @@ const downloadHref = home ? '#download' : '/#download';
       </a>
       <nav aria-label="Primary">
         <ul class="nav">
-          <li><a href={featuresHref}>Features</a></li>
+          <li><a href={featuresHref} aria-current={current === 'features' ? 'page' : undefined}>Features</a></li>
           <li><a href={downloadHref}>Download</a></li>
           <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
         </ul>

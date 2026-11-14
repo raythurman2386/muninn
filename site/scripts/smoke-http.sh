@@ -2,7 +2,7 @@
 # HTTP smoke test for the served marketing site (the Docker image in CI, or a local nginx).
 # Usage: site/scripts/smoke-http.sh http://127.0.0.1:8080
 # Checks status codes, content types, cache headers, security headers (including CSP),
-# gzip, video Range support, /privacy/, sitemap, robots.txt and the branded 404.
+# gzip, video Range support, /privacy/, /features/, sitemap, robots.txt and the branded 404.
 set -euo pipefail
 BASE="${1:?usage: smoke-http.sh BASE_URL}"
 BASE="${BASE%/}"
@@ -166,6 +166,50 @@ expect "og sponsor png" "$h" '^content-type: image/png'
 h=$(hdr "$BASE/assets/logo.png")
 expect "logo png 200" "$h" '^HTTP/[0-9.]+ 200'
 expect "logo png type" "$h" '^content-type: image/png'
+
+# /features/, /features/board/ and /features/kanban/ (W7). Kept at the end
+# so earlier slices' checks apply cleanly above this block.
+for path in /features/ /features/board/ /features/kanban/; do
+  h=$(hdr "$BASE$path")
+  body=$(curl -sS "$BASE$path")
+  expect "$path 200" "$h" '^HTTP/[0-9.]+ 200'
+  expect "$path text/html" "$h" '^content-type: text/html'
+  expect "$path has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$body" | wc -l)" '^1$'
+  expect "$path og:image" "$body" 'property="og:image" content="https://muninn.ravenwoodsoftware.dev/assets/og/features.png"'
+done
+body=$(curl -sS "$BASE/features/")
+expect "/features/ heading" "$body" '<h1>Features</h1>'
+expect "/features/ Board link" "$body" '/features/board/'
+expect "/features/ Kanban link" "$body" '/features/kanban/'
+expect "/features/ Write section" "$body" 'id="write"'
+body=$(curl -sS "$BASE/features/board/")
+expect "/features/board/ heading" "$body" '<h1>Board</h1>'
+expect "/features/board/ loop" "$body" 'loop-board'
+body=$(curl -sS "$BASE/features/kanban/")
+expect "/features/kanban/ heading" "$body" '<h1>Kanban</h1>'
+expect "/features/kanban/ loop" "$body" 'loop-kanban-lanes'
+
+h=$(hdr "$BASE/assets/media/stills/dark/board-drawn-1600.avif")
+expect "still avif 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "still image/avif" "$h" '^content-type: image/avif'
+h=$(hdr "$BASE/assets/media/stills/dark/kanban-lanes-1160.webp")
+expect "kanban still webp 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "kanban still image/webp" "$h" '^content-type: image/webp'
+
+check_webm "board loop webm" "$BASE/assets/media/loops/dark/loop-board-1600.webm"
+v="$BASE/assets/media/loops/dark/loop-kanban-lanes-1160.mp4"
+h=$(hdr "$v")
+expect "kanban loop mp4 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "kanban loop video/mp4" "$h" '^content-type: video/mp4'
+h=$(hdr -H 'Range: bytes=0-1023' "$v")
+expect "kanban loop Range 206" "$h" '^HTTP/[0-9.]+ 206'
+
+sitemap=$(curl -sS "$BASE/sitemap-index.xml")
+# The sitemap index points at a urlset; check the urlset too if present.
+mapfile=$(curl -sS "$BASE/sitemap-0.xml" 2>/dev/null || curl -sS "$BASE/sitemap.xml")
+expect "sitemap lists /features/" "$sitemap $mapfile" 'https://muninn.ravenwoodsoftware.dev/features/'
+expect "sitemap lists /features/board/" "$sitemap $mapfile" 'https://muninn.ravenwoodsoftware.dev/features/board/'
+expect "sitemap lists /features/kanban/" "$sitemap $mapfile" 'https://muninn.ravenwoodsoftware.dev/features/kanban/'
 
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"

@@ -1,0 +1,49 @@
+---
+// Theme-aware product still: AVIF then WebP, dark and light, with width/height
+// so the layout does not shift. Hidden theme copy is display:none via site.css.
+interface Props {
+  scene: string;
+  width: number;
+  height: number;
+  widths: number[];
+  alt: string;
+  altLight?: string;
+  loading?: 'lazy' | 'eager';
+  priority?: boolean;
+  sizes?: string;
+}
+
+const {
+  scene,
+  width,
+  height,
+  widths,
+  alt,
+  altLight,
+  loading: loadingProp = 'lazy',
+  priority = false,
+  sizes = '(max-width: 800px) 100vw, 1160px',
+} = Astro.props;
+
+const loading = priority ? 'eager' : loadingProp;
+const fetchpriority = priority ? 'high' : 'auto';
+
+const lightAlt = altLight ?? alt;
+
+function src(theme: string, w: number, ext: string) {
+  return `/assets/media/stills/${theme}/${scene}-${w}.${ext}`;
+}
+function srcset(theme: string, ext: string) {
+  return widths.map((w) => `${src(theme, w, ext)} ${w}w`).join(', ');
+}
+---
+<picture class="only-dark">
+  <source type="image/avif" srcset={srcset('dark', 'avif')} sizes={sizes}>
+  <source type="image/webp" srcset={srcset('dark', 'webp')} sizes={sizes}>
+  <img src={src('dark', width, 'webp')} width={width} height={height} loading={loading} fetchpriority={fetchpriority} decoding="async" alt={alt}>
+</picture>
+<picture class="only-light">
+  <source type="image/avif" srcset={srcset('light', 'avif')} sizes={sizes}>
+  <source type="image/webp" srcset={srcset('light', 'webp')} sizes={sizes}>
+  <img src={src('light', width, 'webp')} width={width} height={height} loading={loading} fetchpriority={fetchpriority} decoding="async" alt={lightAlt}>
+</picture>

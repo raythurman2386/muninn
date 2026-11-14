@@ -9,3 +9,4 @@ site/node_modules
 site/dist
 site/.astro
 site/.proof-w1
+site/.proof-w7

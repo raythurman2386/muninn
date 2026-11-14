@@ -19,7 +19,8 @@
     "verify:csp": "node scripts/csp.mjs prove",
     "verify:pages": "node scripts/verify-pages.mjs",
     "generate:og": "node scripts/generate-og.mjs",
-    "verify:w8": "node scripts/verify-w8.mjs"
+    "verify:w8": "node scripts/verify-w8.mjs",
+    "verify:w7": "node scripts/verify-w7.mjs"
   },
   "dependencies": {
     "@astrojs/internal-helpers": "0.13.2",

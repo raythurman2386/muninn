@@ -1,0 +1,68 @@
+---
+// /features/board/: Board deep page with the drawing loop and palette still.
+import Base from '../../layouts/Base.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import ThemeStill from '../../components/ThemeStill.astro';
+import LoopVideo from '../../components/LoopVideo.astro';
+import { OG } from '../../lib/og';
+import '../../styles/features.css';
+
+const stillSizes = '(max-width: 800px) calc(100vw - 32px), min(1160px, 100vw - 48px)';
+---
+<Base
+  title="Board — Muninn"
+  description="Muninn’s Board is an .excalidraw whiteboard in your vault. Pick a stroke colour, draw cards and arrows, and label them in place."
+  ogTitle="Board — Muninn"
+  ogDescription="An .excalidraw whiteboard next to your notes."
+  ogImage={OG.features.image}
+  ogImageAlt={OG.features.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header current="features" />
+
+  <main id="main" class="features-page">
+    <div class="wrap">
+      <p class="deep-back"><a href="/features/">← Features</a></p>
+      <h1>Board</h1>
+      <p class="lede">A whiteboard stored as an <code>.excalidraw</code> file in the same folder as your notes. <kbd>⌘4</kbd> opens Board, or pick it from the mode bar.</p>
+    </div>
+
+    <div class="wrap wrap-wide">
+      <LoopVideo
+        priority
+        scene="board"
+        width={1600}
+        height={1000}
+        widths={[960, 1600]}
+        heights={[600, 1000]}
+        sizes={stillSizes}
+        caption="Pick a stroke colour from the palette, draw a card, label it, circle a node in ink, and add an arrow."
+        label="Muninn Board tour: pick a stroke colour, draw a card, label it, circle a node in ink, and add an arrow."
+        alt="The opening frame of the Board loop: the Launch Plan board in Muninn, showing the Tidepool 1.0 launch-plan diagram as coloured outline cards."
+        altLight="The opening frame of the Board loop, light theme: the Launch Plan board with the Tidepool 1.0 launch-plan diagram."
+      />
+    </div>
+
+    <article class="feature-section still wrap wrap-wide">
+      <div class="still-copy">
+        <h2>The palette</h2>
+        <p>The toolbar includes a stroke and fill palette, plus the usual drawing tools.</p>
+      </div>
+      <figure class="frame">
+        <ThemeStill
+          scene="board-palette"
+          width={1600}
+          height={1000}
+          widths={[960, 1600]}
+          sizes={stillSizes}
+          alt="The Launch Plan board with the stroke and fill palette open in the toolbar, showing colour swatches above the Tidepool 1.0 launch-plan diagram."
+          altLight="The Launch Plan board in the light theme, with the stroke and fill palette open in the toolbar."
+        />
+        <figcaption>The stroke and fill palette, open on the Launch Plan board.</figcaption>
+      </figure>
+    </article>
+  </main>
+
+  <Footer />
+</Base>

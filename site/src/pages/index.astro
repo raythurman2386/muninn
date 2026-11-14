@@ -1,10 +1,13 @@
 ---
-// Muninn marketing page, ported 1:1 from the static site/index.html (Astro W1).
-// Copy, markup and class names are unchanged; asset URLs are root-absolute (served from public/).
+// Home: hero tour, three pillars (Notes and graph, Board, Kanban), and the
+// local-first pitch. Board and Kanban media are the W6 v0.8.2 captures.
 import Base from '../layouts/Base.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import ThemeStill from '../components/ThemeStill.astro';
 import { OG } from '../lib/og';
+
+const stillSizes = '(max-width: 899px) calc(100vw - 32px), 360px';
 ---
 <Base ogImage={OG.home.image} ogImageAlt={OG.home.alt}>
   <a class="skip" href="#main">Skip to content</a>
@@ -46,46 +49,70 @@ import { OG } from '../lib/og';
       </div>
     </section>
 
-    <section class="showcase" aria-labelledby="showcase-title">
+    <section class="pillars" id="features" aria-labelledby="pillars-title">
       <div class="wrap">
-        <h2 id="showcase-title" class="section-title">A vault you can see into.</h2>
+        <h2 id="pillars-title" class="section-title">Notes, a board, and a kanban. Same vault.</h2>
+        <p class="pillars-lede">Write and read Markdown, sketch on a whiteboard, or move work across lanes. Every view is a file in the folder you choose.</p>
       </div>
-
-      <article class="still wrap wrap-wide">
-        <div class="still-copy">
-          <h3>Write in plain Markdown</h3>
-          <p>Write, Read, and Graph are three views of the same file. Links rail on the right: outgoing links, backlinks, and the line that made each one.</p>
-        </div>
-        <figure class="frame">
-          <img class="only-dark" src="/assets/img/dark/notes-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn in Write mode, editing the Markdown source of “Product Roadmap”, with the note list and links rail.">
-          <img class="only-light" src="/assets/img/light/notes-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn in Write mode, light theme, editing the Markdown source of “Product Roadmap”.">
-        </figure>
-      </article>
-
-      <article class="still wrap wrap-wide">
-        <div class="still-copy">
-          <h3>See the whole vault</h3>
-          <p>Every <code>[[wikilink]]</code> becomes an edge. Select a node and the camera glides to it; hub notes draw larger.</p>
-        </div>
-        <figure class="frame">
-          <img class="only-dark" src="/assets/img/dark/graph-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's global knowledge graph: 15 notes and their links, with “Home” selected.">
-          <img class="only-light" src="/assets/img/light/graph-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's global knowledge graph in the light theme, with “Home” selected.">
-        </figure>
-      </article>
-
-      <article class="still wrap wrap-wide">
-        <div class="still-copy">
-          <h3>Or just one note's neighborhood</h3>
-          <p>Local graph keeps the open note and the notes it touches. One click from the links rail, one shortcut from anywhere.</p>
-        </div>
-        <figure class="frame">
-          <img class="only-dark" src="/assets/img/dark/local-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's local graph: the note “Home” selected, with only the notes it links to or from.">
-          <img class="only-light" src="/assets/img/light/local-wide-1600.webp" width="1600" height="1000" loading="lazy" alt="Muninn's local graph in the light theme: “Home” selected, with only its direct neighbors.">
-        </figure>
-      </article>
+      <ul class="pillar-grid wrap wrap-wide">
+        <li class="pillar-card">
+          <div>
+            <h3>Notes and graph</h3>
+            <p>Write, Read, and Graph are three views of the same note. <code>[[Wikilinks]]</code> become edges; the local graph keeps only the neighbours of the open note.</p>
+            <a class="pillar-link" href="/features/">Explore features</a>
+          </div>
+          <figure class="frame">
+            <ThemeStill
+              scene="editor"
+              width={1600}
+              height={1000}
+              widths={[960, 1600]}
+              sizes={stillSizes}
+              alt="Muninn in Write mode: the Markdown source of “Product Roadmap” in the middle, the Tidepool note list on the left, and outgoing links and backlinks on the right."
+              altLight="Muninn in Write mode, light theme: the Markdown source of “Product Roadmap”, with the note list and links rail."
+            />
+          </figure>
+        </li>
+        <li class="pillar-card">
+          <div>
+            <h3>Board</h3>
+            <p>An <code>.excalidraw</code> whiteboard next to your notes. Pick a stroke colour, draw cards and arrows, and label them in place.</p>
+            <a class="pillar-link" href="/features/board/">See Board</a>
+          </div>
+          <figure class="frame">
+            <ThemeStill
+              scene="board-drawn"
+              width={1600}
+              height={1000}
+              widths={[960, 1600]}
+              sizes={stillSizes}
+              alt="The Launch Plan board in Muninn: the Tidepool 1.0 launch-plan diagram, with coloured outline cards, a red ink circle around “Launch day Dec 2”, and an arrow pointing at Retro."
+              altLight="The Launch Plan board in the light theme: the Tidepool 1.0 launch-plan diagram, with coloured outline cards, a red ink circle around “Launch day Dec 2”, and an arrow pointing at Retro."
+            />
+          </figure>
+        </li>
+        <li class="pillar-card">
+          <div>
+            <h3>Kanban</h3>
+            <p>A kanban note with lanes and cards that live in the vault. Drag a card into Done and it is marked complete.</p>
+            <a class="pillar-link" href="/features/kanban/">See Kanban</a>
+          </div>
+          <figure class="frame">
+            <ThemeStill
+              scene="kanban-lanes"
+              width={1160}
+              height={620}
+              widths={[696, 1160]}
+              sizes={stillSizes}
+              alt="The Launch Week kanban in Muninn, showing three lanes: To do, Doing, and Done, with cards for screenshots, the launch post, and completed onboarding work."
+              altLight="The Launch Week kanban in the light theme, showing three lanes: To do, Doing, and Done."
+            />
+          </figure>
+        </li>
+      </ul>
     </section>
 
-    <section class="features" id="features" aria-labelledby="features-title">
+    <section class="features" aria-labelledby="features-title">
       <div class="wrap">
         <h2 id="features-title" class="section-title">Small on purpose.</h2>
         <ul class="feature-grid">
