@@ -11,7 +11,7 @@
 //! rather than an offset tied to one world size. A reload that grows the
 //! board keeps the view where it was.
 
-use rune::Live;
+use rune::{Live, Spring};
 
 /// Smallest and largest zoom: Excalidraw's own floor, and far enough in to
 /// read a freehand stroke.
@@ -133,11 +133,99 @@ impl BoardView {
     }
 }
 
+/// A camera move over time: the board's counterpart to the graph's
+/// [`CameraGlide`](crate::CameraGlide). A short critically damped spring from
+/// the pose at the key or button press to its target, stepped once per `poll`
+/// frame by [`BoardCam::advance`].
+///
+/// Reduced motion never starts one (see `State`), and the wheel, a drag and a
+/// magnify gesture set the camera directly, so they cancel a glide in flight
+/// rather than fight it.
+#[derive(Clone, Copy, Debug)]
+pub struct BoardGlide {
+    from: BoardView,
+    to: BoardView,
+    /// The pose this glide last published, so a direct camera change can
+    /// cancel it instead of being overwritten.
+    at: BoardView,
+    started: f64,
+    spring: Spring,
+    duration: f64,
+}
+
+impl BoardGlide {
+    /// The graph camera's own `.smooth` feel.
+    const SPRING: Spring = Spring::new(0.34, 0.0);
+    /// A little past the spring's settling tail, then the target lands exactly.
+    const DURATION: f64 = 0.45;
+
+    #[must_use]
+    pub fn new(from: BoardView, to: BoardView, now: f64) -> BoardGlide {
+        BoardGlide {
+            from,
+            to,
+            at: from,
+            started: now,
+            spring: Self::SPRING,
+            duration: Self::DURATION,
+        }
+    }
+
+    #[must_use]
+    pub fn target(&self) -> BoardView {
+        self.to
+    }
+
+    /// The pose this glide last published.
+    #[must_use]
+    pub fn pose(&self) -> BoardView {
+        self.at
+    }
+
+    /// Aim an in-flight glide at a newer target. The start and clock stay put,
+    /// so a held arrow key or a second zoom press is followed without
+    /// restarting the spring.
+    pub fn retarget(&mut self, to: BoardView) {
+        self.to = to;
+    }
+
+    /// Sample the glide at `now` and remember the pose for the
+    /// external-change check. The flag is true once the target has landed.
+    #[must_use]
+    pub fn advance(&mut self, now: f64) -> (BoardView, bool) {
+        let (next, done) = self.sample(now);
+        self.at = next;
+        (next, done)
+    }
+
+    /// Sample the glide at `now`. The flag is true once the target has landed.
+    #[must_use]
+    pub fn sample(&self, now: f64) -> (BoardView, bool) {
+        let elapsed = (now - self.started).max(0.0);
+        if elapsed >= self.duration - 1e-9 {
+            return (self.to, true);
+        }
+        let t = elapsed as f32;
+        let (x, _) = self.spring.sample(self.from.eye[0], 0.0, self.to.eye[0], t);
+        let (y, _) = self.spring.sample(self.from.eye[1], 0.0, self.to.eye[1], t);
+        let (zoom, _) = self.spring.sample(self.from.zoom, 0.0, self.to.zoom, t);
+        (
+            BoardView {
+                eye: [x, y],
+                zoom: zoom.clamp(MIN_ZOOM, MAX_ZOOM),
+            },
+            false,
+        )
+    }
+}
+
 /// [`BoardView`] plus the `Live` values the world element binds.
 pub struct BoardCam {
     view: BoardView,
     origin: [f32; 2],
     size: [f32; 2],
+    /// A key or button camera move still travelling (see [`BoardGlide`]).
+    glide: Option<BoardGlide>,
     pub live_offset: Live<[f32; 2]>,
     pub live_zoom: Live<f32>,
 }
@@ -150,6 +238,7 @@ impl BoardCam {
             view,
             origin,
             size,
+            glide: None,
             live_offset: Live::new(view.world_offset(origin, size)),
             live_zoom: Live::new(view.zoom),
         }
@@ -160,24 +249,82 @@ impl BoardCam {
         self.view
     }
 
+    /// Put the camera at `view` at once. A fit on open and a resize use this;
+    /// user gestures go through [`BoardCam::glide_to`] so reduced motion can
+    /// decide between a glide and a jump.
     pub fn set(&mut self, view: BoardView) {
+        self.glide = None;
         self.view = view;
         self.sync();
     }
 
     /// The world element changed (the file was re-read): keep the view.
     pub fn rebase(&mut self, origin: [f32; 2], size: [f32; 2]) {
+        self.glide = None;
         self.origin = origin;
         self.size = size;
         self.sync();
     }
 
+    /// The view a glide in flight is heading for, or the current view.
+    #[must_use]
+    pub fn goal(&self) -> BoardView {
+        self.glide.map_or(self.view, |glide| glide.target())
+    }
+
+    /// Start or retarget a glide to `view`, or land it at once when it is
+    /// already there. `State` calls this only while motion is allowed.
+    pub fn glide_to(&mut self, view: BoardView, now: f64) {
+        if view == self.view {
+            self.glide = None;
+            return;
+        }
+        match &mut self.glide {
+            Some(glide) => glide.retarget(view),
+            None => self.glide = Some(BoardGlide::new(self.view, view, now)),
+        }
+    }
+
+    /// Step a glide at `now`. Returns true when the visible view moved.
+    pub fn advance(&mut self, now: f64) -> bool {
+        let Some(mut glide) = self.glide else {
+            return false;
+        };
+        // A wheel, a drag or a direct set wins over a glide in flight.
+        if glide.pose() != self.view {
+            self.glide = None;
+            return false;
+        }
+        let (next, done) = glide.advance(now);
+        let moved = next != self.view;
+        self.view = next;
+        self.sync();
+        self.glide = if done { None } else { Some(glide) };
+        moved
+    }
+
+    /// Whether a glide still has frames left to draw.
+    #[must_use]
+    pub fn gliding(&self) -> bool {
+        self.glide.is_some()
+    }
+
+    /// Finish a glide in flight at its target (leaving the page, quitting).
+    pub fn land(&mut self) {
+        if let Some(glide) = self.glide.take() {
+            self.view = glide.target();
+            self.sync();
+        }
+    }
+
     pub fn pan_by(&mut self, dx: f32, dy: f32) {
+        self.glide = None;
         self.view.pan_by(dx, dy);
         self.sync();
     }
 
     pub fn zoom_at(&mut self, screen: [f32; 2], factor: f32) {
+        self.glide = None;
         self.view.zoom_at(screen, factor);
         self.sync();
     }
@@ -273,5 +420,55 @@ mod tests {
         assert!(BoardView::new([f32::NAN, 0.0], 1.0).is_none());
         assert!(BoardView::new([0.0, 0.0], 0.0).is_none());
         assert_eq!(BoardView::new([0.0, 0.0], 99.0).unwrap().zoom, MAX_ZOOM);
+    }
+
+    #[test]
+    fn a_glide_moves_on_the_first_frame_and_lands_on_time() {
+        let from = BoardView::new([0.0, 0.0], 1.0).unwrap();
+        let to = BoardView::new([400.0, 220.0], 1.6).unwrap();
+        let glide = BoardGlide::new(from, to, 10.0);
+
+        let (first, done) = glide.sample(10.0 + 1.0 / 60.0);
+        assert!(!done);
+        assert!(
+            first.eye[0] > 0.0 && first.eye[0] < 400.0,
+            "{:?}",
+            first.eye
+        );
+        assert!(first.zoom > 1.0 && first.zoom < 1.6, "{}", first.zoom);
+
+        let (middle, done) = glide.sample(10.0 + 0.2);
+        assert!(!done);
+        assert!(middle.eye[0] > first.eye[0], "{:?}", middle.eye);
+
+        let (landed, done) = glide.sample(10.0 + BoardGlide::DURATION);
+        assert!(done);
+        assert_eq!(landed, to);
+    }
+
+    #[test]
+    fn a_glide_is_deterministic_and_a_direct_change_cancels_it() {
+        let from = BoardView::new([0.0, 0.0], 1.0).unwrap();
+        let to = BoardView::new([-300.0, 500.0], 0.8).unwrap();
+        let one = BoardGlide::new(from, to, 0.0);
+        let two = BoardGlide::new(from, to, 0.0);
+        for frame in 1..=30 {
+            let t = f64::from(frame) / 60.0;
+            assert_eq!(one.sample(t), two.sample(t));
+        }
+
+        let mut cam = BoardCam::new(from, [0.0, 0.0], [100.0, 100.0]);
+        cam.glide_to(to, 0.0);
+        assert!(cam.gliding());
+        assert!(cam.advance(1.0 / 60.0));
+        // A wheel or a drag sets the view directly and wins.
+        let before = cam.view();
+        cam.pan_by(10.0, 0.0);
+        assert!(!cam.gliding());
+        assert!(!cam.advance(2.0 / 60.0));
+        assert_eq!(
+            cam.view().eye,
+            [before.eye[0] - 10.0 / before.zoom, before.eye[1]]
+        );
     }
 }

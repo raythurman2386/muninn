@@ -26,6 +26,13 @@ All notable changes to Muninn are documented here. The format is based on
   an unnamed link. Checklist rows are a named list of positioned checkboxes
   (`1 of 3`), so a reader announces the task structure rather than loose text.
 
+- **Reduced motion on Board and Kanban (#72).** Board camera zooms, pans and
+  fits use the graph camera's short spring, and a reduced-motion choice (or
+  `MUNINN_REDUCED_MOTION`) lands them in one frame: no glide is started, and a
+  glide in flight lands at once when the setting turns on, so the window stops
+  waking for it. A Kanban card or lane drop and Board Find's match outline
+  already landed in the frame; tests now pin that under both motion modes.
+
 - **Board accessibility (#72).** The Board toolbar is a named `toolbar` whose
   hand, select and drawing-tool buttons are named, focusable toggle buttons
   with help naming their keys, a focus ring and a 30 pt target; Tab reaches

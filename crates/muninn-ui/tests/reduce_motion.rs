@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::{TempVault, big_vault};
 use muninn_ui::{Mode, ReduceMotion, Scope, Settings, State, on_key, poll, view};
-use rune::{Env, Runtime};
+use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
@@ -45,6 +45,91 @@ fn temp_vault() -> TempVault {
         ("Epsilon.md", "# Epsilon\n\nSee [[Alpha]].\n"),
         ("Zeta.md", "# Zeta\n\nAn island.\n"),
     ])
+}
+
+/// A board with a drawing, for the camera's glide.
+const SMOKE: &str = include_str!("../../muninn-core/tests/fixtures/board/smoke.excalidraw");
+/// A Kanban board with four lanes and a done lane, for drag and Find.
+const KANBAN: &str = include_str!("../../muninn-core/tests/fixtures/kanban/drag-board.md");
+
+fn board_vault() -> TempVault {
+    TempVault::new(&[("Alpha.md", "# Alpha\n"), ("Smoke.excalidraw", SMOKE)])
+}
+
+fn kanban_vault() -> TempVault {
+    TempVault::new(&[("Agenda.md", "# Agenda\n"), ("Board.md", KANBAN)])
+}
+
+fn key(rt: &mut Runtime<State>, key: Key) {
+    rt.key(KeyEvent {
+        key,
+        mods: Mods::default(),
+    });
+}
+
+/// The Kanban cards the runtime is still springing this frame, by key.
+fn moving_cards(rt: &Runtime<State>) -> Vec<String> {
+    rt.elements()
+        .into_iter()
+        .filter(|e| e.moving)
+        .filter_map(|e| e.key)
+        .filter(|key| key.starts_with("kanban-card-"))
+        .collect()
+}
+
+/// Enter Board and open the fixture board, letting the canvas size and its
+/// first (instant) fit land.
+fn open_smoke_board(rt: &mut Runtime<State>) {
+    let path = rt.state.vault.root.join("Smoke.excalidraw");
+    rt.update(|s, _| s.open_board_at(path));
+    frames(rt, 60);
+}
+
+fn open_kanban_board(rt: &mut Runtime<State>) {
+    let id = rt.state.vault.resolve("Board").expect("Board.md");
+    rt.update(|s, _| s.open_kanban(id));
+    frames(rt, 30);
+}
+
+/// Open Board Find and type `query`, as `⌘F` and typing do.
+fn open_kanban_find(rt: &mut Runtime<State>, query: &str) {
+    rt.update(|s, _| {
+        s.open_kanban_find();
+        let find = s.kanban_find.as_mut().expect("Board Find");
+        find.field.replace_text(query);
+        find.field.set_caret(query.len());
+        find.field.focused = true;
+    });
+    frames(rt, 30);
+}
+
+fn board_source(rt: &Runtime<State>) -> String {
+    rt.state
+        .kanban
+        .as_ref()
+        .and_then(|k| k.board.as_ref())
+        .expect("a board")
+        .source()
+        .to_owned()
+}
+
+/// Press a card at `from`'s centre, travel to `to`'s, and release.
+fn drag_card(rt: &mut Runtime<State>, from: &str, to: &str) {
+    let (fx, fy) = rt.find(from).unwrap_or_else(|| panic!("missing {from}"));
+    let (tx, ty) = rt.find(to).unwrap_or_else(|| panic!("missing {to}"));
+    rt.pointer_move(fx, fy);
+    rt.pointer_down(fx, fy);
+    frames(rt, 1);
+    for step in 1..=8 {
+        let f = step as f32 / 8.0;
+        rt.pointer_move(fx + (tx - fx) * f, fy + (ty - fy) * f);
+        frames(rt, 1);
+    }
+    frames(rt, 10);
+    rt.pointer_move(tx, ty);
+    rt.pointer_up(tx, ty);
+    // The release is an input event: it applies on the next frame.
+    frames(rt, 1);
 }
 
 /// A windowless app with its own config root, `MUNINN_REDUCED_MOTION`
@@ -459,4 +544,195 @@ fn an_os_flip_under_system_resumes_a_dense_layout() {
         "OS reduce off: the dense layout starts settling without a manual reheat"
     );
     let _ = fs::remove_dir_all(&config);
+}
+
+/// #72: the Board camera makes the graph camera's choice. A zoom, pan or fit
+/// under reduced motion is a single set, not a glide; with motion allowed the
+/// same press starts a spring that lands on the same target.
+#[test]
+fn board_camera_snaps_under_reduced_motion_and_glides_otherwise() {
+    let tmp = board_vault();
+    let config = unique_dir("board-camera");
+
+    let mut on = runtime(&tmp, &config, ReduceMotion::On, false);
+    open_smoke_board(&mut on);
+    let fitted = on.state.board_view().expect("an open board");
+    key(&mut on, Key::Text("+".into()));
+    // Keys are input events: the frame applies the zoom.
+    frames(&mut on, 1);
+    let zoomed = on.state.board_view().expect("an open board");
+    assert!(
+        (zoomed.zoom - fitted.zoom * 1.25).abs() < 1e-4,
+        "On: + zooms at once: {zoomed:?} from {fitted:?}"
+    );
+    assert!(!on.state.board_camera_gliding(), "On: no glide is started");
+
+    let before = on.state.board_view().expect("an open board");
+    key(&mut on, Key::Right);
+    frames(&mut on, 1);
+    let after = on.state.board_view().expect("an open board");
+    assert!(
+        (after.eye[0] - (before.eye[0] + 60.0 / before.zoom)).abs() < 1e-4,
+        "On: Right pans at once: {after:?} from {before:?}"
+    );
+    assert!(!on.state.board_camera_gliding(), "On: no glide is started");
+
+    key(&mut on, Key::Text("0".into()));
+    frames(&mut on, 1);
+    assert_eq!(
+        on.state.board_view().expect("an open board"),
+        fitted,
+        "On: 0 refits at once"
+    );
+    assert!(!on.state.board_camera_gliding(), "On: no glide is started");
+    frames(&mut on, 30);
+    assert_eq!(
+        on.state.board_view().expect("an open board"),
+        fitted,
+        "On: the camera stays put"
+    );
+
+    let mut off = runtime(&tmp, &config, ReduceMotion::Off, false);
+    open_smoke_board(&mut off);
+    let fitted = off.state.board_view().expect("an open board");
+    key(&mut off, Key::Text("+".into()));
+    // The press's own frame starts the spring at the pose it was pressed on.
+    frames(&mut off, 1);
+    assert!(
+        off.state.board_camera_gliding(),
+        "Off: + starts a camera glide"
+    );
+    assert_eq!(
+        off.state.board_view().expect("an open board"),
+        fitted,
+        "Off: the camera has not jumped on the press's frame"
+    );
+    frames(&mut off, 1);
+    let first = off.state.board_view().expect("an open board");
+    assert!(
+        first.zoom > fitted.zoom && first.zoom < fitted.zoom * 1.25,
+        "Off: the next frame is on the way: {first:?}"
+    );
+    frames(&mut off, 40);
+    assert!(!off.state.board_camera_gliding(), "Off: the glide landed");
+    assert!(
+        (off.state.board_view().expect("an open board").zoom - fitted.zoom * 1.25).abs() < 1e-3,
+        "Off: + lands at the same zoom On snapped to"
+    );
+
+    let before = off.state.board_view().expect("an open board");
+    key(&mut off, Key::Right);
+    frames(&mut off, 1);
+    assert!(
+        off.state.board_camera_gliding(),
+        "Off: Arrow pans with a glide"
+    );
+    frames(&mut off, 40);
+    let after = off.state.board_view().expect("an open board");
+    assert!(
+        (after.eye[0] - (before.eye[0] + 60.0 / before.zoom)).abs() < 1e-3,
+        "Off: the pan lands where On snapped: {after:?} from {before:?}"
+    );
+
+    key(&mut off, Key::Text("0".into()));
+    frames(&mut off, 1);
+    assert!(
+        off.state.board_camera_gliding(),
+        "Off: 0 glides back to the fit"
+    );
+    frames(&mut off, 40);
+    assert_eq!(
+        off.state.board_view().expect("an open board"),
+        fitted,
+        "Off: the glide lands on the exact fit"
+    );
+    assert!(!off.state.board_camera_gliding());
+
+    let _ = fs::remove_dir_all(&config);
+}
+
+/// The camera glide is bounded by the same setting mid-flight as the graph's:
+/// flipping Reduce motion on lands the camera at its target at once, so the
+/// window stops waking for it.
+#[test]
+fn turning_reduced_motion_on_mid_board_glide_lands_the_camera() {
+    let tmp = board_vault();
+    let config = unique_dir("board-mid-glide");
+    let mut rt = runtime(&tmp, &config, ReduceMotion::Off, false);
+    open_smoke_board(&mut rt);
+    let fitted = rt.state.board_view().expect("an open board");
+    key(&mut rt, Key::Text("+".into()));
+    frames(&mut rt, 1);
+    assert!(rt.state.board_camera_gliding());
+    frames(&mut rt, 3);
+    rt.update(|s, _| s.set_reduce_motion(ReduceMotion::On));
+    frames(&mut rt, 2);
+    assert!(
+        !rt.state.board_camera_gliding(),
+        "the glide in flight lands at once"
+    );
+    assert!(
+        (rt.state.board_view().expect("an open board").zoom - fitted.zoom * 1.25).abs() < 1e-4,
+        "it lands on the target the press asked for"
+    );
+    let at_rest = rt.state.board_view().expect("an open board");
+    frames(&mut rt, 20);
+    assert_eq!(
+        rt.state.board_view().expect("an open board"),
+        at_rest,
+        "and does not keep moving"
+    );
+    let _ = fs::remove_dir_all(&config);
+}
+
+/// #72: a Kanban card drop is one edit and lands in the frame, and Board
+/// Find's outline moves to the next match the same way. Neither path has a
+/// glide of its own, so reduced motion has nothing extra to suppress — this
+/// pins that the resolved setting never turns one into an animation.
+#[test]
+fn kanban_drag_and_find_outline_land_in_the_frame_under_either_motion_mode() {
+    for (mode, os) in [(ReduceMotion::On, false), (ReduceMotion::Off, false)] {
+        let tmp = kanban_vault();
+        let config = unique_dir("kanban-motion");
+        let mut rt = runtime(&tmp, &config, mode, os);
+        open_kanban_board(&mut rt);
+
+        let before = board_source(&rt);
+        drag_card(&mut rt, "kanban-card-0-0", "kanban-card-0-2");
+        assert_ne!(
+            board_source(&rt),
+            before,
+            "{mode:?}: the drop moved the card"
+        );
+        assert!(
+            moving_cards(&rt).is_empty(),
+            "{mode:?}: the drop lands in the frame, no card glides: {:?}",
+            moving_cards(&rt)
+        );
+
+        open_kanban_find(&mut rt, "card");
+        let current = rt.state.kanban_selected.expect("a match is selected");
+        assert!(
+            rt.state.kanban_find_mark(current.0, current.1).1,
+            "{mode:?}: the current match is outlined"
+        );
+        rt.update(|s, _| s.kanban_find_next());
+        frames(&mut rt, 1);
+        assert_ne!(
+            rt.state.kanban_selected,
+            Some(current),
+            "{mode:?}: Next steps the match"
+        );
+        assert!(
+            moving_cards(&rt).is_empty(),
+            "{mode:?}: the outline lands in the frame, no card glides: {:?}",
+            moving_cards(&rt)
+        );
+        let stepped = rt.state.kanban_selected.expect("a match");
+        assert!(
+            rt.state.kanban_find_mark(stepped.0, stepped.1).1,
+            "{mode:?}: the stepped-to match is outlined"
+        );
+        let _ = fs::remove_dir_all(&config);
+    }
 }

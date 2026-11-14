@@ -154,6 +154,17 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         tx.wake_after(wake);
     }
 
+    if s.mode == Mode::Board {
+        // A fit, zoom or arrow-key pan eases over a few frames; ask for the
+        // next frame only while that glide is in flight, so reduced motion
+        // (which lands the camera at once) never wakes for it.
+        if s.advance_board_camera() {
+            changed = true;
+        }
+        if s.board_camera_gliding() {
+            tx.wake_after(std::time::Duration::ZERO);
+        }
+    }
     if s.mode == Mode::Graph {
         // A node click or scope switch eases the camera over a few frames.
         // Ask for the next frame only while that glide is in flight, so
