@@ -29,7 +29,7 @@ pub const WORLD: [f32; 2] = [1800.0, 1300.0];
 pub const NODE_W: f32 = 136.0;
 pub const NODE_H: f32 = 38.0;
 
-const REPULSION: f32 = 9000.0;
+const REPULSION: f32 = 10500.0;
 /// Small vaults keep the original exhaustive 800 cutoff, bit for bit, so the
 /// sample vault, its snapshots and the small deterministic tests do not move.
 /// Above this many nodes the cutoff tapers with `1/sqrt(n)`: a 2000-note
@@ -56,7 +56,7 @@ const SEP_AREA: f32 = SEP_CELL_X * SEP_CELL_Y;
 /// view draws those densities as dots (see `LOD_ZOOM`).
 const SEP_FULL_FILL: f32 = 0.35;
 const SPRING: f32 = 0.008;
-const LINK_LEN: f32 = 132.0;
+const LINK_LEN: f32 = 150.0;
 const GRAVITY: f32 = 0.0016;
 /// Velocity retained per step. Small vaults keep the original constant so their
 /// settled positions stay bit-identical; dense vaults are damped a little more
