@@ -1,0 +1,28 @@
+{
+  "name": "muninn-site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Marketing site for Muninn (muninn.ravenwoodsoftware.dev), built with Astro.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1",
+    "build": "astro build",
+    "preview": "astro preview --host 127.0.0.1",
+    "check": "astro check",
+    "verify:w1": "bash scripts/verify-w1.sh"
+  },
+  "dependencies": {
+    "astro": "7.4.12"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "pixelmatch": "8.0.0",
+    "playwright-core": "1.65.1",
+    "pngjs": "7.0.0",
+    "typescript": "6.0.3"
+  }
+}
