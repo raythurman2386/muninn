@@ -6,6 +6,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-13
+
+### Added
+
+- **arm64 Linux builds.** CI now builds and tests natively on `ubuntu-24.04-arm`
+  (aarch64), and the release matrix publishes a `linux/aarch64` archive and a
+  `.deb` for Raspberry Pi 4/5 and other 64-bit ARM Linux devices.
+
 ## [0.8.1] - 2026-11-13
 
 ### Added
