@@ -42,14 +42,14 @@ export const DOC_PAGES: readonly DocPage[] = [
     slug: 'getting-started',
     title: 'Getting started',
     description:
-      'Install and run Muninn, manage vaults and settings, and use the session log and reduced-motion options.',
-    source: { kind: 'readme', startHeading: '## Quick start', endHeading: '## What it does' },
+      'Install and run Muninn, open or create a vault, and inspect a vault headlessly.',
+    source: { kind: 'readme', startHeading: '## Install', endHeading: '## Sync' },
   },
   {
     slug: 'keyboard-shortcuts',
     title: 'Keyboard shortcuts',
-    description: 'The full shortcut map for Write, Read, Graph, Board and Kanban.',
-    source: { kind: 'readme', startHeading: '## Keys', endHeading: '## Crates' },
+    description: 'The essential shortcut map; the full map is in the in-app Help.',
+    source: { kind: 'readme', startHeading: '## Keys', endHeading: '## For developers' },
   },
   {
     slug: 'sync-setup',
@@ -148,7 +148,7 @@ function readmePageMarkdown(page: DocPage & { source: ReadmeSource }): string {
     page.source.endHeading,
   );
   // Keep the README section heading so H3 subsections stay under an H2
-  // (e.g. Getting started → Quick start → Headless checks).
+  // (e.g. Getting started → Install → Inspect a vault).
   const withTitle = `# ${page.title}\n\n${section}`;
 
   return rewriteMarkdownLinks(withTitle, 'README.md');
