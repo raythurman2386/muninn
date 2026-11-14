@@ -20,9 +20,87 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SITE_DIR = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const DIST = join(SITE_DIR, 'dist');
+const DIST = process.env.SITE_DIST ? resolveEnvPath(process.env.SITE_DIST) : join(SITE_DIR, 'dist');
 const TEMPLATE = join(SITE_DIR, 'nginx', 'security-headers.conf.in');
-const OUTPUT = join(SITE_DIR, 'nginx', 'security-headers.conf');
+const OUTPUT = process.env.CSP_OUT ? resolveEnvPath(process.env.CSP_OUT) : join(SITE_DIR, 'nginx', 'security-headers.conf');
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
+
+function resolveEnvPath(p) {
+  return p.startsWith('/') ? p : join(SITE_DIR, p);
+}
+
+export function waitlistEnabled(env = process.env) {
+  return env.PUBLIC_WAITLIST_ENABLED === 'true';
+}
+
+export function endpointOrigin(url = process.env.PUBLIC_WAITLIST_ENDPOINT) {
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+// Extra CSP sources used only when PUBLIC_WAITLIST_ENABLED=true. The default
+// (flag-off) generate() path leaves the template output byte-identical to main.
+export function cspExtras(env = process.env) {
+  const empty = { scriptSrc: [], connectSrc: [], formAction: [], frameSrc: [] };
+  if (!waitlistEnabled(env)) return empty;
+  const scriptSrc = [];
+  const connectSrc = [];
+  const formAction = [];
+  const frameSrc = [];
+  const origin = endpointOrigin(env.PUBLIC_WAITLIST_ENDPOINT);
+  if (origin) {
+    connectSrc.push(origin);
+    formAction.push(origin);
+  }
+  if ((env.PUBLIC_TURNSTILE_SITEKEY || '').trim()) {
+    scriptSrc.push(TURNSTILE_ORIGIN);
+    connectSrc.push(TURNSTILE_ORIGIN);
+    frameSrc.push(TURNSTILE_ORIGIN);
+  }
+  return { scriptSrc, connectSrc, formAction, frameSrc };
+}
+
+function mergeSources(existing, extras) {
+  const have = new Set(existing.trim().split(/\s+/).filter(Boolean));
+  for (const src of extras) have.add(src);
+  const self = [];
+  const rest = [];
+  for (const src of have) {
+    if (src === "'self'") self.push(src);
+    else rest.push(src);
+  }
+  rest.sort();
+  return [...self, ...rest].join(' ');
+}
+
+export function applyWaitlistCsp(csp, env = process.env) {
+  if (!waitlistEnabled(env)) return csp;
+  const extras = cspExtras(env);
+  const dirs = [
+    ['script-src', extras.scriptSrc],
+    ['connect-src', extras.connectSrc],
+    ['form-action', extras.formAction],
+    ['frame-src', extras.frameSrc],
+  ];
+  let out = csp;
+  for (const [name, add] of dirs) {
+    if (!add.length) continue;
+    const re = new RegExp(`(; |^)${name} ([^;]+)`);
+    const m = out.match(re);
+    if (m) {
+      out = out.replace(re, `${m[1]}${name} ${mergeSources(m[2], add)}`);
+    } else if (out.includes('upgrade-insecure-requests')) {
+      out = out.replace('upgrade-insecure-requests', `${name} ${mergeSources('', add)}; upgrade-insecure-requests`);
+    } else {
+      out = `${out}; ${name} ${mergeSources('', add)}`;
+    }
+  }
+  return out;
+}
 
 const argv = process.argv.slice(2);
 const cmd = argv.find((a) => !a.startsWith('-')) || 'generate';
@@ -87,7 +165,10 @@ export function generate(dist = DIST, outFile = OUTPUT) {
   }
   const hashes = hashesFromDist(dist);
   const filler = hashes.length ? hashes.map((h) => `'${h}'`).join(' ') + ' ' : '';
-  const text = template.replace('__SCRIPT_HASHES__', filler);
+  let text = template.replace('__SCRIPT_HASHES__', filler);
+  const policy = parseCspFromNginx(text);
+  const next = applyWaitlistCsp(policy);
+  if (next !== policy) text = text.replace(policy, next);
   mkdirSync(dirname(outFile), { recursive: true });
   writeFileSync(outFile, text);
   console.log(`csp: wrote ${outFile} with ${hashes.length} inline hash(es): ${hashes.join(' ') || '(none)'}`);

@@ -1,0 +1,105 @@
+/*
+  Styles for the Early access form. Imported only by WaitlistForm.astro, which
+  is only used on /waitlist/ pages emitted when PUBLIC_WAITLIST_ENABLED=true.
+  Do not import this file from shared layout or CSS: that would change
+  hashed assets on every page when the flag is off.
+*/
+
+.waitlist-form {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  max-width: 28em;
+}
+
+.waitlist-field {
+  display: grid;
+  gap: 6px;
+}
+
+.waitlist-field label {
+  font: 600 14px/1.3 var(--font-sans);
+  color: var(--text-base);
+}
+
+.waitlist-field input[type="email"] {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg-base);
+  color: var(--text-base);
+  font: 400 16px/1.3 var(--font-sans);
+}
+
+.waitlist-field input[type="email"]:hover {
+  background: var(--hover);
+}
+
+.waitlist-field input[type="email"]:focus {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.waitlist-form .btn {
+  justify-self: start;
+  border: 0;
+  cursor: pointer;
+  font: 560 15px/1 var(--font-sans);
+}
+
+.waitlist-form .btn:focus {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.waitlist-status {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-base);
+  min-height: 1.5em;
+}
+
+.waitlist-status[data-state="error"] {
+  color: #f97066;
+}
+
+[data-theme="light"] .waitlist-status[data-state="error"] {
+  color: #b42318;
+}
+
+.waitlist-status[data-state="success"] {
+  color: var(--text-base);
+}
+
+/* Honeypot: off-screen, not display:none, so a basic bot still fills it. */
+.waitlist-hp {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.waitlist-note {
+  margin: 1.25em 0 0;
+  max-width: 40em;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.waitlist-noscript {
+  margin: 0 0 1em;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.cf-turnstile {
+  margin-top: 2px;
+}
