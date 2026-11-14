@@ -14,3 +14,6 @@
 # Python bytecode from the smoke harness (scripts/ui-smoke).
 __pycache__/
 *.pyc
+
+# Local agent/harness working directory (sessions, caches).
+/.huginn/
