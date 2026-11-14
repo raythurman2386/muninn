@@ -134,6 +134,12 @@ if ! node "$SCRIPT_DIR/csp.mjs" check --url "$BASE"; then
   fail=1
 fi
 
+for path in /changelog/ /docs/ /docs/getting-started/ /docs/keyboard-shortcuts/ /docs/sync-setup/ /docs/kanban-format/ /docs/a11y-checklist/ /docs/sync-safety/; do
+  h=$(hdr "$BASE$path")
+  expect "$path 200" "$h" '^HTTP/[0-9.]+ 200'
+  expect "$path text/html" "$h" '^content-type: text/html'
+done
+
 # /sponsor/ and /press/ (W8). Kept at the end so a merge with W3/W4's
 # extra checks applies cleanly above this block.
 body=$(curl -sS "$BASE/sponsor/")
@@ -166,6 +172,7 @@ expect "og sponsor png" "$h" '^content-type: image/png'
 h=$(hdr "$BASE/assets/logo.png")
 expect "logo png 200" "$h" '^HTTP/[0-9.]+ 200'
 expect "logo png type" "$h" '^content-type: image/png'
+
 
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"

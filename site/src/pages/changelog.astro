@@ -1,0 +1,42 @@
+---
+// /changelog/ is rendered from the repo's CHANGELOG.md at build time. The
+// site does not keep a second copy of the text. Dockerfile.marketing copies
+// CHANGELOG.md into the image build context next to site/.
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { addChangelogAnchors, changelogVersions } from '../lib/changelog';
+import { readRepoMarkdown, renderMarkdown } from '../lib/repo-markdown';
+import { OG } from '../lib/og';
+import '../styles/docs.css';
+
+const source = readRepoMarkdown('CHANGELOG.md');
+const versions = changelogVersions(source);
+if (versions.length === 0) throw new Error('CHANGELOG.md has no ## [version] headings');
+const { code } = await renderMarkdown(addChangelogAnchors(source), 'CHANGELOG.md');
+---
+<Base
+  title="Changelog — Muninn"
+  description="Release notes for Muninn, from the project's CHANGELOG.md. Every version has an on-page anchor."
+  ogImage={OG.changelog.image}
+  ogImageAlt={OG.changelog.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header current="changelog" />
+  <main id="main" class="page-main">
+    <div class="wrap docs-shell">
+      <nav class="version-nav" aria-label="Versions">
+        <p class="version-nav-title">Versions</p>
+        <ul>
+          {versions.map((version) => (
+            <li>
+              <a href={`/changelog/#${version.id}`}>{version.date ? `${version.version} — ${version.date}` : version.version}</a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <article class="doc" set:html={code} />
+    </div>
+  </main>
+  <Footer />
+</Base>

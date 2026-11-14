@@ -1,15 +1,17 @@
 ---
 // Shared site header. `home` keeps the landing-page fragment links (#top, #features)
-// so the home markup stays pixel-identical to the W1 port.
+// so the home markup stays pixel-identical to the W1 port aside from the Docs
+// and Changelog nav items. `current` marks the active document page.
 // The Early access item is included only when PUBLIC_WAITLIST_ENABLED=true, so
 // a default build stays byte-identical to main.
 import { WAITLIST_ENABLED } from '../lib/waitlist';
 
 interface Props {
   home?: boolean;
+  current?: 'docs' | 'changelog';
 }
 
-const { home = false } = Astro.props;
+const { home = false, current } = Astro.props;
 const brandHref = home ? '#top' : '/';
 const brandLabel = home ? 'Muninn, back to top' : 'Muninn, home';
 const featuresHref = home ? '#features' : '/#features';
@@ -25,6 +27,8 @@ const downloadHref = home ? '#download' : '/#download';
         <ul class="nav">
           <li><a href={featuresHref}>Features</a></li>
           <li><a href={downloadHref}>Download</a></li>
+          <li><a href="/docs/" aria-current={current === 'docs' ? 'page' : undefined}>Docs</a></li>
+          <li><a href="/changelog/" aria-current={current === 'changelog' ? 'page' : undefined}>Changelog</a></li>
           {WAITLIST_ENABLED && <li><a href="/waitlist/">Early access</a></li>}
           <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
         </ul>

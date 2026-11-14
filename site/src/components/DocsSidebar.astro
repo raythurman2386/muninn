@@ -1,0 +1,19 @@
+---
+import { DOC_PAGES } from '../lib/docs';
+
+interface Props {
+  current?: string;
+}
+
+const { current } = Astro.props;
+---
+<nav class="docs-sidebar" aria-label="Docs">
+  <p class="docs-sidebar-title"><a href="/docs/">Docs</a></p>
+  <ul>
+    {DOC_PAGES.map((page) => (
+      <li>
+        <a href={`/docs/${page.slug}/`} aria-current={current === page.slug ? 'page' : undefined}>{page.title}</a>
+      </li>
+    ))}
+  </ul>
+</nav>

@@ -19,8 +19,10 @@ COPY site/package.json site/package-lock.json ./
 # dependencies; astro check, Lighthouse and the screenshot proof are
 # devDependencies and stay out of the image build entirely.
 RUN npm ci --omit=dev
-# PRIVACY.md is read at build time by /privacy/; it is not copied into the site tree.
-COPY PRIVACY.md /src/PRIVACY.md
+# Repo markdown is read at build time for /privacy/, /changelog/ and /docs/;
+# it is not copied into the site tree.
+COPY PRIVACY.md CHANGELOG.md README.md /src/
+COPY docs/sync-setup.md docs/kanban-format.md docs/a11y-checklist.md docs/sync-safety.md /src/docs/
 COPY site/ ./
 # npm run build also writes nginx/security-headers.conf from the inline
 # scripts in dist/, so the CSP hashes cannot drift from the HTML.
