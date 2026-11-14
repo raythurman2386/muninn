@@ -37,29 +37,28 @@
 //! `Cmd`/`Ctrl`-click, and draws the header's Archive page with Restore and
 //! Delete. Slice 13 (`kanban_search.rs`) adds Board Find and the ephemeral
 //! filter, and draws a card's nested task items as its checklist at the card's
-//! foot (plain-text rows; the display gaps are documented at
-//! `without_checklist_lines`). Slice 14 (`kanban_settings.rs`) draws the
-//! header's Board settings panel from the shared key schema, and its lane
-//! width, new-line trigger and header-button switches take effect on the next
-//! frame. Slice 15 (`kanban_views.rs`) draws the list and table views a
+//! foot (a named list of interactive checkbox rows; the display gaps are
+//! documented at `without_checklist_lines`). Slice 14 (`kanban_settings.rs`)
+//! draws the header's Board settings panel from the shared key schema, and its
+//! lane width, new-line trigger and header-button switches take effect on the
+//! next frame. Slice 15 (`kanban_views.rs`) draws the list and table views a
 //! `kanban-plugin: list` / `table` value asks for, and the header's Board /
 //! List / Table switcher chooses one for the session. Slice 16 (fixed in
 //! review) adds the page's keyboard and accessibility pass: the lane cards are
 //! a list with roving Up/Down whose selection follows focus, every control is
 //! a Tab stop with a focus ring and Enter, Space/Enter toggle the focused or
 //! selected card's done mark, the menus are focus-taking modal overlays of
-//! menu/menuitem rows, the menu-opened date picker is a real modal overlay (a
-//! typed-trigger picker stays inline with its field), and the conflict bar is
-//! an alert dialog that gives the keyboard to **Resolve conflict** when Escape
-//! puts it away.
+//! menu/menuitem rows, a menu-opened date or time picker is a real modal
+//! overlay (a typed-trigger picker stays inline with its field), and the
+//! conflict bar is an alert dialog that gives the keyboard to **Resolve
+//! conflict** when Escape puts it away.
 //!
 //! Known limits of that pass (kept rather than faked): a card row is a nested
 //! focus group, so Tab reaches the row and then its first control (the
 //! checkbox) while the arrows rove the rest; the date picker's day grid is a
-//! grid, so Tab reaches it and the arrows move among days without writing; a
-//! menu-opened time picker keeps its hour/minute fields and so stays an inline
-//! group that Tab can leave; and a Kanban menu floats under its lane header,
-//! clamped to stay inside a short window.
+//! grid, so Tab reaches it and the arrows move among days without writing; and
+//! a Kanban menu floats under its lane header, clamped to stay inside a short
+//! window.
 //!
 //! Slice 3 adds the ways in: the sidebar's Kanbans section and the palette's
 //! kanban entries ([`State::open_kanban`]), New Kanban
@@ -1622,6 +1621,8 @@ fn card_view(
                     Markdown::new(source)
                         .style(MarkdownStyle::from_kit(k).link(k.c.text_accent))
                         .link_style(crate::view::missing_link_style(k))
+                        // #72: every card link says where it goes.
+                        .link_help(|url| Some(crate::kanban_wrap::link_description(url)))
                         .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| {
                             s.open_card_link(url, tx)
                         })
@@ -1694,12 +1695,16 @@ pub(crate) fn without_checklist_lines(text: &str, items: &[ChecklistItem]) -> St
 
 /// The card's nested task items: a progress label and one interactive row per
 /// item. Each row toggles only its own character through the core edit path.
+///
+/// #72: the rows are a named `list` of checkboxes, as rune-kit's Markdown task
+/// items are, each with its 1-based `position_in_set`, so AT announces the
+/// task structure ("1 of 2") instead of reading the rows as loose text.
 pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistItem]) -> El {
     if items.is_empty() {
         return el();
     }
     let done = items.iter().filter(|item| item.is_done()).count();
-    let mut section = col()
+    let section = col()
         .key(format!("kanban-card-{i}-{j}-checklist"))
         .w_full()
         .gap(2.0)
@@ -1714,9 +1719,17 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
                     text(format!("{done}/{}", items.len()))
                         .key(format!("kanban-card-{i}-{j}-checklist-progress-text"))
                         .font(k.ty.caption())
-                        .color(k.c.text_faint),
+                        .color(k.c.text_faint)
+                        // Spoken as a sentence rather than "one slash two".
+                        .label(format!("{done} of {} done", items.len())),
                 ),
         );
+    let mut list = col()
+        .key(format!("kanban-card-{i}-{j}-checklist-items"))
+        .w_full()
+        .gap(2.0)
+        .role("list")
+        .label(format!("Checklist, {done} of {} done", items.len()));
     for (n, item) in items.iter().enumerate() {
         let line = item.line();
         let checked = item.is_done();
@@ -1725,7 +1738,7 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
         } else {
             item.text()
         };
-        section = section.child(
+        list = list.child(
             row()
                 .key(format!("kanban-card-{i}-{j}-task-{n}"))
                 .w_full()
@@ -1741,6 +1754,8 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
                 .cursor(rune::Cursor::Pointer)
                 .role("checkbox")
                 .checked(checked)
+                // #72: the task's place in the checklist, so AT says "2 of 3".
+                .position_in_set(n + 1, items.len())
                 .label(words.to_owned())
                 .focusable(true)
                 .focus_ring(2.0, 1.0, k.c.text_accent)
@@ -1769,7 +1784,10 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
                             icon(&ic::CHECK, 9.0).color(k.c.text_accent)
                         } else {
                             el()
-                        }),
+                        })
+                        // The row already reports the checked state; the box
+                        // and tick are decoration.
+                        .a11y_hidden(),
                 )
                 .child(
                     text(item.text().to_owned())
@@ -1784,7 +1802,7 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
                 ),
         );
     }
-    section
+    section.child(list)
 }
 
 /// The card editor: Enter commits, Shift+Enter breaks the line, Esc cancels.

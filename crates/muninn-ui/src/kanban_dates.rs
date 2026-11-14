@@ -606,7 +606,7 @@ pub(crate) fn picker(s: &State, k: &Kit) -> El {
     let Some(picker) = &s.kanban_picker else {
         return rune::el();
     };
-    if !picker_typing(s) {
+    if !picker_typing(picker) {
         return rune::el();
     }
     let panel = match picker.kind {
@@ -617,11 +617,13 @@ pub(crate) fn picker(s: &State, k: &Kit) -> El {
     panel.focus_return(format!("kanban-card-{}-{}", picker.card.0, picker.card.1))
 }
 
-/// Whether the picker was opened from a text field (the card editor or the
-/// time fields), which keeps the keyboard and draws it inline rather than as
-/// the modal overlay.
-fn picker_typing(s: &State) -> bool {
-    s.kanban_card_field.focused || s.kanban_hour_field.focused || s.kanban_minute_field.focused
+/// Whether the picker was opened from a typed trigger in the card editor,
+/// which keeps the keyboard and draws it inline rather than as the modal
+/// overlay. A picker opened from a card menu is always a modal, the time
+/// picker included (#72): its hour and minute fields take the keyboard from
+/// the modal, not from the page behind it, so Tab can never leave it.
+fn picker_typing(picker: &KanbanPicker) -> bool {
+    picker.insert.is_some()
 }
 
 /// A menu-opened picker, as the page's last root overlay: a real modal that
@@ -632,7 +634,7 @@ pub(crate) fn picker_layer(s: &State, k: &Kit) -> El {
     let Some(picker) = &s.kanban_picker else {
         return rune::el();
     };
-    let typing = picker_typing(s);
+    let typing = picker_typing(picker);
     if typing {
         return rune::el();
     }
