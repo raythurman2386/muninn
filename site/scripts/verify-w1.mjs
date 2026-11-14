@@ -108,6 +108,9 @@ async function capture(browser, url, vp, theme, file, reducedMotion = 'no-prefer
   return { ...state, errors, umamiRequests };
 }
 
+// Exact compare: a pixel differs if any RGBA byte differs, and size mismatches count as
+// differing pixels. The gate is MAX_DIFF_PIXELS (default 0: a 1:1 port must be pixel-identical).
+// pixelmatch (threshold 0, anti-aliasing included) only paints the visual diff image.
 function diff(aFile, bFile, outFile) {
   const a = PNG.sync.read(readFileSync(aFile));
   const b = PNG.sync.read(readFileSync(bFile));
@@ -127,8 +130,8 @@ function diff(aFile, bFile, outFile) {
 const oldServer = await serve(OLD);
 const newServer = await serve(NEW);
 const oldUrl = `http://127.0.0.1:${oldServer.address().port}/`;
-const newUrl = `http://127.0.0.1:${newServer.address().port}/`;
-console.log(`old ${oldUrl} (${OLD})\nnew ${newUrl} (${NEW})`);
+const newUrl = process.env.NEW_URL || `http://127.0.0.1:${newServer.address().port}/`;
+console.log(`old ${oldUrl} (${OLD})\nnew ${newUrl} (${process.env.NEW_URL ? "running server" : NEW})`);
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--hide-scrollbars', '--force-color-profile=srgb'] });
 const rows = [];
@@ -147,10 +150,10 @@ for (const vp of VIEWPORTS) {
       umamiTagOnce: n.umamiTags === 1,
       noErrors: n.errors.length === 0,
     };
-    const ok = d.pct < MAX_DIFF_PCT && Object.values(checks).every(Boolean);
+    const ok = within(d) && Object.values(checks).every(Boolean);
     if (!ok) failed = true;
     rows.push({ id, ...d, checks, newErrors: n.errors, ok });
-    console.log(`${ok ? 'PASS' : 'FAIL'} ${id}: ${d.pct.toFixed(4)}% (${d.pixels}/${d.total}) old ${d.oldSize} new ${d.newSize} ${JSON.stringify(checks)}`);
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${id}: ${d.pixels} px (${d.pct.toFixed(4)}% of ${d.total}) old ${d.oldSize} new ${d.newSize} ${JSON.stringify(checks)}`);
   }
 }
 
@@ -165,9 +168,9 @@ for (const site of [['old', oldUrl], ['new', newUrl]]) {
   }
 }
 const rd = diff(join(OUT, 'shots', 'old-1440x900-dark-reduced.png'), join(OUT, 'shots', 'new-1440x900-dark-reduced.png'), join(OUT, 'shots', 'diff-1440x900-dark-reduced.png'));
-rows.push({ id: '1440x900-dark-reduced', ...rd, ok: rd.pct < MAX_DIFF_PCT });
-if (rd.pct >= MAX_DIFF_PCT) failed = true;
-console.log(`${rd.pct < MAX_DIFF_PCT ? 'PASS' : 'FAIL'} 1440x900-dark-reduced: ${rd.pct.toFixed(4)}%`);
+rows.push({ id: '1440x900-dark-reduced', ...rd, ok: within(rd) });
+if (!within(rd)) failed = true;
+console.log(`${within(rd) ? 'PASS' : 'FAIL'} 1440x900-dark-reduced: ${rd.pixels} px (${rd.pct.toFixed(4)}%)`);
 
 // Theme toggle works and persists (new site).
 {
@@ -195,7 +198,7 @@ if (process.env.LIGHTHOUSE === '1') {
   lighthouse = {};
   for (const [name, preset] of [['mobile', null], ['desktop', 'desktop']]) {
     const json = join(OUT, `lighthouse-${name}.json`);
-    const lhArgs = ['-y', 'lighthouse@13.6.0', newUrl, '--quiet', '--output=json', `--output-path=${json}`,
+    const lhArgs = ['--no-install', 'lighthouse', newUrl, '--no-enable-error-reporting', '--quiet', '--output=json', `--output-path=${json}`,
       '--only-categories=performance,accessibility,best-practices,seo',
       '--blocked-url-patterns=*umami-app.ravenwoodsoftware.dev*',
       '--chrome-flags=--headless=new --no-sandbox --hide-scrollbars'];
@@ -214,6 +217,6 @@ if (process.env.LIGHTHOUSE === '1') {
 
 oldServer.close();
 newServer.close();
-writeFileSync(join(OUT, 'results.json'), JSON.stringify({ maxDiffPct: MAX_DIFF_PCT, rows, lighthouse }, null, 2));
+writeFileSync(join(OUT, 'results.json'), JSON.stringify({ maxDiffPixels: MAX_DIFF_PIXELS, rows, lighthouse }, null, 2));
 console.log(failed ? 'W1 VERIFY: FAIL' : 'W1 VERIFY: PASS');
 process.exit(failed ? 1 : 0);
