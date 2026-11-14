@@ -19,9 +19,12 @@
 //! keep the lower floor; `icon_muted` clears it on both layers already.
 //!
 //! Board strokes are a separate case: Excalidraw stores the exact colour in
-//! the file, so the file's own ink is drawn as-is. Only the *default* ink for
-//! a new element is adapted, and only on a dark paper (see [`board_stroke`]);
-//! the canvas's own empty-board placeholder is inked for its paper too.
+//! the file and that is what is written back. A committed ink that would
+//! vanish into the paper is painted with a legible substitute of the same hue
+//! while the file keeps its bytes (#88, `board_scene::paints`). Only the
+//! *default* ink for a new element is adapted, and only on a dark paper (see
+//! [`board_stroke`]); the canvas's own empty-board placeholder is inked for
+//! its paper too.
 
 use rune::Color;
 use rune_kit::Kit;
@@ -149,12 +152,13 @@ pub fn enforce_kit(kit: &mut Kit) {
 
 /// The stroke a new element is written with.
 ///
-/// Excalidraw's stored colours round-trip unchanged, so an existing shape is
-/// always drawn in the ink the file names. A *new* element with the default
-/// ink ([`muninn_core::DEFAULT_STROKE`]) on a dark `viewBackgroundColor`
-/// would be invisible (`#1e1e1e` on `#121212` is 1.12:1), so it is written
-/// with [`LIGHT_INK`] instead — the value Excalidraw's own dark theme uses.
-/// A colour the user picked from the palette is never changed.
+/// Excalidraw's stored colours round-trip unchanged: an existing shape keeps
+/// the ink the file names (painted legibly if it would vanish, see #88). A
+/// *new* element with the default ink ([`muninn_core::DEFAULT_STROKE`]) on a
+/// dark `viewBackgroundColor` would be invisible (`#1e1e1e` on `#121212` is
+/// 1.12:1), so it is written with [`LIGHT_INK`] instead — the value
+/// Excalidraw's own dark theme uses. A colour the user picked from the palette
+/// is never changed.
 #[must_use]
 pub fn board_stroke(stroke: &'static str, paper: Color) -> &'static str {
     if stroke == muninn_core::DEFAULT_STROKE && !meets(stroke_ink(stroke), paper, UI) {

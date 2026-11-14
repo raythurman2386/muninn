@@ -41,7 +41,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use muninn_core::{Board, IdSource, Ink, ShapeKind};
-use rune::{Cursor, Drag, El, Icon, Phase, Shape, Tx, canvas, icon, row};
+use rune::{Color, Cursor, Drag, El, Icon, Phase, Shape, Tx, canvas, icon, row};
 use rune_kit::Kit;
 
 use crate::board_scene::paint_item;
@@ -443,14 +443,14 @@ fn write_board(open: &mut OpenBoard, root: &Path) -> Result<(), String> {
 }
 
 /// The draft as a stroke in canvas coordinates, for the live preview.
-pub(crate) fn draft_shape(draft: &Draft, view: BoardView, ink: Ink<'_>) -> Shape {
+pub(crate) fn draft_shape(draft: &Draft, view: BoardView, ink: Ink<'_>, paper: Color) -> Shape {
     let mut scratch = Board::new();
     let mut ids = IdSource::new(0);
     let Some(item) = scratch.add_drawn_with(draft.tool.kind(), &draft.points, ink, &mut ids, 0)
     else {
         return Shape::new();
     };
-    paint_item(item, |p| view.screen(p), view.zoom)
+    paint_item(item, paper, |p| view.screen(p), view.zoom)
 }
 
 /// The toolbar pinned in the canvas's top-left corner.
@@ -538,7 +538,13 @@ fn tool_button(k: &Kit, on: bool, glyph: &'static Icon, name: &str, tool: Option
 /// The live preview layer over the canvas, empty without a draft.
 pub(crate) fn preview(open: &OpenBoard, ink: Ink<'_>) -> Option<El> {
     let draft = open.draft.as_ref()?;
-    let shape = draft_shape(draft, open.cam.view(), ink);
+    // The picked ink is painted through the same legibility check as a
+    // committed element (#88), so a dark pick stays visible on a dark paper.
+    let paper = open
+        .scene
+        .as_ref()
+        .map_or(rune::Color::WHITE, |scene| scene.paper);
+    let shape = draft_shape(draft, open.cam.view(), ink, paper);
     if shape.is_empty() {
         return None;
     }

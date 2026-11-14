@@ -51,6 +51,16 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Fixed
 
+- **Committed dark ink on a dark board (#88).** A board whose
+  `viewBackgroundColor` is dark still stored `#1e1e1e` strokes and fills from
+  before the contrast audit, and painted them at 1.12:1 — invisible. The
+  canvas now paints a stored stroke, fill or text ink that falls below its WCAG
+  floor (3:1 for shapes, 4.5:1 for text) with a hue-preserving legible
+  substitute, moving lightness only. The substitution is display-only: the
+  element and the `.excalidraw` file keep the exact colour they were saved
+  with, every edit and save writes it back, and a colour that already clears
+  its floor (a palette pick, or Excalidraw's ink on its own white paper) is
+  painted unchanged.
 - **Text and icon contrast (#72).** The palette's secondary inks now clear
   WCAG 2.1 AA wherever they paint: `text_faint` was 3.78:1 on a light card and
   3.93:1 on a dark one and is now at least 4.5:1 on the page and both raised

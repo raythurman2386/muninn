@@ -303,6 +303,10 @@ pub(crate) fn editor(s: &State, view: crate::BoardView) -> Option<El> {
     let fs = (drawn_size(t.font_size) * zoom).min(MAX_SCREEN_FONT);
     let p = view.screen([t.at[0] as f32, t.at[1] as f32]);
     let size = measure_text(&s.board_text_field.text, t.font_size, t.line_height);
+    // #88: the editor paints the element's committed ink, so a dark stroke on
+    // a dark paper stays readable while it is edited; the commit still writes
+    // `t.stroke` as stored.
+    let ink = crate::contrast::at_least(t.color, s.board_paper(), crate::contrast::TEXT);
     let style = TextStyle {
         line_height: fs * t.line_height as f32,
         ..TextStyle::new(fs, 400.0)
@@ -313,11 +317,11 @@ pub(crate) fn editor(s: &State, view: crate::BoardView) -> Option<El> {
             .pin(Some(p[0]), Some(p[1]), None, None)
             .w(size[0] as f32 * zoom + fs)
             .min_h(fs * t.line_height as f32)
-            .color(t.color)
+            .color(ink)
             .caret(
-                t.color,
+                ink,
                 crate::board_scene::color("#6965db")
-                    .unwrap_or(t.color)
+                    .unwrap_or(ink)
                     .alpha(0.25),
             )
             .on_edit(|s: &mut State| &mut s.board_text_field)
