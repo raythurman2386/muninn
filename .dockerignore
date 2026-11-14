@@ -1,9 +1,10 @@
 # Build context for Dockerfile.marketing: the Astro project in site/ plus
-# repo markdown read at build time for /changelog/ and /docs/.
+# repo markdown read at build time for /privacy/, /changelog/ and /docs/.
 # Ignore everything, then re-include the site sources and those files.
 *
 !site/
 !Dockerfile.marketing
+!PRIVACY.md
 !CHANGELOG.md
 !README.md
 !docs/
@@ -17,3 +18,4 @@ site/node_modules
 site/dist
 site/.astro
 site/.proof-w1
+site/.proof-w3

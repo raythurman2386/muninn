@@ -17,6 +17,13 @@ function walk(dir, files = []) {
   return files;
 }
 
+function pageUrlPath(file) {
+  const rel = relative(DIST, file).split('\\').join('/');
+  if (rel === 'index.html') return '/';
+  if (rel.endsWith('/index.html')) return `/${rel.slice(0, -'index.html'.length)}`;
+  return `/${rel}`;
+}
+
 function fileForUrlPath(urlPath) {
   const clean = urlPath.replace(/#.*$/, '').replace(/\?.*$/, '');
   if (!clean || !clean.startsWith('/')) return null;
@@ -48,9 +55,7 @@ for (const file of htmlFiles) {
     let hash = '';
     const hashAt = href.indexOf('#');
     if (hashAt === 0) {
-      pathPart = '/' + relative(DIST, file).split('\\').join('/').replace(/index\.html$/, '');
-      if (!pathPart.endsWith('/')) pathPart += '/';
-      if (pathPart === '//') pathPart = '/';
+      pathPart = pageUrlPath(file);
       hash = href;
     } else if (hashAt > 0) {
       pathPart = href.slice(0, hashAt);

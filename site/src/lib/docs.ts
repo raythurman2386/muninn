@@ -79,6 +79,7 @@ export const DOC_PAGES: readonly DocPage[] = [
 
 const SITE_ROUTES: Record<string, string> = {
   'CHANGELOG.md': '/changelog/',
+  'PRIVACY.md': '/privacy/',
   'docs/sync-setup.md': '/docs/sync-setup/',
   'docs/kanban-format.md': '/docs/kanban-format/',
   'docs/a11y-checklist.md': '/docs/a11y-checklist/',

@@ -12,6 +12,7 @@ export function repoRoot(): string {
   const candidates = [resolve(here, '..'), here, resolve(here, '../..')];
   for (const dir of candidates) {
     if (
+      existsSync(resolve(dir, 'PRIVACY.md')) &&
       existsSync(resolve(dir, 'CHANGELOG.md')) &&
       existsSync(resolve(dir, 'README.md')) &&
       existsSync(resolve(dir, 'site', 'package.json'))

@@ -80,7 +80,13 @@ async function capture(browser, url, vp, theme, file, reducedMotion = 'no-prefer
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error' && !/umami|ERR_FAILED/i.test(m.text())) errors.push(m.text()); });
   await page.goto(url, { waitUntil: 'load' });
-  await page.addStyleTag({ content: FREEZE_CSS });
+  // Adopted stylesheets are applied by the CSSOM, so this freeze still works
+  // when the page is served with style-src 'self' (NEW_URL against nginx).
+  await page.evaluate((css) => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  }, FREEZE_CSS);
   // Load lazy stills, wait for fonts, and freeze the hero loop on frame 0 so diffs are deterministic.
   const state = await page.evaluate(async () => {
     for (const img of document.images) img.loading = 'eager';

@@ -1,0 +1,25 @@
+---
+// Branded 404. nginx serves this file via `error_page 404 /404.html`.
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+---
+<Base
+  title="Page not found — Muninn"
+  description="That page is not on the Muninn website."
+  ogTitle="Page not found — Muninn"
+  ogDescription="That page is not on the Muninn website."
+  noindex
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header />
+  <main id="main">
+    <section class="not-found wrap" aria-labelledby="not-found-title">
+      <img src="/assets/logo.svg" alt="" width="56" height="56">
+      <h1 id="not-found-title">Page not found</h1>
+      <p>That URL isn't on this site. Head back home, or get Muninn from <a href="https://github.com/raythurman2386/muninn/releases/latest">GitHub Releases</a>.</p>
+      <p class="not-found-cta"><a class="btn btn-primary" href="/">Back to the home page</a></p>
+    </section>
+  </main>
+  <Footer />
+</Base>

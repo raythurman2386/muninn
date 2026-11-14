@@ -1,5 +1,7 @@
 // Muninn site: theme toggle (page chrome + product stills + hero loop) and a motion-safe hero video.
 // Bundled by Astro as a module script (deferred, like the old <script defer src="main.js">).
+// The hero and pause button exist only on the home page; the theme toggle must still
+// run on /privacy/ and the 404 page when those elements are absent.
 (function () {
   var root = document.documentElement;
   var KEY = 'muninn-theme';
@@ -13,6 +15,7 @@
   function theme() { return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
 
   function syncToggle() {
+    if (!toggle) return;
     var next = theme() === 'dark' ? 'light' : 'dark';
     toggle.setAttribute('aria-label', 'Use ' + next + ' theme');
     toggle.setAttribute('aria-pressed', String(theme() === 'light'));
@@ -25,7 +28,7 @@
   function posterSrc() { return '/assets/img/' + theme() + '/preview-1600.webp'; }
 
   function mountVideo() {
-    if (!hero) return;
+    if (!hero || !pauseBtn) return;
     if (reduce.matches) { unmountVideo(); return; }
     if (!video) {
       video = document.createElement('video');
@@ -35,7 +38,7 @@
       video.setAttribute('preload', 'auto');
       video.setAttribute('aria-label', 'Muninn tour: search for a note, open it, glide across the global graph, then open the local graph from the command palette.');
       hero.appendChild(video);
-      if (pauseBtn) pauseBtn.hidden = false;
+      pauseBtn.hidden = false;
     }
     var src = heroSrc();
     if (video.getAttribute('src') !== src) {
@@ -60,13 +63,15 @@
     pauseBtn.setAttribute('aria-label', paused ? 'Play the tour video' : 'Pause the tour video');
   }
 
-  toggle.addEventListener('click', function () {
-    var next = theme() === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    try { localStorage.setItem(KEY, next); } catch (e) {}
-    syncToggle();
-    if (video) mountVideo();
-  });
+  if (toggle) {
+    toggle.addEventListener('click', function () {
+      var next = theme() === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+      syncToggle();
+      if (video) mountVideo();
+    });
+  }
 
   if (pauseBtn) {
     pauseBtn.addEventListener('click', function () {
@@ -86,8 +91,8 @@
     syncToggle(); if (video) mountVideo();
   };
   if (scheme.addEventListener) scheme.addEventListener('change', onScheme);
-  if (hero && reduce.addEventListener) reduce.addEventListener('change', mountVideo);
+  if (reduce.addEventListener) reduce.addEventListener('change', mountVideo);
 
   syncToggle();
-  if (hero) mountVideo();
+  mountVideo();
 })();

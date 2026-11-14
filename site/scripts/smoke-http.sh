@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # HTTP smoke test for the served marketing site (the Docker image in CI, or a local nginx).
 # Usage: site/scripts/smoke-http.sh http://127.0.0.1:8080
-# Checks status codes, content types, cache headers, security headers, gzip and video Range support.
+# Checks status codes, content types, cache headers, security headers (including CSP),
+# gzip, video Range support, /privacy/, sitemap, robots.txt and the branded 404.
 set -euo pipefail
 BASE="${1:?usage: smoke-http.sh BASE_URL}"
 BASE="${BASE%/}"
@@ -61,6 +62,62 @@ expect "video open Range 206" "$h" '^HTTP/[0-9.]+ 206'
 h=$(hdr "$BASE/definitely-not-here")
 expect "missing page 404" "$h" '^HTTP/[0-9.]+ 404'
 expect "404 keeps nosniff" "$h" '^x-content-type-options: nosniff'
+expect "404 has CSP" "$h" '^content-security-policy:'
+body404=$(curl -sS "$BASE/definitely-not-here")
+expect "404 is branded" "$body404" 'Page not found'
+
+# W3: CSP and the rest of the security headers on /
+h=$(hdr "$BASE/")
+expect "/ CSP header" "$h" '^content-security-policy:'
+expect "/ CSP default-src self" "$h" "content-security-policy:.*default-src 'self'"
+if grep -qiE "content-security-policy:.*unsafe-inline" <<<"$h"; then echo "FAIL / CSP contains unsafe-inline"; fail=1; else echo "ok   / CSP has no unsafe-inline"; fi
+expect "/ CSP allows Umami" "$h" "content-security-policy:.*umami-app\\.ravenwoodsoftware\\.dev"
+expect "/ permissions-policy" "$h" '^permissions-policy: camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)'
+
+h=$(hdr "$BASE/privacy/")
+expect "/privacy/ 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/privacy/ text/html" "$h" '^content-type: text/html'
+privacy=$(curl -sS "$BASE/privacy/")
+expect "/privacy/ has the policy heading" "$privacy" 'Privacy Policy'
+expect "/privacy/ has the effective date" "$privacy" 'Effective date: November 9, 2026'
+expect "/privacy/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$privacy" | wc -l)" '^1$'
+# The page must render the repo file, not a hand-copied fork: a distinctive sentence.
+expect "/privacy/ matches PRIVACY.md" "$privacy" 'Muninn does not create a Muninn account'
+
+h=$(hdr "$BASE/robots.txt")
+expect "/robots.txt 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/robots.txt text/plain" "$h" '^content-type: text/plain'
+robots=$(curl -sS "$BASE/robots.txt")
+expect "/robots.txt has a Sitemap" "$robots" 'Sitemap: https://muninn.ravenwoodsoftware.dev/sitemap-index.xml'
+expect "/robots.txt keeps content signals" "$robots" 'Content-Signal: search=yes,ai-train=no,use=reference'
+
+h=$(hdr "$BASE/sitemap-index.xml")
+expect "/sitemap-index.xml 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/sitemap-index.xml xml" "$h" '^content-type: application/(xml|xml-sitemap|rss\+xml)|text/xml'
+sitemap=$(curl -sS "$BASE/sitemap-index.xml")
+expect "/sitemap-index.xml is a sitemap index" "$sitemap" 'sitemapindex'
+
+h=$(hdr "$BASE/sitemap.xml")
+expect "/sitemap.xml 200 (alias)" "$h" '^HTTP/[0-9.]+ 200'
+
+h=$(hdr "$BASE/favicon.ico")
+expect "/favicon.ico 200" "$h" '^HTTP/[0-9.]+ 200'
+h=$(hdr "$BASE/favicon.svg")
+expect "/favicon.svg 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/favicon.svg svg" "$h" '^content-type: image/svg\+xml'
+h=$(hdr "$BASE/site.webmanifest")
+expect "/site.webmanifest 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/site.webmanifest type" "$h" '^content-type: application/manifest\+json'
+h=$(hdr "$BASE/assets/og.png")
+expect "/assets/og.png 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/assets/og.png png" "$h" '^content-type: image/png'
+
+# Every inline script in the served HTML must have a sha256 in the CSP header.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! node "$SCRIPT_DIR/csp.mjs" check --url "$BASE"; then
+  echo "FAIL CSP hashes vs served HTML"
+  fail=1
+fi
 
 for path in /changelog/ /docs/ /docs/getting-started/ /docs/keyboard-shortcuts/ /docs/sync-setup/ /docs/kanban-format/ /docs/a11y-checklist/ /docs/sync-safety/; do
   h=$(hdr "$BASE$path")

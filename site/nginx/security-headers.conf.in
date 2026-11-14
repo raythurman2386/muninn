@@ -1,0 +1,11 @@
+# Security headers, included in every location (add_header in a location replaces inherited ones).
+# The Content-Security-Policy script-src hashes are filled in by
+# site/scripts/csp.mjs after `astro build`, from every inline script in dist/.
+# Do not edit the generated security-headers.conf; edit this template or the script.
+# There is no 'unsafe-inline'. Processed page scripts are files under /_astro/.
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' __SCRIPT_HASHES__https://umami-app.ravenwoodsoftware.dev; style-src 'self'; img-src 'self'; font-src 'self'; media-src 'self'; connect-src 'self' https://umami-app.ravenwoodsoftware.dev; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; object-src 'none'; upgrade-insecure-requests" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+add_header Cross-Origin-Opener-Policy "same-origin" always;
