@@ -6,6 +6,19 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **Board, reloaded-looking bump when the file is rewritten.** A save of the
+  open board was already recognised by its bytes and skipped. A writer that
+  rewrote the same drawing with different bytes (a sync client, Excalidraw
+  saving it as it was, anything that reformats the JSON) was not: the board was
+  re-read, its scene rebuilt, its undo history dropped, its selection cleared
+  and its camera rebased, so the whiteboard looked for a moment like it had
+  just been loaded again. The watcher now compares the board the file holds
+  with the one in memory and, when they are the same, takes the new bytes as
+  the ones Muninn last read and leaves the drawing, the history, the selection
+  and the view alone.
+
 ## [0.8.2] - 2026-11-13
 
 ### Added

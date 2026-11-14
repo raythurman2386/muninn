@@ -146,22 +146,31 @@ impl OpenBoard {
     }
 
     /// Re-read the file and keep the view where it is. Unsaved drawing is
-    /// kept instead: the file is not read over it.
-    fn reload(&mut self) {
+    /// kept instead: the file is not read over it. `true` when the file held a
+    /// different board and the drawing on screen was rebuilt from it.
+    fn reload(&mut self) -> bool {
         if self.dirty() {
-            return;
+            return false;
         }
+        let disk = self.disk;
+        let text = std::fs::read_to_string(&self.path).ok();
         // The file still holds the bytes Muninn loaded or last wrote (the
         // watcher saw Muninn's own save): nothing to re-read, and no refit or
         // history reset under the user's feet.
-        let disk = self.disk;
-        if disk.is_some()
-            && std::fs::read_to_string(&self.path)
-                .ok()
-                .map(|t| fingerprint(&t))
-                == disk
+        if disk.is_some() && text.as_deref().map(fingerprint) == disk {
+            return false;
+        }
+        // The bytes differ but the board does not: another writer (a sync
+        // client, Excalidraw saving the same drawing, a reformat) rewrote the
+        // file without changing what it holds. Take its bytes as the ones
+        // Muninn last read and leave the drawing, the history, the selection
+        // and the view alone; re-reading here rebuilt the whole board, which
+        // looked for a frame like it had just been loaded again.
+        if let Some(text) = &text
+            && self.holds_same_board(text)
         {
-            return;
+            self.disk = Some(fingerprint(text));
+            return false;
         }
         (self.model, self.disk, self.scene) = read_board(&self.path);
         self.status = BoardStatus::Clean;
@@ -177,12 +186,25 @@ impl OpenBoard {
         if self.auto_fit {
             self.fit();
         }
+        true
     }
 
     /// The board watcher saw the file change (slice 7): re-read it as
-    /// [`OpenBoard::reload`] does, unless it has unsaved drawing.
-    pub(crate) fn reload_from_watcher(&mut self) {
-        self.reload();
+    /// [`OpenBoard::reload`] does, unless it has unsaved drawing. `true` when
+    /// the board on screen changed (a rewrite that kept the drawing is not a
+    /// reload and does not wake the window).
+    pub(crate) fn reload_from_watcher(&mut self) -> bool {
+        self.reload()
+    }
+
+    /// Whether `text` holds the board Muninn already has in memory, however it
+    /// is written out: the board itself, not its bytes. Used so a writer that
+    /// only reformats the file is not mistaken for one that changed the board.
+    fn holds_same_board(&self, text: &str) -> bool {
+        let Some(model) = &self.model else {
+            return false;
+        };
+        Board::from_json(text).is_ok_and(|read| read.to_json() == model.to_json())
     }
 
     /// Centre the content in the canvas (deferred until the canvas has a size).
@@ -409,7 +431,11 @@ impl State {
             self.board_selected = None;
         }
         match (&self.board_selected, &mut self.board_open) {
-            (Some(path), Some(open)) if &open.path == path => open.reload(),
+            (Some(path), Some(open)) if &open.path == path => {
+                // Coming back to the board re-reads it, unless it has unsaved
+                // drawing (the view stays); the reply is for the watcher.
+                open.reload();
+            }
             (Some(path), _) => {
                 let path = path.clone();
                 let view = self.board_views.get(&path).copied();

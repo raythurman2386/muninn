@@ -212,7 +212,8 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   (picking another board, switching vault, a vault rescan, quitting). The board watcher
   (`board_sync`, every 1.5 s while Board is showing) compares each listed board's file
   modified time and length with the last look: a changed open board that is clean is
-  re-read (keeping the view; Muninn's own writes are recognised and skipped), a dirty one
+  re-read (keeping the view; Muninn's own writes are recognised and skipped, and so is a
+  write that only reformats the file and keeps the drawing), a dirty one
   is flagged as below and never dropped, and any other changed board's list entry is
   re-read. Each write is `Board::save` (atomic temp+rename) to the board's own path,
   refused unless that path is inside the vault the board was opened from *and* the

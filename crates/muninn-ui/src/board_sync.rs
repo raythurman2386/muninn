@@ -14,10 +14,11 @@
 //!   board's file metadata (modified time and length; no contents) is
 //!   compared with the last look. The open board, when it changed: a clean
 //!   board is re-read (the view stays; a write that only echoes Muninn's own
-//!   bytes is skipped by its fingerprint), and a board with unsaved drawing is
-//!   flagged, never dropped (the s4 rules). Any other changed board has its
-//!   list entry re-read. New and removed boards come from the vault watcher,
-//!   whose folder times change then.
+//!   bytes is skipped by its fingerprint, and one that only reformats the
+//!   file is skipped by comparing the board it holds), and a board with
+//!   unsaved drawing is flagged, never dropped (the s4 rules). Any other
+//!   changed board has its list entry re-read. New and removed boards come
+//!   from the vault watcher, whose folder times change then.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -148,9 +149,8 @@ impl State {
                     self.board_stats.remove(&path);
                     continue;
                 }
-                let disk = open.disk;
-                open.reload_from_watcher();
-                if open.disk != disk {
+                let reloaded = open.reload_from_watcher();
+                if reloaded {
                     self.log_event("watch", "reloaded the open board");
                     self.refresh_board_summary(&path);
                     visible = true;
@@ -196,10 +196,12 @@ impl State {
     /// watcher's folder time take the new state as theirs, so Muninn's own
     /// save is not mistaken for another app's (and does not rescan the vault).
     pub(crate) fn board_written(&mut self, path: &Path) {
-        if self.board_stats.contains_key(path) {
-            self.board_stats
-                .insert(path.to_path_buf(), file_state(path));
-        }
+        // Taken even when the list did not hold the entry yet (a board the
+        // walk skips, one added since the last look): the next look must
+        // compare the file with what this save wrote, not report a change and
+        // try to re-read it.
+        self.board_stats
+            .insert(path.to_path_buf(), file_state(path));
         let Some(parent) = path.parent() else {
             return;
         };
@@ -207,6 +209,9 @@ impl State {
             .strip_prefix(&self.vault.root)
             .map(|p| p.to_string_lossy().replace('\\', "/"))
             .ok();
+        // Only a folder the snapshot already carries: adding one it does not
+        // (a folder the last vault scan has not seen) would itself read as a
+        // change to the vault watcher.
         if let (Some(rel), Some(watched)) = (rel, self.watched.as_mut())
             && watched.dirs.contains_key(&rel)
         {
