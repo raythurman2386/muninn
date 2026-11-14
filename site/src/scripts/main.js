@@ -13,6 +13,7 @@
   var pauseBtn = heroFigure ? heroFigure.querySelector('.motion-toggle') : null;
   var video = null;
   var userPaused = false;
+  var heroFailed = false;
 
   function theme() { return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
 
@@ -24,6 +25,59 @@
     toggle.querySelector('.toggle-label').textContent = next === 'light' ? 'Light' : 'Dark';
     var meta = document.querySelectorAll('meta[name="theme-color"]');
     for (var i = 0; i < meta.length; i++) meta[i].setAttribute('content', theme() === 'dark' ? '#080808' : '#fafafa');
+  }
+
+  // A <video> paints over the still. Some GPU/compositor paths (seen on Chrome,
+  // native Wayland, with Vulkan or hardware overlays) decode and "play" the file
+  // but paint a solid white or empty rectangle. So a video stays invisible
+  // (CSS: .media video without .is-live) until a presented frame is read back
+  // and has real contrast; a flat frame, an error, or no frame keeps the still.
+  // Every hero and loop frame spans 40+ luma levels at 32x20; flat is < 16.
+  var probe = null;
+  function frameLooksReal(v) {
+    try {
+      if (!probe) { probe = document.createElement('canvas'); probe.width = 32; probe.height = 20; }
+      var ctx = probe.getContext('2d', { willReadFrequently: true });
+      ctx.clearRect(0, 0, 32, 20);
+      ctx.drawImage(v, 0, 0, 32, 20);
+      var d = ctx.getImageData(0, 0, 32, 20).data;
+      var lo = 255, hi = 0;
+      for (var i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 250) return false;
+        var y = (2 * d[i] + 5 * d[i + 1] + d[i + 2]) >> 3;
+        if (y < lo) lo = y;
+        if (y > hi) hi = y;
+      }
+      return hi - lo >= 16;
+    } catch (e) {
+      return true; // Cannot read pixels: do not block a video that may be fine.
+    }
+  }
+
+  // Watch v for its current source; reveal it once a frame checks out, or call
+  // onFail (drop the video, keep the still) after 3 flat frames or an error.
+  function guardVideo(v, onFail) {
+    var token = (v._guard || 0) + 1;
+    v._guard = token;
+    v.classList.remove('is-live');
+    var flat = 0;
+    function stale() { return v._guard !== token || !v.isConnected; }
+    function fail() { if (stale()) return; v._guard = token + 1; onFail(v); }
+    function check() {
+      if (stale()) return;
+      if (frameLooksReal(v)) { v.classList.add('is-live'); return; }
+      if (++flat >= 3) { fail(); return; }
+      next();
+    }
+    function next() {
+      if (stale()) return;
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(check);
+      else v.addEventListener('timeupdate', check, { once: true });
+    }
+    v.addEventListener('error', fail, { once: true });
+    var sources = v.querySelectorAll('source');
+    if (sources.length) sources[sources.length - 1].addEventListener('error', fail, { once: true });
+    next();
   }
 
   function heroBase() { return '/assets/video/' + theme() + '-hero-tour'; }
@@ -44,12 +98,13 @@
     mp4.src = base + '.mp4';
     video.appendChild(webm);
     video.appendChild(mp4);
+    guardVideo(video, function () { heroFailed = true; unmountVideo(); });
     video.load();
   }
 
   function mountVideo() {
     if (!hero || !pauseBtn) return;
-    if (reduce.matches) { unmountVideo(); return; }
+    if (reduce.matches || heroFailed) { unmountVideo(); return; }
     if (!video) {
       video = document.createElement('video');
       video.muted = true; video.defaultMuted = true;
@@ -91,6 +146,7 @@
       if (btn) btn.hidden = true;
       return;
     }
+    if (wrap.getAttribute('data-loop-failed') === '1') return;
     var widths = wrap.getAttribute('data-loop-widths').split(',').map(Number);
     var heights = wrap.getAttribute('data-loop-heights').split(',').map(Number);
     var idx = loopIndex(widths);
@@ -144,6 +200,11 @@
       mp4.src = base + '.mp4';
       v.appendChild(webm);
       v.appendChild(mp4);
+      guardVideo(v, function (bad) {
+        bad.pause(); bad.remove();
+        wrap.setAttribute('data-loop-failed', '1');
+        if (btn) btn.hidden = true;
+      });
       v.load();
     }
     if (!btn || btn.getAttribute('aria-pressed') !== 'true') {

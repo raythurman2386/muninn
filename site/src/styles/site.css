@@ -97,7 +97,9 @@ h1 .soft { color: var(--text-muted); }
 .hero-media { margin-top: clamp(40px, 5vw, 64px); }
 .media { position: relative; aspect-ratio: 2360 / 1560; }
 .media img, .media video { width: 100%; height: 100%; object-fit: cover; }
-.media video { position: absolute; inset: 0; }
+.media video { position: absolute; inset: 0; opacity: 0; }
+/* main.js adds .is-live after a frame reads back with real contrast; until then the still shows. */
+.media video.is-live { opacity: 1; }
 .hero-media figcaption { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 16px; color: var(--text-muted); font-size: 14px; }
 .motion-toggle { flex: none; height: 28px; padding: 0 10px; border: 1px solid var(--border-base); border-radius: var(--r-md); background: transparent; color: var(--text-muted); font: 500 13px/1 var(--font-sans); cursor: pointer; }
 .motion-toggle:hover { color: var(--text-base); background: var(--hover); }
