@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-13
+
 ### Added
 
 - **Board colours.** The Board toolbar's colour button opens a small palette:
