@@ -18,6 +18,10 @@ COPY site/package.json site/package-lock.json ./
 # astro is the only runtime dependency; astro check, Lighthouse and the screenshot proof are
 # devDependencies and stay out of the image build entirely.
 RUN npm ci --omit=dev
+# Repo markdown is read at build time for /changelog/ and /docs/; it is not
+# copied into the site tree.
+COPY CHANGELOG.md README.md /src/
+COPY docs/sync-setup.md docs/kanban-format.md docs/a11y-checklist.md docs/sync-safety.md /src/docs/
 COPY site/ ./
 RUN npm run build
 

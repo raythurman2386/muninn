@@ -1,0 +1,30 @@
+---
+import Base from '../../layouts/Base.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import DocsSidebar from '../../components/DocsSidebar.astro';
+import { DOC_PAGES, docPage, renderDocPage } from '../../lib/docs';
+import '../../styles/docs.css';
+
+export function getStaticPaths() {
+  return DOC_PAGES.map((page) => ({ params: { slug: page.slug } }));
+}
+
+const page = docPage(Astro.params.slug);
+if (!page) throw new Error(`unknown docs slug: ${Astro.params.slug}`);
+const code = await renderDocPage(page);
+---
+<Base
+  title={`${page.title} — Muninn`}
+  description={page.description}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header current="docs" />
+  <main id="main" class="page-main">
+    <div class="wrap docs-shell">
+      <DocsSidebar current={page.slug} />
+      <article class="doc" set:html={code} />
+    </div>
+  </main>
+  <Footer />
+</Base>

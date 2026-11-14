@@ -25,6 +25,7 @@
   function posterSrc() { return '/assets/img/' + theme() + '/preview-1600.webp'; }
 
   function mountVideo() {
+    if (!hero) return;
     if (reduce.matches) { unmountVideo(); return; }
     if (!video) {
       video = document.createElement('video');
@@ -34,7 +35,7 @@
       video.setAttribute('preload', 'auto');
       video.setAttribute('aria-label', 'Muninn tour: search for a note, open it, glide across the global graph, then open the local graph from the command palette.');
       hero.appendChild(video);
-      pauseBtn.hidden = false;
+      if (pauseBtn) pauseBtn.hidden = false;
     }
     var src = heroSrc();
     if (video.getAttribute('src') !== src) {
@@ -48,11 +49,11 @@
 
   function unmountVideo() {
     if (video) { video.pause(); video.remove(); video = null; }
-    pauseBtn.hidden = true;
+    if (pauseBtn) pauseBtn.hidden = true;
   }
 
   function syncPause() {
-    if (!video) return;
+    if (!video || !pauseBtn) return;
     var paused = userPaused;
     pauseBtn.textContent = paused ? 'Play' : 'Pause';
     pauseBtn.setAttribute('aria-pressed', String(paused));
@@ -67,12 +68,14 @@
     if (video) mountVideo();
   });
 
-  pauseBtn.addEventListener('click', function () {
-    if (!video) return;
-    userPaused = !userPaused;
-    if (userPaused) video.pause(); else video.play();
-    syncPause();
-  });
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', function () {
+      if (!video) return;
+      userPaused = !userPaused;
+      if (userPaused) video.pause(); else video.play();
+      syncPause();
+    });
+  }
 
   // Follow the system appearance live, unless the visitor picked a theme here.
   var scheme = window.matchMedia('(prefers-color-scheme: light)');
@@ -83,8 +86,8 @@
     syncToggle(); if (video) mountVideo();
   };
   if (scheme.addEventListener) scheme.addEventListener('change', onScheme);
-  if (reduce.addEventListener) reduce.addEventListener('change', mountVideo);
+  if (hero && reduce.addEventListener) reduce.addEventListener('change', mountVideo);
 
   syncToggle();
-  mountVideo();
+  if (hero) mountVideo();
 })();

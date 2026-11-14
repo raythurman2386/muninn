@@ -62,5 +62,11 @@ h=$(hdr "$BASE/definitely-not-here")
 expect "missing page 404" "$h" '^HTTP/[0-9.]+ 404'
 expect "404 keeps nosniff" "$h" '^x-content-type-options: nosniff'
 
+for path in /changelog/ /docs/ /docs/getting-started/ /docs/keyboard-shortcuts/ /docs/sync-setup/ /docs/kanban-format/ /docs/a11y-checklist/ /docs/sync-safety/; do
+  h=$(hdr "$BASE$path")
+  expect "$path 200" "$h" '^HTTP/[0-9.]+ 200'
+  expect "$path text/html" "$h" '^content-type: text/html'
+done
+
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"

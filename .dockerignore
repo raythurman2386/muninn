@@ -1,8 +1,17 @@
-# Build context for Dockerfile.marketing: only site/ is needed.
-# Ignore everything, then re-include the site sources.
+# Build context for Dockerfile.marketing: the Astro project in site/ plus
+# repo markdown read at build time for /changelog/ and /docs/.
+# Ignore everything, then re-include the site sources and those files.
 *
 !site/
 !Dockerfile.marketing
+!CHANGELOG.md
+!README.md
+!docs/
+docs/**
+!docs/sync-setup.md
+!docs/kanban-format.md
+!docs/a11y-checklist.md
+!docs/sync-safety.md
 # Local build output and tooling never enter the context (the image runs npm ci itself).
 site/node_modules
 site/dist

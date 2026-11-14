@@ -13,7 +13,9 @@
     "build": "astro build",
     "preview": "astro preview --host 127.0.0.1",
     "check": "astro check",
-    "verify:w1": "bash scripts/verify-w1.sh"
+    "verify:w1": "bash scripts/verify-w1.sh",
+    "verify:w5": "node scripts/verify-w5.mjs",
+    "check:links": "node scripts/check-links.mjs"
   },
   "dependencies": {
     "astro": "7.4.12"

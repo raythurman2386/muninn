@@ -1,0 +1,31 @@
+---
+// Header for document pages. Home keeps its inlined header so the only
+// landing-page edit is the two new nav links (see index.astro).
+interface Props {
+  current?: 'docs' | 'changelog';
+}
+
+const { current } = Astro.props;
+---
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="/" aria-label="Muninn, home">
+        <img src="/assets/logo.svg" alt="" width="28" height="28">
+        <span>Muninn</span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav">
+          <li><a href="/#features">Features</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="/docs/" aria-current={current === 'docs' ? 'page' : undefined}>Docs</a></li>
+          <li><a href="/changelog/" aria-current={current === 'changelog' ? 'page' : undefined}>Changelog</a></li>
+          <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
+        </ul>
+      </nav>
+      <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Use light theme">
+        <svg class="i-sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 1.75v2M10 16.25v2M1.75 10h2M16.25 10h2M4.17 4.17l1.41 1.41M14.42 14.42l1.41 1.41M4.17 15.83l1.41-1.41M14.42 5.58l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg class="i-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A6.75 6.75 0 0 1 7.8 3.5a6.75 6.75 0 1 0 8.7 8.7Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span class="toggle-label">Light</span>
+      </button>
+    </div>
+  </header>
