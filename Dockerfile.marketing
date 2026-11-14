@@ -1,11 +1,29 @@
-# Static image of the Muninn marketing landing page (site/).
+# Image of the Muninn marketing site (site/, an Astro project).
 # Build from the repo root:  docker build -f Dockerfile.marketing -t muninn-site .
 # Served by nginx on port 80; GET / returns index.html (2xx for the GoForge health check).
 # GoForge: Dockerfile Path = Dockerfile.marketing, Build Context = . (repo root).
 # The desktop app is built with Cargo and is not affected by this file.
+#
+# Stage 1 builds the static site with Node; stage 2 is plain nginx serving site/dist.
+# Node, node_modules and the proof devDependencies never reach the runtime image.
 
-FROM nginx:1.30-alpine
-COPY site/ /usr/share/nginx/html/
+# node:24-alpine, pinned by index digest (multi-arch)
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS build
+ENV ASTRO_TELEMETRY_DISABLED=1 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false
+WORKDIR /src/site
+COPY site/package.json site/package-lock.json ./
+RUN npm ci
+COPY site/ ./
+RUN npm run build
+
+# nginx:1.30-alpine, pinned by index digest (multi-arch)
+FROM nginx:1.30-alpine@sha256:901e593c95dc85f5a729f5765516321366ef4ac401821431d408897e95287d0a
+COPY site/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY site/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
+COPY --from=build /src/site/dist/ /usr/share/nginx/html/
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1

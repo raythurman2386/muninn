@@ -1,5 +1,10 @@
 # Build context for Dockerfile.marketing: only site/ is needed.
-# Ignore everything, then re-include the static site.
+# Ignore everything, then re-include the site sources.
 *
 !site/
 !Dockerfile.marketing
+# Local build output and tooling never enter the context (the image runs npm ci itself).
+site/node_modules
+site/dist
+site/.astro
+site/.proof-w1
