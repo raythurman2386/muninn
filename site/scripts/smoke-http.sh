@@ -58,6 +58,16 @@ expect "video Range length" "$h" '^content-length: 1024'
 h=$(hdr -H 'Range: bytes=1000000-' "$v")
 expect "video open Range 206" "$h" '^HTTP/[0-9.]+ 206'
 
+w="$BASE/assets/video/dark-hero-tour.webm"
+h=$(hdr "$w")
+expect "webm 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "webm video/webm" "$h" '^content-type: video/webm'
+expect "webm accept-ranges" "$h" '^accept-ranges: bytes'
+h=$(hdr -H 'Range: bytes=0-1023' "$w")
+expect "webm Range 206" "$h" '^HTTP/[0-9.]+ 206'
+expect "webm Range content-range" "$h" '^content-range: bytes 0-1023/[0-9]+'
+expect "webm Range length" "$h" '^content-length: 1024'
+
 h=$(hdr "$BASE/definitely-not-here")
 expect "missing page 404" "$h" '^HTTP/[0-9.]+ 404'
 expect "404 keeps nosniff" "$h" '^x-content-type-options: nosniff'
