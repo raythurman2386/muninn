@@ -35,7 +35,11 @@ impl State {
     /// Show the sidebar in the current mode if it is hidden. Cmd+K and the
     /// inline prompts call this before taking the keyboard, so the field
     /// that gets it is on screen (on Board the sidebar starts collapsed).
+    ///
+    /// #112: Focus mode is what is hiding the sidebar then, so it steps aside
+    /// rather than handing the keyboard to a field nobody can see.
     pub(crate) fn reveal_sidebar(&mut self) {
+        self.leave_focus_mode();
         if !self.sidebar_shown() {
             self.toggle_sidebar();
         }

@@ -18,6 +18,7 @@ mod board_view;
 mod camera;
 pub mod contrast;
 mod doc_sync;
+mod focus;
 mod global_shortcut;
 mod graph_view;
 mod kanban_archive;

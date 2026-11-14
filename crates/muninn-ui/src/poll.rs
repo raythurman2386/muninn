@@ -140,6 +140,13 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     // view rests (one write per held key or stroke, not per event).
     s.settings_tick(t);
 
+    // #112: Focus mode holds the caret's line in the middle of the editor.
+    // Asked for once per caret move, resolved from the layout this frame
+    // commits, so a keystroke's new line is centred in the frame drawing it.
+    if s.focus_centre_tick(tx) {
+        changed = true;
+    }
+
     // SAF-05: copy a dirty buffer to the XDG recovery file after a short idle.
     // This is invisible on screen, so it must not report a change.
     s.recovery_tick(t);

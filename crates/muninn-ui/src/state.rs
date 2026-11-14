@@ -569,6 +569,13 @@ pub struct State {
     /// canvas gets the room; reopening it there holds for the session).
     pub sidebar_open: bool,
     pub sidebar_open_board: bool,
+    /// #112: Focus mode is on. Session-only (never written to settings): the
+    /// chrome hides, Write dims every paragraph but the caret's, and the caret's
+    /// line stays centred. Read shows it too; Graph, Board and Kanban never do.
+    pub focus_mode: bool,
+    /// The caret position [`State::focus_centre_tick`] last centred, so one
+    /// request is made per move and a wheel scroll is left alone.
+    pub(crate) focus_caret_seen: Option<usize>,
     /// Inline name field for a note being created. Empty/cancel creates nothing.
     pub new_note_prompt: Option<NamePrompt>,
     pub new_note_field: TextEdit,
@@ -919,6 +926,8 @@ impl State {
             menu: None,
             sidebar_open: true,
             sidebar_open_board: false,
+            focus_mode: false,
+            focus_caret_seen: None,
             new_note_prompt: None,
             new_note_field: TextEdit::new(""),
             rename_prompt: None,
@@ -1569,6 +1578,7 @@ impl State {
             PaletteAction::ToggleGraph => self.toggle_graph(),
             PaletteAction::ToggleBoard => self.toggle_board(),
             PaletteAction::ToggleKanban => self.toggle_kanban(),
+            PaletteAction::ToggleFocusMode => self.toggle_focus_mode(),
             PaletteAction::NewKanban => self.new_kanban(),
             PaletteAction::ConvertToKanban => self.convert_to_kanban(),
         }

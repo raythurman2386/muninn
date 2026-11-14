@@ -78,6 +78,21 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.toggle_palette();
         return true;
     }
+    // #112: Cmd/Ctrl+Shift+F toggles Focus mode. It is the note editor's
+    // chord, never another text field's: the search box, the find bar, a
+    // prompt or the palette keep what they are typing. Checked before the
+    // palette's "another command chord closes it" rule below, so the chord
+    // pressed inside the palette is ignored instead of closing it and hiding
+    // the chrome behind it.
+    if e.is_command('f') && e.mods.shift && (!s.is_typing() || s.editor.focused) {
+        s.toggle_focus_mode();
+        // The chrome comes and goes at once when motion is reduced, like the
+        // sidebar toggle above.
+        if s.reduced_motion() {
+            tx.instant();
+        }
+        return true;
+    }
     // The palette owns typing, but a different command chord means the user is
     // done searching: close it before that command runs.
     if s.palette.is_some() && e.mods.cmd {

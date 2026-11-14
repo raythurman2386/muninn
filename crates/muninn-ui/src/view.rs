@@ -51,13 +51,18 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
         })
         // Slice 8: the sidebar can be hidden. Its two slots stay in the tree
         // (empty when hidden) so the main column keeps its place and the
-        // toggle moves things at once instead of sliding them.
-        .child(if s.sidebar_shown() {
+        // toggle moves things at once instead of sliding them. #112: Focus
+        // mode hides it the same way, without touching the choice underneath.
+        .child(if s.sidebar_visible() {
             sidebar(s, &k)
         } else {
             el().key("sidebar-hidden")
         })
-        .child(if s.sidebar_shown() { divider(&k) } else { el() })
+        .child(if s.sidebar_visible() {
+            divider(&k)
+        } else {
+            el()
+        })
         .child(main_column(s, &k));
     // Slice 16 fix: Kanban menus and a menu-opened date picker are real
     // modals, drawn last so Tab and the pointer cannot reach the page behind
@@ -2231,13 +2236,13 @@ fn logo_mark(size: f32) -> El {
 }
 
 fn main(s: &State, k: &Kit) -> El {
-    let mut page = col()
-        .key("main")
-        .grow(1.0)
-        .h_full()
-        .min_w(0.0)
-        .child(topbar(s, k))
-        .child(divider_h(k));
+    let focus = s.focus_active();
+    let mut page = col().key("main").grow(1.0).h_full().min_w(0.0);
+    // #112: Focus mode drops the note title bar (and with it the mode
+    // switcher and the history buttons) so the note is the page.
+    if !focus {
+        page = page.child(topbar(s, k)).child(divider_h(k));
+    }
     if s.find.is_some() && s.mode != Mode::Kanban {
         page = page.child(find_bar(s, k));
     }
@@ -2248,7 +2253,13 @@ fn main(s: &State, k: &Kit) -> El {
     if !s.recovered.is_empty() {
         page = page.child(recovery_banner(s, k));
     }
-    page.child(main_body(s, k))
+    let mut page = page.child(main_body(s, k));
+    if focus {
+        // The one piece of chrome Focus keeps: a faint way out with the
+        // pointer, since the button that entered it went with the title bar.
+        page = page.child(focus_exit(k));
+    }
+    page
 }
 
 /// Pick the body under the chrome: the loading progress page first (no partial
@@ -2285,8 +2296,9 @@ fn main_body(s: &State, k: &Kit) -> El {
             })
             .child(status_bar(s, k)),
     );
-    // A tiled or narrow window keeps the page; the rail returns when there is room.
-    if s.window_width >= 980.0 && s.selected.is_some() {
+    // A tiled or narrow window keeps the page; the rail returns when there is
+    // room. #112: Focus mode hides it at any width.
+    if s.window_width >= 980.0 && s.selected.is_some() && !s.focus_active() {
         content = content.child(divider(k)).child(rail(s, k));
     }
     content
@@ -2482,6 +2494,10 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 (
                     "⌘1 / ⌘2 / ⌘3 / ⌘4 / ⌘5",
                     "Write / Read / Graph / Board / Kanban",
+                ),
+                (
+                    "⌘+⇧+F / Ctrl+Shift+F",
+                    "Focus mode: hide the chrome and centre the caret",
                 ),
                 ("Esc", "Close the outermost layer"),
                 ("⌘+⇧+P / Ctrl+Shift+P", "Open the command palette"),
@@ -2689,7 +2705,14 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                             }
                             crate::shortcut(s, e, tx)
                         })
-                        .on_submit(|s: &mut State, _| s.palette_run()),
+                        .on_submit(|s: &mut State, tx: &mut Tx| {
+                            s.palette_run();
+                            // Focus mode (the only chrome-changing action) comes
+                            // and goes at once under reduced motion.
+                            if s.reduced_motion() {
+                                tx.instant();
+                            }
+                        }),
                 ),
         )
         .child(divider_h(k))
@@ -3754,6 +3777,7 @@ fn topbar(s: &State, k: &Kit) -> El {
         .gap(12.0)
         .center_y()
         .child(sidebar_toggle(s, k))
+        .child(focus_toggle(s, k))
         .child(history_button(
             k,
             "history-back",
@@ -3806,6 +3830,65 @@ fn sidebar_toggle(s: &State, k: &Kit) -> El {
                 k.c.text_accent
             }),
         )
+}
+
+/// #112: enter or leave Focus mode (also ⇧⌘F, and the palette's action).
+/// It sits beside the sidebar toggle, the other piece of chrome a writer
+/// hides; in Focus the title bar is gone, so [`focus_exit`] is the way back.
+fn focus_toggle(s: &State, k: &Kit) -> El {
+    pressable(k, "focus-toggle".to_owned())
+        .size(26.0, 26.0)
+        .center()
+        .border(1.0, k.c.border_muted)
+        .role("button")
+        .label(if s.focus_active() {
+            "Exit focus mode"
+        } else {
+            "Focus mode"
+        })
+        .help(format!(
+            "Hide the chrome and keep the caret's line centred ({})",
+            crate::focus::FOCUS_CHORD
+        ))
+        .on_press_tx(|s: &mut State, tx: &mut Tx| {
+            s.toggle_focus_mode();
+            if s.reduced_motion() {
+                tx.instant();
+            }
+        })
+        .child(icon(&ic::OUTLINE_EXPAND, 14.0).color(if s.focus_active() {
+            k.c.text_accent
+        } else {
+            k.c.text_muted
+        }))
+}
+
+/// #112: the one control Focus keeps — a faint chip pinned to the page's top
+/// right, so the mode can be left with the pointer after the title bar (and
+/// its button) went away. It enters on Rune's fade, which reduced motion
+/// makes instant along with every other chrome change.
+fn focus_exit(k: &Kit) -> El {
+    pressable(k, "focus-exit".to_owned())
+        .pin(None, Some(10.0), Some(12.0), None)
+        .size(26.0, 26.0)
+        .center()
+        .radius(999.0)
+        .fill(k.alpha(k.c.bg_base, 0.72))
+        .border(1.0, k.alpha(k.c.border_muted, 0.7))
+        .role("button")
+        .label("Exit focus mode")
+        .help(format!(
+            "Back to the note's chrome ({})",
+            crate::focus::FOCUS_CHORD
+        ))
+        .transition(Transition::opacity())
+        .on_press_tx(|s: &mut State, tx: &mut Tx| {
+            s.leave_focus_mode();
+            if s.reduced_motion() {
+                tx.instant();
+            }
+        })
+        .child(icon(&ic::OUTLINE_EXPAND, 14.0).color(k.c.text_faint))
 }
 
 /// M2 NAV-03: a compact Back/Forward chip. Disabled chips dim but keep their
@@ -4011,48 +4094,60 @@ fn editor(s: &State, k: &Kit) -> El {
     if s.selected.is_none() {
         return no_note(k);
     }
-    let mut body = col().w_full().max_w(780.0).px(52.0).py(36.0).child(
-        text_input(&s.editor, k.ty.body.lh(25.0))
-            .key("editor")
-            .w_full()
-            .color(k.c.text_base)
-            .caret(k.c.text_accent, k.selection())
-            .placeholder(
-                "Start writing. Type [[ to link another note.",
-                k.c.text_faint,
-            )
-            .on_edit(|s: &mut State| &mut s.editor)
-            // #111: rich clipboard text becomes Markdown, and a URL pasted over
-            // a selection becomes a link. Anything else declines, so Rune's
-            // plain-text paste (already-Markdown included) is unchanged.
-            .on_input_paste(|s: &mut State, content, _| s.editor_paste(content))
-            // EDT-05: Enter closes `[[`, continues lists, or inserts a newline.
-            .on_submit(|s: &mut State, _| s.editor_enter())
-            .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
-                // EDT-03: the completion claims Up/Down/Enter/Tab/Escape (and,
-                // in the Cmd+P picker, the typed filter) before the field.
-                if s.complete_key(e) {
-                    return true;
-                }
-                // EDT-05: Tab indents instead of moving focus out of the note.
-                if e.key == Key::Tab && !e.mods.shift && !e.mods.cmd && !e.mods.ctrl && !e.mods.alt
-                {
-                    s.editor_tab();
-                    return true;
-                }
-                // Let menus/prompts/graph shortcuts claim Escape first; an
-                // unclaimed Escape blurs in the same event (EDT-06) so the
-                // typing gate cannot leave F2/Delete disabled until the next
-                // frame. Mirrors the search field's handler above.
-                let handled = crate::shortcut(s, e, tx);
-                if e.key == Key::Escape && !handled {
-                    s.blur_text();
-                    tx.blur();
-                    return true;
-                }
-                handled
-            }),
-    );
+    let mut input = text_input(&s.editor, k.ty.body.lh(25.0))
+        .key("editor")
+        .w_full()
+        .color(k.c.text_base)
+        .caret(k.c.text_accent, k.selection())
+        .placeholder(
+            "Start writing. Type [[ to link another note.",
+            k.c.text_faint,
+        )
+        .on_edit(|s: &mut State| &mut s.editor)
+        // #111: rich clipboard text becomes Markdown, and a URL pasted over
+        // a selection becomes a link. Anything else declines, so Rune's
+        // plain-text paste (already-Markdown included) is unchanged.
+        .on_input_paste(|s: &mut State, content, _| s.editor_paste(content))
+        // EDT-05: Enter closes `[[`, continues lists, or inserts a newline.
+        .on_submit(|s: &mut State, _| s.editor_enter())
+        .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+            // EDT-03: the completion claims Up/Down/Enter/Tab/Escape (and,
+            // in the Cmd+P picker, the typed filter) before the field.
+            if s.complete_key(e) {
+                return true;
+            }
+            // EDT-05: Tab indents instead of moving focus out of the note.
+            if e.key == Key::Tab && !e.mods.shift && !e.mods.cmd && !e.mods.ctrl && !e.mods.alt {
+                s.editor_tab();
+                return true;
+            }
+            // Let menus/prompts/graph shortcuts claim Escape first; an
+            // unclaimed Escape blurs in the same event (EDT-06) so the
+            // typing gate cannot leave F2/Delete disabled until the next
+            // frame. Mirrors the search field's handler above.
+            let handled = crate::shortcut(s, e, tx);
+            if e.key == Key::Escape && !handled {
+                s.blur_text();
+                tx.blur();
+                return true;
+            }
+            handled
+        });
+    // #112: Focus mode dims every paragraph but the caret's. Rune's
+    // `text_input` has no inactive-line style, but `spans` paints byte ranges
+    // over the field without touching the buffer, so each other block gets a
+    // fainter ink and the active one keeps the field's own colour.
+    let dim = s.focus_dim_spans(k.c.text_faint);
+    if !dim.is_empty() {
+        input = input.spans(dim);
+    }
+    // A transparent highlight over the caret's character is the keyed target
+    // `Tx::scroll_center` centres (see `focus::focus_centre_tick`); it paints
+    // nothing itself.
+    if let Some(mark) = s.focus_caret_mark() {
+        input = input.text_highlight(mark);
+    }
+    let mut body = col().w_full().max_w(780.0).px(52.0).py(36.0).child(input);
     if let Some(complete) = &s.complete
         && !complete.items.is_empty()
     {
@@ -4076,7 +4171,7 @@ fn editor(s: &State, k: &Kit) -> El {
         .min_h(0.0)
         .child(
             col()
-                .key("editor-scroll")
+                .key(crate::focus::EDITOR_SCROLL)
                 .w_full()
                 .grow(1.0)
                 .min_h(0.0)

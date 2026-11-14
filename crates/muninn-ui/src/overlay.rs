@@ -133,6 +133,9 @@ pub enum PaletteAction {
     ToggleBoard,
     /// Enter Kanban, or go back to the last note mode. Its hint is ⌘5.
     ToggleKanban,
+    /// #112: hide the note page's chrome and centre the caret's line, or bring
+    /// the chrome back. Its hint is ⇧⌘F.
+    ToggleFocusMode,
     /// Write `Untitled Kanban.md` and open it on the Kanban page.
     NewKanban,
     /// Write the New Kanban layout into the selected note. Offered only
@@ -143,7 +146,7 @@ pub enum PaletteAction {
 impl PaletteAction {
     /// Every action always offered, in the order shown before a query is
     /// typed. [`PaletteAction::ConvertToKanban`] follows them when offered.
-    pub const ALL: [PaletteAction; 9] = [
+    pub const ALL: [PaletteAction; 10] = [
         PaletteAction::OpenLocalGraph,
         PaletteAction::SwitchVault,
         PaletteAction::OpenSettings,
@@ -152,6 +155,7 @@ impl PaletteAction {
         PaletteAction::ToggleGraph,
         PaletteAction::ToggleBoard,
         PaletteAction::ToggleKanban,
+        PaletteAction::ToggleFocusMode,
         PaletteAction::NewKanban,
     ];
 
@@ -167,6 +171,7 @@ impl PaletteAction {
             PaletteAction::ToggleGraph => "Toggle Graph",
             PaletteAction::ToggleBoard => "Toggle Board",
             PaletteAction::ToggleKanban => "Toggle Kanban",
+            PaletteAction::ToggleFocusMode => "Toggle focus mode",
             PaletteAction::NewKanban => "New Kanban",
             PaletteAction::ConvertToKanban => "Convert empty note to Kanban",
         }
@@ -184,6 +189,7 @@ impl PaletteAction {
             PaletteAction::ToggleGraph => "⌘G",
             PaletteAction::ToggleBoard => "⌘4",
             PaletteAction::ToggleKanban => KANBAN_CHORD,
+            PaletteAction::ToggleFocusMode => crate::focus::FOCUS_CHORD,
             PaletteAction::NewKanban | PaletteAction::ConvertToKanban => "Kanban",
         }
     }
@@ -200,6 +206,9 @@ impl PaletteAction {
             PaletteAction::ToggleGraph => "graph global local mode",
             PaletteAction::ToggleBoard => "board whiteboard excalidraw drawing canvas sketch mode",
             PaletteAction::ToggleKanban => "kanban lanes cards tasks mode",
+            PaletteAction::ToggleFocusMode => {
+                "focus zen distraction free writing concentrate hide chrome dim"
+            }
             PaletteAction::NewKanban => "kanban create add lanes cards tasks",
             PaletteAction::ConvertToKanban => "kanban empty blank turn lanes cards tasks",
         }
@@ -325,6 +334,9 @@ impl State {
         self.settings_return_editor = self.editor.focused;
         self.settings_return_search = self.search.focused;
         self.settings_open = true;
+        // #112: Settings is a page of its own; the note page's Focus mode does
+        // not keep the sidebar hidden behind it.
+        self.leave_focus_mode();
         // Slice 14: the app-wide Kanban tab and the page's Board settings
         // panel are one surface at a time, so the panel (and its text fields)
         // cannot be replaced while holding another board's values.
