@@ -301,7 +301,7 @@ impl State {
 
     /// Rebuild the Settings › Sync form from this vault's saved binding.
     ///
-    /// Startup and a vault switch both hand the app a fresh [`SyncUi`] with
+    /// Startup and a vault switch both hand the app a fresh `SyncUi` with
     /// GitHub selected and "Not connected"; without this the tab and the tray
     /// forget a working Drive, GitHub or Tailscale connection. A run or a
     /// sign-in in flight owns the form and is left alone.
