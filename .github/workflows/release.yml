@@ -28,6 +28,7 @@ jobs:
       matrix:
         include:
           - { runner: ubuntu-latest, os: linux, arch: x86_64, archive: tar.gz }
+          - { runner: ubuntu-24.04-arm, os: linux, arch: aarch64, archive: tar.gz }
           - { runner: macos-latest, os: macos, arch: aarch64, archive: tar.gz }
           - { runner: windows-latest, os: windows, arch: x86_64, archive: zip }
     steps:
