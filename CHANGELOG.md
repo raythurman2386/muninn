@@ -4,7 +4,15 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.3] - 2026-11-14
+
+### Changed
+
+- **Settings page reads as a page, not a dialog.** The Settings page now uses
+  the app's card and header language: a proper page header with a quiet icon
+  close, a raised segmented tab lane, and a surface card for each group
+  (Vaults, Editor, Appearance, Graph, Sync, Kanban) instead of a flat,
+  dialog-like layout.
 
 ### Fixed
 
@@ -18,6 +26,13 @@ All notable changes to Muninn are documented here. The format is based on
   with the one in memory and, when they are the same, takes the new bytes as
   the ones Muninn last read and leaves the drawing, the history, the selection
   and the view alone.
+
+- **Sync, a Drive/GitHub/Tailscale connection was forgotten after a restart or
+  a vault switch.** The Settings › Sync tab and the tray's status row were
+  built from a fresh form (GitHub selected, "Not connected") and never read the
+  vault's saved binding, so a working connection looked unset until Connect was
+  picked again. The form now rehydrates from the current vault's persisted
+  binding on startup and on every vault change.
 
 ## [0.8.2] - 2026-11-13
 
