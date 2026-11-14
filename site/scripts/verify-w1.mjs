@@ -3,7 +3,7 @@
 // screenshots in headless Chrome, and compares them with pixelmatch.
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright-core';
@@ -17,7 +17,7 @@ const OLD = resolve(args.old);
 const NEW = resolve(args.new);
 const OUT = resolve(args.out);
 const CHROME = process.env.CHROME_PATH || '/usr/bin/google-chrome';
-const MAX_DIFF_PCT = Number(process.env.MAX_DIFF_PCT || 1);
+const MAX_DIFF_PIXELS = Number(process.env.MAX_DIFF_PIXELS || 0);
 const UMAMI = /umami-app\.ravenwoodsoftware\.dev/;
 mkdirSync(join(OUT, 'shots'), { recursive: true });
 
@@ -28,11 +28,19 @@ const TYPES = {
 };
 
 // Minimal static server with Range support (video seeking needs it). Loopback only.
+// Malformed percent-encoding gets 400; any path that resolves outside root gets 403.
 function serve(root) {
   const server = createServer((req, res) => {
-    let path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-    let file = normalize(join(root, path));
-    if (!file.startsWith(root)) { res.writeHead(403).end(); return; }
+    let path;
+    try {
+      path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    } catch {
+      res.writeHead(400).end('bad request');
+      return;
+    }
+    let file = resolve(root, '.' + path);
+    const rel = relative(root, file);
+    if (rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel) || path.includes('\0')) { res.writeHead(403).end(); return; }
     if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html');
     if (!existsSync(file)) { res.writeHead(404).end('not found'); return; }
     const size = statSync(file).size;
@@ -40,7 +48,8 @@ function serve(root) {
     const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
     if (range) {
       const start = range[1] ? Number(range[1]) : 0;
-      const end = range[2] ? Number(range[2]) : size - 1;
+      const end = range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+      if (start > end || start >= size) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }).end(); return; }
       res.writeHead(206, { 'Content-Type': type, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1 });
       createReadStream(file, { start, end }).pipe(res);
     } else {
@@ -99,27 +108,35 @@ async function capture(browser, url, vp, theme, file, reducedMotion = 'no-prefer
   return { ...state, errors, umamiRequests };
 }
 
+// Exact compare: a pixel differs if any RGBA byte differs, and size mismatches count as
+// differing pixels. The gate is MAX_DIFF_PIXELS (default 0: a 1:1 port must be pixel-identical).
+// pixelmatch (threshold 0, anti-aliasing included) only paints the visual diff image.
 function diff(aFile, bFile, outFile) {
   const a = PNG.sync.read(readFileSync(aFile));
   const b = PNG.sync.read(readFileSync(bFile));
   const w = Math.max(a.width, b.width), h = Math.max(a.height, b.height);
   const pad = (img) => {
     if (img.width === w && img.height === h) return img;
-    const p = new PNG({ width: w, height: h }); p.data.fill(0); // pad with transparent black: counts as diff
+    const p = new PNG({ width: w, height: h }); p.data.fill(0); // transparent black padding: counts as diff
     PNG.bitblt(img, p, 0, 0, img.width, img.height, 0, 0);
     return p;
   };
   const A = pad(a), B = pad(b), D = new PNG({ width: w, height: h });
-  const n = pixelmatch(A.data, B.data, D.data, w, h, { threshold: 0.1 });
+  let n = 0;
+  for (let i = 0; i < A.data.length; i += 4) {
+    if (A.data[i] !== B.data[i] || A.data[i + 1] !== B.data[i + 1] || A.data[i + 2] !== B.data[i + 2] || A.data[i + 3] !== B.data[i + 3]) n++;
+  }
+  pixelmatch(A.data, B.data, D.data, w, h, { threshold: 0, includeAA: true });
   writeFileSync(outFile, PNG.sync.write(D));
-  return { pixels: n, total: w * h, pct: (100 * n) / (w * h), oldSize: `${a.width}x${a.height}`, newSize: `${b.width}x${b.height}` };
+  return { pixels: n, total: w * h, pct: (100 * n) / (w * h), oldSize: `${a.width}x${a.height}`, newSize: `${b.width}x${b.height}`, sameSize: a.width === b.width && a.height === b.height };
 }
+const within = (d) => d.sameSize && d.pixels <= MAX_DIFF_PIXELS;
 
 const oldServer = await serve(OLD);
 const newServer = await serve(NEW);
 const oldUrl = `http://127.0.0.1:${oldServer.address().port}/`;
-const newUrl = `http://127.0.0.1:${newServer.address().port}/`;
-console.log(`old ${oldUrl} (${OLD})\nnew ${newUrl} (${NEW})`);
+const newUrl = process.env.NEW_URL || `http://127.0.0.1:${newServer.address().port}/`;
+console.log(`old ${oldUrl} (${OLD})\nnew ${newUrl} (${process.env.NEW_URL ? "running server" : NEW})`);
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--hide-scrollbars', '--force-color-profile=srgb'] });
 const rows = [];
@@ -138,10 +155,10 @@ for (const vp of VIEWPORTS) {
       umamiTagOnce: n.umamiTags === 1,
       noErrors: n.errors.length === 0,
     };
-    const ok = d.pct < MAX_DIFF_PCT && Object.values(checks).every(Boolean);
+    const ok = within(d) && Object.values(checks).every(Boolean);
     if (!ok) failed = true;
     rows.push({ id, ...d, checks, newErrors: n.errors, ok });
-    console.log(`${ok ? 'PASS' : 'FAIL'} ${id}: ${d.pct.toFixed(4)}% (${d.pixels}/${d.total}) old ${d.oldSize} new ${d.newSize} ${JSON.stringify(checks)}`);
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${id}: ${d.pixels} px (${d.pct.toFixed(4)}% of ${d.total}) old ${d.oldSize} new ${d.newSize} ${JSON.stringify(checks)}`);
   }
 }
 
@@ -156,9 +173,9 @@ for (const site of [['old', oldUrl], ['new', newUrl]]) {
   }
 }
 const rd = diff(join(OUT, 'shots', 'old-1440x900-dark-reduced.png'), join(OUT, 'shots', 'new-1440x900-dark-reduced.png'), join(OUT, 'shots', 'diff-1440x900-dark-reduced.png'));
-rows.push({ id: '1440x900-dark-reduced', ...rd, ok: rd.pct < MAX_DIFF_PCT });
-if (rd.pct >= MAX_DIFF_PCT) failed = true;
-console.log(`${rd.pct < MAX_DIFF_PCT ? 'PASS' : 'FAIL'} 1440x900-dark-reduced: ${rd.pct.toFixed(4)}%`);
+rows.push({ id: '1440x900-dark-reduced', ...rd, ok: within(rd) });
+if (!within(rd)) failed = true;
+console.log(`${within(rd) ? 'PASS' : 'FAIL'} 1440x900-dark-reduced: ${rd.pixels} px (${rd.pct.toFixed(4)}%)`);
 
 // Theme toggle works and persists (new site).
 {
@@ -181,12 +198,13 @@ console.log(`${rd.pct < MAX_DIFF_PCT ? 'PASS' : 'FAIL'} 1440x900-dark-reduced: $
 await browser.close();
 
 // Optional Lighthouse on the new build (Umami blocked so no pageview is recorded).
+// Runs the lighthouse devDependency pinned in package-lock.json (npx --no-install never fetches).
 let lighthouse = null;
 if (process.env.LIGHTHOUSE === '1') {
   lighthouse = {};
   for (const [name, preset] of [['mobile', null], ['desktop', 'desktop']]) {
     const json = join(OUT, `lighthouse-${name}.json`);
-    const lhArgs = ['-y', 'lighthouse@13.6.0', newUrl, '--quiet', '--output=json', `--output-path=${json}`,
+    const lhArgs = ['--no-install', 'lighthouse', newUrl, '--no-enable-error-reporting', '--quiet', '--output=json', `--output-path=${json}`,
       '--only-categories=performance,accessibility,best-practices,seo',
       '--blocked-url-patterns=*umami-app.ravenwoodsoftware.dev*',
       '--chrome-flags=--headless=new --no-sandbox --hide-scrollbars'];
@@ -205,6 +223,6 @@ if (process.env.LIGHTHOUSE === '1') {
 
 oldServer.close();
 newServer.close();
-writeFileSync(join(OUT, 'results.json'), JSON.stringify({ maxDiffPct: MAX_DIFF_PCT, rows, lighthouse }, null, 2));
+writeFileSync(join(OUT, 'results.json'), JSON.stringify({ maxDiffPixels: MAX_DIFF_PIXELS, rows, lighthouse }, null, 2));
 console.log(failed ? 'W1 VERIFY: FAIL' : 'W1 VERIFY: PASS');
 process.exit(failed ? 1 : 0);
