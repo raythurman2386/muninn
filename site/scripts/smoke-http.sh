@@ -72,7 +72,7 @@ expect "/ CSP header" "$h" '^content-security-policy:'
 expect "/ CSP default-src self" "$h" "content-security-policy:.*default-src 'self'"
 if grep -qiE "content-security-policy:.*unsafe-inline" <<<"$h"; then echo "FAIL / CSP contains unsafe-inline"; fail=1; else echo "ok   / CSP has no unsafe-inline"; fi
 expect "/ CSP allows Umami" "$h" "content-security-policy:.*umami-app\\.ravenwoodsoftware\\.dev"
-expect "/ permissions-policy" "$h" '^permissions-policy: camera=\\(\\), microphone=\\(\\), geolocation=\\(\\), payment=\\(\\), usb=\\(\\)'
+expect "/ permissions-policy" "$h" '^permissions-policy: camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)'
 
 h=$(hdr "$BASE/privacy/")
 expect "/privacy/ 200" "$h" '^HTTP/[0-9.]+ 200'
