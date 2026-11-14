@@ -17,6 +17,7 @@
 //! Boards that already carry colours keep them: the palette only writes when
 //! a swatch is picked, and only onto what the pick applies to.
 
+use muninn_core::Ink;
 use rune::{Color, Cursor, El, Icon, Key, KeyEvent, Mods, Tx, col, icon, row, text};
 use rune_kit::Kit;
 
@@ -113,6 +114,26 @@ static NO_FILL: Icon = Icon {
 };
 
 impl State {
+    /// The paper of the open board: its `viewBackgroundColor`, falling back to
+    /// Excalidraw's white when the board names none.
+    pub(crate) fn board_paper(&self) -> Color {
+        self.board_open
+            .as_ref()
+            .and_then(|open| open.scene.as_ref().ok())
+            .map_or(Color::WHITE, |scene| scene.paper)
+    }
+
+    /// The ink a *new* element is written with (#72). The picked stroke is
+    /// kept, except that Excalidraw's default ink is replaced with its
+    /// dark-theme ink on a dark paper, where `#1e1e1e` would be invisible.
+    /// Existing elements keep the colour the file names.
+    pub(crate) fn new_board_ink(&self) -> Ink<'static> {
+        Ink {
+            stroke: crate::contrast::board_stroke(self.board_stroke, self.board_paper()),
+            background: self.board_fill,
+        }
+    }
+
     /// Pick the palette's stroke colour: it inks the next element drawn and,
     /// with a selection, recolours it as one undoable edit.
     pub fn set_board_stroke(&mut self, colour: &'static str) {

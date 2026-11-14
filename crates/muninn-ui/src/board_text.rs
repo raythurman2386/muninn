@@ -99,8 +99,10 @@ impl State {
         if open.model.is_none() {
             return;
         }
-        // #69: new text is written in the palette's stroke colour.
-        let stroke = self.board_stroke;
+        // #69: new text is written in the palette's stroke colour; #72: on a
+        // dark paper the default ink would be invisible, so it is swapped
+        // for Excalidraw's dark-theme ink.
+        let stroke = crate::contrast::board_stroke(self.board_stroke, self.board_paper());
         self.board_clear_selection();
         self.board_text = Some(BoardTextTarget {
             id: None,

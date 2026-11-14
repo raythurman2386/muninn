@@ -36,6 +36,17 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Fixed
 
+- **Text and icon contrast (#72).** The palette's secondary inks now clear
+  WCAG 2.1 AA wherever they paint: `text_faint` was 3.78:1 on a light card and
+  3.93:1 on a dark one and is now at least 4.5:1 on the page and both raised
+  layers, while muted text and icons keep their own 4.5:1 / 3:1 floors. The
+  repair moves lightness only, so hue and the light/dark split survive, and it
+  also covers an Omarchy palette. Kanban's "Over limit" warning (2.35:1) and
+  the done lane's "Complete" (4.18:1) now clear 4.5:1 on the lane in both
+  themes. A new Board element drawn on a dark `viewBackgroundColor` is written
+  in Excalidraw's dark-theme ink instead of `#1e1e1e` (1.12:1 on `#121212`),
+  and the empty-board placeholder is inked for the paper it sits on (3.95:1 on
+  white); colours already in the file are drawn and saved unchanged.
 - **Long unbroken card text on the Kanban board.** A card whose visible text
   is one run of letters, digits, `=`, `.`, `/` or `_` (an env var or a URL)
   now stays inside the card in Board, List and Table views instead of
