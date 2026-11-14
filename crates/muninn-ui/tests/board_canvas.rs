@@ -246,20 +246,20 @@ fn keys_and_buttons_zoom_pan_and_fit() {
     let at_mid = fitted.scene(mid);
 
     rt.key(plain(Key::Text("+".into())));
-    frames(rt, 1);
+    frames(rt, 40);
     assert!((view_of(rt).zoom - fitted.zoom * 1.25).abs() < 1e-4);
     assert!(
         near(view_of(rt).scene(mid), at_mid, 0.01),
         "+ zooms about the centre"
     );
     rt.key(plain(Key::Text("-".into())));
-    frames(rt, 1);
+    frames(rt, 40);
     assert!((view_of(rt).zoom - fitted.zoom).abs() < 1e-4);
 
     let p = view_of(rt).screen([0.0, 0.0]);
     rt.key(plain(Key::Right));
     rt.key(plain(Key::Down));
-    frames(rt, 1);
+    frames(rt, 40);
     assert!(near(
         view_of(rt).screen([0.0, 0.0]),
         [p[0] - 60.0, p[1] - 60.0],
@@ -267,12 +267,14 @@ fn keys_and_buttons_zoom_pan_and_fit() {
     ));
 
     click(rt, "board-zoom-in");
+    frames(rt, 40);
     assert!(view_of(rt).zoom > fitted.zoom * 1.2);
     rt.key(plain(Key::Text("0".into())));
-    frames(rt, 1);
+    frames(rt, 40);
     assert_eq!(view_of(rt), fitted, "0 refits");
     click(rt, "board-zoom-out");
     click(rt, "board-fit");
+    frames(rt, 40);
     assert_eq!(view_of(rt), fitted, "the fit button refits");
 }
 
@@ -284,7 +286,7 @@ fn leaving_board_keeps_the_view_and_rereads_the_file() {
     let rt = &mut s.rt;
     rt.key(plain(Key::Left));
     rt.key(plain(Key::Text("+".into())));
-    frames(rt, 1);
+    frames(rt, 40);
     let moved = view_of(rt);
 
     rt.key(command('1'));
@@ -322,7 +324,7 @@ fn each_board_keeps_its_view_for_the_session() {
     open(&mut s.rt, "Smoke");
     let rt = &mut s.rt;
     rt.key(plain(Key::Up));
-    frames(rt, 1);
+    frames(rt, 40);
     let smoke = view_of(rt);
     open(rt, "Empty");
     assert!(rt.find("board-empty").is_some(), "an empty board says so");
@@ -344,7 +346,7 @@ fn a_restart_reopens_the_last_board_at_its_view() {
     open(&mut s.rt, "Smoke");
     s.rt.key(plain(Key::Right));
     s.rt.key(plain(Key::Text("+".into())));
-    frames(&mut s.rt, 1);
+    frames(&mut s.rt, 40);
     let left = view_of(&s.rt);
     // Quit as the app does on close.
     s.rt.state.flush_before_quit();
@@ -490,7 +492,7 @@ fn a_big_vault_reopens_the_last_board_and_its_view_after_the_scan() {
     open(&mut s.rt, "Smoke");
     s.rt.key(plain(Key::Right));
     s.rt.key(plain(Key::Text("+".into())));
-    frames(&mut s.rt, 2);
+    frames(&mut s.rt, 40);
     let left = view_of(&s.rt);
     s.rt.state.flush_before_quit();
     drop(s.rt);
@@ -548,7 +550,7 @@ fn a_big_vault_relaunched_in_write_keeps_the_board_it_would_restore() {
     }
     open(&mut s.rt, "Smoke");
     s.rt.key(plain(Key::Right));
-    frames(&mut s.rt, 2);
+    frames(&mut s.rt, 40);
     let left = view_of(&s.rt);
     s.rt.key(command('1'));
     frames(&mut s.rt, 2);

@@ -100,6 +100,11 @@ impl State {
             // mid-flight when the user comes back.
             self.camera_glide = None;
         }
+        // The same for a Board camera glide: land it before the page's view is
+        // written to settings.
+        if mode != Mode::Board {
+            self.land_board_camera();
+        }
         if mode == Mode::Board {
             // The file is the source of truth: list what is on disk now.
             self.refresh_boards();

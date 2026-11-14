@@ -300,6 +300,7 @@ fn arrows_nudge_the_selection_and_pan_without_one() {
     );
     plain(&mut rt, Key::Escape);
     plain(&mut rt, Key::Right);
+    frames(&mut rt, 40);
     assert_ne!(rt.state.board_view().unwrap(), view, "arrows pan again");
 }
 

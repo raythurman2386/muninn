@@ -187,13 +187,23 @@ impl OpenBoard {
 
     /// Centre the content in the canvas (deferred until the canvas has a size).
     pub fn fit(&mut self) {
-        if self.canvas[0] < 1.0 || self.canvas[1] < 1.0 {
+        let Some(target) = self.fit_target() else {
             self.needs_fit = true;
             return;
+        };
+        self.cam.set(target);
+        self.needs_fit = false;
+    }
+
+    /// The view that fits the drawing in the canvas, or `None` until the canvas
+    /// has a size. A key, a button or an empty-canvas click glides to it.
+    #[must_use]
+    fn fit_target(&self) -> Option<BoardView> {
+        if self.canvas[0] < 1.0 || self.canvas[1] < 1.0 {
+            return None;
         }
         let bounds = self.scene.as_ref().ok().and_then(|s| s.bounds);
-        self.cam.set(BoardView::fitted(bounds, self.canvas));
-        self.needs_fit = false;
+        Some(BoardView::fitted(bounds, self.canvas))
     }
 
     fn centre(&self) -> [f32; 2] {
@@ -520,6 +530,9 @@ impl State {
         }
         if let Some(open) = &mut self.board_open {
             open.draft = None;
+            // A glide in flight belongs to the board being left; remember the
+            // view it was heading for, not the pose it passed through.
+            open.cam.land();
         }
         self.stash_board_view();
         let view = self.board_views.get(&path).copied();
@@ -585,34 +598,117 @@ impl State {
         self.board_restore = None;
     }
 
-    /// Fit the open board's content to the canvas.
+    /// Fit the open board's content to the canvas. A key, a button or an
+    /// empty-canvas click glides there; reduced motion lands at once.
     pub fn fit_board(&mut self) {
+        let Some(target) = self.board_open.as_ref().and_then(OpenBoard::fit_target) else {
+            if let Some(open) = &mut self.board_open {
+                open.needs_fit = true;
+            }
+            return;
+        };
+        self.board_camera_to(target);
         if let Some(open) = &mut self.board_open {
-            open.fit();
+            open.needs_fit = false;
             open.auto_fit = false;
         }
-        self.save_settings();
+        self.save_settings_soon();
     }
 
-    /// Zoom the open board about the canvas centre.
+    /// Zoom the open board about the canvas centre. Like the graph, the change
+    /// is a glide unless motion is reduced; the wheel stays direct.
     pub fn zoom_board(&mut self, factor: f32) {
+        let Some(open) = &self.board_open else {
+            return;
+        };
+        let mut target = open.cam.goal();
+        target.zoom_at(open.centre(), factor);
         if let Some(open) = &mut self.board_open {
-            let centre = open.centre();
-            open.cam.zoom_at(centre, factor);
             open.auto_fit = false;
             open.needs_fit = false;
         }
+        self.board_camera_to(target);
         self.save_settings_soon();
     }
 
-    /// Pan the open board by screen points.
+    /// Pan the open board by screen points. Arrow keys glide; a drag or a
+    /// shift-wheel pans directly.
     pub fn pan_board(&mut self, dx: f32, dy: f32) {
+        let Some(open) = &self.board_open else {
+            return;
+        };
+        let mut target = open.cam.goal();
+        target.pan_by(dx, dy);
         if let Some(open) = &mut self.board_open {
-            open.cam.pan_by(dx, dy);
             open.auto_fit = false;
             open.needs_fit = false;
         }
+        self.board_camera_to(target);
         self.save_settings_soon();
+    }
+
+    /// Move the open board's camera to `target`: a spring glide when motion is
+    /// allowed, or an immediate set under reduced motion. The graph camera
+    /// makes the same choice in `ease_camera_to`.
+    fn board_camera_to(&mut self, target: BoardView) {
+        let reduced = self.reduced_motion();
+        let now = self.now;
+        let Some(open) = &mut self.board_open else {
+            return;
+        };
+        if reduced {
+            open.cam.set(target);
+        } else {
+            open.cam.glide_to(target, now);
+        }
+    }
+
+    /// Step an in-flight board camera glide at `now`. Returns true when the
+    /// visible camera moved, so `poll` only reports a frame the user can see.
+    pub(crate) fn advance_board_camera(&mut self) -> bool {
+        let reduced = self.reduced_motion();
+        let now = self.now;
+        let Some(open) = &mut self.board_open else {
+            return false;
+        };
+        if !open.cam.gliding() {
+            return false;
+        }
+        if reduced {
+            // The setting flipped mid-flight: land at once, as the graph does.
+            let before = open.cam.view();
+            open.cam.land();
+            let moved = open.cam.view() != before;
+            if moved {
+                self.save_settings_soon();
+            }
+            return moved;
+        }
+        let moved = open.cam.advance(now);
+        if !open.cam.gliding() {
+            // Write the landed view rather than the pose the glide passed
+            // through; `settings_tick` runs after the spring settles.
+            self.save_settings_soon();
+        }
+        moved
+    }
+
+    /// Whether a board camera glide still has frames left to draw. `poll` asks
+    /// Rune for the next frame only while this is true, so reduced motion
+    /// (which never starts a glide) leaves the window asleep.
+    #[must_use]
+    pub fn board_camera_gliding(&self) -> bool {
+        self.board_open
+            .as_ref()
+            .is_some_and(|open| open.cam.gliding())
+    }
+
+    /// Finish a board camera glide in flight at its target: leaving the page or
+    /// quitting must not save a half-travelled view.
+    pub(crate) fn land_board_camera(&mut self) {
+        if let Some(open) = &mut self.board_open {
+            open.cam.land();
+        }
     }
 
     /// The open board's view, for tests and the zoom readout.

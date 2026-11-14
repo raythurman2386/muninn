@@ -282,6 +282,8 @@ impl State {
         self.save_now();
         let board = self.flush_board_before_quit();
         let kanban = self.flush_kanban_before_quit();
+        // A board camera glide is a session thing, not a saved pose.
+        self.land_board_camera();
         self.save_settings();
         board && kanban
     }
