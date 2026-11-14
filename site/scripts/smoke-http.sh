@@ -112,5 +112,12 @@ h=$(hdr "$BASE/assets/og.png")
 expect "/assets/og.png 200" "$h" '^HTTP/[0-9.]+ 200'
 expect "/assets/og.png png" "$h" '^content-type: image/png'
 
+# Every inline script in the served HTML must have a sha256 in the CSP header.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! node "$SCRIPT_DIR/csp.mjs" check --url "$BASE"; then
+  echo "FAIL CSP hashes vs served HTML"
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"

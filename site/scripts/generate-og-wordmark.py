@@ -3,12 +3,17 @@
 
 Used only when the OG wordmark copy changes. The usual icon pipeline
 (scripts/generate-icons.mjs) rasterizes the committed SVG and does not need
-a font. Requires fontTools and a variable Inter TTF (set INTER_TTF, or pass
-the path as the first argument).
+a font.
+
+Requires fontTools (see site/requirements-icons.txt) and a variable Inter TTF.
+Pass the path as the first argument, set INTER_TTF, or have fontconfig able
+to resolve the Inter family. There is no hard-coded filesystem path.
 """
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,22 +23,48 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
-SITE = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "og-wordmark.svg"
-DEFAULTS = [
-    os.environ.get("INTER_TTF"),
-    "/usr/share/fonts/truetype/sand-box/google/Inter/Inter-VariableFont_opsz,wght.ttf",
-    "/usr/share/fonts/truetype/inter/Inter-VariableFont_opsz,wght.ttf",
-]
 
 
 def find_font() -> Path:
-    args = [sys.argv[1]] if len(sys.argv) > 1 else []
-    for raw in args + DEFAULTS:
-        if raw and Path(raw).is_file():
-            return Path(raw)
+    candidates: list[Path] = []
+    if len(sys.argv) > 1:
+        candidates.append(Path(sys.argv[1]))
+    env = os.environ.get("INTER_TTF")
+    if env:
+        candidates.append(Path(env))
+    for raw in candidates:
+        if raw.is_file():
+            return raw
+        raise SystemExit(f"Inter TTF not found: {raw}")
+    if shutil.which("fc-list"):
+        try:
+            out = subprocess.check_output(
+                ["fc-list", ":family=Inter:style=Regular", "file"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError:
+            out = ""
+        if not out.strip():
+            try:
+                out = subprocess.check_output(
+                    ["fc-list", ":family=Inter", "file"],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                out = ""
+        files = [Path(line.split(":")[0].strip()) for line in out.splitlines() if line.strip()]
+        # Prefer a variable TTF when fontconfig lists several Inter files.
+        preferred = [p for p in files if p.is_file() and "Variable" in p.name and p.suffix.lower() in {".ttf", ".otf"}]
+        regular = [p for p in files if p.is_file() and p.suffix.lower() in {".ttf", ".otf"}]
+        if preferred:
+            return preferred[0]
+        if regular:
+            return regular[0]
     raise SystemExit(
-        "Inter variable TTF not found. Pass the path or set INTER_TTF."
+        "Inter variable TTF not found. Pass the path as the first argument or set INTER_TTF."
     )
 
 
@@ -84,7 +115,7 @@ def main() -> None:
         "  </g>\n"
         "</svg>\n"
     )
-    print(f"wrote {OUT} ({OUT.stat().st_size} bytes) title_w={title_w:.1f} sub_w={sub_w:.1f}")
+    print(f"wrote {OUT} ({OUT.stat().st_size} bytes) font={font_path} title_w={title_w:.1f} sub_w={sub_w:.1f}")
 
 
 if __name__ == "__main__":

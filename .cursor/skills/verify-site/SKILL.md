@@ -12,13 +12,15 @@ The site is an Astro project rooted at `site/`. It builds to `site/dist/` and sh
 1. **Build and types.** In `site/`, run `npm ci`, `npx --no-install astro check` (must report 0 errors) and `npm run build`.
 2. **Pixel parity with the last static page.** Run `bash site/scripts/verify-w1.sh`. It serves the old `site/` from `OLD_REF` (default `c8af582`) and the new `dist/` on 127.0.0.1. It takes full-page headless Chrome screenshots at 1440x900 and 390x844 in dark and light, plus reduced motion, and requires 0 differing pixels. Options:
    - `LIGHTHOUSE=1` runs the pinned Lighthouse devDependency with Umami blocked.
-   - `NEW_URL=http://127.0.0.1:PORT/` compares a running server instead of `dist/`.
+   - `NEW_URL=http://127.0.0.1:PORT/` compares a running server instead of `dist/`. The freeze CSS is applied via an adopted stylesheet so this still works when the server sends `style-src 'self'`.
    - `NEW_DIR`, `SKIP_BUILD=1` and `PROOF_DIR` are documented in the script header.
    - `CHROME_PATH` points at a system Chrome; nothing downloads a browser.
    - Only raise `MAX_DIFF_PIXELS` for an intended visual change, and say so in the PR.
-3. **Served behaviour.** Run `bash site/scripts/smoke-http.sh BASE_URL` against the image or any nginx running `site/nginx/default.conf`. It checks status codes, content types, cache headers (immutable `/_astro/*`, 1 h `/assets/*`, no-cache HTML), security headers including CSP, gzip, mp4 Range (206), the branded 404, `/privacy/`, `/robots.txt`, `/sitemap-index.xml` and the favicon set.
+3. **Served behaviour.** Run `bash site/scripts/smoke-http.sh BASE_URL` against the image or any nginx running `site/nginx/default.conf`. It checks status codes, content types, cache headers (immutable `/_astro/*`, 1 h `/assets/*`, no-cache HTML), security headers including CSP, gzip, mp4 Range (206), the branded 404, `/privacy/`, `/robots.txt`, `/sitemap-index.xml` and the favicon set. It also hashes every inline script in the served HTML and asserts each sha256 is in the CSP header.
 4. **Privacy text.** After a build, run `npm run verify:privacy` in `site/`. It diffs the rendered `/privacy/` text against `PRIVACY.md` (normalized). They must be identical: the page is built from that file, not a copy.
-5. **Image.** CI (`.github/workflows/site.yml`) builds `Dockerfile.marketing` and asserts `EXPOSE 80` and the exact `HEALTHCHECK`. It runs the container, waits for healthy and runs `smoke-http.sh`. GoForge depends on that port and health check, so never change them silently. `PRIVACY.md` must stay in the Docker build context (see `.dockerignore`) because `/privacy/` reads it at build time.
+5. **CSP hashes.** `npm run build` writes `site/nginx/security-headers.conf` from the template and the inline scripts in `dist/`. Run `npm run verify:csp` to assert those hashes match, then change one byte of an inline script and assert the check fails.
+6. **Theme toggle on inner pages.** Run `npm run verify:pages`. It loads `/privacy/` and the branded 404 in dark and light, checks that the toggle label matches the theme, clicks it, and requires no console errors and Lighthouse best-practices 100.
+7. **Image.** CI (`.github/workflows/site.yml`) builds `Dockerfile.marketing` and asserts `EXPOSE 80` and the exact `HEALTHCHECK`. It runs the container, waits for healthy and runs `smoke-http.sh`. GoForge depends on that port and health check, so never change them silently. `PRIVACY.md` must stay in the Docker build context (see `.dockerignore`) because `/privacy/` reads it at build time. The runtime image copies the CSP snippet from the Node build stage (generated after `astro build`), not from the source tree.
 
 ## Rules
 

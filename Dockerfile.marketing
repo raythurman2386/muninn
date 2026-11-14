@@ -15,18 +15,21 @@ ENV ASTRO_TELEMETRY_DISABLED=1 \
     NPM_CONFIG_AUDIT=false
 WORKDIR /src/site
 COPY site/package.json site/package-lock.json ./
-# astro and @astrojs/sitemap are the runtime dependencies; astro check, Lighthouse and the
-# screenshot proof are devDependencies and stay out of the image build entirely.
+# astro, the sitemap integration and the markdown renderer are runtime
+# dependencies; astro check, Lighthouse and the screenshot proof are
+# devDependencies and stay out of the image build entirely.
 RUN npm ci --omit=dev
 # PRIVACY.md is read at build time by /privacy/; it is not copied into the site tree.
 COPY PRIVACY.md /src/PRIVACY.md
 COPY site/ ./
+# npm run build also writes nginx/security-headers.conf from the inline
+# scripts in dist/, so the CSP hashes cannot drift from the HTML.
 RUN npm run build
 
 # nginx:1.30-alpine, pinned by index digest (multi-arch)
 FROM nginx:1.30-alpine@sha256:901e593c95dc85f5a729f5765516321366ef4ac401821431d408897e95287d0a
 COPY site/nginx/default.conf /etc/nginx/conf.d/default.conf
-COPY site/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
+COPY --from=build /src/site/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /src/site/dist/ /usr/share/nginx/html/
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

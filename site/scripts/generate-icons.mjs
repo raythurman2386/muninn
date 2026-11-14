@@ -5,7 +5,7 @@
 //
 //   cd site && npm ci && npm run generate:icons
 //
-// sharp is an Astro dependency and is available after npm ci. The wordmark
+// sharp is declared as a devDependency and is available after npm ci. The wordmark
 // on the OG image is scripts/og-wordmark.svg (Inter, converted to paths).
 import { mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
