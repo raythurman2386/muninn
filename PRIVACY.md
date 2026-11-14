@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective date: November 9, 2026
+Effective date: November 14, 2026
 
 Muninn is a local-first notes app made by Raymond Thurman, doing business as Ravenwood Software. This policy describes what happens when you use optional sync and when you visit the Muninn website.
 
@@ -34,7 +34,9 @@ Muninn does not create a Muninn account, and the app does not send your notes or
 
 ## Website
 
-The Muninn website at https://muninn.ravenwoodsoftware.dev uses Umami, an analytics tool we host ourselves at https://umami-app.ravenwoodsoftware.dev, to count visits to the site. This is only on the website. It is not part of the desktop app, and the app still does not send your notes or usage data to us.
+The Muninn website at https://muninn.ravenwoodsoftware.dev is served through Cloudflare, which proxies the site and caches it on a CDN. Cloudflare sees visitor IP addresses and request metadata such as the requested URL and user agent. Cloudflare's email address obfuscation is on, so email addresses in the pages Cloudflare serves are rewritten to make them harder for scrapers to harvest.
+
+The site uses Umami, an analytics tool we host ourselves at https://umami-app.ravenwoodsoftware.dev, to count visits. The script we load from that host does not set cookies. It sends a page-view event to that same host with the page URL, referrer, title, screen size, language, and hostname. This is only on the website. It is not part of the desktop app, and the app still does not send your notes or usage data to us.
 
 ## Contact
 

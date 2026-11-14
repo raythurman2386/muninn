@@ -3,6 +3,10 @@
 // so the home Features item still jumps to the three pillars. Other pages point
 // Features at /features/. Download always goes to /download/. `current` marks the
 // active features, docs, or changelog page; Download uses the request path.
+// The Early access item is included only when PUBLIC_WAITLIST_ENABLED=true, so
+// a default build stays byte-identical to main (aside from the Features href).
+import { WAITLIST_ENABLED } from '../lib/waitlist';
+
 interface Props {
   home?: boolean;
   current?: 'features' | 'docs' | 'changelog';
@@ -27,6 +31,7 @@ const downloadCurrent = Astro.url.pathname === '/download' || Astro.url.pathname
           <li><a href={downloadHref} aria-current={downloadCurrent ? "page" : undefined}>Download</a></li>
           <li><a href="/docs/" aria-current={current === 'docs' ? 'page' : undefined}>Docs</a></li>
           <li><a href="/changelog/" aria-current={current === 'changelog' ? 'page' : undefined}>Changelog</a></li>
+          {WAITLIST_ENABLED && <li><a href="/waitlist/">Early access</a></li>}
           <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
         </ul>
       </nav>

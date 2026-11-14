@@ -1,6 +1,9 @@
 ---
 // Shared site footer. The Privacy link points at the /privacy/ page rendered
 // from PRIVACY.md; the visible text is unchanged from the W1 landing page.
+// The Early access item is included only when PUBLIC_WAITLIST_ENABLED=true, so
+// a default build stays byte-identical to main.
+import { WAITLIST_ENABLED } from '../lib/waitlist';
 ---
   <footer class="site-footer">
     <div class="wrap footer-row">
@@ -11,6 +14,7 @@
         <li><a href="/privacy/">Privacy</a></li>
         <li><a href="/sponsor/">Sponsor</a></li>
         <li><a href="/press/">Press</a></li>
+        {WAITLIST_ENABLED && <li><a href="/waitlist/">Early access</a></li>}
       </ul>
       <p class="credit">Built with <a href="https://github.com/anomalyco/rune">Rune</a></p>
     </div>

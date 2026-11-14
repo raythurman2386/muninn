@@ -1,0 +1,54 @@
+---
+// Early access email-only signup form. Rendered only on pages that are
+// themselves emitted when PUBLIC_WAITLIST_ENABLED=true.
+import { WAITLIST_ENDPOINT, TURNSTILE_SITEKEY } from '../lib/waitlist';
+import '../styles/waitlist.css';
+
+const endpoint = WAITLIST_ENDPOINT;
+const sitekey = TURNSTILE_SITEKEY;
+---
+<form
+  class="waitlist-form"
+  data-waitlist-form
+  method="post"
+  action={endpoint || undefined}
+  accept-charset="UTF-8"
+>
+  <noscript>
+    <p class="waitlist-noscript">Enable JavaScript to request early access.</p>
+  </noscript>
+
+  <div class="waitlist-hp" aria-hidden="true">
+    <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+  </div>
+
+  <div class="waitlist-field">
+    <label for="waitlist-email">Email</label>
+    <input
+      id="waitlist-email"
+      name="email"
+      type="email"
+      required
+      autocomplete="email"
+      inputmode="email"
+      spellcheck="false"
+      maxlength="254"
+    >
+  </div>
+
+  {sitekey && (
+    <div class="cf-turnstile" data-sitekey={sitekey} data-theme="auto"></div>
+  )}
+
+  <button class="btn btn-primary" type="submit">Request early access</button>
+  <p class="waitlist-status" data-waitlist-status role="status" aria-live="polite" aria-atomic="true" hidden></p>
+</form>
+
+<p class="waitlist-note">We'll send a confirmation link before anyone is added. See the <a href="/privacy/">privacy policy</a>.</p>
+
+<script>
+  import '../scripts/waitlist-form.js';
+</script>
+{sitekey && (
+  <script is:inline defer src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>
+)}

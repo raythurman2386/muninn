@@ -1,0 +1,66 @@
+---
+// /waitlist/, /waitlist/check-email/ and /waitlist/confirmed/ exist only when
+// PUBLIC_WAITLIST_ENABLED=true. getStaticPaths returns no routes otherwise,
+// so a default (flag-off) build stays byte-identical to main.
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import WaitlistForm from '../components/WaitlistForm.astro';
+import { OG } from '../lib/og';
+import '../styles/pages.css';
+
+export function getStaticPaths() {
+  if (import.meta.env.PUBLIC_WAITLIST_ENABLED !== 'true') return [];
+  return [
+    { params: { slug: undefined }, props: { kind: 'form' } },
+    { params: { slug: 'check-email' }, props: { kind: 'check-email' } },
+    { params: { slug: 'confirmed' }, props: { kind: 'confirmed' } },
+  ];
+}
+
+interface Props {
+  kind: 'form' | 'check-email' | 'confirmed';
+}
+
+const { kind } = Astro.props;
+
+const copy = {
+  form: {
+    title: 'Early access — Muninn',
+    description: 'Leave your email to hear about Muninn launches and major releases.',
+    heading: 'Early access',
+    lede: 'Leave your email if you want to hear when Muninn has a launch or a major release. Email only — no name, and no account is created here.',
+  },
+  'check-email': {
+    title: 'Check your email — Muninn',
+    description: 'Confirm your Muninn early access signup from the link we sent.',
+    heading: 'Check your email',
+    lede: 'We sent a confirmation link. Click it to finish signing up for early access. If you do not see it, check your spam folder. You can close this page.',
+  },
+  confirmed: {
+    title: 'You are confirmed — Muninn',
+    description: 'Your Muninn early access signup is confirmed.',
+    heading: 'You are confirmed',
+    lede: 'Thanks. You are on the Muninn early access list. We will email you about launches and major releases. You can unsubscribe from any of those emails.',
+  },
+}[kind];
+---
+<Base
+  title={copy.title}
+  description={copy.description}
+  ogTitle={copy.title}
+  ogDescription={copy.description}
+  ogImage={OG.home.image}
+  ogImageAlt={OG.home.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header />
+  <main id="main" class="simple-page">
+    <div class="wrap simple-inner">
+      <h1>{copy.heading}</h1>
+      <p class="lede">{copy.lede}</p>
+      {kind === 'form' && <WaitlistForm />}
+    </div>
+  </main>
+  <Footer />
+</Base>

@@ -124,6 +124,9 @@ export function classifyAsset(name: string): { kind: AssetKind; cardId: string |
 }
 
 const CARD_META: Record<string, Pick<OsCard, 'os' | 'arch' | 'title' | 'archLabel' | 'notes'>> = {
+  // glibc floors measured on the v0.8.2 release binaries (readelf -V / dyn-syms):
+  // x86_64 links GLIBC_2.43 (asinf, atan2f, acoshf, coshf, sinhf, acosf);
+  // aarch64's highest needed version is GLIBC_2.39 (pidfd_spawnp, pidfd_getpid).
   'linux-x86_64': {
     os: 'linux',
     arch: 'x86_64',
@@ -136,7 +139,7 @@ const CARD_META: Record<string, Pick<OsCard, 'os' | 'arch' | 'title' | 'archLabe
     arch: 'aarch64',
     title: 'Linux',
     archLabel: 'arm64',
-    notes: ['Needs glibc 2.43 or newer. Ubuntu 24.04 and Debian 13 are too old.'],
+    notes: ['Needs glibc 2.39 or newer. Ubuntu 24.04 and Debian 13 can run this build.'],
   },
   // v0.8.2 muninn binary is thin Mach-O 64-bit ARM64 (MH_MAGIC_64, cputype
   // 0x0100000c), not a universal/fat binary. Keep this wording until a
@@ -249,12 +252,12 @@ export function sha256sumCommand(asset: ReleaseAsset): string | null {
   return `echo "${asset.sha256}  ${asset.name}" | sha256sum -c`;
 }
 
-export function cosignVerifyCommand(_tag: string): string {
+export function cosignVerifyCommand(tag: string): string {
   return [
     'cosign verify-blob checksums.txt \\',
     '  --bundle checksums.txt.sigstore.json \\',
     `  --certificate-oidc-issuer ${COSIGN_OIDC_ISSUER} \\`,
-    `  --certificate-identity-regexp '${COSIGN_IDENTITY_REGEXP}'`,
+    `  --certificate-identity ${cosignIdentity(tag)}`,
   ].join('\n');
 }
 

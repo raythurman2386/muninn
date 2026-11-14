@@ -94,7 +94,7 @@ expect "/privacy/ 200" "$h" '^HTTP/[0-9.]+ 200'
 expect "/privacy/ text/html" "$h" '^content-type: text/html'
 privacy=$(curl -sS "$BASE/privacy/")
 expect "/privacy/ has the policy heading" "$privacy" 'Privacy Policy'
-expect "/privacy/ has the effective date" "$privacy" 'Effective date: November 9, 2026'
+expect "/privacy/ has the effective date" "$privacy" 'Effective date: November 14, 2026'
 expect "/privacy/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$privacy" | wc -l)" '^1$'
 # The page must render the repo file, not a hand-copied fork: a distinctive sentence.
 expect "/privacy/ matches PRIVACY.md" "$privacy" 'Muninn does not create a Muninn account'
@@ -179,9 +179,17 @@ expect "/download/ 200" "$h" '^HTTP/[0-9.]+ 200'
 expect "/download/ text/html" "$h" '^content-type: text/html'
 download=$(curl -sS "$BASE/download/")
 expect "/download/ has the heading" "$download" 'Download Muninn'
-expect "/download/ names the glibc requirement" "$download" 'glibc 2.43'
+expect "/download/ names the x86_64 glibc requirement" "$download" 'glibc 2.43'
+expect "/download/ names the arm64 glibc requirement" "$download" 'glibc 2.39'
+expect "/download/ says Ubuntu 24.04 can run the arm64 build" "$download" 'Ubuntu 24.04 and Debian 13 can run'
 expect "/download/ has a checksum" "$download" 'SHA-256'
 expect "/download/ has a cosign verify snippet" "$download" 'cosign verify-blob'
+expect "/download/ pins the cosign identity to the release tag" "$download" 'certificate-identity https://github.com/raythurman2386/muninn/.github/workflows/release.yml@refs/tags/v0.8.2'
+if grep -q 'certificate-identity-regexp' <<<"$download"; then
+  echo "FAIL /download/ still prints certificate-identity-regexp"; fail=1
+else
+  echo "ok   /download/ does not print certificate-identity-regexp"
+fi
 expect "/download/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$download" | wc -l)" '^1$'
 expect "/download/ nav points at /download/" "$download" 'href="/download/"'
 expect "/download/ footer Privacy is /privacy/" "$download" 'href="/privacy/"'

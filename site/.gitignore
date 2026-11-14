@@ -8,3 +8,6 @@ dist/
 .proof-w7/
 # Generated from dist/ by scripts/csp.mjs after astro build.
 nginx/security-headers.conf
+.proof-w9/
+dist-on/
+dist-on-turnstile/
