@@ -1,18 +1,18 @@
 ---
 // /press/: a short description, official logo downloads, product stills
-// from the existing site images, and a few facts. The latest version is
-// static (v0.8.2) until W4's release loader is on main.
+// from the existing site images, and a few facts. The latest version comes
+// from the W4 GitHub Releases loader (same source as /download/).
+import { getEntry } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { OG } from '../lib/og';
 import '../styles/pages.css';
 
-// W4's GitHub Releases loader is not on main yet. Keep this static and
-// switch it to loadLatestRelease() in the merge commit once W4 lands.
-const version = '0.8.2';
-const versionLabel = `v${version}`;
-const releaseUrl = 'https://github.com/raythurman2386/muninn/releases/tag/v0.8.2';
+const latest = await getEntry('releases', 'latest');
+if (!latest) throw new Error('The releases loader did not produce a latest entry.');
+const versionLabel = latest.data.tag;
+const releaseUrl = latest.data.htmlUrl;
 const sourceUrl = 'https://github.com/raythurman2386/muninn';
 const licenseUrl = 'https://github.com/raythurman2386/muninn/blob/main/LICENSE';
 

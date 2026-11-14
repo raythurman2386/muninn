@@ -2,7 +2,8 @@
 # HTTP smoke test for the served marketing site (the Docker image in CI, or a local nginx).
 # Usage: site/scripts/smoke-http.sh http://127.0.0.1:8080
 # Checks status codes, content types, cache headers, security headers (including CSP),
-# gzip, video Range support, /privacy/, sitemap, robots.txt and the branded 404.
+# gzip, video Range support, /privacy/, /download/, sitemap, robots.txt, the branded 404,
+# /sponsor/, /press/, /docs/, and /changelog/.
 set -euo pipefail
 BASE="${1:?usage: smoke-http.sh BASE_URL}"
 BASE="${BASE%/}"
@@ -173,6 +174,20 @@ h=$(hdr "$BASE/assets/logo.png")
 expect "logo png 200" "$h" '^HTTP/[0-9.]+ 200'
 expect "logo png type" "$h" '^content-type: image/png'
 
+# W4: /download/ is built from the latest GitHub Release (or the committed snapshot).
+h=$(hdr "$BASE/download/")
+expect "/download/ 200" "$h" '^HTTP/[0-9.]+ 200'
+expect "/download/ text/html" "$h" '^content-type: text/html'
+download=$(curl -sS "$BASE/download/")
+expect "/download/ has the heading" "$download" 'Download Muninn'
+expect "/download/ names the glibc requirement" "$download" 'glibc 2.43'
+expect "/download/ has a checksum" "$download" 'SHA-256'
+expect "/download/ has a cosign verify snippet" "$download" 'cosign verify-blob'
+expect "/download/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$download" | wc -l)" '^1$'
+expect "/download/ nav points at /download/" "$download" 'href="/download/"'
+expect "/download/ footer Privacy is /privacy/" "$download" 'href="/privacy/"'
+expect "/download/ names Intel Macs not supported" "$download" 'Intel Macs not supported'
+expect "/download/ og:image" "$download" 'property="og:image" content="https://muninn.ravenwoodsoftware.dev/assets/og/download.png"'
 
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"

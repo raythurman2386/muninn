@@ -56,7 +56,7 @@
       video.setAttribute('preload', 'auto');
       video.setAttribute('aria-label', 'Muninn tour: Read a note, search, glide the graph, then open Board and Kanban.');
       hero.appendChild(video);
-      pauseBtn.hidden = false;
+      if (pauseBtn) pauseBtn.hidden = false;
     }
     applyHeroSources();
     if (!userPaused) { var p = video.play(); if (p && p.catch) p.catch(function () {}); }
@@ -104,8 +104,8 @@
     syncToggle(); if (video) mountVideo();
   };
   if (scheme.addEventListener) scheme.addEventListener('change', onScheme);
-  if (reduce.addEventListener) reduce.addEventListener('change', mountVideo);
+  if (hero && reduce.addEventListener) reduce.addEventListener('change', mountVideo);
 
   syncToggle();
-  mountVideo();
+  if (hero) mountVideo();
 })();
