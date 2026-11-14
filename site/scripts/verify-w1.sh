@@ -26,12 +26,14 @@ export ASTRO_TELEMETRY_DISABLED=1
 mkdir -p "$PROOF_DIR"
 cd "$SITE_DIR"
 
-echo "== npm ci"
-npm ci --no-audit --no-fund
-echo "== npm run build"
-npm run build 2>&1 | tee "$PROOF_DIR/build.log"
-echo "== astro check"
-npx astro check 2>&1 | tee "$PROOF_DIR/astro-check.log"
+if [ "${SKIP_BUILD:-0}" != 1 ]; then
+  echo "== npm ci"
+  npm ci --no-audit --no-fund
+  echo "== npm run build"
+  npm run build 2>&1 | tee "$PROOF_DIR/build.log"
+  echo "== astro check"
+  npx --no-install astro check 2>&1 | tee "$PROOF_DIR/astro-check.log"
+fi
 
 echo "== old site from $OLD_REF"
 rm -rf "$PROOF_DIR/old"
@@ -39,4 +41,4 @@ mkdir -p "$PROOF_DIR/old"
 git -C "$REPO_DIR" archive "$OLD_REF" site | tar -x -C "$PROOF_DIR/old"
 
 echo "== screenshots + pixel diff"
-node scripts/verify-w1.mjs --old "$PROOF_DIR/old/site" --new "$SITE_DIR/dist" --out "$PROOF_DIR"
+node scripts/verify-w1.mjs --old "$PROOF_DIR/old/site" --new "${NEW_DIR:-$SITE_DIR/dist}" --out "$PROOF_DIR"
