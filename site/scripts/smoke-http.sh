@@ -95,7 +95,7 @@ expect "/privacy/ 200" "$h" '^HTTP/[0-9.]+ 200'
 expect "/privacy/ text/html" "$h" '^content-type: text/html'
 privacy=$(curl -sS "$BASE/privacy/")
 expect "/privacy/ has the policy heading" "$privacy" 'Privacy Policy'
-expect "/privacy/ has the effective date" "$privacy" 'Effective date: November 9, 2026'
+expect "/privacy/ has the effective date" "$privacy" 'Effective date: November 14, 2026'
 expect "/privacy/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$privacy" | wc -l)" '^1$'
 # The page must render the repo file, not a hand-copied fork: a distinctive sentence.
 expect "/privacy/ matches PRIVACY.md" "$privacy" 'Muninn does not create a Muninn account'
