@@ -2,7 +2,7 @@
 
 Effective date: November 14, 2026
 
-Muninn is a local-first notes app made by Raymond Thurman, doing business as Ravenwood Software. This policy describes what happens when you use optional sync and when you visit the Muninn website.
+Muninn is a local-first notes app made by Raymond Thurman, doing business as Ravenwood Software. This policy describes what happens when you use optional sync, when you visit the Muninn website, and when you join the Early access list.
 
 ## Notes stay on your device
 
@@ -37,6 +37,30 @@ Muninn does not create a Muninn account, and the app does not send your notes or
 The Muninn website at https://muninn.ravenwoodsoftware.dev is served through Cloudflare, which proxies the site and caches it on a CDN. Cloudflare sees visitor IP addresses and request metadata such as the requested URL and user agent. Cloudflare's email address obfuscation is on, so email addresses in the pages Cloudflare serves are rewritten to make them harder for scrapers to harvest.
 
 The site uses Umami, an analytics tool we host ourselves at https://umami-app.ravenwoodsoftware.dev, to count visits. The script we load from that host does not set cookies. It sends a page-view event to that same host with the page URL, referrer, title, screen size, language, and hostname. This is only on the website. It is not part of the desktop app, and the app still does not send your notes or usage data to us.
+
+## Early access list
+
+The website has an optional Early access form at https://muninn.ravenwoodsoftware.dev/waitlist/. If you sign up:
+
+What we collect: your email address only. The form has no name field. Listmonk, the mailing-list tool we use, fills in a display name from the part of your address before the @.
+
+Why: to email you about Muninn launches and major releases. We do not use it for anything else.
+
+Double opt-in: we send one confirmation email. You are not on the list until you click the link in it.
+
+Where it is stored: in Listmonk, which we host ourselves on our own server, together with your subscription status and the times you signed up and confirmed. We do not record the IP address you confirm from, and emails to this list do not use tracking pixels or tracked links.
+
+Spam protection: the form uses Cloudflare Turnstile to check that a person is signing up. Turnstile runs in your browser, and Cloudflare processes your IP address and browser signals to issue the check, under [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/) and its [Turnstile privacy addendum](https://www.cloudflare.com/turnstile-privacy-policy/). Our signup service keeps rate-limit counters in memory only, keyed by a hash of your IP address (for an IPv6 address, of its /64 network prefix) and by a hash of your email address; they are discarded when idle, when the service restarts, or to make room for newer entries. It does not write your IP address or email address to disk or to its logs.
+
+Server logs: like any web server, our server keeps short-lived technical logs for the website, the signup service, and Listmonk, including when you click the confirmation link. They can include request details such as the time, URL, user agent, and an IP address. They are rotated automatically and are not used to build a profile of you.
+
+Email delivery: the confirmation email and any list emails are sent through our email provider, which processes your address to deliver them.
+
+Retention: signups that are still unconfirmed after 30 days are deleted by a regular cleanup in Listmonk. The cleanup first removes the unconfirmed subscription, then deletes email addresses that are no longer on any list, so the address itself is removed. Confirmed addresses are kept until you unsubscribe or the Early access list ends.
+
+Unsubscribe, export, and delete: every email has an unsubscribe link. To get a copy of your data or have it deleted, use the contact details below.
+
+We do not sell or share the list.
 
 ## Contact
 
