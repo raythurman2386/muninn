@@ -1,0 +1,54 @@
+---
+/*
+  Muninn marketing page, live at https://muninn.ravenwoodsoftware.dev (deployed with GoForge).
+  Theme tokens: rune-theme-opencode (anomalyco/rune @ b39c24f7), as pinned by muninn main 847f1aa.
+  Base layout for the Astro port (W1): the <head> of the old static site/index.html, unchanged.
+*/
+import '../styles/tokens.css';
+import '../styles/site.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'Muninn — a local-first Markdown vault with a knowledge graph',
+  description = 'Muninn is a local-first Markdown vault with [[wikilinks]] and a knowledge graph. Every note is a plain file you can read, move, diff, and version-control. MIT licensed.',
+} = Astro.props;
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <meta name="description" content={description}>
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#080808" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
+  <meta property="og:title" content="Muninn">
+  <meta property="og:description" content="A local-first Markdown vault with [[wikilinks]] and a knowledge graph.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  <link rel="preload" href="/assets/fonts/InterVariable-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <script is:inline>
+    // First paint: saved choice, else the system appearance, else dark.
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('muninn-theme'); } catch (e) {}
+      if (t !== 'dark' && t !== 'light') {
+        t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <script is:inline defer src="https://umami-app.ravenwoodsoftware.dev/script.js" data-website-id="e9a78bed-e335-420a-8b40-99e4d9f45e2f"></script>
+  <script>
+    import '../scripts/main.js';
+  </script>
+</head>
+<body>
+  <slot />
+</body>
+</html>

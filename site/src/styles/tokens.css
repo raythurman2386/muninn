@@ -1,0 +1,85 @@
+/*
+  Muninn design tokens: fonts, radii, motion, layout widths and the dark/light colour tables.
+  Moved unchanged from site/styles.css (Astro W1 port); only the font URLs became root-absolute
+  so they resolve from public/ on every route.
+  Every colour, radius and type size below comes from rune-theme-opencode
+  (github.com/anomalyco/rune @ b39c24f7, themes/opencode/assets/theme.json via src/lib.rs `build`),
+  the kit Muninn uses for its default Dark / Light themes (muninn-ui/src/omarchy.rs, main 847f1aa).
+  Kit field → token name noted beside each variable.
+*/
+
+@font-face {
+  font-family: "Inter";
+  src: url("/assets/fonts/InterVariable-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/assets/fonts/IBMPlexMono-Regular-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/assets/fonts/IBMPlexMono-Medium-latin.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+:root {
+  /* Radius { xs: 2, sm: 4, md: 6, lg: 8, xl: 10 } */
+  --r-xs: 2px; --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px;
+  /* Motion: the kit's 85–170 ms ease-outs */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --t-control: 120ms; --t-overlay: 170ms;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --wrap: 1152px;      /* container-6xl */
+  --wrap-wide: 1280px; /* container-7xl */
+}
+
+/* ThemeMode::Dark => rune_theme_opencode::kit(true) */
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  --bg-deep: #080808;     /* bg_deep      v2-background-bg-deep  (app sidebar / page) */
+  --bg-base: #161616;     /* bg_base      v2-background-bg-base  (app content) */
+  --layer-01: #242424;    /* layer_01     v2-background-bg-layer-01 */
+  --layer-02: #2e2e2e;    /* layer_02     v2-background-bg-layer-02 */
+  --bg-accent: #3b5cf6;   /* bg_accent    v2-background-bg-accent */
+  --bg-inverse: #ffffff;  /* bg_inverse   v2-background-bg-inverse */
+  --text-base: #fafafa;   /* text_base    v2-text-text-base */
+  --text-muted: #aeaeae;  /* text_muted   v2-text-text-muted */
+  --text-faint: #808080;  /* text_faint   v2-text-text-faint */
+  --text-accent: #a2bcff; /* text_accent  v2-text-text-accent */
+  --text-inverse: #161616;/* text_inverse v2-text-text-inverse */
+  --border-muted: #ffffff14;  /* border_muted  */
+  --border-base: #ffffff1a;   /* border_base   */
+  --border-strong: #ffffff33; /* border_strong */
+  --border-focus: #7698fd;    /* border_focus  */
+  --hover: #ffffff0f;         /* hover v2-overlay-simple-overlay-hover */
+  --shot-shadow: 0 0 0 1px var(--border-base), 0 24px 64px -24px #000000cc;
+}
+
+/* ThemeMode::Light => rune_theme_opencode::kit(false) */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-deep: #fafafa;
+  --bg-base: #ffffff;
+  --layer-01: #fafafa;
+  --layer-02: #f2f2f2;
+  --bg-accent: #3b5cf6;
+  --bg-inverse: #161616;
+  --text-base: #161616;
+  --text-muted: #5c5c5c;
+  --text-faint: #808080;
+  --text-accent: #3b5cf6;
+  --text-inverse: #ffffff;
+  --border-muted: #00000014;
+  --border-base: #0000001a;
+  --border-strong: #00000033;
+  --border-focus: #7698fd;
+  --hover: #0000000a;
+  --shot-shadow: 0 0 0 1px var(--border-base), 0 24px 64px -28px #0000003d;
+}

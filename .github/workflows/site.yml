@@ -1,0 +1,104 @@
+name: Site
+
+# Marketing site (site/, Astro) and its nginx image (Dockerfile.marketing).
+# Runs only when those change; the Rust CI in ci.yml is separate and unaffected.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "Dockerfile.marketing"
+      - ".dockerignore"
+      - ".github/workflows/site.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - "Dockerfile.marketing"
+      - ".dockerignore"
+      - ".github/workflows/site.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ASTRO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  build:
+    name: astro check / build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: astro check
+        run: npx --no-install astro check
+
+      - name: Build
+        run: npm run build
+
+      - name: Build output
+        run: |
+          test -f dist/index.html
+          du -sh dist
+          find dist -maxdepth 2 -type f -not -path 'dist/assets/*' | sort
+
+  image:
+    name: docker build / run / smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image
+        run: docker build -f Dockerfile.marketing -t muninn-site:ci .
+
+      - name: Image facts
+        run: |
+          docker image ls muninn-site:ci --format 'size={{.Size}}'
+          docker image inspect muninn-site:ci --format 'exposed={{json .Config.ExposedPorts}}'
+          docker image inspect muninn-site:ci --format 'healthcheck={{json .Config.Healthcheck}}'
+          # GoForge relies on port 80 and the wget health check on /; fail if either drifts.
+          test "$(docker image inspect muninn-site:ci --format '{{json .Config.ExposedPorts}}')" = '{"80/tcp":{}}'
+          test "$(docker image inspect muninn-site:ci --format '{{json .Config.Healthcheck.Test}}')" = '["CMD-SHELL","wget -q -O /dev/null http://127.0.0.1/ || exit 1"]'
+          # The runtime image must not carry Node or the build tooling.
+          ! docker run --rm --entrypoint sh muninn-site:ci -c 'command -v node || test -d /usr/share/nginx/html/node_modules'
+
+      - name: Run container
+        run: docker run -d --name muninn-site -p 127.0.0.1:8080:80 muninn-site:ci
+
+      - name: Wait for healthy
+        run: |
+          for i in $(seq 1 60); do
+            s=$(docker inspect -f '{{.State.Health.Status}}' muninn-site)
+            echo "health: $s"
+            [ "$s" = healthy ] && exit 0
+            [ "$s" = unhealthy ] && exit 1
+            sleep 2
+          done
+          exit 1
+
+      - name: HTTP smoke
+        run: bash site/scripts/smoke-http.sh http://127.0.0.1:8080
+
+      - name: Container logs
+        if: always()
+        run: docker logs muninn-site || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f muninn-site || true

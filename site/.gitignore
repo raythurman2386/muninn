@@ -1,0 +1,5 @@
+# Astro build output and local tooling (site/ is the Astro project root).
+node_modules/
+dist/
+.astro/
+.proof-w1/

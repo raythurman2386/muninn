@@ -1,4 +1,5 @@
 // Muninn site: theme toggle (page chrome + product stills + hero loop) and a motion-safe hero video.
+// Bundled by Astro as a module script (deferred, like the old <script defer src="main.js">).
 (function () {
   var root = document.documentElement;
   var KEY = 'muninn-theme';
@@ -20,8 +21,8 @@
     for (var i = 0; i < meta.length; i++) meta[i].setAttribute('content', theme() === 'dark' ? '#080808' : '#fafafa');
   }
 
-  function heroSrc() { return 'assets/video/' + theme() + '-hero-tour.mp4'; }
-  function posterSrc() { return 'assets/img/' + theme() + '/preview-1600.webp'; }
+  function heroSrc() { return '/assets/video/' + theme() + '-hero-tour.mp4'; }
+  function posterSrc() { return '/assets/img/' + theme() + '/preview-1600.webp'; }
 
   function mountVideo() {
     if (reduce.matches) { unmountVideo(); return; }
