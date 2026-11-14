@@ -15,7 +15,9 @@ ENV ASTRO_TELEMETRY_DISABLED=1 \
     NPM_CONFIG_AUDIT=false
 WORKDIR /src/site
 COPY site/package.json site/package-lock.json ./
-RUN npm ci
+# astro is the only runtime dependency; astro check, Lighthouse and the screenshot proof are
+# devDependencies and stay out of the image build entirely.
+RUN npm ci --omit=dev
 COPY site/ ./
 RUN npm run build
 
