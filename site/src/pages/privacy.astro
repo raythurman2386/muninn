@@ -6,6 +6,7 @@ import Base from '../layouts/Base.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { renderRepoMarkdown } from '../lib/repo-markdown';
+import { OG } from '../lib/og';
 
 const { code } = await renderRepoMarkdown('PRIVACY.md');
 ---
@@ -15,6 +16,8 @@ const { code } = await renderRepoMarkdown('PRIVACY.md');
   canonicalPath="/privacy/"
   ogTitle="Privacy Policy — Muninn"
   ogDescription="What happens when you use optional sync in Muninn, and when you visit the Muninn website."
+  ogImage={OG.privacy.image}
+  ogImageAlt={OG.privacy.alt}
 >
   <a class="skip" href="#main">Skip to content</a>
   <Header />
