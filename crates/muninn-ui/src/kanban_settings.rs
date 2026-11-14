@@ -506,20 +506,11 @@ pub(crate) fn app_tab(s: &State, k: &Kit) -> El {
         effective: &effective,
         sources: &sources,
     };
-    let mut body = col().key("settings-tab-kanban").w_full().gap(18.0).child(
-        col()
-            .gap(4.0)
-            .child(
-                text("Kanban defaults")
-                    .font(k.ty.ui_medium)
-                    .color(k.c.text_base),
-            )
-            .child(
-                text("A board's own settings footer wins; otherwise these apply to every board.")
-                    .font(k.ty.caption())
-                    .color(k.c.text_muted)
-                    .wrap(),
-            ),
+    let mut body = col().key("settings-tab-kanban").w_full().gap(14.0).child(
+        text("A board's own settings footer wins; otherwise these apply to every board.")
+            .font(k.ty.caption())
+            .color(k.c.text_muted)
+            .wrap(),
     );
     for section in KanbanSection::ALL {
         body = body.child(section_block(s, k, Context::App, section, &view));
@@ -600,25 +591,10 @@ fn section_block(
         }
         rows = rows.child(setting_row(s, k, context, entry, view));
     }
-    col()
-        .key(format!(
-            "kanban-settings-section-{}",
-            section_title_key(section)
-        ))
-        .w_full()
-        .gap(8.0)
-        .child(
-            text(section.title())
-                .font(k.ty.ui_medium)
-                .color(k.c.text_base),
-        )
-        .child(
-            text(section.caption())
-                .font(k.ty.caption())
-                .color(k.c.text_muted)
-                .wrap(),
-        )
-        .child(rows)
+    crate::view::settings_section(k, section.title(), Some(section.caption()), rows).key(format!(
+        "kanban-settings-section-{}",
+        section_title_key(section)
+    ))
 }
 
 fn section_title_key(section: KanbanSection) -> &'static str {
