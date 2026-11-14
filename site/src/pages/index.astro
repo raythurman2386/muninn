@@ -2,8 +2,9 @@
 // Muninn marketing page, ported 1:1 from the static site/index.html (Astro W1).
 // Copy, markup and class names are unchanged; asset URLs are root-absolute (served from public/).
 import Base from '../layouts/Base.astro';
+import { OG } from '../lib/og';
 ---
-<Base>
+<Base ogImage={OG.home.image} ogImageAlt={OG.home.alt}>
   <a class="skip" href="#main">Skip to content</a>
 
   <header class="site-header">
@@ -143,6 +144,8 @@ import Base from '../layouts/Base.astro';
         <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
         <li><a href="https://github.com/raythurman2386/muninn/blob/main/LICENSE">MIT License</a></li>
         <li><a href="https://github.com/raythurman2386/muninn/blob/main/PRIVACY.md">Privacy</a></li>
+        <li><a href="/sponsor/">Sponsor</a></li>
+        <li><a href="/press/">Press</a></li>
       </ul>
       <p class="credit">Built with <a href="https://github.com/anomalyco/rune">Rune</a></p>
     </div>

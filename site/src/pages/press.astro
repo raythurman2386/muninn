@@ -1,0 +1,163 @@
+---
+// /press/: a short description, official logo downloads, product stills
+// from the existing site images, and a few facts. The latest version is
+// static (v0.8.2) until W4's release loader is on main.
+import Base from '../layouts/Base.astro';
+import { OG } from '../lib/og';
+import '../styles/pages.css';
+
+// W4's GitHub Releases loader is not on main yet. Keep this static and
+// switch it to loadLatestRelease() in the merge commit once W4 lands.
+const version = '0.8.2';
+const versionLabel = `v${version}`;
+const releaseUrl = 'https://github.com/raythurman2386/muninn/releases/tag/v0.8.2';
+const sourceUrl = 'https://github.com/raythurman2386/muninn';
+const licenseUrl = 'https://github.com/raythurman2386/muninn/blob/main/LICENSE';
+
+const shots = [
+  {
+    id: 'preview',
+    title: 'Read mode',
+    dark: '/assets/img/dark/preview-1600.webp',
+    light: '/assets/img/light/preview-1600.webp',
+    width: 1600,
+    height: 1058,
+    caption: 'Read mode: a note open in the middle, the note list on the left, and outgoing links and backlinks on the right.',
+  },
+  {
+    id: 'notes',
+    title: 'Write mode',
+    dark: '/assets/img/dark/notes-wide-1600.webp',
+    light: '/assets/img/light/notes-wide-1600.webp',
+    width: 1600,
+    height: 1000,
+    caption: 'Write mode: editing the Markdown source of a note, with the note list and links rail.',
+  },
+  {
+    id: 'graph',
+    title: 'Global graph',
+    dark: '/assets/img/dark/graph-wide-1600.webp',
+    light: '/assets/img/light/graph-wide-1600.webp',
+    width: 1600,
+    height: 1000,
+    caption: 'The global knowledge graph: every note and [[wikilink]] in the vault.',
+  },
+  {
+    id: 'local',
+    title: 'Local graph',
+    dark: '/assets/img/dark/local-wide-1600.webp',
+    light: '/assets/img/light/local-wide-1600.webp',
+    width: 1600,
+    height: 1000,
+    caption: 'The local graph: the open note and only the notes it links to or from.',
+  },
+];
+---
+<Base
+  title="Press — Muninn"
+  description="Press kit for Muninn: a short description, official logo downloads, product screenshots, and facts about the license, platforms, and latest release."
+  ogTitle="Press — Muninn"
+  ogDescription="Logos, screenshots, and product facts for Muninn, a local-first Markdown vault with a knowledge graph."
+  ogImage={OG.press.image}
+  ogImageAlt={OG.press.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="/" aria-label="Muninn, home">
+        <img src="/assets/logo.svg" alt="" width="28" height="28">
+        <span>Muninn</span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav">
+          <li><a href="/#features">Features</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
+        </ul>
+      </nav>
+      <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Use light theme">
+        <svg class="i-sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 1.75v2M10 16.25v2M1.75 10h2M16.25 10h2M4.17 4.17l1.41 1.41M14.42 14.42l1.41 1.41M4.17 15.83l1.41-1.41M14.42 5.58l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg class="i-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A6.75 6.75 0 0 1 7.8 3.5a6.75 6.75 0 1 0 8.7 8.7Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span class="toggle-label">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main" class="simple-page">
+    <div class="wrap simple-inner">
+      <h1>Press</h1>
+      <p class="lede">Muninn is a local-first Markdown vault with <code>[[wikilinks]]</code> and a knowledge graph. Every note is a plain <code>.md</code> file in a folder you choose, so you can read, move, diff, and version-control it with the tools you already use.</p>
+
+      <h2>Facts</h2>
+      <dl class="facts">
+        <dt>License</dt>
+        <dd><a href={licenseUrl}>MIT</a></dd>
+        <dt>Platforms</dt>
+        <dd>Linux (x86_64 and arm64), macOS (Apple Silicon), Windows (x86_64)</dd>
+        <dt>Latest version</dt>
+        <dd><a href={releaseUrl}>{versionLabel}</a></dd>
+        <dt>Source</dt>
+        <dd><a href={sourceUrl}>github.com/raythurman2386/muninn</a></dd>
+        <dt>Website</dt>
+        <dd><a href="https://muninn.ravenwoodsoftware.dev">muninn.ravenwoodsoftware.dev</a></dd>
+      </dl>
+
+      <h2>Logo</h2>
+      <p>The official mark, in SVG and PNG. Please don't recolor it or add effects.</p>
+      <ul class="logo-downloads">
+        <li class="logo-card">
+          <div class="logo-card-preview">
+            <img src="/assets/logo.svg" alt="Muninn logo, SVG" width="96" height="96">
+          </div>
+          <p>SVG, 512×512 viewBox. Best for print and sharp scaling.</p>
+          <a class="btn btn-secondary" href="/assets/logo.svg" download="muninn-logo.svg">Download SVG</a>
+        </li>
+        <li class="logo-card">
+          <div class="logo-card-preview">
+            <img src="/assets/logo.png" alt="Muninn logo, PNG" width="96" height="96">
+          </div>
+          <p>PNG, 512×512, with a transparent rounded square.</p>
+          <a class="btn btn-secondary" href="/assets/logo.png" download="muninn-logo.png">Download PNG</a>
+        </li>
+      </ul>
+
+      <h2>Screenshots</h2>
+      <p>Product stills from the marketing site, in both themes. These show a synthetic vault, not real user data.</p>
+    </div>
+
+    <div class="wrap wrap-wide">
+      <ul class="shot-grid">
+        {shots.map((shot) => (
+          <li class="shot-card">
+            <figure class="frame">
+              <img class="only-dark" src={shot.dark} width={shot.width} height={shot.height} loading="lazy" alt={`${shot.caption} Dark theme.`}>
+              <img class="only-light" src={shot.light} width={shot.width} height={shot.height} loading="lazy" alt={`${shot.caption} Light theme.`}>
+              <figcaption>
+                <strong>{shot.title}</strong>
+                <div class="shot-links">
+                  <a href={shot.dark}>Dark, 1600 px</a>
+                  <a href={shot.light}>Light, 1600 px</a>
+                </div>
+              </figcaption>
+            </figure>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-row">
+      <p class="footer-brand"><img src="/assets/logo.svg" alt="" width="18" height="18"> Muninn · Ravenwood Software</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
+        <li><a href="https://github.com/raythurman2386/muninn/blob/main/LICENSE">MIT License</a></li>
+        <li><a href="https://github.com/raythurman2386/muninn/blob/main/PRIVACY.md">Privacy</a></li>
+        <li><a href="/sponsor/">Sponsor</a></li>
+        <li><a href="/press/" aria-current="page">Press</a></li>
+      </ul>
+      <p class="credit">Built with <a href="https://github.com/anomalyco/rune">Rune</a></p>
+    </div>
+  </footer>
+</Base>

@@ -1,5 +1,7 @@
 // Muninn site: theme toggle (page chrome + product stills + hero loop) and a motion-safe hero video.
 // Bundled by Astro as a module script (deferred, like the old <script defer src="main.js">).
+// The hero and pause button exist only on the home page; the theme toggle must still
+// run on /privacy/ and the 404 page when those elements are absent.
 (function () {
   var root = document.documentElement;
   var KEY = 'muninn-theme';
@@ -13,6 +15,7 @@
   function theme() { return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
 
   function syncToggle() {
+    if (!toggle) return;
     var next = theme() === 'dark' ? 'light' : 'dark';
     toggle.setAttribute('aria-label', 'Use ' + next + ' theme');
     toggle.setAttribute('aria-pressed', String(theme() === 'light'));
@@ -25,6 +28,7 @@
   function posterSrc() { return '/assets/img/' + theme() + '/preview-1600.webp'; }
 
   function mountVideo() {
+    if (!hero || !pauseBtn) return;
     if (reduce.matches) { unmountVideo(); return; }
     if (!video) {
       video = document.createElement('video');
@@ -48,31 +52,35 @@
 
   function unmountVideo() {
     if (video) { video.pause(); video.remove(); video = null; }
-    pauseBtn.hidden = true;
+    if (pauseBtn) pauseBtn.hidden = true;
   }
 
   function syncPause() {
-    if (!video) return;
+    if (!video || !pauseBtn) return;
     var paused = userPaused;
     pauseBtn.textContent = paused ? 'Play' : 'Pause';
     pauseBtn.setAttribute('aria-pressed', String(paused));
     pauseBtn.setAttribute('aria-label', paused ? 'Play the tour video' : 'Pause the tour video');
   }
 
-  toggle.addEventListener('click', function () {
-    var next = theme() === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    try { localStorage.setItem(KEY, next); } catch (e) {}
-    syncToggle();
-    if (video) mountVideo();
-  });
+  if (toggle) {
+    toggle.addEventListener('click', function () {
+      var next = theme() === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+      syncToggle();
+      if (video) mountVideo();
+    });
+  }
 
-  pauseBtn.addEventListener('click', function () {
-    if (!video) return;
-    userPaused = !userPaused;
-    if (userPaused) video.pause(); else video.play();
-    syncPause();
-  });
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', function () {
+      if (!video) return;
+      userPaused = !userPaused;
+      if (userPaused) video.pause(); else video.play();
+      syncPause();
+    });
+  }
 
   // Follow the system appearance live, unless the visitor picked a theme here.
   var scheme = window.matchMedia('(prefers-color-scheme: light)');

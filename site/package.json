@@ -13,7 +13,9 @@
     "build": "astro build",
     "preview": "astro preview --host 127.0.0.1",
     "check": "astro check",
-    "verify:w1": "bash scripts/verify-w1.sh"
+    "verify:w1": "bash scripts/verify-w1.sh",
+    "generate:og": "node scripts/generate-og.mjs",
+    "verify:w8": "node scripts/verify-w8.mjs"
   },
   "dependencies": {
     "astro": "7.4.12"
@@ -24,6 +26,7 @@
     "pixelmatch": "8.0.0",
     "playwright-core": "1.65.1",
     "pngjs": "7.0.0",
+    "sharp": "0.35.5",
     "typescript": "6.0.3"
   }
 }
