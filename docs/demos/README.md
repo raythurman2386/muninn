@@ -58,5 +58,6 @@ XDG_CONFIG_HOME=/tmp/demo/fx-config target/debug/muninn --vault vault --scene gr
   and the Help overlay. It runs under isolated `XDG_STATE_HOME`/`XDG_CONFIG_HOME`
   so it starts from the default state even if you re-record from a dirty machine.
 
-GIF versions (`*.gif`, 720 px, 12 fps) are palette-encoded
-`ffmpeg -i <clip>.mp4` variants for README embedding.
+GIF versions (`*.gif`) are palette-encoded `ffmpeg -i <clip>.mp4` variants
+for README embedding: 720 px / 12 fps by default, and 960 px / 15 fps for the
+`graph-effects` clip so it is clean enough to share on its own.
