@@ -18,6 +18,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Changed
 
+- **Kanban accessibility leftovers (#72).** A time picker opened from a card
+  menu is now a real modal: Tab and the pointer stay inside it, its hour and
+  minute fields still take typing, and Escape returns the keyboard to the
+  card. Card markdown links show a tooltip naming where they go, and a link
+  with no text of its own is named from its target instead of reaching AT as
+  an unnamed link. Checklist rows are a named list of positioned checkboxes
+  (`1 of 3`), so a reader announces the task structure rather than loose text.
+
 - **Board accessibility (#72).** The Board toolbar is a named `toolbar` whose
   hand, select and drawing-tool buttons are named, focusable toggle buttons
   with help naming their keys, a focus ring and a 30 pt target; Tab reaches

@@ -667,3 +667,171 @@ fn escape_returns_focus_to_the_list_and_table_openers() {
         "the table menu returns to its row"
     );
 }
+
+/// A board with a link of every card form and a nested checklist.
+const LEFTOVERS: &str = "\
+---
+kanban-plugin: board
+---
+
+## To do
+
+- [ ] See [[Agenda]] and [the docs](https://example.test/docs) and [](https://example.test/guide)
+- [ ] Nested
+    - [ ] first task
+    - [x] second task
+
+## Doing
+
+- [ ] Keep https://example.test/very/long/path/one/two/three/four
+";
+
+/// The wrap module's break mark: invisible in speech, but present in the
+/// rendered text (and so in a name taken from that text).
+const BREAK: char = '\u{200B}';
+
+fn leftovers() -> TempVault {
+    TempVault::new(&[("Agenda.md", "# Agenda\n"), ("Board.md", LEFTOVERS)])
+}
+
+fn a11y_name(v: &Value) -> String {
+    v["name"].as_str().unwrap_or_default().replace(BREAK, "")
+}
+
+#[test]
+fn a_menu_opened_time_picker_is_a_modal_that_traps_and_returns_focus() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    let before = source(&rt);
+
+    click(&mut rt, "kanban-card-0-0-menu");
+    click(&mut rt, "menu-add_time");
+    frames(&mut rt, 5);
+    assert!(rt.state.kanban_picker.is_some(), "the picker is open");
+
+    // It is a real modal, not an inline group Tab can leave.
+    let tree = a11y(&rt);
+    let panel = a11y_find(&tree, "kanban-picker").expect("the picker panel");
+    assert_eq!(panel["role"], "dialog");
+    assert!(
+        a11y_states(panel).contains(&"modal"),
+        "the time picker is a modal: {:?}",
+        panel["states"]
+    );
+    assert_eq!(
+        focused(&rt).as_deref(),
+        Some("kanban-picker-hour"),
+        "the modal focuses the hour field, so typing still works"
+    );
+
+    // Typing reaches the hour field, and Tab cycles inside the panel only.
+    press(&mut rt, Key::Text("09".to_owned()));
+    assert_eq!(rt.state.kanban_hour_field.text, "09");
+    for _ in 0..8 {
+        press(&mut rt, Key::Tab);
+        let at = focused(&rt).expect("a picker control");
+        assert!(
+            at.starts_with("kanban-picker"),
+            "Tab stayed in the time picker: {at}"
+        );
+    }
+
+    // Escape closes it, changes nothing, and gives the keyboard to its card.
+    press(&mut rt, Key::Escape);
+    assert!(rt.state.kanban_picker.is_none(), "Escape closed the picker");
+    assert_eq!(source(&rt), before, "Escape did not write a time");
+    assert_eq!(
+        focused(&rt).as_deref(),
+        Some("kanban-card-0-0"),
+        "the picker gave the keyboard back to its card"
+    );
+}
+
+#[test]
+fn card_markdown_links_have_meaningful_names() {
+    let tmp = leftovers();
+    let mut rt = on_board(&tmp);
+    let tree = a11y(&rt);
+
+    let agenda = a11y_find(&tree, "note:Agenda").expect("the wikilink");
+    assert_eq!(agenda["role"], "link");
+    assert_eq!(a11y_name(agenda), "Agenda", "a wikilink names its note");
+
+    let docs = a11y_find(&tree, "https://example.test/docs").expect("the text link");
+    assert_eq!(docs["role"], "link");
+    assert_eq!(a11y_name(docs), "the docs", "a text link names its text");
+    assert_eq!(docs["url"], "https://example.test/docs");
+
+    // #72: a link with no text had an empty accessible name. It is named from
+    // its target now, so AT says what it opens instead of "link".
+    let empty = a11y_find(&tree, "https://example.test/guide").expect("the empty link");
+    assert_eq!(empty["role"], "link");
+    assert_eq!(a11y_name(empty), "example.test — guide");
+    assert_eq!(empty["url"], "https://example.test/guide");
+
+    // A bare URL is its own target description; the wrap marks never make a
+    // name empty or unreadable.
+    let long = "https://example.test/very/long/path/one/two/three/four";
+    let bare = a11y_find(&tree, long).expect("the bare URL link");
+    assert_eq!(a11y_name(bare), long);
+    assert_eq!(bare["url"], long);
+
+    // Every link on the page is named.
+    fn links(v: &Value, out: &mut Vec<String>) {
+        if v["role"] == "link" {
+            out.push(a11y_name(v));
+        }
+        for child in v["children"].as_array().into_iter().flatten() {
+            links(child, out);
+        }
+    }
+    let mut names = Vec::new();
+    links(&tree, &mut names);
+    assert!(!names.is_empty(), "the board drew links");
+    assert!(
+        names.iter().all(|name| !name.trim().is_empty()),
+        "{names:?}"
+    );
+
+    // The generated name is still one clickable link to the exact address.
+    click(&mut rt, "https://example.test/guide");
+    assert_eq!(
+        rt.take_url_requests(),
+        vec!["https://example.test/guide".to_owned()]
+    );
+}
+
+#[test]
+fn checklist_rows_are_a_named_list_with_positions() {
+    let tmp = leftovers();
+    let rt = on_board(&tmp);
+    let tree = a11y(&rt);
+
+    let list = element(&rt, "kanban-card-0-1-checklist-items");
+    assert_eq!(list.role, "list");
+    assert_eq!(
+        list.label.as_deref(),
+        Some("Checklist, 1 of 2 done"),
+        "the checklist is a named list"
+    );
+    let list_node = a11y_find(&tree, "kanban-card-0-1-checklist-items").expect("the list node");
+    assert_eq!(
+        list_node["setSize"], 2,
+        "the list says how many tasks it has"
+    );
+
+    let first = a11y_find(&tree, "kanban-card-0-1-task-0").expect("the first task");
+    assert_eq!(first["role"], "check-box", "a task is a checkbox");
+    assert_eq!(a11y_name(first), "first task");
+    assert_eq!(first["position"], 1, "its place in the checklist");
+    assert!(a11y_states(first).contains(&"unchecked"));
+
+    let second = a11y_find(&tree, "kanban-card-0-1-task-1").expect("the second task");
+    assert_eq!(a11y_name(second), "second task");
+    assert_eq!(second["position"], 2);
+    assert!(a11y_states(second).contains(&"checked"));
+
+    // The rows are still the card's Tab stops.
+    let task = element(&rt, "kanban-card-0-1-task-0");
+    assert!(task.focusable, "a checklist row is a Tab stop");
+}

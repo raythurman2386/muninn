@@ -106,7 +106,16 @@ fn inline(line: &str) -> String {
             '[' => match link_at(line, i) {
                 Some((label_end, end)) => {
                     out.push('[');
-                    push_visible(&line[i + 1..label_end], &mut out);
+                    let label = &line[i + 1..label_end];
+                    if label.trim().is_empty() {
+                        // #72: a link with no text has an empty accessible
+                        // name. Name it from its target: the note, the file,
+                        // or a readable form of the URL.
+                        let name = link_name(destination(line, label_end, end));
+                        push_visible(&escape_label(&name), &mut out);
+                    } else {
+                        push_visible(label, &mut out);
+                    }
                     out.push_str(&line[label_end..end]);
                     i = end;
                 }
@@ -374,6 +383,76 @@ fn breaks_after(c: char) -> bool {
     )
 }
 
+/// The destination of the link whose `]` is `label_end` and whose `)` is `end`:
+/// `<url>`, a bare `url`, or a title after whitespace.
+fn destination(line: &str, label_end: usize, end: usize) -> &str {
+    let inside = &line[label_end + 2..end - 1].trim_start();
+    let dest = if let Some(rest) = inside.strip_prefix('<') {
+        rest.split_once('>').map_or(rest, |(dest, _)| dest)
+    } else {
+        inside.split_whitespace().next().unwrap_or(inside)
+    };
+    dest.trim()
+}
+
+/// A readable name for a link that has no text of its own (#72), from its
+/// target: a note or file name, or a host and path tail for a web address.
+pub(crate) fn link_name(target: &str) -> String {
+    for scheme in ["note:", "missing:", "attachment:"] {
+        if let Some(rest) = target.strip_prefix(scheme) {
+            let name = rest.split(['#', '|']).next().unwrap_or(rest);
+            let name = name.rsplit('/').next().unwrap_or(name);
+            if !name.is_empty() {
+                return name.to_owned();
+            }
+        }
+    }
+    if let Some(rest) = target
+        .strip_prefix("https://")
+        .or_else(|| target.strip_prefix("http://"))
+    {
+        let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+        let host = host.trim_end_matches('.');
+        let tail = path
+            .split(['?', '#'])
+            .next()
+            .unwrap_or(path)
+            .trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or("");
+        return if tail.is_empty() || tail == host {
+            host.to_owned()
+        } else {
+            format!("{host} — {tail}")
+        };
+    }
+    if target.is_empty() {
+        "Link".to_owned()
+    } else {
+        target.to_owned()
+    }
+}
+
+/// What a link's tooltip says: where it goes, in words, for a pointer user and
+/// as a description for AT where the platform exposes link descriptions.
+pub(crate) fn link_description(target: &str) -> String {
+    format!("Open {}", link_name(target))
+}
+
+/// `label` with the characters that would end or style a Markdown link
+/// escaped, so a generated name always reads as itself.
+fn escape_label(label: &str) -> String {
+    let mut out = String::with_capacity(label.len() + 4);
+    for c in label.chars() {
+        if matches!(c, '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,6 +538,46 @@ mod tests {
         assert!(
             out.contains("](<https://example.test/one/two/three/four/five/six>)"),
             "{out}"
+        );
+    }
+
+    #[test]
+    fn an_empty_link_label_is_named_from_its_target() {
+        assert_eq!(
+            card_markdown("[the docs](https://example.test/docs)"),
+            "[the docs](https://example.test/docs)",
+            "a link with text keeps its own name"
+        );
+        assert_eq!(
+            card_markdown("[Agenda](<note:Agenda>)"),
+            "[Agenda](<note:Agenda>)"
+        );
+        assert_eq!(
+            card_markdown("[](<note:Agenda>)"),
+            "[Agenda](<note:Agenda>)",
+            "an empty wikilink label takes the note's name"
+        );
+        assert_eq!(
+            card_markdown("[](https://example.test/guide)").replace(BREAK, ""),
+            "[example.test — guide](https://example.test/guide)",
+            "an empty web link takes a readable target description"
+        );
+    }
+
+    #[test]
+    fn link_names_and_descriptions_describe_the_target() {
+        assert_eq!(link_name("note:Notes/Agenda#Today"), "Agenda");
+        assert_eq!(link_name("missing:Notes/Plan"), "Plan");
+        assert_eq!(link_name("attachment:files/Plan.pdf"), "Plan.pdf");
+        assert_eq!(link_name("https://example.test"), "example.test");
+        assert_eq!(
+            link_name("https://www.example.test/one/two/guide?q=1#top"),
+            "www.example.test — guide"
+        );
+        assert_eq!(link_name(""), "Link");
+        assert_eq!(
+            link_description("https://example.test/docs"),
+            "Open example.test — docs"
         );
     }
 

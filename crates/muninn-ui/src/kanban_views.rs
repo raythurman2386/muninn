@@ -368,6 +368,8 @@ fn list_card(
                     Markdown::new(source)
                         .style(MarkdownStyle::from_kit(k).link(k.c.text_accent))
                         .link_style(crate::view::missing_link_style(k))
+                        // #72: every card link says where it goes.
+                        .link_help(|url| Some(crate::kanban_wrap::link_description(url)))
                         .on_link_tx(|s: &mut State, url: &str, tx: &mut Tx| {
                             s.open_card_link(url, tx)
                         })
