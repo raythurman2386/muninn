@@ -57,8 +57,9 @@ function kindLabel(kind: string, name: string): string {
 
       <div class="callouts">
         <p class="callout">
-          <strong>Linux needs glibc 2.43 or newer.</strong>{' '}Ubuntu 24.04 and Debian 13 are too old to run the release binaries.
-          On those systems, or on any other platform, <a href={SOURCE_URL}>build from source</a>.
+          <strong>Linux x86_64 needs glibc 2.43 or newer.</strong>{' '}Ubuntu 24.04 and Debian 13 are too old to run that build.
+          <strong>Linux arm64 needs glibc 2.39 or newer,</strong>{' '}so Ubuntu 24.04 and Debian 13 can run it.
+          On a system that is too old, or on any other platform, <a href={SOURCE_URL}>build from source</a>.
         </p>
         <p class="callout">
           <strong>These builds are not signed by Apple, Microsoft, or a Linux distribution.</strong>{' '}macOS Gatekeeper and Windows SmartScreen may warn on the first open.
