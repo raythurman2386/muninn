@@ -1,0 +1,149 @@
+---
+// /download/ is built from the latest GitHub Release at build time
+// (src/content.config.ts → githubReleasesLoader). If the API fails, the
+// committed snapshot in src/data/github-release-snapshot.json is used.
+import { getEntry } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { OG } from '../lib/og';
+import {
+  SOURCE_URL,
+  cosignVerifyCommand,
+  formatBytes,
+  formatPublishedAt,
+  sha256sumCommand,
+} from '../lib/releases';
+import '../styles/download.css';
+
+const entry = await getEntry('releases', 'latest');
+if (!entry) throw new Error('The releases loader did not produce a latest entry.');
+const release = entry.data;
+const published = formatPublishedAt(release.publishedAt);
+const cosignCmd = cosignVerifyCommand(release.tag);
+const checksumsCmd = 'sha256sum -c --ignore-missing checksums.txt';
+
+function kindLabel(kind: string, name: string): string {
+  if (kind === 'deb') return 'Download .deb';
+  if (name.endsWith('.zip')) return 'Download .zip';
+  if (name.endsWith('.tar.gz') || name.endsWith('.tgz')) return 'Download .tar.gz';
+  return 'Download';
+}
+---
+<Base
+  title="Download — Muninn"
+  description="Download the latest Muninn release for Linux, macOS, and Windows, with file sizes, SHA-256 checksums, and steps to verify the files."
+  canonicalPath="/download/"
+  ogTitle="Download — Muninn"
+  ogDescription="Download the latest Muninn release for Linux, macOS, and Windows, with file sizes, SHA-256 checksums, and steps to verify the files."
+  ogImage={OG.download.image}
+  ogImageAlt={OG.download.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header />
+
+  <main id="main" class="download-page">
+    <div class="wrap">
+      <header class="download-hero">
+        <p class="eyebrow">Latest release</p>
+        <h1>Download Muninn</h1>
+        <p class="download-lede">Builds for Linux, macOS, and Windows. Every file has its size, a SHA-256 digest from <code>checksums.txt</code>, and a short command to check it.</p>
+        <p class="download-meta">
+          <span class="nowrap">{release.tag}</span>
+          {published && <> · {published}</>}
+          {' '}· <a href={release.htmlUrl}>Release notes</a>
+        </p>
+      </header>
+
+      <div class="callouts">
+        <p class="callout">
+          <strong>Linux needs glibc 2.43 or newer.</strong>{' '}Ubuntu 24.04 and Debian 13 are too old to run the release binaries.
+          On those systems, or on any other platform, <a href={SOURCE_URL}>build from source</a>.
+        </p>
+        <p class="callout">
+          <strong>These builds are not signed by Apple, Microsoft, or a Linux distribution.</strong>{' '}macOS Gatekeeper and Windows SmartScreen may warn on the first open.
+          The <code>checksums.txt</code> file is signed with Sigstore (cosign) by the Muninn release workflow; the commands below check that signature.
+        </p>
+      </div>
+
+      <ul class="os-cards" data-os-cards>
+        {release.cards.map((card) => (
+          <li class="os-card" data-os-card={card.id}>
+            <div class="os-card-head">
+              <h2>{card.title}</h2>
+              {card.archLabel && <span class="os-arch">{card.archLabel}</span>}
+              <span class="os-detected" data-detected-label hidden>Your system</span>
+            </div>
+            {card.notes.map((note) => <p class="os-note">{note}</p>)}
+            {card.assets.map((asset) => {
+              const verify = sha256sumCommand(asset);
+              const label = kindLabel(asset.kind, asset.name);
+              return (
+                <article class="asset">
+                  <h3 class="asset-name">{asset.name}</h3>
+                  <p class="asset-meta">{formatBytes(asset.size)}</p>
+                  {asset.sha256 && (
+                    <dl class="asset-hash">
+                      <dt>SHA-256</dt>
+                      <dd><code>{asset.sha256}</code></dd>
+                    </dl>
+                  )}
+                  <p class="asset-actions">
+                    <a class="btn btn-primary" href={asset.url} aria-label={`${label}: ${asset.name}`}>
+                      {label}
+                    </a>
+                  </p>
+                  {(verify || cosignCmd) && (
+                    <details class="verify-details">
+                      <summary>Verify this file</summary>
+                      {verify && <pre><code>{verify}</code></pre>}
+                      <pre><code>{cosignCmd}</code></pre>
+                    </details>
+                  )}
+                </article>
+              );
+            })}
+          </li>
+        ))}
+      </ul>
+
+      <section class="verify-section" aria-labelledby="verify-title">
+        <h2 id="verify-title">Verify a download</h2>
+        <p>
+          The release workflow signs only <code>checksums.txt</code>, with cosign and GitHub Actions (keyless Sigstore).
+          It does not attach an Apple, Microsoft, or distribution signature to the binaries.
+        </p>
+        <ol>
+          <li>
+            Download the checksums and the Sigstore bundle into the same folder as the file you fetched:
+            <ul class="verify-files">
+              {release.checksumsUrl && (
+                <li><a href={release.checksumsUrl}><code>checksums.txt</code></a></li>
+              )}
+              {release.sigstoreUrl && (
+                <li><a href={release.sigstoreUrl}><code>checksums.txt.sigstore.json</code></a></li>
+              )}
+            </ul>
+          </li>
+          <li>
+            Check the file against <code>checksums.txt</code>
+            (on macOS, <code>shasum -a 256 -c --ignore-missing checksums.txt</code> works if <code>sha256sum</code> is not installed):
+            <pre><code>{checksumsCmd}</code></pre>
+          </li>
+          <li>
+            Check that <code>checksums.txt</code> was signed by the Muninn
+            release workflow on GitHub Actions (keyless Sigstore). The identity
+            is <code>release.yml</code> at the release tag:
+            <pre><code>{cosignCmd}</code></pre>
+          </li>
+        </ol>
+      </section>
+    </div>
+  </main>
+
+  <Footer />
+
+  <script>
+    import '../scripts/detect-os.js';
+  </script>
+</Base>

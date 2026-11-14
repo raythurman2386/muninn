@@ -1,7 +1,8 @@
 ---
 // Shared site header. `home` keeps the landing-page fragment links (#top, #features)
 // so the home Features item still jumps to the three pillars. Other pages point
-// Features at /features/. `current` marks the active features, docs, or changelog page.
+// Features at /features/. Download always goes to /download/. `current` marks the
+// active features, docs, or changelog page; Download uses the request path.
 interface Props {
   home?: boolean;
   current?: 'features' | 'docs' | 'changelog';
@@ -11,7 +12,8 @@ const { home = false, current } = Astro.props;
 const brandHref = home ? '#top' : '/';
 const brandLabel = home ? 'Muninn, back to top' : 'Muninn, home';
 const featuresHref = home ? '#features' : '/features/';
-const downloadHref = home ? '#download' : '/#download';
+const downloadHref = '/download/';
+const downloadCurrent = Astro.url.pathname === '/download' || Astro.url.pathname === '/download/';
 ---
   <header class="site-header">
     <div class="wrap header-row">
@@ -22,7 +24,7 @@ const downloadHref = home ? '#download' : '/#download';
       <nav aria-label="Primary">
         <ul class="nav">
           <li><a href={featuresHref} aria-current={current === 'features' ? 'page' : undefined}>Features</a></li>
-          <li><a href={downloadHref}>Download</a></li>
+          <li><a href={downloadHref} aria-current={downloadCurrent ? "page" : undefined}>Download</a></li>
           <li><a href="/docs/" aria-current={current === 'docs' ? 'page' : undefined}>Docs</a></li>
           <li><a href="/changelog/" aria-current={current === 'changelog' ? 'page' : undefined}>Changelog</a></li>
           <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>

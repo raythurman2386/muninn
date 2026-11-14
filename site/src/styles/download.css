@@ -1,0 +1,235 @@
+/*
+  Styles for /download/ only. Imported by download.astro so the landing page
+  CSS is untouched (W3 also appends to site.css; keeping this file separate
+  avoids a merge conflict).
+*/
+
+body:has(.download-page) {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+body:has(.download-page) main { flex: 1; }
+body:has(.download-page) .nav a[aria-current="page"] { color: var(--text-base); }
+
+.download-page code, .download-page pre { overflow-wrap: anywhere; }
+
+.download-page {
+  padding: clamp(48px, 8vw, 96px) 0 clamp(64px, 10vw, 120px);
+}
+.download-page .download-hero {
+  max-width: 720px;
+  margin: 0 0 clamp(36px, 5vw, 56px);
+}
+.download-page .eyebrow { margin-bottom: 16px; }
+.download-page h1 {
+  margin: 0;
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 640;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+.download-lede {
+  margin: 20px 0 0;
+  color: var(--text-muted);
+  font-size: clamp(16px, 1.6vw, 18px);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.download-meta {
+  margin: 16px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.download-meta a { font-weight: 500; }
+
+.callouts {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 clamp(36px, 5vw, 56px);
+}
+.callout {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border-base);
+  border-radius: var(--r-lg);
+  background: var(--layer-01);
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.callout strong { color: var(--text-base); font-weight: 600; }
+.callout a { font-weight: 500; }
+
+.os-cards {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 800px) {
+  .os-cards { grid-template-columns: repeat(2, 1fr); }
+}
+
+.os-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 20px 18px;
+  border: 1px solid var(--border-base);
+  border-radius: var(--r-xl);
+  background: var(--bg-base);
+}
+.os-card[data-detected] {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 1px var(--border-focus);
+}
+.os-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.os-card-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.os-arch {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 6px;
+  border-radius: var(--r-sm);
+  background: var(--hover);
+}
+.os-detected {
+  margin-left: auto;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-accent);
+}
+.os-note {
+  margin: -8px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.asset {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-muted);
+}
+.asset-name {
+  margin: 0;
+  font: 500 14px/1.4 var(--font-mono);
+  color: var(--text-base);
+  overflow-wrap: anywhere;
+}
+.asset-meta {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.asset-hash {
+  margin: 8px 0 0;
+  font: 400 12px/1.45 var(--font-mono);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.asset-hash dt {
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+}
+.asset-hash dd { margin: 0; }
+.asset-actions { margin: 14px 0 0; }
+
+.verify-details {
+  margin: 12px 0 0;
+}
+.verify-details summary {
+  cursor: pointer;
+  font: 500 13px/1.4 var(--font-sans);
+  color: var(--text-muted);
+  list-style: none;
+}
+.verify-details summary::-webkit-details-marker { display: none; }
+.verify-details summary::before {
+  content: '';
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  margin-right: 0.45em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  translate: 0 -1px;
+}
+.verify-details[open] summary::before { transform: rotate(45deg); }
+.verify-details summary:hover { color: var(--text-base); }
+.verify-details pre {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--r-md);
+  background: var(--hover);
+  overflow-x: auto;
+  font: 400 12px/1.5 var(--font-mono);
+  color: var(--text-base);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.verify-details pre + pre { margin-top: 8px; }
+
+.verify-section {
+  margin: clamp(40px, 6vw, 72px) 0 0;
+  padding: clamp(20px, 3vw, 28px);
+  border: 1px solid var(--border-base);
+  border-radius: var(--r-xl);
+  background: var(--bg-base);
+}
+.verify-section h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.verify-section p, .verify-section li {
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.verify-section p { margin: 0 0 1em; }
+.verify-section ol { margin: 0; padding-left: 1.25em; }
+.verify-section li + li { margin-top: 0.8em; }
+.verify-section pre {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--r-md);
+  background: var(--hover);
+  overflow-x: auto;
+  font: 400 12px/1.5 var(--font-mono);
+  color: var(--text-base);
+  white-space: pre-wrap;
+}
+.verify-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 640px) {
+  .os-card { padding: 16px; }
+  .asset-actions .btn { width: 100%; justify-content: center; }
+}
