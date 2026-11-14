@@ -30,12 +30,13 @@ pub const NODE_W: f32 = 136.0;
 pub const NODE_H: f32 = 38.0;
 
 const REPULSION: f32 = 13000.0;
-/// Small vaults keep the original exhaustive 800 cutoff, bit for bit, so the
-/// sample vault, its snapshots and the small deterministic tests do not move.
-/// Above this many nodes the cutoff tapers with `1/sqrt(n)`: a 2000-note
-/// world cannot afford 800 (it is wider than the world, so no pair pruning),
-/// and the omitted far wake is below gravity at ordinary displacements while
-/// the grid keeps the result deterministic.
+/// Small vaults keep the exhaustive 800 cutoff (this constant is unchanged);
+/// above this many nodes it tapers with `1/sqrt(n)` so a 2000-note world can
+/// afford the pass (800 exceeds the world, leaving no pair pruning). The
+/// omitted far wake stays below gravity at ordinary displacements while the
+/// grid keeps the result deterministic. (Repulsion and link length were later
+/// retuned for spacing, so the settled graph does move from its pre-tuning
+/// self; only this cutoff is the pre-grid value.)
 const EXHAUSTIVE_LIMIT: usize = 200;
 const REPULSION_CUTOFF_SMALL: f32 = 800.0;
 const REPULSION_CUTOFF_MIN: f32 = 220.0;

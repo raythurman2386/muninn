@@ -56,7 +56,9 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    once heat is zero and no node moves faster than 0.4 pt/step. Dormancy freezes positions
    with a bounded sub-pixel residual, so `poll` can sleep; `reheat` (drag, scope/mode
    change, resync) resumes the simulation. A 2,000-note fixture goes quiet by frame ~2,600;
-   the exhaustive ≤200-note path and the sample layout stay bit-identical.
+   the exhaustive ≤200-note path is unchanged by the grid optimisation, but its repulsion
+   and link length were later retuned for spacing, so the sample graph moved and its
+   snapshots were re-recorded.
 4. **Render.** `muninn_ui::view` builds the Rune element tree from `State`. The graph camera
    publishes pan/zoom through `Live` values so a drag redraws without rebuilding the tree.
    Selecting a node or changing scope starts a spring camera glide held in `State` (never in
