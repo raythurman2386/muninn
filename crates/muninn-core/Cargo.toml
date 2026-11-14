@@ -12,6 +12,20 @@ authors.workspace = true
 # Board files are Excalidraw JSON. Already in the workspace (sync, ui, xtask).
 serde_json.workspace = true
 
+# Per-note lock envelope (`note_lock`). RustCrypto throughout, so the crypto
+# shares the stack `sha1`/`sha2` already use and builds without C toolchains.
+# Argon2id derives the key; AES-256-GCM authenticates the payload. The
+# `password-hash` and `getrandom` features are not needed: we call
+# `hash_password_into` directly and draw the salt/nonce from `getrandom`.
+argon2 = { version = "0.6", default-features = false, features = ["alloc", "zeroize"] }
+aes-gcm = { version = "0.11", default-features = false, features = ["aes", "alloc", "zeroize"] }
+# Base64url (no padding) keeps the envelope ASCII while staying compact.
+base64 = "0.23"
+# OS randomness for a fresh salt and nonce on every lock.
+getrandom = "0.4"
+# Best-effort clearing of derived key material.
+zeroize = "1"
+
 [features]
 # Exposes `muninn_core::testing::TempVault` for tests in other workspace crates.
 test-support = []
