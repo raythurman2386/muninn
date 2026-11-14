@@ -3,7 +3,9 @@
 
 use muninn_core::testing::TempVault;
 use muninn_graph::Camera as GraphCamera;
-use muninn_ui::{Mode, Scope, State, on_key, poll, view};
+use muninn_ui::fx_marks::{FX_BURN, FX_EDGE_HOT, FX_NODE_SEL};
+use muninn_ui::{GraphEffects, Mode, Scope, State, on_key, poll, view};
+use rune::render::KIND_EFFECT;
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
 fn temp_vault() -> TempVault {
@@ -259,4 +261,146 @@ fn switching_scope_glides_to_the_new_fit() {
         (want.pan, want.zoom)
     );
     assert!(!rt.state.camera_gliding());
+}
+
+/// The visible note with the most links, so an electric test has edges to arc.
+fn linked_node(rt: &Runtime<State>) -> usize {
+    rt.state
+        .visible_notes()
+        .into_iter()
+        .max_by_key(|&id| {
+            let note = &rt.state.vault.notes[id];
+            note.links.len() + note.backlinks.len()
+        })
+        .expect("a visible note")
+}
+
+/// The tags of the `El::effect` slots the last frame built, reassembled from
+/// the slot record the same way the app compositor does.
+fn effect_marks(rt: &Runtime<State>) -> Vec<u32> {
+    rt.instances
+        .iter()
+        .filter(|i| i.params[1] == KIND_EFFECT)
+        .map(|i| (i.border[0] as u32) | ((i.border[1] as u32) << 16))
+        .collect()
+}
+
+#[test]
+fn classic_emits_no_graph_effect_slots() {
+    let tmp = temp_vault();
+    let rt = graph_runtime(&tmp);
+    assert_eq!(rt.state.graph_effects(), GraphEffects::Classic);
+    assert!(
+        effect_marks(&rt).is_empty(),
+        "Classic is today's graph and keeps the compositor idle"
+    );
+}
+
+#[test]
+fn electric_tags_edges_and_the_selection_as_one_family() {
+    let tmp = temp_vault();
+    let mut rt = graph_runtime(&tmp);
+    rt.update(|s, _| s.set_graph_effects(GraphEffects::Electric));
+    // A hub, so the selection has both a border and edges to arc.
+    let target = linked_node(&rt);
+    click(&mut rt, &format!("graph-node-{target}"));
+    rt.frame(1.0 / 60.0);
+
+    let marks = effect_marks(&rt);
+    assert!(
+        marks.iter().any(|m| m & 0xffff_0000 == FX_NODE_SEL),
+        "the selection gets an electric border: {marks:?}"
+    );
+    assert!(
+        marks.iter().any(|m| m & 0xffff_0000 == FX_EDGE_HOT),
+        "the selection's edges get electric arcs: {marks:?}"
+    );
+    assert!(
+        marks
+            .iter()
+            .any(|m| m & 0xffff_0000 == muninn_ui::fx_marks::FX_NODE_NEAR),
+        "direct neighbours get the charged border: {marks:?}"
+    );
+
+    rt.update(|s, _| s.set_graph_effects(GraphEffects::Off));
+    rt.frame(1.0 / 60.0);
+    assert!(
+        effect_marks(&rt).is_empty(),
+        "Off drops every graph slot on the next frame"
+    );
+}
+
+#[test]
+fn reduced_motion_keeps_the_electric_slots_but_freezes_them() {
+    let tmp = temp_vault();
+    let mut rt = graph_runtime(&tmp);
+    rt.state.reduced_motion_env = true;
+    rt.update(|s, _| s.set_graph_effects(GraphEffects::Electric));
+    let target = off_centre_node(&rt);
+    click(&mut rt, &format!("graph-node-{target}"));
+    rt.frame(1.0 / 60.0);
+
+    assert!(rt.state.reduced_motion());
+    assert!(
+        effect_marks(&rt)
+            .iter()
+            .any(|m| m & 0xffff_0000 == FX_NODE_SEL),
+        "the preset still draws; only its motion is frozen"
+    );
+}
+
+#[test]
+fn deleting_a_note_burns_its_node_out_for_a_moment() {
+    let tmp = temp_vault();
+    let mut rt = graph_runtime(&tmp);
+    let target = off_centre_node(&rt);
+    let pos = rt.state.graph.node(target).expect("node").pos;
+
+    rt.update(|s, _| {
+        s.delete_note(target);
+        s.confirm_delete();
+    });
+    rt.frame(1.0 / 60.0);
+
+    let burn = rt.state.burn.clone().expect("the deletion leaves a burn");
+    assert_eq!(burn.pos, pos, "it burns where the node was");
+    assert!(
+        effect_marks(&rt).iter().any(|m| m & 0xffff_0000 == FX_BURN),
+        "a fire slot covers the deleted node"
+    );
+
+    // The burn is brief: a second of frames retires it and the slot goes too.
+    for _ in 0..70 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.state.burn.is_none(), "the burn expires");
+    assert!(
+        !effect_marks(&rt).iter().any(|m| m & 0xffff_0000 == FX_BURN),
+        "and takes its slot with it"
+    );
+}
+
+#[test]
+fn reduced_motion_and_off_skip_the_delete_burn() {
+    let tmp = temp_vault();
+    let mut rt = graph_runtime(&tmp);
+    rt.state.reduced_motion_env = true;
+    let target = off_centre_node(&rt);
+    rt.update(|s, _| {
+        s.delete_note(target);
+        s.confirm_delete();
+    });
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.burn.is_none(), "reduced motion skips the burn");
+
+    let tmp = temp_vault();
+    let mut rt = graph_runtime(&tmp);
+    rt.update(|s, _| s.set_graph_effects(GraphEffects::Off));
+    let target = off_centre_node(&rt);
+    rt.update(|s, _| {
+        s.delete_note(target);
+        s.confirm_delete();
+    });
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.burn.is_none(), "Off / Minimal skips the burn");
 }

@@ -12,7 +12,8 @@ use rune_theme_opencode::icons as ic;
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
 
 use crate::{
-    DeleteConfirm, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State, ThemeMode,
+    DeleteConfirm, GraphEffects, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State,
+    ThemeMode,
 };
 
 pub(crate) const SIDEBAR: f32 = 258.0;
@@ -24,6 +25,12 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
     s.set_system_reduced_motion(cx.system_reduced_motion());
     cx.reduced_motion(s.reduced_motion());
     let k = crate::omarchy::resolve_kit(s, cx.system_dark());
+    // The FX compositor runs outside the view's borrow of `State`, so publish
+    // the theme colours it paints with here, once per frame.
+    s.fx_accent
+        .set([k.c.text_accent.r, k.c.text_accent.g, k.c.text_accent.b]);
+    s.fx_muted
+        .set([k.c.text_muted.r, k.c.text_muted.g, k.c.text_muted.b]);
     let mut base = row()
         .key("root")
         .w_full()
@@ -1394,16 +1401,14 @@ fn settings_caption(k: &Kit, key: &'static str, line: &str) -> El {
         .wrap()
 }
 
-/// Graph tab: how the knowledge graph moves.
+/// Graph tab: how the knowledge graph looks and moves.
 ///
+/// **Graph effects** picks the node-border and edge-line family together, so a
+/// preset always reads as one treatment rather than two unrelated effects.
 /// **Reduce motion** is a persisted System / On / Off choice. The status line
 /// under it shows the resolved value ([`State::reduced_motion`]), which is what
-/// the layout, camera and transitions obey.
-///
-/// Integration slot: the graph-effects work (draft PR #20) adds its
-/// **Graph effects** picker (Classic default, no Off) as a section *below*
-/// Reduce motion in this column. Effects must read `State::reduced_motion()`
-/// so reduced motion overrides any effect style.
+/// the layout, camera and transitions obey. Effects read it too: a preset never
+/// animates when motion is reduced.
 fn settings_graph_tab(s: &State, k: &Kit) -> El {
     let labels: Vec<&str> = ReduceMotion::ALL.iter().map(|m| m.label()).collect();
     let picker = SegmentedControl::new(&labels, Some(s.reduce_motion().index()))
@@ -1426,6 +1431,17 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
             (_, false) => "Currently off.",
         }
     };
+    let effect_labels: Vec<&str> = GraphEffects::ALL.iter().map(|e| e.label()).collect();
+    let effects = SegmentedControl::new(&effect_labels, Some(s.graph_effects().index()))
+        .label("Graph effects")
+        .fit()
+        .on_pick(|s: &mut State, index, _: &mut Tx| {
+            if let Some(effects) = GraphEffects::ALL.get(index) {
+                s.set_graph_effects(*effects);
+            }
+        })
+        .build(k)
+        .key("settings-graph-effects");
     col()
         .key("settings-tab-graph")
         .w_full()
@@ -1434,8 +1450,8 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
             k,
             "Reduce motion",
             Some(
-                "Freezes the graph layout, skips camera glides and makes hover and \
-                 selection changes instant. System follows your OS setting.",
+                "Freezes the graph layout, skips camera glides and makes hover, selection and \
+                 graph effects static. System follows your OS setting.",
             ),
             col().w_full().gap(8.0).child(picker).child(
                 text(status)
@@ -1445,7 +1461,16 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
                     .wrap(),
             ),
         ))
-    // #20 slot: `.child(settings_section(k, "Graph effects", …))` goes here.
+        .child(settings_section(
+            k,
+            "Graph effects",
+            Some(
+                "The same effect family draws the selection's border and the lines it touches: \
+                 Classic keeps today's plain lines, Electric arcs both, Off draws plain lines \
+                 with no effect layers. Reduced motion freezes whichever you pick.",
+            ),
+            col().w_full().gap(8.0).child(effects),
+        ))
 }
 
 /// Sync tab: the vault's sync provider, its fields, the status line, and
@@ -2608,7 +2633,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("Right-click", "Note and folder actions"),
                 (
                     "⌘, / Ctrl+,",
-                    "Settings (vaults, theme, autosave, Kanban defaults)",
+                    "Settings (vaults, theme, graph effects, Kanban defaults)",
                 ),
             ],
         ),

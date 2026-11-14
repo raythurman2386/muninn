@@ -412,6 +412,79 @@ impl ReduceMotion {
     }
 }
 
+/// The knowledge-graph effect preset (Settings › Graph).
+///
+/// The preset picks one `rune-fx` family for **both** treatments the graph
+/// needs: the node border (selection and direct neighbours) and the active
+/// edge line. Keeping the two in one family is what makes a preset read as a
+/// single style rather than two unrelated effects.
+///
+/// Serialized as `"classic"` / `"electric"` / `"off"` (`"minimal"` is accepted
+/// on load and written back as `"off"`). A missing or unknown value, including
+/// every file written before this setting existed, loads as
+/// [`GraphEffects::Classic`] — today's graph look — so an upgrade never
+/// changes the picture by itself.
+///
+/// A `Glow` preset is deliberately absent: `rune-fx`'s glow family only draws
+/// a rounded-rect bloom, so it can treat the node border but not an arbitrary
+/// (diagonal) edge segment. Offering it would mean faking one of the pair.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GraphEffects {
+    /// Solid lines and the accent card: the original graph look.
+    #[default]
+    Classic,
+    /// Electric arcs on edges and an electric border on the selection and its
+    /// direct neighbours, all from `rune_fx::ElectricStyle`.
+    Electric,
+    /// Plain lines, no effect layers (`"off"` in `settings.json`, also
+    /// accepted as the legacy key `"minimal"`).
+    Off,
+}
+
+impl GraphEffects {
+    /// Every choice in the order the settings segmented control shows them.
+    pub const ALL: [GraphEffects; 3] = [
+        GraphEffects::Classic,
+        GraphEffects::Electric,
+        GraphEffects::Off,
+    ];
+
+    #[must_use]
+    pub fn as_key(self) -> &'static str {
+        match self {
+            GraphEffects::Classic => "classic",
+            GraphEffects::Electric => "electric",
+            GraphEffects::Off => "off",
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            GraphEffects::Classic => "Classic",
+            GraphEffects::Electric => "Electric",
+            GraphEffects::Off => "Off / Minimal",
+        }
+    }
+
+    /// Position in [`GraphEffects::ALL`], for the segmented control.
+    #[must_use]
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|mode| *mode == self).unwrap_or(0)
+    }
+
+    /// Parse a persisted `graph_effects` value. Unknown values fall back to
+    /// [`GraphEffects::Classic`], as a missing key does.
+    #[must_use]
+    pub fn from_key(value: Option<&str>) -> GraphEffects {
+        match value {
+            Some("electric") => GraphEffects::Electric,
+            Some("off") | Some("minimal") => GraphEffects::Off,
+            _ => GraphEffects::Classic,
+        }
+    }
+}
+
 /// Preferences shared by every vault.
 ///
 /// `theme` picks the palette source (see [`ThemeMode`]). `collapsed` and the
@@ -472,6 +545,9 @@ pub struct Settings {
     /// footer does not set a key. The object is absent until the user sets
     /// one, which means every built-in default.
     pub kanban_defaults: KanbanDefaults,
+    /// Settings › Graph › Graph effects. Defaults to [`GraphEffects::Classic`]
+    /// so existing files and fresh installs keep today's look.
+    pub graph_effects: GraphEffects,
 }
 
 impl Default for Settings {
@@ -497,6 +573,7 @@ impl Default for Settings {
             kanban: None,
             kanban_autosave: true,
             kanban_defaults: KanbanDefaults::default(),
+            graph_effects: GraphEffects::Classic,
         }
     }
 }
@@ -559,6 +636,7 @@ impl Settings {
             "board_autosave": self.board_autosave,
             "kanban": self.kanban,
             "kanban_autosave": self.kanban_autosave,
+            "graph_effects": self.graph_effects.as_key(),
             "board": self.board.as_ref().map(|b| {
                 let mut value = json!({ "rel": b.rel });
                 if let Some(view) = b.view {
@@ -663,6 +741,8 @@ impl Settings {
             .filter(|rel| !rel.is_empty())
             .map(str::to_owned);
         settings.kanban_defaults = KanbanDefaults::from_json(value.get("kanban_defaults"));
+        settings.graph_effects =
+            GraphEffects::from_key(value.get("graph_effects").and_then(Value::as_str));
         settings
     }
 }
@@ -792,6 +872,7 @@ mod tests {
                 hide_date_in_title: Some(false),
                 ..muninn_core::KanbanDefaults::default()
             },
+            graph_effects: GraphEffects::Electric,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -1026,5 +1107,44 @@ mod tests {
         assert!(!text.contains("refresh_token"));
         assert!(!text.contains("icloud"));
         let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn graph_effects_defaults_to_classic() {
+        assert_eq!(Settings::default().graph_effects, GraphEffects::Classic);
+        // A pre-feature file has no key at all.
+        assert_eq!(
+            Settings::from_value(&serde_json::json!({ "theme": "dark" })).graph_effects,
+            GraphEffects::Classic
+        );
+        // A value this build does not know is the same as no value.
+        assert_eq!(
+            Settings::from_value(&serde_json::json!({ "graph_effects": "neon-soup" }))
+                .graph_effects,
+            GraphEffects::Classic
+        );
+    }
+
+    #[test]
+    fn graph_effects_keys_round_trip_and_minimal_is_an_alias_for_off() {
+        for (key, expect) in [
+            ("classic", GraphEffects::Classic),
+            ("electric", GraphEffects::Electric),
+            ("off", GraphEffects::Off),
+            ("minimal", GraphEffects::Off),
+        ] {
+            let home = temp_config(&format!("fx-{key}"));
+            let settings = Settings::from_value(&serde_json::json!({ "graph_effects": key }));
+            assert_eq!(settings.graph_effects, expect, "key {key}");
+            settings.save_to(&home).expect("save");
+            assert_eq!(Settings::load_from(&home).graph_effects, expect);
+            let text = fs::read_to_string(settings_path(&home)).expect("read");
+            // `minimal` persists as the canonical `off` spelling.
+            assert!(
+                text.contains(&format!("\"graph_effects\": \"{}\"", expect.as_key())),
+                "{text}"
+            );
+            let _ = fs::remove_dir_all(&home);
+        }
     }
 }

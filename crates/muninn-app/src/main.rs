@@ -36,6 +36,7 @@ use muninn_ui::{
 use rune::AppSpec;
 use rune_theme_opencode as theme;
 
+mod fx;
 mod instance;
 
 /// `--trace` is parsed before Rune starts, but `init` is a plain function
@@ -135,6 +136,9 @@ fn main() {
     // `on_close`, whose `tx.quit()` above ends the app unless the tray takes
     // over. Headless runs keep Rune's default close.
     let app = if headless { app } else { app.keep_running() };
+    // Graph presets and the delete burn are painted into `El::effect` slots by
+    // this compositor; with no slots (Classic, Off) it draws the plain frame.
+    let app = app.compositor(fx::GraphFx::default());
     // The optional tray icon, login item and global shortcut (Settings ›
     // Appearance). The state gets a way to make each; it acts only while
     // its setting is on. Headless runs (`--snap`, `--tree`, scripts) get none.

@@ -12,6 +12,8 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
      │              │
      │              └──► muninn-sync
      └──────────────┴──► rune, rune-kit, rune-theme-opencode
+     │
+     └──► rune-fx, wgpu
 ```
 
 | Crate | May depend on | Why |
@@ -20,7 +22,7 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
 | `muninn-graph` | `muninn-core` | Needs note ids and links, nothing else. |
 | `muninn-sync` | nothing in the workspace | Plans and transfers vault bytes. It does not read the UI or the link index. |
 | `muninn-ui` | `muninn-core`, `muninn-graph`, `muninn-sync`, Rune | Owns state, rendering, input, and the manual sync session. |
-| `muninn-app` | `muninn-ui`, Rune | Entry point only. It may also depend on `muninn-sync` for credential wiring. |
+| `muninn-app` | `muninn-ui`, Rune, `rune-fx`, `wgpu` | Entry point, plus the FX compositor that owns the `rune-fx` renderer and the `wgpu` device types Rune hands it. |
 | `xtask` | tooling crates | Never linked into the app. |
 
 `cargo run -p xtask -- layers` reads `cargo metadata` and rejects any new `muninn-*` edge that
@@ -69,6 +71,13 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    transitions live in `overlay.rs` / `mode.rs` so the dismissal stack and
    the page machine stay near their owning modules instead of piling up
    inside `state.rs`; `State` itself keeps the fields both machines read.
+
+   Graph presets and the delete burn do not draw themselves: the graph view
+   emits `El::effect` slots tagged with `fx_marks`, and the compositor in
+   `muninn-app` (`fx.rs`) paints them with `rune-fx` layers into the slots the
+   renderer hands back. `muninn-ui` therefore mints marks and payloads but
+   never builds a GPU pipeline, and `muninn-graph` stays Rune-free. Classic and
+   Off emit no slots, so the compositor's only work then is the normal frame.
 5. **Save.** `muninn_ui::poll` notices an edited buffer, waits 0.55 s of idle, and writes the
    file only when its on-disk `(mtime, length)` still matches what the editor loaded. The write
    is atomic (a hidden, uniquely named temp file in the same folder is flushed and fsynced,
@@ -110,9 +119,12 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    into discarded text. Rename and move re-key the open note's entry.
 
 10. **Settings (M3 LIF-01).** UI preferences — theme, collapsed folders, last vault/note,
-    mode/scope, recent-vault MRU and the autosave delay — are written as small JSON to
+    mode/scope, recent-vault MRU, the autosave delay, the Graph tab's Reduce motion and
+    Graph effects choices — are written as small JSON to
     `$XDG_CONFIG_HOME/muninn/settings.json` (fallback `~/.config/muninn/`) with the same
-    temp-file + rename pattern as note saves; a corrupt file falls back to defaults. The
+    temp-file + rename pattern as note saves; a corrupt file falls back to defaults. A
+    missing `graph_effects` key (every file written before the setting existed) loads as
+    `Classic`, so an upgrade never changes the picture by itself. The
     startup vault scan is synchronous up to 100 files and chunked (see step 1) above that;
     `load_ms` covers the whole load in either case. Rune's `AppSpec` window size
     remains fixed at 1180×780. Window geometry persistence is **BLOCKED**, not

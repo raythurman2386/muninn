@@ -83,7 +83,7 @@ const ACTIONS: &[&str] = &[
     "Move through a list",
     "Open the focused row",
     "Note and folder actions",
-    "Settings (vaults, theme, autosave, Kanban defaults)",
+    "Settings (vaults, theme, graph effects, Kanban defaults)",
     "Per-board overrides, one key at a time",
     "Pan the board",
     "Zoom at the pointer",

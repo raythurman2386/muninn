@@ -8,6 +8,21 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- **Graph effects presets, and a burn for deleted notes.** Settings › Graph has a
+  new **Graph effects** picker: **Classic** (the default, today's solid lines and
+  accent card), **Electric** (lightning arcs on the selection's edges with an
+  electric border on the selection and a calmer charged border on its direct
+  neighbours), and **Off** (plain lines with no effect layers). Each preset uses
+  one effect family for both the node border and the edge line, so the graph
+  reads as a single treatment; Reduce motion draws the chosen preset frozen
+  instead of animated. Deleting a note now leaves its graph node burning out for
+  a moment with a short, low ember fire instead of vanishing between frames; the
+  burn is skipped by Off and by Reduce motion. An existing `settings.json`
+  without the key loads as Classic, so upgrading never changes the picture.
+  Glow is deliberately not offered: `rune-fx` glow can bloom a rounded node but
+  cannot follow an arbitrary diagonal edge, so pairing it would mean faking one
+  half of the treatment.
+
 - **Per-note lock: design and core encryption prototype (#113).** A note can
   now be sealed into a versioned ASCII envelope with its own password: the
   body, tags and content-derived links become AES-256-GCM ciphertext under an

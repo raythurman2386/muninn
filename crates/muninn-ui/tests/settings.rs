@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
-use muninn_ui::{Mode, Scope, Settings, SettingsTab, State, ThemeMode, on_key, poll, view};
+use muninn_ui::{
+    GraphEffects, Mode, Scope, Settings, SettingsTab, State, ThemeMode, on_key, poll, view,
+};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -748,4 +750,140 @@ fn settings_page_uses_the_main_column_and_wraps_its_tabs_when_narrow() {
         let _ = fs::remove_dir_all(&config);
         let _ = fs::remove_dir_all(&state_home);
     }
+}
+
+#[test]
+fn graph_effects_defaults_to_classic_and_round_trips_through_settings_json() {
+    let config = unique_dir("fx-round-trip");
+    let path = config.join("muninn").join("settings.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    // A file written before the setting existed: no graph_effects key.
+    fs::write(
+        &path,
+        r#"{
+  "theme": "dark",
+  "collapsed": [],
+  "mode": "editor",
+  "scope": "global",
+  "autosave_delay": 0.55,
+  "recent_vaults": [],
+  "note_template": ""
+}"#,
+    )
+    .unwrap();
+    let loaded = Settings::load_from(&config);
+    assert_eq!(
+        loaded.graph_effects,
+        GraphEffects::Classic,
+        "an upgrade keeps today's graph look"
+    );
+    assert_eq!(Settings::default().graph_effects, GraphEffects::Classic);
+
+    loaded.save_to(&config).expect("save");
+    let text = fs::read_to_string(&path).expect("read");
+    assert!(
+        text.contains("\"graph_effects\": \"classic\""),
+        "the default is written explicitly: {text}"
+    );
+
+    // A non-default choice round-trips, and the legacy `minimal` spelling
+    // loads as Off and is written back canonically.
+    let electric = Settings {
+        graph_effects: GraphEffects::Electric,
+        ..Settings::default()
+    };
+    electric.save_to(&config).expect("save");
+    assert_eq!(
+        Settings::load_from(&config).graph_effects,
+        GraphEffects::Electric
+    );
+    let minimal = Settings::load_from(&config);
+    assert_eq!(minimal.graph_effects, GraphEffects::Electric);
+    fs::write(&path, r#"{ "graph_effects": "minimal", "theme": "dark" }"#).unwrap();
+    assert_eq!(
+        Settings::load_from(&config).graph_effects,
+        GraphEffects::Off
+    );
+
+    let _ = fs::remove_dir_all(&config);
+}
+
+#[test]
+fn the_graph_tab_effects_picker_applies_and_persists_immediately() {
+    let vault = vault_fixture();
+    let config = unique_dir("fx-picker-config");
+    let state_home = unique_dir("fx-picker-state");
+    let settings = Settings {
+        theme: ThemeMode::Dark,
+        last_vault: Some(vault.path().to_path_buf()),
+        ..Settings::default()
+    };
+    let mut rt = Runtime::new(
+        State::with_settings(
+            vault.path().to_path_buf(),
+            state_home.clone(),
+            config.clone(),
+            settings,
+        ),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+    rt.key(command(','));
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    // The Graph tab is the fourth: Vaults, Editor, Appearance, Graph.
+    let (x, y) = rt.find("settings-tabs/segment3").expect("Graph tab");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(
+        rt.find("settings-graph-effects").is_some(),
+        "the picker is on the Graph tab"
+    );
+    assert_eq!(rt.state.graph_effects(), GraphEffects::Classic);
+
+    // Segments are Classic, Electric, Off.
+    let (x, y) = rt
+        .find("settings-graph-effects/segment1")
+        .expect("Electric segment");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.graph_effects(), GraphEffects::Electric);
+    assert_eq!(
+        Settings::load_from(&config).graph_effects,
+        GraphEffects::Electric,
+        "the choice is written immediately"
+    );
+
+    let (x, y) = rt
+        .find("settings-graph-effects/segment2")
+        .expect("Off segment");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.graph_effects(), GraphEffects::Off);
+    assert_eq!(
+        Settings::load_from(&config).graph_effects,
+        GraphEffects::Off
+    );
+
+    // A fresh start restores the saved choice.
+    let restored = State::with_settings(
+        vault.path().to_path_buf(),
+        state_home.clone(),
+        config.clone(),
+        Settings::load_from(&config),
+    );
+    assert_eq!(restored.graph_effects(), GraphEffects::Off);
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
 }

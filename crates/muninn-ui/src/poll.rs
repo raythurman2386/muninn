@@ -140,6 +140,16 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     // view rests (one write per held key or stroke, not per event).
     s.settings_tick(t);
 
+    // The delete burn plays where the node was and is gone after a short
+    // life. Its slot data changes every frame it is alive, so report a change
+    // and ask for the next frame instead of leaving a frozen ember on screen.
+    if s.burn_tick(t) {
+        changed = true;
+    }
+    if s.burn.is_some() {
+        tx.wake_after(std::time::Duration::ZERO);
+    }
+
     // #112: Focus mode holds the caret's line in the middle of the editor.
     // Asked for once per caret move, resolved from the layout this frame
     // commits, so a keystroke's new line is centred in the frame drawing it.

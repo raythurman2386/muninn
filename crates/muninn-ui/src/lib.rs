@@ -80,16 +80,25 @@ pub use overlay::{Layer, PaletteAction, PaletteItem, PaletteState, SettingsTab};
 pub use poll::poll;
 pub use recovery::{RecoveryEntry, RecoverySlot};
 pub use settings::{
-    DEFAULT_AUTOSAVE_DELAY, RECENT_VAULTS_MAX, ReduceMotion, Settings, ThemeMode, config_home,
+    DEFAULT_AUTOSAVE_DELAY, GraphEffects, RECENT_VAULTS_MAX, ReduceMotion, Settings, ThemeMode,
+    config_home,
 };
 pub use state::{
-    ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction, FindState,
-    FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport, LinkComplete,
-    MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TagComplete,
-    TrashUndo, file_action_command,
+    BurnMark, ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction,
+    FindState, FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport,
+    LinkComplete, MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State,
+    TagComplete, TrashUndo, file_action_command,
 };
 pub use tray::{
     TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,
     TrayPort, tray_action, tray_icon, tray_menu, tray_spec, tray_status_label, tray_supported,
 };
 pub use view::view;
+
+/// Effect-slot marks the graph view mints and the `muninn-app` compositor paints.
+///
+/// Each is the high 16 bits of an `El::effect` mark; the low half carries the
+/// node id or the slot's rank as the effect's seed.
+pub mod fx_marks {
+    pub use crate::graph_view::{FX_BURN, FX_EDGE_COLD, FX_EDGE_HOT, FX_NODE_NEAR, FX_NODE_SEL};
+}

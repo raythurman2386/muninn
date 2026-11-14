@@ -2,14 +2,15 @@
 
 use rune::{
     Color, Cursor, Drag, El, LineCap, MagnifyEvent, PointerButton, Shape, Spring, Tx, WheelEvent,
-    canvas, col, el, icon, row, text, text_input,
+    canvas, col, effect, el, icon, row, text, text_input,
 };
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
 use muninn_graph::{NODE_H, NODE_W, WORLD};
 
-use crate::{Scope, State};
+use crate::settings::GraphEffects;
+use crate::{BurnMark, Scope, State};
 
 /// Neighbour dimming eases on selection, so a click reads as a change of
 /// emphasis rather than a repaint. Reduced motion lands it at once.
@@ -23,6 +24,17 @@ const LOD_ZOOM: f32 = 0.6;
 /// Local has only one hop around the selection, so labels stay useful a
 /// little longer; below this only the selection keeps its card.
 const LOCAL_LOD_ZOOM: f32 = 0.55;
+/// Cap animated electric edge slots on dense graphs. Cold edges are ranked
+/// last, so the selection's own edges always get an arc.
+const EDGE_FX_BUDGET: usize = 48;
+/// Effect-slot mark prefixes, high half only: the low half carries the node id
+/// or the slot's rank as a seed. `muninn-app`'s compositor switches on these.
+pub const FX_EDGE_COLD: u32 = 0x4d45_0000;
+pub const FX_EDGE_HOT: u32 = 0x4d46_0000;
+pub const FX_NODE_SEL: u32 = 0x4d47_0000;
+pub const FX_NODE_NEAR: u32 = 0x4d48_0000;
+/// The delete burn (one at a time, so no id in the low half).
+pub const FX_BURN: u32 = 0x4d49_0000;
 /// World size of a low-zoom dot marker (screen size is `DOT * zoom`, so
 /// about 12px at typical Global fit zoom).
 const DOT: f32 = 28.0;
@@ -43,6 +55,10 @@ pub fn graph(s: &State, k: &Kit) -> El {
         .live_scale(&s.cam.live_zoom)
         .child(grid(s, k))
         .child(edge_canvas(s, k, &edges, viewport));
+    if let Some(burn) = s.burn.as_ref().filter(|burn| burn.alive(s.now)) {
+        world = world.child(burn_ghost(s, k, burn));
+        world = world.child(burn_effect(s, burn));
+    }
     world = nodes_world(world, s, k, &visible, dots_only, viewport);
 
     let mut canvas_el = el()
@@ -137,19 +153,17 @@ fn nodes_world(
         }
         // Global keeps neighbours labelled at low zoom; Local keeps only the
         // selection. Isolate dims every non-neighbour to a dot.
-        let labelled = !dots_only
-            || s.selected == Some(id)
-            || (s.scope == Scope::Global && is_neighbour(s, id));
-        let isolated = s.graph_isolate && s.selected.is_some() && !is_neighbour(s, id) && !focused;
-        let as_dot = !labelled || isolated;
+        let as_dot = node_is_dot(s, id, dots_only, focused);
+        let (w, h) = node_size(s, id, as_dot);
         if focused {
-            let (w, h) = if as_dot {
-                let side = dot_size(degree(s, id));
-                (side, side)
-            } else {
-                card_size(degree(s, id))
-            };
             world = world.child(focus_ring(k, node.pos, w, h));
+        }
+        if s.graph_effects() == GraphEffects::Electric {
+            if s.selected == Some(id) {
+                world = world.child(node_electric(id, node.pos, w, h, true));
+            } else if s.selected.is_some() && is_neighbour(s, id) {
+                world = world.child(node_electric(id, node.pos, w, h, false));
+            }
         }
         world = world.child(if as_dot {
             node_dot(s, k, id, node.pos)
@@ -182,8 +196,25 @@ fn grid(s: &State, k: &Kit) -> El {
 fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)], viewport: [f32; 4]) -> El {
     let base = k.alpha(k.c.text_muted, 0.55);
     let hot = k.alpha(k.c.text_accent, 0.72);
+    // Arcs only where the cards themselves are drawn: below LOD the graph is a
+    // field of dots and a web of lightning would swallow it.
+    let electric = s.graph_effects() == GraphEffects::Electric && s.cam.zoom() >= LOD_ZOOM;
     let mut shape = Shape::new();
-    for &(a, b) in edges {
+    let mut fx_slots = Vec::new();
+    // Prefer edges that touch the selection when budgeting FX layers, so the
+    // arcs the user is looking at are the ones that survive the cap.
+    let mut ranked: Vec<(bool, usize, usize)> = edges
+        .iter()
+        .copied()
+        .map(|(a, b)| {
+            let touches = s.selected == Some(a) || s.selected == Some(b);
+            (touches, a, b)
+        })
+        .collect();
+    ranked.sort_by_key(|a| std::cmp::Reverse(a.0));
+
+    let mut fx_used = 0usize;
+    for (touches, a, b) in ranked {
         let (Some(from), Some(to)) = (s.graph.node(a), s.graph.node(b)) else {
             continue;
         };
@@ -191,7 +222,6 @@ fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)], viewport: [f32; 4])
         if is_culled(from.pos, 1.0, 1.0, viewport) && is_culled(to.pos, 1.0, 1.0, viewport) {
             continue;
         }
-        let touches = s.selected == Some(a) || s.selected == Some(b);
         shape = shape.line(
             from.pos,
             to.pos,
@@ -199,10 +229,43 @@ fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)], viewport: [f32; 4])
             LineCap::Round,
             if touches { hot } else { base },
         );
+
+        if electric && fx_used < EDGE_FX_BUDGET {
+            // The arc is drawn in the slot's local space: `effect_data` carries
+            // the two endpoints as 0..1 fractions of the slot rect.
+            let minx = from.pos[0].min(to.pos[0]);
+            let miny = from.pos[1].min(to.pos[1]);
+            let w = (from.pos[0] - to.pos[0]).abs().max(2.0);
+            let h = (from.pos[1] - to.pos[1]).abs().max(2.0);
+            let data = [
+                (from.pos[0] - minx) / w,
+                (from.pos[1] - miny) / h,
+                (to.pos[0] - minx) / w,
+                (to.pos[1] - miny) / h,
+            ];
+            fx_slots.push(
+                effect(if touches {
+                    FX_EDGE_HOT | (fx_used as u32 & 0xffff)
+                } else {
+                    FX_EDGE_COLD | (fx_used as u32 & 0xffff)
+                })
+                .effect_data(data)
+                .effect_bleed(10.0)
+                .pin(Some(minx), Some(miny), None, None)
+                .size(w, h),
+            );
+            fx_used += 1;
+        }
     }
-    canvas(shape)
-        .size(WORLD[0], WORLD[1])
-        .pin(Some(0.0), Some(0.0), None, None)
+
+    let mut canvas_el =
+        canvas(shape)
+            .size(WORLD[0], WORLD[1])
+            .pin(Some(0.0), Some(0.0), None, None);
+    for slot in fx_slots {
+        canvas_el = canvas_el.child(slot);
+    }
+    canvas_el
 }
 
 /// World-space rectangle currently on screen, expanded so cards straddling
@@ -253,6 +316,98 @@ fn card_size(degree: usize) -> (f32, f32) {
 
 fn dot_size(degree: usize) -> f32 {
     DOT * (1.0 + (degree.min(12) as f32) * 0.05)
+}
+
+/// Whether the node is drawn as a low-zoom dot rather than a card this frame.
+fn node_is_dot(s: &State, id: usize, dots_only: bool, focused: bool) -> bool {
+    let labelled =
+        !dots_only || s.selected == Some(id) || (s.scope == Scope::Global && is_neighbour(s, id));
+    let isolated = s.graph_isolate && s.selected.is_some() && !is_neighbour(s, id) && !focused;
+    !labelled || isolated
+}
+
+/// The footprint the node is drawn at: a dot below the scope's LOD, a scaled
+/// card otherwise.
+fn node_size(s: &State, id: usize, as_dot: bool) -> (f32, f32) {
+    if as_dot {
+        let side = dot_size(degree(s, id));
+        (side, side)
+    } else {
+        card_size(degree(s, id))
+    }
+}
+
+/// The node's world centre and size as it is drawn right now.
+///
+/// The delete burn needs this before [`State::confirm_delete`] reloads the
+/// vault (which drops the node and rebuilds every id), so it lives here rather
+/// than in the delete path: the same LOD and card-size rules decide both.
+pub(crate) fn node_footprint(s: &State, id: usize) -> Option<([f32; 2], [f32; 2])> {
+    let node = s.graph.node(id)?;
+    let dots_only = match s.scope {
+        Scope::Global => s.cam.zoom() < LOD_ZOOM,
+        Scope::Local => s.cam.zoom() < LOCAL_LOD_ZOOM,
+    };
+    let focused = s.graph_focus == Some(id);
+    let as_dot = node_is_dot(s, id, dots_only, focused);
+    let (w, h) = node_size(s, id, as_dot);
+    Some((node.pos, [w, h]))
+}
+
+/// Electric border around a node: `hot` marks the selection, direct
+/// neighbours get the calmer charged variant. The compositor paints both.
+fn node_electric(id: usize, pos: [f32; 2], w: f32, h: f32, hot: bool) -> El {
+    let pad = if hot { 10.0 } else { 6.0 };
+    let mark = (if hot { FX_NODE_SEL } else { FX_NODE_NEAR }) | (id as u32 & 0xffff);
+    effect(mark)
+        .effect_data([if hot { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0])
+        .effect_bleed(if hot { 14.0 } else { 10.0 })
+        .pin(
+            Some(pos[0] - w / 2.0 - pad),
+            Some(pos[1] - h / 2.0 - pad),
+            None,
+            None,
+        )
+        .size(w + pad * 2.0, h + pad * 2.0)
+}
+
+/// The deleted note's card, fading under the burn. It is a plain element, not
+/// an effect: the fire is [`burn_effect`]'s job, and this keeps the node's
+/// place readable for the moment it takes to go.
+fn burn_ghost(s: &State, k: &Kit, burn: &BurnMark) -> El {
+    let fade = 1.0 - burn.progress(s.now).powi(2);
+    let [w, h] = burn.size;
+    let [x, y] = burn.pos;
+    row()
+        .key("graph-burn-ghost")
+        .pin(Some(x - w / 2.0), Some(y - h / 2.0), None, None)
+        .size(w, h)
+        .px(9.0)
+        .gap(7.0)
+        .center_y()
+        .radius(9.0)
+        .fill(k.alpha(k.c.layer_02, 0.5 * fade))
+        .border(1.0, k.alpha(k.c.border_base, 0.35 * fade))
+        .child(
+            text(burn.label.clone())
+                .font(rune::TextStyle::new(12.0, 500.0))
+                .color(k.alpha(k.c.text_base, fade))
+                .truncate()
+                .grow(1.0),
+        )
+}
+
+/// The fire slot over the deleted node. `effect_data[0]` is the burn's
+/// progress, which cools and fades the embers in the compositor.
+fn burn_effect(s: &State, burn: &BurnMark) -> El {
+    let [w, h] = burn.size;
+    let [x, y] = burn.pos;
+    let progress = burn.progress(s.now);
+    effect(FX_BURN)
+        .effect_data([progress, 0.0, 0.0, 0.0])
+        .effect_bleed(16.0)
+        .pin(Some(x - w / 2.0 - 6.0), Some(y - h / 2.0 - 6.0), None, None)
+        .size(w + 12.0, h + 12.0)
 }
 
 /// GRP-02: an outline outside the card, distinct from the selection's filled
