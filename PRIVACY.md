@@ -42,15 +42,23 @@ The site uses Umami, an analytics tool we host ourselves at https://umami-app.ra
 
 The website has an optional Early access form at https://muninn.ravenwoodsoftware.dev/waitlist/. If you sign up:
 
-- **What we collect:** your email address only. The form has no name field. Listmonk, the mailing-list tool we use, fills in a display name from the part of your address before the @.
-- **Why:** to email you about Muninn launches and major releases. We do not use it for anything else.
-- **Double opt-in:** we send one confirmation email. You are not on the list until you click the link in it.
-- **Where it is stored:** in Listmonk, which we host ourselves on our own server, together with your subscription status and the times you signed up and confirmed. We do not record the IP address you confirm from, and emails to this list do not use tracking pixels or tracked links.
-- **Spam protection:** the form uses Cloudflare Turnstile to check that a person is signing up. Turnstile runs in your browser, and Cloudflare processes your IP address and browser signals to issue the check, under Cloudflare's privacy policy. Our signup service keeps rate-limit counters in memory only, keyed by a hash of your IP address and of your email address; they are discarded when idle or when the service restarts. It does not write your IP address or email address to disk or to its logs.
-- **Email delivery:** the confirmation email and any list emails are sent through our email provider, which processes your address to deliver them.
-- **Retention:** unconfirmed signups are deleted after 30 days. Confirmed addresses are kept until you unsubscribe or the Early access list ends.
-- **Unsubscribe, export, and delete:** every email has an unsubscribe link. To get a copy of your data or have it deleted, use the contact details below.
-- We do not sell or share the list.
+What we collect: your email address only. The form has no name field. Listmonk, the mailing-list tool we use, fills in a display name from the part of your address before the @.
+
+Why: to email you about Muninn launches and major releases. We do not use it for anything else.
+
+Double opt-in: we send one confirmation email. You are not on the list until you click the link in it.
+
+Where it is stored: in Listmonk, which we host ourselves on our own server, together with your subscription status and the times you signed up and confirmed. We do not record the IP address you confirm from, and emails to this list do not use tracking pixels or tracked links.
+
+Spam protection: the form uses Cloudflare Turnstile to check that a person is signing up. Turnstile runs in your browser, and Cloudflare processes your IP address and browser signals to issue the check, under Cloudflare's privacy policy. Our signup service keeps rate-limit counters in memory only, keyed by a hash of your IP address and of your email address; they are discarded when idle or when the service restarts. It does not write your IP address or email address to disk or to its logs.
+
+Email delivery: the confirmation email and any list emails are sent through our email provider, which processes your address to deliver them.
+
+Retention: unconfirmed signups are deleted after 30 days. Confirmed addresses are kept until you unsubscribe or the Early access list ends.
+
+Unsubscribe, export, and delete: every email has an unsubscribe link. To get a copy of your data or have it deleted, use the contact details below.
+
+We do not sell or share the list.
 
 ## Contact
 
