@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="75%">
+      <stop offset="0%" stop-color="#18191E" />
+      <stop offset="100%" stop-color="#0B0C0E" />
+    </radialGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C4DFF" />
+      <stop offset="100%" stop-color="#00E5FF" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)" stroke="#272A30" stroke-width="4" />
+
+  <!-- Minimalist Geometric M + Core Node -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 136 360 L 136 152 L 256 272 L 376 152 L 376 360" opacity="0.95" />
+  </g>
+
+  <!-- Central Focus Node -->
+  <circle cx="256" cy="272" r="14" fill="url(#accent)" />
+  <circle cx="256" cy="272" r="6" fill="#FFFFFF" />
+</svg>
