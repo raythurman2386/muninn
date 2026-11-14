@@ -1,29 +1,13 @@
 name: Site
 
 # Marketing site (site/, Astro) and its nginx image (Dockerfile.marketing).
-# Runs only when those change; the Rust CI in ci.yml is separate and unaffected.
+# Runs on every push and PR so its two jobs can be required status checks on
+# main without being skipped by path filtering. The Rust CI in ci.yml is
+# separate.
 on:
   push:
     branches: [main]
-    paths:
-      - "site/**"
-      - "Dockerfile.marketing"
-      - ".dockerignore"
-      - "PRIVACY.md"
-      - "CHANGELOG.md"
-      - "README.md"
-      - "docs/**"
-      - ".github/workflows/site.yml"
   pull_request:
-    paths:
-      - "site/**"
-      - "Dockerfile.marketing"
-      - ".dockerignore"
-      - "PRIVACY.md"
-      - "CHANGELOG.md"
-      - "README.md"
-      - "docs/**"
-      - ".github/workflows/site.yml"
 
 permissions:
   contents: read
