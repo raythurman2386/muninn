@@ -9,6 +9,7 @@
 *.mp4 binary
 *.webm binary
 *.webp binary
+*.avif binary
 *.woff2 binary
 # Upstream font licences are kept byte-for-byte (CRLF).
 site/assets/fonts/*-LICENSE.txt -text

@@ -46,8 +46,7 @@ function posterSet(theme: string, ext: string) {
 ---
 <figure class="frame loop-figure">
   <div
-    class="media loop-media"
-    style={`--media-w: ${width}; --media-h: ${height};`}
+    class={`media loop-media loop-ratio-${width}x${height}`}
     data-loop
     data-loop-scene={scene}
     data-loop-widths={widths.join(',')}
