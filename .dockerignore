@@ -1,11 +1,21 @@
 # Build context for Dockerfile.marketing: the Astro project in site/ plus
-# PRIVACY.md at the repo root (read at build time for /privacy/).
+# repo markdown read at build time for /privacy/, /changelog/ and /docs/.
+# Ignore everything, then re-include the site sources and those files.
 *
 !site/
 !Dockerfile.marketing
 !PRIVACY.md
+!CHANGELOG.md
+!README.md
+!docs/
+docs/**
+!docs/sync-setup.md
+!docs/kanban-format.md
+!docs/a11y-checklist.md
+!docs/sync-safety.md
 # Local build output and tooling never enter the context (the image runs npm ci itself).
 site/node_modules
 site/dist
 site/.astro
 site/.proof-w1
+site/.proof-w3

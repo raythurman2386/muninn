@@ -3,7 +3,7 @@
 # Usage: site/scripts/smoke-http.sh http://127.0.0.1:8080
 # Checks status codes, content types, cache headers, security headers (including CSP),
 # gzip, video Range support, /privacy/, /download/, sitemap, robots.txt, the branded 404,
-# /sponsor/ and /press/.
+# /sponsor/, /press/, /docs/, and /changelog/.
 set -euo pipefail
 BASE="${1:?usage: smoke-http.sh BASE_URL}"
 BASE="${BASE%/}"
@@ -134,6 +134,12 @@ if ! node "$SCRIPT_DIR/csp.mjs" check --url "$BASE"; then
   echo "FAIL CSP hashes vs served HTML"
   fail=1
 fi
+
+for path in /changelog/ /docs/ /docs/getting-started/ /docs/keyboard-shortcuts/ /docs/sync-setup/ /docs/kanban-format/ /docs/a11y-checklist/ /docs/sync-safety/; do
+  h=$(hdr "$BASE$path")
+  expect "$path 200" "$h" '^HTTP/[0-9.]+ 200'
+  expect "$path text/html" "$h" '^content-type: text/html'
+done
 
 # /sponsor/ and /press/ (W8). Kept at the end so a merge with W3/W4's
 # extra checks applies cleanly above this block.

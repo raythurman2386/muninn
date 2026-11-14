@@ -1,11 +1,13 @@
 ---
 // Shared site header. `home` keeps the landing-page fragment links (#top, #features)
-// so the home markup stays pixel-identical to the W1 port.
+// so the home markup stays pixel-identical to the W1 port aside from the Docs
+// and Changelog nav items. `current` marks the active document page.
 interface Props {
   home?: boolean;
+  current?: 'docs' | 'changelog';
 }
 
-const { home = false } = Astro.props;
+const { home = false, current } = Astro.props;
 const brandHref = home ? '#top' : '/';
 const brandLabel = home ? 'Muninn, back to top' : 'Muninn, home';
 const featuresHref = home ? '#features' : '/#features';
@@ -22,6 +24,8 @@ const downloadCurrent = Astro.url.pathname === '/download' || Astro.url.pathname
         <ul class="nav">
           <li><a href={featuresHref}>Features</a></li>
           <li><a href={downloadHref} aria-current={downloadCurrent ? "page" : undefined}>Download</a></li>
+          <li><a href="/docs/" aria-current={current === 'docs' ? 'page' : undefined}>Docs</a></li>
+          <li><a href="/changelog/" aria-current={current === 'changelog' ? 'page' : undefined}>Changelog</a></li>
           <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
         </ul>
       </nav>

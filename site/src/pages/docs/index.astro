@@ -1,0 +1,48 @@
+---
+// /docs/ lists the user-facing guides rendered from README.md sections and
+// the curated files in docs/. Internal specs are not included.
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import DocsSidebar from '../../components/DocsSidebar.astro';
+import { DOC_COLLECTION_FILES, DOC_PAGES } from '../../lib/docs';
+import { OG } from '../../lib/og';
+import '../../styles/docs.css';
+
+const loaded = new Set((await getCollection('docs')).map((entry) => `${entry.id}.md`));
+const missing = DOC_COLLECTION_FILES.filter((file) => !loaded.has(file));
+if (missing.length > 0) {
+  throw new Error(`docs collection is missing: ${missing.join(', ')}`);
+}
+---
+<Base
+  title="Docs — Muninn"
+  description="Getting started, keyboard shortcuts, sync setup, the kanban note format, accessibility, and sync safety. Rendered from the Muninn repository at build time."
+  ogImage={OG.docs.image}
+  ogImageAlt={OG.docs.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header current="docs" />
+  <main id="main" class="page-main">
+    <div class="wrap docs-shell">
+      <DocsSidebar />
+      <article class="doc">
+        <h1>Docs</h1>
+        <p>These guides are rendered from the Muninn repository at build time: sections of the README, and the user-facing files in <code>docs/</code>. They are not a second copy of the text.</p>
+        <p>Internal references such as the architecture notes and sync internals stay on GitHub.</p>
+        <ul class="doc-index">
+          {DOC_PAGES.map((page) => (
+            <li>
+              <a href={`/docs/${page.slug}/`}>
+                <h2>{page.title}</h2>
+                <p>{page.description}</p>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </article>
+    </div>
+  </main>
+  <Footer />
+</Base>
