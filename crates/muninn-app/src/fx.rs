@@ -84,13 +84,15 @@ impl Compositor<State> for GraphFx {
                             style: ElectricStyle::Border,
                             color: accent,
                             core: accent,
-                            amplitude: if reduced { 0.7 } else { 1.8 },
-                            glow: 3.5,
-                            forks: if reduced { 0.0 } else { 0.18 },
-                            flicker: if reduced { 0.0 } else { 0.3 },
-                            speed: if reduced { 0.0 } else { 3.0 },
-                            strands: 1,
-                            intensity: 0.85,
+                            amplitude: if reduced { 0.7 } else { 4.0 },
+                            glow: 5.0,
+                            forks: if reduced { 0.0 } else { 0.55 },
+                            flicker: if reduced { 0.0 } else { 0.45 },
+                            speed: if reduced { 0.0 } else { 3.5 },
+                            strands: 2,
+                            gap: 3.0,
+                            fork_len: 22.0,
+                            intensity: 1.0,
                             ..ElectricParams::default()
                         })
                     } else {
@@ -98,13 +100,15 @@ impl Compositor<State> for GraphFx {
                             style: ElectricStyle::Charged,
                             color: muted,
                             core: accent,
-                            amplitude: if reduced { 0.4 } else { 0.7 },
-                            glow: 2.4,
-                            forks: if reduced { 0.0 } else { 0.08 },
-                            flicker: if reduced { 0.0 } else { 0.15 },
-                            speed: if reduced { 0.0 } else { 2.0 },
+                            amplitude: if reduced { 0.5 } else { 1.1 },
+                            glow: 4.0,
+                            forks: if reduced { 0.0 } else { 0.25 },
+                            flicker: if reduced { 0.0 } else { 0.2 },
+                            speed: if reduced { 0.0 } else { 2.5 },
                             strands: 1,
-                            intensity: 0.55,
+                            gap: 0.5,
+                            fork_len: 14.0,
+                            intensity: 0.9,
                             ..ElectricParams::charged()
                         })
                     }
@@ -128,22 +132,22 @@ impl Compositor<State> for GraphFx {
                         amplitude: if reduced {
                             0.5
                         } else if hot {
-                            2.4
+                            9.0
                         } else {
-                            1.5
+                            6.0
                         },
-                        glow: if hot { 3.2 } else { 2.2 },
+                        glow: if hot { 6.0 } else { 4.0 },
                         forks: if reduced {
                             0.0
                         } else if hot {
-                            0.22
+                            0.6
                         } else {
-                            0.12
+                            0.4
                         },
-                        flicker: if reduced { 0.0 } else { 0.4 },
-                        strands: 1,
-                        intensity: if hot { 0.85 } else { 0.55 },
-                        speed: if reduced { 0.0 } else { 3.2 },
+                        flicker: if reduced { 0.0 } else { 0.5 },
+                        strands: 3,
+                        intensity: if hot { 1.0 } else { 0.7 },
+                        speed: if reduced { 0.0 } else { 4.0 },
                         ..ElectricParams::default()
                     })
                     .on(Shape::rounded(x, y, w.max(1.0), h.max(1.0), 1.0))

@@ -249,11 +249,18 @@ fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)], viewport: [f32; 4])
                 (to.pos[0] - minx) / w,
                 (to.pos[1] - miny) / h,
             ];
+            // A stable per-edge seed: the bolt's path and strike timing must
+            // not re-roll when a selection re-ranks the edges (hot-first) and
+            // shifts every rank. Hashing the node pair keeps it fixed while the
+            // selection changes only the hot/cold colour, not the shape.
+            let lo = a.min(b);
+            let hi = a.max(b);
+            let seed = lo.wrapping_mul(0x9e37_79b9) ^ hi.wrapping_mul(0x85eb_ca6b);
             fx_slots.push(
                 effect(if touches {
-                    FX_EDGE_HOT | (fx_used as u32 & 0xffff)
+                    FX_EDGE_HOT | (seed as u32 & 0xffff)
                 } else {
-                    FX_EDGE_COLD | (fx_used as u32 & 0xffff)
+                    FX_EDGE_COLD | (seed as u32 & 0xffff)
                 })
                 .effect_data(data)
                 .effect_bleed(10.0)
