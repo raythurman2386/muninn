@@ -240,5 +240,38 @@ expect "sitemap lists /features/" "$sitemap $mapfile" 'https://muninn.ravenwoods
 expect "sitemap lists /features/board/" "$sitemap $mapfile" 'https://muninn.ravenwoodsoftware.dev/features/board/'
 expect "sitemap lists /features/kanban/" "$sitemap $mapfile" 'https://muninn.ravenwoodsoftware.dev/features/kanban/'
 
+# Early access (waitlist). Dockerfile.marketing builds with the flag on by
+# default, so the default expectation is "on". Set WAITLIST_EXPECT=off for an
+# image built with --build-arg PUBLIC_WAITLIST_ENABLED=false.
+WAITLIST_EXPECT="${WAITLIST_EXPECT:-on}"
+WAITLIST_ENDPOINT="${WAITLIST_ENDPOINT:-https://waitlist.ravenwoodsoftware.dev/api/waitlist}"
+WAITLIST_SITEKEY="${WAITLIST_SITEKEY:-0x4AAAAAAGAr-ftoay609BpG}"
+wl_origin=$(sed -E 's#^(https?://[^/]+).*#\1#' <<<"$WAITLIST_ENDPOINT")
+wl_origin_re=$(sed -E 's/[.]/\\./g' <<<"$wl_origin")
+h=$(hdr "$BASE/waitlist/")
+csp=$(grep -i '^content-security-policy:' <<<"$(hdr "$BASE/")" || true)
+home=$(curl -sS "$BASE/")
+if [ "$WAITLIST_EXPECT" = on ]; then
+  expect "/waitlist/ 200" "$h" '^HTTP/[0-9.]+ 200'
+  wl=$(curl -sS "$BASE/waitlist/")
+  expect "/waitlist/ has the form" "$wl" 'data-waitlist-form'
+  expect "/waitlist/ form posts to the proxy" "$wl" "action=\"$WAITLIST_ENDPOINT\""
+  expect "/waitlist/ has the Turnstile site key" "$wl" "data-sitekey=\"$WAITLIST_SITEKEY\""
+  expect "/waitlist/ loads Turnstile" "$wl" 'src="https://challenges\.cloudflare\.com/turnstile/v0/api\.js"'
+  expect "/waitlist/ has the honeypot" "$wl" 'name="website"'
+  for p in check-email confirmed; do
+    expect "/waitlist/$p/ 200" "$(hdr "$BASE/waitlist/$p/")" '^HTTP/[0-9.]+ 200'
+  done
+  expect "CSP script-src allows Turnstile" "$csp" "script-src [^;]*https://challenges\.cloudflare\.com"
+  expect "CSP frame-src allows Turnstile" "$csp" "frame-src [^;]*https://challenges\.cloudflare\.com"
+  expect "CSP connect-src allows the proxy" "$csp" "connect-src [^;]*$wl_origin_re"
+  expect "CSP form-action allows the proxy" "$csp" "form-action [^;]*$wl_origin_re"
+  expect "/ links to Early access" "$home" 'href="/waitlist/"'
+else
+  expect "/waitlist/ 404 (flag off)" "$h" '^HTTP/[0-9.]+ 404'
+  if grep -qi 'challenges\.cloudflare\.com' <<<"$csp"; then echo "FAIL CSP mentions Turnstile with the flag off"; fail=1; else echo "ok   CSP has no Turnstile (flag off)"; fi
+  if grep -q 'href="/waitlist/"' <<<"$home"; then echo "FAIL / links to /waitlist/ with the flag off"; fail=1; else echo "ok   / has no Early access link (flag off)"; fi
+fi
+
 if [ "$fail" -ne 0 ]; then echo "SMOKE: FAIL"; exit 1; fi
 echo "SMOKE: PASS"

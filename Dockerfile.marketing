@@ -24,6 +24,18 @@ RUN npm ci --omit=dev
 COPY PRIVACY.md CHANGELOG.md README.md /src/
 COPY docs/sync-setup.md docs/kanban-format.md docs/a11y-checklist.md docs/sync-safety.md /src/docs/
 COPY site/ ./
+# Early access (waitlist) build inputs. All three are public values, not
+# secrets: the signup endpoint of the muninn-waitlist proxy (it serves
+# POST /api/waitlist) and the Turnstile site key for muninn.ravenwoodsoftware.dev.
+# The Turnstile secret lives only in the proxy's GoForge env.
+# Build with --build-arg PUBLIC_WAITLIST_ENABLED=false for the flag-off site.
+# The flag must stay "true" only together with the endpoint and site key.
+ARG PUBLIC_WAITLIST_ENABLED=true
+ARG PUBLIC_WAITLIST_ENDPOINT=https://waitlist.ravenwoodsoftware.dev/api/waitlist
+ARG PUBLIC_TURNSTILE_SITEKEY=0x4AAAAAAGAr-ftoay609BpG
+ENV PUBLIC_WAITLIST_ENABLED=${PUBLIC_WAITLIST_ENABLED} \
+    PUBLIC_WAITLIST_ENDPOINT=${PUBLIC_WAITLIST_ENDPOINT} \
+    PUBLIC_TURNSTILE_SITEKEY=${PUBLIC_TURNSTILE_SITEKEY}
 # npm run build also writes nginx/security-headers.conf from the inline
 # scripts in dist/, so the CSP hashes cannot drift from the HTML.
 RUN npm run build
