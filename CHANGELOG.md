@@ -17,6 +17,18 @@ All notable changes to Muninn are documented here. The format is based on
   already-Markdown text included — pastes exactly as before, and every paste is
   one undo step saved by the normal autosave/`⌘S` path.
 
+- **Focus mode (#112).** One command (`⌘⇧F` / `Ctrl+Shift+F`, the button beside
+  the sidebar toggle, or the palette's **Toggle focus mode**) hides everything
+  but the note: the notes sidebar, the note title bar with its history buttons,
+  the Write/Read/Graph/Board/Kanban switcher and the links rail. In Write the
+  paragraphs that do not hold the caret are dimmed to a fainter ink while the
+  caret's keeps full contrast, and the caret's line stays centred in the editor
+  as you type or move (stopping where the note's first and last lines do).
+  Leaving Focus — the same chord, the faint exit chip at the top right, or the
+  palette — brings the chrome back exactly as it was, sidebar included; `⌘\`
+  keeps its own meaning. Focus is session-only, never applies to Graph, Board or
+  Kanban, and its chrome change lands at once under Reduce motion.
+
 ## [0.8.3] - 2026-11-14
 
 ### Changed

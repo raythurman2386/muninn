@@ -153,6 +153,14 @@ theme when motion is a problem.
 ## What it does
 
 - **Write / Read / Graph / Board / Kanban** modes: Write, Read and Graph for a note, **Board** for a `.excalidraw` whiteboard, and **Kanban** for a kanban note.
+- **Focus mode** (`⌘⇧F` / `Ctrl+Shift+F`, the button beside the sidebar toggle, or the
+  palette's **Toggle focus mode**): hides the notes sidebar, note title bar, mode switcher and
+  links rail so the note has the window. In Write it also dims every paragraph but the one
+  holding the caret — that one keeps full contrast — and keeps the caret's line centred as you
+  type or move (as close as the note's first and last lines allow; Read shows it without the
+  dimming). A faint exit chip stays at the top right: the same chord, the chip or the palette
+  action brings everything back, with the sidebar exactly as it was. `⌘\` keeps toggling the
+  sidebar alone. Reduced motion makes the chrome change land at once.
 - Autosave after a short idle, with a `Saved` indicator in the status bar.
 - Searchable note list grouped by folder with collapsing sections, a links rail with outgoing links
   and backlinks (including the line that made each link), and a one-click local graph.
@@ -231,6 +239,7 @@ In **Local** mode the graph keeps the open note and its immediate neighbours:
 | `⌘G` / `Ctrl+G` | Toggle Graph |
 | `⌘L` / `Ctrl+L` | Toggle Global / Local graph |
 | `⌘1` / `⌘2` / `⌘3` / `⌘4` / `⌘5` | Write / Read / Graph / Board / Kanban |
+| `⌘⇧F` / `Ctrl+Shift+F` | Toggle Focus mode: hide the sidebar, title bar, mode switcher and links rail, dim every paragraph but the caret's, and keep the caret's line centred (Write; the exit chip at the top right leaves it with the pointer) |
 | `↑` / `↓` / `←` / `→` (graph) | Move the focus ring to the nearest node (sorted order wraps when no node lies that way) |
 | `Enter` (graph) | Open the focused note; when it is already open, glide the camera back to it |
 | `+` / `-` (graph) | Zoom in / out at the canvas centre |

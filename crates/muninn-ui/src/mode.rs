@@ -122,6 +122,12 @@ impl State {
             self.editor.focused = false;
         }
         self.mode = mode;
+        // #112: Focus belongs to the note page. Opening Graph, Board or Kanban
+        // leaves it, so coming back to Write shows the usual chrome rather
+        // than a page that quietly hid it.
+        if !mode.is_note_mode() {
+            self.leave_focus_mode();
+        }
         // Slice 8 (GK MF1): entering Board collapses the sidebar, so a field
         // in it must not keep the keyboard while out of sight.
         if !self.sidebar_shown() {
