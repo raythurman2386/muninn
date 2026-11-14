@@ -16,6 +16,7 @@ mod board_text;
 mod board_tools;
 mod board_view;
 mod camera;
+pub mod contrast;
 mod doc_sync;
 mod global_shortcut;
 mod graph_view;
@@ -60,6 +61,7 @@ pub use board_tools::{BoardTool, Draft, tool_for_key};
 pub use board_view::{
     BoardConflict, BoardCounts, BoardSession, BoardStatus, BoardSummary, OpenBoard,
 };
+pub use contrast::{TEXT, UI, at_least, board_stroke, meets, ratio as contrast_ratio};
 pub use doc_sync::DocConflict;
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use kanban_dates::{KanbanPicker, PickerInsert, PickerKind};
@@ -71,6 +73,7 @@ pub use kanban_search::{
 pub use kanban_view::ShownKanban;
 pub use keys::{on_key, shortcut};
 pub use mode::{Mode, Scope};
+pub use omarchy::resolve_kit;
 pub use overlay::{Layer, PaletteAction, PaletteItem, PaletteState, SettingsTab};
 pub use poll::poll;
 pub use recovery::{RecoveryEntry, RecoverySlot};

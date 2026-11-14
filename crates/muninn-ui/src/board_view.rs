@@ -24,7 +24,7 @@
 
 use std::path::{Path, PathBuf};
 
-use muninn_core::{Board, BoardFile, Ink};
+use muninn_core::{Board, BoardFile};
 use rune::{
     Color, Cursor, Drag, El, KeyEvent, MagnifyEvent, Phase, PointerButton, TextStyle, Tx,
     WheelEvent, canvas, col, el, icon, row, spacer, text,
@@ -1161,6 +1161,13 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
         canvas_el = canvas_el.child(editor);
     }
     if scene.bounds.is_none() {
+        // #72: the placeholder is canvas ink, so it follows the paper
+        // (`#808080` is 3.95:1 on white and vanishes on a dark board).
+        let empty_ink = crate::contrast::at_least(
+            rune::color::hex("#808080").unwrap_or(Color::BLACK),
+            scene.paper,
+            crate::contrast::TEXT,
+        );
         canvas_el = canvas_el.child(
             col()
                 .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
@@ -1169,22 +1176,11 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
                     text("Nothing drawn on this board yet")
                         .key("board-empty")
                         .font(k.ty.ui)
-                        .color(Color {
-                            r: 0.4,
-                            g: 0.4,
-                            b: 0.4,
-                            a: 1.0,
-                        }),
+                        .color(empty_ink),
                 ),
         );
     }
-    if let Some(layer) = board_tools::preview(
-        open,
-        Ink {
-            stroke: s.board_stroke,
-            background: s.board_fill,
-        },
-    ) {
+    if let Some(layer) = board_tools::preview(open, s.new_board_ink()) {
         canvas_el = canvas_el.child(layer);
     }
     if let Some(layer) = crate::board_edit::overlay(open) {

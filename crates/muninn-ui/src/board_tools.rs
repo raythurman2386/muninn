@@ -310,6 +310,9 @@ impl State {
             }
             return;
         }
+        // #72: the ink for the element this drag will make, resolved before
+        // the board is borrowed mutably (a dark paper swaps the default).
+        let ink = self.new_board_ink();
         let Some(open) = &mut self.board_open else {
             return;
         };
@@ -350,10 +353,6 @@ impl State {
                     *last = at;
                 }
                 let Some(model) = &mut open.model else { return };
-                let ink = Ink {
-                    stroke: self.board_stroke,
-                    background: self.board_fill,
-                };
                 if let Some(made) = model.add_drawn_with(
                     tool.kind(),
                     &draft.points,

@@ -22,6 +22,7 @@ use rune::Color;
 use rune_kit::{Kit, PaletteFocus, PaletteSeed, StateColors};
 
 use crate::State;
+use crate::contrast::mix_oklab;
 use crate::settings::ThemeMode;
 
 /// Environment override for the palette file path (`""` disables the lookup).
@@ -189,13 +190,7 @@ impl OmarchyColors {
 }
 
 fn contrast(a: Color, b: Color) -> f32 {
-    let (a, b) = (a.luminance(), b.luminance());
-    (a.max(b) + 0.05) / (a.min(b) + 0.05)
-}
-
-fn mix_oklab(a: Color, b: Color, t: f32) -> Color {
-    let (a, b) = (a.to_oklab(), b.to_oklab());
-    Color::from_oklab(std::array::from_fn(|i| a[i] + (b[i] - a[i]) * t))
+    crate::contrast::ratio(a, b)
 }
 
 /// Load and parse the palette at `path`; `None` when missing or unreadable.
@@ -243,9 +238,11 @@ pub fn is_following(s: &State) -> bool {
 
 /// The owned [`Kit`] for the current theme choice. OpenCode's light/dark kits
 /// are `&'static`; the Omarchy kit is built on the fly, hence an owned value.
+/// Every kit is repaired to the WCAG floors first (#72): the dependency's
+/// palette is not ours to edit, and an Omarchy theme can be arbitrarily dim.
 #[must_use]
 pub fn resolve_kit(s: &State, system_dark: bool) -> Kit {
-    match s.theme {
+    let kit = match s.theme {
         ThemeMode::Dark => rune_theme_opencode::kit(true).clone(),
         ThemeMode::Light => rune_theme_opencode::kit(false).clone(),
         ThemeMode::Follow => rune_theme_opencode::kit(system_dark).clone(),
@@ -253,11 +250,19 @@ pub fn resolve_kit(s: &State, system_dark: bool) -> Kit {
             if !s.omarchy_disabled
                 && let Some(kit) = load(&s.omarchy_path).and_then(|colors| colors.kit())
             {
-                return kit;
+                return legible(kit);
             }
             rune_theme_opencode::kit(system_dark).clone()
         }
-    }
+    };
+    legible(kit)
+}
+
+/// [`resolve_kit`]'s last step: raise secondary and status inks to the WCAG
+/// floors the audit measured them below.
+fn legible(mut kit: Kit) -> Kit {
+    crate::contrast::enforce_kit(&mut kit);
+    kit
 }
 
 /// Version key for `rune::memo` call sites that paint from the kit: content
