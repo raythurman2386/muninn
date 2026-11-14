@@ -25,6 +25,12 @@ XDG_STATE_HOME=/tmp/demo/state XDG_CONFIG_HOME=/tmp/demo/config \
 MUNINN_OMARCHY_COLORS= target/debug/muninn --vault vault --scene notes \
   --script scripts/demos/e2e.json \
   --video docs/demos/e2e.mp4 --fps 30 --keys --pointer
+
+# Graph effects needs the Electric preset: point the config at a settings file
+# with `{"graph_effects":"electric"}` (or toggle it in Settings first).
+XDG_CONFIG_HOME=/tmp/demo/fx-config target/debug/muninn --vault vault --scene graph \
+  --script scripts/demos/graph-effects.json \
+  --video docs/demos/graph-effects.mp4 --fps 30 --keys --pointer
 ```
 
 - `--keys` draws keycaps for script keys/chords; `--pointer` ripples where the
@@ -41,6 +47,9 @@ MUNINN_OMARCHY_COLORS= target/debug/muninn --vault vault --scene notes \
 ## Clips
 
 - `graph-glide.mp4` — clicking graph nodes glides the camera between notes.
+- `graph-effects.mp4` — the Electric preset's lightning arcs and selection
+  border, then deleting a note burns its node out (the delete leaves the
+  sample vault's `.muninn-trash` behind; it is gitignored).
 - `palette.mp4` — `⌘⇧P` opens the command palette, Enter jumps to the
   local graph.
 - `theme.mp4` — changing the theme live in Settings (Omarchy → Dark → Light).

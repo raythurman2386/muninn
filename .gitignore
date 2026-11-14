@@ -17,3 +17,6 @@ __pycache__/
 
 # Local agent/harness working directory (sessions, caches).
 /.huginn/
+
+# Note-delete trash a demo or test run may leave in the sample vault.
+.muninn-trash/
