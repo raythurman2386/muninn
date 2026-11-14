@@ -1,0 +1,185 @@
+---
+// /features/: one section per mode, plus sync, tray, and accessibility.
+// Board and Kanban link out to their deep pages for the loops.
+import Base from '../../layouts/Base.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import ThemeStill from '../../components/ThemeStill.astro';
+import LoopVideo from '../../components/LoopVideo.astro';
+import { OG } from '../../lib/og';
+import '../../styles/features.css';
+
+const stillSizes = '(max-width: 1023px) calc(100vw - 32px), min(1160px, 100vw - 360px)';
+const still = { width: 1600, height: 1000, widths: [960, 1600], sizes: stillSizes };
+---
+<Base
+  title="Features — Muninn"
+  description="Muninn’s modes: Write, Read, Graph, Board, and Kanban, plus optional sync, a tray icon, and reduced motion. Every note is a file in a folder you choose."
+  ogTitle="Features — Muninn"
+  ogDescription="Notes, Board, Kanban, and the knowledge graph."
+  ogImage={OG.features.image}
+  ogImageAlt={OG.features.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header current="features" />
+
+  <main id="main" class="features-page">
+    <div class="wrap">
+      <h1>Features</h1>
+      <p class="lede">Five modes on the same vault: Write, Read, and Graph for a note, Board for an <code>.excalidraw</code> whiteboard, and Kanban for a kanban note. Sync, the tray, and reduced motion stay out of the way until you want them.</p>
+      <nav aria-label="On this page">
+        <ul class="feature-toc">
+          <li><a href="#write">Write</a></li>
+          <li><a href="#read">Read</a></li>
+          <li><a href="#graph">Graph</a></li>
+          <li><a href="#local-graph">Local graph</a></li>
+          <li><a href="#board">Board</a></li>
+          <li><a href="#kanban">Kanban</a></li>
+          <li><a href="#sync">Sync</a></li>
+          <li><a href="#tray">Tray</a></li>
+          <li><a href="#accessibility">Accessibility</a></li>
+        </ul>
+      </nav>
+    </div>
+
+    <article class="feature-section still wrap wrap-wide" id="write">
+      <div class="still-copy">
+        <h2>Write</h2>
+        <p>The Markdown source of the open note, with the note list on the left and the links rail on the right. Autosave after a short idle, with a Saved indicator in the status bar.</p>
+      </div>
+      <figure class="frame">
+        <ThemeStill
+          scene="editor"
+          priority
+          {...still}
+          alt="Muninn in Write mode: the Markdown source of “Product Roadmap” in the middle, the Tidepool note list on the left, and outgoing links and backlinks on the right."
+          altLight="Muninn in Write mode, light theme: the Markdown source of “Product Roadmap”, with the note list and links rail."
+        />
+        <figcaption>Write mode on Product Roadmap, with outgoing links and backlinks in the rail.</figcaption>
+      </figure>
+    </article>
+
+    <article class="feature-section still wrap wrap-wide" id="read">
+      <div class="still-copy">
+        <h2>Read</h2>
+        <p>The rendered note, including checklists and <code>[[wikilinks]]</code>. Unresolved links are drawn faintly; clicking one creates the note and opens it in Write.</p>
+      </div>
+      <figure class="frame">
+        <ThemeStill
+          scene="read"
+          {...still}
+          alt="Muninn in Read mode: the note “Launch Checklist” in the middle, with product, store, and marketing checklists, the note list on the left, and outgoing links and backlinks on the right."
+          altLight="Muninn in Read mode, light theme: “Launch Checklist” with its checklists, note list, and links rail."
+        />
+        <figcaption>Read mode on Launch Checklist, with outgoing links and backlinks.</figcaption>
+      </figure>
+    </article>
+
+    <article class="feature-section still wrap wrap-wide" id="graph">
+      <div class="still-copy">
+        <h2>Graph</h2>
+        <p>Every <code>[[wikilink]]</code> becomes an edge. Select a node and the camera glides to it; hub notes draw larger. Drag a node and it pins while you drag, scroll to zoom, or move the focus ring with the arrow keys.</p>
+        <p>Search the list with <kbd>⌘K</kbd>, or open the command palette with <kbd>⌘⇧P</kbd>. <kbd>Ctrl</kbd> on Linux and Windows.</p>
+      </div>
+      <div>
+        <LoopVideo
+          scene="graph"
+          width={1600}
+          height={1000}
+          widths={[960, 1600]}
+          heights={[600, 1000]}
+          sizes={stillSizes}
+          caption="Glide across the global graph, select a note, and open its local graph."
+          label="Muninn graph tour: glide the global graph, select a note, and open its local graph."
+          alt="The opening frame of the graph loop: Muninn’s global knowledge graph of the Tidepool vault."
+          altLight="The opening frame of the graph loop, light theme: Muninn’s global knowledge graph of the Tidepool vault."
+        />
+      </div>
+    </article>
+
+    <article class="feature-section still wrap wrap-wide" id="local-graph">
+      <div class="still-copy">
+        <h2>Local graph</h2>
+        <p>Keeps the open note and only the notes it links to or from. One click from the links rail, or from the command palette.</p>
+      </div>
+      <figure class="frame">
+        <ThemeStill
+          scene="graph-local"
+          {...still}
+          alt="Muninn’s local graph: the open Tidepool note and only the notes it links to or from."
+          altLight="Muninn’s local graph in the light theme: the open note and only its direct neighbours."
+        />
+        <figcaption>The local graph: the open note and its immediate neighbours.</figcaption>
+      </figure>
+    </article>
+
+    <article class="feature-section still wrap wrap-wide" id="board">
+      <div class="still-copy">
+        <h2>Board</h2>
+        <p>A whiteboard stored as an <code>.excalidraw</code> file in the vault. Pick a stroke colour from the palette, draw cards, arrows and freehand ink, and label them in place. <kbd>⌘4</kbd> opens Board.</p>
+        <p class="more"><a href="/features/board/">Board, with a short loop</a></p>
+      </div>
+      <figure class="frame">
+        <ThemeStill
+          scene="board-drawn"
+          {...still}
+          alt="The Launch Plan board in Muninn: the Tidepool 1.0 launch-plan diagram, with coloured outline cards, a red ink circle around “Launch day Dec 2”, and an arrow pointing at Retro."
+          altLight="The Launch Plan board in the light theme: the Tidepool 1.0 launch-plan diagram, with coloured outline cards, a red ink circle around “Launch day Dec 2”, and an arrow pointing at Retro."
+        />
+        <figcaption>The Launch Plan board, with ink around Launch day and an arrow to Retro.</figcaption>
+      </figure>
+    </article>
+
+    <article class="feature-section still wrap wrap-wide" id="kanban">
+      <div class="still-copy">
+        <h2>Kanban</h2>
+        <p>A kanban note in the same vault, with lanes and cards you can drag. Moving a card into a Done lane marks it complete. <kbd>⌘5</kbd> opens Kanban.</p>
+        <p class="more"><a href="/features/kanban/">Kanban, with a short loop</a></p>
+      </div>
+      <figure class="frame">
+        <ThemeStill
+          scene="kanban-lanes"
+          width={1160}
+          height={620}
+          widths={[696, 1160]}
+          sizes={stillSizes}
+          alt="The Launch Week kanban in Muninn, showing three lanes: To do, Doing, and Done, with cards for screenshots, the launch post, and completed onboarding work."
+          altLight="The Launch Week kanban in the light theme, showing three lanes: To do, Doing, and Done."
+        />
+        <figcaption>The Launch Week kanban: To do, Doing, and Done.</figcaption>
+      </figure>
+    </article>
+
+    <article class="feature-section wrap" id="sync">
+      <div class="feature-prose">
+        <h2>Sync</h2>
+        <p>Off until you connect Google Drive, a GitHub repository, or a device on your Tailscale network. There is no Muninn account. See <a href="/privacy/">Privacy</a> for what that means.</p>
+      </div>
+    </article>
+
+    <article class="feature-section wrap" id="tray">
+      <div class="feature-prose">
+        <h2>Tray</h2>
+        <p>The tray icon is off by default. When it is on, Linux and Windows can show Muninn, open a new note, start a sync, or quit from the tray. Close to tray is a separate switch, also off by default. macOS has no tray in this release.</p>
+      </div>
+    </article>
+
+    <article class="feature-section still wrap wrap-wide" id="accessibility">
+      <div class="still-copy">
+        <h2>Accessibility</h2>
+        <p>Search, the command palette, and the graph are fully keyboard-operable. Reduce motion (Settings › Graph) follows the operating system by default; On and Off override it. Camera glides and graph tweens become instant when it is on.</p>
+      </div>
+      <figure class="frame">
+        <ThemeStill
+          scene="command-palette"
+          {...still}
+          alt="Muninn’s command palette open over Launch Checklist, with the query “graph” and “Open local graph” selected."
+          altLight="Muninn’s command palette in the light theme, with the query “graph” and “Open local graph” selected."
+        />
+        <figcaption>The command palette, filtering actions for “graph”.</figcaption>
+      </figure>
+    </article>
+  </main>
+
+  <Footer />
+</Base>

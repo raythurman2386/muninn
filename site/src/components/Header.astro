@@ -1,20 +1,21 @@
 ---
 // Shared site header. `home` keeps the landing-page fragment links (#top, #features)
-// so the home markup stays pixel-identical to the W1 port aside from the Docs
-// and Changelog nav items. `current` marks the active document page.
+// so the home Features item still jumps to the three pillars. Other pages point
+// Features at /features/. Download always goes to /download/. `current` marks the
+// active features, docs, or changelog page; Download uses the request path.
 // The Early access item is included only when PUBLIC_WAITLIST_ENABLED=true, so
-// a default build stays byte-identical to main.
+// a default build stays byte-identical to main (aside from the Features href).
 import { WAITLIST_ENABLED } from '../lib/waitlist';
 
 interface Props {
   home?: boolean;
-  current?: 'docs' | 'changelog';
+  current?: 'features' | 'docs' | 'changelog';
 }
 
 const { home = false, current } = Astro.props;
 const brandHref = home ? '#top' : '/';
 const brandLabel = home ? 'Muninn, back to top' : 'Muninn, home';
-const featuresHref = home ? '#features' : '/#features';
+const featuresHref = home ? '#features' : '/features/';
 const downloadHref = '/download/';
 const downloadCurrent = Astro.url.pathname === '/download' || Astro.url.pathname === '/download/';
 ---
@@ -26,7 +27,7 @@ const downloadCurrent = Astro.url.pathname === '/download' || Astro.url.pathname
       </a>
       <nav aria-label="Primary">
         <ul class="nav">
-          <li><a href={featuresHref}>Features</a></li>
+          <li><a href={featuresHref} aria-current={current === 'features' ? 'page' : undefined}>Features</a></li>
           <li><a href={downloadHref} aria-current={downloadCurrent ? "page" : undefined}>Download</a></li>
           <li><a href="/docs/" aria-current={current === 'docs' ? 'page' : undefined}>Docs</a></li>
           <li><a href="/changelog/" aria-current={current === 'changelog' ? 'page' : undefined}>Changelog</a></li>

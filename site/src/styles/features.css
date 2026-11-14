@@ -1,0 +1,82 @@
+/*
+  Styles for /features/, /features/board/ and /features/kanban/.
+  Kept out of site.css so the landing-page typography stays unchanged.
+*/
+
+body:has(.features-page) {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+body:has(.features-page) .features-page {
+  flex: 1;
+}
+
+.features-page {
+  padding: clamp(48px, 8vw, 96px) 0 clamp(64px, 10vw, 120px);
+}
+.features-page h1 {
+  margin: 0 0 0.4em;
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 640;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.features-page .lede {
+  margin: 0 0 1.5em;
+  max-width: 40em;
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.features-page h2 {
+  margin: 0 0 0.5em;
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  text-wrap: balance;
+  scroll-margin-top: 80px;
+}
+.features-page p, .features-page li {
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.65;
+}
+.features-page p { margin: 0 0 1em; }
+.features-page code { overflow-wrap: anywhere; }
+.features-page kbd { white-space: nowrap; }
+.features-page a { overflow-wrap: anywhere; }
+
+.feature-toc {
+  list-style: none;
+  margin: 0 0 clamp(48px, 7vw, 80px);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  max-width: 52em;
+}
+.feature-toc a {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.feature-section {
+  margin-bottom: clamp(56px, 9vw, 112px);
+}
+.feature-section:last-child { margin-bottom: 0; }
+.feature-section .still-copy p:last-child { margin-bottom: 0; }
+.feature-section .more { margin-top: 12px; font-size: 14px; font-weight: 500; }
+
+.feature-prose {
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.deep-back {
+  margin: 0 0 1.25em;
+  font-size: 14px;
+}

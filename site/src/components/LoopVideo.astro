@@ -1,0 +1,71 @@
+---
+// Theme-aware product loop: poster first (AVIF/WebP), WebM+MP4 mounted by
+// main.js only when motion is allowed and the figure is near the viewport.
+// Reduced motion keeps the poster and hides the pause button.
+interface Props {
+  scene: string;
+  width: number;
+  height: number;
+  widths: number[];
+  heights: number[];
+  caption: string;
+  label: string;
+  alt: string;
+  altLight?: string;
+  sizes?: string;
+  loading?: 'lazy' | 'eager';
+  priority?: boolean;
+}
+
+const {
+  scene,
+  width,
+  height,
+  widths,
+  heights,
+  caption,
+  label,
+  alt,
+  altLight,
+  sizes = '(max-width: 800px) 100vw, 1600px',
+  loading: loadingProp = 'lazy',
+  priority = false,
+} = Astro.props;
+
+const loading = priority ? 'eager' : loadingProp;
+const fetchpriority = priority ? 'high' : 'auto';
+
+const lightAlt = altLight ?? alt;
+
+function poster(theme: string, w: number, ext: string) {
+  return `/assets/media/loops/${theme}/loop-${scene}-${w}-poster.${ext}`;
+}
+function posterSet(theme: string, ext: string) {
+  return widths.map((w) => `${poster(theme, w, ext)} ${w}w`).join(', ');
+}
+---
+<figure class="frame loop-figure">
+  <div
+    class={`media loop-media loop-ratio-${width}x${height}`}
+    data-loop
+    data-loop-scene={scene}
+    data-loop-widths={widths.join(',')}
+    data-loop-heights={heights.join(',')}
+    data-loop-label={label}
+  >
+    <picture class="only-dark loop-poster">
+      <source type="image/avif" srcset={posterSet('dark', 'avif')} sizes={sizes}>
+      <source type="image/webp" srcset={posterSet('dark', 'webp')} sizes={sizes}>
+      <img src={poster('dark', width, 'webp')} width={width} height={height} loading={loading} fetchpriority={fetchpriority} decoding="async" alt={alt}>
+    </picture>
+    <picture class="only-light loop-poster">
+      <source type="image/avif" srcset={posterSet('light', 'avif')} sizes={sizes}>
+      <source type="image/webp" srcset={posterSet('light', 'webp')} sizes={sizes}>
+      <img src={poster('light', width, 'webp')} width={width} height={height} loading={loading} fetchpriority={fetchpriority} decoding="async" alt={lightAlt}>
+    </picture>
+  </div>
+  <figcaption>
+    <span>{caption}</span>
+    <button class="motion-toggle" type="button" hidden>Pause</button>
+  </figcaption>
+</figure>

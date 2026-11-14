@@ -1,0 +1,68 @@
+---
+// /features/kanban/: Kanban deep page with the drag loop and the lanes still.
+import Base from '../../layouts/Base.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import ThemeStill from '../../components/ThemeStill.astro';
+import LoopVideo from '../../components/LoopVideo.astro';
+import { OG } from '../../lib/og';
+import '../../styles/features.css';
+
+const stillSizes = '(max-width: 800px) calc(100vw - 32px), min(1160px, 100vw - 48px)';
+---
+<Base
+  title="Kanban — Muninn"
+  description="Muninn’s Kanban is a kanban note in your vault. Drag cards between lanes; Done marks them complete."
+  ogTitle="Kanban — Muninn"
+  ogDescription="A kanban note in the same vault as your notes."
+  ogImage={OG.features.image}
+  ogImageAlt={OG.features.alt}
+>
+  <a class="skip" href="#main">Skip to content</a>
+  <Header current="features" />
+
+  <main id="main" class="features-page">
+    <div class="wrap">
+      <p class="deep-back"><a href="/features/">← Features</a></p>
+      <h1>Kanban</h1>
+      <p class="lede">A kanban note in the same vault as your other files. <kbd>⌘5</kbd> opens Kanban, or pick it from the mode bar. Drag a card into a Done lane and it is marked complete.</p>
+    </div>
+
+    <div class="wrap wrap-wide">
+      <LoopVideo
+        priority
+        scene="kanban-lanes"
+        width={1160}
+        height={620}
+        widths={[696, 1160]}
+        heights={[372, 620]}
+        sizes={stillSizes}
+        caption="Drag cards between lanes. Done marks them complete."
+        label="Muninn Kanban tour: drag cards between the To do, Doing, and Done lanes."
+        alt="The opening frame of the Kanban loop: the Launch Week board’s three lanes, To do, Doing, and Done."
+        altLight="The opening frame of the Kanban loop, light theme: the Launch Week board’s three lanes."
+      />
+    </div>
+
+    <article class="feature-section still wrap wrap-wide">
+      <div class="still-copy">
+        <h2>Lanes and cards</h2>
+        <p>Each lane holds cards with checklists, tags, and links to other notes in the vault. The still is a close-up of the Launch Week board: To do, Doing, and Done.</p>
+      </div>
+      <figure class="frame">
+        <ThemeStill
+          scene="kanban-lanes"
+          width={1160}
+          height={620}
+          widths={[696, 1160]}
+          sizes={stillSizes}
+          alt="The Launch Week kanban in Muninn, showing three lanes: To do, Doing, and Done, with cards for screenshots, the launch post, and completed onboarding work."
+          altLight="The Launch Week kanban in the light theme, showing three lanes: To do, Doing, and Done."
+        />
+        <figcaption>Launch Week, with cards in To do, Doing, and Done.</figcaption>
+      </figure>
+    </article>
+  </main>
+
+  <Footer />
+</Base>

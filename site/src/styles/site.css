@@ -53,6 +53,7 @@ kbd { border: 1px solid var(--border-base); border-bottom-width: 2px; border-rad
   border-radius: var(--r-md); transition: background var(--t-control) var(--ease), color var(--t-control) var(--ease);
 }
 .nav a:hover, .theme-toggle:hover { color: var(--text-base); background: var(--hover); }
+.nav a[aria-current="page"] { color: var(--text-base); background: var(--hover); }
 .theme-toggle { border: 1px solid var(--border-base); background: transparent; cursor: pointer; }
 [data-theme="dark"] .i-moon, [data-theme="light"] .i-sun { display: none; }
 
@@ -91,7 +92,8 @@ h1 .soft { color: var(--text-muted); }
 
 /* Product frames */
 .frame { margin: 0; }
-.frame > img, .frame .media { border-radius: var(--r-xl); box-shadow: var(--shot-shadow); overflow: hidden; background: var(--bg-base); }
+.frame > img, .frame > picture, .frame .media { border-radius: var(--r-xl); box-shadow: var(--shot-shadow); overflow: hidden; background: var(--bg-base); }
+.frame > picture { display: block; }
 .hero-media { margin-top: clamp(40px, 5vw, 64px); }
 .media { position: relative; aspect-ratio: 2360 / 1560; }
 .media img, .media video { width: 100%; height: 100%; object-fit: cover; }
@@ -120,6 +122,32 @@ h1 .soft { color: var(--text-muted); }
 .feature-grid h3 code { font-size: 0.8em; }
 @media (min-width: 720px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1100px) { .feature-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* Feature loops (posters + lazy video). Aspect comes from a loop-ratio-* class, not an inline style (CSP style-src is self). */
+.loop-media { aspect-ratio: 1600 / 1000; }
+.loop-media.loop-ratio-1600x1000 { aspect-ratio: 1600 / 1000; }
+.loop-media.loop-ratio-1160x620 { aspect-ratio: 1160 / 620; }
+.loop-figure figcaption,
+.still figcaption {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  margin-top: 16px; color: var(--text-muted); font-size: 14px; line-height: 1.5;
+}
+.loop-media picture, .still .frame picture { margin: 0; }
+.still .frame picture img, .pillar-card .frame picture img, .pillar-card .frame img {
+  width: 100%; height: auto;
+}
+
+/* Home pillars: Notes and graph, Board, Kanban. */
+.pillars { padding: clamp(48px, 8vw, 112px) 0; border-top: 1px solid var(--border-muted); }
+.pillars .section-title { margin-bottom: 16px; }
+.pillars-lede { margin: 0 0 clamp(40px, 6vw, 64px); max-width: 40em; color: var(--text-muted); font-size: 17px; line-height: 1.65; text-wrap: pretty; }
+.pillar-grid { list-style: none; margin: 0 auto; padding: 0; display: grid; gap: 40px; }
+@media (min-width: 900px) { .pillar-grid { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
+.pillar-card { display: flex; flex-direction: column; min-width: 0; }
+.pillar-card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; }
+.pillar-card p { margin: 0 0 12px; color: var(--text-muted); line-height: 1.6; }
+.pillar-card .pillar-link { margin: 0 0 16px; font-size: 14px; font-weight: 500; }
+.pillar-card .frame { margin-top: auto; }
 
 /* Closing */
 .closing { padding: clamp(72px, 10vw, 140px) 0; border-top: 1px solid var(--border-muted); }
@@ -154,8 +182,8 @@ h1 .soft { color: var(--text-muted); }
   .btn-primary { width: 100%; justify-content: center; }
   .dl-note { margin-left: 0; }
   .lede { margin-left: 0; }
-  .frame > img, .frame .media { border-radius: var(--r-lg); }
-  .hero-media figcaption { align-items: flex-start; }
+  .frame > img, .frame > picture, .frame .media { border-radius: var(--r-lg); }
+  .hero-media figcaption, .loop-figure figcaption, .still figcaption { align-items: flex-start; }
   .footer-links { margin-right: 0; }
 }
 
