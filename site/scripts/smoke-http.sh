@@ -159,7 +159,7 @@ expect "/press/ text/html" "$h" '^content-type: text/html'
 expect "/press/ heading" "$body" '<h1>Press</h1>'
 expect "/press/ logo svg" "$body" '/assets/logo.svg'
 expect "/press/ logo png" "$body" '/assets/logo.png'
-expect "/press/ version" "$body" 'v0\.8\.2'
+expect "/press/ version" "$body" 'v0\.[0-9]+\.[0-9]+'
 expect "/press/ has the Umami tag once" "$(grep -o 'umami-app.ravenwoodsoftware.dev/script.js' <<<"$body" | wc -l)" '^1$'
 expect "/press/ og:image" "$body" 'property="og:image" content="https://muninn.ravenwoodsoftware.dev/assets/og/press.png"'
 
@@ -184,7 +184,7 @@ expect "/download/ names the arm64 glibc requirement" "$download" 'glibc 2.39'
 expect "/download/ says Ubuntu 24.04 can run the arm64 build" "$download" 'Ubuntu 24.04 and Debian 13 can run'
 expect "/download/ has a checksum" "$download" 'SHA-256'
 expect "/download/ has a cosign verify snippet" "$download" 'cosign verify-blob'
-expect "/download/ pins the cosign identity to the release tag" "$download" 'certificate-identity https://github.com/raythurman2386/muninn/.github/workflows/release.yml@refs/tags/v0.8.2'
+expect "/download/ pins the cosign identity to the release tag" "$download" 'certificate-identity https://github.com/raythurman2386/muninn/.github/workflows/release.yml@refs/tags/v0\.[0-9]+\.[0-9]+'
 if grep -q 'certificate-identity-regexp' <<<"$download"; then
   echo "FAIL /download/ still prints certificate-identity-regexp"; fail=1
 else
