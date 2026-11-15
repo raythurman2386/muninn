@@ -19,7 +19,7 @@ use std::io;
 
 use serde_json::Value;
 
-use super::dates::{CivilDate, KanbanDefaults, format_date};
+use super::dates::{CivilDate, KanbanDefaults, format_date_for_file};
 use super::edit::{insert_block, last_text_line_end, leading_indented_end, splice};
 use super::parse::split_block_id;
 use super::{Kanban, invalid_data, invalid_input};
@@ -145,9 +145,12 @@ impl ArchiveSettings {
     }
 
     /// The timestamp for `date`, without a separator.
+    ///
+    /// File text: the archive date is written with the file names (English),
+    /// never the display table.
     #[must_use]
     pub fn stamp(&self, date: CivilDate) -> String {
-        format_date(date, &self.date_format)
+        format_date_for_file(date, &self.date_format)
     }
 
     fn trim_format(&mut self) {

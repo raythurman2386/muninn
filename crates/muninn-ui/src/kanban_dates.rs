@@ -19,9 +19,10 @@ use std::cmp::Reverse;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use muninn_core::{
-    CardText, CivilDate, CivilTime, DateSettings, DateToken, Kanban, format_date, format_time,
-    scan_card_text,
+    CardText, CivilDate, CivilTime, DateSettings, DateToken, Kanban, format_date_for_display,
+    format_date_for_file, format_time_for_display, scan_card_text,
 };
+use muninn_i18n::EN_US;
 use rune::{El, Key, KeyEvent, TextEdit, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -466,10 +467,10 @@ fn link_replacement(
         return None;
     }
     let date = date?;
-    let new_formatted = format_date(date, &settings.date_format);
+    let new_formatted = format_date_for_file(date, &settings.date_format);
     let old_formatted = settings
         .parse_date(&old.value)
-        .map(|date| format_date(date, &settings.date_format));
+        .map(|date| format_date_for_file(date, &settings.date_format));
     let value = match old_formatted.filter(|old_formatted| old.value.contains(old_formatted)) {
         Some(old_formatted) => old.value.replacen(&old_formatted, &new_formatted, 1),
         None => new_formatted,
@@ -665,7 +666,8 @@ pub(crate) fn picker_layer(s: &State, k: &Kit) -> El {
 
 fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
     let first = CivilDate::new(picker.year, picker.month, 1).unwrap_or_else(local_today);
-    let title = format_date(first, "MMMM YYYY");
+    let names = &EN_US;
+    let title = format_date_for_display(first, "MMMM YYYY", names);
     let head = row()
         .w_full()
         .gap(4.0)
@@ -697,16 +699,16 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
         .label("Days")
         .focus_group();
     let mut week = row().w_full().gap(2.0);
-    for label in ["S", "M", "T", "W", "T", "F", "S"] {
+    for column in 0..7 {
         week = week.child(
-            text(label)
+            text(names.narrow_weekday(column))
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
                 .w(28.0),
         );
     }
     grid = grid.child(week);
-    let offset = first.weekday() as usize;
+    let offset = names.column(first.weekday() as u8);
     let days = first.days_in_month();
     let mut column = 0;
     let mut line = row().w_full().gap(2.0);
@@ -957,7 +959,7 @@ pub(crate) fn card_when(
         let date = settings.parse_date(raw);
         let shown = date.map_or_else(
             || raw.to_owned(),
-            |date| format_date(date, &settings.date_display_format),
+            |date| format_date_for_display(date, &settings.date_display_format, &EN_US),
         );
         let shown = match (settings.show_relative_date, date) {
             (true, Some(date)) => {
@@ -995,7 +997,7 @@ pub(crate) fn card_when(
     if let Some(token) = &found.time {
         let shown = settings.parse_time(&token.value).map_or_else(
             || token.value.clone(),
-            |time| format_time(time, &settings.time_format),
+            |time| format_time_for_display(time, &settings.time_format, &EN_US),
         );
         line = line.child(
             text(shown)

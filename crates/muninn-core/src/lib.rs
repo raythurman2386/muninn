@@ -49,8 +49,9 @@ pub use kanban::{
     SHOW_ARCHIVE_BUTTON, SHOW_CHECKBOXES, SHOW_FILTER_BUTTON, SHOW_MISSING_METADATA,
     SHOW_OPEN_MARKDOWN_BUTTON, SHOW_RELATIVE_DATE, SHOW_TAGS_AT_BOTTOM, TAG_COLORS, TIME_FORMAT,
     TIME_TRIGGER, TagColor, TagSettings, TagToken, card_checklist, card_metadata,
-    first_linked_note, format_date, format_time, in_code_at, inline_fields, is_kanban, is_tag_char,
-    is_tag_text, kanban_key, kanban_keys_in, metadata_field_indices, metadata_fields,
+    first_linked_note, format_date, format_date_for_display, format_date_for_file, format_time,
+    format_time_for_display, format_time_for_file, in_code_at, inline_fields, is_kanban,
+    is_tag_char, is_tag_text, kanban_key, kanban_keys_in, metadata_field_indices, metadata_fields,
     metadata_rows, note_metadata, scan_card_text, scan_tags, tag_colors,
 };
 pub use note::Note;
