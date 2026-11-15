@@ -2,8 +2,9 @@
 //!
 //! This crate is the catalog **seam only**: it holds the keys, the `en-US`
 //! text, the parameterised copy that cannot be a single string, and the date
-//! name tables. It ships no translation, changes no call site, and changes no
-//! user-visible text. Nothing in the workspace depends on it yet.
+//! name tables. It ships no translation and changes no user-visible text:
+//! `muninn-core` and `muninn-ui` read it, and they pass [`EN_US`], so every
+//! rendered string is byte-identical to the hardcoded one it replaced.
 //!
 //! # Why a typed catalog
 //!
@@ -23,9 +24,11 @@
 //!   parameterised copy: a view must not build a translated sentence with
 //!   `format!`, so counts and relative dates get typed functions instead. They
 //!   take no [`Key`].
-//! - [`DateNames`] and [`EN_US`] carry month/weekday names, the first day of
-//!   the week and `AM`/`PM`. The display-side date formatter, English ordinals
-//!   and the file-versus-display split move in a later slice.
+//! - [`DateNames`] and [`EN_US`] carry month/weekday names, short weekday
+//!   labels, the first day of the week and `AM`/`PM`. `muninn-core`'s
+//!   `format_date_for_display`/`format_time_for_display` read them; the file
+//!   formatters keep their own English table, and `Do` still spells an English
+//!   ordinal until a locale pack supplies its own rule.
 //!
 //! Extraction of the call sites is the follow-up work, area by area, keeping
 //! English output byte-identical. This crate is the target those changes land

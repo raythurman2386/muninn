@@ -32,8 +32,10 @@
 
 use muninn_core::{
     Card, CardText, CivilDate, DateSettings, Kanban, Lane, MetadataCache, MetadataSettings,
-    TagSettings, card_checklist, format_date, format_time, parse_links, scan_card_text,
+    TagSettings, card_checklist, format_date_for_display, format_time_for_display, parse_links,
+    scan_card_text,
 };
+use muninn_i18n::EN_US;
 use rune::{El, Key, KeyEvent, ScrollSpec, Tx, col, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 use rune_theme_opencode::icons as ic;
@@ -801,13 +803,13 @@ fn table_date(settings: &DateSettings, found: &CardText) -> String {
         let raw = crate::kanban_dates::link_target(&token.value);
         parts.push(settings.parse_date(raw).map_or_else(
             || raw.to_owned(),
-            |date| format_date(date, &settings.date_display_format),
+            |date| format_date_for_display(date, &settings.date_display_format, &EN_US),
         ));
     }
     if let Some(token) = &found.time {
         parts.push(settings.parse_time(&token.value).map_or_else(
             || token.value.clone(),
-            |time| format_time(time, &settings.time_format),
+            |time| format_time_for_display(time, &settings.time_format, &EN_US),
         ));
     }
     parts.join(" ")

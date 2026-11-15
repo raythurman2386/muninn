@@ -2,9 +2,13 @@
 //! settings a board resolves (slice 9).
 //!
 //! `docs/kanban-format.md` section 7 fixes the tokens and section 9 the
-//! setting names. There is no dependency and no locale data: month and
-//! weekday names are English, the language of a new file.
+//! setting names. Month and weekday names come from a table with two paths:
+//! the **file** path always uses the English table ([`MONTHS`]/[`WEEKDAYS`],
+//! the language of a new file), and the **display** path takes a
+//! [`muninn_i18n::DateNames`], which is `EN_US` today. A translated UI never
+//! changes what a board writes.
 
+use muninn_i18n::DateNames;
 use serde_json::{Map, Value};
 
 use super::archive::{
@@ -60,6 +64,22 @@ const WEEKDAYS: [&str; 7] = [
     "Friday",
     "Saturday",
 ];
+
+/// The table the **file** path formats with.
+///
+/// It is deliberately separate from `muninn_i18n::EN_US`: a UI locale must
+/// never change the bytes a board writes, so the two tables must not be the
+/// same object. [`Cursor::month_name`] reads `MONTHS` too, so a written month
+/// name and a parsed one cannot drift.
+const FILE_NAMES: DateNames = DateNames {
+    months: MONTHS,
+    weekdays: WEEKDAYS,
+    weekdays_short: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    weekdays_narrow: ["S", "M", "T", "W", "T", "F", "S"],
+    week_start: 0,
+    am: "AM",
+    pm: "PM",
+};
 
 /// One day in the proleptic Gregorian calendar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -206,12 +226,40 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (y + i64::from(m <= 2), m as u32, d as u32)
 }
 
-/// `YYYY-MM-DD` and the tokens in `docs/kanban-format.md` section 7.
+/// `YYYY-MM-DD` and the tokens in `docs/kanban-format.md` section 7, in the
+/// **file** language (English names, ASCII digits).
 ///
-/// `[` and `]` wrap literal text (`[at ]HH:mm` shows `at 14:30`). Anything
-/// that is not a token is copied as written, so `QQQQ` stays `QQQQ`.
+/// This is the default the file writers use; [`format_date_for_display`] is
+/// the UI path. `[` and `]` wrap literal text (`[at ]HH:mm` shows `at 14:30`).
+/// Anything that is not a token is copied as written, so `QQQQ` stays `QQQQ`.
 #[must_use]
 pub fn format_date(date: CivilDate, format: &str) -> String {
+    format_date_for_file(date, format)
+}
+
+/// [`format_date`] under its explicit name: English month and weekday names,
+/// ASCII digits, whatever the UI language is.
+///
+/// A new date token is file text, like the archive heading, so it never takes
+/// the display table.
+#[must_use]
+pub fn format_date_for_file(date: CivilDate, format: &str) -> String {
+    format_date_with(date, format, &FILE_NAMES)
+}
+
+/// [`format_date`] in a UI locale: month and weekday names come from `names`.
+///
+/// Only the word tokens change: `MMMM`/`MMM` read `names.months`, `dddd`/
+/// `ddd`/`dd` read `names.weekdays` (abbreviated char-aware, so a non-ASCII
+/// name is never cut mid-character), and `Do` still spells the English
+/// ordinal until a locale pack supplies its own rule. Digits, literals and `d`
+/// are unchanged.
+#[must_use]
+pub fn format_date_for_display(date: CivilDate, format: &str, names: &DateNames) -> String {
+    format_date_with(date, format, names)
+}
+
+fn format_date_with(date: CivilDate, format: &str, names: &DateNames) -> String {
     let mut out = String::new();
     let mut rest = format;
     while let Some(ch) = rest.chars().next() {
@@ -220,7 +268,7 @@ pub fn format_date(date: CivilDate, format: &str) -> String {
             rest = &rest[used..];
             continue;
         }
-        if let Some((text, used)) = date_token(date, rest) {
+        if let Some((text, used)) = date_token(date, rest, names) {
             out.push_str(&text);
             rest = &rest[used..];
         } else {
@@ -231,9 +279,30 @@ pub fn format_date(date: CivilDate, format: &str) -> String {
     out
 }
 
-/// A time in the same token language: `HH H hh h mm m ss s A a`.
+/// A time in the same token language, in the **file** language (English
+/// `AM`/`PM`).
 #[must_use]
 pub fn format_time(time: CivilTime, format: &str) -> String {
+    format_time_for_file(time, format)
+}
+
+/// [`format_time`] under its explicit name: `A`/`a` are English `AM`/`PM`
+/// (`am`/`pm`), whatever the UI language is.
+#[must_use]
+pub fn format_time_for_file(time: CivilTime, format: &str) -> String {
+    format_time_with(time, format, &FILE_NAMES)
+}
+
+/// [`format_time`] in a UI locale: `A` reads `names.am`/`names.pm`, and `a`
+/// reads the same words lowercased.
+///
+/// Digits, literals and every other token are unchanged.
+#[must_use]
+pub fn format_time_for_display(time: CivilTime, format: &str, names: &DateNames) -> String {
+    format_time_with(time, format, names)
+}
+
+fn format_time_with(time: CivilTime, format: &str, names: &DateNames) -> String {
     let mut out = String::new();
     let mut rest = format;
     while let Some(ch) = rest.chars().next() {
@@ -242,7 +311,7 @@ pub fn format_time(time: CivilTime, format: &str) -> String {
             rest = &rest[used..];
             continue;
         }
-        if let Some((text, used)) = time_token(time, rest) {
+        if let Some((text, used)) = time_token(time, rest, names) {
             out.push_str(&text);
             rest = &rest[used..];
         } else {
@@ -251,6 +320,14 @@ pub fn format_time(time: CivilTime, format: &str) -> String {
         }
     }
     out
+}
+
+/// The first `count` characters of `name`.
+///
+/// A locale name may be non-ASCII, so a byte slice would panic; `dd` of a name
+/// starting with a CJK character is two characters, not two bytes.
+fn abbreviate(name: &str, count: usize) -> String {
+    name.chars().take(count).collect()
 }
 
 /// `[literal]` → the inside and the bytes used, or `None` for a `[` with no
@@ -261,25 +338,27 @@ fn literal_escape(rest: &str) -> Option<(&str, usize)> {
     Some((&inside[..close], 1 + close + 1))
 }
 
-fn date_token(date: CivilDate, rest: &str) -> Option<(String, usize)> {
+fn date_token(date: CivilDate, rest: &str, names: &DateNames) -> Option<(String, usize)> {
     // Longest first; `Do` before `D`, and every `d` form before `d`.
     for token in [
         "YYYY", "MMMM", "dddd", "MMM", "ddd", "Do", "YY", "MM", "DD", "dd", "M", "D", "d",
     ] {
         if rest.starts_with(token) {
+            let month = names.months[(date.month - 1) as usize];
+            let weekday = names.weekdays[date.weekday() as usize];
             let text = match token {
                 "YYYY" => format!("{:04}", date.year),
                 "YY" => format!("{:02}", date.year.rem_euclid(100)),
-                "MMMM" => MONTHS[(date.month - 1) as usize].to_owned(),
-                "MMM" => MONTHS[(date.month - 1) as usize][..3].to_owned(),
+                "MMMM" => month.to_owned(),
+                "MMM" => abbreviate(month, 3),
                 "MM" => format!("{:02}", date.month),
                 "M" => date.month.to_string(),
                 "DD" => format!("{:02}", date.day),
                 "D" => date.day.to_string(),
                 "Do" => ordinal(date.day),
-                "dddd" => WEEKDAYS[date.weekday() as usize].to_owned(),
-                "ddd" => WEEKDAYS[date.weekday() as usize][..3].to_owned(),
-                "dd" => WEEKDAYS[date.weekday() as usize][..2].to_owned(),
+                "dddd" => weekday.to_owned(),
+                "ddd" => abbreviate(weekday, 3),
+                "dd" => abbreviate(weekday, 2),
                 "d" => date.weekday().to_string(),
                 _ => return None,
             };
@@ -289,7 +368,7 @@ fn date_token(date: CivilDate, rest: &str) -> Option<(String, usize)> {
     None
 }
 
-fn time_token(time: CivilTime, rest: &str) -> Option<(String, usize)> {
+fn time_token(time: CivilTime, rest: &str, names: &DateNames) -> Option<(String, usize)> {
     for token in ["HH", "hh", "mm", "ss", "H", "h", "m", "s", "A", "a"] {
         if rest.starts_with(token) {
             let hour12 = if time.hour.is_multiple_of(12) {
@@ -297,6 +376,7 @@ fn time_token(time: CivilTime, rest: &str) -> Option<(String, usize)> {
             } else {
                 time.hour % 12
             };
+            let meridiem = if time.hour < 12 { names.am } else { names.pm };
             let text = match token {
                 "HH" => format!("{:02}", time.hour),
                 "H" => time.hour.to_string(),
@@ -306,20 +386,8 @@ fn time_token(time: CivilTime, rest: &str) -> Option<(String, usize)> {
                 "m" => time.minute.to_string(),
                 "ss" => format!("{:02}", time.second),
                 "s" => time.second.to_string(),
-                "A" => {
-                    if time.hour < 12 {
-                        "AM".to_owned()
-                    } else {
-                        "PM".to_owned()
-                    }
-                }
-                "a" => {
-                    if time.hour < 12 {
-                        "am".to_owned()
-                    } else {
-                        "pm".to_owned()
-                    }
-                }
+                "A" => meridiem.to_owned(),
+                "a" => meridiem.to_lowercase(),
                 _ => return None,
             };
             return Some((text, token.len()));
@@ -774,32 +842,39 @@ impl DateSettings {
     }
 
     /// A new date token, trigger and braces included.
+    ///
+    /// File text: the date is always written with the file names (English),
+    /// never the display table.
     #[must_use]
     pub fn date_token(&self, date: CivilDate) -> String {
         format!(
             "{}{{{}}}",
             self.date_trigger,
-            format_date(date, &self.date_format)
+            format_date_for_file(date, &self.date_format)
         )
     }
 
     /// A new link-form date token (`@[[…]]`), trigger and brackets included.
+    ///
+    /// File text, like [`DateSettings::date_token`].
     #[must_use]
     pub fn date_link_token(&self, date: CivilDate) -> String {
         format!(
             "{}[[{}]]",
             self.date_trigger,
-            format_date(date, &self.date_format)
+            format_date_for_file(date, &self.date_format)
         )
     }
 
     /// A new time token, trigger and braces included.
+    ///
+    /// File text: `A` is English `AM`/`PM`, whatever the UI language is.
     #[must_use]
     pub fn time_token(&self, time: CivilTime) -> String {
         format!(
             "{}{{{}}}",
             self.time_trigger,
-            format_time(time, &self.time_format)
+            format_time_for_file(time, &self.time_format)
         )
     }
 
@@ -1361,6 +1436,7 @@ impl KanbanDefaults {
 mod tests {
     use super::super::tags::TagColor;
     use super::*;
+    use muninn_i18n::EN_US;
     use serde_json::json;
 
     #[test]
@@ -1395,6 +1471,145 @@ mod tests {
         assert_eq!(
             format_time(CivilTime::new(12, 0, 0).unwrap(), "h A"),
             "12 PM"
+        );
+    }
+
+    #[test]
+    fn the_display_path_is_identical_to_the_file_path_for_en_us() {
+        let date = CivilDate::new(2026, 11, 12).expect("date");
+        let time = CivilTime::new(14, 30, 5).expect("time");
+        for format in [
+            "YYYY",
+            "YY",
+            "MMMM",
+            "MMM",
+            "MM",
+            "M",
+            "DD",
+            "D",
+            "Do",
+            "dddd",
+            "ddd",
+            "dd",
+            "d",
+            "YYYY-MM-DD",
+            "dddd, MMMM Do YYYY",
+            "[on ]dddd[ at] HH:mm",
+            "QQQQ [d]",
+        ] {
+            assert_eq!(
+                format_date_for_display(date, format, &EN_US),
+                format_date_for_file(date, format),
+                "date format {format:?}"
+            );
+        }
+        for format in ["HH H hh h mm m ss s A a", "[at ]h:mm A", "hh:mm a", "ss"] {
+            assert_eq!(
+                format_time_for_display(time, format, &EN_US),
+                format_time_for_file(time, format),
+                "time format {format:?}"
+            );
+        }
+        // The defaults still mean the file path.
+        assert_eq!(
+            format_date(date, "dddd, MMMM Do YYYY"),
+            "Thursday, November 12th 2026"
+        );
+        assert_eq!(format_time(time, "h:mm A"), "2:30 PM");
+    }
+
+    /// A table that is nothing like English, to prove which path reads it.
+    fn sample_names() -> DateNames {
+        DateNames {
+            months: [
+                "Janvier",
+                "Février",
+                "Mars",
+                "Avril",
+                "Mai",
+                "Juin",
+                "Juillet",
+                "Août",
+                "Septembre",
+                "Octobre",
+                "Novembre",
+                "Décembre",
+            ],
+            weekdays: [
+                "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi",
+            ],
+            weekdays_short: ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"],
+            weekdays_narrow: ["D", "L", "M", "M", "J", "V", "S"],
+            week_start: 1,
+            am: "Vm",
+            pm: "Nm",
+        }
+    }
+
+    #[test]
+    fn a_display_table_changes_only_the_display_path() {
+        let names = sample_names();
+        let date = CivilDate::new(2026, 11, 12).expect("date");
+        let format = "dddd MMMM ddd MMM";
+        assert_eq!(
+            format_date_for_display(date, format, &names),
+            "Jeudi Novembre Jeu Nov"
+        );
+        // The file path never reads the display table.
+        assert_eq!(
+            format_date_for_file(date, format),
+            "Thursday November Thu Nov"
+        );
+        assert_eq!(format_date(date, format), "Thursday November Thu Nov");
+        let file = format_date_for_file(date, "dddd Do MMMM");
+        assert_eq!(file, "Thursday 12th November");
+        assert!(file.is_ascii(), "file output stays ASCII: {file}");
+    }
+
+    #[test]
+    fn display_meridiem_comes_from_the_table_and_lowercases_a() {
+        let names = sample_names();
+        let afternoon = CivilTime::new(14, 30, 0).expect("time");
+        let midnight = CivilTime::new(0, 5, 0).expect("time");
+        assert_eq!(format_time_for_display(afternoon, "A a", &names), "Nm nm");
+        assert_eq!(format_time_for_display(midnight, "A a", &names), "Vm vm");
+        assert_eq!(format_time_for_file(afternoon, "A a"), "PM pm");
+        assert_eq!(format_time_for_file(midnight, "A a"), "AM am");
+        assert_eq!(
+            format_time_for_display(afternoon, "h:mm A", &EN_US),
+            "2:30 PM"
+        );
+    }
+
+    #[test]
+    fn display_abbreviations_are_char_aware() {
+        let mut months = ["Jan"; 12];
+        months[2] = "März";
+        let mut weekdays = ["Day"; 7];
+        weekdays[0] = "日曜日";
+        let names = DateNames {
+            months,
+            weekdays,
+            ..sample_names()
+        };
+        let sunday_in_march = CivilDate::new(2026, 3, 1).expect("date");
+        assert_eq!(sunday_in_march.weekday(), 0, "2026-03-01 is a Sunday");
+        // Neither a 2-byte `ä` nor a 3-byte CJK character is cut mid-character.
+        assert_eq!(
+            format_date_for_display(sunday_in_march, "MMM", &names),
+            "Mär"
+        );
+        assert_eq!(
+            format_date_for_display(sunday_in_march, "dddd", &names),
+            "日曜日"
+        );
+        assert_eq!(
+            format_date_for_display(sunday_in_march, "ddd", &names),
+            "日曜日"
+        );
+        assert_eq!(
+            format_date_for_display(sunday_in_march, "dd", &names),
+            "日曜"
         );
     }
 

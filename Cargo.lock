@@ -1994,6 +1994,7 @@ dependencies = [
  "argon2",
  "base64 0.23.1",
  "getrandom 0.4.3",
+ "muninn-i18n",
  "serde_json",
  "zeroize",
 ]
@@ -2036,6 +2037,7 @@ version = "0.8.5"
 dependencies = [
  "muninn-core",
  "muninn-graph",
+ "muninn-i18n",
  "muninn-sync",
  "rune",
  "rune-kit",

@@ -9,6 +9,9 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+# Display-side date names. File output keeps its own English table, so this
+# edge never changes a written byte (docs/i18n.md §5.4).
+muninn-i18n.workspace = true
 # Board files are Excalidraw JSON. Already in the workspace (sync, ui, xtask).
 serde_json.workspace = true
 

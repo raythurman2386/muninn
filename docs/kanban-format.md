@@ -187,7 +187,10 @@ without changing the file. Only an edit the user asks for writes a token.
   | `ss` / `s` | Second, padded / not | `05` / `5` |
   | `A` / `a` | `AM`/`PM` or `am`/`pm` | `PM` / `pm` |
 
-  Month and weekday names are English; Muninn has no locale table. The
+  Month and weekday names are English in the **file**: a token Muninn writes
+  stays English and ASCII, and so does a new file. The UI has a display table
+  (`muninn-i18n`) that the card foot, the List/Table views and the date picker
+  read, but it ships no translation yet, so their output is unchanged. The
   2-digit year `69`–`99` is 1969–1999 and `00`–`68` is 2000–2068 when a
   written date is read back for sorting.
   - **D-2 (resolved).** This token set is the one Muninn supports. Unknown
