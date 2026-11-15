@@ -11,12 +11,24 @@
 //!   Kanban lane header paints them: warning `#cb9f34` was 2.35:1 (the
 //!   "Over limit" label) and success `#198b43` was 4.18:1 (the done lane's
 //!   "Complete" label).
+//! - the follow-up audit found `text_faint` at 4.34:1 (light) and 3.77:1
+//!   (dark) on `layer_03`, the selected fill behind a mode chip, tool button
+//!   or board row, and its hover overlay lower still. `layer_04` carries no
+//!   text or icon in Muninn (rune-kit uses it as a switch track), so it is not
+//!   a text surface.
 //!
 //! [`enforce_kit`] repairs them by moving the ink along its OKLab lightness
 //! until it clears the floor, so hue survives a theme switch and both light
 //! and dark stay correct. The floors are WCAG 2.1 AA: [`TEXT`] 4.5:1 for
 //! normal text, [`UI`] 3:1 for large text, icons and other components. Icons
 //! keep the lower floor; `icon_muted` clears it on both layers already.
+//!
+//! A translucent hover or press overlay is audited as the surface the user
+//! actually sees ([`over`]), not as the token it is built from. The one
+//! secondary ink painted on an overlay over `layer_03` is `text_muted` (a
+//! selected board row's detail); `text_faint` would have to become as bright
+//! as `text_muted` to clear 4.5:1 on a lightened dark surface, so the selected
+//! surface uses the stronger token instead.
 //!
 //! Board strokes are a separate case: Excalidraw stores the exact colour in
 //! the file and that is what is written back. A committed ink that would
@@ -50,6 +62,38 @@ pub fn ratio(a: Color, b: Color) -> f32 {
 #[must_use]
 pub fn meets(fg: Color, bg: Color, floor: f32) -> bool {
     ratio(fg, bg) >= floor - 1e-4
+}
+
+/// `top` painted over `bottom` with source-over, in the window's blend mode
+/// (sRGB by default, as a browser composites).
+///
+/// The hover and pressed tokens are translucent overlays painted over an
+/// element's fill: text sits on that composite, so contrast is measured
+/// between the composite and the ink, not between the raw token and the layer.
+#[must_use]
+pub fn over(top: Color, bottom: Color) -> Color {
+    let a = top.a + bottom.a * (1.0 - top.a);
+    if a <= 0.0 {
+        return Color::TRANSPARENT;
+    }
+    let srgb = rune::theme::blends_srgb();
+    let enc: fn(f32) -> f32 = if srgb {
+        rune::theme::srgb_encode
+    } else {
+        |c| c
+    };
+    let dec: fn(f32) -> f32 = if srgb {
+        rune::theme::srgb_decode
+    } else {
+        |c| c
+    };
+    let mix = |t: f32, b: f32| dec((enc(t) * top.a + enc(b) * bottom.a * (1.0 - top.a)) / a);
+    Color {
+        r: mix(top.r, bottom.r),
+        g: mix(top.g, bottom.g),
+        b: mix(top.b, bottom.b),
+        a,
+    }
 }
 
 /// `t` of the way from `a` to `b` in OKLab: the lightness moves and the hue
@@ -108,10 +152,25 @@ pub fn at_least(fg: Color, bg: Color, floor: f32) -> Color {
     }
 }
 
-/// The surfaces secondary text and icons paint on: the page, and the two
-/// raised layers (cards, lanes, panels).
-fn surfaces(kit: &Kit) -> [Color; 3] {
-    [kit.c.bg_base, kit.c.layer_01, kit.c.layer_02]
+/// The surfaces secondary text and icons paint on: the page, the two raised
+/// layers (cards, lanes, panels), and `layer_03` — the selected fill behind
+/// mode chips, tool buttons and board rows.
+fn surfaces(kit: &Kit) -> [Color; 4] {
+    [
+        kit.c.bg_base,
+        kit.c.layer_01,
+        kit.c.layer_02,
+        kit.c.layer_03,
+    ]
+}
+
+/// Where `text_muted` paints on a selected, interactive surface: `layer_03`
+/// and the hover overlay over it (a selected board row keeps its hover tint).
+///
+/// `pressed` is deliberately absent: the controls filled with `layer_03` that
+/// press carry `text_base` and accent icons, which have ample headroom.
+fn selected_surfaces(kit: &Kit) -> [Color; 2] {
+    [kit.c.layer_03, over(kit.c.hover, kit.c.layer_03)]
 }
 
 /// The colour `fg` must reach to clear `floor` on every surface: repair
@@ -137,11 +196,15 @@ fn on_surfaces(fg: Color, surfaces: &[Color], floor: f32) -> Color {
 ///
 /// `text_muted` / `text_faint` are text (4.5:1); `icon_muted` / `icon_faint`
 /// are icons (3:1). The four status inks are text — a lane header, a menu row,
-/// a banner — so they keep the text floor on every surface.
+/// a banner — so they keep the text floor on every surface. `text_muted` also
+/// clears the hover overlay over `layer_03`, where a selected row's detail
+/// paints; the other inks only ever sit on `layer_03` itself.
 pub fn enforce_kit(kit: &mut Kit) {
     let behind = surfaces(kit);
+    let selected = selected_surfaces(kit);
     let c = &mut kit.c;
     c.text_muted = on_surfaces(c.text_muted, &behind, TEXT);
+    c.text_muted = on_surfaces(c.text_muted, &selected, TEXT);
     c.text_faint = on_surfaces(c.text_faint, &behind, TEXT);
     c.icon_muted = on_surfaces(c.icon_muted, &behind, UI);
     c.icon_faint = on_surfaces(c.icon_faint, &behind, UI);
@@ -200,6 +263,20 @@ mod tests {
     }
 
     #[test]
+    fn over_composites_a_translucent_overlay_in_source_over() {
+        let layer = h("#3a3a3a");
+        let hover = h("#ffffff0f");
+        let lifted = over(hover, layer);
+        assert!(lifted.luminance() > layer.luminance(), "hover lightens");
+        assert_eq!(lifted.a, 1.0, "opaque layer stays opaque");
+        assert_eq!(over(Color::TRANSPARENT, layer), layer);
+        assert_eq!(over(h("#ff0000"), layer), h("#ff0000"));
+        // sRGB source-over, as a browser paints it: white at 50% over black is
+        // #808080 (the linear-light composite would be #bcbcbc).
+        assert_eq!(over(h("#ffffff80"), Color::BLACK).hex(), "#808080ff");
+    }
+
+    #[test]
     fn at_least_raises_an_ink_and_leaves_a_passing_one_alone() {
         let ink = h("#808080");
         let bg = h("#2e2e2e");
@@ -229,6 +306,16 @@ mod tests {
                         ratio(ink, surface),
                     );
                 }
+            }
+            // A selected row's detail stays legible while hovered.
+            for surface in selected_surfaces(&kit) {
+                assert!(
+                    meets(kit.c.text_muted, surface, TEXT),
+                    "{name} text_muted {} on selected {} is {:.2}",
+                    kit.c.text_muted.hex(),
+                    surface.hex(),
+                    ratio(kit.c.text_muted, surface),
+                );
             }
         }
     }

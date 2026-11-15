@@ -106,6 +106,13 @@ const FILL_SWATCHES: [Swatch; 8] = [
 /// A swatch's target: WCAG 2.2's minimum for a pointer control.
 const SWATCH: f32 = 24.0;
 
+/// The ring around every swatch: a neutral that clears 3:1 on both palette
+/// panels (`layer_02` in either theme) and on Excalidraw's white and dark
+/// papers, so a swatch stays findable when its own colour matches the surface.
+/// Fixed rather than a kit token because Excalidraw's swatches are fixed too
+/// and the panel sits on a board whose paper can be any colour.
+const SWATCH_RING: &str = "#7a7a7a";
+
 /// The "no fill" mark: a diagonal on the transparent swatch.
 static NO_FILL: Icon = Icon {
     name: "board-no-fill",
@@ -236,7 +243,10 @@ pub(crate) fn panel(s: &State, k: &Kit) -> El {
         .padding(4.0)
         .gap(3.0)
         .radius(8.0)
-        .fill(k.alpha(k.c.layer_02, 0.98))
+        // Opaque on purpose (#72): at 98% a white or near-black board paper
+        // tints the panel enough to drop the faint labels under 4.5:1, and
+        // the swatch rings then vary with the canvas behind the palette.
+        .fill(k.c.layer_02)
         .border(1.0, k.c.border_base)
         .role("group")
         .label("Board colours")
@@ -269,19 +279,17 @@ fn swatch_row(s: &State, k: &Kit, kind: Kind) -> El {
 fn swatch_button(k: &Kit, kind: Kind, swatch: Swatch, chosen: bool) -> El {
     let label = format!("{} {}", kind.label(), swatch.name);
     let hex = swatch.hex;
+    let ring = rune::color::hex(SWATCH_RING).unwrap_or(k.c.icon_muted);
     let mut button = row()
         .key(format!("board-{}-{}", kind.key(), swatch.name))
         .size(SWATCH, SWATCH)
         .center()
         .radius(6.0)
-        .border(
-            if chosen { 2.0 } else { 1.0 },
-            if chosen {
-                k.c.text_accent
-            } else {
-                k.c.border_base
-            },
-        )
+        // The ring makes a swatch findable when its own colour blends into the
+        // panel (a pastel fill, or Excalidraw's ink on a dark board). It is
+        // always the neutral ring; a chosen swatch thickens it and adds an
+        // inset accent ring, so selection never removes the boundary.
+        .border(if chosen { 2.0 } else { 1.0 }, ring)
         .hover(k.c.hover)
         .press(k.c.pressed)
         .cursor(Cursor::Pointer)
@@ -306,6 +314,11 @@ fn swatch_button(k: &Kit, kind: Kind, swatch: Swatch, chosen: bool) -> El {
                 false
             }
         });
+    if chosen {
+        // Inside the 1 point of neutral ring: the accent shows the pick while
+        // the outer edge keeps the ring that reads on either paper.
+        button = button.outline(1.0, -2.0, k.c.text_accent);
+    }
     match crate::board_scene::color(swatch.hex) {
         Some(colour) => button = button.fill(colour),
         None => button = button.child(icon(&NO_FILL, 16.0).color(k.c.icon_muted)),
@@ -316,6 +329,130 @@ fn swatch_button(k: &Kit, kind: Kind, swatch: Swatch, chosen: bool) -> El {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contrast::{TEXT, UI, enforce_kit, meets, ratio};
+
+    /// Excalidraw's papers the palette can sit on: its own white and a dark
+    /// `viewBackgroundColor` such as the one in the Board tests.
+    fn papers() -> [Color; 2] {
+        [
+            rune::color::hex("#ffffff").expect("white"),
+            rune::color::hex("#121212").expect("dark paper"),
+        ]
+    }
+
+    /// The four resolved appearances: OpenCode light/dark and an Omarchy
+    /// palette for each, all repaired like [`crate::resolve_kit`].
+    fn kits() -> [(&'static str, Kit); 4] {
+        let mut kits = Vec::new();
+        for dark in [true, false] {
+            let mut kit = rune_theme_opencode::kit(dark).clone();
+            enforce_kit(&mut kit);
+            kits.push((if dark { "dark" } else { "light" }, kit));
+        }
+        for (name, palette) in [
+            (
+                "omarchy-dark",
+                "mode = \"dark\"\nbackground = \"#141414\"\nforeground = \"#e1e1e1\"\naccent = \"#34d399\"\n",
+            ),
+            (
+                "omarchy-light",
+                "mode = \"light\"\nbackground = \"#f5f4ed\"\nforeground = \"#3f4a45\"\naccent = \"#064e3b\"\n",
+            ),
+        ] {
+            let mut kit = crate::omarchy::OmarchyColors::parse(palette)
+                .and_then(|colors| colors.kit())
+                .expect("omarchy kit");
+            enforce_kit(&mut kit);
+            kits.push((name, kit));
+        }
+        kits.try_into().expect("four kits")
+    }
+
+    /// #72 follow-up: a swatch may legitimately match the panel (a pastel on
+    /// a light panel), but its ring must then make it findable. The panel is
+    /// opaque, so it is the same surface on either board paper; the ring also
+    /// clears 3:1 against both raw papers on its own.
+    #[test]
+    fn every_swatch_is_findable_on_either_paper() {
+        let papers = papers();
+        for (name, k) in kits() {
+            // The panel is opaque (it fills with `layer_02` directly): board
+            // paper never shows through it, so the same rules hold on either.
+            let panel = k.c.layer_02;
+            assert_eq!(panel.a, 1.0, "{name}: the palette panel is opaque");
+            // The row labels and the "no fill" icon sit on the panel too.
+            assert!(
+                meets(k.c.text_faint, panel, TEXT),
+                "{name}: palette labels {} on {} is {:.2}",
+                k.c.text_faint.hex(),
+                panel.hex(),
+                ratio(k.c.text_faint, panel),
+            );
+            assert!(
+                meets(k.c.icon_muted, panel, UI),
+                "{name}: no-fill icon {} on {} is {:.2}",
+                k.c.icon_muted.hex(),
+                panel.hex(),
+                ratio(k.c.icon_muted, panel),
+            );
+
+            // The neutral ring is the boundary in both states; the chosen
+            // swatch only adds an inset accent ring.
+            let ring = rune::color::hex(SWATCH_RING).expect("ring");
+            assert!(
+                meets(ring, panel, UI),
+                "{name}: ring {} on panel {} is {:.2}",
+                ring.hex(),
+                panel.hex(),
+                ratio(ring, panel),
+            );
+            for paper in papers {
+                assert!(
+                    meets(ring, paper, UI),
+                    "{name}: ring {} on paper {} is {:.2}",
+                    ring.hex(),
+                    paper.hex(),
+                    ratio(ring, paper),
+                );
+            }
+            // The selection accent is decoration inside the ring, so it is
+            // audited on the panel only.
+            assert!(
+                meets(k.c.text_accent, panel, UI),
+                "{name}: chosen accent {} on panel {} is {:.2}",
+                k.c.text_accent.hex(),
+                panel.hex(),
+                ratio(k.c.text_accent, panel),
+            );
+
+            // Excalidraw's swatches are not chosen for the app's palette: some
+            // fills match the panel and are findable only by their ring. Pin
+            // that the ring carries those, and that at least one needs it.
+            let mut matched = 0;
+            for kind in [Kind::Stroke, Kind::Fill] {
+                for swatch in kind.swatches() {
+                    let Some(fill) = crate::board_scene::color(swatch.hex) else {
+                        continue;
+                    };
+                    if meets(fill, panel, UI) {
+                        continue;
+                    }
+                    matched += 1;
+                    assert!(
+                        meets(ring, panel, UI),
+                        "{name}: {:?} {} has no ring on {}",
+                        kind,
+                        swatch.name,
+                        panel.hex(),
+                    );
+                }
+            }
+            assert!(
+                matched > 0,
+                "{name}: no swatch needed its ring; the audit is not exercising it"
+            );
+        }
+    }
 
     #[test]
     fn the_palette_has_excalidraws_primaries_and_transparent_fill() {

@@ -1,9 +1,11 @@
 //! Issue #72: the WCAG 2.1 AA contrast audit, headless.
 //!
-//! The audited pairs are the palette's secondary inks on the three text
-//! surfaces, the Kanban lane header's status inks ("Over limit" and the done
-//! lane's "Complete"), and Excalidraw's default ink on a dark
-//! `viewBackgroundColor`. The colour maths has unit tests in
+//! The audited pairs are the palette's secondary inks on the page and the
+//! raised layers through `layer_03` (including the hover overlay over the
+//! selected `layer_03`), the Kanban lane header's status inks ("Over limit" and
+//! the done lane's "Complete"), Excalidraw's default ink on a dark
+//! `viewBackgroundColor`, and the Board palette's swatches (see the unit test
+//! in `board_palette`). The colour maths has unit tests in
 //! `muninn_ui::contrast`; this file checks what the app actually paints and
 //! what it writes back to a `.excalidraw` file.
 
@@ -13,10 +15,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::Element;
 use muninn_core::testing::TempVault;
+use muninn_ui::contrast::over;
 use muninn_ui::{
-    Mode, Settings, State, TEXT, ThemeMode, contrast_ratio, meets, on_key, poll, resolve_kit, view,
+    Mode, Settings, State, TEXT, ThemeMode, UI, contrast_ratio, meets, on_key, poll, resolve_kit,
+    view,
 };
 use rune::{ElementInfo, Env, Runtime};
+use rune_kit::Kit;
 
 const BUSY: &str = include_str!("../../muninn-core/tests/fixtures/kanban/over-limit.md");
 
@@ -164,6 +169,171 @@ fn every_theme_keeps_secondary_inks_above_their_floors() {
                 }
             }
         }
+    }
+}
+
+/// Omarchy palette fixtures: a dark and a light theme, enough for a kit.
+const OMARCHY_DARK: &str = "mode = \"dark\"\nbackground = \"#141414\"\nforeground = \"#e1e1e1\"\naccent = \"#34d399\"\nred = \"#f7768e\"\n";
+const OMARCHY_LIGHT: &str = "mode = \"light\"\nbackground = \"#f5f4ed\"\nforeground = \"#3f4a45\"\naccent = \"#064e3b\"\nred = \"#c92a2a\"\n";
+
+/// Every appearance `resolve_kit` can return: Light, Dark, Follow in either
+/// system appearance, and Omarchy's light and dark palettes.
+fn resolved_kits(root: &Path, config: &Path, state_home: &Path) -> Vec<(String, Kit)> {
+    let mut kits = Vec::new();
+    for (name, theme) in [
+        ("Light", ThemeMode::Light),
+        ("Dark", ThemeMode::Dark),
+        ("Follow", ThemeMode::Follow),
+    ] {
+        for system_dark in [false, true] {
+            let state = state_at(root, config, state_home, theme);
+            kits.push((
+                format!("{name} (system dark {system_dark})"),
+                resolve_kit(&state, system_dark),
+            ));
+        }
+    }
+    for (name, palette) in [
+        ("Omarchy dark", OMARCHY_DARK),
+        ("Omarchy light", OMARCHY_LIGHT),
+    ] {
+        let dir = unique_dir("omarchy-palette");
+        let path = dir.join("colors.toml");
+        fs::write(&path, palette).expect("palette");
+        let mut state = state_at(root, config, state_home, ThemeMode::Omarchy);
+        state.set_omarchy_path(path);
+        kits.push((name.to_owned(), resolve_kit(&state, true)));
+    }
+    kits
+}
+
+/// #72 follow-up: `layer_03` is a text surface too — the selected fill behind
+/// mode chips, Board tool buttons and Board rows — and its hover/pressed
+/// overlays lighten or darken it. Every ink painted there clears its floor,
+/// and the one secondary ink on a hovered selected row (`text_muted`) clears
+/// 4.5:1 on the composite.
+///
+/// `layer_04` carries no text or icon in Muninn (rune-kit uses it as a switch
+/// track), so only the base ink a future component would reach for is pinned.
+#[test]
+fn layer_03_and_its_overlays_clear_their_floors() {
+    let vault = TempVault::new(&[("Agenda.md", "# Agenda\n")]);
+    let (config, state_home) = (unique_dir("layer-config"), unique_dir("layer-state"));
+    for (name, kit) in resolved_kits(vault.path(), &config, &state_home) {
+        let c = &kit.c;
+        // The selected fill is a stable surface for the secondary inks too.
+        for surface in [c.bg_base, c.layer_01, c.layer_02, c.layer_03] {
+            for (token, ink, floor) in [
+                ("text_muted", c.text_muted, TEXT),
+                ("text_faint", c.text_faint, TEXT),
+                ("icon_muted", c.icon_muted, UI),
+                ("icon_faint", c.icon_faint, UI),
+                ("warning", c.warning.fg, TEXT),
+                ("success", c.success.fg, TEXT),
+                ("danger", c.danger.fg, TEXT),
+                ("info", c.info.fg, TEXT),
+            ] {
+                assert!(
+                    meets(ink, surface, floor),
+                    "{name} {token} {} on {} is {:.2}, floor {floor}",
+                    ink.hex(),
+                    surface.hex(),
+                    contrast_ratio(ink, surface),
+                );
+            }
+        }
+
+        let hovered = over(c.hover, c.layer_03);
+        let pressed = over(c.pressed, c.layer_03);
+        for (state, surface) in [
+            ("layer_03", c.layer_03),
+            ("hover", hovered),
+            ("pressed", pressed),
+        ] {
+            // The primary ink on a selected control, and its accent icon.
+            assert!(
+                meets(c.text_base, surface, TEXT),
+                "{name} text_base {} on {state} {} is {:.2}",
+                c.text_base.hex(),
+                surface.hex(),
+                contrast_ratio(c.text_base, surface),
+            );
+            assert!(
+                meets(c.text_accent, surface, UI),
+                "{name} accent icon {} on {state} {} is {:.2}",
+                c.text_accent.hex(),
+                surface.hex(),
+                contrast_ratio(c.text_accent, surface),
+            );
+        }
+
+        // A selected Board row keeps its hover tint; its detail is `muted`.
+        assert!(
+            meets(c.text_muted, hovered, TEXT),
+            "{name} selected-row detail {} on hovered {} is {:.2}",
+            c.text_muted.hex(),
+            hovered.hex(),
+            contrast_ratio(c.text_muted, hovered),
+        );
+
+        // No Muninn text sits on `layer_04`; if one ever did, the base ink is
+        // the token to reach for, and it clears its floor in both appearances.
+        assert!(
+            meets(c.text_base, c.layer_04, TEXT),
+            "{name} text_base {} on layer_04 {} is {:.2}",
+            c.text_base.hex(),
+            c.layer_04.hex(),
+            contrast_ratio(c.text_base, c.layer_04),
+        );
+        assert!(
+            meets(c.icon_base, c.layer_04, UI),
+            "{name} icon_base {} on layer_04 {} is {:.2}",
+            c.icon_base.hex(),
+            c.layer_04.hex(),
+            contrast_ratio(c.icon_base, c.layer_04),
+        );
+    }
+}
+
+/// The selected Board row is filled with `layer_03`; its detail must use the
+/// stronger secondary ink and clear 4.5:1 on that fill, not `text_faint`.
+#[test]
+fn a_selected_board_row_keeps_its_detail_legible() {
+    let vault = TempVault::new(&[
+        ("Agenda.md", "# Agenda\n"),
+        ("Sketch.excalidraw", &empty_board("#ffffff")),
+    ]);
+    for theme in [ThemeMode::Light, ThemeMode::Dark] {
+        let mut rt = runtime(vault.path(), theme);
+        open_board(&mut rt, "Sketch");
+        let i = rt
+            .state
+            .boards
+            .iter()
+            .position(|b| b.file.title == "Sketch")
+            .expect("Sketch");
+        let row = element(&rt, &format!("board-row-{i}"));
+        let detail = element(&rt, &format!("board-row-{i}-detail"));
+        // The mode tabs paint the kit's `text_muted`; the selected row's fill
+        // must be `layer_03` with that same ink, not `text_faint`.
+        let muted = labelled(&rt, "Write");
+        assert_eq!(
+            row.fill,
+            element(&rt, "mode-board").fill,
+            "{theme:?}: the row uses the selected fill"
+        );
+        let ink = detail.text_color.expect("the detail paints");
+        assert_eq!(
+            ink, muted,
+            "{theme:?}: the selected row's detail uses the muted ink"
+        );
+        assert!(
+            meets(ink, row.fill, TEXT),
+            "{theme:?}: detail {} on selected row {} is {:.2}",
+            ink.hex(),
+            row.fill.hex(),
+            contrast_ratio(ink, row.fill),
+        );
     }
 }
 
