@@ -10,6 +10,7 @@ use rune_kit::{
 use rune_theme_opencode::icons as ic;
 
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
+use muninn_i18n::{Key as TextKey, t};
 
 use crate::{
     BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, MenuTarget, Mode, PaletteItem,
@@ -2568,148 +2569,120 @@ fn keycap_text(key: &str) -> String {
     }
 }
 
-fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)]); 6] {
+/// DES-01: the shortcut map. A section title and each row are catalog keys;
+/// the chords are geometry, not copy, so they stay literals here.
+fn shortcut_groups() -> [(TextKey, &'static [(&'static str, TextKey)]); 6] {
     [
         (
-            "Navigation",
+            TextKey::HelpGroupNavigation,
             &[
-                ("⌘K / Ctrl+K", "Focus search"),
-                ("↑ / ↓ (search)", "Move the highlighted result"),
-                ("Enter (search)", "Open the highlighted result"),
-                ("⌘[ / Ctrl+[", "Back in note history"),
-                ("⌘] / Ctrl+]", "Forward in note history"),
+                ("⌘K / Ctrl+K", TextKey::HelpNavFocusSearch),
+                ("↑ / ↓ (search)", TextKey::HelpNavMoveHighlightedResult),
+                ("Enter (search)", TextKey::HelpNavOpenHighlightedResult),
+                ("⌘[ / Ctrl+[", TextKey::HelpNavBackInNoteHistory),
+                ("⌘] / Ctrl+]", TextKey::HelpNavForwardInNoteHistory),
                 (
                     "⌘1 / ⌘2 / ⌘3 / ⌘4 / ⌘5",
-                    "Write / Read / Graph / Board / Kanban",
+                    TextKey::HelpNavWriteReadGraphBoardKanban,
                 ),
-                (
-                    "⌘+⇧+F / Ctrl+Shift+F",
-                    "Focus mode: hide the chrome and centre the caret",
-                ),
-                ("Esc", "Close the outermost layer"),
-                ("⌘+⇧+P / Ctrl+Shift+P", "Open the command palette"),
+                ("⌘+⇧+F / Ctrl+Shift+F", TextKey::HelpNavFocusMode),
+                ("Esc", TextKey::HelpNavCloseOutermostLayer),
+                ("⌘+⇧+P / Ctrl+Shift+P", TextKey::HelpNavOpenCommandPalette),
             ],
         ),
         (
-            "Edit",
+            TextKey::HelpGroupEdit,
             &[
-                ("⌘F / Ctrl+F", "Find in the open note"),
-                ("⌘F / Ctrl+F (Kanban)", "Find in the board"),
+                ("⌘F / Ctrl+F", TextKey::HelpEditFindInOpenNote),
+                ("⌘F / Ctrl+F (Kanban)", TextKey::HelpEditFindInBoard),
                 (
                     "Filter (Kanban header)",
-                    "Hide cards by text, tag, date or state",
+                    TextKey::HelpEditHideCardsByTextTagDateOrState,
                 ),
                 (
                     "Board settings (Kanban header)",
-                    "Per-board overrides, one key at a time",
+                    TextKey::HelpEditPerBoardOverrides,
                 ),
-                ("⌘P / Ctrl+P", "Insert a wikilink"),
-                ("⌘N / Ctrl+N", "New note"),
-                ("⌘S / Ctrl+S", "Save now (autosave is on)"),
-                ("⌘E / Ctrl+E", "Toggle Write / Read"),
-                ("[[", "Wikilink completion"),
-                ("# (card editor)", "Vault tag completion"),
-                ("Tab (editor)", "Indent four spaces"),
-                (
-                    "Paste (editor)",
-                    "Rich text becomes Markdown; a URL over a selection becomes a link",
-                ),
-                ("F2", "Rename the selected note (on Board: the board)"),
-                ("Del", "Delete the selected note"),
+                ("⌘P / Ctrl+P", TextKey::HelpEditInsertWikilink),
+                ("⌘N / Ctrl+N", TextKey::HelpEditNewNote),
+                ("⌘S / Ctrl+S", TextKey::HelpEditSaveNow),
+                ("⌘E / Ctrl+E", TextKey::HelpEditToggleWriteRead),
+                ("[[", TextKey::HelpEditWikilinkCompletion),
+                ("# (card editor)", TextKey::HelpEditVaultTagCompletion),
+                ("Tab (editor)", TextKey::HelpEditIndentFourSpaces),
+                ("Paste (editor)", TextKey::HelpEditPasteRichText),
+                ("F2", TextKey::HelpEditRenameSelectedNote),
+                ("Del", TextKey::HelpEditDeleteSelectedNote),
             ],
         ),
         (
-            "Kanban",
+            TextKey::HelpGroupKanban,
             &[
-                ("Tab / Shift+Tab", "Move through the board's controls"),
-                ("↑ / ↓ (lane)", "Move between the focused lane's cards"),
-                ("← / → (board)", "Move the selection across lanes"),
-                ("Space / Enter", "Toggle the selected card's done mark"),
-                ("Alt+Arrows", "Move the selected card"),
-                (
-                    "Alt+Shift+Arrows",
-                    "Move it to the top, the bottom or another lane",
-                ),
-                ("Shift+F10 / Menu", "Open the focused card's menu"),
-                ("Double-click", "Edit the card"),
-                ("Esc", "Close the menu, confirmation or conflict bar"),
+                ("Tab / Shift+Tab", TextKey::HelpKanbanMoveThroughControls),
+                ("↑ / ↓ (lane)", TextKey::HelpKanbanMoveBetweenLaneCards),
+                ("← / → (board)", TextKey::HelpKanbanMoveSelectionAcrossLanes),
+                ("Space / Enter", TextKey::HelpKanbanToggleCardDone),
+                ("Alt+Arrows", TextKey::HelpKanbanMoveSelectedCard),
+                ("Alt+Shift+Arrows", TextKey::HelpKanbanMoveCardToEdgeOrLane),
+                ("Shift+F10 / Menu", TextKey::HelpKanbanOpenCardMenu),
+                ("Double-click", TextKey::HelpKanbanEditCard),
+                ("Esc", TextKey::HelpKanbanCloseMenuOrConfirmation),
             ],
         ),
         (
-            "Graph",
+            TextKey::HelpGroupGraph,
             &[
-                ("⌘G / Ctrl+G", "Toggle Graph"),
-                ("⌘L / Ctrl+L", "Toggle Global / Local"),
-                ("Arrows", "Move the focus ring"),
-                ("Enter", "Open the focused note"),
-                ("+ / -", "Zoom in / out"),
-                ("0 / F", "Fit the visible nodes"),
-                ("I", "Toggle Isolate"),
-                ("Esc", "Leave the graph"),
+                ("⌘G / Ctrl+G", TextKey::HelpGraphToggleGraph),
+                ("⌘L / Ctrl+L", TextKey::HelpGraphToggleGlobalLocal),
+                ("Arrows", TextKey::HelpGraphMoveFocusRing),
+                ("Enter", TextKey::HelpGraphOpenFocusedNote),
+                ("+ / -", TextKey::HelpGraphZoomInOut),
+                ("0 / F", TextKey::HelpGraphFitVisibleNodes),
+                ("I", TextKey::HelpGraphToggleIsolate),
+                ("Esc", TextKey::HelpGraphLeaveGraph),
             ],
         ),
         (
-            "Board",
+            TextKey::HelpGroupBoard,
             &[
-                ("H / Shift+wheel", "Pan the board (or drag with the hand)"),
-                ("Wheel / pinch", "Zoom at the pointer"),
-                ("+ / -", "Zoom in / out at the canvas centre"),
-                ("Arrows (nothing selected)", "Pan the board"),
-                ("0 / F / double-click", "Fit the drawing"),
-                (
-                    "R / D / O / A / L / P / X",
-                    "Rectangle, diamond, ellipse, arrow, line or freehand tool",
-                ),
-                ("Drag with a tool", "Draw that shape; the tool stays picked"),
-                ("T / 8", "Place text, then click and type it in place"),
-                ("Double-click a shape", "Write or edit its text label"),
-                ("V / 1", "Drop the tool (back to selecting)"),
+                ("H / Shift+wheel", TextKey::HelpBoardPanWithDrag),
+                ("Wheel / pinch", TextKey::HelpBoardZoomAtPointer),
+                ("+ / -", TextKey::HelpBoardZoomAtCanvasCentre),
+                ("Arrows (nothing selected)", TextKey::HelpBoardPanTheBoard),
+                ("0 / F / double-click", TextKey::HelpBoardFitTheDrawing),
+                ("R / D / O / A / L / P / X", TextKey::HelpBoardShapeTools),
+                ("Drag with a tool", TextKey::HelpBoardDrawShape),
+                ("T / 8", TextKey::HelpBoardPlaceText),
+                ("Double-click a shape", TextKey::HelpBoardEditTextLabel),
+                ("V / 1", TextKey::HelpBoardDropTheTool),
                 (
                     "Click / Shift+click",
-                    "Select an element / add or remove it",
+                    TextKey::HelpBoardSelectElementOrToggle,
                 ),
-                (
-                    "Arrows (selection)",
-                    "Nudge the selection 1 unit (Shift: 5)",
-                ),
-                ("Delete / Backspace", "Delete the selection"),
-                ("⌘A / Ctrl+A", "Select every element"),
-                (
-                    "⌘L / Ctrl+L",
-                    "Link the selected elements to a note (empty clears it)",
-                ),
-                (
-                    "⌘Enter / Ctrl+Enter",
-                    "Open the selected element's linked note",
-                ),
+                ("Arrows (selection)", TextKey::HelpBoardNudgeSelection),
+                ("Delete / Backspace", TextKey::HelpBoardDeleteSelection),
+                ("⌘A / Ctrl+A", TextKey::HelpBoardSelectEveryElement),
+                ("⌘L / Ctrl+L", TextKey::HelpBoardLinkToNote),
+                ("⌘Enter / Ctrl+Enter", TextKey::HelpBoardOpenLinkedNote),
                 (
                     "⌘click / Ctrl+click",
-                    "Open the clicked element's linked note (a click alone selects)",
+                    TextKey::HelpBoardOpenClickedLinkedNote,
                 ),
-                (
-                    "⌘Z / ⌘⇧Z / Ctrl+Y",
-                    "Undo / redo drawing, moves and deletes",
-                ),
-                ("⌘S / Ctrl+S", "Save the board's drawing"),
-                (
-                    "Esc",
-                    "Clear the selection, else drop the tool, else leave Board",
-                ),
+                ("⌘Z / ⌘⇧Z / Ctrl+Y", TextKey::HelpBoardUndoRedo),
+                ("⌘S / Ctrl+S", TextKey::HelpBoardSaveDrawing),
+                ("Esc", TextKey::HelpBoardEscapeClearsSelection),
             ],
         ),
         (
-            "Sidebar",
+            TextKey::HelpGroupSidebar,
             &[
-                ("⌘?", "Open this Help"),
-                ("?", "Open Help when not typing"),
-                ("Tab / Shift+Tab", "Move between panes"),
-                ("↑ / ↓ (list)", "Move through a list"),
-                ("Enter / Space", "Open the focused row"),
-                ("Right-click", "Note and folder actions"),
-                (
-                    "⌘, / Ctrl+,",
-                    "Settings (vaults, theme, graph effects, Kanban defaults)",
-                ),
+                ("⌘?", TextKey::HelpSidebarOpenThisHelp),
+                ("?", TextKey::HelpSidebarOpenHelpWhenNotTyping),
+                ("Tab / Shift+Tab", TextKey::HelpSidebarMoveBetweenPanes),
+                ("↑ / ↓ (list)", TextKey::HelpSidebarMoveThroughAList),
+                ("Enter / Space", TextKey::HelpSidebarOpenFocusedRow),
+                ("Right-click", TextKey::HelpSidebarNoteAndFolderActions),
+                ("⌘, / Ctrl+,", TextKey::HelpSidebarSettings),
             ],
         ),
     ]
@@ -3025,7 +2998,7 @@ fn help_header(k: &Kit) -> El {
         .gap(12.0)
         .center_y()
         .child(
-            text("Keyboard shortcuts")
+            text(t(TextKey::KeyboardShortcuts))
                 .font(TextStyle::new(16.0, 600.0).lh(22.0))
                 .color(k.c.text_base),
         )
@@ -3035,7 +3008,11 @@ fn help_header(k: &Kit) -> El {
                 .px(10.0)
                 .py(5.0)
                 .border(1.0, k.c.border_base)
-                .child(text("Close").font(k.ty.ui_compact).color(k.c.text_base))
+                .child(
+                    text(t(TextKey::Close))
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base),
+                )
                 .on_press(|s: &mut State| s.close_help()),
         )
 }
@@ -3043,13 +3020,14 @@ fn help_header(k: &Kit) -> El {
 fn help_section(
     k: &Kit,
     index: usize,
-    title: &str,
-    shortcuts: &[(&str, &str)],
+    title: TextKey,
+    shortcuts: &[(&str, TextKey)],
     layout: &HelpLayout,
 ) -> El {
+    let title = t(title);
     let mut rows = col().w_full().min_w(0.0).gap(2.0);
     for (row_index, (keys, action)) in shortcuts.iter().enumerate() {
-        rows = rows.child(help_row(k, index, row_index, keys, action, layout));
+        rows = rows.child(help_row(k, index, row_index, keys, t(*action), layout));
     }
     let slug: String = title
         .chars()
@@ -3175,7 +3153,7 @@ fn help_diagnostics(s: &State, k: &Kit) -> El {
     } else {
         body = body
             .child(
-                text("last log lines:")
+                text(t(TextKey::HelpLastLogLines))
                     .font(k.ty.caption())
                     .color(k.c.text_muted),
             )
