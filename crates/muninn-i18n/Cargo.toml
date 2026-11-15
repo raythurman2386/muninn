@@ -1,0 +1,16 @@
+[package]
+name = "muninn-i18n"
+description = "English UI copy, typed plural/relative-date helpers and date names for Muninn."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+# A leaf data crate on purpose: no workspace edges and no external crates, so
+# `muninn-core`, `muninn-ui` and `muninn-app` can all depend on it.
+[dependencies]
+
+[lints]
+workspace = true

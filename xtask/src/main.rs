@@ -152,18 +152,28 @@ fn check_layers() -> Result<()> {
 
 fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
     let mut allowed: BTreeMap<&'static str, BTreeSet<&'static str>> = BTreeMap::new();
-    allowed.insert("muninn-core", BTreeSet::new());
+    // The catalog is leaf data: English copy, typed helpers and date names. It
+    // has no dependencies, so core, ui and app can all point at it (docs/i18n.md
+    // §5.4). Sync, graph and xtask stay off it.
+    allowed.insert("muninn-i18n", BTreeSet::new());
+    allowed.insert("muninn-core", BTreeSet::from(["muninn-i18n"]));
     allowed.insert("muninn-graph", BTreeSet::from(["muninn-core"]));
     // Sync is UI-free. It does not depend on the vault index: the file bytes
     // are the source of truth, and the UI coordinates editor/watcher state.
     allowed.insert("muninn-sync", BTreeSet::new());
     allowed.insert(
         "muninn-ui",
-        BTreeSet::from(["muninn-core", "muninn-graph", "muninn-sync"]),
+        BTreeSet::from(["muninn-core", "muninn-graph", "muninn-sync", "muninn-i18n"]),
     );
     allowed.insert(
         "muninn-app",
-        BTreeSet::from(["muninn-core", "muninn-graph", "muninn-ui", "muninn-sync"]),
+        BTreeSet::from([
+            "muninn-core",
+            "muninn-graph",
+            "muninn-ui",
+            "muninn-sync",
+            "muninn-i18n",
+        ]),
     );
     allowed.insert("xtask", BTreeSet::new());
     allowed
