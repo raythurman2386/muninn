@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 
 use muninn_core::testing::TempVault;
+use muninn_i18n::{Key, t};
 use muninn_ui::{ConflictReason, ConflictState, Mode, State, on_key, poll, view};
 use rune::{ElementInfo, Env, Runtime};
 
@@ -76,7 +77,7 @@ fn saved_state_is_calm_and_error_state_is_danger_with_retry() {
     assert!(rt.find("status-state-saved").is_some());
     let clean_text = element(&clean, "status-text");
     let clean_dot = element(&clean, "status-dot");
-    assert_eq!(clean_text.text.as_deref(), Some("Saved"));
+    assert_eq!(clean_text.text.as_deref(), Some(t(Key::StatusSaved)));
     assert_ne!(
         clean_text.text_color,
         Some(clean_dot.fill),

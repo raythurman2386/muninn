@@ -17,6 +17,7 @@
 //! refresh cycle without a desktop session. Headless runs install no factory
 //! and never create a tray.
 
+use muninn_i18n::{Key as TextKey, sync_status, t};
 use rune::{TrayEvent, TrayIcon, TrayItem, TraySpec};
 
 use crate::State;
@@ -76,13 +77,13 @@ pub fn tray_action(event: &TrayEvent) -> Option<TrayAction> {
 #[must_use]
 pub fn tray_menu(sync_status: &str, sync_ready: bool) -> Vec<TrayItem> {
     vec![
-        TrayItem::action(TRAY_SHOW, "Show Muninn"),
-        TrayItem::action(TRAY_NEW_NOTE, "New note"),
-        TrayItem::action(TRAY_SYNC_NOW, "Sync now").enabled(sync_ready),
+        TrayItem::action(TRAY_SHOW, t(TextKey::TrayShow)),
+        TrayItem::action(TRAY_NEW_NOTE, t(TextKey::TrayNewNote)),
+        TrayItem::action(TRAY_SYNC_NOW, t(TextKey::TraySyncNow)).enabled(sync_ready),
         TrayItem::Separator,
         TrayItem::action(TRAY_SYNC_STATUS, tray_status_label(sync_status)).enabled(false),
         TrayItem::Separator,
-        TrayItem::action(TRAY_QUIT, "Quit Muninn"),
+        TrayItem::action(TRAY_QUIT, t(TextKey::TrayQuit)),
     ]
 }
 
@@ -96,7 +97,7 @@ pub fn tray_status_label(status: &str) -> String {
         .map_or(status, |end| &status[..=end])
         .trim();
     let first = if first.is_empty() {
-        "Not connected."
+        t(TextKey::TrayNotConnected)
     } else {
         first
     };
@@ -106,7 +107,7 @@ pub fn tray_status_label(status: &str) -> String {
     } else {
         first.to_owned()
     };
-    format!("Sync: {label}")
+    sync_status(&label)
 }
 
 /// Whether Rune has a tray backend for this build (Linux with D-Bus, Windows).
@@ -118,8 +119,8 @@ pub const fn tray_supported() -> bool {
 /// Muninn's tray spec: app id, title, the logo and `menu`.
 #[must_use]
 pub fn tray_spec(menu: Vec<TrayItem>) -> TraySpec {
-    TraySpec::new("muninn", "Muninn", tray_icon())
-        .tooltip("Muninn")
+    TraySpec::new("muninn", t(TextKey::TrayTooltip), tray_icon())
+        .tooltip(t(TextKey::TrayTooltip))
         .menu(menu)
 }
 
@@ -329,14 +330,17 @@ mod tests {
         assert_eq!(
             menu,
             vec![
-                TrayItem::action(TRAY_SHOW, "Show Muninn"),
-                TrayItem::action(TRAY_NEW_NOTE, "New note"),
-                TrayItem::action(TRAY_SYNC_NOW, "Sync now"),
+                TrayItem::action(TRAY_SHOW, t(TextKey::TrayShow)),
+                TrayItem::action(TRAY_NEW_NOTE, t(TextKey::TrayNewNote)),
+                TrayItem::action(TRAY_SYNC_NOW, t(TextKey::TraySyncNow)),
                 TrayItem::Separator,
-                TrayItem::action(TRAY_SYNC_STATUS, "Sync: Last successful sync 1a2b3c4d.")
-                    .enabled(false),
+                TrayItem::action(
+                    TRAY_SYNC_STATUS,
+                    sync_status("Last successful sync 1a2b3c4d.")
+                )
+                .enabled(false),
                 TrayItem::Separator,
-                TrayItem::action(TRAY_QUIT, "Quit Muninn"),
+                TrayItem::action(TRAY_QUIT, t(TextKey::TrayQuit)),
             ]
         );
     }
@@ -344,7 +348,9 @@ mod tests {
     #[test]
     fn sync_now_is_greyed_when_not_ready() {
         let menu = tray_menu("Not connected.", false);
-        assert!(menu.contains(&TrayItem::action(TRAY_SYNC_NOW, "Sync now").enabled(false)));
+        assert!(
+            menu.contains(&TrayItem::action(TRAY_SYNC_NOW, t(TextKey::TraySyncNow)).enabled(false))
+        );
         assert!(
             menu.iter().all(|item| !matches!(item, TrayItem::Action { id, enabled: true, .. } if id == TRAY_SYNC_NOW))
         );
@@ -352,16 +358,19 @@ mod tests {
 
     #[test]
     fn status_labels_keep_the_first_sentence_and_cap_length() {
-        assert_eq!(tray_status_label(""), "Sync: Not connected.");
+        assert_eq!(
+            tray_status_label(""),
+            sync_status(t(TextKey::TrayNotConnected))
+        );
         assert_eq!(
             tray_status_label(
                 "Not connected. Choose a provider and an explicit remote, then Connect."
             ),
-            "Sync: Not connected."
+            sync_status(t(TextKey::TrayNotConnected))
         );
         let long = "x".repeat(200);
         let label = tray_status_label(&long);
-        assert_eq!(label.chars().count(), "Sync: ".len() + STATUS_MAX);
+        assert_eq!(label.chars().count(), sync_status("").len() + STATUS_MAX);
         assert!(label.ends_with('…'));
     }
 }

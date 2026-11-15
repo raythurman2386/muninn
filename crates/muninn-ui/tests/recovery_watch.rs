@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use muninn_core::testing::TempVault;
+use muninn_i18n::{Key, t};
 use muninn_ui::{ConflictReason, RecoveryEntry, RecoverySlot, State, poll, view};
 use rune::{Env as RuneEnv, Runtime, Tx};
 
@@ -324,7 +325,10 @@ fn a_long_path_keeps_the_suffix_that_distinguishes_the_two_rows() {
     ]);
     let els = rt.elements();
 
-    for (index, suffix) in [(0, "— Write edits"), (1, "— Kanban edits")] {
+    for (index, suffix) in [
+        (0, t(Key::RecoveryWriteEdits)),
+        (1, t(Key::RecoveryKanbanEdits)),
+    ] {
         let slot = element(&els, &format!("recovery-slot-{index}"))
             .unwrap_or_else(|| panic!("row {index} keeps its slot label"));
         assert_eq!(slot.text.as_deref(), Some(suffix));
