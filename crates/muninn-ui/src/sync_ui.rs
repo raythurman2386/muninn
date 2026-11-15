@@ -1763,10 +1763,14 @@ mod tests {
         assert_eq!(stored(&state, &new), Some("p".repeat(40)));
         assert_eq!(stored(&state, &old), None, "the old host key is deleted");
         assert!(!state.hosting_tailnet());
-        assert!(
-            std::net::TcpStream::connect(("127.0.0.1", port)).is_err(),
-            "the old host stopped"
-        );
+        // The host stops asynchronously, so a single probe can race the
+        // close and find the port still accepting (the #170 CI flake). Poll
+        // until it refuses, with a bound so a host that really stays up fails.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            assert!(std::time::Instant::now() < deadline, "the old host stopped");
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
         state.disconnect_sync();
         remove_temp(&root);
     }
