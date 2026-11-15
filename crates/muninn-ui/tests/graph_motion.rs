@@ -1,10 +1,11 @@
 //! v0.5 animated graph focus: the camera glides on a node click and snaps under
-//! `MUNINN_REDUCED_MOTION`.
+//! `MUNINN_REDUCED_MOTION`. Also the delete burn, on a graph node and (#135) on
+//! the note's sidebar row.
 
 use muninn_core::testing::TempVault;
 use muninn_graph::Camera as GraphCamera;
 use muninn_ui::fx_marks::{FX_BURN, FX_EDGE_HOT, FX_NODE_SEL};
-use muninn_ui::{GraphEffects, Mode, Scope, State, on_key, poll, view};
+use muninn_ui::{BurnSpace, GraphEffects, Mode, Scope, State, on_key, poll, view};
 use rune::render::KIND_EFFECT;
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
@@ -403,4 +404,125 @@ fn reduced_motion_and_off_skip_the_delete_burn() {
     });
     rt.frame(1.0 / 60.0);
     assert!(rt.state.burn.is_none(), "Off / Minimal skips the burn");
+}
+
+/// #135: an editor-mode runtime whose sidebar has drawn its rows once, so
+/// their live rects are known before a scripted delete.
+fn sidebar_runtime(tmp: &TempVault) -> Runtime<State> {
+    let mut rt = runtime(tmp);
+    let alpha = rt.state.vault.resolve("Alpha").expect("Alpha");
+    rt.state.load_note(alpha, false);
+    // One frame lays the sidebar rows out and writes their drawn rects.
+    rt.frame(1.0 / 60.0);
+    assert!(
+        rt.find("note-row-0").is_some() || rt.find("note-row-1").is_some(),
+        "the sidebar must be showing note rows"
+    );
+    rt
+}
+
+/// The row whose centre is inside `rect`, as the list draws it now: the row
+/// that moved up into the burned one's place.
+fn row_inside(rt: &Runtime<State>, rect: [f32; 4]) -> Option<usize> {
+    (0..rt.state.vault.notes.len()).find(|&id| {
+        rt.presented(&format!("note-row-{id}"))
+            .is_some_and(|(r, _)| {
+                let cx = r[0] + r[2] / 2.0;
+                let cy = r[1] + r[3] / 2.0;
+                cx >= rect[0] && cx <= rect[0] + rect[2] && cy >= rect[1] && cy <= rect[1] + rect[3]
+            })
+    })
+}
+
+#[test]
+fn deleting_a_note_from_the_sidebar_burns_its_row() {
+    let tmp = temp_vault();
+    let mut rt = sidebar_runtime(&tmp);
+    assert_ne!(rt.state.mode, Mode::Graph, "the sidebar case is Editor");
+    let target = rt.state.vault.resolve("Beta").expect("Beta");
+    let row = rt
+        .presented(&format!("note-row-{target}"))
+        .expect("the row is drawn")
+        .0;
+
+    rt.update(|s, _| {
+        s.delete_note(target);
+        s.confirm_delete();
+    });
+    rt.frame(1.0 / 60.0);
+
+    let burn = rt
+        .state
+        .burn
+        .clone()
+        .expect("a sidebar delete leaves a burn");
+    assert_eq!(burn.space, BurnSpace::Row, "it is a window-space row burn");
+    assert!(
+        (burn.pos[0] - (row[0] + row[2] / 2.0)).abs() < 0.5
+            && (burn.pos[1] - (row[1] + row[3] / 2.0)).abs() < 0.5,
+        "it burns where the row was: {:?} vs {row:?}",
+        burn.pos
+    );
+    // The ghost is the row's own last drawn rect, so the fade covers the row.
+    let (ghost, _) = rt.presented("burn-ghost").expect("the ghost is drawn");
+    assert!(
+        (ghost[0] - row[0]).abs() < 0.5 && (ghost[1] - row[1]).abs() < 0.5,
+        "the ghost lands on the row: {ghost:?} vs {row:?}"
+    );
+    assert!(
+        effect_marks(&rt).iter().any(|m| m & 0xffff_0000 == FX_BURN),
+        "a fire slot covers the row"
+    );
+
+    // The ghost takes no input: a press on it still reaches the row the list
+    // moved up under it.
+    let under = row_inside(&rt, ghost).expect("a row moved into the burned spot");
+    click(&mut rt, &format!("note-row-{under}"));
+    rt.frame(1.0 / 60.0);
+    assert_eq!(
+        rt.state.selected,
+        Some(under),
+        "the burn must not swallow the click"
+    );
+
+    // As in the graph, it is gone well under a second later.
+    for _ in 0..70 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(rt.state.burn.is_none(), "the burn expires");
+    assert!(rt.presented("burn-ghost").is_none(), "and the ghost goes");
+    assert!(
+        !effect_marks(&rt).iter().any(|m| m & 0xffff_0000 == FX_BURN),
+        "and takes its slot with it"
+    );
+}
+
+#[test]
+fn off_and_reduced_motion_skip_the_sidebar_burn() {
+    let tmp = temp_vault();
+    let mut rt = sidebar_runtime(&tmp);
+    rt.state.reduced_motion_env = true;
+    let target = rt.state.vault.resolve("Beta").expect("Beta");
+    rt.update(|s, _| {
+        s.delete_note(target);
+        s.confirm_delete();
+    });
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.burn.is_none(), "reduced motion skips the row burn");
+    assert!(rt.presented("burn-ghost").is_none(), "and draws no ghost");
+
+    let tmp = temp_vault();
+    let mut rt = sidebar_runtime(&tmp);
+    rt.update(|s, _| s.set_graph_effects(GraphEffects::Off));
+    let target = rt.state.vault.resolve("Beta").expect("Beta");
+    rt.update(|s, _| {
+        s.delete_note(target);
+        s.confirm_delete();
+    });
+    rt.frame(1.0 / 60.0);
+    assert!(rt.state.burn.is_none(), "Off / Minimal skips the row burn");
+    assert!(
+        !effect_marks(&rt).iter().any(|m| m & 0xffff_0000 == FX_BURN),
+        "and emits no fire slot"
+    );
 }

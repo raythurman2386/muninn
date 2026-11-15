@@ -189,27 +189,43 @@ pub struct TrashUndo {
     pub trash_rel: String,
 }
 
-/// The graph footprint of a note deleted this session, kept briefly so the
-/// knowledge graph can burn its node out instead of it vanishing between two
-/// frames.
+/// Which coordinate space a [`BurnMark`] is measured in. See
+/// [`BurnMark::space`].
 ///
-/// Recorded in Graph mode from the layout that drew the node, before
-/// [`State::confirm_delete`] reloads the vault and rebuilds the graph (ids are
-/// positions in a scan and do not survive the reload). The world position is
-/// anchored inside the graph, so the burn follows the camera; no layout work is
-/// done for the ghost.
+/// The graph draws its burn inside the panned and zoomed world; a sidebar row
+/// is drawn in window points and is not moved by the camera, so the same two
+/// numbers mean very different places.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BurnSpace {
+    /// Graph world points: the burn rides the camera with the node.
+    Graph,
+    /// Window points: the note row's own drawn rect.
+    Row,
+}
+
+/// The footprint of a note deleted this session, kept briefly so the surface it
+/// left can burn it out instead of it vanishing between two frames.
+///
+/// Recorded before [`State::confirm_delete`] reloads the vault and rebuilds the
+/// graph (graph ids are positions in a scan and do not survive the reload): in
+/// Graph mode from the layout that drew the node, otherwise from the sidebar
+/// row that drew the note (#135). [`Self::space`] says which of the two the
+/// rect is in; the graph burn is anchored in the world, the row burn in the
+/// window.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BurnMark {
     /// Vault-relative path of the deleted note, for logging and tests.
     pub rel: String,
-    /// Label the node card drew, so the ghost reads as the note that left.
+    /// Label the surface drew, so the ghost reads as the note that left.
     pub label: String,
-    /// World-space centre of the node when it was deleted.
+    /// Centre of the card or row at deletion, in [`Self::space`]'s points.
     pub pos: [f32; 2],
-    /// Card size at deletion, so the burn covers the node's footprint.
+    /// Card or row size at deletion, so the burn covers its footprint.
     pub size: [f32; 2],
     /// Runtime clock (`State::now`) the deletion landed.
     pub started: f64,
+    /// Which points [`Self::pos`] and [`Self::size`] are measured in.
+    pub space: BurnSpace,
 }
 
 impl BurnMark {
@@ -227,6 +243,22 @@ impl BurnMark {
     #[must_use]
     pub fn alive(&self, now: f64) -> bool {
         now - self.started < Self::LIFE
+    }
+
+    /// A burn over the sidebar row drawn at `rect` (`[x, y, w, h]` in window
+    /// points), for a delete that happened outside the graph (#135).
+    ///
+    /// The row's rect is stored as its centre and size so the same ghost and
+    /// fire helpers serve the graph card and the list row.
+    pub(crate) fn over_row(rect: [f32; 4], rel: String, label: String, started: f64) -> Self {
+        Self {
+            rel,
+            label,
+            pos: [rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0],
+            size: [rect[2], rect[3]],
+            started,
+            space: BurnSpace::Row,
+        }
     }
 }
 
@@ -644,9 +676,18 @@ pub struct State {
     pub startup_error: Option<String>,
     /// Last note moved to the trash, offered as Undo in the status bar.
     pub trash_undo: Option<TrashUndo>,
-    /// The note deleted last, kept for [`BurnMark::LIFE`] so the graph can burn
-    /// its node out. `None` until the first deletion and after it ends.
+    /// The note deleted last, kept for [`BurnMark::LIFE`] so the surface it left
+    /// can burn it out: its graph node in Graph mode, its sidebar row elsewhere.
+    /// `None` until the first deletion and after it ends.
     pub burn: Option<BurnMark>,
+    /// #135: where each sidebar note row last drew, in window points, written
+    /// by the row itself (`El::drawn_rect_into`) and read when a delete needs
+    /// the row's rect to burn. Keyed by note id, which is a scan position: an
+    /// entry only matters for the frame before its note is deleted.
+    pub(crate) note_row_rects: std::cell::RefCell<HashMap<usize, rune::Live<[f32; 4]>>>,
+    /// #135: the notes list viewport (`note-scroll`) as drawn last, so a row
+    /// scrolled out of it does not pin its burn over the rest of the window.
+    pub(crate) note_list_rect: rune::Live<[f32; 4]>,
     /// Theme accent in linear RGB, published by `view` for the FX compositor
     /// (which runs outside the view's borrow of `State`).
     pub fx_accent: std::cell::Cell<[f32; 3]>,
@@ -996,6 +1037,8 @@ impl State {
             startup_error,
             trash_undo: None,
             burn: None,
+            note_row_rects: std::cell::RefCell::new(HashMap::new()),
+            note_list_rect: rune::Live::new([0.0; 4]),
             fx_accent: std::cell::Cell::new([0.35, 0.55, 0.95]),
             fx_muted: std::cell::Cell::new([0.45, 0.48, 0.55]),
             recovery,
@@ -2679,6 +2722,73 @@ impl State {
         self.save_settings();
     }
 
+    /// #135: the live drawn rect of note `id`'s sidebar row, in window points.
+    ///
+    /// The row binds it with [`rune::El::drawn_rect_into`], which writes only
+    /// when the rect moves (a scroll included) and runs no handler, so keeping
+    /// every row's place current costs no view rebuild. Created on first use:
+    /// a note whose row has never been drawn keeps the zero rect and gets no
+    /// burn.
+    pub(crate) fn note_row_rect(&self, id: usize) -> rune::Live<[f32; 4]> {
+        self.note_row_rects
+            .borrow_mut()
+            .entry(id)
+            .or_insert_with(|| rune::Live::new([0.0; 4]))
+            .clone()
+    }
+
+    /// #135: where to burn note `id`'s sidebar row, if it is on screen.
+    ///
+    /// A delete that is not a graph node's (the notes sidebar on any page)
+    /// burns the row the note left instead. The rect comes from the row's own
+    /// last draw, so it follows the list's scroll and the sidebar's width; it
+    /// is only used while the row is wholly inside the notes viewport and the
+    /// folder/query that showed it still does, since a burn pinned at a stale
+    /// point would light up over other chrome.
+    fn sidebar_burn_rect(&self, id: usize) -> Option<[f32; 4]> {
+        if !self.sidebar_visible() {
+            return None;
+        }
+        let rect = self.note_row_rects.borrow().get(&id).map(rune::Live::get)?;
+        let [x, y, w, h] = rect;
+        if w < 1.0 || h < 1.0 {
+            return None;
+        }
+        // The list only draws this row while its group is open and, for a
+        // query, while the note matches it; otherwise the live rect is the
+        // one from before the list moved on.
+        let filtering = !self.search.text.trim().is_empty();
+        let folder = self.vault.notes.get(id)?.folder();
+        let shown = if filtering {
+            self.search_results().contains(&id)
+        } else {
+            !self.is_collapsed(folder)
+        };
+        if !shown {
+            return None;
+        }
+        let view = self.note_list_rect.get();
+        let inside = x >= view[0] - 0.5
+            && y >= view[1] - 0.5
+            && x + w <= view[0] + view[2] + 0.5
+            && y + h <= view[1] + view[3] + 0.5;
+        inside.then_some(rect)
+    }
+
+    /// #135: the burn for note `id`'s sidebar row, if the row is on screen.
+    ///
+    /// `label` is the row's title, so the ghost fades the same words the list
+    /// drew.
+    fn note_row_burn(&self, id: usize, label: &str) -> Option<BurnMark> {
+        let rect = self.sidebar_burn_rect(id)?;
+        Some(BurnMark::over_row(
+            rect,
+            self.vault.notes.get(id)?.rel.clone(),
+            label.to_owned(),
+            self.now,
+        ))
+    }
+
     /// Per frame: retire the delete burn once its short life is over. Returns
     /// true while the burn is on screen (the view's slot data changes every
     /// frame, so the window must keep drawing).
@@ -4221,23 +4331,32 @@ impl State {
                 };
                 let was_selected = self.selected == Some(id);
                 self.flush();
-                // Record the node's footprint before the reload throws the
-                // graph ids away: the burn plays where the node used to be.
-                // Only the graph draws it (and only while motion is on), so a
-                // deletion elsewhere does not start one.
-                let burn = if self.mode == Mode::Graph
-                    && self.graph_effects() != GraphEffects::Off
-                    && !self.reduced_motion()
-                {
-                    crate::graph_view::node_footprint(self, id).map(|(pos, size)| BurnMark {
-                        rel: self.vault.notes[id].rel.clone(),
-                        label: label.clone(),
-                        pos,
-                        size,
-                        started: self.now,
-                    })
-                } else {
+                // Record where to burn before the reload throws the graph ids
+                // and the row order away. Graph mode burns the node's world
+                // footprint; every other page deletes from the notes sidebar,
+                // so it burns the note's own row at its last drawn window rect
+                // (#135). Board elements, Kanban cards and folders are not note
+                // rows and do not come through here: they stay out of scope.
+                // Off and Reduce motion skip the burn on every surface, as
+                // before.
+                let burn = if self.graph_effects() == GraphEffects::Off || self.reduced_motion() {
                     None
+                } else if self.mode == Mode::Graph {
+                    crate::graph_view::node_footprint(self, id)
+                        .map(|(pos, size)| BurnMark {
+                            rel: self.vault.notes[id].rel.clone(),
+                            label: label.clone(),
+                            pos,
+                            size,
+                            started: self.now,
+                            space: BurnSpace::Graph,
+                        })
+                        // A note the graph filters out (Local scope, a query)
+                        // has no node to burn, but its sidebar row is drawn on
+                        // the Graph page too.
+                        .or_else(|| self.note_row_burn(id, &label))
+                } else {
+                    self.note_row_burn(id, &label)
                 };
                 match self.vault.delete_note_to_trash(id) {
                     Ok(trash_rel) => {

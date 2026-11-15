@@ -12,10 +12,12 @@
 //!   and Off emit no slots at all and this compositor only draws the UI.
 //!   Settings › Graph › Effect intensity scales their amplitude, glow, forks
 //!   and strand count, so the same preset can be subtle or intense.
-//! - **The delete burn**: a short, low `FireStyle::Embers` fire over the node a
-//!   deleted note left behind (see `muninn_ui::BurnMark`). Every preset except
-//!   Off plays it, the intensity scales its heat and ember count, and reduced
-//!   motion skips it.
+//! - **The delete burn**: a short, low `FireStyle::Embers` fire over the note a
+//!   deletion left behind, whether that is its graph node or its sidebar row
+//!   (see `muninn_ui::BurnMark` and `muninn_ui::BurnSpace`). Every preset
+//!   except Off plays it, the intensity scales its heat and ember count,
+//!   reduced motion skips it, and the slots carry window points either way, so
+//!   the same layer paints both.
 //!
 //! A Glow preset is intentionally absent: `rune-fx` glow only draws rounded-rect
 //! blooms, so it could paint the node border but not an arbitrary diagonal edge

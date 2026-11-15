@@ -84,10 +84,10 @@ pub use settings::{
     Settings, ThemeMode, config_home,
 };
 pub use state::{
-    BurnMark, ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction,
-    FindState, FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry, ImportReport,
-    LinkComplete, MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State,
-    TagComplete, TrashUndo, file_action_command,
+    BurnMark, BurnSpace, ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState,
+    FileAction, FindState, FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry,
+    ImportReport, LinkComplete, MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt,
+    State, TagComplete, TrashUndo, file_action_command,
 };
 pub use tray::{
     TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,

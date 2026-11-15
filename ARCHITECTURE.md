@@ -74,12 +74,16 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    the page machine stay near their owning modules instead of piling up
    inside `state.rs`; `State` itself keeps the fields both machines read.
 
-   Graph presets and the delete burn do not draw themselves: the graph view
-   emits `El::effect` slots tagged with `fx_marks`, and the compositor in
+   Graph presets and the delete burn do not draw themselves: the views emit
+   `El::effect` slots tagged with `fx_marks`, and the compositor in
    `muninn-app` (`fx.rs`) paints them with `rune-fx` layers into the slots the
-   renderer hands back. `muninn-ui` therefore mints marks and payloads but
-   never builds a GPU pipeline, and `muninn-graph` stays Rune-free. Classic and
-   Off emit no slots, so the compositor's only work then is the normal frame.
+   renderer hands back. The graph's electric slots come from the graph view; the
+   burn is placed by the graph view over a node's world rect and, for a delete
+   outside the graph, by the root `view` over the note's own sidebar row
+   (#135), whose rect the row publishes as it draws. `muninn-ui` therefore mints
+   marks and payloads but never builds a GPU pipeline, and `muninn-graph` stays
+   Rune-free. Among the graph presets only Electric emits slots; the burn is its
+   own thing, playing under Classic and Electric and never under Off.
 5. **Save.** `muninn_ui::poll` notices an edited buffer, waits 0.55 s of idle, and writes the
    file only when its on-disk `(mtime, length)` still matches what the editor loaded. The write
    is atomic (a hidden, uniquely named temp file in the same folder is flushed and fsynced,
