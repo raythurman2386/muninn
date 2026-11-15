@@ -158,3 +158,39 @@ pub fn relative_day(days: i64) -> String {
         n => format!("{} days ago", -n),
     }
 }
+
+/// `"The tray icon could not be added: <error>"`.
+///
+/// The Appearance tab's tray status line: the sentence is fixed and the OS
+/// error is kept as written at its end, so it is a typed helper rather than a
+/// [`Key`], the same way [`files_skipped`] carries its count. `error` is never
+/// translated.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::tray_error("no dock"),
+///     "The tray icon could not be added: no dock"
+/// );
+/// ```
+pub fn tray_error(error: &str) -> String {
+    format!("The tray icon could not be added: {error}")
+}
+
+/// `"The login item could not be changed: <error>"`.
+///
+/// The Appearance tab's start-at-login status line, with the OS error kept as
+/// written at the end of the sentence.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::login_item_error("permission denied"),
+///     "The login item could not be changed: permission denied"
+/// );
+/// ```
+pub fn login_item_error(error: &str) -> String {
+    format!("The login item could not be changed: {error}")
+}

@@ -19,6 +19,7 @@ use muninn_core::{
     KANBAN_AUTOSAVE, KANBAN_KEYS, Kanban, KanbanEffective, KanbanKey, KanbanScope, KanbanSection,
     KanbanSettingKind, KanbanSettingValue, kanban_keys_in, metadata_field_indices,
 };
+use muninn_i18n::{Key, t};
 use rune::{El, ScrollSpec, col, row, text};
 use rune_kit::{Button, ButtonVariant, Kit, SegmentedControl, Switch, TextInput};
 use serde_json::{Map, Value};
@@ -507,7 +508,7 @@ pub(crate) fn app_tab(s: &State, k: &Kit) -> El {
         sources: &sources,
     };
     let mut body = col().key("settings-tab-kanban").w_full().gap(14.0).child(
-        text("A board's own settings footer wins; otherwise these apply to every board.")
+        text(t(Key::KanbanUiDefaultsNote))
             .font(k.ty.caption())
             .color(k.c.text_muted)
             .wrap(),
@@ -545,13 +546,13 @@ pub(crate) fn board_panel(s: &State, k: &Kit) -> El {
                 .center_y()
                 .gap(10.0)
                 .child(
-                    text("Board settings")
+                    text(t(Key::KanbanUiBoardSettings))
                         .font(k.ty.ui_medium)
                         .color(k.c.text_base)
                         .grow(1.0),
                 )
                 .child(
-                    Button::new("Close")
+                    Button::new(t(Key::Close))
                         .variant(ButtonVariant::Ghost)
                         .on_press(|s: &mut State| s.close_kanban_settings())
                         .build(k)
@@ -559,7 +560,7 @@ pub(crate) fn board_panel(s: &State, k: &Kit) -> El {
                 ),
         )
         .child(
-            text("Changes write only that key to this note's settings footer and can be undone.")
+            text(t(Key::KanbanUiChangesWriteOnly))
                 .font(k.ty.caption())
                 .color(k.c.text_muted)
                 .wrap(),
@@ -591,10 +592,9 @@ fn section_block(
         }
         rows = rows.child(setting_row(s, k, context, entry, view));
     }
-    crate::view::settings_section(k, section.title(), Some(section.caption()), rows).key(format!(
-        "kanban-settings-section-{}",
-        section_title_key(section)
-    ))
+    crate::view::settings_section(k, t(section.title()), Some(t(section.caption())), rows).key(
+        format!("kanban-settings-section-{}", section_title_key(section)),
+    )
 }
 
 fn section_title_key(section: KanbanSection) -> &'static str {
@@ -626,7 +626,7 @@ fn setting_row(
                 .center_y()
                 .gap(8.0)
                 .child(
-                    text(entry.label)
+                    text(t(entry.label))
                         .key(format!("kanban-setting-{}-label", entry.key))
                         .font(k.ty.ui_compact)
                         .color(k.c.text_base)
@@ -640,7 +640,7 @@ fn setting_row(
                 ),
         )
         .child(
-            text(entry.help)
+            text(t(entry.help))
                 .key(format!("kanban-setting-{}-help", entry.key))
                 .font(k.ty.caption())
                 .color(k.c.text_muted)
@@ -669,7 +669,7 @@ fn reset_buttons(k: &Kit, context: Context, entry: &'static KanbanKey, sources: 
                     small_button(
                         k,
                         format!("kanban-reset-app-{}", entry.key),
-                        "Reset to built-in",
+                        t(Key::KanbanUiResetBuiltIn),
                     )
                     .on_press(move |s: &mut State| s.reset_kanban_app_value(entry.key)),
                 );
@@ -683,7 +683,7 @@ fn reset_buttons(k: &Kit, context: Context, entry: &'static KanbanKey, sources: 
                     small_button(
                         k,
                         format!("kanban-reset-board-{}", entry.key),
-                        "Reset board",
+                        t(Key::KanbanUiResetBoard),
                     )
                     .on_press(move |s: &mut State| {
                         s.reset_kanban_board_value(entry.key);
@@ -695,7 +695,7 @@ fn reset_buttons(k: &Kit, context: Context, entry: &'static KanbanKey, sources: 
                     small_button(
                         k,
                         format!("kanban-reset-app-{}", entry.key),
-                        "Reset app default",
+                        t(Key::KanbanUiResetAppDefault),
                     )
                     .on_press(move |s: &mut State| s.reset_kanban_app_value(entry.key)),
                 );
@@ -723,19 +723,19 @@ fn source_label(
 ) -> (&'static str, rune::Color) {
     if context == Context::Board && sources.board_has(entry.key) {
         return if sources.parses(false, entry) == Some(false) {
-            ("Board value ignored", k.c.danger.fg)
+            (t(Key::KanbanUiSourceBoardIgnored), k.c.danger.fg)
         } else {
-            ("Board override", k.c.text_accent)
+            (t(Key::KanbanUiSourceBoardOverride), k.c.text_accent)
         };
     }
     if sources.app_has(entry.key) {
         return if sources.parses(true, entry) == Some(false) {
-            ("App value ignored", k.c.danger.fg)
+            (t(Key::KanbanUiSourceAppIgnored), k.c.danger.fg)
         } else {
-            ("App default", k.c.text_muted)
+            (t(Key::KanbanUiSourceAppDefault), k.c.text_muted)
         };
     }
-    ("Default", k.c.text_muted)
+    (t(Key::KanbanUiSourceDefault), k.c.text_muted)
 }
 
 fn control(s: &State, k: &Kit, context: Context, entry: &'static KanbanKey, view: &View<'_>) -> El {
@@ -745,7 +745,7 @@ fn control(s: &State, k: &Kit, context: Context, entry: &'static KanbanKey, view
         KanbanSettingKind::Bool => {
             let checked = value.as_bool().unwrap_or(false);
             Switch::new(checked)
-                .label(entry.label)
+                .label(t(entry.label))
                 .on_toggle(move |s: &mut State| {
                     let next = !s
                         .kanban_setting_value(context.is_app(), entry.key)
@@ -758,13 +758,13 @@ fn control(s: &State, k: &Kit, context: Context, entry: &'static KanbanKey, view
         }
         KanbanSettingKind::Text => text_control(s, k, context, entry),
         KanbanSettingKind::Choice(choices) => {
-            let labels: Vec<&str> = choices.iter().map(|choice| choice.label).collect();
+            let labels: Vec<&str> = choices.iter().map(|choice| t(choice.label)).collect();
             let selected = value
                 .as_text()
                 .and_then(|current| choices.iter().position(|choice| choice.value == current))
                 .unwrap_or(0);
             SegmentedControl::new(&labels, Some(selected))
-                .label(entry.label)
+                .label(t(entry.label))
                 .fit()
                 .on_pick(move |s: &mut State, index, _: &mut rune::Tx| {
                     if let Some(choice) = choices.get(index) {
@@ -796,7 +796,7 @@ fn text_control(s: &State, k: &Kit, context: Context, entry: &'static KanbanKey)
         return rune::el();
     };
     TextInput::new(field)
-        .label(entry.label)
+        .label(t(entry.label))
         .width(None)
         .on_edit(move |s: &mut State| {
             if context.is_app() {
@@ -834,7 +834,7 @@ fn number_control(
 ) -> El {
     let current = value.as_number().unwrap_or(number.min);
     let shown = if entry.key == muninn_core::MAX_ARCHIVE_CARDS && current == 0 {
-        "Unlimited".to_owned()
+        t(Key::KanbanUiUnlimited).to_owned()
     } else {
         current.to_string()
     };
@@ -901,7 +901,7 @@ fn metadata_control(
         .gap(4.0);
     if fields.is_empty() {
         rows = rows.child(
-            text("No metadata keys")
+            text(t(Key::KanbanUiNoMetadataKeys))
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         );
@@ -925,7 +925,7 @@ fn metadata_control(
                 )
                 .child(
                     Switch::new(current.contains_markdown)
-                        .label("Contains markdown")
+                        .label(t(Key::KanbanUiContainsMarkdown))
                         .on_toggle(move |s: &mut State| {
                             s.toggle_kanban_metadata_markdown(context.is_app(), key, raw_index);
                         })
@@ -936,7 +936,7 @@ fn metadata_control(
                     small_button(
                         k,
                         format!("kanban-setting-{key}-row-{index}-remove"),
-                        "Remove",
+                        t(Key::KanbanUiRemove),
                     )
                     .on_press(move |s: &mut State| {
                         s.remove_kanban_metadata(context.is_app(), key, raw_index);
@@ -957,7 +957,7 @@ fn metadata_control(
             .center_y()
             .child(
                 TextInput::new(new_field)
-                    .label("New metadata key")
+                    .label(t(Key::KanbanUiNewMetadataKey))
                     .placeholder("status")
                     .width(Some(180.0))
                     .on_edit(move |s: &mut State| {
@@ -971,7 +971,7 @@ fn metadata_control(
                     .key(format!("kanban-setting-{key}-new")),
             )
             .child(
-                small_button(k, format!("kanban-setting-{key}-add"), "Add").on_press(
+                small_button(k, format!("kanban-setting-{key}-add"), t(Key::KanbanUiAdd)).on_press(
                     move |s: &mut State| {
                         let field = if context.is_app() {
                             &mut s.kanban_app_new_metadata
@@ -997,7 +997,7 @@ fn tag_color_control(k: &Kit, entry: &'static KanbanKey, value: &KanbanSettingVa
         .gap(4.0);
     if colors.is_empty() {
         rows = rows.child(
-            text("No tag colours")
+            text(t(Key::KanbanUiNoTagColours))
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         );
@@ -1023,7 +1023,7 @@ fn tag_color_control(k: &Kit, entry: &'static KanbanKey, value: &KanbanSettingVa
         );
     }
     rows.child(
-        text("Kept as written. Viewing never rewrites it.")
+        text(t(Key::KanbanUiKeptAsWritten))
             .font(k.ty.caption())
             .color(k.c.text_faint),
     )

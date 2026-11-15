@@ -12,6 +12,7 @@
 //! `settings.json` and has no footer meaning. A later key is one entry here
 //! plus its field in [`KanbanDefaults`] and the resolver that owns it.
 
+use muninn_i18n::Key;
 use serde_json::{Value, json};
 
 use super::archive::{
@@ -58,27 +59,27 @@ impl KanbanSection {
     ];
 
     #[must_use]
-    pub fn title(self) -> &'static str {
+    pub fn title(self) -> Key {
         match self {
-            KanbanSection::Dates => "Dates and times",
-            KanbanSection::Tags => "Tags",
-            KanbanSection::Metadata => "Linked note metadata",
-            KanbanSection::Archive => "Archive",
-            KanbanSection::Board => "Board and cards",
-            KanbanSection::App => "App",
+            KanbanSection::Dates => Key::KanbanSectionDatesTitle,
+            KanbanSection::Tags => Key::KanbanSectionTagsTitle,
+            KanbanSection::Metadata => Key::KanbanSectionMetadataTitle,
+            KanbanSection::Archive => Key::KanbanSectionArchiveTitle,
+            KanbanSection::Board => Key::KanbanSectionBoardTitle,
+            KanbanSection::App => Key::KanbanSectionAppTitle,
         }
     }
 
     /// The one-line description under the group's heading.
     #[must_use]
-    pub fn caption(self) -> &'static str {
+    pub fn caption(self) -> Key {
         match self {
-            KanbanSection::Dates => "How dates and times are typed, written and shown.",
-            KanbanSection::Tags => "Tag chips and the kept tag-colour list.",
-            KanbanSection::Metadata => "Keys drawn at a card's foot from its first linked note.",
-            KanbanSection::Archive => "What archiving writes and how many cards the archive keeps.",
-            KanbanSection::Board => "Lane width, card editing and the header buttons.",
-            KanbanSection::App => "Choices for every board; there is no per-board override.",
+            KanbanSection::Dates => Key::KanbanSectionDatesCaption,
+            KanbanSection::Tags => Key::KanbanSectionTagsCaption,
+            KanbanSection::Metadata => Key::KanbanSectionMetadataCaption,
+            KanbanSection::Archive => Key::KanbanSectionArchiveCaption,
+            KanbanSection::Board => Key::KanbanSectionBoardCaption,
+            KanbanSection::App => Key::KanbanSectionAppCaption,
         }
     }
 }
@@ -104,7 +105,8 @@ pub struct KanbanNumber {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KanbanChoice {
     pub value: &'static str,
-    pub label: &'static str,
+    /// The choice's label; draw it with [`muninn_i18n::t`].
+    pub label: Key,
 }
 
 /// The kind of control a key's value needs.
@@ -282,8 +284,10 @@ pub struct KanbanKey {
     /// The footer key and the `kanban_defaults` key; see [`KANBAN_AUTOSAVE`]
     /// for the one app-only row.
     pub key: &'static str,
-    pub label: &'static str,
-    pub help: &'static str,
+    /// The row's label; draw it with [`muninn_i18n::t`].
+    pub label: Key,
+    /// The row's help line; draw it with [`muninn_i18n::t`].
+    pub help: Key,
     pub section: KanbanSection,
     pub scope: KanbanScope,
     pub kind: KanbanSettingKind,
@@ -404,33 +408,33 @@ macro_rules! set_choice {
 const NEW_LINE_CHOICES: &[KanbanChoice] = &[
     KanbanChoice {
         value: "enter",
-        label: "Enter",
+        label: Key::KanbanChoiceEnter,
     },
     KanbanChoice {
         value: "shift+enter",
-        label: "Shift+Enter",
+        label: Key::KanbanChoiceShiftEnter,
     },
 ];
 
 const ARCHIVE_POSITION_CHOICES: &[KanbanChoice] = &[
     KanbanChoice {
         value: "start",
-        label: "Start",
+        label: Key::KanbanChoiceStart,
     },
     KanbanChoice {
         value: "end",
-        label: "End",
+        label: Key::KanbanChoiceEnd,
     },
 ];
 
 const INSERTION_CHOICES: &[KanbanChoice] = &[
     KanbanChoice {
         value: "prepend",
-        label: "Prepend",
+        label: Key::KanbanChoicePrepend,
     },
     KanbanChoice {
         value: "append",
-        label: "Append",
+        label: Key::KanbanChoiceAppend,
     },
 ];
 
@@ -438,8 +442,8 @@ const INSERTION_CHOICES: &[KanbanChoice] = &[
 pub const KANBAN_KEYS: &[KanbanKey] = &[
     KanbanKey {
         key: DATE_TRIGGER,
-        label: "Date trigger",
-        help: "Typed before a date, as in @{2026-11-12}.",
+        label: Key::KanbanSettingDateTriggerLabel,
+        help: Key::KanbanSettingDateTriggerHelp,
         section: KanbanSection::Dates,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -449,8 +453,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: TIME_TRIGGER,
-        label: "Time trigger",
-        help: "Typed before a time, as in @@{14:30}.",
+        label: Key::KanbanSettingTimeTriggerLabel,
+        help: Key::KanbanSettingTimeTriggerHelp,
         section: KanbanSection::Dates,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -460,8 +464,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: DATE_FORMAT,
-        label: "Date format",
-        help: "Written inside a new date token; YYYY, MM, DD, MMMM and Do are tokens.",
+        label: Key::KanbanSettingDateFormatLabel,
+        help: Key::KanbanSettingDateFormatHelp,
         section: KanbanSection::Dates,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -471,8 +475,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: TIME_FORMAT,
-        label: "Time format",
-        help: "Written inside a new time token; HH, mm, h and A are tokens.",
+        label: Key::KanbanSettingTimeFormatLabel,
+        help: Key::KanbanSettingTimeFormatHelp,
         section: KanbanSection::Dates,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -482,8 +486,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: DATE_DISPLAY_FORMAT,
-        label: "Date display format",
-        help: "How a date is shown at the card's foot.",
+        label: Key::KanbanSettingDateDisplayFormatLabel,
+        help: Key::KanbanSettingDateDisplayFormatHelp,
         section: KanbanSection::Dates,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -493,8 +497,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: SHOW_RELATIVE_DATE,
-        label: "Show relative date",
-        help: "Adds today or in N days beside the date.",
+        label: Key::KanbanSettingShowRelativeDateLabel,
+        help: Key::KanbanSettingShowRelativeDateHelp,
         section: KanbanSection::Dates,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -504,8 +508,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: HIDE_DATE_IN_TITLE,
-        label: "Hide date in title",
-        help: "Keeps date and time tokens out of the card's main text.",
+        label: Key::KanbanSettingHideDateInTitleLabel,
+        help: Key::KanbanSettingHideDateInTitleHelp,
         section: KanbanSection::Dates,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -515,8 +519,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: LINK_DATE_TO_DAILY_NOTE,
-        label: "Link date to daily note",
-        help: "Makes the shown date a link to its daily note.",
+        label: Key::KanbanSettingLinkDateToDailyNoteLabel,
+        help: Key::KanbanSettingLinkDateToDailyNoteHelp,
         section: KanbanSection::Dates,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -526,8 +530,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: HIDE_TAGS_IN_TITLE,
-        label: "Hide tags in title",
-        help: "Keeps #tag tokens out of the card's main text.",
+        label: Key::KanbanSettingHideTagsInTitleLabel,
+        help: Key::KanbanSettingHideTagsInTitleHelp,
         section: KanbanSection::Tags,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -537,8 +541,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: SHOW_TAGS_AT_BOTTOM,
-        label: "Show tags at bottom",
-        help: "Draws tag chips at the card's foot.",
+        label: Key::KanbanSettingShowTagsAtBottomLabel,
+        help: Key::KanbanSettingShowTagsAtBottomHelp,
         section: KanbanSection::Tags,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -548,8 +552,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: TAG_COLORS,
-        label: "Tag colours",
-        help: "Kept as written. Muninn has no colour editor yet.",
+        label: Key::KanbanSettingTagColorsLabel,
+        help: Key::KanbanSettingTagColorsHelp,
         section: KanbanSection::Tags,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::TagColorList,
@@ -566,8 +570,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: LINKED_PAGE_METADATA,
-        label: "Linked note metadata",
-        help: "Keys shown at the card's foot from its first linked note.",
+        label: Key::KanbanSettingLinkedPageMetadataLabel,
+        help: Key::KanbanSettingLinkedPageMetadataHelp,
         section: KanbanSection::Metadata,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::MetadataList,
@@ -584,8 +588,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: SHOW_MISSING_METADATA,
-        label: "Show missing metadata",
-        help: "Draws key: — when the linked note or the key is missing.",
+        label: Key::KanbanSettingShowMissingMetadataLabel,
+        help: Key::KanbanSettingShowMissingMetadataHelp,
         section: KanbanSection::Metadata,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -595,8 +599,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: ARCHIVE_WITH_DATE,
-        label: "Archive with date",
-        help: "Adds the date to a card's text when it is archived.",
+        label: Key::KanbanSettingArchiveWithDateLabel,
+        help: Key::KanbanSettingArchiveWithDateHelp,
         section: KanbanSection::Archive,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -606,8 +610,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: ARCHIVE_DATE_FORMAT,
-        label: "Archive date format",
-        help: "The date format used when archiving; the same tokens as Date format.",
+        label: Key::KanbanSettingArchiveDateFormatLabel,
+        help: Key::KanbanSettingArchiveDateFormatHelp,
         section: KanbanSection::Archive,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -617,8 +621,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: ARCHIVE_DATE_POSITION,
-        label: "Archive date position",
-        help: "Start or end of the archived card's text.",
+        label: Key::KanbanSettingArchiveDatePositionLabel,
+        help: Key::KanbanSettingArchiveDatePositionHelp,
         section: KanbanSection::Archive,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Choice(ARCHIVE_POSITION_CHOICES),
@@ -637,8 +641,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: ARCHIVE_DATE_SEPARATOR,
-        label: "Archive date separator",
-        help: "Text between the card and its date; an empty value joins them.",
+        label: Key::KanbanSettingArchiveDateSeparatorLabel,
+        help: Key::KanbanSettingArchiveDateSeparatorHelp,
         section: KanbanSection::Archive,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -648,8 +652,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: MAX_ARCHIVE_CARDS,
-        label: "Max archive cards",
-        help: "Oldest archive cards beyond this many go. 0 is unlimited.",
+        label: Key::KanbanSettingMaxArchiveCardsLabel,
+        help: Key::KanbanSettingMaxArchiveCardsHelp,
         section: KanbanSection::Archive,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Number(KanbanNumber {
@@ -670,8 +674,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: LANE_WIDTH,
-        label: "Lane width",
-        help: "Lane width in points; the board clamps what it draws to 120–720.",
+        label: Key::KanbanSettingLaneWidthLabel,
+        help: Key::KanbanSettingLaneWidthHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Number(KanbanNumber {
@@ -685,8 +689,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: NEW_LINE_TRIGGER,
-        label: "New line trigger",
-        help: "In the card editor, Enter commits and Shift+Enter breaks the line, or the reverse.",
+        label: Key::KanbanSettingNewLineTriggerLabel,
+        help: Key::KanbanSettingNewLineTriggerHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Choice(NEW_LINE_CHOICES),
@@ -696,8 +700,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: NEW_CARD_INSERTION,
-        label: "New card position",
-        help: "Where + Add card puts the new card.",
+        label: Key::KanbanSettingNewCardInsertionLabel,
+        help: Key::KanbanSettingNewCardInsertionHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Choice(INSERTION_CHOICES),
@@ -707,8 +711,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: SHOW_CHECKBOXES,
-        label: "Show checkboxes",
-        help: "Draws each card's done checkbox.",
+        label: Key::KanbanSettingShowCheckboxesLabel,
+        help: Key::KanbanSettingShowCheckboxesHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -718,8 +722,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: SHOW_FILTER_BUTTON,
-        label: "Filter button",
-        help: "Shows the header's Filter button.",
+        label: Key::KanbanSettingShowFilterButtonLabel,
+        help: Key::KanbanSettingShowFilterButtonHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -729,8 +733,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: SHOW_ARCHIVE_BUTTON,
-        label: "Archive button",
-        help: "Shows the header's Archive button.",
+        label: Key::KanbanSettingShowArchiveButtonLabel,
+        help: Key::KanbanSettingShowArchiveButtonHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -740,8 +744,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: SHOW_OPEN_MARKDOWN_BUTTON,
-        label: "Open as markdown button",
-        help: "Shows the header's Open as markdown button.",
+        label: Key::KanbanSettingShowOpenMarkdownButtonLabel,
+        help: Key::KanbanSettingShowOpenMarkdownButtonHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Bool,
@@ -751,8 +755,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: NEW_NOTE_FOLDER,
-        label: "New note folder",
-        help: "Folder for New note from card; empty uses the folder New note uses.",
+        label: Key::KanbanSettingNewNoteFolderLabel,
+        help: Key::KanbanSettingNewNoteFolderHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -762,8 +766,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: NEW_NOTE_TEMPLATE,
-        label: "New note template",
-        help: "A note path whose text starts the new note; empty uses the app note template.",
+        label: Key::KanbanSettingNewNoteTemplateLabel,
+        help: Key::KanbanSettingNewNoteTemplateHelp,
         section: KanbanSection::Board,
         scope: KanbanScope::BoardAndApp,
         kind: KanbanSettingKind::Text,
@@ -773,8 +777,8 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
     },
     KanbanKey {
         key: KANBAN_AUTOSAVE,
-        label: "Autosave kanban edits",
-        help: "Saves unsaved kanban edits once they rest. Off leaves saving to ⌘S.",
+        label: Key::KanbanSettingKanbanAutosaveLabel,
+        help: Key::KanbanSettingKanbanAutosaveHelp,
         section: KanbanSection::App,
         scope: KanbanScope::AppOnly,
         kind: KanbanSettingKind::Bool,
@@ -795,6 +799,7 @@ pub const KANBAN_KEYS: &[KanbanKey] = &[
 mod tests {
     use super::*;
     use crate::Kanban;
+    use muninn_i18n::t;
     use serde_json::json;
 
     fn footer() -> String {
@@ -806,7 +811,7 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for entry in KANBAN_KEYS {
             assert!(seen.insert(entry.key), "duplicate key {}", entry.key);
-            assert!(!entry.key.is_empty() && !entry.label.is_empty());
+            assert!(!entry.key.is_empty() && !t(entry.label).is_empty());
         }
         for section in KanbanSection::ALL {
             assert!(kanban_keys_in(section).count() > 0, "{section:?} is empty");

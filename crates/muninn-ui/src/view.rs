@@ -10,7 +10,7 @@ use rune_kit::{
 use rune_theme_opencode::icons as ic;
 
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
-use muninn_i18n::{Key as TextKey, t};
+use muninn_i18n::{Key as TextKey, login_item_error, t, tray_error};
 
 use crate::{
     BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, MenuTarget, Mode, PaletteItem,
@@ -1147,7 +1147,7 @@ fn settings_vaults_tab(s: &State, k: &Kit) -> El {
     let mut recents = col().key("settings-recents").w_full().gap(2.0);
     if s.recent_vaults().is_empty() {
         recents = recents.child(
-            text("No recent vaults yet")
+            text(t(TextKey::SettingsVaultsRecentEmpty))
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
                 .padding(4.0),
@@ -1187,14 +1187,14 @@ fn settings_vaults_tab(s: &State, k: &Kit) -> El {
         .gap(14.0)
         .child(settings_section(
             k,
-            "Open a vault",
-            Some("Paste a folder path, or create a new vault in a new folder."),
+            t(TextKey::SettingsVaultsOpenTitle),
+            Some(t(TextKey::SettingsVaultsOpenCaption)),
             vault_prompt_row(s, k),
         ))
         .child(settings_section(
             k,
-            "Recent vaults",
-            Some("Vaults you have opened recently, most recent first."),
+            t(TextKey::SettingsVaultsRecentTitle),
+            Some(t(TextKey::SettingsVaultsRecentCaption)),
             recents,
         ))
 }
@@ -1228,8 +1228,8 @@ fn settings_editor_tab(s: &State, k: &Kit) -> El {
         );
 
     let template = TextArea::new(&s.note_template_field)
-        .label("Default note template")
-        .placeholder("Markdown inserted at the top of each new note")
+        .label(t(TextKey::SettingsEditorTemplateLabel))
+        .placeholder(t(TextKey::SettingsEditorTemplatePlaceholder))
         .width(None)
         .rows(3)
         .on_edit(|s: &mut State| &mut s.note_template_field)
@@ -1245,17 +1245,14 @@ fn settings_editor_tab(s: &State, k: &Kit) -> El {
         .gap(18.0)
         .child(settings_section(
             k,
-            "Autosave delay",
-            Some("Idle seconds before the open note is written."),
+            t(TextKey::SettingsEditorAutosaveTitle),
+            Some(t(TextKey::SettingsEditorAutosaveCaption)),
             stepper,
         ))
         .child(settings_section(
             k,
-            "Default note template",
-            Some(
-                "Markdown inserted at the top of every new note. \
-                 Leave empty for a plain heading.",
-            ),
+            t(TextKey::SettingsEditorTemplateTitle),
+            Some(t(TextKey::SettingsEditorTemplateCaption)),
             template,
         ))
 }
@@ -1264,7 +1261,7 @@ fn settings_editor_tab(s: &State, k: &Kit) -> El {
 /// global shortcut.
 fn settings_appearance_tab(s: &State, k: &Kit) -> El {
     let theme = if crate::omarchy::is_following(s) {
-        text("Following Omarchy system theme")
+        text(t(TextKey::SettingsAppearanceThemeFollowing))
             .key("settings-theme-note")
             .font(k.ty.ui_compact)
             .color(k.c.text_muted)
@@ -1272,7 +1269,7 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
     } else {
         let labels: Vec<&str> = ThemeMode::ALL.iter().map(|mode| mode.label()).collect();
         SegmentedControl::new(&labels, Some(s.theme.id() as usize))
-            .label("Theme")
+            .label(t(TextKey::SettingsAppearanceThemeTitle))
             // Each segment as wide as its widest label, so "Omarchy" and
             // "System" no longer truncate at the default 232 pt width.
             .fit()
@@ -1288,7 +1285,12 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
         .key("settings-tab-appearance")
         .w_full()
         .gap(18.0)
-        .child(settings_section(k, "Theme", None, theme))
+        .child(settings_section(
+            k,
+            t(TextKey::SettingsAppearanceThemeTitle),
+            None,
+            theme,
+        ))
         .child(settings_tray_section(s, k))
         .child(settings_startup_section(s, k))
 }
@@ -1299,7 +1301,7 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
 fn settings_tray_section(s: &State, k: &Kit) -> El {
     let supported = crate::tray_supported();
     let switch = Switch::new(s.tray_icon() && supported)
-        .label("Show tray icon")
+        .label(t(TextKey::SettingsAppearanceTrayShow))
         .disabled(!supported)
         .on_toggle(|s: &mut State| {
             let on = !s.tray_icon();
@@ -1308,18 +1310,17 @@ fn settings_tray_section(s: &State, k: &Kit) -> El {
         .build(k)
         .key("settings-tray-icon");
     let status = if !supported {
-        "Not available on macOS yet.".to_owned()
+        t(TextKey::SettingsAppearanceUnavailable).to_owned()
     } else if let Some(error) = s.tray_error() {
-        format!("The tray icon could not be added: {error}")
+        tray_error(error)
     } else if s.tray_icon() {
-        "On. Linux shows it where a tray host runs; GNOME needs an AppIndicator extension."
-            .to_owned()
+        t(TextKey::SettingsAppearanceTrayStatusOn).to_owned()
     } else {
-        "Off.".to_owned()
+        t(TextKey::SettingsAppearanceStateOff).to_owned()
     };
     let close_enabled = supported && s.tray_icon();
     let close = Switch::new(s.close_to_tray() && close_enabled)
-        .label("Close to tray")
+        .label(t(TextKey::SettingsAppearanceCloseToTrayTitle))
         .disabled(!close_enabled)
         .on_toggle(|s: &mut State| {
             let on = !s.close_to_tray();
@@ -1328,21 +1329,20 @@ fn settings_tray_section(s: &State, k: &Kit) -> El {
         .build(k)
         .key("settings-close-to-tray");
     let close_status = if !supported {
-        "Not available on macOS yet."
+        t(TextKey::SettingsAppearanceUnavailable)
     } else if !s.tray_icon() {
-        "Needs the tray icon. Closing the window quits Muninn."
+        t(TextKey::SettingsAppearanceCloseToTrayNeedsTray)
     } else if !s.close_to_tray() {
-        "Off. Closing the window quits Muninn."
+        t(TextKey::SettingsAppearanceCloseToTrayOff)
     } else if s.closes_to_tray() {
-        "On. Closing the window keeps Muninn in the tray; Quit Muninn there quits. \
-         If no tray host shows the icon, leave this off."
+        t(TextKey::SettingsAppearanceCloseToTrayOn)
     } else {
-        "On, but there is no tray icon right now, so closing the window quits Muninn."
+        t(TextKey::SettingsAppearanceCloseToTrayNoIcon)
     };
     settings_section(
         k,
-        "Tray icon",
-        Some("A tray icon with Show Muninn, New note, Sync now, the sync status and Quit."),
+        t(TextKey::SettingsAppearanceTrayTitle),
+        Some(t(TextKey::SettingsAppearanceTrayCaption)),
         col()
             .w_full()
             .gap(8.0)
@@ -1361,7 +1361,7 @@ fn settings_tray_section(s: &State, k: &Kit) -> El {
 fn settings_startup_section(s: &State, k: &Kit) -> El {
     let autostart = crate::autostart_supported();
     let login = Switch::new(s.auto_start() && autostart)
-        .label("Start Muninn at login")
+        .label(t(TextKey::SettingsAppearanceLoginTitle))
         .disabled(!autostart)
         .on_toggle(|s: &mut State| {
             let on = !s.auto_start();
@@ -1370,13 +1370,13 @@ fn settings_startup_section(s: &State, k: &Kit) -> El {
         .build(k)
         .key("settings-auto-start");
     let login_status = if !autostart {
-        "Not available on macOS yet.".to_owned()
+        t(TextKey::SettingsAppearanceUnavailable).to_owned()
     } else if let Some(error) = s.auto_start_error() {
-        format!("The login item could not be changed: {error}")
+        login_item_error(error)
     } else if s.auto_start() {
-        "On. Muninn opens when you log in.".to_owned()
+        t(TextKey::SettingsAppearanceLoginOn).to_owned()
     } else {
-        "Off.".to_owned()
+        t(TextKey::SettingsAppearanceStateOff).to_owned()
     };
     let chord = crate::show_shortcut_label();
     let shortcut = Switch::new(s.show_shortcut())
@@ -1394,13 +1394,15 @@ fn settings_startup_section(s: &State, k: &Kit) -> El {
         (true, crate::ShortcutPhase::Bound) => {
             format!("On. {chord} shows Muninn from any app.")
         }
-        (true, crate::ShortcutPhase::Pending) => "Registering…".to_owned(),
-        (true, _) => "On.".to_owned(),
-        (false, _) => "Off.".to_owned(),
+        (true, crate::ShortcutPhase::Pending) => {
+            t(TextKey::SettingsAppearanceShortcutRegistering).to_owned()
+        }
+        (true, _) => t(TextKey::SettingsAppearanceStateOn).to_owned(),
+        (false, _) => t(TextKey::SettingsAppearanceStateOff).to_owned(),
     };
     settings_section(
         k,
-        "Startup and shortcut",
+        t(TextKey::SettingsAppearanceStartupTitle),
         None,
         col()
             .w_full()
@@ -1442,7 +1444,7 @@ fn settings_caption(k: &Kit, key: &'static str, line: &str) -> El {
 fn settings_graph_tab(s: &State, k: &Kit) -> El {
     let labels: Vec<&str> = ReduceMotion::ALL.iter().map(|m| m.label()).collect();
     let picker = SegmentedControl::new(&labels, Some(s.reduce_motion().index()))
-        .label("Reduce motion")
+        .label(t(TextKey::SettingsGraphReduceMotionTitle))
         .fit()
         .on_pick(|s: &mut State, index, _: &mut Tx| {
             if let Some(mode) = ReduceMotion::ALL.get(index) {
@@ -1452,18 +1454,18 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
         .build(k)
         .key("settings-reduce-motion");
     let status = if s.reduced_motion_env {
-        "Currently on: MUNINN_REDUCED_MOTION is set, which overrides this choice."
+        t(TextKey::SettingsGraphReduceMotionEnv)
     } else {
         match (s.reduce_motion(), s.reduced_motion()) {
-            (ReduceMotion::System, true) => "Currently on, following the system setting.",
-            (ReduceMotion::System, false) => "Currently off, following the system setting.",
-            (_, true) => "Currently on.",
-            (_, false) => "Currently off.",
+            (ReduceMotion::System, true) => t(TextKey::SettingsGraphReduceMotionSystemOn),
+            (ReduceMotion::System, false) => t(TextKey::SettingsGraphReduceMotionSystemOff),
+            (_, true) => t(TextKey::SettingsGraphReduceMotionOn),
+            (_, false) => t(TextKey::SettingsGraphReduceMotionOff),
         }
     };
     let effect_labels: Vec<&str> = GraphEffects::ALL.iter().map(|e| e.label()).collect();
     let effects = SegmentedControl::new(&effect_labels, Some(s.graph_effects().index()))
-        .label("Graph effects")
+        .label(t(TextKey::SettingsGraphEffectsTitle))
         .fit()
         .on_pick(|s: &mut State, index, _: &mut Tx| {
             if let Some(effects) = GraphEffects::ALL.get(index) {
@@ -1477,7 +1479,7 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
         .map(|i| i.label())
         .collect();
     let intensity = SegmentedControl::new(&intensity_labels, Some(s.effect_intensity().index()))
-        .label("Effect intensity")
+        .label(t(TextKey::SettingsGraphIntensityTitle))
         .fit()
         .on_pick(|s: &mut State, index, _: &mut Tx| {
             if let Some(intensity) = GraphEffectIntensity::ALL.get(index) {
@@ -1492,11 +1494,8 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
         .gap(18.0)
         .child(settings_section(
             k,
-            "Reduce motion",
-            Some(
-                "Freezes the graph layout, skips camera glides and makes hover, selection and \
-                 graph effects static. System follows your OS setting.",
-            ),
+            t(TextKey::SettingsGraphReduceMotionTitle),
+            Some(t(TextKey::SettingsGraphReduceMotionCaption)),
             col().w_full().gap(8.0).child(picker).child(
                 text(status)
                     .key("settings-reduced-motion-status")
@@ -1507,23 +1506,14 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
         ))
         .child(settings_section(
             k,
-            "Graph effects",
-            Some(
-                "The same effect family draws the selection's border and the lines it touches: \
-                 Classic keeps today's plain lines, Electric arcs both, Off draws plain lines \
-                 with no effect layers. Reduced motion freezes whichever you pick.",
-            ),
+            t(TextKey::SettingsGraphEffectsTitle),
+            Some(t(TextKey::SettingsGraphEffectsCaption)),
             col().w_full().gap(8.0).child(effects),
         ))
         .child(settings_section(
             k,
-            "Effect intensity",
-            Some(
-                "Scales the Electric arcs and the delete burn. Balanced is the original look. \
-                 Classic draws no arcs and Off draws nothing, so the arc choice is only \
-                 visible with Electric; the burn still scales under either. Reduced motion \
-                 still freezes the result.",
-            ),
+            t(TextKey::SettingsGraphIntensityTitle),
+            Some(t(TextKey::SettingsGraphIntensityCaption)),
             col().w_full().gap(8.0).child(intensity),
         ))
 }
@@ -1552,7 +1542,7 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.vault_field, k.ty.ui_compact)
                 .key("vault-path")
-                .label("Vault folder path")
+                .label(t(TextKey::SettingsVaultsPathLabel))
                 .single_line()
                 .w_full()
                 .color(k.c.text_base)
@@ -1572,7 +1562,7 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
                 .on_submit(|s: &mut State, _| s.submit_vault_path()),
         )
         .child(
-            text("Paste a folder path; ~ expands to your home folder.")
+            text(t(TextKey::SettingsVaultsPathHint))
                 .key("vault-hint")
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
@@ -1601,21 +1591,33 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
                         .px(8.0)
                         .py(3.0)
                         .fill(k.c.layer_03)
-                        .child(text("Open vault").font(k.ty.caption()).color(k.c.text_base))
+                        .child(
+                            text(t(TextKey::SettingsVaultsOpenAction))
+                                .font(k.ty.caption())
+                                .color(k.c.text_base),
+                        )
                         .on_press(|s: &mut State| s.submit_vault_path()),
                 )
                 .child(
                     pressable(k, "vault-create".to_owned())
                         .px(8.0)
                         .py(3.0)
-                        .child(text("New vault").font(k.ty.caption()).color(k.c.text_muted))
+                        .child(
+                            text(t(TextKey::SettingsVaultsNewAction))
+                                .font(k.ty.caption())
+                                .color(k.c.text_muted),
+                        )
                         .on_press(|s: &mut State| s.submit_new_vault()),
                 )
                 .child(
                     pressable(k, "vault-cancel".to_owned())
                         .px(8.0)
                         .py(3.0)
-                        .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                        .child(
+                            text(t(TextKey::Cancel))
+                                .font(k.ty.caption())
+                                .color(k.c.text_muted),
+                        )
                         .on_press(|s: &mut State| s.cancel_vault_prompt()),
                 ),
         )

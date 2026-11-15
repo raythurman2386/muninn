@@ -54,10 +54,54 @@ fn the_help_groups_are_six_and_distinct() {
 }
 
 #[test]
+fn the_kanban_sections_are_six_and_distinct() {
+    let titles: Vec<&str> = Key::ALL
+        .iter()
+        .map(|key| key.id())
+        .filter(|id| id.starts_with("kanban.section.") && id.ends_with(".title"))
+        .collect();
+    assert_eq!(
+        titles.len(),
+        6,
+        "the settings schemas have six sections: {titles:?}"
+    );
+    assert_eq!(
+        titles.iter().collect::<BTreeSet<_>>().len(),
+        6,
+        "section ids repeat: {titles:?}"
+    );
+    let texts: BTreeSet<&str> = titles
+        .iter()
+        .map(|id| {
+            Key::ALL
+                .iter()
+                .find(|key| key.id() == *id)
+                .map(|key| t(*key))
+                .expect("a title id belongs to a key")
+        })
+        .collect();
+    assert_eq!(texts.len(), 6, "section titles repeat: {texts:?}");
+}
+
+#[test]
 fn every_key_has_text_without_placeholders() {
+    // Two help lines quote the on-disk token syntax, whose braces are data,
+    // not placeholders (docs/i18n.md §2 keeps the file format untranslated).
+    const TOKEN_EXAMPLES: [&str; 2] = [
+        "kanban.setting.date_trigger.help",
+        "kanban.setting.time_trigger.help",
+    ];
     for &key in Key::ALL {
         let text = t(key);
         assert!(!text.is_empty(), "{} has no text", key.id());
+        if TOKEN_EXAMPLES.contains(&key.id()) {
+            assert!(
+                text.contains('{') && text.contains('}'),
+                "{} is listed as a file-format example but lost its token: {text:?}",
+                key.id()
+            );
+            continue;
+        }
         assert!(
             !text.contains('{') && !text.contains('}'),
             "{} contains a placeholder; arguments belong in a typed helper: {text:?}",

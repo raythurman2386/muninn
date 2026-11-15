@@ -109,6 +109,72 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SettingsTabGraph => "Graph",
         Key::SettingsTabSync => "Sync",
         Key::SettingsTabKanban => "Kanban",
+        Key::SettingsVaultsOpenTitle => "Open a vault",
+        Key::SettingsVaultsOpenCaption => {
+            "Paste a folder path, or create a new vault in a new folder."
+        }
+        Key::SettingsVaultsRecentTitle => "Recent vaults",
+        Key::SettingsVaultsRecentCaption => "Vaults you have opened recently, most recent first.",
+        Key::SettingsVaultsRecentEmpty => "No recent vaults yet",
+        Key::SettingsVaultsPathLabel => "Vault folder path",
+        Key::SettingsVaultsPathHint => "Paste a folder path; ~ expands to your home folder.",
+        Key::SettingsVaultsOpenAction => "Open vault",
+        Key::SettingsVaultsNewAction => "New vault",
+        Key::SettingsEditorAutosaveTitle => "Autosave delay",
+        Key::SettingsEditorAutosaveCaption => "Idle seconds before the open note is written.",
+        Key::SettingsEditorTemplateTitle => "Default note template",
+        Key::SettingsEditorTemplateCaption => {
+            "Markdown inserted at the top of every new note. Leave empty for a plain heading."
+        }
+        Key::SettingsEditorTemplateLabel => "Default note template",
+        Key::SettingsEditorTemplatePlaceholder => "Markdown inserted at the top of each new note",
+        Key::SettingsAppearanceThemeTitle => "Theme",
+        Key::SettingsAppearanceThemeFollowing => "Following Omarchy system theme",
+        Key::SettingsAppearanceUnavailable => "Not available on macOS yet.",
+        Key::SettingsAppearanceStateOn => "On.",
+        Key::SettingsAppearanceStateOff => "Off.",
+        Key::SettingsAppearanceTrayTitle => "Tray icon",
+        Key::SettingsAppearanceTrayCaption => {
+            "A tray icon with Show Muninn, New note, Sync now, the sync status and Quit."
+        }
+        Key::SettingsAppearanceTrayShow => "Show tray icon",
+        Key::SettingsAppearanceTrayStatusOn => {
+            "On. Linux shows it where a tray host runs; GNOME needs an AppIndicator extension."
+        }
+        Key::SettingsAppearanceCloseToTrayTitle => "Close to tray",
+        Key::SettingsAppearanceCloseToTrayNeedsTray => {
+            "Needs the tray icon. Closing the window quits Muninn."
+        }
+        Key::SettingsAppearanceCloseToTrayOff => "Off. Closing the window quits Muninn.",
+        Key::SettingsAppearanceCloseToTrayOn => {
+            "On. Closing the window keeps Muninn in the tray; Quit Muninn there quits. If no tray host shows the icon, leave this off."
+        }
+        Key::SettingsAppearanceCloseToTrayNoIcon => {
+            "On, but there is no tray icon right now, so closing the window quits Muninn."
+        }
+        Key::SettingsAppearanceStartupTitle => "Startup and shortcut",
+        Key::SettingsAppearanceLoginTitle => "Start Muninn at login",
+        Key::SettingsAppearanceLoginOn => "On. Muninn opens when you log in.",
+        Key::SettingsAppearanceShortcutRegistering => "Registering…",
+        Key::SettingsGraphReduceMotionTitle => "Reduce motion",
+        Key::SettingsGraphReduceMotionCaption => {
+            "Freezes the graph layout, skips camera glides and makes hover, selection and graph effects static. System follows your OS setting."
+        }
+        Key::SettingsGraphReduceMotionEnv => {
+            "Currently on: MUNINN_REDUCED_MOTION is set, which overrides this choice."
+        }
+        Key::SettingsGraphReduceMotionSystemOn => "Currently on, following the system setting.",
+        Key::SettingsGraphReduceMotionSystemOff => "Currently off, following the system setting.",
+        Key::SettingsGraphReduceMotionOn => "Currently on.",
+        Key::SettingsGraphReduceMotionOff => "Currently off.",
+        Key::SettingsGraphEffectsTitle => "Graph effects",
+        Key::SettingsGraphEffectsCaption => {
+            "The same effect family draws the selection's border and the lines it touches: Classic keeps today's plain lines, Electric arcs both, Off draws plain lines with no effect layers. Reduced motion freezes whichever you pick."
+        }
+        Key::SettingsGraphIntensityTitle => "Effect intensity",
+        Key::SettingsGraphIntensityCaption => {
+            "Scales the Electric arcs and the delete burn. Balanced is the original look. Classic draws no arcs and Off draws nothing, so the arc choice is only visible with Electric; the burn still scales under either. Reduced motion still freezes the result."
+        }
         Key::PaletteTitle => "Command palette",
         Key::PaletteEmpty => "No notes or actions match",
         Key::PaletteFooter => "↑↓ move · Enter open · Esc close",
@@ -144,5 +210,138 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteSectionNotes => "Notes",
         Key::PaletteSectionActions => "Actions",
         Key::PaletteSectionKanbans => "Kanbans",
+        Key::KanbanSectionDatesTitle => "Dates and times",
+        Key::KanbanSectionDatesCaption => "How dates and times are typed, written and shown.",
+        Key::KanbanSectionTagsTitle => "Tags",
+        Key::KanbanSectionTagsCaption => "Tag chips and the kept tag-colour list.",
+        Key::KanbanSectionMetadataTitle => "Linked note metadata",
+        Key::KanbanSectionMetadataCaption => {
+            "Keys drawn at a card's foot from its first linked note."
+        }
+        Key::KanbanSectionArchiveTitle => "Archive",
+        Key::KanbanSectionArchiveCaption => {
+            "What archiving writes and how many cards the archive keeps."
+        }
+        Key::KanbanSectionBoardTitle => "Board and cards",
+        Key::KanbanSectionBoardCaption => "Lane width, card editing and the header buttons.",
+        Key::KanbanSectionAppTitle => "App",
+        Key::KanbanSectionAppCaption => "Choices for every board; there is no per-board override.",
+        Key::KanbanChoiceEnter => "Enter",
+        Key::KanbanChoiceShiftEnter => "Shift+Enter",
+        Key::KanbanChoiceStart => "Start",
+        Key::KanbanChoiceEnd => "End",
+        Key::KanbanChoicePrepend => "Prepend",
+        Key::KanbanChoiceAppend => "Append",
+        Key::KanbanUiDefaultsNote => {
+            "A board's own settings footer wins; otherwise these apply to every board."
+        }
+        Key::KanbanUiBoardSettings => "Board settings",
+        Key::KanbanUiChangesWriteOnly => {
+            "Changes write only that key to this note's settings footer and can be undone."
+        }
+        Key::KanbanUiNoMetadataKeys => "No metadata keys",
+        Key::KanbanUiNoTagColours => "No tag colours",
+        Key::KanbanUiKeptAsWritten => "Kept as written. Viewing never rewrites it.",
+        Key::KanbanUiSourceBoardIgnored => "Board value ignored",
+        Key::KanbanUiSourceBoardOverride => "Board override",
+        Key::KanbanUiSourceAppIgnored => "App value ignored",
+        Key::KanbanUiSourceAppDefault => "App default",
+        Key::KanbanUiSourceDefault => "Default",
+        Key::KanbanUiResetBuiltIn => "Reset to built-in",
+        Key::KanbanUiResetBoard => "Reset board",
+        Key::KanbanUiResetAppDefault => "Reset app default",
+        Key::KanbanUiRemove => "Remove",
+        Key::KanbanUiAdd => "Add",
+        Key::KanbanUiContainsMarkdown => "Contains markdown",
+        Key::KanbanUiNewMetadataKey => "New metadata key",
+        Key::KanbanUiUnlimited => "Unlimited",
+        Key::KanbanSettingDateTriggerLabel => "Date trigger",
+        Key::KanbanSettingDateTriggerHelp => "Typed before a date, as in @{2026-11-12}.",
+        Key::KanbanSettingTimeTriggerLabel => "Time trigger",
+        Key::KanbanSettingTimeTriggerHelp => "Typed before a time, as in @@{14:30}.",
+        Key::KanbanSettingDateFormatLabel => "Date format",
+        Key::KanbanSettingDateFormatHelp => {
+            "Written inside a new date token; YYYY, MM, DD, MMMM and Do are tokens."
+        }
+        Key::KanbanSettingTimeFormatLabel => "Time format",
+        Key::KanbanSettingTimeFormatHelp => {
+            "Written inside a new time token; HH, mm, h and A are tokens."
+        }
+        Key::KanbanSettingDateDisplayFormatLabel => "Date display format",
+        Key::KanbanSettingDateDisplayFormatHelp => "How a date is shown at the card's foot.",
+        Key::KanbanSettingShowRelativeDateLabel => "Show relative date",
+        Key::KanbanSettingShowRelativeDateHelp => "Adds today or in N days beside the date.",
+        Key::KanbanSettingHideDateInTitleLabel => "Hide date in title",
+        Key::KanbanSettingHideDateInTitleHelp => {
+            "Keeps date and time tokens out of the card's main text."
+        }
+        Key::KanbanSettingLinkDateToDailyNoteLabel => "Link date to daily note",
+        Key::KanbanSettingLinkDateToDailyNoteHelp => {
+            "Makes the shown date a link to its daily note."
+        }
+        Key::KanbanSettingHideTagsInTitleLabel => "Hide tags in title",
+        Key::KanbanSettingHideTagsInTitleHelp => "Keeps #tag tokens out of the card's main text.",
+        Key::KanbanSettingShowTagsAtBottomLabel => "Show tags at bottom",
+        Key::KanbanSettingShowTagsAtBottomHelp => "Draws tag chips at the card's foot.",
+        Key::KanbanSettingTagColorsLabel => "Tag colours",
+        Key::KanbanSettingTagColorsHelp => "Kept as written. Muninn has no colour editor yet.",
+        Key::KanbanSettingLinkedPageMetadataLabel => "Linked note metadata",
+        Key::KanbanSettingLinkedPageMetadataHelp => {
+            "Keys shown at the card's foot from its first linked note."
+        }
+        Key::KanbanSettingShowMissingMetadataLabel => "Show missing metadata",
+        Key::KanbanSettingShowMissingMetadataHelp => {
+            "Draws key: — when the linked note or the key is missing."
+        }
+        Key::KanbanSettingArchiveWithDateLabel => "Archive with date",
+        Key::KanbanSettingArchiveWithDateHelp => {
+            "Adds the date to a card's text when it is archived."
+        }
+        Key::KanbanSettingArchiveDateFormatLabel => "Archive date format",
+        Key::KanbanSettingArchiveDateFormatHelp => {
+            "The date format used when archiving; the same tokens as Date format."
+        }
+        Key::KanbanSettingArchiveDatePositionLabel => "Archive date position",
+        Key::KanbanSettingArchiveDatePositionHelp => "Start or end of the archived card's text.",
+        Key::KanbanSettingArchiveDateSeparatorLabel => "Archive date separator",
+        Key::KanbanSettingArchiveDateSeparatorHelp => {
+            "Text between the card and its date; an empty value joins them."
+        }
+        Key::KanbanSettingMaxArchiveCardsLabel => "Max archive cards",
+        Key::KanbanSettingMaxArchiveCardsHelp => {
+            "Oldest archive cards beyond this many go. 0 is unlimited."
+        }
+        Key::KanbanSettingLaneWidthLabel => "Lane width",
+        Key::KanbanSettingLaneWidthHelp => {
+            "Lane width in points; the board clamps what it draws to 120–720."
+        }
+        Key::KanbanSettingNewLineTriggerLabel => "New line trigger",
+        Key::KanbanSettingNewLineTriggerHelp => {
+            "In the card editor, Enter commits and Shift+Enter breaks the line, or the reverse."
+        }
+        Key::KanbanSettingNewCardInsertionLabel => "New card position",
+        Key::KanbanSettingNewCardInsertionHelp => "Where + Add card puts the new card.",
+        Key::KanbanSettingShowCheckboxesLabel => "Show checkboxes",
+        Key::KanbanSettingShowCheckboxesHelp => "Draws each card's done checkbox.",
+        Key::KanbanSettingShowFilterButtonLabel => "Filter button",
+        Key::KanbanSettingShowFilterButtonHelp => "Shows the header's Filter button.",
+        Key::KanbanSettingShowArchiveButtonLabel => "Archive button",
+        Key::KanbanSettingShowArchiveButtonHelp => "Shows the header's Archive button.",
+        Key::KanbanSettingShowOpenMarkdownButtonLabel => "Open as markdown button",
+        Key::KanbanSettingShowOpenMarkdownButtonHelp => {
+            "Shows the header's Open as markdown button."
+        }
+        Key::KanbanSettingNewNoteFolderLabel => "New note folder",
+        Key::KanbanSettingNewNoteFolderHelp => {
+            "Folder for New note from card; empty uses the folder New note uses."
+        }
+        Key::KanbanSettingNewNoteTemplateLabel => "New note template",
+        Key::KanbanSettingNewNoteTemplateHelp => {
+            "A note path whose text starts the new note; empty uses the app note template."
+        }
+        Key::KanbanSettingKanbanAutosaveLabel => "Autosave kanban edits",
+        Key::KanbanSettingKanbanAutosaveHelp => {
+            "Saves unsaved kanban edits once they rest. Off leaves saving to ⌘S."
+        }
     }
 }
