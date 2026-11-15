@@ -10,6 +10,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
+use muninn_i18n::{Key as TextKey, t};
 use muninn_sync::{
     BindingId, CancelToken, CredentialStore, MemoryCredentialStore, NativeCredentialStore,
     OperationId, ProviderKind, Resolution, RunRequest, Secret, SyncReport, TAILNET_DEFAULT_PORT,
@@ -253,14 +254,12 @@ impl State {
 
     pub fn set_sync_provider(&mut self, index: usize) {
         self.sync_ui.provider_index = index.min(2);
-        self.sync_ui.status = match self.sync_ui.provider_index {
-            0 => "GitHub selected. Use a dedicated repository and branch, not the Muninn source repository."
-                .to_owned(),
-            1 => "Google Drive selected. Sync keeps an app-managed commit history in Muninn's private app data in your Drive, not editable Markdown files."
-                .to_owned(),
-            _ => "Tailscale selected. One device hosts a commit store; the others join it by MagicDNS name over your tailnet."
-                .to_owned(),
-        };
+        self.sync_ui.status = t(match self.sync_ui.provider_index {
+            0 => TextKey::SyncProviderGithubDescription,
+            1 => TextKey::SyncProviderDriveDescription,
+            _ => TextKey::SyncProviderTailscaleDescription,
+        })
+        .to_owned();
     }
 
     pub fn set_tailnet_role(&mut self, index: usize) {

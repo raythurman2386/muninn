@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
 use muninn_i18n::{Key, t};
-use muninn_ui::{Settings, State, on_key, poll, view};
+use muninn_ui::{Settings, SettingsTab, State, on_key, poll, view};
 use rune::{Env, Key as RuneKey, KeyEvent, Mods, Runtime};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -185,6 +185,110 @@ fn the_kanban_settings_tab_draws_the_catalog_schema_copy() {
         ),
         "the Kanban tab caption is drawn"
     );
+
+    let _ = fs::remove_dir_all(&state_home);
+}
+
+#[test]
+fn the_sync_tab_draws_the_catalog_provider_copy() {
+    let vault = TempVault::new(&[("Alpha.md", "# Alpha\n")]);
+    let config = unique_dir("sync-config");
+    let state_home = unique_dir("sync-state");
+    let settings = Settings {
+        last_vault: Some(vault.path().to_path_buf()),
+        ..Settings::default()
+    };
+    let mut rt = Runtime::new(
+        State::with_settings(
+            vault.path().to_path_buf(),
+            state_home.clone(),
+            config,
+            settings,
+        ),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+
+    rt.key(command(','));
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    rt.update(|s, _| {
+        s.set_settings_tab(SettingsTab::Sync);
+        s.set_sync_provider(0);
+    });
+    rt.frame(0.0);
+
+    // The provider picker and a GitHub field read the catalog.
+    assert_eq!(t(Key::SyncProviderGithubName), "GitHub");
+    assert_eq!(t(Key::SyncProviderDriveName), "Google Drive");
+    assert_eq!(t(Key::SyncProviderDriveShortName), "Drive");
+    assert_eq!(t(Key::SyncProviderTailscaleName), "Tailscale");
+    for label in [
+        t(Key::SyncProviderGithubName),
+        t(Key::SyncProviderDriveShortName),
+        t(Key::SyncProviderTailscaleName),
+    ] {
+        assert!(
+            has_text(&rt, label),
+            "the provider segment {label:?} is drawn"
+        );
+    }
+    assert_eq!(t(Key::SyncFieldGithubOwner), "GitHub owner");
+    assert!(
+        has_text(&rt, "GitHub owner"),
+        "the GitHub owner label is drawn"
+    );
+    assert_eq!(t(Key::SyncActionConnect), "Connect");
+    assert!(has_text(&rt, "Connect"), "the Connect button is drawn");
+
+    // The Drive picker description is the status line, and its caption is drawn.
+    rt.update(|s, _| s.set_sync_provider(1));
+    rt.frame(0.0);
+    assert_eq!(
+        t(Key::SyncProviderDriveDescription),
+        "Google Drive selected. Sync keeps an app-managed commit history in Muninn's private app data in your Drive, not editable Markdown files."
+    );
+    assert_eq!(rt.state.sync_status(), t(Key::SyncProviderDriveDescription));
+    assert!(
+        drawn(&rt).iter().any(|line| line
+            == &format!(
+                "{}. {}",
+                t(Key::SyncProviderDriveName),
+                t(Key::SyncProviderDriveDescription)
+            )),
+        "the status line names the provider from the catalog"
+    );
+    assert!(
+        has_text(
+            &rt,
+            "Kept in Muninn's private app data in your Drive, not in a visible folder. Use the same store name on each device."
+        ),
+        "the Drive caption is drawn"
+    );
+
+    // Tailscale picks its own description and role copy.
+    rt.update(|s, _| s.set_sync_provider(2));
+    rt.frame(0.0);
+    assert_eq!(
+        t(Key::SyncProviderTailscaleDescription),
+        "Tailscale selected. One device hosts a commit store; the others join it by MagicDNS name over your tailnet."
+    );
+    assert_eq!(
+        rt.state.sync_status(),
+        t(Key::SyncProviderTailscaleDescription)
+    );
+    assert_eq!(t(Key::SyncTailnetRoleLabel), "Tailscale role");
+    assert_eq!(t(Key::SyncTailnetRoleHost), "Host here");
+    assert_eq!(t(Key::SyncTailnetRoleJoin), "Join host");
+    assert!(has_text(&rt, "Host here"), "the host role is drawn");
+    assert!(has_text(&rt, "Join host"), "the join role is drawn");
+    assert_eq!(t(Key::SyncFieldLoopbackPort), "Loopback port");
+    assert!(has_text(&rt, "Loopback port"), "the port label is drawn");
 
     let _ = fs::remove_dir_all(&state_home);
 }

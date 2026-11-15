@@ -175,6 +175,43 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SettingsGraphIntensityCaption => {
             "Scales the Electric arcs and the delete burn. Balanced is the original look. Classic draws no arcs and Off draws nothing, so the arc choice is only visible with Electric; the burn still scales under either. Reduced motion still freezes the result."
         }
+        Key::SyncHeadingProvider => "Sync provider",
+        Key::SyncHeadingProviderCaption => {
+            "Manual Sync Now only. One provider for this vault. Disconnect removes credentials, not notes."
+        }
+        Key::SyncProviderGithubName => "GitHub",
+        Key::SyncProviderGithubDescription => {
+            "GitHub selected. Use a dedicated repository and branch, not the Muninn source repository."
+        }
+        Key::SyncProviderDriveName => "Google Drive",
+        Key::SyncProviderDriveShortName => "Drive",
+        Key::SyncProviderDriveDescription => {
+            "Google Drive selected. Sync keeps an app-managed commit history in Muninn's private app data in your Drive, not editable Markdown files."
+        }
+        Key::SyncProviderDriveCaption => {
+            "Kept in Muninn's private app data in your Drive, not in a visible folder. Use the same store name on each device."
+        }
+        Key::SyncProviderTailscaleName => "Tailscale",
+        Key::SyncProviderTailscaleDescription => {
+            "Tailscale selected. One device hosts a commit store; the others join it by MagicDNS name over your tailnet."
+        }
+        Key::SyncFieldGithubOwner => "GitHub owner",
+        Key::SyncFieldRepository => "Repository",
+        Key::SyncFieldBranch => "Branch",
+        Key::SyncFieldPrefix => "Prefix",
+        Key::SyncFieldGithubClientId => "GitHub client id (optional)",
+        Key::SyncFieldStoreName => "Store name",
+        Key::SyncFieldGoogleClientId => "Google client id (optional)",
+        Key::SyncFieldLoopbackPort => "Loopback port",
+        Key::SyncFieldAllowedLogins => "Allowed Tailscale logins (optional, comma-separated)",
+        Key::SyncFieldMagicDnsName => "Host MagicDNS name (device.tailnet.ts.net)",
+        Key::SyncFieldSharedKey => "Shared key from the host",
+        Key::SyncActionConnect => "Connect",
+        Key::SyncActionSyncNow => "Sync now",
+        Key::SyncActionDisconnect => "Disconnect",
+        Key::SyncTailnetRoleLabel => "Tailscale role",
+        Key::SyncTailnetRoleHost => "Host here",
+        Key::SyncTailnetRoleJoin => "Join host",
         Key::PaletteTitle => "Command palette",
         Key::PaletteEmpty => "No notes or actions match",
         Key::PaletteFooter => "↑↓ move · Enter open · Esc close",
