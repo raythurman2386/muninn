@@ -28,6 +28,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Fixed
 
+- **Dense vaults no longer settle with overlapping nodes (#136).** At high
+  density the two separation passes lose a tug-of-war with the forces, so the
+  settled graph kept two or three cards on top of each other. A vault dense
+  enough for the packing is now packed once when it cools — each overlapping
+  pair pushed out along its own centre-to-centre line to the drawn footprint
+  (cards while they fit, markers above) — and then frozen. A 90-note fixture
+  that drew 61 overlapping card pairs now draws none; the small-vault layout is
+  unchanged.
 - Deleting a note from the notes sidebar while in Write or Read used to remove
   the row with no feedback at all, although the graph had a burn for the same
   action. It now plays the same burn at the row (#135).
