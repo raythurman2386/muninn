@@ -164,11 +164,11 @@ impl KanbanView {
     /// The switcher's label.
     #[must_use]
     pub fn label(self) -> &'static str {
-        match self {
-            Self::Board => "Board",
-            Self::List => "List",
-            Self::Table => "Table",
-        }
+        muninn_i18n::t(match self {
+            Self::Board => muninn_i18n::Key::KanbanViewBoard,
+            Self::List => muninn_i18n::Key::KanbanViewList,
+            Self::Table => muninn_i18n::Key::KanbanViewTable,
+        })
     }
 }
 

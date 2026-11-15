@@ -20,10 +20,11 @@
 //!
 //! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. Today the
 //!   only language is `en-US`.
-//! - [`files_skipped`], [`notes`] and [`relative_day`] are the escape hatch for
-//!   parameterised copy: a view must not build a translated sentence with
-//!   `format!`, so counts and relative dates get typed functions instead. They
-//!   take no [`Key`].
+//! - [`files_skipped`], [`notes`], [`relative_day`], [`restore_to`],
+//!   [`filter_by_tag`], [`tray_error`] and [`login_item_error`] are the escape
+//!   hatch for parameterised copy: a view must not build a translated sentence
+//!   with `format!`, so counts, relative dates, lane names, tags and OS errors
+//!   get typed functions instead. They take no [`Key`].
 //! - [`DateNames`] and [`EN_US`] carry month/weekday names, short weekday
 //!   labels, the first day of the week and `AM`/`PM`. `muninn-core`'s
 //!   `format_date_for_display`/`format_time_for_display` read them; the file
@@ -157,6 +158,37 @@ pub fn relative_day(days: i64) -> String {
         n if n > 0 => format!("in {n} days"),
         n => format!("{} days ago", -n),
     }
+}
+
+/// `"Restore to <lane>"`.
+///
+/// The archive page's lane picker names the lane a card goes back to. The
+/// lane's title is file data and is kept as written, so the sentence is a
+/// typed helper rather than a [`Key`], the same way [`files_skipped`] carries
+/// its count.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::restore_to("To do"), "Restore to To do");
+/// ```
+pub fn restore_to(lane: &str) -> String {
+    format!("Restore to {lane}")
+}
+
+/// `"Filter by #<tag>"`.
+///
+/// A card's tag chip is a button that filters the board by that tag. The tag
+/// itself is file data and is kept as written, so the sentence is a typed
+/// helper rather than a [`Key`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::filter_by_tag("x"), "Filter by #x");
+/// ```
+pub fn filter_by_tag(tag: &str) -> String {
+    format!("Filter by #{tag}")
 }
 
 /// `"The tray icon could not be added: <error>"`.

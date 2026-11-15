@@ -35,7 +35,7 @@ use muninn_core::{
     TagSettings, card_checklist, format_date_for_display, format_time_for_display, parse_links,
     scan_card_text,
 };
-use muninn_i18n::EN_US;
+use muninn_i18n::{EN_US, Key as TextKey, t};
 use rune::{El, Key, KeyEvent, ScrollSpec, Tx, col, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 use rune_theme_opencode::icons as ic;
@@ -147,7 +147,7 @@ pub(crate) fn list(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
         ));
     }
     let content = if sections.is_empty() {
-        empty_state(k, "kanban-list-empty", "No lanes on this board")
+        empty_state(k, "kanban-list-empty", t(TextKey::KanbanViewNoLanes))
     } else {
         col()
             .key("kanban-list")
@@ -260,7 +260,7 @@ fn list_head(k: &Kit, i: usize, lane: &Lane, count: &str, over: bool) -> El {
         );
     if over {
         head = head.child(
-            text("Over limit")
+            text(t(TextKey::OverLimit))
                 .key(format!("kanban-list-lane-{i}-over"))
                 .font(k.ty.caption())
                 .color(k.c.warning.fg),
@@ -270,7 +270,7 @@ fn list_head(k: &Kit, i: usize, lane: &Lane, count: &str, over: bool) -> El {
         head = head
             .child(icon(&ic::CHECK, 12.0).color(k.c.success.fg))
             .child(
-                text("Complete")
+                text(t(TextKey::KanbanLaneComplete))
                     .key(format!("kanban-list-lane-{i}-complete"))
                     .font(k.ty.caption())
                     .color(k.c.success.fg),
@@ -428,14 +428,14 @@ pub(crate) fn table(s: &State, k: &Kit, rel: &str, board: &Kanban) -> El {
         ));
     }
     let content = if board.lanes().is_empty() {
-        empty_state(k, "kanban-table-empty-board", "No lanes on this board")
+        empty_state(k, "kanban-table-empty-board", t(TextKey::KanbanViewNoLanes))
     } else {
         col()
             .key("kanban-table")
             .w(TABLE_W)
             .gap(0.0)
             .role("table")
-            .label("Cards by lane")
+            .label(t(TextKey::KanbanViewCardsByLane))
             // Slice 16 fix: the rows are one group, so Tab reaches the table
             // and the arrows rove its rows; the selection follows focus.
             .focus_group()
@@ -490,9 +490,9 @@ fn table_lane_rows(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane, row
             i,
             lane,
             if no_match {
-                "No matching cards".to_owned()
+                t(TextKey::KanbanViewNoMatchingCards).to_owned()
             } else {
-                "No cards".to_owned()
+                t(TextKey::KanbanViewNoCards).to_owned()
             },
             Some("empty"),
         ));
@@ -514,25 +514,40 @@ fn table_head(k: &Kit) -> El {
         .center_y()
         .fill(k.c.layer_01)
         .role("row")
-        .label("Lane, Card, Date, Tags, Progress")
-        .child(cell(k, "kanban-table-head-lane", "Lane", LANE_COL))
+        .label(t(TextKey::KanbanViewColumns))
+        .child(cell(
+            k,
+            "kanban-table-head-lane",
+            t(TextKey::KanbanViewColumnLane),
+            LANE_COL,
+        ))
         .child(
-            text("Card")
+            text(t(TextKey::KanbanViewColumnCard))
                 .key("kanban-table-head-card")
                 .font(k.ty.caption())
                 .color(k.c.text_muted)
                 .grow(1.0)
                 .min_w(0.0)
                 .role("columnheader")
-                .label("Card")
+                .label(t(TextKey::KanbanViewColumnCard))
                 .selectable(true),
         )
-        .child(cell(k, "kanban-table-head-date", "Date", DATE_COL))
-        .child(cell(k, "kanban-table-head-tags", "Tags", TAGS_COL))
+        .child(cell(
+            k,
+            "kanban-table-head-date",
+            t(TextKey::KanbanViewColumnDate),
+            DATE_COL,
+        ))
+        .child(cell(
+            k,
+            "kanban-table-head-tags",
+            t(TextKey::KanbanViewColumnTags),
+            TAGS_COL,
+        ))
         .child(cell(
             k,
             "kanban-table-head-progress",
-            "Progress",
+            t(TextKey::KanbanViewColumnProgress),
             PROGRESS_COL,
         ))
 }
@@ -607,7 +622,7 @@ fn table_row(
             format!("kanban-table-{i}-{j}-open"),
             &ic::LINK,
             12.0,
-            "Open link",
+            t(TextKey::KanbanCardOpenLink),
             move |s: &mut State, tx: &mut Tx| {
                 // Resolve at press time: the note may have appeared or
                 // been renamed since this row was built.
@@ -753,11 +768,11 @@ fn table_lane_note(
 
 /// A lane's cards are empty (or the filter hides them all).
 fn empty_lane(k: &Kit, i: usize, filtered: bool) -> El {
-    text(if filtered {
-        "No matching cards"
+    text(t(if filtered {
+        TextKey::KanbanViewNoMatchingCards
     } else {
-        "No cards"
-    })
+        TextKey::KanbanViewNoCards
+    }))
     .key(format!("kanban-list-lane-{i}-empty"))
     .font(k.ty.caption())
     .color(k.c.text_faint)

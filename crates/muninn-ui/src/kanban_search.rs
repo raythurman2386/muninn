@@ -26,6 +26,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use muninn_core::{Card, CivilDate, DateSettings, format_date, scan_card_text, tag_key};
+use muninn_i18n::{Key as TextKey, t};
 use rune::{El, Key, KeyEvent, TextEdit, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
@@ -711,7 +712,7 @@ pub(crate) fn find_bar(s: &State, k: &Kit) -> El {
                 .w(300.0)
                 .color(k.c.text_base)
                 .caret(k.c.text_accent, k.selection())
-                .placeholder("Find in board", k.c.text_faint)
+                .placeholder(t(TextKey::KanbanFilterFind), k.c.text_faint)
                 .on_edit(|s: &mut State| &mut s.kanban_find.as_mut().expect("board find").field)
                 .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                     match e.key {
@@ -788,14 +789,18 @@ pub(crate) fn filter_panel(s: &State, k: &Kit) -> El {
                 .gap(8.0)
                 .center_y()
                 .child(
-                    text("Filter cards")
+                    text(t(TextKey::KanbanFilterTitle))
                         .font(k.ty.caption())
                         .color(k.c.text_muted),
                 )
                 .child(
-                    field(&filter.text, "kanban-filter-text", "Text")
-                        .w(240.0)
-                        .on_edit(|s: &mut State| &mut s.kanban_filter.text),
+                    field(
+                        &filter.text,
+                        "kanban-filter-text",
+                        t(TextKey::KanbanFilterText),
+                    )
+                    .w(240.0)
+                    .on_edit(|s: &mut State| &mut s.kanban_filter.text),
                 )
                 .child(
                     field(&filter.tag, "kanban-filter-tag", "#tag")
@@ -807,18 +812,21 @@ pub(crate) fn filter_panel(s: &State, k: &Kit) -> El {
             row()
                 .gap(6.0)
                 .center_y()
-                .child(label(k, "Date"))
+                .child(label(k, t(TextKey::KanbanFilterDate)))
                 .child(
-                    filter_choice(k, "kanban-filter-any-date", "Any date", {
-                        filter.preset.is_none() && filter.date_range().is_none()
-                    })
+                    filter_choice(
+                        k,
+                        "kanban-filter-any-date",
+                        t(TextKey::KanbanFilterAnyDate),
+                        filter.preset.is_none() && filter.date_range().is_none(),
+                    )
                     .on_press(|s: &mut State| s.set_kanban_date_preset(None)),
                 )
                 .child(
                     filter_choice(
                         k,
                         "kanban-filter-today",
-                        "Today",
+                        t(TextKey::Today),
                         filter.preset == Some(KanbanDatePreset::Today),
                     )
                     .on_press(|s: &mut State| {
@@ -829,7 +837,7 @@ pub(crate) fn filter_panel(s: &State, k: &Kit) -> El {
                     filter_choice(
                         k,
                         "kanban-filter-overdue",
-                        "Overdue",
+                        t(TextKey::KanbanFilterOverdue),
                         filter.preset == Some(KanbanDatePreset::Overdue),
                     )
                     .on_press(|s: &mut State| {
@@ -857,28 +865,48 @@ pub(crate) fn filter_panel(s: &State, k: &Kit) -> El {
             row()
                 .gap(6.0)
                 .center_y()
-                .child(label(k, "Status"))
+                .child(label(k, t(TextKey::KanbanFilterStatus)))
                 .child(
-                    filter_choice(k, "kanban-filter-done-any", "Any", filter.done.is_none())
-                        .on_press(|s: &mut State| s.set_kanban_done_filter(None)),
+                    filter_choice(
+                        k,
+                        "kanban-filter-done-any",
+                        t(TextKey::KanbanFilterAny),
+                        filter.done.is_none(),
+                    )
+                    .on_press(|s: &mut State| s.set_kanban_done_filter(None)),
                 )
                 .child(
-                    filter_choice(k, "kanban-filter-open", "Open", filter.done == Some(false))
-                        .on_press(|s: &mut State| s.set_kanban_done_filter(Some(false))),
+                    filter_choice(
+                        k,
+                        "kanban-filter-open",
+                        t(TextKey::KanbanFilterOpen),
+                        filter.done == Some(false),
+                    )
+                    .on_press(|s: &mut State| s.set_kanban_done_filter(Some(false))),
                 )
                 .child(
-                    filter_choice(k, "kanban-filter-done", "Done", filter.done == Some(true))
-                        .on_press(|s: &mut State| s.set_kanban_done_filter(Some(true))),
+                    filter_choice(
+                        k,
+                        "kanban-filter-done",
+                        t(TextKey::KanbanFilterDone),
+                        filter.done == Some(true),
+                    )
+                    .on_press(|s: &mut State| s.set_kanban_done_filter(Some(true))),
                 )
                 .child(rune::el().grow(1.0))
                 .child(
-                    filter_choice(k, "kanban-filter-clear-all", "Clear all", false)
-                        .on_press(|s: &mut State| s.clear_kanban_filter()),
+                    filter_choice(
+                        k,
+                        "kanban-filter-clear-all",
+                        t(TextKey::KanbanFilterClearAll),
+                        false,
+                    )
+                    .on_press(|s: &mut State| s.clear_kanban_filter()),
                 ),
         );
     if filter.date_error() {
         panel = panel.child(
-            text("A date filter is YYYY-MM-DD; the range is not applied.")
+            text(t(TextKey::KanbanFilterDateError))
                 .key("kanban-filter-error")
                 .role("alert")
                 .font(k.ty.caption())
@@ -933,9 +961,9 @@ fn small_button(k: &Kit, key: &'static str, glyph: &'static str) -> El {
         .center()
         .role("button")
         .label(match glyph {
-            "‹" => "Previous match",
-            "›" => "Next match",
-            _ => "Close find",
+            "‹" => t(TextKey::KanbanFilterPreviousMatch),
+            "›" => t(TextKey::KanbanFilterNextMatch),
+            _ => t(TextKey::KanbanFilterCloseFind),
         })
         .child(
             text(glyph.to_owned())
