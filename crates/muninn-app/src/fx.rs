@@ -10,9 +10,12 @@
 //!   a calmer charged border on direct neighbours. All three are
 //!   `rune_fx::ElectricStyle`, so the preset reads as one treatment. Classic
 //!   and Off emit no slots at all and this compositor only draws the UI.
+//!   Settings › Graph › Effect intensity scales their amplitude, glow, forks
+//!   and strand count, so the same preset can be subtle or intense.
 //! - **The delete burn**: a short, low `FireStyle::Embers` fire over the node a
 //!   deleted note left behind (see `muninn_ui::BurnMark`). Every preset except
-//!   Off plays it, and reduced motion skips it.
+//!   Off plays it, the intensity scales its heat and ember count, and reduced
+//!   motion skips it.
 //!
 //! A Glow preset is intentionally absent: `rune-fx` glow only draws rounded-rect
 //! blooms, so it could paint the node border but not an arbitrary diagonal edge
@@ -26,6 +29,19 @@ use rune_fx::{
     FxRenderer, FxSlot, Rgb, Shape,
 };
 use wgpu::TextureFormat;
+
+/// Scale one `rune-fx` knob by the Settings › Graph intensity, keeping the
+/// result inside the range the shader documents for it (so Subtle and Intense
+/// never push a knob out of bounds).
+fn scaled(base: f32, scale: f32, lo: f32, hi: f32) -> f32 {
+    (base * scale).clamp(lo, hi)
+}
+
+/// Scale a strand count by the intensity. `rune-fx` draws between one and
+/// three strands, so Subtle collapses a pair to one and Intense saturates.
+fn scaled_strands(base: u32, scale: f32) -> u32 {
+    (base as f32 * scale).round().clamp(1.0, 3.0) as u32
+}
 
 #[derive(Default)]
 pub struct GraphFx {
@@ -43,6 +59,10 @@ impl Compositor<State> for GraphFx {
         let t = f.rt.t as f32;
         let reduced = f.rt.state.reduced_motion();
         let effects = f.rt.state.graph_effects();
+        // Settings › Graph › Effect intensity, as a multiplier on the shape and
+        // glow below. Balanced is 1.0, so the defaults are exactly the picture
+        // every build before the setting drew.
+        let boost = f.rt.state.effect_intensity().scale();
         // `view` publishes the resolved theme colours every frame; the
         // compositor runs outside its borrow. `Rgb` is linear, like the theme.
         let accent = Rgb(f.rt.state.fx_accent.get());
@@ -84,15 +104,15 @@ impl Compositor<State> for GraphFx {
                             style: ElectricStyle::Border,
                             color: accent,
                             core: accent,
-                            amplitude: if reduced { 0.7 } else { 4.0 },
-                            glow: 5.0,
-                            forks: if reduced { 0.0 } else { 0.55 },
-                            flicker: if reduced { 0.0 } else { 0.45 },
+                            amplitude: scaled(if reduced { 0.7 } else { 4.0 }, boost, 0.0, 24.0),
+                            glow: scaled(5.0, boost, 1.0, 20.0),
+                            forks: scaled(if reduced { 0.0 } else { 0.55 }, boost, 0.0, 1.0),
+                            flicker: scaled(if reduced { 0.0 } else { 0.45 }, boost, 0.0, 1.0),
                             speed: if reduced { 0.0 } else { 3.5 },
-                            strands: 2,
+                            strands: scaled_strands(2, boost),
                             gap: 3.0,
-                            fork_len: 22.0,
-                            intensity: 1.0,
+                            fork_len: scaled(22.0, boost, 2.0, 60.0),
+                            intensity: scaled(1.0, boost, 0.0, 3.0),
                             ..ElectricParams::default()
                         })
                     } else {
@@ -100,15 +120,15 @@ impl Compositor<State> for GraphFx {
                             style: ElectricStyle::Charged,
                             color: muted,
                             core: accent,
-                            amplitude: if reduced { 0.5 } else { 1.1 },
-                            glow: 4.0,
-                            forks: if reduced { 0.0 } else { 0.25 },
-                            flicker: if reduced { 0.0 } else { 0.2 },
+                            amplitude: scaled(if reduced { 0.5 } else { 1.1 }, boost, 0.0, 24.0),
+                            glow: scaled(4.0, boost, 1.0, 20.0),
+                            forks: scaled(if reduced { 0.0 } else { 0.25 }, boost, 0.0, 1.0),
+                            flicker: scaled(if reduced { 0.0 } else { 0.2 }, boost, 0.0, 1.0),
                             speed: if reduced { 0.0 } else { 2.5 },
-                            strands: 1,
+                            strands: scaled_strands(1, boost),
                             gap: 0.5,
-                            fork_len: 14.0,
-                            intensity: 0.9,
+                            fork_len: scaled(14.0, boost, 2.0, 60.0),
+                            intensity: scaled(0.9, boost, 0.0, 3.0),
                             ..ElectricParams::charged()
                         })
                     }
@@ -129,24 +149,34 @@ impl Compositor<State> for GraphFx {
                         style: ElectricStyle::Arc { a, b },
                         color: if hot { accent } else { muted },
                         core: accent,
-                        amplitude: if reduced {
-                            0.5
-                        } else if hot {
-                            9.0
-                        } else {
-                            6.0
-                        },
-                        glow: if hot { 6.0 } else { 4.0 },
-                        forks: if reduced {
-                            0.0
-                        } else if hot {
-                            0.6
-                        } else {
-                            0.4
-                        },
-                        flicker: if reduced { 0.0 } else { 0.5 },
-                        strands: 3,
-                        intensity: if hot { 1.0 } else { 0.7 },
+                        amplitude: scaled(
+                            if reduced {
+                                0.5
+                            } else if hot {
+                                9.0
+                            } else {
+                                6.0
+                            },
+                            boost,
+                            0.0,
+                            24.0,
+                        ),
+                        glow: scaled(if hot { 6.0 } else { 4.0 }, boost, 1.0, 20.0),
+                        forks: scaled(
+                            if reduced {
+                                0.0
+                            } else if hot {
+                                0.6
+                            } else {
+                                0.4
+                            },
+                            boost,
+                            0.0,
+                            1.0,
+                        ),
+                        flicker: scaled(if reduced { 0.0 } else { 0.5 }, boost, 0.0, 1.0),
+                        strands: scaled_strands(3, boost),
+                        intensity: scaled(if hot { 1.0 } else { 0.7 }, boost, 0.0, 3.0),
                         speed: if reduced { 0.0 } else { 4.0 },
                         ..ElectricParams::default()
                     })
@@ -164,14 +194,14 @@ impl Compositor<State> for GraphFx {
                     any_anim |= !reduced;
                     Fx::fire(FireParams {
                         style: FireStyle::Embers,
-                        intensity: 0.8 * heat,
-                        embers: (5.0 * heat).round() as u32,
+                        intensity: scaled(0.8 * heat, boost, 0.0, 3.0),
+                        embers: (5.0 * heat * boost).round() as u32,
                         ember_rise: 26.0,
                         ember_size: 0.45,
                         ember_life: 0.7,
                         height: 16.0,
                         scale: 6.0,
-                        base_glow: 0.22 * heat,
+                        base_glow: scaled(0.22 * heat, boost, 0.0, 1.0),
                         occlusion: 0.0,
                         ..FireParams::heat()
                     })
@@ -232,5 +262,43 @@ impl Compositor<State> for GraphFx {
                 }
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use muninn_ui::GraphEffectIntensity;
+
+    #[test]
+    fn balanced_leaves_every_knob_exactly_as_it_was() {
+        let boost = GraphEffectIntensity::Balanced.scale();
+        assert_eq!(scaled(9.0, boost, 0.0, 24.0), 9.0);
+        assert_eq!(scaled(0.55, boost, 0.0, 1.0), 0.55);
+        assert_eq!(scaled_strands(3, boost), 3);
+    }
+
+    #[test]
+    fn intensity_scales_shape_and_glow_inside_the_shader_ranges() {
+        let subtle = GraphEffectIntensity::Subtle.scale();
+        let intense = GraphEffectIntensity::Intense.scale();
+        assert!(subtle < 1.0 && intense > 1.0);
+        // Subtle quiets the arc: shorter throws, less glow, a fork or two,
+        // and a strand count collapsed to one where the base was one.
+        assert!(scaled(9.0, subtle, 0.0, 24.0) < 9.0);
+        assert!(scaled(6.0, subtle, 1.0, 20.0) < 6.0);
+        assert!(scaled(0.5, subtle, 0.0, 1.0) < 0.5);
+        assert_eq!(scaled_strands(3, subtle), 2);
+        assert_eq!(scaled_strands(1, subtle), 1);
+        // Intense grows them, and never past the documented knob ranges.
+        assert!(scaled(9.0, intense, 0.0, 24.0) > 9.0);
+        assert_eq!(scaled(24.0, intense, 0.0, 24.0), 24.0);
+        assert_eq!(scaled(20.0, intense, 1.0, 20.0), 20.0);
+        assert_eq!(scaled(1.0, intense, 0.0, 1.0), 1.0);
+        assert_eq!(scaled_strands(3, intense), 3);
+        assert_eq!(scaled_strands(1, intense), 2);
+        // The reduced-motion static arc still follows the choice.
+        assert!(scaled(0.7, subtle, 0.0, 24.0) < 0.7);
+        assert!(scaled(0.7, intense, 0.0, 24.0) > 0.7);
     }
 }

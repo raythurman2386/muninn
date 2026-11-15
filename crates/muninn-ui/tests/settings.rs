@@ -10,7 +10,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
 use muninn_ui::{
-    GraphEffects, Mode, Scope, Settings, SettingsTab, State, ThemeMode, on_key, poll, view,
+    GraphEffectIntensity, GraphEffects, Mode, Scope, Settings, SettingsTab, State, ThemeMode,
+    on_key, poll, view,
 };
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
@@ -806,6 +807,156 @@ fn graph_effects_defaults_to_classic_and_round_trips_through_settings_json() {
     );
 
     let _ = fs::remove_dir_all(&config);
+}
+
+#[test]
+fn graph_effect_intensity_defaults_to_balanced_and_round_trips_through_settings_json() {
+    let config = unique_dir("fx-intensity-round-trip");
+    let path = config.join("muninn").join("settings.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    // A file written before the setting existed: no graph_effect_intensity key.
+    fs::write(
+        &path,
+        r#"{
+  "theme": "dark",
+  "graph_effects": "electric",
+  "collapsed": [],
+  "mode": "graph",
+  "scope": "global"
+}"#,
+    )
+    .unwrap();
+    let loaded = Settings::load_from(&config);
+    assert_eq!(
+        loaded.graph_effect_intensity,
+        GraphEffectIntensity::Balanced,
+        "an upgrade keeps today's intensity"
+    );
+    assert_eq!(
+        Settings::default().graph_effect_intensity,
+        GraphEffectIntensity::Balanced
+    );
+
+    loaded.save_to(&config).expect("save");
+    let text = fs::read_to_string(&path).expect("read");
+    assert!(
+        text.contains("\"graph_effect_intensity\": \"balanced\""),
+        "the default is written explicitly: {text}"
+    );
+
+    // Every level round-trips, and Balanced is exactly the old picture.
+    assert_eq!(GraphEffectIntensity::Balanced.scale(), 1.0);
+    for level in GraphEffectIntensity::ALL {
+        let settings = Settings {
+            graph_effect_intensity: level,
+            ..Settings::default()
+        };
+        settings.save_to(&config).expect("save");
+        let text = fs::read_to_string(&path).expect("read");
+        assert!(
+            text.contains(&format!(
+                "\"graph_effect_intensity\": \"{}\"",
+                level.as_key()
+            )),
+            "{text}"
+        );
+        assert_eq!(
+            Settings::load_from(&config).graph_effect_intensity,
+            level,
+            "{} round-trips",
+            level.as_key()
+        );
+    }
+
+    // A value this build does not know is the same as no value.
+    fs::write(&path, r#"{ "graph_effect_intensity": "ludicrous" }"#).unwrap();
+    assert_eq!(
+        Settings::load_from(&config).graph_effect_intensity,
+        GraphEffectIntensity::Balanced
+    );
+
+    let _ = fs::remove_dir_all(&config);
+}
+
+#[test]
+fn the_graph_tab_intensity_picker_applies_and_persists_immediately() {
+    let vault = vault_fixture();
+    let config = unique_dir("fx-intensity-picker-config");
+    let state_home = unique_dir("fx-intensity-picker-state");
+    let settings = Settings {
+        theme: ThemeMode::Dark,
+        last_vault: Some(vault.path().to_path_buf()),
+        graph_effects: GraphEffects::Electric,
+        ..Settings::default()
+    };
+    let mut rt = Runtime::new(
+        State::with_settings(
+            vault.path().to_path_buf(),
+            state_home.clone(),
+            config.clone(),
+            settings,
+        ),
+        view,
+        (1180.0, 780.0),
+        Env::new(true, 2.0),
+    );
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+    rt.key(command(','));
+    for _ in 0..8 {
+        rt.frame(1.0 / 60.0);
+    }
+    // The Graph tab is the fourth: Vaults, Editor, Appearance, Graph.
+    let (x, y) = rt.find("settings-tabs/segment3").expect("Graph tab");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    for _ in 0..4 {
+        rt.frame(1.0 / 60.0);
+    }
+    assert!(
+        rt.find("settings-graph-effect-intensity").is_some(),
+        "the intensity picker is on the Graph tab"
+    );
+    assert_eq!(rt.state.effect_intensity(), GraphEffectIntensity::Balanced);
+
+    // Segments are Subtle, Balanced, Intense.
+    let (x, y) = rt
+        .find("settings-graph-effect-intensity/segment2")
+        .expect("Intense segment");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.effect_intensity(), GraphEffectIntensity::Intense);
+    assert_eq!(
+        Settings::load_from(&config).graph_effect_intensity,
+        GraphEffectIntensity::Intense,
+        "the choice is written immediately"
+    );
+
+    let (x, y) = rt
+        .find("settings-graph-effect-intensity/segment0")
+        .expect("Subtle segment");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    rt.frame(1.0 / 60.0);
+    assert_eq!(rt.state.effect_intensity(), GraphEffectIntensity::Subtle);
+    assert_eq!(
+        Settings::load_from(&config).graph_effect_intensity,
+        GraphEffectIntensity::Subtle
+    );
+
+    // A fresh start restores the saved choice.
+    let restored = State::with_settings(
+        vault.path().to_path_buf(),
+        state_home.clone(),
+        config.clone(),
+        Settings::load_from(&config),
+    );
+    assert_eq!(restored.effect_intensity(), GraphEffectIntensity::Subtle);
+
+    let _ = fs::remove_dir_all(&config);
+    let _ = fs::remove_dir_all(&state_home);
 }
 
 #[test]

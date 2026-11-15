@@ -10,10 +10,11 @@
 //!
 //! It stores the theme choice, collapsed sidebar folders, the last vault, the
 //! last note and mode/scope, the recent-vault MRU list, the autosave delay,
-//! the default body inserted into new notes and the Reduce motion choice.
-//! Decoding is intentionally forgiving: a corrupt or partially-written file
-//! falls back to defaults instead of failing startup. Writes use the same temp-file-then-rename pattern as note saves, so
-//! a crash leaves either the old complete file or the new one.
+//! the default body inserted into new notes, the Reduce motion choice, and the
+//! graph effect preset with its intensity. Decoding is intentionally forgiving:
+//! a corrupt or partially-written file falls back to defaults instead of
+//! failing startup. Writes use the same temp-file-then-rename pattern as note
+//! saves, so a crash leaves either the old complete file or the new one.
 
 use std::env;
 use std::fs::{self, File};
@@ -485,6 +486,87 @@ impl GraphEffects {
     }
 }
 
+/// How strong the graph effects are (Settings › Graph).
+///
+/// The graph effect preset ([`GraphEffects`]) picks the effect family; this
+/// picks how much of it to draw. The compositor scales the arc's amplitude,
+/// glow, forks and strand count with [`GraphEffectIntensity::scale`], so the
+/// same preset reads as a faint shimmer, today's picture, or a brighter storm.
+///
+/// Serialized as `"subtle"` / `"balanced"` / `"intense"`. A missing or unknown
+/// value, including every file written before this setting existed, loads as
+/// [`GraphEffectIntensity::Balanced`] — a multiplier of 1.0, so an upgrade
+/// never changes the picture by itself.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GraphEffectIntensity {
+    /// Quiet: thin arcs, little glow, one strand.
+    Subtle,
+    /// The original look, and the default for old files.
+    #[default]
+    Balanced,
+    /// Bright: wide arcs, more glow and forks (strands stay within the
+    /// compositor's 1..=3 limit).
+    Intense,
+}
+
+impl GraphEffectIntensity {
+    /// Every choice in the order the settings segmented control shows them.
+    pub const ALL: [GraphEffectIntensity; 3] = [
+        GraphEffectIntensity::Subtle,
+        GraphEffectIntensity::Balanced,
+        GraphEffectIntensity::Intense,
+    ];
+
+    #[must_use]
+    pub fn as_key(self) -> &'static str {
+        match self {
+            GraphEffectIntensity::Subtle => "subtle",
+            GraphEffectIntensity::Balanced => "balanced",
+            GraphEffectIntensity::Intense => "intense",
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            GraphEffectIntensity::Subtle => "Subtle",
+            GraphEffectIntensity::Balanced => "Balanced",
+            GraphEffectIntensity::Intense => "Intense",
+        }
+    }
+
+    /// Position in [`GraphEffectIntensity::ALL`], for the segmented control.
+    #[must_use]
+    pub fn index(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|level| *level == self)
+            .unwrap_or(1)
+    }
+
+    /// Parse a persisted `graph_effect_intensity` value. Unknown values fall
+    /// back to [`GraphEffectIntensity::Balanced`], as a missing key does.
+    #[must_use]
+    pub fn from_key(value: Option<&str>) -> GraphEffectIntensity {
+        match value {
+            Some("subtle") => GraphEffectIntensity::Subtle,
+            Some("intense") => GraphEffectIntensity::Intense,
+            _ => GraphEffectIntensity::Balanced,
+        }
+    }
+
+    /// The multiplier the FX compositor applies to the effect's shape and
+    /// glow. [`GraphEffectIntensity::Balanced`] is exactly 1.0.
+    #[must_use]
+    pub fn scale(self) -> f32 {
+        match self {
+            GraphEffectIntensity::Subtle => 0.55,
+            GraphEffectIntensity::Balanced => 1.0,
+            GraphEffectIntensity::Intense => 1.65,
+        }
+    }
+}
+
 /// Preferences shared by every vault.
 ///
 /// `theme` picks the palette source (see [`ThemeMode`]). `collapsed` and the
@@ -548,6 +630,10 @@ pub struct Settings {
     /// Settings › Graph › Graph effects. Defaults to [`GraphEffects::Classic`]
     /// so existing files and fresh installs keep today's look.
     pub graph_effects: GraphEffects,
+    /// Settings › Graph › Graph effect intensity. Defaults to
+    /// [`GraphEffectIntensity::Balanced`], the look every file had before the
+    /// setting existed.
+    pub graph_effect_intensity: GraphEffectIntensity,
 }
 
 impl Default for Settings {
@@ -574,6 +660,7 @@ impl Default for Settings {
             kanban_autosave: true,
             kanban_defaults: KanbanDefaults::default(),
             graph_effects: GraphEffects::Classic,
+            graph_effect_intensity: GraphEffectIntensity::Balanced,
         }
     }
 }
@@ -637,6 +724,7 @@ impl Settings {
             "kanban": self.kanban,
             "kanban_autosave": self.kanban_autosave,
             "graph_effects": self.graph_effects.as_key(),
+            "graph_effect_intensity": self.graph_effect_intensity.as_key(),
             "board": self.board.as_ref().map(|b| {
                 let mut value = json!({ "rel": b.rel });
                 if let Some(view) = b.view {
@@ -743,6 +831,9 @@ impl Settings {
         settings.kanban_defaults = KanbanDefaults::from_json(value.get("kanban_defaults"));
         settings.graph_effects =
             GraphEffects::from_key(value.get("graph_effects").and_then(Value::as_str));
+        settings.graph_effect_intensity = GraphEffectIntensity::from_key(
+            value.get("graph_effect_intensity").and_then(Value::as_str),
+        );
         settings
     }
 }
@@ -873,6 +964,7 @@ mod tests {
                 ..muninn_core::KanbanDefaults::default()
             },
             graph_effects: GraphEffects::Electric,
+            graph_effect_intensity: GraphEffectIntensity::Intense,
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -1146,5 +1238,57 @@ mod tests {
             );
             let _ = fs::remove_dir_all(&home);
         }
+    }
+
+    #[test]
+    fn graph_effect_intensity_defaults_to_balanced_for_old_and_unknown_files() {
+        assert_eq!(
+            Settings::default().graph_effect_intensity,
+            GraphEffectIntensity::Balanced
+        );
+        assert_eq!(GraphEffectIntensity::Balanced.scale(), 1.0);
+        // A file written before this setting existed has no key at all.
+        assert_eq!(
+            Settings::from_value(&serde_json::json!({ "graph_effects": "electric" }))
+                .graph_effect_intensity,
+            GraphEffectIntensity::Balanced
+        );
+        // A value this build does not know is the same as no value.
+        assert_eq!(
+            Settings::from_value(&serde_json::json!({ "graph_effect_intensity": "ludicrous" }))
+                .graph_effect_intensity,
+            GraphEffectIntensity::Balanced
+        );
+    }
+
+    #[test]
+    fn graph_effect_intensity_keys_round_trip_and_scale_in_order() {
+        assert_eq!(
+            GraphEffectIntensity::ALL.map(GraphEffectIntensity::index),
+            [0, 1, 2]
+        );
+        let mut last = 0.0;
+        for level in GraphEffectIntensity::ALL {
+            let home = temp_config(&format!("fx-intensity-{}", level.as_key()));
+            let settings = Settings::from_value(&serde_json::json!({
+                "graph_effect_intensity": level.as_key(),
+            }));
+            assert_eq!(settings.graph_effect_intensity, level);
+            settings.save_to(&home).expect("save");
+            assert_eq!(Settings::load_from(&home).graph_effect_intensity, level);
+            let text = fs::read_to_string(settings_path(&home)).expect("read");
+            assert!(
+                text.contains(&format!(
+                    "\"graph_effect_intensity\": \"{}\"",
+                    level.as_key()
+                )),
+                "{text}"
+            );
+            // Subtle < Balanced < Intense, and Balanced is exactly no change.
+            assert!(level.scale() > last, "{} scales up", level.as_key());
+            last = level.scale();
+            let _ = fs::remove_dir_all(&home);
+        }
+        assert_eq!(GraphEffectIntensity::from_key(None).scale(), 1.0);
     }
 }

@@ -12,8 +12,8 @@ use rune_theme_opencode::icons as ic;
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
 
 use crate::{
-    DeleteConfirm, GraphEffects, MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State,
-    ThemeMode,
+    DeleteConfirm, GraphEffectIntensity, GraphEffects, MenuTarget, Mode, PaletteItem, ReduceMotion,
+    SettingsTab, State, ThemeMode,
 };
 
 pub(crate) const SIDEBAR: f32 = 258.0;
@@ -1405,6 +1405,8 @@ fn settings_caption(k: &Kit, key: &'static str, line: &str) -> El {
 ///
 /// **Graph effects** picks the node-border and edge-line family together, so a
 /// preset always reads as one treatment rather than two unrelated effects.
+/// **Effect intensity** (Subtle / Balanced / Intense) scales the Electric
+/// preset's shape and glow, and the delete burn; Balanced is the original look.
 /// **Reduce motion** is a persisted System / On / Off choice. The status line
 /// under it shows the resolved value ([`State::reduced_motion`]), which is what
 /// the layout, camera and transitions obey. Effects read it too: a preset never
@@ -1442,6 +1444,20 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
         })
         .build(k)
         .key("settings-graph-effects");
+    let intensity_labels: Vec<&str> = GraphEffectIntensity::ALL
+        .iter()
+        .map(|i| i.label())
+        .collect();
+    let intensity = SegmentedControl::new(&intensity_labels, Some(s.effect_intensity().index()))
+        .label("Effect intensity")
+        .fit()
+        .on_pick(|s: &mut State, index, _: &mut Tx| {
+            if let Some(intensity) = GraphEffectIntensity::ALL.get(index) {
+                s.set_effect_intensity(*intensity);
+            }
+        })
+        .build(k)
+        .key("settings-graph-effect-intensity");
     col()
         .key("settings-tab-graph")
         .w_full()
@@ -1470,6 +1486,17 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
                  with no effect layers. Reduced motion freezes whichever you pick.",
             ),
             col().w_full().gap(8.0).child(effects),
+        ))
+        .child(settings_section(
+            k,
+            "Effect intensity",
+            Some(
+                "Scales the Electric arcs and the delete burn. Balanced is the original look. \
+                 Classic draws no arcs and Off draws nothing, so the arc choice is only \
+                 visible with Electric; the burn still scales under either. Reduced motion \
+                 still freezes the result.",
+            ),
+            col().w_full().gap(8.0).child(intensity),
         ))
 }
 
