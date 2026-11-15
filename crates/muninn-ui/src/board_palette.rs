@@ -18,6 +18,7 @@
 //! a swatch is picked, and only onto what the pick applies to.
 
 use muninn_core::Ink;
+use muninn_i18n::{Key as TextKey, t};
 use rune::{Color, Cursor, El, Icon, Key, KeyEvent, Mods, Tx, col, icon, row, text};
 use rune_kit::Kit;
 
@@ -40,8 +41,8 @@ impl Kind {
 
     fn label(self) -> &'static str {
         match self {
-            Kind::Stroke => "Stroke",
-            Kind::Fill => "Fill",
+            Kind::Stroke => t(TextKey::BoardPaletteStroke),
+            Kind::Fill => t(TextKey::BoardPaletteFill),
         }
     }
 
@@ -67,40 +68,46 @@ impl Kind {
     }
 }
 
-/// One palette swatch: its name (for the button's key and label) and the
-/// Excalidraw colour string it writes.
+/// One palette swatch: its name (for the button's key), the catalog key for
+/// its display name (for the button's label) and the Excalidraw colour string
+/// it writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Swatch {
     name: &'static str,
+    label: TextKey,
     hex: &'static str,
 }
 
-const fn swatch(name: &'static str, hex: &'static str) -> Swatch {
-    Swatch { name, hex }
+const fn swatch(name: &'static str, label: TextKey, hex: &'static str) -> Swatch {
+    Swatch { name, label, hex }
 }
 
 /// Excalidraw's primary inks.
 const STROKE_SWATCHES: [Swatch; 8] = [
-    swatch("black", "#1e1e1e"),
-    swatch("grey", "#868e96"),
-    swatch("red", "#e03131"),
-    swatch("orange", "#f08c00"),
-    swatch("yellow", "#fab005"),
-    swatch("green", "#2f9e44"),
-    swatch("blue", "#1971c2"),
-    swatch("purple", "#9c36b5"),
+    swatch("black", TextKey::BoardPaletteSwatchBlack, "#1e1e1e"),
+    swatch("grey", TextKey::BoardPaletteSwatchGrey, "#868e96"),
+    swatch("red", TextKey::BoardPaletteSwatchRed, "#e03131"),
+    swatch("orange", TextKey::BoardPaletteSwatchOrange, "#f08c00"),
+    swatch("yellow", TextKey::BoardPaletteSwatchYellow, "#fab005"),
+    swatch("green", TextKey::BoardPaletteSwatchGreen, "#2f9e44"),
+    swatch("blue", TextKey::BoardPaletteSwatchBlue, "#1971c2"),
+    swatch("purple", TextKey::BoardPaletteSwatchPurple, "#9c36b5"),
 ];
 
 /// Excalidraw's pastel backgrounds, and no fill at all.
 const FILL_SWATCHES: [Swatch; 8] = [
-    swatch("transparent", "transparent"),
-    swatch("grey", "#e9ecef"),
-    swatch("red", "#ffc9c9"),
-    swatch("orange", "#ffd8a8"),
-    swatch("yellow", "#ffec99"),
-    swatch("green", "#b2f2bb"),
-    swatch("blue", "#a5d8ff"),
-    swatch("purple", "#d0bfff"),
+    swatch(
+        "transparent",
+        TextKey::BoardPaletteSwatchTransparent,
+        "transparent",
+    ),
+    swatch("grey", TextKey::BoardPaletteSwatchGrey, "#e9ecef"),
+    swatch("red", TextKey::BoardPaletteSwatchRed, "#ffc9c9"),
+    swatch("orange", TextKey::BoardPaletteSwatchOrange, "#ffd8a8"),
+    swatch("yellow", TextKey::BoardPaletteSwatchYellow, "#ffec99"),
+    swatch("green", TextKey::BoardPaletteSwatchGreen, "#b2f2bb"),
+    swatch("blue", TextKey::BoardPaletteSwatchBlue, "#a5d8ff"),
+    swatch("purple", TextKey::BoardPaletteSwatchPurple, "#d0bfff"),
 ];
 
 /// A swatch's target: WCAG 2.2's minimum for a pointer control.
@@ -190,9 +197,9 @@ impl State {
 pub(crate) fn toggle(s: &State, k: &Kit) -> El {
     let open = s.board_palette;
     let label = if open {
-        "Close colour palette"
+        t(TextKey::BoardPaletteClose)
     } else {
-        "Colour palette"
+        t(TextKey::BoardPaletteOpen)
     };
     row()
         .key("board-palette-toggle")
@@ -209,7 +216,7 @@ pub(crate) fn toggle(s: &State, k: &Kit) -> El {
         .cursor(Cursor::Pointer)
         .role("button")
         .label(label)
-        .help("Stroke and fill colours")
+        .help(t(TextKey::BoardPaletteHelp))
         .expanded(open)
         .focusable(true)
         .focus_ring(2.0, 1.0, k.c.text_accent)
@@ -249,7 +256,7 @@ pub(crate) fn panel(s: &State, k: &Kit) -> El {
         .fill(k.c.layer_02)
         .border(1.0, k.c.border_base)
         .role("group")
-        .label("Board colours")
+        .label(t(TextKey::BoardPaletteTitle))
         .child(swatch_row(s, k, Kind::Stroke))
         .child(swatch_row(s, k, Kind::Fill))
 }
@@ -277,7 +284,7 @@ fn swatch_row(s: &State, k: &Kit, kind: Kind) -> El {
 }
 
 fn swatch_button(k: &Kit, kind: Kind, swatch: Swatch, chosen: bool) -> El {
-    let label = format!("{} {}", kind.label(), swatch.name);
+    let label = format!("{} {}", kind.label(), t(swatch.label));
     let hex = swatch.hex;
     let ring = rune::color::hex(SWATCH_RING).unwrap_or(k.c.icon_muted);
     let mut button = row()

@@ -8,6 +8,7 @@ use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
 use muninn_graph::{NODE_H, NODE_W, WORLD};
+use muninn_i18n::{Key as TextKey, t};
 
 use crate::settings::GraphEffects;
 use crate::{BurnMark, BurnSpace, Scope, State};
@@ -127,7 +128,11 @@ pub fn graph(s: &State, k: &Kit) -> El {
             col()
                 .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
                 .center()
-                .child(text("No notes to draw").font(k.ty.ui).color(k.c.text_faint)),
+                .child(
+                    text(t(TextKey::GraphPageEmpty))
+                        .font(k.ty.ui)
+                        .color(k.c.text_faint),
+                ),
         );
     }
 
@@ -597,7 +602,7 @@ fn controls(s: &State, k: &Kit) -> El {
         .child(graph_search(s, k))
         .child(chip(
             k,
-            "Fit",
+            t(TextKey::GraphActionFit),
             &ic::EXPAND,
             "graph-fit",
             false,
@@ -605,7 +610,7 @@ fn controls(s: &State, k: &Kit) -> El {
         ))
         .child(chip(
             k,
-            "Reset",
+            t(TextKey::GraphActionReset),
             &ic::REFRESH,
             "graph-reset",
             false,
@@ -613,7 +618,7 @@ fn controls(s: &State, k: &Kit) -> El {
         ))
         .child(chip(
             k,
-            "Isolate",
+            t(TextKey::GraphActionIsolate),
             &ic::SHARE,
             "graph-isolate",
             s.graph_isolate,
@@ -651,11 +656,11 @@ fn graph_search(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.graph_query, k.ty.ui_compact)
                 .key("graph-search")
-                .label("Find graph node")
+                .label(t(TextKey::GraphPageFindNode))
                 .grow(1.0)
                 .color(k.c.text_base)
                 .caret(k.c.text_accent, k.selection())
-                .placeholder("Find node · Enter", k.c.text_faint)
+                .placeholder(t(TextKey::GraphPageFindPlaceholder), k.c.text_faint)
                 .on_edit(|s: &mut State| &mut s.graph_query)
                 .on_submit(|s: &mut State, tx: &mut Tx| {
                     s.reveal_graph_search();
@@ -676,14 +681,14 @@ fn scope_switch(s: &State, k: &Kit) -> El {
         .border(1.0, k.c.border_base)
         .child(scope_button(
             k,
-            "Global",
+            t(TextKey::GraphScopeGlobal),
             Scope::Global,
             s.scope,
             "scope-global",
         ))
         .child(scope_button(
             k,
-            "Local",
+            t(TextKey::GraphScopeLocal),
             Scope::Local,
             s.scope,
             "scope-local",
@@ -784,7 +789,7 @@ fn info(s: &State, k: &Kit) -> El {
         .border(1.0, k.c.border_base)
         .shadow(10.0, 26.0, k.alpha(k.c.black, 0.34))
         .child(
-            text("SELECTED")
+            text(t(TextKey::GraphPageSelected))
                 .font(rune::TextStyle::new(9.0, 650.0).tracking(0.9))
                 .color(k.c.text_faint),
         )
@@ -807,7 +812,7 @@ fn info(s: &State, k: &Kit) -> El {
                 .gap(6.0)
                 .child(chip(
                     k,
-                    "Open note",
+                    t(TextKey::GraphActionOpenNote),
                     &ic::OPEN_FILE,
                     "graph-open-note",
                     false,
@@ -816,7 +821,7 @@ fn info(s: &State, k: &Kit) -> El {
                 .child(if s.scope == Scope::Local {
                     chip(
                         k,
-                        "Global",
+                        t(TextKey::GraphScopeGlobal),
                         &ic::SHARE,
                         "graph-scope",
                         false,
@@ -825,7 +830,7 @@ fn info(s: &State, k: &Kit) -> El {
                 } else {
                     chip(
                         k,
-                        "Local",
+                        t(TextKey::GraphScopeLocal),
                         &ic::SHARE,
                         "graph-scope",
                         false,
@@ -852,9 +857,7 @@ fn hint(k: &Kit) -> El {
         .center_y()
         .fill(k.alpha(k.c.bg_deep, 0.78))
         .child(
-            text(
-                "Arrows focus · Enter open · +/- zoom · 0/F fit · I isolate · Drag pan · Scroll zoom",
-            )
+            text(t(TextKey::GraphPageHint))
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )

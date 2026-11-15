@@ -25,6 +25,7 @@
 use std::path::{Path, PathBuf};
 
 use muninn_core::{Board, BoardFile};
+use muninn_i18n::{Key as TextKey, linked_note_hint, t};
 use rune::{
     Color, Cursor, Drag, El, KeyEvent, MagnifyEvent, Phase, PointerButton, TextStyle, Tx,
     WheelEvent, canvas, col, el, icon, row, spacer, text,
@@ -844,7 +845,11 @@ fn header(s: &State, k: &Kit) -> El {
         .px(28.0)
         .gap(10.0)
         .center_y()
-        .child(text("Boards").font(k.ty.ui_medium).color(k.c.text_base))
+        .child(
+            text(t(TextKey::BoardPageTitle))
+                .font(k.ty.ui_medium)
+                .color(k.c.text_base),
+        )
         .child(
             text(plural(s.boards.len(), "board", "boards"))
                 .key("board-count")
@@ -869,10 +874,14 @@ fn new_board_button(k: &Kit, key: &str) -> El {
         .press(k.c.pressed)
         .cursor(Cursor::Pointer)
         .role("button")
-        .label("New board")
+        .label(t(TextKey::BoardPageNew))
         .on_press(|s: &mut State| s.new_board())
         .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
-        .child(text("New board").font(k.ty.ui_compact).color(k.c.text_base))
+        .child(
+            text(t(TextKey::BoardPageNew))
+                .font(k.ty.ui_compact)
+                .color(k.c.text_base),
+        )
 }
 
 fn board_list(s: &State, k: &Kit) -> El {
@@ -884,7 +893,7 @@ fn board_list(s: &State, k: &Kit) -> El {
         .role("list");
     if s.boards.is_empty() {
         list = list.child(
-            text("No boards in this vault yet")
+            text(t(TextKey::NoBoards))
                 .key("board-list-empty")
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
@@ -985,13 +994,13 @@ fn surface(s: &State, k: &Kit) -> El {
         ),
         // Slice 8: with no boards at all there is nothing on the left to pick.
         (None, None) if s.boards.is_empty() => (
-            "No boards yet".to_owned(),
-            "Make one with New board".to_owned(),
+            t(TextKey::BoardPageEmptyTitle).to_owned(),
+            t(TextKey::BoardPageEmptyDetail).to_owned(),
         ),
         // Parked P5: nothing is picked, so no board is "empty".
         (None, None) => (
-            "No board selected".to_owned(),
-            "Pick a board on the left to see what it holds".to_owned(),
+            t(TextKey::BoardPageNoSelectionTitle).to_owned(),
+            t(TextKey::BoardPageNoSelectionDetail).to_owned(),
         ),
     };
     // #43: a double click on the open board's title renames it in place.
@@ -1004,17 +1013,18 @@ fn surface(s: &State, k: &Kit) -> El {
             .w(320.0)
             .child(crate::board_rename::rename_field(s, k))
     } else {
-        let t = text(title)
+        let title_el = text(title)
             .key("board-surface-title")
             .font(k.ty.ui_medium)
             .color(k.c.text_base);
         if s.board_open.is_some() {
-            t.label("Board name; double-click to rename")
+            title_el
+                .label(t(TextKey::BoardPageTitleLabel))
                 .on_double_press(|s: &mut State| {
                     s.begin_rename_open_board(crate::BoardPlace::Header);
                 })
         } else {
-            t
+            title_el
         }
     };
     let heading = row().h(36.0).gap(10.0).center_y().child(title).child(
@@ -1049,23 +1059,29 @@ fn surface(s: &State, k: &Kit) -> El {
     let body = match s.board_open.as_ref() {
         Some(open) => match &open.scene {
             Ok(scene) => board_canvas(s, k, open, scene),
-            Err(e) => placeholder(k, "board-placeholder", &ic::DOT_GRID, "This board could not be read", e),
+            Err(e) => placeholder(
+                k,
+                "board-placeholder",
+                &ic::DOT_GRID,
+                t(TextKey::BoardPageUnreadableTitle),
+                e,
+            ),
         },
         // Slice 8: an empty Board offers a way in, not just a message.
         None if s.boards.is_empty() => placeholder(
             k,
             "board-placeholder",
             &ic::DOT_GRID,
-            "No boards in this vault yet",
-            "A board is an Excalidraw file in your vault. Make one to start drawing.",
+            t(TextKey::NoBoards),
+            t(TextKey::BoardPageEmptyHint),
         )
         .child(new_board_button(k, "board-new-empty")),
         None => placeholder(
             k,
             "board-placeholder",
             &ic::DOT_GRID,
-            "No board open",
-            "Pick a board on the left, or make a new one. Boards are Excalidraw files in your vault.",
+            t(TextKey::BoardPageNoOpenTitle),
+            t(TextKey::BoardPageNoOpenDetail),
         )
         .child(new_board_button(k, "board-new-empty")),
     };
@@ -1306,7 +1322,7 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
                 .pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
                 .center()
                 .child(
-                    text("Nothing drawn on this board yet")
+                    text(t(TextKey::BoardPageEmptyCanvas))
                         .key("board-empty")
                         .font(k.ty.ui)
                         .color(empty_ink),
@@ -1395,7 +1411,7 @@ fn board_link_status(s: &State, k: &Kit) -> Option<El> {
             .center_y()
             .fill(k.alpha(k.c.bg_deep, 0.78))
             .child(
-                text(format!("Linked note: {label} · ⌘Enter opens"))
+                text(linked_note_hint(&label))
                     .key("board-link-status")
                     .font(k.ty.caption())
                     .color(k.c.text_accent),
@@ -1416,7 +1432,7 @@ fn board_hint(k: &Kit) -> El {
         .center_y()
         .fill(k.alpha(k.c.bg_deep, 0.78))
         .child(
-            text("Click/drag select · Del delete · ⌘Z undo · R D O A L P draw · H pan · ⌘L link note · ⌘S save · 0 fit")
+            text(t(TextKey::BoardPageHint))
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )

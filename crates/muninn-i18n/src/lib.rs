@@ -21,10 +21,12 @@
 //! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. Today the
 //!   only language is `en-US`.
 //! - [`files_skipped`], [`notes`], [`relative_day`], [`restore_to`],
-//!   [`filter_by_tag`], [`tray_error`] and [`login_item_error`] are the escape
-//!   hatch for parameterised copy: a view must not build a translated sentence
-//!   with `format!`, so counts, relative dates, lane names, tags and OS errors
-//!   get typed functions instead. They take no [`Key`].
+//!   [`filter_by_tag`], [`board_name_taken`], [`no_note_named`],
+//!   [`linked_note_hint`], [`tray_error`] and [`login_item_error`] are the
+//!   escape hatch for parameterised copy: a view must not build a translated
+//!   sentence with `format!`, so counts, relative dates, lane names, tags,
+//!   board and note names and OS errors get typed functions instead. They take
+//!   no [`Key`].
 //! - [`DateNames`] and [`EN_US`] carry month/weekday names, short weekday
 //!   labels, the first day of the week and `AM`/`PM`. `muninn-core`'s
 //!   `format_date_for_display`/`format_time_for_display` read them; the file
@@ -225,4 +227,60 @@ pub fn tray_error(error: &str) -> String {
 /// ```
 pub fn login_item_error(error: &str) -> String {
     format!("The login item could not be changed: {error}")
+}
+
+/// `"A board named “<name>” is already in this folder"`.
+///
+/// The Board rename prompt's conflict line: the sentence is fixed and the
+/// board name is file data, kept as written inside the English curly quotes,
+/// so it is a typed helper rather than a [`Key`], the same way [`restore_to`]
+/// carries its lane.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::board_name_taken("Plan"),
+///     "A board named “Plan” is already in this folder"
+/// );
+/// ```
+pub fn board_name_taken(name: &str) -> String {
+    format!("A board named \u{201c}{name}\u{201d} is already in this folder")
+}
+
+/// `"No note named “<typed>” in this vault"`.
+///
+/// The Board note-link prompt's refusal: the typed note name or path is file
+/// data and stays as written inside the English curly quotes, so the sentence
+/// is a typed helper rather than a [`Key`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::no_note_named("Plan"),
+///     "No note named “Plan” in this vault"
+/// );
+/// ```
+pub fn no_note_named(typed: &str) -> String {
+    format!("No note named \u{201c}{typed}\u{201d} in this vault")
+}
+
+/// `"Linked note: <label> · ⌘Enter opens"`.
+///
+/// The hint above the Board canvas while a linked element is selected. The
+/// label is the note's title (or its stored target when the note is missing),
+/// which is file data kept as written, so the sentence is a typed helper
+/// rather than a [`Key`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::linked_note_hint("Plan"),
+///     "Linked note: Plan · ⌘Enter opens"
+/// );
+/// ```
+pub fn linked_note_hint(label: &str) -> String {
+    format!("Linked note: {label} · ⌘Enter opens")
 }
