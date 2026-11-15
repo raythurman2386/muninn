@@ -4,6 +4,20 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Adjustable graph effect intensity (#137).** Settings › Graph now has an
+  **Effect intensity** picker beside **Graph effects**: **Subtle**, **Balanced**
+  (the default, and the look every earlier build drew) and **Intense**. The
+  level scales the arc's amplitude, glow, forks and strand count, and the
+  delete burn, so Electric can read as a faint shimmer or a bright storm while
+  staying the same treatment; Classic and Off still draw no effect layers, and
+  Reduce motion still freezes whatever is chosen. The choice persists as
+  `graph_effect_intensity` in `settings.json`; a file without the key loads as
+  Balanced, so upgrading never changes the picture.
+
 ## [0.8.4] - 2026-11-14
 
 ### Added

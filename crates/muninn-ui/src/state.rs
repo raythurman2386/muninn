@@ -18,7 +18,8 @@ use crate::camera::{Camera, CameraGlide};
 use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
 use crate::settings::{
-    GraphEffects, ReduceMotion, Settings, ThemeMode, clamp_note_template, config_home,
+    GraphEffectIntensity, GraphEffects, ReduceMotion, Settings, ThemeMode, clamp_note_template,
+    config_home,
 };
 use crate::watch::{self, VaultSnapshot};
 
@@ -2656,6 +2657,25 @@ impl State {
             return;
         }
         self.settings.graph_effects = effects;
+        self.save_settings();
+    }
+
+    /// How strong the graph effects are (Settings › Graph). Read by the FX
+    /// compositor, which scales the Electric preset and the delete burn by
+    /// [`GraphEffectIntensity::scale`].
+    #[must_use]
+    pub fn effect_intensity(&self) -> GraphEffectIntensity {
+        self.settings.graph_effect_intensity
+    }
+
+    /// Set and persist the graph effect intensity. Takes effect on the next
+    /// frame: the graph view keeps its effect slots, so only their shape and
+    /// glow change.
+    pub fn set_effect_intensity(&mut self, intensity: GraphEffectIntensity) {
+        if self.settings.graph_effect_intensity == intensity {
+            return;
+        }
+        self.settings.graph_effect_intensity = intensity;
         self.save_settings();
     }
 

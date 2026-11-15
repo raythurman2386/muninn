@@ -80,8 +80,8 @@ pub use overlay::{Layer, PaletteAction, PaletteItem, PaletteState, SettingsTab};
 pub use poll::poll;
 pub use recovery::{RecoveryEntry, RecoverySlot};
 pub use settings::{
-    DEFAULT_AUTOSAVE_DELAY, GraphEffects, RECENT_VAULTS_MAX, ReduceMotion, Settings, ThemeMode,
-    config_home,
+    DEFAULT_AUTOSAVE_DELAY, GraphEffectIntensity, GraphEffects, RECENT_VAULTS_MAX, ReduceMotion,
+    Settings, ThemeMode, config_home,
 };
 pub use state::{
     BurnMark, ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState, FileAction,
