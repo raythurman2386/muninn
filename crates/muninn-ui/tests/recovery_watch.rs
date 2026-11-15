@@ -5,6 +5,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use muninn_core::testing::TempVault;
 use muninn_ui::{ConflictReason, RecoveryEntry, RecoverySlot, State, poll, view};
@@ -31,6 +32,27 @@ impl TestEnv {
 impl Drop for TestEnv {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.home);
+    }
+}
+
+/// Poll until the watcher has indexed the externally created `New.md`.
+///
+/// A brand-new note is not in the index yet, so the watcher can only notice it
+/// through the vault folder's mtime. That mtime is coarse on Windows and can
+/// trail the file's creation under load, so the wait is bounded by **wall
+/// time**, not by the simulated poll clock: each iteration advances `t` past
+/// the watch interval and then sleeps briefly. A healthy filesystem exits on
+/// the first iteration; a stuck watcher still fails, just after the deadline.
+fn wait_for_new_note(s: &mut State, tx: &mut Tx) {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let mut t = 2.7;
+    while !(poll(s, t, tx) || s.vault.resolve("New").is_some()) {
+        assert!(
+            Instant::now() < deadline,
+            "the watcher never reported the new note within 15 s"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+        t += 2.0;
     }
 }
 
@@ -149,12 +171,7 @@ fn external_create_is_visible_on_the_next_watch_tick() {
     fs::write(env.vault.path().join("New.md"), "# New\n").expect("external create");
     // Directory mtimes tick coarsely (Windows), so keep polling through the
     // interval boundary until the snapshot sees the new entry.
-    let mut t = 2.7;
-    while !(poll(&mut s, t, &mut tx) || s.vault.resolve("New").is_some()) {
-        std::thread::sleep(std::time::Duration::from_millis(60));
-        t += 0.6;
-        assert!(t < 8.0, "the watcher never reported the new note");
-    }
+    wait_for_new_note(&mut s, &mut tx);
     assert_eq!(s.vault.notes.len(), 2);
     assert!(s.vault.resolve("New").is_some(), "sidebar data rescanned");
 }
@@ -172,18 +189,9 @@ fn external_create_while_dirty_saves_then_reloads_without_losing_text() {
     s.editor.insert("typed before the external create\n");
     fs::write(env.vault.path().join("New.md"), "# New\n").expect("external create");
     // Keep polling until New is indexed. poll() also returns true when
-    // autosave writes the dirty buffer, so a true poll is not enough —
-    // directory mtimes tick coarsely on Windows, so this is a bounded burst.
-    let mut t = 2.7;
-    loop {
-        let _ = poll(&mut s, t, &mut tx);
-        if s.vault.resolve("New").is_some() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(120));
-        t += 0.8;
-        assert!(t < 8.0, "the watcher never reported the new note");
-    }
+    // autosave writes the dirty buffer, so a true poll is not enough — the
+    // wall-clock wait covers Windows' coarse directory mtimes.
+    wait_for_new_note(&mut s, &mut tx);
 
     assert!(s.vault.resolve("New").is_some(), "the new note is indexed");
     assert!(!s.dirty(), "the dirty buffer was saved before reloading");
