@@ -39,6 +39,21 @@ fn ids_are_unique_and_dotted() {
 }
 
 #[test]
+fn the_help_groups_are_six_and_distinct() {
+    let groups: Vec<&str> = Key::ALL
+        .iter()
+        .map(|key| key.id())
+        .filter(|id| id.starts_with("help.group."))
+        .collect();
+    assert_eq!(groups.len(), 6, "the Help page has six groups: {groups:?}");
+    assert_eq!(
+        groups.iter().collect::<BTreeSet<_>>().len(),
+        6,
+        "group ids repeat: {groups:?}"
+    );
+}
+
+#[test]
 fn every_key_has_text_without_placeholders() {
     for &key in Key::ALL {
         let text = t(key);
