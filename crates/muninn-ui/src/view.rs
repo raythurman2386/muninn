@@ -10,7 +10,11 @@ use rune_kit::{
 use rune_theme_opencode::icons as ic;
 
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
-use muninn_i18n::{Key as TextKey, login_item_error, t, tray_error};
+use muninn_i18n::{
+    Key as TextKey, deleted, files_skipped, login_item_error, more_edits, recovered_copies,
+    recovered_for, referrers, scan_ms, status_counts, t, targets, trash_empty, trash_summary,
+    tray_error,
+};
 
 use crate::{
     BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, MenuTarget, Mode, PaletteItem,
@@ -3264,13 +3268,13 @@ fn help_link(k: &Kit, key: &str, label: &str, copies: bool) -> El {
 /// first), deliberately not a setting.
 fn help_trash(s: &State, k: &Kit) -> El {
     let (files, bytes) = s.trash_size();
-    let summary = match files {
-        0 => "Trash is empty".to_owned(),
-        1 => format!("Trash · 1 note · {}", trash_bytes(bytes)),
-        _ => format!("Trash · {files} notes · {}", trash_bytes(bytes)),
+    let summary = if files == 0 {
+        trash_empty().to_owned()
+    } else {
+        trash_summary(files, &trash_bytes(bytes))
     };
     let empty = files == 0;
-    help_card(k, "help-trash", "Trash")
+    help_card(k, "help-trash", t(TextKey::TrashTitle))
         .child(
             row()
                 .w_full()
@@ -3290,26 +3294,27 @@ fn help_trash(s: &State, k: &Kit) -> El {
                         .px(10.0)
                         .py(5.0)
                         .border(1.0, k.c.border_base)
-                        .child(text("Empty trash").font(k.ty.ui_compact).color(if empty {
-                            k.c.text_faint
-                        } else {
-                            k.c.text_accent
-                        }))
-                        .label("Empty trash")
+                        .child(
+                            text(t(TextKey::TrashEmptyAction))
+                                .font(k.ty.ui_compact)
+                                .color(if empty {
+                                    k.c.text_faint
+                                } else {
+                                    k.c.text_accent
+                                }),
+                        )
+                        .label(t(TextKey::TrashEmptyAction))
                         .on_press(|s: &mut State| {
                             s.empty_trash();
                         }),
                 ),
         )
         .child(
-            text(
-                "Deleted notes stay here until undo or permanent removal. At most 500 files \
-                 or 100 MB are kept; the oldest timestamp folder is pruned first.",
-            )
-            .font(k.ty.ui_compact.lh(18.0))
-            .color(k.c.text_muted)
-            .wrap()
-            .w_full(),
+            text(t(TextKey::TrashExplainer))
+                .font(k.ty.ui_compact.lh(18.0))
+                .color(k.c.text_muted)
+                .wrap()
+                .w_full(),
         )
 }
 
@@ -3582,7 +3587,7 @@ fn broken_links_panel(s: &State, k: &Kit) -> El {
         .role("list");
     if broken.is_empty() {
         list = list.child(
-            text("All links resolve")
+            text(t(TextKey::BrokenAllResolve))
                 .key("broken-empty")
                 .font(k.ty.ui_compact)
                 .color(k.c.success.fg)
@@ -3616,7 +3621,7 @@ fn broken_links_panel(s: &State, k: &Kit) -> El {
                         .truncate(),
                 )
                 .child(
-                    text(plural(count, "referrer", "referrers"))
+                    text(referrers(count))
                         .font(k.ty.caption())
                         .color(k.c.text_faint),
                 ),
@@ -3667,12 +3672,12 @@ fn broken_links_panel(s: &State, k: &Kit) -> El {
                 .gap(10.0)
                 .center_y()
                 .child(
-                    text("Broken links")
+                    text(t(TextKey::BrokenTitle))
                         .font(k.ty.ui_medium)
                         .color(k.c.text_base),
                 )
                 .child(
-                    text(plural(broken.len(), "target", "targets"))
+                    text(targets(broken.len()))
                         .font(k.ty.caption())
                         .color(k.c.text_faint),
                 )
@@ -3682,7 +3687,11 @@ fn broken_links_panel(s: &State, k: &Kit) -> El {
                         .px(10.0)
                         .py(4.0)
                         .border(1.0, k.c.border_muted)
-                        .child(text("Close").font(k.ty.caption()).color(k.c.text_muted))
+                        .child(
+                            text(t(TextKey::Close))
+                                .font(k.ty.caption())
+                                .color(k.c.text_muted),
+                        )
                         .on_press(|s: &mut State| s.close_broken_links()),
                 ),
         )
@@ -3732,6 +3741,11 @@ fn startup_banner(s: &State, k: &Kit) -> El {
 /// the next), and Dismiss discards every listed copy after an explicit click.
 fn recovery_banner(s: &State, k: &Kit) -> El {
     let count = s.recovered.len();
+    let boards = s
+        .recovered
+        .iter()
+        .filter(|e| crate::board_safety::is_board_rel(&e.rel))
+        .count();
     let mut banner = row()
         .key("recovery-banner")
         .w_full()
@@ -3742,25 +3756,10 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
         .fill(k.alpha(k.c.warning.fg, 0.10))
         .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.warning.fg))
         .child(
-            text(format!("Recovered unsaved edits for {}", {
-                let boards = s
-                    .recovered
-                    .iter()
-                    .filter(|e| crate::board_safety::is_board_rel(&e.rel))
-                    .count();
-                match (count - boards, boards) {
-                    (notes, 0) => plural(notes, "note", "notes"),
-                    (0, boards) => plural(boards, "board", "boards"),
-                    (notes, boards) => format!(
-                        "{} and {}",
-                        plural(notes, "note", "notes"),
-                        plural(boards, "board", "boards")
-                    ),
-                }
-            }))
-            .font(k.ty.caption())
-            .color(k.c.warning.fg)
-            .truncate(),
+            text(recovered_for(&recovered_copies(count - boards, boards)))
+                .font(k.ty.caption())
+                .color(k.c.warning.fg)
+                .truncate(),
         );
     for (index, entry) in s.recovered.iter().take(3).enumerate() {
         let rel = entry.rel.clone();
@@ -3784,8 +3783,8 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
             );
         if both {
             let suffix = match slot {
-                crate::recovery::RecoverySlot::Kanban => "— Kanban edits",
-                crate::recovery::RecoverySlot::Editor => "— Write edits",
+                crate::recovery::RecoverySlot::Kanban => t(TextKey::RecoveryKanbanEdits),
+                crate::recovery::RecoverySlot::Editor => t(TextKey::RecoveryWriteEdits),
             };
             row_el = row_el.child(
                 text(suffix)
@@ -3799,7 +3798,11 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
                 pressable(k, format!("recovery-restore-{index}"))
                     .px(6.0)
                     .py(3.0)
-                    .child(text("Restore").font(k.ty.caption()).color(k.c.text_base))
+                    .child(
+                        text(t(TextKey::RecoveryRestore))
+                            .font(k.ty.caption())
+                            .color(k.c.text_base),
+                    )
                     .on_press(move |s: &mut State| {
                         s.restore_recovery_slot(&rel, slot);
                     }),
@@ -3808,7 +3811,7 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
     }
     if count > 3 {
         banner = banner.child(
-            text(format!("+{} more", count - 3))
+            text(more_edits(count - 3))
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         );
@@ -3817,13 +3820,13 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
         .child(spacer())
         .child(status_button(
             k,
-            "Restore all",
+            t(TextKey::RecoveryRestoreAll),
             "recovery-restore-all",
             State::restore_all_recovery,
         ))
         .child(status_button(
             k,
-            "Dismiss",
+            t(TextKey::RecoveryDismiss),
             "recovery-dismiss",
             State::dismiss_recovery,
         ))
@@ -3838,7 +3841,7 @@ fn topbar(s: &State, k: &Kit) -> El {
     };
     let (title, path) = match note.and_then(|id| s.vault.notes.get(id)) {
         Some(note) => (note.title.clone(), note.rel.clone()),
-        None => ("No note selected".to_owned(), String::new()),
+        None => (t(TextKey::TopbarNoNoteSelected).to_owned(), String::new()),
     };
     // A kanban note opened as a note offers its board.
     let open_as_kanban = s.mode.is_note_mode()
@@ -3900,7 +3903,7 @@ fn topbar(s: &State, k: &Kit) -> El {
                 k,
                 "open-as-kanban",
                 &ic::CHECKLIST,
-                "Open as kanban",
+                t(TextKey::TopbarOpenAsKanban),
                 |s: &mut State| s.set_mode(Mode::Kanban),
             )
         } else {
@@ -4792,7 +4795,7 @@ fn status_bar(s: &State, k: &Kit) -> El {
     } else if s.dirty() {
         (
             StatusTone::Warning,
-            "Saving…".to_owned(),
+            t(TextKey::StatusSaving).to_owned(),
             Some(k.c.warning.fg),
         )
     } else if let Some(notice) = &s.notice {
@@ -4800,9 +4803,13 @@ fn status_bar(s: &State, k: &Kit) -> El {
         // is where their count is reported.
         (StatusTone::Notice, notice.clone(), None)
     } else if s.last_save.is_some() {
-        (StatusTone::Saved, "Saved".to_owned(), None)
+        (StatusTone::Saved, t(TextKey::StatusSaved).to_owned(), None)
     } else {
-        (StatusTone::Calm, "Autosave on".to_owned(), None)
+        (
+            StatusTone::Calm,
+            t(TextKey::StatusAutosaveOn).to_owned(),
+            None,
+        )
     };
     // The dot and the words carry the same tone on failure or while saving;
     // a clean save keeps the muted text and only lights the dot.
@@ -4831,12 +4838,17 @@ fn status_bar(s: &State, k: &Kit) -> El {
         .center_y()
         .child(indicator);
     if s.error.is_some() && s.dirty() {
-        bar = bar.child(status_button(k, "Retry", "retry-save", State::retry_save));
+        bar = bar.child(status_button(
+            k,
+            t(TextKey::StatusRetry),
+            "retry-save",
+            State::retry_save,
+        ));
     }
     let skipped = s.vault.skipped_count();
     if skipped > 0 {
         bar = bar.child(
-            text(plural(skipped, "file", "files") + " skipped")
+            text(files_skipped(skipped))
                 .key("skipped-count")
                 .font(k.ty.caption())
                 .color(k.c.warning.fg),
@@ -4845,16 +4857,21 @@ fn status_bar(s: &State, k: &Kit) -> El {
     if let Some(undo) = &s.trash_undo {
         bar = bar
             .child(
-                text(format!("Deleted {}", undo.label))
+                text(deleted(&undo.label))
                     .font(k.ty.caption())
                     .color(k.c.text_muted)
                     .truncate(),
             )
-            .child(status_button(k, "Undo", "trash-undo", State::undo_trash));
+            .child(status_button(
+                k,
+                t(TextKey::StatusUndo),
+                "trash-undo",
+                State::undo_trash,
+            ));
     }
     if s.load_ms() >= 5.0 {
         bar = bar.child(
-            text(format!("scan {:.0} ms", s.load_ms()))
+            text(scan_ms(s.load_ms()))
                 .key("scan-ms")
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
@@ -4918,14 +4935,9 @@ fn status_meta(s: &State, k: &Kit) -> El {
         .selected
         .and_then(|id| s.vault.notes.get(id))
         .map_or(0, |n| n.backlinks.len());
-    text(format!(
-        "{} · {} · {}",
-        plural(s.words(), "word", "words"),
-        plural(count, "link", "links"),
-        plural(back, "backlink", "backlinks")
-    ))
-    .font(k.ty.caption())
-    .color(k.c.text_faint)
+    text(status_counts(s.words(), count, back))
+        .font(k.ty.caption())
+        .color(k.c.text_faint)
 }
 
 fn status_button(k: &Kit, label: &str, key: &str, action: fn(&mut State) -> bool) -> El {

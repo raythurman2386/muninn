@@ -523,5 +523,30 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanSettingKanbanAutosaveHelp => {
             "Saves unsaved kanban edits once they rest. Off leaves saving to ⌘S."
         }
+        Key::StatusSaving => "Saving…",
+        Key::StatusSaved => "Saved",
+        Key::StatusAutosaveOn => "Autosave on",
+        Key::StatusRetry => "Retry",
+        Key::StatusUndo => "Undo",
+        Key::RecoveryRestore => "Restore",
+        Key::RecoveryRestoreAll => "Restore all",
+        Key::RecoveryDismiss => "Dismiss",
+        Key::RecoveryWriteEdits => "— Write edits",
+        Key::RecoveryKanbanEdits => "— Kanban edits",
+        Key::BrokenAllResolve => "All links resolve",
+        Key::BrokenTitle => "Broken links",
+        Key::TopbarNoNoteSelected => "No note selected",
+        Key::TopbarOpenAsKanban => "Open as kanban",
+        Key::TrashTitle => "Trash",
+        Key::TrashEmptyAction => "Empty trash",
+        Key::TrashExplainer => {
+            "Deleted notes stay here until undo or permanent removal. At most 500 files or 100 MB are kept; the oldest timestamp folder is pruned first."
+        }
+        Key::TrayShow => "Show Muninn",
+        Key::TrayNewNote => "New note",
+        Key::TraySyncNow => "Sync now",
+        Key::TrayQuit => "Quit Muninn",
+        Key::TrayNotConnected => "Not connected.",
+        Key::TrayTooltip => "Muninn",
     }
 }

@@ -26,7 +26,10 @@
 //!   escape hatch for parameterised copy: a view must not build a translated
 //!   sentence with `format!`, so counts, relative dates, lane names, tags,
 //!   board and note names and OS errors get typed functions instead. They take
-//!   no [`Key`].
+//!   no [`Key`]. The status, recovery, Broken-links, trash and tray surfaces
+//!   add [`deleted`], [`scan_ms`], [`recovered_for`], [`recovered_copies`],
+//!   [`more_edits`], [`targets`], [`referrers`], [`status_counts`],
+//!   [`trash_summary`], [`trash_empty`] and [`sync_status`] the same way.
 //! - [`DateNames`] and [`EN_US`] carry month/weekday names, short weekday
 //!   labels, the first day of the week and `AM`/`PM`. `muninn-core`'s
 //!   `format_date_for_display`/`format_time_for_display` read them; the file
@@ -283,4 +286,204 @@ pub fn no_note_named(typed: &str) -> String {
 /// ```
 pub fn linked_note_hint(label: &str) -> String {
     format!("Linked note: {label} · ⌘Enter opens")
+}
+
+/// `"1 <one>"` for one, `"<n> <many>"` otherwise.
+///
+/// The shared shape behind the counted phrases in this module. Private: a view
+/// must pick a helper that names the thing it counts, not build a sentence of
+/// its own.
+fn counted(n: usize, one: &str, many: &str) -> String {
+    if n == 1 {
+        format!("1 {one}")
+    } else {
+        format!("{n} {many}")
+    }
+}
+
+/// `"Deleted <label>"`.
+///
+/// The status bar's undo line after a note or board went to the trash. The
+/// label is the deleted item's name, which is file data kept as written, so
+/// the sentence is a typed helper rather than a [`Key`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::deleted("Plan.md"), "Deleted Plan.md");
+/// ```
+pub fn deleted(label: &str) -> String {
+    format!("Deleted {label}")
+}
+
+/// `"scan <ms> ms"`, with the duration rounded to whole milliseconds.
+///
+/// The status bar's scan-timing readout. The number is data and is formatted
+/// as today (`{:.0}`), so the sentence itself is a typed helper rather than a
+/// [`Key`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::scan_ms(12.4), "scan 12 ms");
+/// ```
+pub fn scan_ms(ms: f64) -> String {
+    format!("scan {ms:.0} ms")
+}
+
+/// `"Recovered unsaved edits for <note>"`.
+///
+/// The recovery banner's first line. `note` is the count phrase built by
+/// [`recovered_copies`] (or anything the caller already phrased), so the fixed
+/// sentence is a typed helper rather than a [`Key`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::recovered_for("1 note"),
+///     "Recovered unsaved edits for 1 note"
+/// );
+/// ```
+pub fn recovered_for(note: &str) -> String {
+    format!("Recovered unsaved edits for {note}")
+}
+
+/// `"1 note"`, `"2 boards"`, `"1 note and 2 boards"`.
+///
+/// The recovery banner counts its copies by kind: notes only, boards only, or
+/// both joined with `and`. The numbers are plain decimal, as today.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::recovered_copies(1, 0), "1 note");
+/// assert_eq!(muninn_i18n::recovered_copies(0, 2), "2 boards");
+/// assert_eq!(muninn_i18n::recovered_copies(1, 2), "1 note and 2 boards");
+/// ```
+pub fn recovered_copies(notes: usize, boards: usize) -> String {
+    match (notes, boards) {
+        (notes, 0) => counted(notes, "note", "notes"),
+        (0, boards) => counted(boards, "board", "boards"),
+        (notes, boards) => format!(
+            "{} and {}",
+            counted(notes, "note", "notes"),
+            counted(boards, "board", "boards")
+        ),
+    }
+}
+
+/// `"+<n> more"`.
+///
+/// The recovery banner's overflow chip after its first three rows.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::more_edits(2), "+2 more");
+/// ```
+pub fn more_edits(n: usize) -> String {
+    format!("+{n} more")
+}
+
+/// `"1 target"`, `"0 targets"`, `"2 targets"`.
+///
+/// The Broken-links panel's header count.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::targets(1), "1 target");
+/// assert_eq!(muninn_i18n::targets(2), "2 targets");
+/// ```
+pub fn targets(n: usize) -> String {
+    counted(n, "target", "targets")
+}
+
+/// `"1 referrer"`, `"0 referrers"`, `"2 referrers"`.
+///
+/// The Broken-links panel's per-target count.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::referrers(1), "1 referrer");
+/// assert_eq!(muninn_i18n::referrers(2), "2 referrers");
+/// ```
+pub fn referrers(n: usize) -> String {
+    counted(n, "referrer", "referrers")
+}
+
+/// `"12 words · 2 links · 0 backlinks"`.
+///
+/// The status bar's right-hand counts for the open note. Each count is plain
+/// decimal and gets its own plural, as today.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::status_counts(12, 2, 0),
+///     "12 words · 2 links · 0 backlinks"
+/// );
+/// ```
+pub fn status_counts(words: usize, links: usize, backlinks: usize) -> String {
+    format!(
+        "{} · {} · {}",
+        counted(words, "word", "words"),
+        counted(links, "link", "links"),
+        counted(backlinks, "backlink", "backlinks")
+    )
+}
+
+/// `"Trash is empty"`.
+///
+/// The Help trash card's readout when nothing is in the trash. Zero has no
+/// size to show, so it is a fixed sentence rather than a [`trash_summary`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::trash_empty(), "Trash is empty");
+/// ```
+pub fn trash_empty() -> &'static str {
+    "Trash is empty"
+}
+
+/// `"Trash · 1 note · 2.0 KB"` or `"Trash · 3 notes · 1.4 MB"`.
+///
+/// The Help trash card's readout for a non-empty trash. `size` is the view's
+/// already-formatted byte size (`trash_bytes`), so the sentence is a typed
+/// helper rather than a [`Key`]. Callers use [`trash_empty`] when there is
+/// nothing in the trash.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::trash_summary(1, "2.0 KB"), "Trash · 1 note · 2.0 KB");
+/// assert_eq!(
+///     muninn_i18n::trash_summary(3, "1.4 MB"),
+///     "Trash · 3 notes · 1.4 MB"
+/// );
+/// ```
+pub fn trash_summary(files: usize, size: &str) -> String {
+    format!("Trash · {} · {size}", counted(files, "note", "notes"))
+}
+
+/// `"Sync: <label>"`.
+///
+/// The tray menu's disabled status row, and the tray's own label for the
+/// current sync status. `label` is the trimmed status line the caller built,
+/// so the prefix is a typed helper rather than a [`Key`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_status("Not connected."),
+///     "Sync: Not connected."
+/// );
+/// ```
+pub fn sync_status(label: &str) -> String {
+    format!("Sync: {label}")
 }
