@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::KanbanView;
 use muninn_core::testing::TempVault;
+use muninn_i18n::{Key as TextKey, t};
 use muninn_ui::{DocConflict, MenuTarget, Mode, Settings, State, on_key, poll, view};
 use rune::{ElementInfo, Env, Key, KeyEvent, Mods, Runtime};
 use serde_json::Value;
@@ -366,12 +367,15 @@ fn escape_dismisses_the_conflict_bar_before_leaving_the_page() {
     // The bar is an alert dialog whose sentence is an alert.
     let bar = element(&rt, "kanban-conflict");
     assert_eq!(bar.role, "alertdialog");
-    assert_eq!(bar.label.as_deref(), Some("Changed on disk by another app"));
+    assert_eq!(
+        bar.label.as_deref(),
+        Some(t(TextKey::ConflictChangedOnDisk))
+    );
     assert_eq!(element(&rt, "kanban-conflict-text").role, "alert");
     for (key, label) in [
-        ("kanban-keep-mine", "Keep mine"),
-        ("kanban-save-copy", "Save copy"),
-        ("kanban-load-theirs", "Load theirs"),
+        ("kanban-keep-mine", t(TextKey::ConflictKeepMine)),
+        ("kanban-save-copy", t(TextKey::ConflictSaveCopy)),
+        ("kanban-load-theirs", t(TextKey::ConflictLoadTheirs)),
     ] {
         let choice = element(&rt, key);
         assert_eq!(choice.role, "button");

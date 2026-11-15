@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use muninn_core::testing::TempVault;
-use muninn_i18n::{Key, t};
+use muninn_i18n::{Key, could_not_save, t};
 use muninn_ui::{ConflictReason, ConflictState, Mode, State, on_key, poll, view};
 use rune::{ElementInfo, Env, Runtime};
 
@@ -84,7 +84,7 @@ fn saved_state_is_calm_and_error_state_is_danger_with_retry() {
         "a clean save keeps the words muted"
     );
 
-    let error = "Could not save: disk is full".to_owned();
+    let error = could_not_save("disk is full");
     rt.state.editor.insert("x");
     rt.state.error = Some(error.clone());
     rt.invalidate();
@@ -127,7 +127,7 @@ fn conflict_pending_uses_the_danger_tone_and_explicit_actions() {
     let elements = rt.elements();
     let text = element(&elements, "conflict-text");
     let dot = element(&elements, "conflict-dot");
-    assert_eq!(text.text.as_deref(), Some("External change detected"));
+    assert_eq!(text.text.as_deref(), Some(t(Key::ConflictExternalChange)));
     assert_eq!(
         text.text_color,
         Some(dot.fill),

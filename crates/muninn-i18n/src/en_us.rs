@@ -548,5 +548,35 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::TrayQuit => "Quit Muninn",
         Key::TrayNotConnected => "Not connected.",
         Key::TrayTooltip => "Muninn",
+        Key::ErrorEnterVaultPath => "Enter a vault folder path",
+        Key::ErrorEnterNewVaultPath => "Enter a folder path for the new vault",
+        Key::ErrorSaveNoteBeforeSwitch => {
+            "Save or resolve the current note before switching vaults"
+        }
+        Key::ErrorSaveBoardBeforeSwitch => "Save the current board before switching vaults",
+        Key::ErrorSaveKanbanBeforeSwitch => "Save the current kanban before switching vaults",
+        Key::ErrorSaveNoteBeforeRestore => {
+            "Save or discard the current note before restoring another"
+        }
+        Key::ErrorSaveBoardBeforeRestore => {
+            "Save or discard the current board before restoring another"
+        }
+        Key::ErrorSaveBoardBeforeRescan => "Save the current board before rescanning the vault",
+        Key::ErrorOpenerHintUnix => "Install xdg-utils (for xdg-open) or open the file manually.",
+        Key::ErrorOpenerHintMacos => "The system `open` command failed; open the file from Finder.",
+        Key::ErrorOpenerHintWindows => "The system opener failed; open the file from Explorer.",
+        Key::ErrorOpenerHintOther => "Open the file manually.",
+        Key::ErrorDocumentBoard => "board",
+        Key::ErrorDocumentKanban => "kanban",
+        Key::StatusTrashEmptied => "Trash emptied",
+        Key::StatusLinkCopied => "Copied a link to the card",
+        Key::ConflictExternalChange => "External change detected",
+        Key::ConflictFileDeleted => "file deleted externally",
+        Key::ConflictChangedOnDisk => "Changed on disk by another app",
+        Key::ConflictMissingOnDisk => "Removed or renamed on disk",
+        Key::ConflictKeepMine => "Keep mine",
+        Key::ConflictLoadTheirs => "Load theirs",
+        Key::ConflictSaveCopy => "Save copy",
+        Key::ConflictDiscard => "Discard",
     }
 }

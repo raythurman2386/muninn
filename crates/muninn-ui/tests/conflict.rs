@@ -5,6 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use muninn_core::testing::TempVault;
+use muninn_i18n::{Key, t};
 use muninn_ui::{ConflictReason, State, poll, view};
 use rune::{Env, Runtime};
 
@@ -62,7 +63,7 @@ fn external_edit_blocks_autosave_and_pauses_polling() {
     assert_eq!(fs::read_to_string(&path).expect("disk"), THEIRS);
     let conflict = rt.state.conflict.as_ref().expect("typed conflict");
     assert_eq!(conflict.reason, ConflictReason::Modified);
-    assert_eq!(conflict.message(), "External change detected");
+    assert_eq!(conflict.message(), t(Key::ConflictExternalChange));
     assert!(rt.state.dirty(), "the buffer must survive the conflict");
     assert_eq!(rt.state.editor.text, MINE);
     assert!(rt.find("conflict-keep-mine").is_some());
@@ -148,7 +149,7 @@ fn deleted_note_becomes_conflict_and_load_theirs_shows_empty() {
 
     let conflict = rt.state.conflict.as_ref().expect("typed conflict");
     assert_eq!(conflict.reason, ConflictReason::Deleted);
-    assert_eq!(conflict.message(), "file deleted externally");
+    assert_eq!(conflict.message(), t(Key::ConflictFileDeleted));
     assert!(rt.state.dirty(), "the buffer must survive the deletion");
 
     assert!(rt.state.resolve_conflict_load_theirs());

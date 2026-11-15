@@ -38,6 +38,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use muninn_core::Kanban;
+use muninn_i18n::{Key as TextKey, t};
 
 use crate::board_view::BoardStatus;
 use crate::doc_sync::{
@@ -432,7 +433,7 @@ impl State {
         let current = self.kanban.as_ref().is_some_and(|shown| {
             shown.recovered.as_ref() == Some(&(shown.generation, typed.clone()))
         });
-        match quit_rule(saved, &copied, current, "kanban") {
+        match quit_rule(saved, &copied, current, t(TextKey::ErrorDocumentKanban)) {
             Ok(()) => {
                 if !saved {
                     self.log_event("kanban", "not saved; kept in the recovery copy");

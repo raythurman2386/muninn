@@ -30,6 +30,8 @@ use std::path::{Component, Path, PathBuf};
 use rune::{Cursor, El, Key, KeyEvent, Tx, el, row, text};
 use rune_kit::Kit;
 
+use muninn_i18n::{Key as TextKey, could_not_be_read, t};
+
 use crate::State;
 use crate::watch::FileState;
 
@@ -91,8 +93,8 @@ impl DocConflict {
     #[must_use]
     pub fn message(self) -> &'static str {
         match self {
-            DocConflict::Changed => "Changed on disk by another app",
-            DocConflict::Missing => "Removed or renamed on disk",
+            DocConflict::Changed => t(TextKey::ConflictChangedOnDisk),
+            DocConflict::Missing => t(TextKey::ConflictMissingOnDisk),
         }
     }
 }
@@ -209,8 +211,8 @@ pub(crate) fn copy_path(root: &Path, path: &Path, stamp: &str) -> PathBuf {
 
 /// The close and quit rule: nothing is lost when the edits were `saved`, or
 /// their recovery copy was written (`copied`) and holds the latest edits
-/// (`current`). Otherwise why the quit must be refused (`what` names the
-/// document).
+/// (`current`). Otherwise why the quit must be refused (`what` is the
+/// catalogued document name: `board` or `kanban`).
 pub(crate) fn quit_rule(
     saved: bool,
     copied: &io::Result<()>,
@@ -220,7 +222,7 @@ pub(crate) fn quit_rule(
     match copied {
         _ if saved => Ok(()),
         Ok(()) if current => Ok(()),
-        Ok(()) => Err(format!("the {what} could not be read")),
+        Ok(()) => Err(could_not_be_read(what)),
         Err(e) => Err(e.to_string()),
     }
 }
@@ -237,8 +239,8 @@ pub(crate) fn conflict_bar(
 ) -> El {
     let [keep, copy, theirs] = actions;
     let theirs_label = match conflict {
-        DocConflict::Changed => "Load theirs",
-        DocConflict::Missing => "Discard",
+        DocConflict::Changed => t(TextKey::ConflictLoadTheirs),
+        DocConflict::Missing => t(TextKey::ConflictDiscard),
     };
     row()
         .key(format!("{page}-conflict"))
@@ -260,8 +262,18 @@ pub(crate) fn conflict_bar(
                 .font(k.ty.caption())
                 .color(k.c.danger.fg),
         )
-        .child(choice(k, "Keep mine", format!("{page}-keep-mine"), keep))
-        .child(choice(k, "Save copy", format!("{page}-save-copy"), copy))
+        .child(choice(
+            k,
+            t(TextKey::ConflictKeepMine),
+            format!("{page}-keep-mine"),
+            keep,
+        ))
+        .child(choice(
+            k,
+            t(TextKey::ConflictSaveCopy),
+            format!("{page}-save-copy"),
+            copy,
+        ))
         .child(choice(
             k,
             theirs_label,
@@ -380,14 +392,15 @@ mod tests {
     #[test]
     fn a_quit_needs_a_save_or_a_current_copy() {
         let (ok, failed) = (Ok(()), Err(io::Error::other("read-only")));
-        assert_eq!(quit_rule(true, &failed, false, "kanban"), Ok(()));
-        assert_eq!(quit_rule(false, &ok, true, "kanban"), Ok(()));
+        let kanban = t(TextKey::ErrorDocumentKanban);
+        assert_eq!(quit_rule(true, &failed, false, kanban), Ok(()));
+        assert_eq!(quit_rule(false, &ok, true, kanban), Ok(()));
         assert_eq!(
-            quit_rule(false, &ok, false, "kanban"),
-            Err("the kanban could not be read".to_owned())
+            quit_rule(false, &ok, false, kanban),
+            Err(could_not_be_read(kanban))
         );
         assert_eq!(
-            quit_rule(false, &failed, true, "kanban"),
+            quit_rule(false, &failed, true, kanban),
             Err("read-only".to_owned())
         );
     }

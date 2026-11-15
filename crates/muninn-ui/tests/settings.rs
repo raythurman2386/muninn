@@ -572,10 +572,10 @@ fn vault_prompt_text_stays_inside_the_page() {
         // Vault errors (path plus OS reason) can be longer than the card, so
         // the error line must wrap too instead of painting past the page.
         rt.update(|s, _| {
-            s.error = Some(format!(
-                "Could not create the vault: /very/long/path/without/spaces/{}/notes denied (os error 13)",
+            s.error = Some(muninn_i18n::could_not_create_vault(format!(
+                "/very/long/path/without/spaces/{}/notes denied (os error 13)",
                 "a".repeat(180)
-            ));
+            )));
         });
         for _ in 0..4 {
             rt.frame(1.0 / 60.0);

@@ -11,6 +11,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use muninn_core::testing::TempVault;
+use muninn_i18n::{path_gone, refused_unsupported_type};
 #[cfg(all(unix, not(target_os = "macos")))]
 use muninn_ui::{FileAction, file_action_command};
 use muninn_ui::{Mode, State, poll, view};
@@ -156,8 +157,9 @@ fn unsupported_drop_types_are_refused_with_a_reason() {
 
     let report = state.import_files(&[source]);
     assert!(report.imported.is_empty(), "{report:?}");
-    assert!(
-        report.refused[0].contains("unsupported file type"),
+    assert_eq!(
+        report.refused[0],
+        refused_unsupported_type("notes.txt"),
         "{:?}",
         report.refused
     );
@@ -206,7 +208,7 @@ fn opening_a_missing_path_reports_an_error_without_spawning() {
 
     assert!(!state.open_externally(Path::new("/definitely/gone/attachment.png")));
     let error = state.error.expect("path validation error");
-    assert!(error.contains("no longer exists"), "{error}");
+    assert_eq!(error, path_gone("/definitely/gone/attachment.png"));
 }
 
 #[test]
