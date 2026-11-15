@@ -21,6 +21,7 @@
 //! canvas, and leaving Board (including opening the note) closes it.
 
 use muninn_core::Shape;
+use muninn_i18n::{Key as TextKey, no_note_named, t};
 use rune::{El, Key, KeyEvent, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -103,7 +104,7 @@ impl State {
         // the file name, not part of the stem the link stores.
         let target = typed.strip_suffix(".md").unwrap_or(&typed).trim();
         let Some(id) = self.vault.resolve(target) else {
-            let error = format!("No note named \u{201c}{typed}\u{201d} in this vault");
+            let error = no_note_named(&typed);
             self.log_event("board", &format!("note link refused: {error}"));
             if let Some(prompt) = &mut self.board_note_link {
                 prompt.error = Some(error);
@@ -209,7 +210,7 @@ pub(crate) fn prompt(s: &State, k: &Kit) -> Option<El> {
         .child(
             text_input(&s.board_note_link_field, k.ty.ui_compact)
                 .key("board-note-link-field")
-                .label("Note name or path")
+                .label(t(TextKey::BoardLinkName))
                 .single_line()
                 .grow(1.0)
                 .color(k.c.text_base)
@@ -233,7 +234,7 @@ pub(crate) fn prompt(s: &State, k: &Kit) -> Option<El> {
     let mut card = col()
         .key("board-note-link-prompt")
         .role("group")
-        .label("Link note")
+        .label(t(TextKey::BoardLinkTitle))
         .pin(Some(12.0), Some(56.0), None, None)
         .w(320.0)
         .padding(8.0)
@@ -249,9 +250,13 @@ pub(crate) fn prompt(s: &State, k: &Kit) -> Option<El> {
                 .h(18.0)
                 .gap(6.0)
                 .center_y()
-                .child(text("Link note").font(k.ty.caption()).color(k.c.text_muted))
                 .child(
-                    text("a name or vault path · empty clears")
+                    text(t(TextKey::BoardLinkTitle))
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted),
+                )
+                .child(
+                    text(t(TextKey::BoardLinkHint))
                         .font(k.ty.caption())
                         .color(k.c.text_faint),
                 ),

@@ -41,6 +41,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use muninn_core::{Board, IdSource, Ink, ShapeKind};
+use muninn_i18n::{Key as TextKey, t};
 use rune::{Color, Cursor, Drag, El, Icon, Phase, Shape, Tx, canvas, icon, row};
 use rune_kit::Kit;
 
@@ -123,26 +124,26 @@ impl BoardTool {
     /// The tool's accessible name (#72): a title, not the key-style `name`.
     fn label(self) -> &'static str {
         match self {
-            BoardTool::Rectangle => "Rectangle",
-            BoardTool::Diamond => "Diamond",
-            BoardTool::Ellipse => "Ellipse",
-            BoardTool::Arrow => "Arrow",
-            BoardTool::Line => "Line",
-            BoardTool::Freedraw => "Freehand",
-            BoardTool::Text => "Text",
+            BoardTool::Rectangle => t(TextKey::BoardToolRectangle),
+            BoardTool::Diamond => t(TextKey::BoardToolDiamond),
+            BoardTool::Ellipse => t(TextKey::BoardToolEllipse),
+            BoardTool::Arrow => t(TextKey::BoardToolArrow),
+            BoardTool::Line => t(TextKey::BoardToolLine),
+            BoardTool::Freedraw => t(TextKey::BoardToolFreedraw),
+            BoardTool::Text => t(TextKey::BoardToolText),
         }
     }
 
     /// What the tool does, with its key, for the button's help (#72).
     fn help(self) -> &'static str {
         match self {
-            BoardTool::Rectangle => "Draw a rectangle (R)",
-            BoardTool::Diamond => "Draw a diamond (D)",
-            BoardTool::Ellipse => "Draw an ellipse (O)",
-            BoardTool::Arrow => "Draw an arrow (A)",
-            BoardTool::Line => "Draw a line (L)",
-            BoardTool::Freedraw => "Draw freehand (P or X)",
-            BoardTool::Text => "Place text, then type (T)",
+            BoardTool::Rectangle => t(TextKey::BoardToolRectangleHelp),
+            BoardTool::Diamond => t(TextKey::BoardToolDiamondHelp),
+            BoardTool::Ellipse => t(TextKey::BoardToolEllipseHelp),
+            BoardTool::Arrow => t(TextKey::BoardToolArrowHelp),
+            BoardTool::Line => t(TextKey::BoardToolLineHelp),
+            BoardTool::Freedraw => t(TextKey::BoardToolFreedrawHelp),
+            BoardTool::Text => t(TextKey::BoardToolTextHelp),
         }
     }
 }
@@ -467,7 +468,7 @@ pub(crate) fn toolbar(s: &State, k: &Kit) -> El {
         // #72: a named toolbar, so assistive technology announces the group
         // before reading its buttons.
         .role("toolbar")
-        .label("Board tools")
+        .label(t(TextKey::BoardToolToolbar))
         .pin(Some(12.0), Some(12.0), None, None)
         .h(36.0)
         .padding(3.0)
@@ -509,8 +510,8 @@ fn tool_button(k: &Kit, on: bool, glyph: &'static Icon, name: &str, tool: Option
     // tools carry their own label and help.
     let (label, help) = match tool {
         Some(tool) => (tool.label(), tool.help()),
-        None if name == "hand" => ("Hand", "Pan the board (H)"),
-        None => ("Select", "Select and move elements (V)"),
+        None if name == "hand" => (t(TextKey::BoardToolHand), t(TextKey::BoardToolHandHelp)),
+        None => (t(TextKey::BoardToolSelect), t(TextKey::BoardToolSelectHelp)),
     };
     row()
         .key(format!("board-tool-{name}"))
@@ -552,8 +553,8 @@ fn link_button(s: &State, k: &Kit) -> El {
     row()
         .key("board-tool-link-note")
         .role("button")
-        .label("Link note")
-        .help("Link the selected elements to a note (⌘L)")
+        .label(t(TextKey::BoardLinkTitle))
+        .help(t(TextKey::BoardLinkHelp))
         .focusable(true)
         .focus_ring(2.0, 1.0, k.c.text_accent)
         .size(30.0, 30.0)

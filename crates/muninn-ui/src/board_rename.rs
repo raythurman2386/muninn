@@ -25,6 +25,7 @@
 
 use std::path::{Path, PathBuf};
 
+use muninn_i18n::{Key as TextKey, board_name_taken, t};
 use rune::{El, Key, KeyEvent, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -206,9 +207,7 @@ impl State {
             .vault
             .rename_board(path, &name)
             .map_err(|e| match e.kind() {
-                std::io::ErrorKind::AlreadyExists => {
-                    format!("A board named \u{201c}{name}\u{201d} is already in this folder")
-                }
+                std::io::ErrorKind::AlreadyExists => board_name_taken(&name),
                 _ => capitalise(&e.to_string()),
             })?;
         if target == path {
@@ -334,7 +333,7 @@ pub(crate) fn rename_field(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.board_rename_field, k.ty.ui_compact)
                 .key("board-rename-name")
-                .label("Board name")
+                .label(t(TextKey::BoardRenameName))
                 .single_line()
                 .grow(1.0)
                 .color(k.c.text_base)
