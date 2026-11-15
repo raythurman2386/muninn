@@ -242,6 +242,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
 
     let search = row()
         .key("search-box")
+        .label("Search notes")
         .h(34.0)
         .mx(12.0)
         .px(9.0)
@@ -269,6 +270,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.search, k.ty.ui_compact)
                 .key("search")
+                .label("Search notes")
                 .single_line()
                 .grow(1.0)
                 .color(k.c.text_base)
@@ -922,6 +924,11 @@ fn sync_field(
         .child(text(label).font(k.ty.caption()).color(k.c.text_muted))
         .child(
             text_input(field, k.ty.ui_compact)
+                .key(format!(
+                    "sync-field-{}",
+                    label.to_lowercase().replace([' ', '/'], "-")
+                ))
+                .label(label)
                 .single_line()
                 .w_full()
                 .color(k.c.text_base)
@@ -1544,6 +1551,7 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.vault_field, k.ty.ui_compact)
                 .key("vault-path")
+                .label("Vault folder path")
                 .single_line()
                 .w_full()
                 .color(k.c.text_base)
@@ -1639,6 +1647,7 @@ fn new_note_row(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.new_note_field, k.ty.ui_compact)
                 .key("new-note-name")
+                .label("New note name")
                 .single_line()
                 .grow(1.0)
                 .color(k.c.text_base)
@@ -1684,6 +1693,7 @@ fn rename_note_row(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.rename_field, k.ty.ui_compact)
                 .key("rename-note-name")
+                .label("Rename note")
                 .single_line()
                 .grow(1.0)
                 .color(k.c.text_base)
@@ -1742,6 +1752,11 @@ fn folder_field_row(s: &State, k: &Kit, key: &str, placeholder: &str, is_new: bo
                 k.ty.ui_compact,
             )
             .key(key)
+            .label(if is_new {
+                "New folder name"
+            } else {
+                "Rename folder"
+            })
             .single_line()
             .grow(1.0)
             .color(k.c.text_base)
@@ -3473,6 +3488,7 @@ fn loading_page(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.scan_field, k.ty.ui_compact)
                 .key("scan-escape")
+                .a11y_hidden()
                 .single_line()
                 .size(1.0, 1.0)
                 .opacity(0.01)
@@ -4099,6 +4115,7 @@ fn find_bar(s: &State, k: &Kit) -> El {
         .child(
             text_input(&find.field, k.ty.ui_compact)
                 .key("find")
+                .label("Find in note")
                 .single_line()
                 .w(280.0)
                 .color(k.c.text_base)
@@ -4168,6 +4185,7 @@ fn editor(s: &State, k: &Kit) -> El {
     }
     let mut input = text_input(&s.editor, k.ty.body.lh(25.0))
         .key("editor")
+        .label("Note editor")
         .w_full()
         .color(k.c.text_base)
         .caret(k.c.text_accent, k.selection())

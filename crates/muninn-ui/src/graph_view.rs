@@ -651,6 +651,7 @@ fn graph_search(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.graph_query, k.ty.ui_compact)
                 .key("graph-search")
+                .label("Find graph node")
                 .grow(1.0)
                 .color(k.c.text_base)
                 .caret(k.c.text_accent, k.selection())
