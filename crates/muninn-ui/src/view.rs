@@ -12,8 +12,8 @@ use rune_theme_opencode::icons as ic;
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
 
 use crate::{
-    DeleteConfirm, GraphEffectIntensity, GraphEffects, MenuTarget, Mode, PaletteItem, ReduceMotion,
-    SettingsTab, State, ThemeMode,
+    BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, MenuTarget, Mode, PaletteItem,
+    ReduceMotion, SettingsTab, State, ThemeMode,
 };
 
 pub(crate) const SIDEBAR: f32 = 258.0;
@@ -71,6 +71,20 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
             el()
         })
         .child(main_column(s, &k));
+    // #135: a delete outside the graph burns the note's sidebar row instead.
+    // The row rect is in window points (the sidebar is not inside the main
+    // column), so the ghost rides above both columns at the root, whose origin
+    // is the window's. Neither element takes input, so presses still land on
+    // the rows beneath; the modal layers below are added after it and cover it.
+    if let Some(burn) = s
+        .burn
+        .as_ref()
+        .filter(|burn| burn.alive(s.now) && burn.space == BurnSpace::Row)
+    {
+        base = base
+            .child(crate::graph_view::burn_ghost(s, &k, burn))
+            .child(crate::graph_view::burn_effect(s, burn));
+    }
     // Slice 16 fix: Kanban menus and a menu-opened date picker are real
     // modals, drawn last so Tab and the pointer cannot reach the page behind
     // them.
@@ -327,6 +341,10 @@ fn sidebar(s: &State, k: &Kit) -> El {
                 .grow(1.0)
                 .min_h(0.0)
                 .gap(4.0)
+                // #135: the delete burn is placed from the row's own rect, and
+                // only while that rect is inside this viewport, so a row
+                // scrolled out of the list never pins a ghost elsewhere.
+                .drawn_rect_into(&s.note_list_rect)
                 .scroll(ScrollSpec {
                     stick_bottom: false,
                 });
@@ -590,6 +608,8 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
         })
         .px(10.0)
         .pl(20.0)
+        // #135: publish the row's window rect so a delete can burn it in place.
+        .drawn_rect_into(&s.note_row_rect(id))
 }
 
 fn theme_button(k: &Kit, mode: ThemeMode) -> El {

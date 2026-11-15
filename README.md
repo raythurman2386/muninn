@@ -44,7 +44,7 @@ connections as a graph.
 - **Matches your desktop.** Follows the Omarchy system theme by default, with System, Dark and
   Light alternatives, a working Reduce motion setting, and Graph effects presets (Classic,
   Electric, Off) with a Subtle / Balanced / Intense strength, treating the selection's border
-  and its edges as one style.
+  and its edges as one style — and burn a deleted note out of the graph or the sidebar.
 - **Focus.** One chord hides everything but the note, dims the other paragraphs and keeps the
   caret's line centred.
 - **Small comforts.** An opt-in tray icon, start at login and a global shortcut that summons the

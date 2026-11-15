@@ -17,6 +17,20 @@ All notable changes to Muninn are documented here. The format is based on
   Reduce motion still freezes whatever is chosen. The choice persists as
   `graph_effect_intensity` in `settings.json`; a file without the key loads as
   Balanced, so upgrading never changes the picture.
+- **The delete burn plays in the sidebar too (#135).** Deleting a note no longer
+  burns only in Graph mode: in Write, Read and every other page the note's
+  sidebar row fades out under the same short, low ember fire, at the row it left
+  rather than at its graph node. The row's own drawn rect places the overlay, so
+  it lands where the list drew it at any scroll position or sidebar width; the
+  ghost takes no input, so a click through it still reaches the list. The rule is
+  unchanged: Classic and Electric play it, Off and Reduce motion do not. Board
+  elements, Kanban cards and folders are not note rows and do not burn.
+
+### Fixed
+
+- Deleting a note from the notes sidebar while in Write or Read used to remove
+  the row with no feedback at all, although the graph had a burn for the same
+  action. It now plays the same burn at the row (#135).
 
 ## [0.8.4] - 2026-11-14
 

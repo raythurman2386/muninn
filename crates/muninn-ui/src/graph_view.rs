@@ -10,7 +10,7 @@ use rune_theme_opencode::icons as ic;
 use muninn_graph::{NODE_H, NODE_W, WORLD};
 
 use crate::settings::GraphEffects;
-use crate::{BurnMark, Scope, State};
+use crate::{BurnMark, BurnSpace, Scope, State};
 
 /// Neighbour dimming eases on selection, so a click reads as a change of
 /// emphasis rather than a repaint. Reduced motion lands it at once.
@@ -55,7 +55,13 @@ pub fn graph(s: &State, k: &Kit) -> El {
         .live_scale(&s.cam.live_zoom)
         .child(grid(s, k))
         .child(edge_canvas(s, k, &edges, viewport));
-    if let Some(burn) = s.burn.as_ref().filter(|burn| burn.alive(s.now)) {
+    // A burn in window points (a sidebar row) is painted over the window by
+    // `view`, not here: its rect is not in the graph's world.
+    if let Some(burn) = s
+        .burn
+        .as_ref()
+        .filter(|burn| burn.alive(s.now) && burn.space == BurnSpace::Graph)
+    {
         world = world.child(burn_ghost(s, k, burn));
         world = world.child(burn_effect(s, burn));
     }
@@ -384,15 +390,18 @@ fn node_electric(id: usize, pos: [f32; 2], w: f32, h: f32, hot: bool) -> El {
         .size(w + pad * 2.0, h + pad * 2.0)
 }
 
-/// The deleted note's card, fading under the burn. It is a plain element, not
-/// an effect: the fire is [`burn_effect`]'s job, and this keeps the node's
-/// place readable for the moment it takes to go.
-fn burn_ghost(s: &State, k: &Kit, burn: &BurnMark) -> El {
+/// The deleted note's card or row, fading under the burn. It is a plain
+/// element, not an effect: the fire is [`burn_effect`]'s job, and this keeps
+/// the node's or row's place readable for the moment it takes to go.
+///
+/// Pinned in the burn's own space: the graph world for a node, the window for a
+/// sidebar row (#135). Callers place it in that space.
+pub(crate) fn burn_ghost(s: &State, k: &Kit, burn: &BurnMark) -> El {
     let fade = 1.0 - burn.progress(s.now).powi(2);
     let [w, h] = burn.size;
     let [x, y] = burn.pos;
     row()
-        .key("graph-burn-ghost")
+        .key("burn-ghost")
         .pin(Some(x - w / 2.0), Some(y - h / 2.0), None, None)
         .size(w, h)
         .px(9.0)
@@ -410,9 +419,12 @@ fn burn_ghost(s: &State, k: &Kit, burn: &BurnMark) -> El {
         )
 }
 
-/// The fire slot over the deleted node. `effect_data[0]` is the burn's
+/// The fire slot over the deleted node or row. `effect_data[0]` is the burn's
 /// progress, which cools and fades the embers in the compositor.
-fn burn_effect(s: &State, burn: &BurnMark) -> El {
+///
+/// The compositor paints `El::effect` slots anywhere in the tree, so the same
+/// slot works over the graph world and over a sidebar row.
+pub(crate) fn burn_effect(s: &State, burn: &BurnMark) -> El {
     let [w, h] = burn.size;
     let [x, y] = burn.pos;
     let progress = burn.progress(s.now);
