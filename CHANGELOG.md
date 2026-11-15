@@ -15,6 +15,19 @@ All notable changes to Muninn are documented here. The format is based on
   centred in the shape, as one undo step. An empty commit adds nothing, a
   locked shape gets no label, and moves and deletes carry the new label like
   any other bound one.
+- **Link a board element to a note (#73).** With elements selected on Board,
+  **Link note** in the toolbar or `⌘L` / `Ctrl+L` opens a small prompt: type a
+  note name or vault-relative path and Enter links every selected element to
+  that note as one undo step (an empty value clears the link, and an unknown
+  note keeps the prompt open with the reason). The link is written in
+  Excalidraw's own `link` element field as
+  `muninn://note/<percent-encoded path>`, so an ordinary Excalidraw scene
+  round-trips it and an external URL is left untouched. `⌘Enter` /
+  `Ctrl+Enter` opens the selected element's linked note, `⌘click` / `Ctrl+click`
+  opens the one clicked, and a plain click still only selects. Linked elements
+  carry a small accent dot on the canvas, and the hint above the canvas names
+  the note while a linked element is selected. The shortcut map and README
+  list the new chords.
 
 ## [0.8.5] - 2026-11-15
 

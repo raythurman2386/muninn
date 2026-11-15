@@ -27,8 +27,10 @@
 //! Nothing Excalidraw wrote is dropped on a round-trip:
 //!
 //! - Every element field Muninn does not model (`roughness`, `groupIds`,
-//!   `boundElements`, `roundness`, `pressures`, `fontFamily`, …) is kept in
-//!   [`Shape::extra`] and written back.
+//!   `boundElements`, `roundness`, `pressures`, `fontFamily`, `link`, …) is
+//!   kept in [`Shape::extra`] and written back. [`Shape::note_link`] reads a
+//!   `muninn://note/…` value from it, and [`Board::set_note_link`] writes one
+//!   as an ordinary element edit.
 //! - An element of an unknown type (`image`, `frame`, `embeddable`, a future
 //!   kind) is kept verbatim as [`Element::Raw`]. So is a known-type element
 //!   whose modelled fields are missing (`id`, `x`, `y`) or have an unexpected
@@ -56,9 +58,11 @@ use crate::vault::{Vault, atomic_write, sort_paths, walk};
 
 mod create;
 mod edit;
+mod link;
 mod text;
 pub use create::{IdSource, index_after};
 pub use edit::{Change, HISTORY_BYTES, HISTORY_LIMIT, History};
+pub use link::{NOTE_LINK_PREFIX, note_link, note_link_target};
 pub use text::{TEXT_FONT_FAMILY, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
 /// File extension of a board, without the dot.

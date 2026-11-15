@@ -30,9 +30,9 @@ pub mod testing;
 
 pub use board::{
     BOARD_EXTENSION, Board, BoardFile, Change, DEFAULT_BACKGROUND, DEFAULT_STROKE, Element,
-    HISTORY_BYTES, HISTORY_LIMIT, History, IdSource, Ink, MUNINN_SOURCE, SCENE_VERSION, Shape,
-    ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT, TextBody, index_after,
-    list_boards,
+    HISTORY_BYTES, HISTORY_LIMIT, History, IdSource, Ink, MUNINN_SOURCE, NOTE_LINK_PREFIX,
+    SCENE_VERSION, Shape, ShapeKind, TEXT_FONT_FAMILY, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT, TextBody,
+    index_after, list_boards, note_link, note_link_target,
 };
 pub use frontmatter::{Frontmatter, FrontmatterValue};
 pub use kanban::{

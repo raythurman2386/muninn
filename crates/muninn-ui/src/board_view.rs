@@ -543,6 +543,8 @@ impl State {
     /// save fails, the open board stays open.
     pub fn select_board(&mut self, path: PathBuf) {
         self.commit_board_text();
+        // #73: the prompt belongs to the old board's selection.
+        self.cancel_board_note_link();
         if self
             .board_open
             .as_ref()
@@ -617,6 +619,7 @@ impl State {
 
     /// Forget every open board and remembered view (another vault opened).
     pub fn clear_boards(&mut self) {
+        self.cancel_board_note_link();
         self.boards.clear();
         self.board_selected = None;
         self.board_open = None;
@@ -1269,8 +1272,9 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
                 tx.live_only();
             } else {
                 // Select, move or marquee (slice 5); the outline rebuilds.
-                let shift = tx.mods().shift;
-                s.edit_board(d, shift);
+                // #73: a command-click on a linked element opens its note.
+                let mods = tx.mods();
+                s.edit_board(d, mods.shift, mods.cmd);
             }
         })
         .on_double_press_tx(|s: &mut State, tx: &mut Tx| {
@@ -1314,6 +1318,12 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
     }
     if let Some(layer) = crate::board_edit::overlay(open) {
         canvas_el = canvas_el.child(layer);
+    }
+    if let Some(status) = board_link_status(s, k) {
+        canvas_el = canvas_el.child(status);
+    }
+    if let Some(prompt) = crate::board_note_link::prompt(s, k) {
+        canvas_el = canvas_el.child(prompt);
     }
     canvas_el
         .child(board_tools::toolbar(s, k))
@@ -1371,6 +1381,28 @@ fn control(
         .child(icon(glyph, 12.0).color(k.c.icon_muted))
 }
 
+/// #73: with a linked element selected, the hint above the canvas names the
+/// note and how to open it. It sits above `board_hint` and leaves when the
+/// selection has no note link.
+fn board_link_status(s: &State, k: &Kit) -> Option<El> {
+    let label = s.board_selected_note_label()?;
+    Some(
+        row()
+            .pin(Some(12.0), None, None, Some(44.0))
+            .h(26.0)
+            .px(9.0)
+            .radius(6.0)
+            .center_y()
+            .fill(k.alpha(k.c.bg_deep, 0.78))
+            .child(
+                text(format!("Linked note: {label} · ⌘Enter opens"))
+                    .key("board-link-status")
+                    .font(k.ty.caption())
+                    .color(k.c.text_accent),
+            ),
+    )
+}
+
 fn board_hint(k: &Kit) -> El {
     // Keyed, as the toolbar is: a selection outline or a drawing preview
     // added before it in the canvas would otherwise give it a new place in
@@ -1384,7 +1416,7 @@ fn board_hint(k: &Kit) -> El {
         .center_y()
         .fill(k.alpha(k.c.bg_deep, 0.78))
         .child(
-            text("Click/drag select · Del delete · ⌘Z undo · R D O A L P draw · H pan · ⌘S save · 0 fit")
+            text("Click/drag select · Del delete · ⌘Z undo · R D O A L P draw · H pan · ⌘L link note · ⌘S save · 0 fit")
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )

@@ -271,6 +271,7 @@ impl State {
             || self.new_folder_prompt.is_some()
             || self.rename_folder_prompt.is_some()
             || self.board_rename.is_some()
+            || self.board_note_link.is_some()
             || self.board_text.is_some()
             // A card editor or lane field left open (its text refused) waits
             // on the Kanban page; it doesn't hold the keyboard elsewhere, nor
