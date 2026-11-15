@@ -935,8 +935,13 @@ fn board_list(s: &State, k: &Kit) -> El {
                 )
                 .child(
                     text(b.detail())
+                        .key(format!("board-row-{i}-detail"))
                         .font(k.ty.caption())
-                        .color(k.c.text_faint)
+                        // #72 follow-up: on the selected row this sits on
+                        // `layer_03` under the hover overlay, where `faint`
+                        // would be under 4.5:1; the stronger secondary ink
+                        // clears it in both themes.
+                        .color(if on { k.c.text_muted } else { k.c.text_faint })
                         .truncate(),
                 ),
         );

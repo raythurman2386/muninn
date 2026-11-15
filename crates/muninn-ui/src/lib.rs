@@ -63,7 +63,7 @@ pub use board_tools::{BoardTool, Draft, tool_for_key};
 pub use board_view::{
     BoardConflict, BoardCounts, BoardSession, BoardStatus, BoardSummary, OpenBoard,
 };
-pub use contrast::{TEXT, UI, at_least, board_stroke, meets, ratio as contrast_ratio};
+pub use contrast::{TEXT, UI, at_least, board_stroke, meets, over, ratio as contrast_ratio};
 pub use doc_sync::DocConflict;
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use kanban_dates::{KanbanPicker, PickerInsert, PickerKind};
