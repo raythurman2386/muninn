@@ -9,6 +9,7 @@
 
 use crate::State;
 use crate::settings::{AUTOSAVE_MAX_DELAY, AUTOSAVE_MIN_DELAY};
+use muninn_i18n::{Key as TextKey, t};
 
 /// The Kanban mode chord as this platform labels it. Slice 16: the palette
 /// said ⌘5 off macOS too.
@@ -81,15 +82,16 @@ impl SettingsTab {
         SettingsTab::Kanban,
     ];
 
+    /// The tab's label, from the catalog (#155).
     pub fn label(self) -> &'static str {
-        match self {
-            SettingsTab::Vaults => "Vaults",
-            SettingsTab::Editor => "Editor",
-            SettingsTab::Appearance => "Appearance",
-            SettingsTab::Graph => "Graph",
-            SettingsTab::Sync => "Sync",
-            SettingsTab::Kanban => "Kanban",
-        }
+        t(match self {
+            SettingsTab::Vaults => TextKey::SettingsTabVaults,
+            SettingsTab::Editor => TextKey::SettingsTabEditor,
+            SettingsTab::Appearance => TextKey::SettingsTabAppearance,
+            SettingsTab::Graph => TextKey::SettingsTabGraph,
+            SettingsTab::Sync => TextKey::SettingsTabSync,
+            SettingsTab::Kanban => TextKey::SettingsTabKanban,
+        })
     }
 
     /// Position in [`SettingsTab::ALL`], for the tab bar's selected segment.
@@ -162,56 +164,62 @@ impl PaletteAction {
     /// The row's main label.
     #[must_use]
     pub fn label(self) -> &'static str {
-        match self {
-            PaletteAction::OpenLocalGraph => "Open local graph",
-            PaletteAction::SwitchVault => "Switch vault",
-            PaletteAction::OpenSettings => "Open settings",
-            PaletteAction::NewNote => "New note",
-            PaletteAction::TogglePreview => "Toggle Write / Read",
-            PaletteAction::ToggleGraph => "Toggle Graph",
-            PaletteAction::ToggleBoard => "Toggle Board",
-            PaletteAction::ToggleKanban => "Toggle Kanban",
-            PaletteAction::ToggleFocusMode => "Toggle focus mode",
-            PaletteAction::NewKanban => "New Kanban",
-            PaletteAction::ConvertToKanban => "Convert empty note to Kanban",
-        }
+        t(match self {
+            PaletteAction::OpenLocalGraph => TextKey::PaletteActionOpenLocalGraph,
+            PaletteAction::SwitchVault => TextKey::PaletteActionSwitchVault,
+            PaletteAction::OpenSettings => TextKey::PaletteActionOpenSettings,
+            PaletteAction::NewNote => TextKey::PaletteActionNewNote,
+            PaletteAction::TogglePreview => TextKey::PaletteActionTogglePreview,
+            PaletteAction::ToggleGraph => TextKey::PaletteActionToggleGraph,
+            PaletteAction::ToggleBoard => TextKey::PaletteActionToggleBoard,
+            PaletteAction::ToggleKanban => TextKey::PaletteActionToggleKanban,
+            PaletteAction::ToggleFocusMode => TextKey::PaletteActionToggleFocusMode,
+            PaletteAction::NewKanban => TextKey::PaletteActionNewKanban,
+            PaletteAction::ConvertToKanban => TextKey::PaletteActionConvertToKanban,
+        })
     }
 
     /// The shortcut or affordance the action mirrors, drawn on the right.
+    ///
+    /// The catalog holds the copy; keycap chords (`⌘N`, `⌘4`, …) stay literals
+    /// because they are keyboard geometry, not words (#155).
     #[must_use]
     pub fn hint(self) -> &'static str {
         match self {
-            PaletteAction::OpenLocalGraph => "Graph · Local",
-            PaletteAction::SwitchVault => "Vaults",
-            PaletteAction::OpenSettings => "Help",
+            PaletteAction::OpenLocalGraph => t(TextKey::PaletteHintGraphLocal),
+            PaletteAction::SwitchVault => t(TextKey::PaletteHintVaults),
+            PaletteAction::OpenSettings => t(TextKey::PaletteHintHelp),
             PaletteAction::NewNote => "⌘N",
             PaletteAction::TogglePreview => "⌘E",
             PaletteAction::ToggleGraph => "⌘G",
             PaletteAction::ToggleBoard => "⌘4",
             PaletteAction::ToggleKanban => KANBAN_CHORD,
             PaletteAction::ToggleFocusMode => crate::focus::FOCUS_CHORD,
-            PaletteAction::NewKanban | PaletteAction::ConvertToKanban => "Kanban",
+            PaletteAction::NewKanban | PaletteAction::ConvertToKanban => {
+                t(TextKey::PaletteHintKanban)
+            }
         }
     }
 
     /// Extra words that should find the action even when they are not in its
-    /// label (`prefs`, `create`, `editor`, …).
+    /// label (`preferences`, `create`, `editor`, …).
+    ///
+    /// The synonyms are catalog data, not just the label: a translated UI has
+    /// to find its own actions in its own words (#155).
     fn keywords(self) -> &'static str {
-        match self {
-            PaletteAction::OpenLocalGraph => "graph local focus neighbours scope",
-            PaletteAction::SwitchVault => "vault open recent folder switch",
-            PaletteAction::OpenSettings => "settings preferences options config help",
-            PaletteAction::NewNote => "new note create add",
-            PaletteAction::TogglePreview => "write read preview editor mode",
-            PaletteAction::ToggleGraph => "graph global local mode",
-            PaletteAction::ToggleBoard => "board whiteboard excalidraw drawing canvas sketch mode",
-            PaletteAction::ToggleKanban => "kanban lanes cards tasks mode",
-            PaletteAction::ToggleFocusMode => {
-                "focus zen distraction free writing concentrate hide chrome dim"
-            }
-            PaletteAction::NewKanban => "kanban create add lanes cards tasks",
-            PaletteAction::ConvertToKanban => "kanban empty blank turn lanes cards tasks",
-        }
+        t(match self {
+            PaletteAction::OpenLocalGraph => TextKey::PaletteKeywordsOpenLocalGraph,
+            PaletteAction::SwitchVault => TextKey::PaletteKeywordsSwitchVault,
+            PaletteAction::OpenSettings => TextKey::PaletteKeywordsOpenSettings,
+            PaletteAction::NewNote => TextKey::PaletteKeywordsNewNote,
+            PaletteAction::TogglePreview => TextKey::PaletteKeywordsTogglePreview,
+            PaletteAction::ToggleGraph => TextKey::PaletteKeywordsToggleGraph,
+            PaletteAction::ToggleBoard => TextKey::PaletteKeywordsToggleBoard,
+            PaletteAction::ToggleKanban => TextKey::PaletteKeywordsToggleKanban,
+            PaletteAction::ToggleFocusMode => TextKey::PaletteKeywordsToggleFocusMode,
+            PaletteAction::NewKanban => TextKey::PaletteKeywordsNewKanban,
+            PaletteAction::ConvertToKanban => TextKey::PaletteKeywordsConvertToKanban,
+        })
     }
 
     pub(crate) fn matches(self, query: &str) -> bool {
@@ -238,12 +246,12 @@ impl PaletteItem {
     /// The group header this item belongs under.
     #[must_use]
     pub fn section(&self) -> &'static str {
-        match self {
-            PaletteItem::Recent(_) => "Recent",
-            PaletteItem::Note(_) => "Notes",
-            PaletteItem::Action(_) => "Actions",
-            PaletteItem::Kanban(_) => "Kanbans",
-        }
+        t(match self {
+            PaletteItem::Recent(_) => TextKey::PaletteSectionRecent,
+            PaletteItem::Note(_) => TextKey::PaletteSectionNotes,
+            PaletteItem::Action(_) => TextKey::PaletteSectionActions,
+            PaletteItem::Kanban(_) => TextKey::PaletteSectionKanbans,
+        })
     }
 }
 
@@ -582,5 +590,51 @@ impl State {
             Layer::DeleteConfirm => self.cancel_delete(),
             Layer::MovePicker => self.cancel_move(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #155: every action's copy is catalog data. `ConvertToKanban` is offered
+    /// only over an empty note, so it is not in `ALL` and needs its own row.
+    #[test]
+    fn every_palette_action_has_label_hint_keywords_and_section() {
+        let actions = PaletteAction::ALL
+            .into_iter()
+            .chain([PaletteAction::ConvertToKanban]);
+        for action in actions {
+            assert!(!action.label().is_empty(), "{action:?} has no label");
+            assert!(!action.hint().is_empty(), "{action:?} has no hint");
+            assert!(!action.keywords().is_empty(), "{action:?} has no keywords");
+            assert!(
+                !PaletteItem::Action(action).section().is_empty(),
+                "{action:?} has no section"
+            );
+        }
+    }
+
+    /// The search still reaches every action through its own keyword, not just
+    /// its label: the synonyms survived the move into the catalog unchanged.
+    #[test]
+    fn keywords_still_find_their_action() {
+        let actions = PaletteAction::ALL
+            .into_iter()
+            .chain([PaletteAction::ConvertToKanban]);
+        for action in actions {
+            let keyword = action
+                .keywords()
+                .split_whitespace()
+                .next()
+                .expect("keywords are non-empty");
+            assert!(
+                action.matches(keyword),
+                "{action:?} is not found by its own keyword {keyword:?}"
+            );
+        }
+        // Two synonyms that appear in no label at all.
+        assert!(PaletteAction::OpenSettings.matches("preferences"));
+        assert!(PaletteAction::ToggleBoard.matches("whiteboard"));
     }
 }
