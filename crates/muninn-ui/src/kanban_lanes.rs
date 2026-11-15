@@ -48,6 +48,7 @@
 use std::io;
 
 use muninn_core::{CardOrder, Kanban};
+use muninn_i18n::{Key as TextKey, t};
 use rune::{El, Key, KeyEvent, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -624,8 +625,11 @@ fn menu_row(k: &Kit, key: String, label: String) -> El {
 /// The lane field: a new lane's title, a rename, or a card limit.
 pub(crate) fn lane_field(s: &State, k: &Kit) -> El {
     let (label, placeholder) = match s.kanban_lane_edit.map(|slot| slot.field) {
-        Some(LaneField::Limit) => ("Card limit", "No limit"),
-        _ => ("Lane title", "Lane title"),
+        Some(LaneField::Limit) => (
+            t(TextKey::KanbanLaneCardLimit),
+            t(TextKey::KanbanLaneNoLimit),
+        ),
+        _ => (t(TextKey::KanbanLaneTitle), t(TextKey::KanbanLaneTitle)),
     };
     // Slice 16: closing the field gives the keyboard back to the lane's menu
     // (or Add lane, for a lane not in the file yet).

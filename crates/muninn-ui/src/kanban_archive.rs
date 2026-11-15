@@ -21,6 +21,7 @@
 //!   card menu's **Archive** has no such window.
 
 use muninn_core::{ArchiveSettings, Kanban, scan_card_text};
+use muninn_i18n::{Key as TextKey, restore_to, t};
 use rune::{El, col, row, text};
 use rune_kit::Kit;
 
@@ -148,7 +149,7 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
             .gap(10.0)
             .center_y()
             .child(
-                text("Archive")
+                text(t(TextKey::Archive))
                     .key("kanban-archive-title")
                     .font(k.ty.ui_medium)
                     .color(k.c.text_base),
@@ -163,7 +164,7 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
             .child(archive_button(
                 k,
                 "kanban-archive-close".to_owned(),
-                "Close",
+                t(TextKey::Close),
                 k.c.text_base,
                 State::close_kanban_archive,
             )),
@@ -171,7 +172,7 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
     if cards.is_empty() {
         return scroll_page(
             panel.child(
-                text("No archived cards.")
+                text(t(TextKey::KanbanArchiveEmpty))
                     .key("kanban-archive-empty")
                     .font(k.ty.caption())
                     .color(k.c.text_faint),
@@ -215,21 +216,21 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
             .child(archive_button(
                 k,
                 format!("kanban-archive-restore-{index}"),
-                "Restore",
+                t(TextKey::KanbanArchiveRestore),
                 k.c.text_accent,
                 move |s: &mut State| s.restore_archived_card(index),
             ))
             .child(archive_button(
                 k,
                 format!("kanban-archive-lanes-{index}"),
-                "Restore to…",
+                t(TextKey::KanbanArchiveRestoreTo),
                 k.c.text_base,
                 move |s: &mut State| s.open_archive_restore(index),
             ))
             .child(archive_button(
                 k,
                 format!("kanban-archive-delete-{index}"),
-                "Delete",
+                t(TextKey::KanbanArchiveDelete),
                 k.c.danger.fg,
                 move |s: &mut State| s.delete_archived_card(index),
             ));
@@ -287,7 +288,7 @@ fn archive_lane_picker(s: &State, k: &Kit, index: usize) -> El {
                 .hover(k.c.hover)
                 .press(k.c.pressed)
                 .role("button")
-                .label(format!("Restore to {}", other.title()))
+                .label(restore_to(other.title()))
                 .on_press(move |s: &mut State| s.restore_archived_card_to(index, lane))
                 .child(text(label).font(k.ty.ui_compact).color(k.c.text_base)),
         );
@@ -304,8 +305,12 @@ fn archive_lane_picker(s: &State, k: &Kit, index: usize) -> El {
             .hover(k.c.hover)
             .press(k.c.pressed)
             .role("button")
-            .label("Cancel")
+            .label(t(TextKey::Cancel))
             .on_press(|s: &mut State| s.close_menu())
-            .child(text("Cancel").font(k.ty.ui_compact).color(k.c.text_base)),
+            .child(
+                text(t(TextKey::Cancel))
+                    .font(k.ty.ui_compact)
+                    .color(k.c.text_base),
+            ),
     )
 }

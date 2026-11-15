@@ -76,6 +76,7 @@ use muninn_core::{
     Card, ChecklistItem, CivilDate, DateSettings, Kanban, KanbanView, Lane, MetadataCache,
     MetadataSettings, card_checklist, is_kanban, parse_links, scan_card_text,
 };
+use muninn_i18n::{Key as TextKey, t};
 use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
@@ -91,13 +92,6 @@ use crate::{DiskState, MenuTarget, Mode, State};
 const STRIP_W: f32 = 52.0;
 /// Opacity of a card or lane while it is dragged (slice 6).
 const DRAGGED: f32 = 0.45;
-/// The Kanban page's empty state, with the mode chord this platform uses
-/// (slice 16: the words said ⌘5 everywhere).
-const NO_KANBAN_DETAIL: &str = if cfg!(target_os = "macos") {
-    "Select a kanban note, then press ⌘5 to see it as a board."
-} else {
-    "Select a kanban note, then press Ctrl+5 to see it as a board."
-};
 
 /// The kanban note on the Kanban page, as read from disk.
 #[derive(Clone, Debug)]
@@ -520,8 +514,8 @@ pub fn kanban(s: &State, k: &Kit) -> El {
             k,
             "kanban-placeholder",
             &ic::CHECKLIST,
-            "No kanban open",
-            NO_KANBAN_DETAIL,
+            t(TextKey::KanbanPageEmptyTitle),
+            t(TextKey::KanbanPageEmptyDetail),
         ),
         Some(ShownKanban {
             rel,
@@ -546,14 +540,14 @@ pub fn kanban(s: &State, k: &Kit) -> El {
             k,
             "kanban-placeholder",
             &ic::CHECKLIST,
-            "This note can't be shown as a kanban",
-            "Its settings footer is unfinished or is not valid JSON. The file is left as it is.",
+            t(TextKey::KanbanPageInvalidTitle),
+            t(TextKey::KanbanPageInvalidDetail),
         ),
     };
     col()
         .key("kanban-page")
         .role("main")
-        .label("Kanban")
+        .label(t(TextKey::KanbanPageTitle))
         .w_full()
         .grow(1.0)
         .min_h(0.0)
@@ -619,7 +613,7 @@ fn header(s: &State, k: &Kit) -> El {
     let head = row().h(58.0).px(28.0).gap(10.0).center_y();
     let Some(shown) = &s.kanban else {
         return head.child(
-            text("Kanban")
+            text(t(TextKey::KanbanPageTitle))
                 .key("kanban-title")
                 .font(k.ty.ui_medium)
                 .color(k.c.text_base),
@@ -670,7 +664,7 @@ fn header(s: &State, k: &Kit) -> El {
                 k,
                 "kanban-conflict-review",
                 &ic::CIRCLE_EXCLAMATION,
-                "Resolve conflict",
+                t(TextKey::KanbanPageResolveConflict),
                 State::show_kanban_conflict,
             ),
             Some(conflict) => conflict_bar(
@@ -695,7 +689,7 @@ fn header(s: &State, k: &Kit) -> El {
             k,
             "kanban-filter-toggle",
             &ic::OUTLINE_SLIDERS,
-            "Filter",
+            t(TextKey::KanbanPageFilter),
             State::toggle_kanban_filter,
         ));
     }
@@ -704,7 +698,7 @@ fn header(s: &State, k: &Kit) -> El {
             k,
             "kanban-archive",
             &ic::ARCHIVE,
-            "Archive",
+            t(TextKey::Archive),
             State::toggle_kanban_archive,
         ));
     }
@@ -715,7 +709,7 @@ fn header(s: &State, k: &Kit) -> El {
             k,
             "kanban-settings",
             &ic::SETTINGS_GEAR,
-            "Board settings",
+            t(TextKey::KanbanUiBoardSettings),
             State::toggle_kanban_settings,
         ));
     }
@@ -724,7 +718,7 @@ fn header(s: &State, k: &Kit) -> El {
             k,
             "kanban-open-markdown",
             &ic::EDIT,
-            "Open as markdown",
+            t(TextKey::KanbanPageOpenMarkdown),
             State::open_kanban_as_markdown,
         ));
     }
@@ -750,14 +744,14 @@ fn filter_summary(s: &State, k: &Kit) -> El {
                 .truncate(),
         )
         .child(
-            text("Clear")
+            text(t(TextKey::Clear))
                 .key("kanban-filter-clear")
                 .font(k.ty.caption())
                 .color(k.c.text_accent)
                 .cursor(rune::Cursor::Pointer)
                 .role("button")
-                .label("Clear filters")
-                .help("Clear filters")
+                .label(t(TextKey::KanbanPageClearFilters))
+                .help(t(TextKey::KanbanPageClearFilters))
                 .focusable(true)
                 .focus_ring(2.0, 1.0, k.c.text_accent)
                 .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
@@ -788,7 +782,7 @@ fn view_switch(s: &State, k: &Kit) -> El {
         .fill(k.c.layer_01)
         .border(1.0, k.c.border_muted)
         .role("tablist")
-        .label("Kanban view")
+        .label(t(TextKey::KanbanPageViewSwitcher))
         .focus_group()
         .children(
             [KanbanView::Board, KanbanView::List, KanbanView::Table]
@@ -799,11 +793,11 @@ fn view_switch(s: &State, k: &Kit) -> El {
 
 /// One tab of [`view_switch`].
 fn view_tab(k: &Kit, view: KanbanView, active: bool) -> El {
-    let label = match view {
-        KanbanView::Board => "Board view",
-        KanbanView::List => "List view",
-        KanbanView::Table => "Table view",
-    };
+    let label = t(match view {
+        KanbanView::Board => TextKey::KanbanViewBoardTab,
+        KanbanView::List => TextKey::KanbanViewListTab,
+        KanbanView::Table => TextKey::KanbanViewTableTab,
+    });
     row()
         .key(match view {
             KanbanView::Board => "kanban-view-board",
@@ -1064,7 +1058,7 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         );
     if over {
         head = head.child(
-            text("Over limit")
+            text(t(TextKey::OverLimit))
                 .key(format!("kanban-lane-{i}-over"))
                 .font(k.ty.caption())
                 .color(k.c.warning.fg),
@@ -1138,7 +1132,11 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
                 .gap(6.0)
                 .center_y()
                 .child(icon(&ic::CHECK, 12.0).color(k.c.success.fg))
-                .child(text("Complete").font(k.ty.caption()).color(k.c.success.fg)),
+                .child(
+                    text(t(TextKey::KanbanLaneComplete))
+                        .font(k.ty.caption())
+                        .color(k.c.success.fg),
+                ),
         );
     }
     // Slice 16: the cards are a list of their own, so the lane is a region
@@ -1223,7 +1221,11 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
             })
             .on_press(move |s: &mut State| s.begin_add_card(i))
             .child(icon(&ic::PLUS, 12.0).color(k.c.text_faint))
-            .child(text("Add card").font(k.ty.ui_compact).color(k.c.text_faint)),
+            .child(
+                text(t(TextKey::AddCard))
+                    .font(k.ty.ui_compact)
+                    .color(k.c.text_faint),
+            ),
     )
 }
 
@@ -1348,7 +1350,7 @@ fn new_lane_column(s: &State, k: &Kit) -> El {
         .fill(k.c.layer_01)
         .border(1.0, k.c.border_base)
         .role("group")
-        .label("New lane")
+        .label(t(TextKey::KanbanLaneNew))
         .child(lane_field(s, k))
 }
 
@@ -1366,8 +1368,8 @@ fn add_lane_button(k: &Kit, count: usize) -> El {
         .press(k.c.pressed)
         .cursor(rune::Cursor::Pointer)
         .role("button")
-        .label("Add lane")
-        .help("Add lane")
+        .label(t(TextKey::KanbanLaneAdd))
+        .help(t(TextKey::KanbanLaneAdd))
         .focusable(true)
         .focus_ring(2.0, 1.0, k.c.text_accent)
         .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
@@ -1380,7 +1382,11 @@ fn add_lane_button(k: &Kit, count: usize) -> El {
         })
         .on_press(move |s: &mut State| s.begin_add_lane(count))
         .child(icon(&ic::PLUS, 12.0).color(k.c.text_faint))
-        .child(text("Add lane").font(k.ty.ui_compact).color(k.c.text_faint))
+        .child(
+            text(t(TextKey::KanbanLaneAdd))
+                .font(k.ty.ui_compact)
+                .color(k.c.text_faint),
+        )
 }
 
 /// The `⋯` that opens a card's or a lane's menu.
@@ -1841,8 +1847,8 @@ fn card_editor(s: &State, k: &Kit) -> El {
                 })
         });
     let field = TextArea::new(&s.kanban_card_field)
-        .label("Card text")
-        .placeholder("Card text")
+        .label(t(TextKey::KanbanCardText))
+        .placeholder(t(TextKey::KanbanCardText))
         .width(None)
         .auto_grow(2, 10)
         .wrap_anywhere()

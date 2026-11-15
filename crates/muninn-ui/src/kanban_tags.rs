@@ -15,6 +15,7 @@
 use std::collections::HashSet;
 
 use muninn_core::{CardText, Kanban, TagSettings};
+use muninn_i18n::filter_by_tag;
 use rune::{El, row, text};
 use rune_kit::Kit;
 
@@ -92,6 +93,7 @@ pub(crate) fn tag_chips(
     }
     for (index, tag) in unique_tags(found).into_iter().enumerate() {
         let filter = tag.to_owned();
+        let label = filter_by_tag(tag);
         line = line.child(
             row()
                 .key(format!("{prefix}-{i}-{j}-tag-{index}"))
@@ -106,7 +108,7 @@ pub(crate) fn tag_chips(
                 .press(k.c.pressed)
                 .cursor(rune::Cursor::Pointer)
                 .role("button")
-                .label(format!("Filter by #{tag}"))
+                .label(label)
                 .on_press(move |s: &mut State| s.filter_by_tag(&filter))
                 .child(
                     text(format!("#{tag}"))

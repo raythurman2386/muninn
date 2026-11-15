@@ -22,7 +22,7 @@ use muninn_core::{
     CardText, CivilDate, CivilTime, DateSettings, DateToken, Kanban, format_date_for_display,
     format_date_for_file, format_time_for_display, scan_card_text,
 };
-use muninn_i18n::EN_US;
+use muninn_i18n::{EN_US, Key as TextKey, t};
 use rune::{El, Key, KeyEvent, TextEdit, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -676,7 +676,7 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
             picker_button(k, "kanban-picker-prev", "‹", |s: &mut State| {
                 s.picker_previous_month();
             })
-            .label("Previous month"),
+            .label(t(TextKey::KanbanPickerPreviousMonth)),
         )
         .child(
             text(title)
@@ -689,14 +689,14 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
             picker_button(k, "kanban-picker-next", "›", |s: &mut State| {
                 s.picker_next_month();
             })
-            .label("Next month"),
+            .label(t(TextKey::KanbanPickerNextMonth)),
         );
     let mut grid = col()
         .key("kanban-picker-grid")
         .w_full()
         .gap(2.0)
         .role("grid")
-        .label("Days")
+        .label(t(TextKey::KanbanPickerDays))
         .focus_group();
     let mut week = row().w_full().gap(2.0);
     for column in 0..7 {
@@ -768,7 +768,7 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
     let mut foot = row().w_full().gap(4.0).center_y().child(picker_button(
         k,
         "kanban-picker-today",
-        "Today",
+        t(TextKey::Today),
         |s: &mut State| {
             s.picker_today();
         },
@@ -777,7 +777,7 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
         foot = foot.child(picker_button(
             k,
             "kanban-picker-clear",
-            "Clear",
+            t(TextKey::Clear),
             |s: &mut State| {
                 s.picker_clear();
             },
@@ -788,13 +788,18 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
         .child(picker_button(
             k,
             "kanban-picker-cancel",
-            "Cancel",
+            t(TextKey::Cancel),
             |s: &mut State| s.dismiss_picker(),
         ))
         .child(
-            picker_button(k, "kanban-picker-set", "Add date", |s: &mut State| {
-                s.picker_accept();
-            })
+            picker_button(
+                k,
+                "kanban-picker-set",
+                t(TextKey::KanbanPickerAddDate),
+                |s: &mut State| {
+                    s.picker_accept();
+                },
+            )
             .fill(k.c.text_accent),
         );
     col()
@@ -806,7 +811,7 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
         .fill(k.c.layer_02)
         .border(1.0, k.c.border_base)
         .role("dialog")
-        .label("Add a date")
+        .label(t(TextKey::KanbanPickerAddADate))
         // Slice 16 fix: the panel is a dialog, not a control. The modal focuses
         // its first real control (Previous month); a day or Add date is the
         // only thing that writes.
@@ -839,10 +844,18 @@ fn time_picker(s: &State, k: &Kit) -> El {
             })
             .on_submit(|s: &mut State, _| s.picker_accept())
     };
-    let hour = field(&s.kanban_hour_field, "kanban-picker-hour", "Hour")
-        .on_edit(|s: &mut State| &mut s.kanban_hour_field);
-    let minute = field(&s.kanban_minute_field, "kanban-picker-minute", "Minute")
-        .on_edit(|s: &mut State| &mut s.kanban_minute_field);
+    let hour = field(
+        &s.kanban_hour_field,
+        "kanban-picker-hour",
+        t(TextKey::KanbanPickerHour),
+    )
+    .on_edit(|s: &mut State| &mut s.kanban_hour_field);
+    let minute = field(
+        &s.kanban_minute_field,
+        "kanban-picker-minute",
+        t(TextKey::KanbanPickerMinute),
+    )
+    .on_edit(|s: &mut State| &mut s.kanban_minute_field);
     col()
         .key("kanban-picker")
         .w(210.0)
@@ -852,9 +865,9 @@ fn time_picker(s: &State, k: &Kit) -> El {
         .fill(k.c.layer_02)
         .border(1.0, k.c.border_base)
         .role("dialog")
-        .label("Add a time")
+        .label(t(TextKey::KanbanPickerAddATime))
         .child(
-            text("Add a time")
+            text(t(TextKey::KanbanPickerAddATime))
                 .key("kanban-picker-title")
                 .font(k.ty.ui_compact)
                 .color(k.c.text_base),
@@ -874,7 +887,7 @@ fn time_picker_foot(s: &State, k: &Kit) -> El {
     let mut foot = row().w_full().gap(4.0).center_y().child(picker_button(
         k,
         "kanban-picker-now",
-        "Now",
+        t(TextKey::KanbanPickerNow),
         |s: &mut State| {
             s.picker_now();
         },
@@ -883,7 +896,7 @@ fn time_picker_foot(s: &State, k: &Kit) -> El {
         foot = foot.child(picker_button(
             k,
             "kanban-picker-clear",
-            "Clear",
+            t(TextKey::Clear),
             |s: &mut State| {
                 s.picker_clear();
             },
@@ -893,13 +906,18 @@ fn time_picker_foot(s: &State, k: &Kit) -> El {
         .child(picker_button(
             k,
             "kanban-picker-cancel",
-            "Cancel",
+            t(TextKey::Cancel),
             |s: &mut State| s.dismiss_picker(),
         ))
         .child(
-            picker_button(k, "kanban-picker-set", "Add time", |s: &mut State| {
-                s.picker_accept();
-            })
+            picker_button(
+                k,
+                "kanban-picker-set",
+                t(TextKey::KanbanPickerAddTime),
+                |s: &mut State| {
+                    s.picker_accept();
+                },
+            )
             .fill(k.c.text_accent),
         )
 }
