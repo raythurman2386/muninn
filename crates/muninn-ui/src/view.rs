@@ -686,11 +686,11 @@ fn settings_button(k: &Kit) -> El {
 
 /// Manual sync. One provider per vault. Nothing here starts a background sync.
 fn sync_section(s: &State, k: &Kit) -> El {
-    let provider = match s.sync_ui.provider_index {
-        0 => "GitHub",
-        1 => "Google Drive",
-        _ => "Tailscale",
-    };
+    let provider = t(match s.sync_ui.provider_index {
+        0 => TextKey::SyncProviderGithubName,
+        1 => TextKey::SyncProviderDriveName,
+        _ => TextKey::SyncProviderTailscaleName,
+    });
     let fields = if s.sync_ui.provider_index == 2 {
         tailnet_fields(s, k)
     } else if s.sync_ui.provider_index == 0 {
@@ -699,25 +699,31 @@ fn sync_section(s: &State, k: &Kit) -> El {
             .gap(4.0)
             .child(sync_field(
                 k,
-                "GitHub owner",
+                TextKey::SyncFieldGithubOwner,
                 &s.sync_ui.github_owner,
                 |state| &mut state.sync_ui.github_owner,
             ))
             .child(sync_field(
                 k,
-                "Repository",
+                TextKey::SyncFieldRepository,
                 &s.sync_ui.github_repo,
                 |state| &mut state.sync_ui.github_repo,
             ))
-            .child(sync_field(k, "Branch", &s.sync_ui.github_branch, |state| {
-                &mut state.sync_ui.github_branch
-            }))
-            .child(sync_field(k, "Prefix", &s.sync_ui.github_prefix, |state| {
-                &mut state.sync_ui.github_prefix
-            }))
             .child(sync_field(
                 k,
-                "GitHub client id (optional)",
+                TextKey::SyncFieldBranch,
+                &s.sync_ui.github_branch,
+                |state| &mut state.sync_ui.github_branch,
+            ))
+            .child(sync_field(
+                k,
+                TextKey::SyncFieldPrefix,
+                &s.sync_ui.github_prefix,
+                |state| &mut state.sync_ui.github_prefix,
+            ))
+            .child(sync_field(
+                k,
+                TextKey::SyncFieldGithubClientId,
                 &s.sync_ui.github_client_id,
                 |state| &mut state.sync_ui.github_client_id,
             ))
@@ -725,18 +731,21 @@ fn sync_section(s: &State, k: &Kit) -> El {
         col()
             .w_full()
             .gap(4.0)
-            .child(sync_field(k, "Store name", &s.sync_ui.drive_store, |state| {
-                &mut state.sync_ui.drive_store
-            }))
+            .child(sync_field(
+                k,
+                TextKey::SyncFieldStoreName,
+                &s.sync_ui.drive_store,
+                |state| &mut state.sync_ui.drive_store,
+            ))
             .child(
-                text("Kept in Muninn's private app data in your Drive, not in a visible folder. Use the same store name on each device.")
+                text(t(TextKey::SyncProviderDriveCaption))
                     .font(k.ty.caption())
                     .color(k.c.text_faint)
                     .wrap(),
             )
             .child(sync_field(
                 k,
-                "Google client id (optional)",
+                TextKey::SyncFieldGoogleClientId,
                 &s.sync_ui.google_client_id,
                 |state| &mut state.sync_ui.google_client_id,
             ))
@@ -745,18 +754,19 @@ fn sync_section(s: &State, k: &Kit) -> El {
         .key("settings-sync")
         .child(settings_heading(
             k,
-            "Sync provider",
-            Some(
-                "Manual Sync Now only. One provider for this vault. \
-                 Disconnect removes credentials, not notes.",
-            ),
+            t(TextKey::SyncHeadingProvider),
+            Some(t(TextKey::SyncHeadingProviderCaption)),
         ))
         .child(
             SegmentedControl::new(
-                &["GitHub", "Drive", "Tailscale"],
+                &[
+                    t(TextKey::SyncProviderGithubName),
+                    t(TextKey::SyncProviderDriveShortName),
+                    t(TextKey::SyncProviderTailscaleName),
+                ],
                 Some(s.sync_ui.provider_index),
             )
-            .label("Sync provider")
+            .label(t(TextKey::SyncHeadingProvider))
             .on_pick(|state: &mut State, index, _: &mut Tx| state.set_sync_provider(index))
             .build(k),
         )
@@ -779,28 +789,28 @@ fn sync_section(s: &State, k: &Kit) -> El {
                         .gap(6.0)
                         .flex_wrap()
                         .child(
-                            Button::new("Connect")
+                            Button::new(t(TextKey::SyncActionConnect))
                                 .variant(ButtonVariant::Ghost)
                                 .on_press(|state: &mut State| state.connect_sync())
                                 .build(k)
                                 .key("settings-sync-connect"),
                         )
                         .child(
-                            Button::new("Sync now")
+                            Button::new(t(TextKey::SyncActionSyncNow))
                                 .variant(ButtonVariant::Ghost)
                                 .on_press(|state: &mut State| state.sync_now())
                                 .build(k)
                                 .key("settings-sync-now"),
                         )
                         .child(
-                            Button::new("Cancel")
+                            Button::new(t(TextKey::Cancel))
                                 .variant(ButtonVariant::Ghost)
                                 .on_press(|state: &mut State| state.cancel_sync())
                                 .build(k)
                                 .key("settings-sync-cancel"),
                         )
                         .child(
-                            Button::new("Disconnect")
+                            Button::new(t(TextKey::SyncActionDisconnect))
                                 .variant(ButtonVariant::Ghost)
                                 .on_press(|state: &mut State| state.disconnect_sync())
                                 .build(k)
@@ -812,10 +822,13 @@ fn sync_section(s: &State, k: &Kit) -> El {
 
 fn tailnet_fields(s: &State, k: &Kit) -> El {
     let role = SegmentedControl::new(
-        &["Host here", "Join host"],
+        &[
+            t(TextKey::SyncTailnetRoleHost),
+            t(TextKey::SyncTailnetRoleJoin),
+        ],
         Some(s.sync_ui.tailnet_role_index),
     )
-    .label("Tailscale role")
+    .label(t(TextKey::SyncTailnetRoleLabel))
     .on_pick(|state: &mut State, index, _: &mut Tx| state.set_tailnet_role(index))
     .build(k);
     let fields = col().w_full().gap(4.0).child(role);
@@ -823,13 +836,13 @@ fn tailnet_fields(s: &State, k: &Kit) -> El {
         let fields = fields
             .child(sync_field(
                 k,
-                "Loopback port",
+                TextKey::SyncFieldLoopbackPort,
                 &s.sync_ui.tailnet_port,
                 |state| &mut state.sync_ui.tailnet_port,
             ))
             .child(sync_field(
                 k,
-                "Allowed Tailscale logins (optional, comma-separated)",
+                TextKey::SyncFieldAllowedLogins,
                 &s.sync_ui.tailnet_allowed,
                 |state| &mut state.sync_ui.tailnet_allowed,
             ));
@@ -842,13 +855,13 @@ fn tailnet_fields(s: &State, k: &Kit) -> El {
         fields
             .child(sync_field(
                 k,
-                "Host MagicDNS name (device.tailnet.ts.net)",
+                TextKey::SyncFieldMagicDnsName,
                 &s.sync_ui.tailnet_host,
                 |state| &mut state.sync_ui.tailnet_host,
             ))
             .child(sync_field(
                 k,
-                "Shared key from the host",
+                TextKey::SyncFieldSharedKey,
                 &s.sync_ui.tailnet_key,
                 |state| &mut state.sync_ui.tailnet_key,
             ))
@@ -913,29 +926,37 @@ fn tailnet_key_row(s: &State, k: &Kit) -> El {
         )
 }
 
+/// One labelled Sync text field. The visible label and the accessible name are
+/// the same catalog text; the element key comes from the key's id, so a copy
+/// edit moves the text without moving the key.
 fn sync_field(
     k: &Kit,
-    label: &str,
+    label: TextKey,
     field: &rune::TextEdit,
     edit: impl Fn(&mut State) -> &mut rune::TextEdit + 'static,
 ) -> El {
     col()
         .w_full()
         .gap(2.0)
-        .child(text(label).font(k.ty.caption()).color(k.c.text_muted))
+        .child(text(t(label)).font(k.ty.caption()).color(k.c.text_muted))
         .child(
             text_input(field, k.ty.ui_compact)
-                .key(format!(
-                    "sync-field-{}",
-                    label.to_lowercase().replace([' ', '/'], "-")
-                ))
-                .label(label)
+                .key(sync_field_key(label))
+                .label(t(label))
                 .single_line()
                 .w_full()
                 .color(k.c.text_base)
                 .caret(k.c.text_accent, k.selection())
                 .on_edit(edit),
         )
+}
+
+/// The element key of a Sync field: `sync.field.github_owner` becomes
+/// `sync-field-github-owner`, so the key follows the catalog id rather than the
+/// English label.
+fn sync_field_key(label: TextKey) -> String {
+    let slug = label.id().rsplit('.').next().unwrap_or_default();
+    format!("sync-field-{}", slug.replace('_', "-"))
 }
 
 /// Horizontal padding of the Settings page. The header, the tab strip and the
