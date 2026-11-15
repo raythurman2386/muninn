@@ -60,8 +60,11 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    packing (roughly 60 notes up to where the drawn markers stop fitting the world) is
    packed once — each overlapping pair pushed along its centre-to-centre line, with the
    envelope scaled up if the pack jams against a wall — and then frozen, so the settled
-   graph never draws two cards (or markers) on top of each other. A 2,000-note fixture
-   goes quiet by frame ~2,600; the exhaustive ≤200-note path is unchanged by the grid
+   graph never draws two cards (or markers) on top of each other. Above that packing limit
+   no footprint fits, so a dense layout that would otherwise cycle above the speed gate is
+   stopped by a stall guard: a 300-step probe window that ends where it began freezes it,
+   with a 3,600-step hard bound as the backstop, so `poll` always reaches rest. A 2,000-note
+   fixture goes quiet by frame ~2,600; the exhaustive ≤200-note path is unchanged by the grid
    optimisation, but its repulsion and link length were later retuned for spacing, so the
    sample graph moved and its snapshots were re-recorded.
 4. **Render.** `muninn_ui::view` builds the Rune element tree from `State`. The graph camera

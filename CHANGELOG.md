@@ -28,6 +28,13 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Fixed
 
+- **Large dense vaults can no longer keep the graph animating forever (#144).**
+  From about 405 notes the settle pack has no footprint it can promise, and some
+  densities sat in a limit cycle instead of slowing to the dormancy gate (seen on
+  macOS arm64: more than 12,000 steps without 30 quiet ones). A stall probe now
+  freezes a dense layout that ends a 300-step window where it began, with a
+  3,600-step hard bound as the backstop, so the window always reaches rest.
+  Layouts at or below the pack limit are unchanged.
 - **Dense vaults no longer settle with overlapping nodes (#136).** At high
   density the two separation passes lose a tug-of-war with the forces, so the
   settled graph kept two or three cards on top of each other. A vault dense
