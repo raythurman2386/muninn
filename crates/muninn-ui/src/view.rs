@@ -2720,7 +2720,7 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 .center()
                 .a11y_hidden()
                 .child(
-                    text("No notes or actions match")
+                    text(t(TextKey::PaletteEmpty))
                         .font(k.ty.caption())
                         .color(k.c.text_faint),
                 ),
@@ -2736,7 +2736,7 @@ fn palette_layer(s: &State, k: &Kit) -> El {
         .shadow(10.0, 32.0, k.alpha(k.c.black, 0.35))
         .transition(Transition::offset(0.0, 12.0).combined(Transition::opacity()))
         .role("dialog")
-        .label("Command palette")
+        .label(t(TextKey::PaletteTitle))
         // Slice 16: a real modal, so Escape and Tab never reach the page
         // behind it and the background is inert.
         .modal(true, |s: &mut State| s.close_palette())
@@ -2801,7 +2801,7 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 })
                 .role("listbox")
                 .label(if items.is_empty() {
-                    "No notes or actions match"
+                    t(TextKey::PaletteEmpty)
                 } else {
                     "Results"
                 })
@@ -2823,7 +2823,7 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 )
                 .child(spacer())
                 .child(
-                    text("↑↓ move · Enter open · Esc close")
+                    text(t(TextKey::PaletteFooter))
                         .font(k.ty.caption())
                         .color(k.c.text_faint),
                 ),
