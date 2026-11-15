@@ -9,9 +9,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
 use muninn_core::{Board, Shape};
-use muninn_ui::{BoardStatus, BoardTool, Settings, State, on_key, poll, view};
+use muninn_ui::{BoardScene, BoardStatus, BoardTool, Settings, State, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 const DRAW: &str = include_str!("../../muninn-core/tests/fixtures/board/draw.excalidraw");
 
@@ -140,6 +140,14 @@ fn selection(rt: &Runtime<State>) -> Vec<String> {
 
 fn status(rt: &Runtime<State>) -> BoardStatus {
     rt.state.board_open.as_ref().expect("open").status.clone()
+}
+
+fn scene(rt: &Runtime<State>) -> &BoardScene {
+    rt.state
+        .board_open
+        .as_ref()
+        .and_then(|open| open.scene.as_ref().ok())
+        .expect("an open board scene")
 }
 
 const TEXT: [f32; 2] = [30.0, 460.0];
@@ -471,6 +479,49 @@ fn editing_existing_text_mid_way_also_reaches_the_recovery_copy() {
 }
 
 #[test]
+fn a_label_being_typed_reaches_the_recovery_copy_and_restores_bound() {
+    let tmp = vault();
+    let state_home = unique_dir("state");
+    let mut rt = launch_in(tmp.path(), &state_home);
+    open(&mut rt);
+    double_click(&mut rt, [30.0, 20.0]);
+    type_str(&mut rt, "Recover me");
+    frames(&mut rt, 180);
+    let copy: Value = serde_json::from_str(&recovery_text(&rt).expect("a copy")).unwrap();
+    let label = copy["elements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["containerId"] == "keep-rect")
+        .cloned()
+        .expect("the half-typed label is in the copy, bound to the box");
+    assert_eq!(label["text"], "Recover me");
+    assert_eq!(
+        element(&copy, "keep-rect")["boundElements"][0]["id"],
+        label["id"]
+    );
+    // kill -9: the label was never committed.
+    drop(rt);
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("Draw.excalidraw")).unwrap(),
+        DRAW
+    );
+    let mut rt = launch_in(tmp.path(), &state_home);
+    assert!(rt.state.restore_recovery("Draw.excalidraw"));
+    frames(&mut rt, 2);
+    assert!(
+        model(&rt)
+            .live_elements()
+            .any(|e| e
+                .shape()
+                .is_some_and(|s| s.extra.get("containerId").and_then(Value::as_str)
+                    == Some("keep-rect")
+                    && s.text.as_ref().is_some_and(|t| t.text == "Recover me"))),
+        "restore brings the bound label back"
+    );
+}
+
+#[test]
 fn saving_or_quitting_mid_edit_commits_the_typed_text_into_the_file() {
     let tmp = vault();
     let mut rt = launch(tmp.path());
@@ -579,6 +630,128 @@ fn double_clicking_a_shape_or_its_label_edits_the_bound_label_in_place() {
         (cx - 100.0).abs() < 0.6 && (cy - 50.0).abs() < 0.6,
         "re-centred in its box: centre ({cx}, {cy})"
     );
+}
+
+#[test]
+fn double_clicking_an_unlabelled_shape_writes_a_bound_label_in_one_edit() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    let n = model(&rt).elements.len();
+    let box_before = shape(&rt, "keep-rect");
+    // keep-rect is a filled 60 × 40 rectangle at the origin.
+    double_click(&mut rt, [30.0, 20.0]);
+    assert!(editing(&rt), "a shape with no label gets an editor");
+    let target = rt.state.board_text.as_ref().expect("target");
+    assert_eq!(target.id, None, "a new label, not an edit");
+    assert_eq!(target.container.as_deref(), Some("keep-rect"));
+    assert_eq!(field(&rt), "");
+    assert!(selection(&rt).is_empty(), "the editor owns the selection");
+    type_str(&mut rt, "Box label");
+    assert_eq!(model(&rt).elements.len(), n, "nothing added before commit");
+    plain(&mut rt, Key::Escape);
+    assert!(!editing(&rt), "Esc commits");
+    assert_eq!(model(&rt).elements.len(), n + 1, "one text element");
+    let label = model(&rt)
+        .live_elements()
+        .filter_map(|e| e.shape())
+        .find(|s| s.extra.get("containerId").and_then(Value::as_str) == Some("keep-rect"))
+        .cloned()
+        .expect("a label bound to the box");
+    assert_eq!(label.kind, muninn_core::ShapeKind::Text);
+    assert_eq!(label.text.as_ref().unwrap().text, "Box label");
+    assert_eq!(label.text.as_ref().unwrap().font_size, 20.0);
+    assert_eq!(label.stroke_color, muninn_core::DEFAULT_STROKE);
+    assert_eq!(
+        label.extra["boundElements"],
+        Value::Null,
+        "text binds upward"
+    );
+    let b = shape(&rt, "keep-rect");
+    assert_eq!(
+        b.extra["boundElements"],
+        json!([{ "type": "text", "id": label.id }])
+    );
+    assert_eq!(b.version, box_before.version + 1, "the shape is bumped too");
+    let (cx, cy) = (label.x + label.width / 2.0, label.y + label.height / 2.0);
+    assert!(
+        (cx - 30.0).abs() < 0.01 && (cy - 20.0).abs() < 0.01,
+        "centred in the box: centre ({cx}, {cy})"
+    );
+    // What the canvas paints is the label, where the model puts it.
+    let scene = scene(&rt);
+    let drawn = scene
+        .texts
+        .iter()
+        .find(|t| t.id == label.id)
+        .expect("the label is drawn");
+    let painted_x = f64::from(scene.origin[0] + drawn.at[0]);
+    let painted_y = f64::from(scene.origin[1] + drawn.at[1]);
+    assert!(
+        (painted_x + label.width / 2.0 - 30.0).abs() < 0.01
+            && (painted_y + label.height / 2.0 - 20.0).abs() < 0.01,
+        "painted centred: ({painted_x}, {painted_y})"
+    );
+    // One undo takes back the label and the binding together, as one edit.
+    command(&mut rt, 'z', false);
+    assert!(shape(&rt, &label.id).is_deleted, "one step creates a label");
+    assert_eq!(shape(&rt, "keep-rect").extra["boundElements"], json!([]));
+    command(&mut rt, 'z', true);
+    assert!(!shape(&rt, &label.id).is_deleted);
+    assert_eq!(
+        shape(&rt, "keep-rect").extra["boundElements"],
+        json!([{ "type": "text", "id": label.id }])
+    );
+    // The file carries both keys.
+    assert!(rt.state.save_board());
+    let file = saved(&tmp);
+    assert_eq!(element(&file, &label.id)["containerId"], "keep-rect");
+    assert_eq!(
+        element(&file, "keep-rect")["boundElements"],
+        json!([{ "type": "text", "id": label.id }])
+    );
+}
+
+#[test]
+fn an_empty_label_commit_adds_nothing_to_the_board_or_the_history() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    let n = model(&rt).elements.len();
+    let before = shape(&rt, "keep-rect");
+    double_click(&mut rt, [30.0, 20.0]);
+    assert!(editing(&rt));
+    type_str(&mut rt, "  \n ");
+    plain(&mut rt, Key::Escape);
+    assert!(!editing(&rt));
+    assert_eq!(model(&rt).elements.len(), n, "nothing created");
+    assert_eq!(shape(&rt, "keep-rect"), before, "the box is untouched");
+    assert_eq!(status(&rt), BoardStatus::Clean, "nothing to save");
+    command(&mut rt, 'z', false);
+    assert_eq!(
+        model(&rt).elements.len(),
+        n,
+        "nothing went into the history"
+    );
+}
+
+#[test]
+fn a_locked_shape_is_not_given_a_label() {
+    let mut file: Value = serde_json::from_str(DRAW).unwrap();
+    for e in file["elements"].as_array_mut().unwrap() {
+        if e["id"] == "keep-rect" {
+            e["locked"] = true.into();
+        }
+    }
+    let tmp = TempVault::new(&[("Draw.excalidraw", &serde_json::to_string(&file).unwrap())]);
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    let n = model(&rt).elements.len();
+    let before = shape(&rt, "keep-rect");
+    double_click(&mut rt, [30.0, 20.0]);
+    assert!(!editing(&rt), "a locked shape gets no label editor");
+    assert_eq!(model(&rt).elements.len(), n);
+    assert_eq!(shape(&rt, "keep-rect"), before);
 }
 
 #[test]

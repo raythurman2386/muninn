@@ -447,6 +447,9 @@ fn picking_a_tool_or_the_hand_clears_the_selection_and_the_hand_pans() {
     text(&mut rt, "o");
     assert!(selection(&rt).is_empty());
     text(&mut rt, "v");
+    // A second, unhurried click: two quick clicks would be a double click,
+    // which now opens the shape's label editor (#73).
+    frames(&mut rt, 40);
     click(&mut rt, RECT);
     text(&mut rt, "h");
     assert!(rt.state.board_hand && selection(&rt).is_empty());

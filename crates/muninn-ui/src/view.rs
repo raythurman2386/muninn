@@ -2662,6 +2662,7 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ),
                 ("Drag with a tool", "Draw that shape; the tool stays picked"),
                 ("T / 8", "Place text, then click and type it in place"),
+                ("Double-click a shape", "Write or edit its text label"),
                 ("V / 1", "Drop the tool (back to selecting)"),
                 (
                     "Click / Shift+click",

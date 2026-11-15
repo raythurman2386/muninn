@@ -32,7 +32,8 @@ connections as a graph.
 - **Write or Read.** A focused editor with `[[` completion, and a reader that resolves links,
   backed by a rail of outgoing links and backlinks.
 - **Draw on a whiteboard.** Board mode edits `.excalidraw` files in place: rectangles, diamonds,
-  ellipses, arrows, lines, freehand and text, with selection, nudging and undo.
+  ellipses, arrows, lines, freehand and text, with selection, nudging and undo — and a
+  double-click writes or edits a shape's text label.
 - **Kanban inside the note.** Lanes, cards, dates, tags, archive, filters and Board / List /
   Table views, all stored as Markdown.
 - **Paste as Markdown.** Rich text from a browser or document arrives with its headings, lists,
