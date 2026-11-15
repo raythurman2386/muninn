@@ -4,6 +4,18 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Double-click a shape on a Board to write its label.** A rectangle, diamond,
+  ellipse or arrow with no label opens the in-place text editor, empty and
+  centred in the shape; committing text creates one text element bound to it
+  (`containerId` on the text, the text's id in the shape's `boundElements`),
+  centred in the shape, as one undo step. An empty commit adds nothing, a
+  locked shape gets no label, and moves and deletes carry the new label like
+  any other bound one.
+
 ## [0.8.5] - 2026-11-15
 
 ### Added

@@ -1268,14 +1268,16 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
                 s.edit_board(d, shift);
             }
         })
-        .on_double_press(|s: &mut State| {
+        .on_double_press_tx(|s: &mut State, tx: &mut Tx| {
             // A double click while drawing is two clicks, and one on an
             // element selects it; only one on empty canvas fits.
             if s.board_tool.is_none() && s.board_selection().is_empty() {
                 s.fit_board();
             } else if s.board_tool.is_none() {
-                // Slice 6: one text element selected: edit it in place.
-                s.board_double_press();
+                // Slice 6: one text element selected: edit it in place. #73: a
+                // shape with no label gets one, unless the click extends the
+                // selection (Shift), which is a selection gesture, not typing.
+                s.board_double_press(tx.mods().shift);
             }
         })
         .child(world);

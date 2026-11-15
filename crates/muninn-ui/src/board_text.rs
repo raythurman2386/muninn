@@ -24,8 +24,13 @@
 //!   shape), edits that label in place, as in Excalidraw. The label keeps
 //!   its `containerId` and the shape its `boundElements`, and on commit the
 //!   label is re-centred in the shape. A label inside a locked shape is
-//!   locked with it. New text is always free-standing; creating a label for
-//!   a shape that has none is not part of this slice.
+//!   locked with it. Double-clicking a shape that has no label opens the same
+//!   editor, empty and centred in the shape: a non-empty commit creates the
+//!   label as one history edit (`Board::add_label_with`) — the text element
+//!   with its `containerId`, the shape with the text's id in its
+//!   `boundElements`, and the text centred in the shape — while an empty
+//!   commit adds nothing, and a locked shape is given no label. Box shapes
+//!   and arrows take a label; a line, freehand stroke and text do not.
 //! - A crash while typing loses nothing: text typed but not committed counts
 //!   as unsaved, and the board's recovery copy includes it (written once the
 //!   typing rests), so Restore brings it back.
@@ -157,6 +162,54 @@ impl State {
         true
     }
 
+    /// Open the editor for a new label bound to `container`: empty and
+    /// centred in the shape, with the same Editor rules as any text. A
+    /// non-empty commit creates the label bound to the shape in one edit;
+    /// an empty one adds nothing. `false` when `container` cannot hold a
+    /// label — missing, deleted, locked, itself text, a kind that is not a
+    /// container, or already labelled (double-clicking that edits instead).
+    pub fn begin_board_label(&mut self, container: &str) -> bool {
+        self.commit_board_text();
+        let Some((centre, labelled)) = self
+            .board_open
+            .as_ref()
+            .and_then(|o| o.model.as_ref())
+            .and_then(|m| {
+                let shape = m.shape(container)?;
+                if shape.is_deleted || shape.is_locked() || !holds_label(shape.kind) {
+                    return None;
+                }
+                let b = shape.own_box();
+                let centre = [b[0] + b[2] / 2.0, b[1] + b[3] / 2.0];
+                Some((centre, m.bound_label(container).is_some()))
+            })
+        else {
+            return false;
+        };
+        if labelled {
+            return false;
+        }
+        // #69: a label is written in the palette's stroke colour, like any
+        // new text; #72 swaps it on a dark paper.
+        let stroke = crate::contrast::board_stroke(self.board_stroke, self.board_paper());
+        // The empty text's measured size is just one line high, so the
+        // editor opens on the shape's centre where Excalidraw puts it.
+        let size = measure_text("", TEXT_FONT_SIZE, TEXT_LINE_HEIGHT);
+        self.board_clear_selection();
+        self.board_text = Some(BoardTextTarget {
+            id: None,
+            at: [centre[0] - size[0] / 2.0, centre[1] - size[1] / 2.0],
+            font_size: TEXT_FONT_SIZE,
+            line_height: TEXT_LINE_HEIGHT,
+            color: crate::board_scene::color(stroke).unwrap_or_else(default_ink),
+            stroke: stroke.to_owned(),
+            original: String::new(),
+            container: Some(container.to_owned()),
+        });
+        self.open_text_field(String::new());
+        true
+    }
+
     fn open_text_field(&mut self, text: String) {
         self.board_tool = None;
         self.board_hand = false;
@@ -196,9 +249,11 @@ impl State {
     }
 
     /// A double click with one element selected: a text element is edited,
-    /// and a shape with a bound label (the box, or the label itself, which
-    /// selects its box) edits that label, as in Excalidraw (#40 review M2).
-    pub(crate) fn board_double_press(&mut self) -> bool {
+    /// a shape with a bound label (the box, or the label itself, which
+    /// selects its box) edits that label, and a shape with none is given one,
+    /// as in Excalidraw (#40 review M2, #73). `extend` is Shift held: a
+    /// double click that extends the selection never starts a new label.
+    pub(crate) fn board_double_press(&mut self, extend: bool) -> bool {
         let one = match self.board_selection() {
             [id] => id.clone(),
             _ => return false,
@@ -219,7 +274,9 @@ impl State {
                 }
                 true
             }
-            None => self.edit_board_text(&one),
+            // #73: no label yet — a container gets a new one; a text element
+            // is edited; anything else (a line, a stroke) does nothing.
+            None => (!extend && self.begin_board_label(&one)) || self.edit_board_text(&one),
         }
     }
 
@@ -254,8 +311,18 @@ impl State {
     }
 }
 
-/// Apply editor text to `model` as one edit: new text, an edited element,
-/// or a bound label re-centred in its container.
+/// Kinds a double click can give a new label to: Excalidraw's containers
+/// (the box shapes and arrows). Text has its own editor, and a line or a
+/// freehand stroke is not a container.
+fn holds_label(kind: ShapeKind) -> bool {
+    matches!(
+        kind,
+        ShapeKind::Rectangle | ShapeKind::Diamond | ShapeKind::Ellipse | ShapeKind::Arrow
+    )
+}
+
+/// Apply editor text to `model` as one edit: new text, a new label bound to a
+/// shape, an edited element, or a bound label re-centred in its container.
 fn apply_text(
     model: &mut muninn_core::Board,
     target: &BoardTextTarget,
@@ -264,21 +331,18 @@ fn apply_text(
     ids: &mut muninn_core::IdSource,
     now: i64,
 ) -> Vec<muninn_core::Change> {
+    let ink = Ink {
+        stroke: &target.stroke,
+        background: DEFAULT_BACKGROUND,
+    };
     match &target.id {
-        None => model
-            .add_text_with(
-                target.at,
-                text,
-                size,
-                Ink {
-                    stroke: &target.stroke,
-                    background: DEFAULT_BACKGROUND,
-                },
-                ids,
-                now,
-            )
-            .into_iter()
-            .collect(),
+        None => match &target.container {
+            Some(container) => model.add_label_with(container, text, size, ink, ids, now),
+            None => model
+                .add_text_with(target.at, text, size, ink, ids, now)
+                .into_iter()
+                .collect(),
+        },
         Some(id) => {
             let centre = target
                 .container
