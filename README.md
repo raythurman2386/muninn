@@ -130,7 +130,9 @@ and the credential store is described in [docs/sync-setup.md](docs/sync-setup.md
 | `⌘⇧F` / `Ctrl+Shift+F` | Focus mode: hide the chrome, dim inactive paragraphs, centre the caret |
 | `⌘1`…`⌘5` / `Ctrl+1`…`Ctrl+5` | Write / Read / Graph / Board / Kanban |
 | `⌘G` / `Ctrl+G` | Toggle the graph |
-| `⌘L` / `Ctrl+L` | Global / Local graph |
+| `⌘L` / `Ctrl+L` | Graph: Global / Local; Board: link the selection to a note |
+| `⌘Enter` / `Ctrl+Enter` | Board: open the selection's linked note |
+| `⌘click` / `Ctrl+click` | Board: open the clicked element's linked note |
 | `⌘F` / `Ctrl+F` | Find in the note, or in a Kanban board |
 | `⌘[` / `⌘]` | Back / forward in note history |
 | `F2` / `Del` | Rename / delete the selected note |

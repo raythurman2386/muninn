@@ -211,6 +211,13 @@ static TEXT: Icon = Icon {
     body: r#"<path d="M4.5 5.5V4H15.5V5.5M10 4V16M7.5 16H12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>"#,
 };
 
+/// #73: the toolbar's Link note glyph, a chain of two links.
+static LINK: Icon = Icon {
+    name: "board-note-link",
+    view: 20.0,
+    body: r#"<path d="M8.6 11.4l2.8-2.8M7.2 13l-1.1 1.1a2.6 2.6 0 0 1-3.7-3.7l2.3-2.3a2.6 2.6 0 0 1 3.7 0M12.8 7l1.1-1.1a2.6 2.6 0 0 1 3.7 3.7l-2.3 2.3a2.6 2.6 0 0 1-3.7 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>"#,
+};
+
 /// An element being drawn: its tool and the pointer's scene positions so far.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Draft {
@@ -484,6 +491,7 @@ pub(crate) fn toolbar(s: &State, k: &Kit) -> El {
         "select",
         None,
     ));
+    bar = bar.child(link_button(s, k));
     for tool in BoardTool::ALL {
         bar = bar.child(tool_button(
             k,
@@ -533,6 +541,44 @@ fn tool_button(k: &Kit, on: bool, glyph: &'static Icon, name: &str, tool: Option
             tx.blur();
         })
         .child(icon(glyph, 16.0).color(if on { k.c.text_accent } else { k.c.icon_muted }))
+}
+
+/// #73: the Link note button, beside the selection tools. It opens the
+/// prompt for the current selection; with nothing selected it still shows
+/// (a stable toolbar) but does nothing.
+fn link_button(s: &State, k: &Kit) -> El {
+    let open = s.board_note_link.is_some();
+    let ready = !s.board_selection().is_empty();
+    row()
+        .key("board-tool-link-note")
+        .role("button")
+        .label("Link note")
+        .help("Link the selected elements to a note (⌘L)")
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .size(30.0, 30.0)
+        .radius(6.0)
+        .center()
+        .fill(if open {
+            k.c.layer_03
+        } else {
+            rune::Color::TRANSPARENT
+        })
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            s.begin_board_note_link();
+            // Hand the keyboard to the prompt's field.
+            tx.blur();
+        })
+        .child(icon(&LINK, 16.0).color(if open {
+            k.c.text_accent
+        } else if ready {
+            k.c.icon_muted
+        } else {
+            k.c.text_faint
+        }))
 }
 
 /// The live preview layer over the canvas, empty without a draft.

@@ -17,6 +17,11 @@
 //!   outline of its box, so nothing is silently missing
 //! - dashed and dotted strokes, fonts and roughness are drawn solid and clean
 //!
+//! #73: an element whose `link` is a `muninn://note/…` note link carries a
+//! small accent dot in its top-right corner, so a linked element is visible
+//! on the canvas. The mark is painted, never written: the element and the
+//! file keep exactly the `link` string they had.
+//!
 //! Colours follow Excalidraw's light theme on the board's own
 //! `viewBackgroundColor`, so a board reads the way it does on excalidraw.com.
 //!
@@ -39,6 +44,10 @@ const PAD: f32 = 32.0;
 /// Excalidraw's default ink and paper.
 const INK: &str = "#1e1e1e";
 const PAPER: &str = "#ffffff";
+/// #73: the accent of a linked element's marker (the selection accent).
+const LINK_ACCENT: &str = "#6965db";
+/// Marker dot radius in scene units.
+const LINK_MARKER_RADIUS: f32 = 3.2;
 
 /// What the board canvas paints for one board.
 #[derive(Clone, Debug)]
@@ -117,7 +126,11 @@ impl BoardScene {
                 Element::Raw(value) => {
                     let Some(b) = raw_bounds(value) else { continue };
                     outlined += 1;
-                    (Some(b), raw_pieces(b, paper))
+                    let mut parts = raw_pieces(b, paper);
+                    if element.note_link().is_some() {
+                        parts.push(link_marker(b, paper));
+                    }
+                    (Some(b), parts)
                 }
             };
             if let Some(b) = box_ {
@@ -462,7 +475,32 @@ fn item_pieces(item: &Item, paper: Color) -> Vec<Piece> {
             });
         }
     }
+    if item.note_link().is_some() {
+        out.push(link_marker(b, paper));
+    }
     out
+}
+
+/// #73: a small filled dot in the element's top-right corner, in a colour
+/// that clears the UI contrast floor on the board's own paper. Painted only:
+/// the element's stored `link` is never part of this piece.
+fn link_marker(b: [f32; 4], paper: Color) -> Piece {
+    let accent = color(LINK_ACCENT)
+        .map(|accent| contrast::at_least(accent, paper, contrast::UI))
+        .unwrap_or(Color::TRANSPARENT)
+        .alpha(0.9);
+    let cx = b[0] + b[2].max(0.0) - LINK_MARKER_RADIUS - 3.0;
+    let cy = b[1] + LINK_MARKER_RADIUS + 3.0;
+    let points = (0..12)
+        .map(|i| {
+            let angle = i as f32 / 12.0 * std::f32::consts::TAU;
+            [
+                cx + LINK_MARKER_RADIUS * angle.cos(),
+                cy + LINK_MARKER_RADIUS * angle.sin(),
+            ]
+        })
+        .collect();
+    Piece::Fill(points, accent)
 }
 
 /// A rectangle's outline, with corner arcs of radius `r`.
@@ -683,6 +721,55 @@ mod tests {
         let json = b.to_json();
         assert_eq!(json.matches("\"strokeColor\": \"#1e1e1e\"").count(), 1);
         assert_eq!(json.matches("\"backgroundColor\": \"#1e1e1e\"").count(), 1);
+    }
+
+    /// #73: a note-linked element carries a painted accent dot, legible on
+    /// either paper, and the model keeps the exact `link` string.
+    #[test]
+    fn a_note_linked_element_is_marked_without_changing_its_link() {
+        for paper in ["#ffffff", "#121212"] {
+            let b = papered(
+                paper,
+                r##"[{"type":"rectangle","id":"r","x":0,"y":0,"width":80,"height":40,
+                     "link":"muninn://note/projects/Plan"}]"##,
+            );
+            let paper = hex(paper).unwrap();
+            let item = b.shape("r").expect("the shape");
+            assert_eq!(item.note_link().as_deref(), Some("projects/Plan"));
+            let pieces = item_pieces(item, paper);
+            let Some(Piece::Fill(points, colour)) = pieces.last() else {
+                panic!("a marker fill is painted last");
+            };
+            assert_eq!(points.len(), 12);
+            assert!(
+                contrast::meets(*colour, paper, contrast::UI),
+                "{} on {} is {:.2}",
+                colour.hex(),
+                paper.hex(),
+                contrast::ratio(*colour, paper),
+            );
+            // Painted only: the written scene keeps the file's own link.
+            assert_eq!(
+                b.to_json()
+                    .matches("\"link\": \"muninn://note/projects/Plan\"")
+                    .count(),
+                1
+            );
+        }
+        // An element with no link gets no marker.
+        let plain = papered(
+            "#ffffff",
+            r#"[{"type":"rectangle","id":"r","x":0,"y":0,"width":80,"height":40}]"#,
+        );
+        let pieces = item_pieces(plain.shape("r").expect("the shape"), plain_paper());
+        assert!(
+            pieces.iter().all(|piece| !matches!(piece, Piece::Fill(..))),
+            "no marker"
+        );
+    }
+
+    fn plain_paper() -> Color {
+        hex(PAPER).unwrap()
     }
 
     /// Excalidraw's default ink on its own white paper is already legible:

@@ -266,6 +266,15 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
   double-clicking the shape or the label and re-centred in the shape on commit; a label in
   a locked shape is locked with it. Text typed but not committed counts as unsaved, and
   the recovery copy is the model with that text applied (on a clone).
+  Note links (`board_note_link`, over `muninn_core` `board::link`) write Excalidraw's own
+  element `link` field, not a private key: `muninn://note/<percent-encoded vault-relative
+  path>` (the note's stem, without `.md`), resolved with `Vault::resolve`. Linking a
+  selection is one history edit; an empty prompt clears it (`link: null`, the value
+  Excalidraw's element factory writes), an external URL is never rewritten unless the user
+  links over it and is never opened, and reading a board leaves the string verbatim, so an
+  untouched file stays byte-identical. `⌘L` opens the prompt, `⌘Enter` opens the selected
+  element's note, and `⌘click` opens the one clicked (a plain click only selects). The
+  accent dot on a linked element is painted by `board_scene`, never stored.
   Unsaved drawing is never dropped (`board_safety`): a file removed, renamed or changed
   outside Muninn is noticed by the board watcher while Board is showing, when the boards
   are re-listed (entering Board, a vault reload, a rescan) or when a save re-reads the

@@ -2675,6 +2675,18 @@ fn shortcut_groups() -> [(&'static str, &'static [(&'static str, &'static str)])
                 ("Delete / Backspace", "Delete the selection"),
                 ("⌘A / Ctrl+A", "Select every element"),
                 (
+                    "⌘L / Ctrl+L",
+                    "Link the selected elements to a note (empty clears it)",
+                ),
+                (
+                    "⌘Enter / Ctrl+Enter",
+                    "Open the selected element's linked note",
+                ),
+                (
+                    "⌘click / Ctrl+click",
+                    "Open the clicked element's linked note (a click alone selects)",
+                ),
+                (
                     "⌘Z / ⌘⇧Z / Ctrl+Y",
                     "Undo / redo drawing, moves and deletes",
                 ),

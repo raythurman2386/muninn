@@ -562,6 +562,9 @@ pub struct State {
     pub board_text_field: TextEdit,
     /// Slice 6: the click that closed a text editor; its drag is ignored.
     pub board_text_swallow: bool,
+    /// Slice 8 (#73): the note-link prompt, and its field.
+    pub board_note_link: Option<crate::BoardNoteLink>,
+    pub board_note_link_field: TextEdit,
     /// #40 review M1: the uncommitted editor text in the last recovery copy.
     pub(crate) board_recovered_text: Option<String>,
     /// Slice 7: the board recovery copy waits for the drawing (and any text
@@ -980,6 +983,8 @@ impl State {
             board_text: None,
             board_text_field: TextEdit::default(),
             board_text_swallow: false,
+            board_note_link: None,
+            board_note_link_field: TextEdit::new(""),
             board_recovered_text: None,
             board_recovery_wait: None,
             settings_due: None,

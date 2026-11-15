@@ -237,14 +237,33 @@ impl State {
     }
 
     /// One phase of a drag on the canvas with no drawing tool: select,
-    /// move or marquee.
-    pub(crate) fn edit_board(&mut self, d: &Drag, shift: bool) {
+    /// move or marquee. With `command` held (⌘ / Ctrl), a press on a linked
+    /// element opens its note instead (#73); a press without it only selects.
+    pub(crate) fn edit_board(&mut self, d: &Drag, shift: bool, command: bool) {
         let Some(open) = &mut self.board_open else {
             return;
         };
         let view = open.cam.view();
         let at = scene_at(view, d.x, d.y);
         let travel = d.dx.abs().max(d.dy.abs());
+        if command && d.phase == Phase::Down {
+            let tol = f64::from(HIT_SLOP / view.zoom.max(f32::MIN_POSITIVE));
+            let hit = open
+                .model
+                .as_ref()
+                .and_then(|model| model.hit_test(at, tol))
+                .map(|s| s.id.clone());
+            if let Some(id) = hit
+                && self.open_board_note_link_for(&id)
+            {
+                return;
+            }
+        }
+        // `open` may have been borrowed for the hit test above; take it again
+        // for the gesture itself.
+        let Some(open) = &mut self.board_open else {
+            return;
+        };
         let Some(model) = &mut open.model else {
             return;
         };
@@ -500,10 +519,15 @@ pub(crate) fn overlay(open: &OpenBoard) -> Option<rune::El> {
     )
 }
 
-/// `⌘`-chords Board reads: undo, redo, select all. `true` when handled.
+/// `⌘`-chords Board reads: undo, redo, select all, link a note and open one.
+/// `true` when handled.
 pub(crate) fn board_command(s: &mut State, e: &rune::KeyEvent) -> bool {
     if s.mode != Mode::Board || s.board_open.is_none() || !e.mods.cmd {
         return false;
+    }
+    // #73: ⌘Enter opens the selected element's linked note.
+    if e.key == rune::Key::Enter {
+        return s.open_board_note_link();
     }
     let rune::Key::Command(c) = &e.key else {
         return false;
@@ -519,6 +543,11 @@ pub(crate) fn board_command(s: &mut State, e: &rune::KeyEvent) -> bool {
             s.redo_board();
         }
         'a' => s.board_select_all(),
+        // #73: ⌘L links the selection to a note. On Board it takes the chord
+        // from the graph's Global / Local toggle, which Board does not use.
+        'l' => {
+            s.begin_board_note_link();
+        }
         _ => return false,
     }
     true

@@ -41,6 +41,12 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.board_rename_keep_on_screen() {
         changed = true;
     }
+    // #73: a note-link prompt whose field lost the keyboard (a click on the
+    // canvas, a dialog) closes instead of leaving an unfocused card behind.
+    if s.board_note_link.is_some() && !s.board_note_link_field.focused {
+        s.cancel_board_note_link();
+        changed = true;
+    }
     // Remember the open board for the next launch once a frame drew it; this
     // writes settings only, nothing on screen changes.
     s.board_shown_tick(tx);

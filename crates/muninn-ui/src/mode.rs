@@ -76,6 +76,10 @@ impl State {
         }
         // #43: a rename field in the Board panel or title goes with them.
         self.board_rename_left_board(mode);
+        // #73: the note-link prompt belongs to the Board canvas.
+        if mode != Mode::Board {
+            self.cancel_board_note_link();
+        }
         self.pending_heading = None;
         self.pending_top = false;
         self.clear_complete();
