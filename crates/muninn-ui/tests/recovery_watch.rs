@@ -46,11 +46,15 @@ impl Drop for TestEnv {
 fn wait_for_new_note(s: &mut State, tx: &mut Tx) {
     let deadline = Instant::now() + Duration::from_secs(15);
     let mut t = 2.7;
-    while !(poll(s, t, tx) || s.vault.resolve("New").is_some()) {
+    // Poll for the side effects (the watcher may autosave a dirty buffer), but
+    // only the note being indexed ends the wait: `poll` returning true means
+    // *some* change, not this one (#172).
+    while s.vault.resolve("New").is_none() {
         assert!(
             Instant::now() < deadline,
             "the watcher never reported the new note within 15 s"
         );
+        let _ = poll(s, t, tx);
         std::thread::sleep(Duration::from_millis(100));
         t += 2.0;
     }
