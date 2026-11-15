@@ -14,15 +14,18 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
      └──────────────┴──► rune, rune-kit, rune-theme-opencode
      │
      └──► rune-fx, wgpu
+
+muninn-core, muninn-ui, muninn-app ──► muninn-i18n   (leaf: no dependencies)
 ```
 
 | Crate | May depend on | Why |
 | --- | --- | --- |
-| `muninn-core` | nothing in the workspace | Pure domain model; fast unit tests. Its only external dependency is `serde_json`, for board files and for reading a kanban settings footer. |
+| `muninn-core` | `muninn-i18n` | Pure domain model; fast unit tests. Its only external dependency is `serde_json`, for board files and for reading a kanban settings footer. |
 | `muninn-graph` | `muninn-core` | Needs note ids and links, nothing else. |
+| `muninn-i18n` | nothing in the workspace | English UI copy, typed helpers for counts and relative dates, and `DateNames` (months, weekdays, week start, AM/PM). A leaf with no external dependencies, so core, ui and app can all depend on it without an edge cycle. See `docs/i18n.md`. |
 | `muninn-sync` | nothing in the workspace | Plans and transfers vault bytes. It does not read the UI or the link index. |
-| `muninn-ui` | `muninn-core`, `muninn-graph`, `muninn-sync`, Rune | Owns state, rendering, input, and the manual sync session. |
-| `muninn-app` | `muninn-ui`, Rune, `rune-fx`, `wgpu` | Entry point, plus the FX compositor that owns the `rune-fx` renderer and the `wgpu` device types Rune hands it. |
+| `muninn-ui` | `muninn-core`, `muninn-graph`, `muninn-sync`, `muninn-i18n`, Rune | Owns state, rendering, input, and the manual sync session. |
+| `muninn-app` | `muninn-ui`, `muninn-i18n`, Rune, `rune-fx`, `wgpu` | Entry point, plus the FX compositor that owns the `rune-fx` renderer and the `wgpu` device types Rune hands it. |
 | `xtask` | tooling crates | Never linked into the app. |
 
 `cargo run -p xtask -- layers` reads `cargo metadata` and rejects any new `muninn-*` edge that

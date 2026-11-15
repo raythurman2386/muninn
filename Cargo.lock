@@ -2006,6 +2006,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "muninn-i18n"
+version = "0.8.5"
+
+[[package]]
 name = "muninn-sync"
 version = "0.8.5"
 dependencies = [
