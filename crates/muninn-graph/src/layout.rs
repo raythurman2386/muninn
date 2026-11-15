@@ -26,6 +26,12 @@
 //! that), then the layout freezes. Without that final pack the two-pass
 //! separation loses a tug-of-war with the forces every step and the settled
 //! graph keeps a few cards on top of each other (#136).
+//!
+//! Above that packing limit the footprint no longer fits, so a dense layout can
+//! instead sit in a limit cycle above the dormancy gate (seen on macOS arm64).
+//! A stall guard stops it: positions are compared over a 300-step window and
+//! frozen when the layout ends where it began, with a 3,600-step hard bound as
+//! the backstop, so no density can keep the window awake forever (#144).
 
 use std::collections::{HashMap, HashSet};
 
@@ -95,6 +101,18 @@ const MAX_SPEED_DENSE: f32 = 18.0;
 /// remaining creep is sub-pixel and invisible, so the simulation stops instead
 /// of waking the window forever. `0.4 pt/step` is bounded residual motion.
 const DORMANT_SPEED_SQ: f32 = 0.16;
+/// Dense steps per stall probe. A layout that ends a window where it began is
+/// cycling, not settling, even if its instantaneous speed never drops below
+/// [`DORMANT_SPEED_SQ`] (reported on macOS arm64 above the marker-pack limit,
+/// #144).
+const SETTLE_PROBE_FRAMES: u16 = 300;
+/// Net movement (points) under which a probe window counts as stalled. Over
+/// 300 steps this is 0.007 pt/step, far below anything visible.
+const SETTLE_PROBE_STEP: f32 = 2.0;
+/// Hard bound on dense settling once the heat timer runs out; the backstop for
+/// a cycle whose amplitude is too large for the probe window to read as still.
+/// The slowest observed real fixture (2,000 notes) quiets around frame 2,600.
+const SETTLE_MAX_DENSE_FRAMES: u32 = 3600;
 const EDGE: f32 = 78.0;
 
 #[derive(Clone, Debug)]
@@ -119,6 +137,15 @@ pub struct Graph {
     /// frozen until something changes, so the packed state cannot drift back
     /// into overlap.
     packed: bool,
+    /// #144: positions at the start of the current stall probe, and how many
+    /// dense steps it has run.
+    probe: Vec<[f32; 2]>,
+    probe_frames: u16,
+    /// Dense steps since the heat timer reached zero; the hard bound's clock.
+    dense_frames: u32,
+    /// The stall guard froze this dense layout; positions stay put until a
+    /// reheat, sync or reset.
+    frozen: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -186,6 +213,10 @@ impl Graph {
             edges: Vec::new(),
             heat: 1.0,
             packed: false,
+            probe: Vec::new(),
+            probe_frames: 0,
+            dense_frames: 0,
+            frozen: false,
         };
         graph.sync(vault);
         graph.heat = 1.0;
@@ -230,6 +261,10 @@ impl Graph {
         if old_len != self.nodes.len() || old_edges != self.edges {
             self.heat = 1.0;
             self.packed = false;
+            self.probe.clear();
+            self.probe_frames = 0;
+            self.dense_frames = 0;
+            self.frozen = false;
         }
     }
 
@@ -314,6 +349,11 @@ impl Graph {
         if self.cooling() {
             moved |= self.pack();
         }
+        // #144: a dense vault no longer settling by the motion gate still has to
+        // stop; the stall probe and the hard bound guarantee it does.
+        if dense && self.heat == 0.0 && !self.packed && !self.frozen {
+            self.guard_stall();
+        }
         moved
     }
 
@@ -347,15 +387,63 @@ impl Graph {
             && settle_extent(self.nodes.len()).is_some()
     }
 
+    /// Stop a dense layout that is not making progress (#144).
+    ///
+    /// The speed gate assumes a settling layout slows down; some densities sit
+    /// in a limit cycle above the gate instead, and the window never sleeps.
+    /// Two cheap, deterministic bounds:
+    ///
+    /// - **Probe:** every [`SETTLE_PROBE_FRAMES`] steps, compare positions with
+    ///   the window's start. Net movement under [`SETTLE_PROBE_STEP`] means the
+    ///   layout is cycling in place (or creeping invisibly), so freeze it.
+    /// - **Hard bound:** after [`SETTLE_MAX_DENSE_FRAMES`] cooled steps, freeze
+    ///   regardless, which catches a cycle too wide for the probe to read as
+    ///   still.
+    ///
+    /// A held node (a drag) suspends both, like the pack.
+    fn guard_stall(&mut self) {
+        if self.nodes.iter().any(|node| node.fixed) {
+            return;
+        }
+        self.dense_frames = self.dense_frames.saturating_add(1);
+        self.probe_frames = self.probe_frames.saturating_add(1);
+        if self.probe.len() != self.nodes.len() || self.probe_frames >= SETTLE_PROBE_FRAMES {
+            let still = self.probe.len() == self.nodes.len()
+                && self.nodes.iter().zip(&self.probe).all(|(node, old)| {
+                    (node.pos[0] - old[0]).abs() <= SETTLE_PROBE_STEP
+                        && (node.pos[1] - old[1]).abs() <= SETTLE_PROBE_STEP
+                });
+            self.probe.clear();
+            self.probe.extend(self.nodes.iter().map(|node| node.pos));
+            self.probe_frames = 0;
+            if still {
+                self.freeze();
+                return;
+            }
+        }
+        if self.dense_frames >= SETTLE_MAX_DENSE_FRAMES {
+            self.freeze();
+        }
+    }
+
+    /// Freeze positions and speeds until the next reheat, sync or reset.
+    fn freeze(&mut self) {
+        self.frozen = true;
+        for node in &mut self.nodes {
+            node.vel = [0.0; 2];
+        }
+    }
+
     /// A cooled layout that owes nothing more is dormant: positions are frozen
     /// and `step` reports no change. Dense vaults stop at the motion gate (their
-    /// residual creep is sub-pixel); a packed near-full vault stops outright.
+    /// residual creep is sub-pixel), when the stall guard freezes them, or, for
+    /// a packed near-full vault, outright.
     fn dormant(&self) -> bool {
         if self.heat != 0.0 {
             return false;
         }
         if self.nodes.len() > EXHAUSTIVE_LIMIT {
-            return self.max_speed_sq() <= DORMANT_SPEED_SQ;
+            return self.frozen || self.max_speed_sq() <= DORMANT_SPEED_SQ;
         }
         self.packed && !self.nodes.iter().any(|node| node.fixed)
     }
@@ -408,6 +496,10 @@ impl Graph {
     pub fn reheat(&mut self) {
         self.heat = 1.0;
         self.packed = false;
+        self.probe.clear();
+        self.probe_frames = 0;
+        self.dense_frames = 0;
+        self.frozen = false;
     }
 
     /// Largest per-node speed, squared. Used by the dense-vault dormancy gate.
@@ -428,6 +520,10 @@ impl Graph {
         }
         self.heat = 1.0;
         self.packed = false;
+        self.probe.clear();
+        self.probe_frames = 0;
+        self.dense_frames = 0;
+        self.frozen = false;
     }
 }
 
@@ -1054,7 +1150,7 @@ mod settle {
     /// settled the app's poll loop uses).
     fn settle(g: &mut Graph) -> usize {
         let mut quiet = 0;
-        for frame in 1..=4000 {
+        for frame in 1..=8000 {
             if g.step() {
                 quiet = 0;
             } else {
@@ -1064,7 +1160,7 @@ mod settle {
                 }
             }
         }
-        panic!("layout must settle within 4000 frames");
+        panic!("layout must settle within 8000 frames");
     }
 
     /// Overlapping pairs of footprints `w`×`h` (both axes must overlap).
@@ -1154,6 +1250,29 @@ mod settle {
                 g.nodes.len()
             );
         }
+    }
+
+    #[test]
+    fn a_vault_above_the_pack_limit_still_goes_dormant() {
+        // #144: from 405 notes the settle pack is skipped entirely, and this
+        // density sat in a limit cycle on macOS arm64 (more than 12,000 steps
+        // without 30 quiet ones). The stall guard must stop it on every
+        // platform, and leave the positions frozen once it does.
+        let tmp = big_vault(410);
+        let v = tmp.load();
+        let mut g = Graph::new(&v);
+        let frames = settle(&mut g);
+        assert!(
+            frames < 6000,
+            "a vault above the pack limit must stop settling: {frames}"
+        );
+        assert_inside_world(&g);
+        let frozen: Vec<[f32; 2]> = g.nodes.iter().map(|node| node.pos).collect();
+        for _ in 0..30 {
+            assert!(!g.step(), "a stalled layout must report no change");
+        }
+        let after: Vec<[f32; 2]> = g.nodes.iter().map(|node| node.pos).collect();
+        assert_eq!(after, frozen, "the stall guard must freeze positions");
     }
 
     #[test]
