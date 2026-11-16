@@ -553,13 +553,11 @@ pub(crate) fn board_panel(s: &State, k: &Kit) -> El {
                         .color(k.c.text_base)
                         .grow(1.0),
                 )
-                .child(
-                    Button::new(t(Key::Close))
-                        .variant(ButtonVariant::Ghost)
-                        .on_press(|s: &mut State| s.close_kanban_settings())
-                        .build(k)
-                        .key("kanban-settings-close"),
-                ),
+                .child(crate::view::close_button(
+                    k,
+                    "kanban-settings-close",
+                    |s: &mut State| s.close_kanban_settings(),
+                )),
         )
         .child(
             text(t(Key::KanbanUiChangesWriteOnly))

@@ -299,3 +299,35 @@ fn a_long_log_line_wraps_inside_the_diagnostics_block() {
         "wrapped line leaves the window"
     );
 }
+
+/// #185: Help and Settings draw that page close from the same helper, so the
+/// two headers must hand it the same box — height and width included — and
+/// land it at the same right inset. This is the shape assertion the shared
+/// `close_button` exists to keep true.
+#[test]
+fn help_and_settings_close_controls_share_one_shape() {
+    let (_tmp, mut rt) = help_at(1180.0, 780.0, true);
+    let help = rect(&rt, "help-close");
+    rt.update(|s, _| {
+        s.close_help();
+        s.open_settings();
+    });
+    for _ in 0..6 {
+        rt.frame(1.0 / 60.0);
+    }
+    let settings = rect(&rt, "settings-close");
+    assert!(
+        (help[3] - settings[3]).abs() < 0.5,
+        "same height: help {help:?} settings {settings:?}"
+    );
+    assert!(
+        (help[2] - settings[2]).abs() < 0.5,
+        "same width: help {help:?} settings {settings:?}"
+    );
+    let help_right = help[0] + help[2];
+    let settings_right = settings[0] + settings[2];
+    assert!(
+        (help_right - settings_right).abs() < 0.5,
+        "same right inset: help {help:?} settings {settings:?}"
+    );
+}
