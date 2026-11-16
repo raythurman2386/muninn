@@ -459,6 +459,141 @@ fn focus_mode_never_applies_to_graph_board_or_kanban() {
     assert!(rt.find("topbar-title").is_some());
 }
 
+/// The same vault plus a kanban note, so every page can be mounted.
+fn gating_vault() -> TempVault {
+    TempVault::new(&[
+        ("Breathes.md", BREATHES),
+        ("Alpha.md", "# Alpha\n\nSee [[Beta]].\n"),
+        ("Beta.md", "# Beta\n\nBack to [[Alpha]].\n"),
+        (
+            "Sprint.md",
+            include_str!("../../muninn-core/tests/fixtures/kanban/lanes-and-limits.md"),
+        ),
+    ])
+}
+
+#[test]
+fn the_focus_button_is_offered_only_on_note_pages() {
+    let tmp = gating_vault();
+    let mut rt = runtime(&tmp);
+    open_at(&mut rt, 0);
+
+    assert_eq!(rt.state.mode, Mode::Editor);
+    assert!(
+        rt.find("focus-toggle").is_some(),
+        "Write offers the Focus button"
+    );
+
+    rt.key(command('2'));
+    frames(&mut rt, 2);
+    assert_eq!(rt.state.mode, Mode::Preview);
+    assert!(rt.find("focus-toggle").is_some(), "Read offers it too");
+
+    // Graph, Board and Kanban have nothing for it to do, so it is not in the
+    // tree at all — not a zero-size slot that would leave a gap in the row.
+    for (chord, mode) in [('3', Mode::Graph), ('4', Mode::Board), ('5', Mode::Kanban)] {
+        rt.key(command(chord));
+        frames(&mut rt, 60);
+        assert_eq!(rt.state.mode, mode);
+        assert!(
+            rt.find("focus-toggle").is_none(),
+            "{mode:?} offers no Focus button"
+        );
+        assert!(
+            rt.find("sidebar-toggle").is_some(),
+            "{mode:?} keeps the rest of the title bar"
+        );
+
+        // Leaving the button out does not leave a hole: Back starts one row
+        // gap (12 pt) after the sidebar toggle, as if Focus were never there.
+        let elements = rt.elements();
+        let rect = |key: &str| {
+            elements
+                .iter()
+                .find(|e| e.key.as_deref() == Some(key))
+                .unwrap_or_else(|| panic!("{key} is mounted on {mode:?}"))
+                .rect
+        };
+        let (sidebar, back) = (rect("sidebar-toggle"), rect("history-back"));
+        let gap = back[0] - (sidebar[0] + sidebar[2]);
+        assert!(
+            (gap - 12.0).abs() <= 0.5,
+            "{mode:?} leaves a {gap} pt hole before Back"
+        );
+    }
+}
+
+#[test]
+fn the_chord_and_palette_still_work_only_on_note_pages() {
+    let tmp = gating_vault();
+    let mut rt = runtime(&tmp);
+    open_at(&mut rt, 0);
+
+    // The note pages keep both entry points.
+    rt.key(focus_chord());
+    frames(&mut rt, 4);
+    assert!(rt.state.focus_active(), "the chord enters Focus in Write");
+    rt.key(focus_chord());
+    frames(&mut rt, 4);
+    assert!(!rt.state.focus_active(), "and leaves it");
+
+    for (chord, mode) in [('3', Mode::Graph), ('4', Mode::Board), ('5', Mode::Kanban)] {
+        rt.key(command(chord));
+        frames(&mut rt, 2);
+        assert_eq!(rt.state.mode, mode);
+
+        rt.key(focus_chord());
+        frames(&mut rt, 2);
+        assert!(
+            !rt.state.focus_mode,
+            "the chord is a no-op on {mode:?}, not a hidden state"
+        );
+        assert!(rt.find("focus-exit").is_none());
+        assert!(
+            rt.find("topbar-title").is_some(),
+            "{mode:?} keeps its chrome"
+        );
+
+        // The palette still lists the action (the chord's semantics are not
+        // its concern) and running it changes nothing here.
+        rt.key(palette_chord());
+        frames(&mut rt, 2);
+        assert!(rt.state.palette_open(), "the palette opens on {mode:?}");
+        for c in "focus mode".chars() {
+            rt.key(text(&c.to_string()));
+            frames(&mut rt, 1);
+        }
+        assert_eq!(
+            rt.state.palette_items(),
+            vec![PaletteItem::Action(PaletteAction::ToggleFocusMode)],
+            "the action is still listed on {mode:?}"
+        );
+        rt.key(KeyEvent {
+            key: Key::Enter,
+            mods: Mods::default(),
+        });
+        frames(&mut rt, 2);
+        assert!(!rt.state.palette_open());
+        assert_eq!(rt.state.mode, mode, "the action did not change the page");
+        assert!(
+            !rt.state.focus_mode,
+            "the palette action is a no-op on {mode:?}"
+        );
+    }
+
+    // Back on a note page both still work, and the button is mounted again.
+    rt.key(command('1'));
+    frames(&mut rt, 2);
+    assert_eq!(rt.state.mode, Mode::Editor);
+    assert!(rt.find("focus-toggle").is_some(), "Write offers it again");
+    rt.key(focus_chord());
+    frames(&mut rt, 4);
+    assert!(
+        rt.state.focus_active(),
+        "the chord enters Focus there as before"
+    );
+}
+
 #[test]
 fn reduced_motion_makes_the_focus_chrome_change_land_at_once() {
     for mode in [ReduceMotion::Off, ReduceMotion::On] {
