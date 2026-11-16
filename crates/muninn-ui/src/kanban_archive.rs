@@ -21,7 +21,7 @@
 //!   card menu's **Archive** has no such window.
 
 use muninn_core::{ArchiveSettings, Kanban, scan_card_text};
-use muninn_i18n::{Key as TextKey, restore_to, t};
+use muninn_i18n::{Key as TextKey, archived_cards, restore_to, t};
 use rune::{El, col, row, text};
 use rune_kit::Kit;
 
@@ -63,7 +63,7 @@ impl State {
             return;
         };
         let settings = self.kanban_archive_settings();
-        let archived = self.edit_kanban("archive the card", |board| {
+        let archived = self.edit_kanban(t(TextKey::KanbanEditArchiveCard), |board| {
             board.archive_card_with(lane, index, &settings, Some(local_today()))
         });
         if archived && self.kanban_selected == Some((lane, index)) {
@@ -82,7 +82,7 @@ impl State {
         let Some(len) = self.kanban_lane_len(lane) else {
             return;
         };
-        let restored = self.edit_kanban("restore the archived card", |board| {
+        let restored = self.edit_kanban(t(TextKey::KanbanEditRestoreCard), |board| {
             board.unarchive_card(index, lane)
         });
         if restored {
@@ -93,7 +93,7 @@ impl State {
     /// **Delete** on an archived card: remove only its lines.
     pub fn delete_archived_card(&mut self, index: usize) {
         self.menu = None;
-        self.edit_kanban("delete the archived card", |board| {
+        self.edit_kanban(t(TextKey::KanbanEditDeleteArchivedCard), |board| {
             board.delete_archived_card(index)
         });
     }
@@ -137,10 +137,7 @@ fn archive_button(
 /// card as the same file holds it.
 pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
     let cards = board.archive().map_or(&[][..], |archive| archive.cards());
-    let count = match cards.len() {
-        1 => "1 archived card".to_owned(),
-        n => format!("{n} archived cards"),
-    };
+    let count = archived_cards(cards.len());
     let dates = s.kanban_date_settings();
     let tags = s.kanban_tag_settings();
     let mut panel = col().key("kanban-archive-panel").w_full().gap(8.0).child(

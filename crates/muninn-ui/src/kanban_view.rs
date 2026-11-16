@@ -76,12 +76,17 @@ use muninn_core::{
     Card, ChecklistItem, CivilDate, DateSettings, Kanban, KanbanView, Lane, MetadataCache,
     MetadataSettings, card_checklist, is_kanban, parse_links, scan_card_text,
 };
-use muninn_i18n::{Key as TextKey, t};
+use muninn_i18n::{
+    Key as TextKey, add_card_to_lane, card_actions, card_label, checklist_label,
+    checklist_progress, collapse_lane, collapsed_lane_label, could_not_convert_kanban,
+    could_not_create_kanban, expand_lane, lane_actions, lane_cards, lane_controls, lane_label,
+    not_saved, t,
+};
 use rune::{Drag, El, Key, KeyEvent, Tx, col, el, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle, TextArea};
 use rune_theme_opencode::icons as ic;
 
-use crate::board_view::{BoardStatus, UNSAVED, placeholder};
+use crate::board_view::{BoardStatus, placeholder, unsaved_label};
 use crate::doc_sync::{DocConflict, conflict_bar, disk_conflict, file_state};
 use crate::kanban_drag::Dragged;
 use crate::kanban_edit::{CardCommit, CardSlot, KanbanHistory};
@@ -339,7 +344,7 @@ impl State {
             }
             Err(e) => {
                 self.log_event("kanban", &format!("new kanban not created: {e}"));
-                self.notice = Some(format!("Could not create a kanban: {e}"));
+                self.notice = Some(could_not_create_kanban(e));
             }
         }
     }
@@ -365,7 +370,7 @@ impl State {
             .and_then(|()| self.load_disk_into_editor(id))
         {
             self.log_event("kanban", &format!("not converted: {e}"));
-            self.notice = Some(format!("Could not convert to a kanban: {e}"));
+            self.notice = Some(could_not_convert_kanban(e));
             return;
         }
         if self.mode == Mode::Kanban {
@@ -625,9 +630,9 @@ fn header(s: &State, k: &Kit) -> El {
     // Board's words for the same states.
     let (status, status_color) = match &shown.status {
         BoardStatus::Clean => (String::new(), k.c.text_faint),
-        BoardStatus::Unsaved => (UNSAVED.to_owned(), k.c.text_accent),
-        BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
-        BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
+        BoardStatus::Unsaved => (unsaved_label(), k.c.text_accent),
+        BoardStatus::Saved => (t(TextKey::StatusSaved).to_owned(), k.c.text_faint),
+        BoardStatus::Failed(e) => (not_saved(e), k.c.text_accent),
     };
     let head = head
         .child(
@@ -1037,7 +1042,7 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         .gap(8.0)
         .center_y()
         .role("group")
-        .label(format!("{} controls", lane.title()))
+        .label(lane_controls(lane.title()))
         .cursor(rune::Cursor::Grab)
         .on_drag(move |s: &mut State, d: &mut Drag, tx: &mut Tx| {
             s.drag_kanban(Dragged::Lane(i), d, tx);
@@ -1071,7 +1076,7 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
                 format!("kanban-lane-{i}-collapse"),
                 &ic::CHEVRON_LEFT,
                 12.0,
-                format!("Collapse lane: {}", lane.title()),
+                collapse_lane(lane.title()),
                 move |s: &mut State, _: &mut Tx| s.toggle_lane_collapsed(i),
             )
             // The button is the disclosure control; the lane region itself is
@@ -1081,16 +1086,10 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         .child(menu_button(
             k,
             format!("kanban-lane-{i}-menu"),
-            format!("Lane actions: {}", lane.title()),
+            lane_actions(lane.title()),
             move |s: &mut State, _: &mut Tx| s.open_lane_menu(i),
         ));
-    let mut label = format!("{}, {count} cards", lane.title());
-    if over {
-        label.push_str(", over limit");
-    }
-    if lane.done_word().is_some() {
-        label.push_str(", done lane");
-    }
+    let label = lane_label(lane.title(), &count, over, lane.done_word().is_some());
     let mut column = col()
         .key(format!("kanban-lane-{i}"))
         .w(lane_width(when.layout))
@@ -1149,7 +1148,7 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
         .w_full()
         .gap(8.0)
         .role("list")
-        .label(format!("{} cards", lane.title()))
+        .label(lane_cards(lane.title()))
         .focus_group()
         .focus_follows();
     let new_at = s
@@ -1207,8 +1206,8 @@ fn lane_column(s: &State, k: &Kit, i: usize, lane: &Lane, when: &DateContext<'_>
             .press(k.c.pressed)
             .cursor(rune::Cursor::Pointer)
             .role("button")
-            .label(format!("Add card to {}", lane.title()))
-            .help(format!("Add card to {}", lane.title()))
+            .label(add_card_to_lane(lane.title()))
+            .help(add_card_to_lane(lane.title()))
             .focusable(true)
             .focus_ring(2.0, 1.0, k.c.text_accent)
             .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
@@ -1247,10 +1246,7 @@ fn collapsed_lane(
     } else {
         count
     };
-    let mut label = format!("{}, {count} cards, collapsed", lane.title());
-    if lane.done_word().is_some() {
-        label.push_str(", done lane");
-    }
+    let label = collapsed_lane_label(lane.title(), &count, lane.done_word().is_some());
     col()
         .key(format!("kanban-lane-{i}"))
         .w(STRIP_W)
@@ -1287,7 +1283,7 @@ fn collapsed_lane(
                 format!("kanban-lane-{i}-expand"),
                 &ic::CHEVRON_RIGHT,
                 12.0,
-                format!("Expand lane: {}", lane.title()),
+                expand_lane(lane.title()),
                 move |s: &mut State, _: &mut Tx| s.toggle_lane_collapsed(i),
             )
             .expanded(false),
@@ -1450,7 +1446,7 @@ pub(crate) fn icon_button(
 /// a keyboard stop (Space presses it, Enter toggles it).
 pub(crate) fn card_checkbox(k: &Kit, i: usize, j: usize, done: bool, card: &str) -> El {
     let name = if card.trim().is_empty() {
-        "Card".to_owned()
+        t(TextKey::KanbanCardFallback).to_owned()
     } else {
         card.trim().to_owned()
     };
@@ -1473,7 +1469,11 @@ pub(crate) fn card_checkbox(k: &Kit, i: usize, j: usize, done: bool, card: &str)
         .role("checkbox")
         .checked(done)
         .label(name)
-        .help(if done { "Mark not done" } else { "Mark done" })
+        .help(if done {
+            t(TextKey::KanbanCardMarkOpen)
+        } else {
+            t(TextKey::KanbanCardMarkDone)
+        })
         .focusable(true)
         .focus_ring(2.0, -1.0, k.c.text_accent)
         .on_key(move |s: &mut State, e: &KeyEvent, _: &mut Tx| {
@@ -1551,17 +1551,13 @@ fn card_view(
     } else {
         k.c.border_muted
     };
-    let state_word = if done { "Done" } else { "Open" };
-    let card_label = if first.trim().is_empty() {
-        format!("{state_word}, empty card")
+    let state_word = if done {
+        t(TextKey::KanbanFilterDone)
     } else {
-        format!("{state_word}: {first}")
+        t(TextKey::KanbanFilterOpen)
     };
-    let menu_label = if first.trim().is_empty() {
-        "Card actions: empty card".to_owned()
-    } else {
-        format!("Card actions: {first}")
-    };
+    let card_label = card_label(state_word, &first);
+    let menu_label = card_actions(&first);
     let key = format!("kanban-card-{i}-{j}");
     let focused_key = key.clone();
     row()
@@ -1730,7 +1726,7 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
                         .font(k.ty.caption())
                         .color(k.c.text_faint)
                         // Spoken as a sentence rather than "one slash two".
-                        .label(format!("{done} of {} done", items.len())),
+                        .label(checklist_progress(done, items.len())),
                 ),
         );
     let mut list = col()
@@ -1738,12 +1734,12 @@ pub(crate) fn checklist_section(k: &Kit, i: usize, j: usize, items: &[ChecklistI
         .w_full()
         .gap(2.0)
         .role("list")
-        .label(format!("Checklist, {done} of {} done", items.len()));
+        .label(checklist_label(done, items.len()));
     for (n, item) in items.iter().enumerate() {
         let line = item.line();
         let checked = item.is_done();
         let words = if item.text().is_empty() {
-            "Checklist item"
+            t(TextKey::KanbanCardChecklistItem)
         } else {
             item.text()
         };

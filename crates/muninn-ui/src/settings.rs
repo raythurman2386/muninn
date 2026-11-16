@@ -124,10 +124,10 @@ impl ThemeMode {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
-            ThemeMode::Omarchy => "Omarchy",
-            ThemeMode::Follow => "System",
-            ThemeMode::Dark => "Dark",
-            ThemeMode::Light => "Light",
+            ThemeMode::Omarchy => t(TextKey::SettingsThemeOmarchy),
+            ThemeMode::Follow => t(TextKey::SettingsThemeSystem),
+            ThemeMode::Dark => t(TextKey::SettingsThemeDark),
+            ThemeMode::Light => t(TextKey::SettingsThemeLight),
         }
     }
 }
@@ -377,9 +377,9 @@ impl ReduceMotion {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
-            ReduceMotion::System => "System",
-            ReduceMotion::On => "On",
-            ReduceMotion::Off => "Off",
+            ReduceMotion::System => t(TextKey::SettingsMotionSystem),
+            ReduceMotion::On => t(TextKey::SettingsMotionOn),
+            ReduceMotion::Off => t(TextKey::SettingsMotionOff),
         }
     }
 
@@ -461,9 +461,9 @@ impl GraphEffects {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
-            GraphEffects::Classic => "Classic",
-            GraphEffects::Electric => "Electric",
-            GraphEffects::Off => "Off / Minimal",
+            GraphEffects::Classic => t(TextKey::SettingsEffectsClassic),
+            GraphEffects::Electric => t(TextKey::SettingsEffectsElectric),
+            GraphEffects::Off => t(TextKey::SettingsEffectsOff),
         }
     }
 
@@ -528,9 +528,9 @@ impl GraphEffectIntensity {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
-            GraphEffectIntensity::Subtle => "Subtle",
-            GraphEffectIntensity::Balanced => "Balanced",
-            GraphEffectIntensity::Intense => "Intense",
+            GraphEffectIntensity::Subtle => t(TextKey::SettingsIntensitySubtle),
+            GraphEffectIntensity::Balanced => t(TextKey::SettingsIntensityBalanced),
+            GraphEffectIntensity::Intense => t(TextKey::SettingsIntensityIntense),
         }
     }
 

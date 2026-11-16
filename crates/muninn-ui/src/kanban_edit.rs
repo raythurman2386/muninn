@@ -63,6 +63,7 @@ use std::collections::VecDeque;
 use std::io;
 
 use muninn_core::{HISTORY_BYTES, HISTORY_LIMIT, Kanban};
+use muninn_i18n::{Key as TextKey, could_not_do, t};
 use rune::{KeyEvent, TextEdit};
 
 use crate::board_view::BoardStatus;
@@ -278,9 +279,9 @@ impl State {
         let text = self.kanban_card_field.text.clone();
         let added = slot.new && !text.trim().is_empty();
         let what = if slot.new {
-            "add the card"
+            t(TextKey::KanbanEditAddCard)
         } else {
-            "edit the card"
+            t(TextKey::KanbanEditEditCard)
         };
         let applied = text.trim().is_empty()
             || self.edit_kanban(what, |board| apply_card_field(board, slot, &text));
@@ -335,7 +336,9 @@ impl State {
     }
 
     pub fn delete_card(&mut self, lane: usize, index: usize) {
-        self.edit_kanban("delete the card", |board| board.delete_card(lane, index));
+        self.edit_kanban(t(TextKey::KanbanEditDeleteCard), |board| {
+            board.delete_card(lane, index)
+        });
     }
 
     pub fn duplicate_card(&mut self, lane: usize, index: usize) {
@@ -344,7 +347,7 @@ impl State {
         };
         let text = card.text().to_owned();
         let done = card.is_done() || self.kanban_lane_is_done(lane);
-        self.edit_kanban("duplicate the card", |board| {
+        self.edit_kanban(t(TextKey::KanbanEditDuplicateCard), |board| {
             // The text is literal: no trailing ` ^id` is read out of it.
             board.add_card_text(lane, index + 1, &text)?;
             if done {
@@ -370,7 +373,7 @@ impl State {
         if rest.is_empty() {
             return;
         }
-        self.edit_kanban("split the card", |board| {
+        self.edit_kanban(t(TextKey::KanbanEditSplitCard), |board| {
             board.edit_card(lane, index, first)?;
             for (n, line) in rest.iter().enumerate() {
                 let at = index + 1 + n;
@@ -389,7 +392,7 @@ impl State {
         let Some((lane, index)) = self.settle_card_edit(lane, index) else {
             return;
         };
-        self.edit_kanban("change the done mark", |board| {
+        self.edit_kanban(t(TextKey::KanbanEditChangeDoneMark), |board| {
             board.toggle_done(lane, index)
         });
     }
@@ -400,7 +403,7 @@ impl State {
         let Some((lane, index)) = self.settle_card_edit(lane, index) else {
             return;
         };
-        self.edit_kanban("toggle the checklist item", |board| {
+        self.edit_kanban(t(TextKey::KanbanEditToggleChecklistItem), |board| {
             board.toggle_card_task(lane, index, line)
         });
     }
@@ -419,7 +422,7 @@ impl State {
                     .collect()
             })
             .unwrap_or_default();
-        self.edit_kanban("mark the cards done", |board| {
+        self.edit_kanban(t(TextKey::KanbanEditMarkCardsDone), |board| {
             open.iter().try_for_each(|&i| board.toggle_done(lane, i))
         });
     }
@@ -451,7 +454,7 @@ impl State {
         if let Err(e) = op(&mut next) {
             self.log_event("kanban", &format!("could not {what}: {e}"));
             if let Some(shown) = &mut self.kanban {
-                shown.error = Some(format!("Could not {what}: {e}"));
+                shown.error = Some(could_not_do(what, e));
             }
             return false;
         }
@@ -581,9 +584,9 @@ impl State {
         if self.commit_card_edit() == CardCommit::Refused {
             if let Some(shown) = &mut self.kanban {
                 let what = if self.kanban_lane_edit.is_some() {
-                    "the lane being edited was refused"
+                    t(TextKey::KanbanStatusLaneRefused)
                 } else {
-                    "the card being edited was refused"
+                    t(TextKey::KanbanStatusCardRefused)
                 };
                 shown.status = BoardStatus::Failed(what.to_owned());
             }
@@ -609,21 +612,21 @@ impl State {
         // page flags it for the conflict bar.
         let written = match (self.note_id(&rel), disk) {
             _ if !inside_vault(&self.vault.root, &path) => {
-                Err(("the kanban is not inside the open vault".to_owned(), false))
+                Err((t(TextKey::KanbanStatusNotInsideVault).to_owned(), false))
             }
-            (None, _) => Err(("the note is no longer in the vault".to_owned(), true)),
-            (Some(_), None) => Err(("the file could not be checked".to_owned(), true)),
+            (None, _) => Err((t(TextKey::KanbanStatusNoteGone).to_owned(), true)),
+            (Some(_), None) => Err((t(TextKey::KanbanStatusFileUnchecked).to_owned(), true)),
             (Some(id), Some(_)) => match std::fs::read_to_string(&path) {
                 Ok(text) if text == saved => match self.vault.write_note(id, &source) {
                     Ok(()) => Ok(id),
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                        Err(("the file was removed".to_owned(), true))
+                        Err((t(TextKey::KanbanStatusFileRemoved).to_owned(), true))
                     }
                     Err(e) => Err((e.to_string(), false)),
                 },
-                Ok(_) => Err(("the file changed on disk".to_owned(), true)),
+                Ok(_) => Err((t(TextKey::KanbanStatusFileChanged).to_owned(), true)),
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    Err(("the file was removed".to_owned(), true))
+                    Err((t(TextKey::KanbanStatusFileRemoved).to_owned(), true))
                 }
                 Err(e) => Err((e.to_string(), false)),
             },

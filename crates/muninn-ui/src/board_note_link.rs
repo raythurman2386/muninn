@@ -21,7 +21,7 @@
 //! canvas, and leaving Board (including opening the note) closes it.
 
 use muninn_core::Shape;
-use muninn_i18n::{Key as TextKey, no_note_named, t};
+use muninn_i18n::{Key as TextKey, board_note_link_missing, no_note_named, t};
 use rune::{El, Key, KeyEvent, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -159,7 +159,7 @@ impl State {
         let target = self.board_selected_note_target()?;
         Some(match self.vault.resolve(&target) {
             Some(id) => self.vault.note(id).title.clone(),
-            None => format!("{target} (missing)"),
+            None => board_note_link_missing(&target),
         })
     }
 

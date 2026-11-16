@@ -1775,3 +1775,1083 @@ pub fn refused_unsupported_type(name: &str) -> String {
 pub fn refused_already_exists(name: &str) -> String {
     format!("{name}: already exists in this folder")
 }
+
+/// `"3 broken"`: the sidebar chip's count of unresolved wikilinks.
+///
+/// The count is data; the word stays in the catalog so a locale can place it.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::broken_links(3), "3 broken");
+/// ```
+pub fn broken_links(n: usize) -> String {
+    format!("{n} broken")
+}
+
+/// `"1 link"`, `"0 links"`, `"2 links"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::links(1), "1 link");
+/// assert_eq!(muninn_i18n::links(2), "2 links");
+/// ```
+pub fn links(n: usize) -> String {
+    counted(n, "link", "links")
+}
+
+/// The sidebar row's link summary: `"no links"`, `"2 backlinks"`,
+/// `"1 link · 2 backlinks"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::note_links(0, 0), "no links");
+/// assert_eq!(muninn_i18n::note_links(2, 0), "2 links");
+/// assert_eq!(muninn_i18n::note_links(1, 2), "1 link · 2 backlinks");
+/// ```
+pub fn note_links(links: usize, backlinks: usize) -> String {
+    match (links, backlinks) {
+        (0, 0) => "no links".to_owned(),
+        (0, b) => counted(b, "backlink", "backlinks"),
+        (l, 0) => counted(l, "link", "links"),
+        (l, b) => format!(
+            "{} · {}",
+            counted(l, "link", "links"),
+            counted(b, "backlink", "backlinks")
+        ),
+    }
+}
+
+/// A sidebar row's subtitle: the link summary, prefixed by the folder when the
+/// title alone would be ambiguous. `folder` is file data kept as written;
+/// `""` means the vault root.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::note_links_in_folder("", 1, 0),
+///     "vault root · 1 link"
+/// );
+/// assert_eq!(
+///     muninn_i18n::note_links_in_folder("Projects", 2, 0),
+///     "Projects · 2 links"
+/// );
+/// ```
+pub fn note_links_in_folder(folder: &str, links: usize, backlinks: usize) -> String {
+    let summary = note_links(links, backlinks);
+    if folder.is_empty() {
+        format!("vault root · {summary}")
+    } else {
+        format!("{folder} · {summary}")
+    }
+}
+
+/// The sidebar footer: `"12 notes · 3 links"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::sidebar_summary(12, 3), "12 notes · 3 links");
+/// ```
+pub fn sidebar_summary(notes: usize, links: usize) -> String {
+    format!(
+        "{} · {}",
+        counted(notes, "note", "notes"),
+        counted(links, "link", "links")
+    )
+}
+
+/// `"New note in <place>"`, where `place` is a folder name or
+/// `"the vault root"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::new_note_in("the vault root"),
+///     "New note in the vault root"
+/// );
+/// ```
+pub fn new_note_in(place: &str) -> String {
+    format!("New note in {place}")
+}
+
+/// `"New folder in <place>"`, where `place` is a folder name or
+/// `"the vault root"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::new_folder_in("Projects"),
+///     "New folder in Projects"
+/// );
+/// ```
+pub fn new_folder_in(place: &str) -> String {
+    format!("New folder in {place}")
+}
+
+/// The theme button's accessible label: `"Theme: Dark — click to cycle
+/// (System, Dark, Light)"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::theme_label("Dark"),
+///     "Theme: Dark — click to cycle (System, Dark, Light)"
+/// );
+/// ```
+pub fn theme_label(theme: &str) -> String {
+    format!("Theme: {theme} — click to cycle (System, Dark, Light)")
+}
+
+/// `"2 notes link here"`: the rename/move confirmation's link-impact count.
+/// `place` is catalogued copy such as [`Key::LinkImpactHere`].
+///
+/// # Examples
+///
+/// ```
+/// use muninn_i18n::{Key, link_impact, t};
+///
+/// assert_eq!(link_impact(1, t(Key::LinkImpactHere)), "1 note links here");
+/// ```
+pub fn link_impact(referrers: usize, place: &str) -> String {
+    let note = if referrers == 1 { "note" } else { "notes" };
+    let verb = if referrers == 1 { "links" } else { "link" };
+    format!("{referrers} {note} {verb} {place}")
+}
+
+/// `"Show Muninn with <chord>"`, the global-shortcut switch's label.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::show_with_chord("Ctrl+Alt+M"),
+///     "Show Muninn with Ctrl+Alt+M"
+/// );
+/// ```
+pub fn show_with_chord(chord: &str) -> String {
+    format!("Show Muninn with {chord}")
+}
+
+/// `"<chord> could not be registered: <error>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::shortcut_failed("Ctrl+Alt+M", "taken"),
+///     "Ctrl+Alt+M could not be registered: taken"
+/// );
+/// ```
+pub fn shortcut_failed(chord: &str, error: impl std::fmt::Display) -> String {
+    format!("{chord} could not be registered: {error}")
+}
+
+/// `"On. <chord> shows Muninn from any app."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::shortcut_on("Ctrl+Alt+M"),
+///     "On. Ctrl+Alt+M shows Muninn from any app."
+/// );
+/// ```
+pub fn shortcut_on(chord: &str) -> String {
+    format!("On. {chord} shows Muninn from any app.")
+}
+
+/// `"Autosave writes 1.50 s after you stop typing."`, with the delay kept to
+/// two decimals as the Settings page shows it.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::autosave_help(1.5),
+///     "Autosave writes 1.50 s after you stop typing."
+/// );
+/// ```
+pub fn autosave_help(delay: f64) -> String {
+    format!("Autosave writes {delay:.2} s after you stop typing.")
+}
+
+/// `"Version 0.8.0."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::version("0.8.0"), "Version 0.8.0.");
+/// ```
+pub fn version(version: &str) -> String {
+    format!("Version {version}.")
+}
+
+/// `"New vault created at <path> — make your first note"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::welcome_vault_created("~/notes"),
+///     "New vault created at ~/notes — make your first note"
+/// );
+/// ```
+pub fn welcome_vault_created(path: &str) -> String {
+    format!("New vault created at {path} — make your first note")
+}
+
+/// `"Scanning 3/12 notes — Esc to cancel"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::scan_progress(3, 12),
+///     "Scanning 3/12 notes — Esc to cancel"
+/// );
+/// ```
+pub fn scan_progress(done: usize, total: usize) -> String {
+    format!("Scanning {done}/{total} notes — Esc to cancel")
+}
+
+/// `"Hide the chrome and keep the caret's line centred (<chord>)"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::focus_help("⌘⇧F"),
+///     "Hide the chrome and keep the caret's line centred (⌘⇧F)"
+/// );
+/// ```
+pub fn focus_help(chord: &str) -> String {
+    format!("Hide the chrome and keep the caret's line centred ({chord})")
+}
+
+/// `"Back to the note's chrome (<chord>)"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::focus_exit_help("⌘⇧F"),
+///     "Back to the note's chrome (⌘⇧F)"
+/// );
+/// ```
+pub fn focus_exit_help(chord: &str) -> String {
+    format!("Back to the note's chrome ({chord})")
+}
+
+/// `"Kanban · <folder>"`, the palette's folder subtitle for a kanban. `folder`
+/// is file data kept as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::palette_kanban_folder("Projects"),
+///     "Kanban · Projects"
+/// );
+/// ```
+pub fn palette_kanban_folder(folder: &str) -> String {
+    format!("Kanban · {folder}")
+}
+
+/// `"1 result"`, `"0 results"`, `"2 results"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::results(1), "1 result");
+/// assert_eq!(muninn_i18n::results(2), "2 results");
+/// ```
+pub fn results(n: usize) -> String {
+    counted(n, "result", "results")
+}
+
+/// `"1 element"`, `"0 elements"`, `"12 elements"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::elements(1), "1 element");
+/// assert_eq!(muninn_i18n::elements(12), "12 elements");
+/// ```
+pub fn elements(n: usize) -> String {
+    counted(n, "element", "elements")
+}
+
+/// `"1 element · 2 kept as-is"`: a board's summary when the file holds more
+/// elements than the model draws. `elements` is [`elements`]' sentence.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::board_kept_as_is("1 element", 2),
+///     "1 element · 2 kept as-is"
+/// );
+/// ```
+pub fn board_kept_as_is(elements: &str, raw: usize) -> String {
+    format!("{elements} · {raw} kept as-is")
+}
+
+/// `"Could not read: <error>"`, a board list row's detail.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::board_could_not_read("bad json"),
+///     "Could not read: bad json"
+/// );
+/// ```
+pub fn board_could_not_read(error: impl std::fmt::Display) -> String {
+    format!("Could not read: {error}")
+}
+
+/// The Board canvas's accessible name: `"Board canvas, 2 elements, rectangle
+/// tool"`, plus `", 1 selected"` when something is picked. `elements` is
+/// [`elements`]' sentence; `tool` is the tool's stable name.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::board_canvas("2 elements", "rectangle", 0),
+///     "Board canvas, 2 elements, rectangle tool"
+/// );
+/// assert_eq!(
+///     muninn_i18n::board_canvas("1 element", "hand", 1),
+///     "Board canvas, 1 element, hand tool, 1 selected"
+/// );
+/// ```
+pub fn board_canvas(elements: &str, tool: &str, selected: usize) -> String {
+    let mut label = format!("Board canvas, {elements}, {tool} tool");
+    if selected > 0 {
+        label.push_str(&format!(", {selected} selected"));
+    }
+    label
+}
+
+/// `"Unsaved · ⌘S saves"`, the Board and Kanban page's unsaved indicator.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::unsaved_saves("⌘S"),
+///     "Unsaved · ⌘S saves"
+/// );
+/// ```
+pub fn unsaved_saves(chord: &str) -> String {
+    format!("Unsaved · {chord} saves")
+}
+
+/// `"<title> (root)"`: a duplicate title, identified by the vault root.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::note_label_root("Plan"), "Plan (root)");
+/// ```
+pub fn note_label_root(title: &str) -> String {
+    format!("{title} (root)")
+}
+
+/// `"<title> (<parent>)"`: a duplicate-title graph node's folder.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::graph_node_parent("Plan", "Projects"),
+///     "Plan (Projects)"
+/// );
+/// ```
+pub fn graph_node_parent(title: &str, parent: &str) -> String {
+    format!("{title} ({parent})")
+}
+
+/// `"12 notes · 30 edges"`. The readout keeps the plural words at any count,
+/// as the graph's overlay always has.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::graph_stats(12, 30), "12 notes · 30 edges");
+/// assert_eq!(muninn_i18n::graph_stats(1, 1), "1 notes · 1 edges");
+/// ```
+pub fn graph_stats(nodes: usize, edges: usize) -> String {
+    format!("{nodes} notes · {edges} edges")
+}
+
+/// `"1 outgoing link · 2 backlinks"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::graph_links(1, 2),
+///     "1 outgoing link · 2 backlinks"
+/// );
+/// ```
+pub fn graph_links(links: usize, backlinks: usize) -> String {
+    format!(
+        "{} · {}",
+        counted(links, "outgoing link", "outgoing links"),
+        counted(backlinks, "backlink", "backlinks")
+    )
+}
+
+/// `"from 2026-11-01"`: the kanban filter summary's range start. `day` is the
+/// formatted date.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::kanban_filter_from("2026-11-01"),
+///     "from 2026-11-01"
+/// );
+/// ```
+pub fn kanban_filter_from(day: &str) -> String {
+    format!("from {day}")
+}
+
+/// `"to 2026-11-30"`: the kanban filter summary's range end.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::kanban_filter_to("2026-11-30"),
+///     "to 2026-11-30"
+/// );
+/// ```
+pub fn kanban_filter_to(day: &str) -> String {
+    format!("to {day}")
+}
+
+/// `"2026-11-01 – 2026-11-30"`: the kanban filter summary's full range.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::kanban_filter_range("2026-11-01", "2026-11-30"),
+///     "2026-11-01 – 2026-11-30"
+/// );
+/// ```
+pub fn kanban_filter_range(from: &str, to: &str) -> String {
+    format!("{from} – {to}")
+}
+
+/// `"Day 14"`: the date picker's per-day accessible name.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::day_label(14), "Day 14");
+/// ```
+pub fn day_label(day: u32) -> String {
+    format!("Day {day}")
+}
+
+/// `"2026-11-14 · today"`: a card date with its relative day.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::relative_date("2026-11-14", "today"),
+///     "2026-11-14 · today"
+/// );
+/// ```
+pub fn relative_date(shown: &str, relative: &str) -> String {
+    format!("{shown} · {relative}")
+}
+
+/// `"1 archived card"`, `"3 archived cards"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::archived_cards(1), "1 archived card");
+/// assert_eq!(muninn_i18n::archived_cards(3), "3 archived cards");
+/// ```
+pub fn archived_cards(n: usize) -> String {
+    counted(n, "archived card", "archived cards")
+}
+
+/// `"Lane actions: To do"`, a lane menu's accessible name.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::lane_actions("To do"), "Lane actions: To do");
+/// ```
+pub fn lane_actions(title: &str) -> String {
+    format!("Lane actions: {title}")
+}
+
+/// `"To do controls"`, a lane header's accessible name.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::lane_controls("To do"), "To do controls");
+/// ```
+pub fn lane_controls(title: &str) -> String {
+    format!("{title} controls")
+}
+
+/// `"Collapse lane: To do"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::collapse_lane("To do"),
+///     "Collapse lane: To do"
+/// );
+/// ```
+pub fn collapse_lane(title: &str) -> String {
+    format!("Collapse lane: {title}")
+}
+
+/// `"Expand lane: To do"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::expand_lane("To do"), "Expand lane: To do");
+/// ```
+pub fn expand_lane(title: &str) -> String {
+    format!("Expand lane: {title}")
+}
+
+/// `"To do cards"`, a lane's card list's accessible name.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::lane_cards("To do"), "To do cards");
+/// ```
+pub fn lane_cards(title: &str) -> String {
+    format!("{title} cards")
+}
+
+/// `"Add card to To do"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::add_card_to_lane("To do"), "Add card to To do");
+/// ```
+pub fn add_card_to_lane(title: &str) -> String {
+    format!("Add card to {title}")
+}
+
+/// A lane region's label: `"To do, 3 cards"`, `", over limit"` and
+/// `", done lane"` appended when they apply. `count` is the drawn count.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::lane_label("To do", "3", false, false),
+///     "To do, 3 cards"
+/// );
+/// assert_eq!(
+///     muninn_i18n::lane_label("Done", "2", true, true),
+///     "Done, 2 cards, over limit, done lane"
+/// );
+/// ```
+pub fn lane_label(title: &str, count: &str, over: bool, done: bool) -> String {
+    let mut label = format!("{title}, {count} cards");
+    push_lane_flags(&mut label, over, done);
+    label
+}
+
+/// The List view's lane region label: `"To do lane, 3 cards"`, with the same
+/// suffixes as [`lane_label`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::lane_region_label("To do", "3", false, false),
+///     "To do lane, 3 cards"
+/// );
+/// ```
+pub fn lane_region_label(title: &str, count: &str, over: bool, done: bool) -> String {
+    let mut label = format!("{title} lane, {count} cards");
+    push_lane_flags(&mut label, over, done);
+    label
+}
+
+/// A collapsed lane's label: `"To do, 3 cards, collapsed"`, and
+/// `", done lane"` when it is the done lane.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::collapsed_lane_label("To do", "3", false),
+///     "To do, 3 cards, collapsed"
+/// );
+/// ```
+pub fn collapsed_lane_label(title: &str, count: &str, done: bool) -> String {
+    let mut label = format!("{title}, {count} cards, collapsed");
+    if done {
+        label.push_str(", done lane");
+    }
+    label
+}
+
+/// `"Collapsed · 3 cards"`, the List view's collapsed lane line.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::collapsed_cards(3),
+///     "Collapsed · 3 cards"
+/// );
+/// ```
+pub fn collapsed_cards(n: usize) -> String {
+    format!("Collapsed · {n} cards")
+}
+
+fn push_lane_flags(label: &mut String, over: bool, done: bool) {
+    if over {
+        label.push_str(", over limit");
+    }
+    if done {
+        label.push_str(", done lane");
+    }
+}
+
+/// The delete-lane question when no note text is lost:
+/// `"Delete “To do” and its 2 cards? Any note text in it stays in the file."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::delete_lane("To do", 1),
+///     "Delete “To do” and its card? Any note text in it stays in the file."
+/// );
+/// ```
+pub fn delete_lane(title: &str, cards: usize) -> String {
+    format!(
+        "Delete “{title}”{}? Any note text in it stays in the file.",
+        delete_cards(cards)
+    )
+}
+
+/// The delete-lane question when note text is lost too:
+/// `"Delete “To do” and its card? 1 line of note text the board doesn't show
+/// will be deleted too, starting “…”."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::delete_lane_text("To do", 1, "1 line", "hidden"),
+///     "Delete “To do” and its card? 1 line of note text the board doesn't show will be deleted too, starting “hidden”."
+/// );
+/// ```
+pub fn delete_lane_text(title: &str, cards: usize, lines: &str, preview: &str) -> String {
+    format!(
+        "Delete “{title}”{}? {lines} of note text the board doesn't show will be deleted too, starting “{preview}”.",
+        delete_cards(cards)
+    )
+}
+
+fn delete_cards(cards: usize) -> String {
+    match cards {
+        0 => String::new(),
+        1 => " and its card".to_owned(),
+        n => format!(" and its {n} cards"),
+    }
+}
+
+/// `"1 line"`, `"0 lines"`, `"3 lines"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::lines(1), "1 line");
+/// assert_eq!(muninn_i18n::lines(3), "3 lines");
+/// ```
+pub fn lines(n: usize) -> String {
+    counted(n, "line", "lines")
+}
+
+/// A card's own accessible label: `"Done: Ship it"`, or `"Open, empty card"`
+/// when it has no text. `state` is [`Key::KanbanFilterDone`] or
+/// [`Key::KanbanFilterOpen`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::card_label("Done", "Ship it"), "Done: Ship it");
+/// assert_eq!(muninn_i18n::card_label("Open", ""), "Open, empty card");
+/// ```
+pub fn card_label(state: &str, first: &str) -> String {
+    if first.trim().is_empty() {
+        format!("{state}, empty card")
+    } else {
+        format!("{state}: {first}")
+    }
+}
+
+/// A card menu's accessible name: `"Card actions: Ship it"`, or `"Card
+/// actions: empty card"` when it has no text.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::card_actions("Ship it"),
+///     "Card actions: Ship it"
+/// );
+/// ```
+pub fn card_actions(first: &str) -> String {
+    if first.trim().is_empty() {
+        "Card actions: empty card".to_owned()
+    } else {
+        format!("Card actions: {first}")
+    }
+}
+
+/// `"Card actions: empty card in To do"`, the List view's empty-card menu.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::card_actions_in_lane("To do"),
+///     "Card actions: empty card in To do"
+/// );
+/// ```
+pub fn card_actions_in_lane(lane: &str) -> String {
+    format!("Card actions: empty card in {lane}")
+}
+
+/// `"1 of 2 done"`, a checklist's progress readout.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::checklist_progress(1, 2), "1 of 2 done");
+/// ```
+pub fn checklist_progress(done: usize, total: usize) -> String {
+    format!("{done} of {total} done")
+}
+
+/// `"Checklist, 1 of 2 done"`, the checklist list's accessible name.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::checklist_label(1, 2),
+///     "Checklist, 1 of 2 done"
+/// );
+/// ```
+pub fn checklist_label(done: usize, total: usize) -> String {
+    format!("Checklist, {done} of {total} done")
+}
+
+/// `"Not saved: <reason>"`, the Board and Kanban page's failed-save status.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::not_saved("the file was removed"),
+///     "Not saved: the file was removed"
+/// );
+/// ```
+pub fn not_saved(reason: &str) -> String {
+    format!("Not saved: {reason}")
+}
+
+/// `"Could not <action>: <error>"`, where `action` is catalogued copy such as
+/// [`Key::KanbanEditAddCard`].
+///
+/// # Examples
+///
+/// ```
+/// use muninn_i18n::{Key, could_not_do, t};
+///
+/// assert_eq!(
+///     could_not_do(t(Key::KanbanEditAddCard), "read-only"),
+///     "Could not add the card: read-only"
+/// );
+/// ```
+pub fn could_not_do(action: &str, error: impl std::fmt::Display) -> String {
+    format!("Could not {action}: {error}")
+}
+
+/// `"Could not create a board: <error>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::could_not_create_board("denied"),
+///     "Could not create a board: denied"
+/// );
+/// ```
+pub fn could_not_create_board(error: impl std::fmt::Display) -> String {
+    format!("Could not create a board: {error}")
+}
+
+/// `"Could not create a kanban: <error>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::could_not_create_kanban("denied"),
+///     "Could not create a kanban: denied"
+/// );
+/// ```
+pub fn could_not_create_kanban(error: impl std::fmt::Display) -> String {
+    format!("Could not create a kanban: {error}")
+}
+
+/// `"Could not convert to a kanban: <error>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::could_not_convert_kanban("has text"),
+///     "Could not convert to a kanban: has text"
+/// );
+/// ```
+pub fn could_not_convert_kanban(error: impl std::fmt::Display) -> String {
+    format!("Could not convert to a kanban: {error}")
+}
+
+/// `"Open <name>"`, a link's tooltip. `name` is the link's own display name.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::link_description("Plan"), "Open Plan");
+/// ```
+pub fn link_description(name: &str) -> String {
+    format!("Open {name}")
+}
+
+/// `"1 board"`, `"0 boards"`, `"4 boards"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::boards(1), "1 board");
+/// assert_eq!(muninn_i18n::boards(4), "4 boards");
+/// ```
+pub fn boards(n: usize) -> String {
+    counted(n, "board", "boards")
+}
+
+/// `"To do · Done: Ship it"`: a List or Table row's accessible label, naming
+/// the lane first. `state` is [`Key::KanbanFilterDone`] or
+/// [`Key::KanbanFilterOpen`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::card_label_in_lane("To do", "Done", "Ship it"),
+///     "To do · Done: Ship it"
+/// );
+/// ```
+pub fn card_label_in_lane(lane: &str, state: &str, first: &str) -> String {
+    format!("{lane} · {state}: {first}")
+}
+
+/// `"<path> is outside the vault"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::outside_vault("/tmp/notes"),
+///     "/tmp/notes is outside the vault"
+/// );
+/// ```
+pub fn outside_vault(path: impl std::fmt::Display) -> String {
+    format!("{path} is outside the vault")
+}
+
+/// `"<path> is not a board inside the vault"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::not_a_board_in_vault("Plan.excalidraw"),
+///     "Plan.excalidraw is not a board inside the vault"
+/// );
+/// ```
+pub fn not_a_board_in_vault(path: impl std::fmt::Display) -> String {
+    format!("{path} is not a board inside the vault")
+}
+
+/// `"<name> already exists"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::already_exists("Plan.md"),
+///     "Plan.md already exists"
+/// );
+/// ```
+pub fn already_exists(name: impl std::fmt::Display) -> String {
+    format!("{name} already exists")
+}
+
+/// `"<path> is not a trash path"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::not_a_trash_path("../Plan.md"),
+///     "../Plan.md is not a trash path"
+/// );
+/// ```
+pub fn not_a_trash_path(path: impl std::fmt::Display) -> String {
+    format!("{path} is not a trash path")
+}
+
+/// `"<path> is no longer in the trash"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::no_longer_in_trash("1/Plan.md"),
+///     "1/Plan.md is no longer in the trash"
+/// );
+/// ```
+pub fn no_longer_in_trash(path: impl std::fmt::Display) -> String {
+    format!("{path} is no longer in the trash")
+}
+
+/// `"<path> is not a folder"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::not_a_folder("Notes.md"),
+///     "Notes.md is not a folder"
+/// );
+/// ```
+pub fn not_a_folder(path: impl std::fmt::Display) -> String {
+    format!("{path} is not a folder")
+}
+
+/// `"a board name <why>"`, where `why` is a catalogued reason such as
+/// [`Key::CoreBoardNameEmpty`].
+///
+/// # Examples
+///
+/// ```
+/// use muninn_i18n::{Key, board_name_invalid, t};
+///
+/// assert_eq!(
+///     board_name_invalid(t(Key::CoreBoardNameEmpty)),
+///     "a board name cannot be empty"
+/// );
+/// ```
+pub fn board_name_invalid(why: &str) -> String {
+    format!("a board name {why}")
+}
+
+/// `"scene <key> must be an object"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::board_scene_key_object("appState"),
+///     "scene appState must be an object"
+/// );
+/// ```
+pub fn board_scene_key_object(key: &str) -> String {
+    format!("scene {key} must be an object")
+}
+
+/// `"Renamed, but 2 note(s) embedding it could not be updated: a.md, b.md"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::board_renamed_embeds_failed(1, "a.md"),
+///     "Renamed, but 1 note(s) embedding it could not be updated: a.md"
+/// );
+/// ```
+pub fn board_renamed_embeds_failed(count: usize, list: &str) -> String {
+    format!("Renamed, but {count} note(s) embedding it could not be updated: {list}")
+}
+
+/// `"<target> (missing)"`, a board note link whose note is gone.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::board_note_link_missing("Plan"),
+///     "Plan (missing)"
+/// );
+/// ```
+pub fn board_note_link_missing(target: &str) -> String {
+    format!("{target} (missing)")
+}
+
+/// `"reg.exe could not run: <error>"`: the Windows login-item command.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::autostart_reg_failed("access denied"),
+///     "reg.exe could not run: access denied"
+/// );
+/// ```
+pub fn autostart_reg_failed(error: impl std::fmt::Display) -> String {
+    format!("reg.exe could not run: {error}")
+}
+
+/// `"reg.exe exited with <status>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::autostart_reg_exit("exit code: 1"),
+///     "reg.exe exited with exit code: 1"
+/// );
+/// ```
+pub fn autostart_reg_exit(status: impl std::fmt::Display) -> String {
+    format!("reg.exe exited with {status}")
+}

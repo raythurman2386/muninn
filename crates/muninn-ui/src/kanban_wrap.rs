@@ -25,6 +25,8 @@
 /// A run of characters this long, with no break opportunity, may break after
 /// any of its characters. Long enough that ordinary words keep their shape,
 /// short enough that no ordinary card line can overflow by a word.
+use muninn_i18n::{Key as TextKey, link_description as describe_link, t};
+
 const LONG_RUN: usize = 24;
 
 /// Zero-width space: a break opportunity with no ink and no advance.
@@ -428,7 +430,7 @@ pub(crate) fn link_name(target: &str) -> String {
         };
     }
     if target.is_empty() {
-        "Link".to_owned()
+        t(TextKey::LinkNameFallback).to_owned()
     } else {
         target.to_owned()
     }
@@ -437,7 +439,7 @@ pub(crate) fn link_name(target: &str) -> String {
 /// What a link's tooltip says: where it goes, in words, for a pointer user and
 /// as a description for AT where the platform exposes link descriptions.
 pub(crate) fn link_description(target: &str) -> String {
-    format!("Open {}", link_name(target))
+    describe_link(&link_name(target))
 }
 
 /// `label` with the characters that would end or style a Markdown link

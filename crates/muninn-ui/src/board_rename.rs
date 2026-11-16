@@ -25,7 +25,7 @@
 
 use std::path::{Path, PathBuf};
 
-use muninn_i18n::{Key as TextKey, board_name_taken, t};
+use muninn_i18n::{Key as TextKey, board_name_taken, board_renamed_embeds_failed, t};
 use rune::{El, Key, KeyEvent, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -195,7 +195,7 @@ impl State {
             // refused (the file changed or vanished) renames nothing.
             self.commit_board_text();
             if !self.save_board() {
-                return Err("Save the board first: it could not be saved".to_owned());
+                return Err(t(TextKey::BoardRenameSaveFirst).to_owned());
             }
         }
         let old_rel = self.vault_rel(path);
@@ -229,10 +229,9 @@ impl State {
             }
         }
         if !failures.is_empty() {
-            self.error = Some(format!(
-                "Renamed, but {} note(s) embedding it could not be updated: {}",
+            self.error = Some(board_renamed_embeds_failed(
                 failures.len(),
-                self.format_rewrite_failures(&failures)
+                &self.format_rewrite_failures(&failures),
             ));
         }
         Ok(target)

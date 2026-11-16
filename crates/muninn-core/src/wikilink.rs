@@ -57,7 +57,7 @@ impl WikiLink {
             return self
                 .heading
                 .clone()
-                .unwrap_or_else(|| "This note".to_owned());
+                .unwrap_or_else(|| muninn_i18n::t(muninn_i18n::Key::LinkThisNote).to_owned());
         }
         self.target.clone()
     }

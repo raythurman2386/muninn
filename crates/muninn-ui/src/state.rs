@@ -3783,7 +3783,9 @@ impl State {
             .notes
             .get(note_id)
             .map(|note| note.path.clone())
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "note is no longer indexed"))?;
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, t(TextKey::NoteNoLongerIndexed))
+            })?;
         let source = fs::read_to_string(&path)?;
         // EDT-02: resolving a conflict by loading the disk bytes discards the
         // buffer's undo stack; the parked snapshot must go with it.
