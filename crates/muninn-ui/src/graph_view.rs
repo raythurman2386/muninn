@@ -7,7 +7,7 @@ use rune::{
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
-use muninn_graph::{NODE_H, NODE_W, WORLD};
+use muninn_graph::{NODE_H, NODE_W, WORLD, marker_extent};
 use muninn_i18n::{
     Key as TextKey, graph_links, graph_node_parent, graph_stats, note_label_root, t,
 };
@@ -41,6 +41,9 @@ pub const FX_BURN: u32 = 0x4d49_0000;
 /// World size of a low-zoom dot marker (screen size is `DOT * zoom`, so
 /// about 12px at typical Global fit zoom).
 const DOT: f32 = 28.0;
+/// Clearance kept between a drawn dot and the packed envelope: a dot may never
+/// be wider than the spacing the settled layout guarantees (#190).
+const DOT_PACK_PAD: f32 = 1.0;
 
 pub fn graph(s: &State, k: &Kit) -> El {
     let visible = s.visible_notes();
@@ -340,8 +343,14 @@ fn card_size(degree: usize) -> (f32, f32) {
     (NODE_W * scale, NODE_H * scale)
 }
 
-fn dot_size(degree: usize) -> f32 {
-    DOT * (1.0 + (degree.min(12) as f32) * 0.05)
+/// A dot's world size: the degree-scaled marker, capped at the envelope the
+/// layout packed to ([`marker_extent`]) minus a small pad, so no zoom can draw
+/// a dot wider than its neighbours are spaced. Below card country the envelope
+/// is the full 45 pt, so ordinary dots are unchanged.
+fn dot_size(n: usize, degree: usize) -> f32 {
+    let wanted = DOT * (1.0 + (degree.min(12) as f32) * 0.05);
+    let cap = (marker_extent(n) - DOT_PACK_PAD).max(1.0);
+    wanted.min(cap)
 }
 
 /// Whether the node is drawn as a low-zoom dot rather than a card this frame.
@@ -356,7 +365,7 @@ fn node_is_dot(s: &State, id: usize, dots_only: bool, focused: bool) -> bool {
 /// card otherwise.
 fn node_size(s: &State, id: usize, as_dot: bool) -> (f32, f32) {
     if as_dot {
-        let side = dot_size(degree(s, id));
+        let side = dot_size(s.graph.nodes.len(), degree(s, id));
         (side, side)
     } else {
         card_size(degree(s, id))
@@ -557,7 +566,7 @@ fn node_dot(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
     } else {
         k.alpha(accent, 0.7)
     };
-    let side = dot_size(degree);
+    let side = dot_size(s.graph.nodes.len(), degree);
     el().key(format!("graph-node-{id}"))
         .pin(
             Some(pos[0] - side / 2.0),
@@ -851,4 +860,28 @@ fn hint(k: &Kit) -> El {
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #190: the drawn dot must never be wider than the layout's packed
+    /// envelope, so the view cannot show dots overlapping a clean layout.
+    #[test]
+    fn a_dot_never_exceeds_the_packed_envelope() {
+        for n in [15usize, 90, 405, 600, 1000, 2000] {
+            let envelope = marker_extent(n);
+            for degree in [0usize, 1, 4, 9, 12, 40] {
+                let side = dot_size(n, degree);
+                assert!(
+                    side <= envelope - DOT_PACK_PAD + 1e-4,
+                    "{n} notes, degree {degree}: dot {side:.2} exceeds envelope {envelope:.2}"
+                );
+            }
+        }
+        // Below card country the envelope is the full 45 pt marker, so an
+        // ordinary dot keeps its long-standing 28 pt size.
+        assert_eq!(dot_size(15, 0), DOT);
+    }
 }

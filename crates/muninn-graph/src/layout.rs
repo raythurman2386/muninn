@@ -21,17 +21,26 @@
 //! never take these branches, so their settled positions stay bit-identical.
 //!
 //! A vault dense enough that its drawn footprint cannot all fit at the force
-//! equilibrium is packed once when its heat runs out: the last overlaps are
-//! pushed apart to the drawn footprint (cards while they fit, markers above
-//! that), then the layout freezes. Without that final pack the two-pass
-//! separation loses a tug-of-war with the forces every step and the settled
-//! graph keeps a few cards on top of each other (#136).
+//! equilibrium is packed when its heat runs out: the last overlaps are pushed
+//! apart to the drawn footprint (cards while they fit, the density-scaled
+//! [`marker_extent`] above that), then the layout freezes. Without that final
+//! pack the two-pass separation loses a tug-of-war with the forces every step
+//! and the settled graph keeps cards or markers on top of each other (#136).
 //!
-//! Above that packing limit the footprint no longer fits, so a dense layout can
-//! instead sit in a limit cycle above the dormancy gate (seen on macOS arm64).
-//! A stall guard stops it: positions are compared over a 300-step window and
-//! frozen when the layout ends where it began, with a 3,600-step hard bound as
-//! the backstop, so no density can keep the window awake forever (#144).
+//! The footprint has no density cutoff (#190): at every N a marker packs to
+//! `min(DOT_SEP, sqrt(SEP_FULL_FILL × world area / n))`, the same envelope the
+//! separation and packing use and the UI's dot size is capped to. A blob that
+//! the forces have pressed against the walls cannot make room by growing, so
+//! the bounded pack also compacts a wall-bound blob toward a target bbox
+//! instead of only growing it.
+//!
+//! A dense layout can sit in a limit cycle above the dormancy gate (seen on
+//! macOS arm64). A stall guard stops it: positions are compared over a 300-step
+//! window and frozen when the layout ends where it began — unless the packed
+//! envelope is still violated — with a 3,600-step hard bound as the backstop,
+//! so no density can keep the window awake forever (#144). The hard bound is
+//! the last resort: it records a freeze that still overlaps, and the pack runs
+//! first so a fixture it can pack never reaches it.
 
 use std::collections::{HashMap, HashSet};
 
@@ -75,15 +84,40 @@ const CARD_H: f32 = NODE_H * 1.18;
 /// Clearance the settled packing leaves between two cards, so a packed pair
 /// cannot read as touching after rounding.
 const SETTLE_PAD: f32 = 1.0;
+/// A pair closer than the envelope by less than this is touching, not
+/// overlapping: f32 rounding on a packed pair must not keep the pack awake.
+const TOUCH_EPS: f32 = 0.01;
+/// The pack moves a pair until its overlap is below this — half the touching
+/// epsilon, so the settled centre distance keeps a real margin above
+/// `envelope − TOUCH_EPS` instead of landing exactly on it.
+const PACK_MOVE_EPS: f32 = TOUCH_EPS * 0.5;
 /// The largest low-zoom marker the view draws (28 pt × up to 1.6, see the UI).
 const DOT_SEP: f32 = 45.0;
+/// A wall-bound blob is compacted toward this fraction of the world's bbox
+/// area, rather than grown: at 600+ notes the forces press the blob against
+/// both walls, where local nudges and `SETTLE_GROW` only make it wider.
+const PACK_TARGET_FILL: f32 = 0.70;
+/// A node this close to a wall counts as wall-clamped when choosing between
+/// compaction and growth.
+const PACK_WALL_EPS: f32 = 0.5;
 /// Upper bound on the packing passes a cooling layout may spend. A compact
 /// blob with a few dozen overlaps packs clean in tens of passes; the cap is
 /// the guarantee that a pathological start still terminates, deterministically.
+/// Each pass is [`PACK_SWEEPS_PER_PASS`] directional sweeps, and every
+/// [`SETTLE_GROW_EVERY`] passes re-spaces the blob (see [`pack_overlaps`]).
 const SETTLE_PASSES: usize = 512;
-/// A stalled pack is given more room this often...
+/// Sweeps per packing pass: forward, reversed, forward, reversed. A single
+/// direction biases every pair toward the nodes visited last, and one
+/// forward+reverse pair still left a dense hub short inside the pass cap; two
+/// pairs unjam it without raising [`SETTLE_PASSES`].
+const PACK_SWEEPS_PER_PASS: usize = 4;
+/// The pack re-spaces a stalled blob this often: every
+/// [`SETTLE_GROW_EVERY`] passes it is either compacted (wall-bound) or given
+/// more room (free), so the local pair pushes cannot stall at a wall.
 const SETTLE_GROW_EVERY: usize = 64;
-/// ...by scaling the whole layout about the world centre by this much.
+/// A free blob is given more room this often by scaling the whole layout about
+/// the world centre by this much. A wall-bound blob is instead compacted
+/// toward [`PACK_TARGET_FILL`].
 const SETTLE_GROW: f32 = 1.04;
 const SPRING: f32 = 0.008;
 const LINK_LEN: f32 = 175.0;
@@ -146,6 +180,9 @@ pub struct Graph {
     /// The stall guard froze this dense layout; positions stay put until a
     /// reheat, sync or reset.
     frozen: bool,
+    /// The freeze was the last resort: the packed envelope was still violated.
+    /// Recorded rather than hidden; fixtures the pack can clear never set it.
+    frozen_overlapping: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -217,6 +254,7 @@ impl Graph {
             probe_frames: 0,
             dense_frames: 0,
             frozen: false,
+            frozen_overlapping: false,
         };
         graph.sync(vault);
         graph.heat = 1.0;
@@ -265,6 +303,7 @@ impl Graph {
             self.probe_frames = 0;
             self.dense_frames = 0;
             self.frozen = false;
+            self.frozen_overlapping = false;
         }
     }
 
@@ -350,8 +389,10 @@ impl Graph {
             moved |= self.pack();
         }
         // #144: a dense vault no longer settling by the motion gate still has to
-        // stop; the stall probe and the hard bound guarantee it does.
-        if dense && self.heat == 0.0 && !self.packed && !self.frozen {
+        // stop; the stall probe and the hard bound guarantee it does. The guard
+        // also watches a packed layout whose envelope the pack could not meet,
+        // so it can still reach the hard bound (#190).
+        if dense && self.heat == 0.0 && !self.frozen {
             self.guard_stall();
         }
         moved
@@ -362,15 +403,25 @@ impl Graph {
     /// and the two-pass projection cannot win against it every step. Pack the
     /// remains away once (deterministic, bounded) and freeze; without the
     /// freeze the forces would pull the cards back into overlap and the layout
-    /// would jitter forever. A layout with nothing to pack is left alone: it
-    /// keeps settling exactly as it always did. [#136]
+    /// would jitter forever. [#136]
+    ///
+    /// The pack schedule itself is the bound (#190): it runs at most
+    /// [`SETTLE_PASSES`] passes with the fixed compaction/growth schedule and
+    /// then leaves the result to the overlap-aware gate. `packed` keeps its old
+    /// meaning for small vaults — set only when the pack moved something — so
+    /// their settling path stays bit-identical. A dense pack that moved nothing
+    /// but still leaves overlaps is marked packed too, so a jammed wall cannot
+    /// re-run the whole schedule every cooled step until the hard bound.
     fn pack(&mut self) -> bool {
         let Some(extent) = settle_extent(self.nodes.len()) else {
             return false;
         };
         let moved = pack_overlaps(&mut self.nodes, extent);
-        if moved {
+        let dense = self.nodes.len() > EXHAUSTIVE_LIMIT;
+        if moved || (dense && envelope_violated(&self.nodes, extent)) {
             self.packed = true;
+        }
+        if moved {
             for node in &mut self.nodes {
                 node.vel = [0.0; 2];
             }
@@ -378,8 +429,8 @@ impl Graph {
         moved
     }
 
-    /// Cooled, unheld, and dense enough for a packing: the settled layout is
-    /// allowed to owe nothing that `settle_extent` cannot promise.
+    /// Cooled and unheld: the settled layout may owe a packing. There is no
+    /// density cutoff — every N ≥ 2 has a [`settle_extent`] (#190).
     fn cooling(&self) -> bool {
         self.heat == 0.0
             && !self.packed
@@ -416,7 +467,10 @@ impl Graph {
             self.probe.clear();
             self.probe.extend(self.nodes.iter().map(|node| node.pos));
             self.probe_frames = 0;
-            if still {
+            // A layout that is still but still overlaps is not settled: the
+            // pack needs its budget first (#190). The hard bound below still
+            // stops it if packing cannot meet the envelope.
+            if still && !self.overlaps_owed() {
                 self.freeze();
                 return;
             }
@@ -429,21 +483,44 @@ impl Graph {
     /// Freeze positions and speeds until the next reheat, sync or reset.
     fn freeze(&mut self) {
         self.frozen = true;
+        self.frozen_overlapping = self.overlaps_owed();
         for node in &mut self.nodes {
             node.vel = [0.0; 2];
         }
+    }
+
+    /// True when pairs are still closer than the packing footprint, with no
+    /// node held. A held node (a drag) is outside the guarantee, like the pack
+    /// itself. A clean dense layout is not dormant-blocked even before a pack
+    /// runs: it owes nothing.
+    fn overlaps_owed(&self) -> bool {
+        if self.nodes.iter().any(|node| node.fixed) {
+            return false;
+        }
+        let Some(extent) = settle_extent(self.nodes.len()) else {
+            return false;
+        };
+        envelope_violated(&self.nodes, extent)
     }
 
     /// A cooled layout that owes nothing more is dormant: positions are frozen
     /// and `step` reports no change. Dense vaults stop at the motion gate (their
     /// residual creep is sub-pixel), when the stall guard freezes them, or, for
     /// a packed near-full vault, outright.
+    ///
+    /// Since #190 the motion gate is overlap-aware: a still dense layout whose
+    /// pairs still violate its [`settle_extent`] is not dormant, so it spends
+    /// its bounded pack before stopping instead of freezing on top of itself.
+    /// A held node keeps the old motion-gate behaviour.
     fn dormant(&self) -> bool {
         if self.heat != 0.0 {
             return false;
         }
         if self.nodes.len() > EXHAUSTIVE_LIMIT {
-            return self.frozen || self.max_speed_sq() <= DORMANT_SPEED_SQ;
+            if self.frozen {
+                return true;
+            }
+            return self.max_speed_sq() <= DORMANT_SPEED_SQ && !self.overlaps_owed();
         }
         self.packed && !self.nodes.iter().any(|node| node.fixed)
     }
@@ -500,6 +577,7 @@ impl Graph {
         self.probe_frames = 0;
         self.dense_frames = 0;
         self.frozen = false;
+        self.frozen_overlapping = false;
     }
 
     /// Largest per-node speed, squared. Used by the dense-vault dormancy gate.
@@ -524,6 +602,23 @@ impl Graph {
         self.probe_frames = 0;
         self.dense_frames = 0;
         self.frozen = false;
+        self.frozen_overlapping = false;
+    }
+
+    /// True when the hard bound froze a dense layout whose packed envelope was
+    /// still violated. The freeze is still the last resort — it just says so.
+    #[must_use]
+    pub fn frozen_overlapping(&self) -> bool {
+        self.frozen_overlapping
+    }
+
+    /// True once this heat cycle's final pack has run. The pack is a one-shot
+    /// layout correction, so the frame that ran it has a large deliberate move
+    /// even though the layout is settled; measurements that track residual
+    /// motion read this to tell a pack jump from a force creep.
+    #[must_use]
+    pub fn is_packed(&self) -> bool {
+        self.packed
     }
 }
 
@@ -777,70 +872,106 @@ fn separate_exhaustive(nodes: &mut [GNode], extent: [f32; 2], min_overlap: f32) 
     moved
 }
 
-/// Full card packing while it fits; below that, shrink both axes so the
-/// available world area per node is respected.
+/// Whether full cards still fit inside [`SEP_FULL_FILL`] of the world. Below
+/// this density the layout keeps the original card envelope; above it, the
+/// isotropic marker envelope takes over.
+fn cards_fit(n: usize) -> bool {
+    n as f32 * (CARD_W + SETTLE_PAD) * (CARD_H + SETTLE_PAD) <= SEP_FULL_FILL * WORLD[0] * WORLD[1]
+}
+
+/// The density-scaled footprint every marker must have: full marker spacing
+/// while it fits, then the square root of the area left per node. There is no
+/// cutoff: the envelope shrinks with density instead of disappearing at 405
+/// notes, so packing, separation and the drawn dot all use one number (#190).
+///
+/// The UI caps a drawn dot (plus a small pad) at this value, so a dot can never
+/// be wider than the spacing the settled layout guarantees.
+#[must_use]
+pub fn marker_extent(n: usize) -> f32 {
+    if n == 0 {
+        return DOT_SEP;
+    }
+    let area = SEP_FULL_FILL * WORLD[0] * WORLD[1] / n as f32;
+    area.sqrt().min(DOT_SEP)
+}
+
+/// Full card separation while cards fit; below that, shrink both axes so the
+/// available world area per node is respected. Above card country the envelope
+/// is the isotropic [`marker_extent`] — the old 176×60 card shrink left a
+/// 49×17 reach at 1,000 notes, far below the 28 pt dot it was separating.
 fn separation_extent(n: usize) -> [f32; 2] {
     if n == 0 {
         return [SEP_CELL_X, SEP_CELL_Y];
     }
-    let fill = n as f32 * SEP_AREA / (WORLD[0] * WORLD[1]);
-    let scale = if fill <= SEP_FULL_FILL {
-        1.0
-    } else {
-        (SEP_FULL_FILL / fill).sqrt()
-    };
-    [SEP_CELL_X * scale, SEP_CELL_Y * scale]
+    if cards_fit(n) {
+        let fill = n as f32 * SEP_AREA / (WORLD[0] * WORLD[1]);
+        let scale = if fill <= SEP_FULL_FILL {
+            1.0
+        } else {
+            (SEP_FULL_FILL / fill).sqrt()
+        };
+        return [SEP_CELL_X * scale, SEP_CELL_Y * scale];
+    }
+    let marker = marker_extent(n);
+    [marker, marker]
 }
 
-/// The envelope a settled layout must respect, or `None` when density no longer
-/// leaves room for the drawn footprint. Full cards while they fit, the marker
-/// (dot) envelope above that: the view draws those densities as dots (see
-/// `LOD_ZOOM`), and demanding card spacing would only wedge the packing.
+/// The envelope a settled layout must respect, or `None` only for a lone node.
+/// Full cards while they fit, [`marker_extent`] above that: the view draws those
+/// densities as dots (see `LOD_ZOOM`), and demanding card spacing would only
+/// wedge the packing.
 fn settle_extent(n: usize) -> Option<[f32; 2]> {
     if n < 2 {
         return None;
     }
-    let card = [CARD_W + SETTLE_PAD, CARD_H + SETTLE_PAD];
-    let mut extent = card;
-    if n as f32 * extent[0] * extent[1] > SEP_FULL_FILL * WORLD[0] * WORLD[1] {
-        extent = [DOT_SEP, DOT_SEP];
+    if cards_fit(n) {
+        return Some([CARD_W + SETTLE_PAD, CARD_H + SETTLE_PAD]);
     }
-    if n as f32 * extent[0] * extent[1] > SEP_FULL_FILL * WORLD[0] * WORLD[1] {
-        return None;
-    }
-    Some(extent)
+    let marker = marker_extent(n);
+    Some([marker, marker])
 }
 
 /// Pack every overlapping pair out to `extent`. Each pair moves the smallest
 /// distance along its own centre-to-centre line that clears both rectangles, so
-/// a pile spreads evenly instead of stacking along one axis. Stalling packs get
-/// more room: every [`SETTLE_GROW_EVERY`] passes the whole layout is scaled up
-/// about the world centre, which escapes a jam against a wall that no amount of
-/// local nudging can (the world has far more room than the settled blob uses).
+/// a pile spreads evenly instead of stacking along one axis.
 ///
-/// Deterministic: fixed pair order, fixed pass budget, fixed growth schedule.
+/// Each pass is [`PACK_SWEEPS_PER_PASS`] directional sweeps. A sweep visits
+/// every node in a fixed order and takes its candidates from a [`Grid`] cell of
+/// the envelope (a 3×3 window, the same candidate set the separation pass
+/// uses), then sorts them, so the O(n²) pair scan is gone and the result stays
+/// deterministic. The grid holds sweep-start positions: a pair pushed into
+/// overlap mid-sweep is caught by the next sweep, exactly like the separation
+/// pass's documented bound.
+///
+/// The pack has a fixed schedule and budget ([`SETTLE_PASSES`] passes, fixed
+/// pair order). Every [`SETTLE_GROW_EVERY`] passes a stalled blob is re-spaced:
+/// card country grows a free blob about the world centre (which escapes a jam
+/// that local nudging cannot), and marker country — or any wall-bound blob —
+/// is **compacted or spread** toward [`PACK_TARGET_FILL`] of the world about its
+/// centroid. Growth alone cannot make room at 600+ notes because the blob is
+/// wall-bound; compaction is what turns an unruly spread into a packable bbox.
 fn pack_overlaps(nodes: &mut [GNode], extent: [f32; 2]) -> bool {
+    if !envelope_violated(nodes, extent) {
+        return false;
+    }
     let mut moved = false;
+    let mut candidates = Vec::new();
     for pass in 0..SETTLE_PASSES {
         if pass > 0 && pass % SETTLE_GROW_EVERY == 0 {
-            let c = crate::camera::world_centre();
-            for node in nodes.iter_mut() {
-                node.pos[0] =
-                    (c[0] + (node.pos[0] - c[0]) * SETTLE_GROW).clamp(EDGE, WORLD[0] - EDGE);
-                node.pos[1] =
-                    (c[1] + (node.pos[1] - c[1]) * SETTLE_GROW).clamp(EDGE, WORLD[1] - EDGE);
-            }
+            moved |= respace(nodes, extent);
+        }
+        if pack_pass(nodes, extent, &mut candidates) {
             moved = true;
+            continue;
         }
-        let mut pass_moved = false;
-        for i in 0..nodes.len() {
-            for j in i + 1..nodes.len() {
-                if separate_pair_radial(nodes, i, j, extent) {
-                    pass_moved = true;
-                }
-            }
+        // A pass that moves nothing is either clean or jammed (typically with
+        // part of the blob clamped at a wall). A clean layout stops here; a
+        // jammed one is re-spaced once more and given another pass. The pass
+        // budget still bounds the whole schedule.
+        if !envelope_violated(nodes, extent) {
+            break;
         }
-        if !pass_moved {
+        if pass + 1 >= SETTLE_PASSES || !respace(nodes, extent) {
             break;
         }
         moved = true;
@@ -848,10 +979,161 @@ fn pack_overlaps(nodes: &mut [GNode], extent: [f32; 2]) -> bool {
     moved
 }
 
+/// One grid-backed radial packing pass: [`PACK_SWEEPS_PER_PASS`] directional
+/// sweeps, each visiting every node in a fixed order and taking candidates from
+/// a 3×3 [`Grid`] window. Alternating direction cancels the systematic bias of
+/// a single order (the first nodes always give way to the last), which is what
+/// lets a dense hub unjam inside [`SETTLE_PASSES`]; the grid holds sweep-start
+/// positions, and a pair pushed into overlap mid-sweep is caught by the next
+/// one — the same documented bound as the separation pass.
+fn pack_pass(nodes: &mut [GNode], extent: [f32; 2], candidates: &mut Vec<usize>) -> bool {
+    let mut moved = false;
+    for sweep in 0..PACK_SWEEPS_PER_PASS {
+        moved |= pack_sweep(nodes, extent, candidates, sweep % 2 == 1);
+    }
+    moved
+}
+
+/// One directional sweep. Nodes are moved in index order (or its reverse); a
+/// moved node's stale grid cell is corrected by the next sweep.
+fn pack_sweep(
+    nodes: &mut [GNode],
+    extent: [f32; 2],
+    candidates: &mut Vec<usize>,
+    reverse: bool,
+) -> bool {
+    let grid = Grid::build(nodes, extent);
+    let mut moved = false;
+    for step in 0..nodes.len() {
+        let i = if reverse {
+            nodes.len() - 1 - step
+        } else {
+            step
+        };
+        candidates.clear();
+        collect_overlaps(nodes, i, &grid, extent, PACK_MOVE_EPS, candidates);
+        candidates.sort_unstable();
+        for &j in candidates.iter() {
+            moved |= separate_pair_radial(nodes, i, j, extent, PACK_MOVE_EPS);
+        }
+    }
+    moved
+}
+
+/// Re-space a stalled pack: compact a wall-bound blob toward a target bbox,
+/// otherwise grow a free one about the world centre. Returns whether any
+/// position changed.
+fn respace(nodes: &mut [GNode], extent: [f32; 2]) -> bool {
+    let Some([x0, y0, x1, y1]) = bbox(nodes) else {
+        return false;
+    };
+    let width = (x1 - x0).max(1.0);
+    let height = (y1 - y0).max(1.0);
+    let usable_w = WORLD[0] - EDGE * 2.0;
+    let usable_h = WORLD[1] - EDGE * 2.0;
+    let wall_bound = nodes.iter().any(|node| {
+        node.pos[0] <= EDGE + PACK_WALL_EPS
+            || node.pos[0] >= WORLD[0] - EDGE - PACK_WALL_EPS
+            || node.pos[1] <= EDGE + PACK_WALL_EPS
+            || node.pos[1] >= WORLD[1] - EDGE - PACK_WALL_EPS
+    }) || width >= usable_w - PACK_WALL_EPS
+        || height >= usable_h - PACK_WALL_EPS;
+
+    // Card country grows a free blob (the cards need room), but a marker blob
+    // never does: its cells already fit in the target bbox, and growing one is
+    // what walked a wall-bound marker blob back into the walls (compaction,
+    // growth, compaction — seen on a 2,000-note hub, #190). Marker country
+    // always re-spaces toward the target bbox, which shrinks an over-spread
+    // blob and gives a small one exactly the room its cells need.
+    //
+    // The axes are scaled independently. A uniform scale cannot reach a target
+    // bbox that is wider than the blob's own aspect once the shorter axis hits
+    // the wall clamp; it undershoots, leaving the cells too dense to unjam.
+    // Scaling each axis toward its target dimension reaches PACK_TARGET_FILL
+    // exactly and never turns an expansion into an overlap (both axes only
+    // grow).
+    let (centre, scale_x, scale_y) = if !wall_bound && cards_fit(nodes.len()) {
+        let grow = SETTLE_GROW;
+        (crate::camera::world_centre(), grow, grow)
+    } else {
+        let target_area = (PACK_TARGET_FILL * WORLD[0] * WORLD[1])
+            .max(nodes.len() as f32 * extent[0] * extent[1]);
+        let aspect = usable_w / usable_h;
+        let target_w = (target_area * aspect).sqrt().min(usable_w);
+        let target_h = (target_area / target_w).min(usable_h);
+        let scale_x = (target_w / width).clamp(0.25, 2.0);
+        let scale_y = (target_h / height).clamp(0.25, 2.0);
+        (centroid(nodes), scale_x, scale_y)
+    };
+    if (scale_x - 1.0).abs() < 1e-4 && (scale_y - 1.0).abs() < 1e-4 {
+        return false;
+    }
+    for node in nodes.iter_mut() {
+        node.pos[0] =
+            (centre[0] + (node.pos[0] - centre[0]) * scale_x).clamp(EDGE, WORLD[0] - EDGE);
+        node.pos[1] =
+            (centre[1] + (node.pos[1] - centre[1]) * scale_y).clamp(EDGE, WORLD[1] - EDGE);
+    }
+    true
+}
+
+/// The bounding box of the nodes' centres, or `None` when there are none.
+fn bbox(nodes: &[GNode]) -> Option<[f32; 4]> {
+    let mut boxed: Option<[f32; 4]> = None;
+    for node in nodes {
+        boxed = Some(match boxed {
+            None => [node.pos[0], node.pos[1], node.pos[0], node.pos[1]],
+            Some([x0, y0, x1, y1]) => [
+                x0.min(node.pos[0]),
+                y0.min(node.pos[1]),
+                x1.max(node.pos[0]),
+                y1.max(node.pos[1]),
+            ],
+        });
+    }
+    boxed
+}
+
+/// The mean position of the nodes (the blob's centre for compaction).
+fn centroid(nodes: &[GNode]) -> [f32; 2] {
+    let mut sum = [0.0f32; 2];
+    for node in nodes {
+        sum[0] += node.pos[0];
+        sum[1] += node.pos[1];
+    }
+    let n = nodes.len().max(1) as f32;
+    [sum[0] / n, sum[1] / n]
+}
+
+/// True when any pair still violates `extent` by more than the touching
+/// epsilon. Uses the same grid candidate set as the pack, so it is O(n) and
+/// safe to poll from the dormancy gate at 2,000 notes.
+fn envelope_violated(nodes: &[GNode], extent: [f32; 2]) -> bool {
+    if nodes.len() < 2 {
+        return false;
+    }
+    let grid = Grid::build(nodes, extent);
+    let mut candidates = Vec::new();
+    for i in 0..nodes.len() {
+        candidates.clear();
+        collect_overlaps(nodes, i, &grid, extent, TOUCH_EPS, &mut candidates);
+        if !candidates.is_empty() {
+            return true;
+        }
+    }
+    false
+}
+
 /// The minimal move along the centre-to-centre direction that clears the two
 /// rectangles, split evenly (or given wholly to the free node when one is held)
 /// and clamped to the world.
-fn separate_pair_radial(nodes: &mut [GNode], i: usize, j: usize, extent: [f32; 2]) -> bool {
+fn separate_pair_radial(
+    nodes: &mut [GNode],
+    i: usize,
+    j: usize,
+    extent: [f32; 2],
+    min_overlap: f32,
+) -> bool {
     let (share_i, share_j) = match (nodes[i].fixed, nodes[j].fixed) {
         (true, true) => return false,
         (true, false) => (0.0, 1.0),
@@ -862,7 +1144,7 @@ fn separate_pair_radial(nodes: &mut [GNode], i: usize, j: usize, extent: [f32; 2
     let dy = nodes[j].pos[1] - nodes[i].pos[1];
     let ox = extent[0] - dx.abs();
     let oy = extent[1] - dy.abs();
-    if ox <= 0.0 || oy <= 0.0 {
+    if ox <= min_overlap || oy <= min_overlap {
         return false;
     }
     let d = (dx * dx + dy * dy).sqrt();
@@ -1146,6 +1428,63 @@ mod settle {
         TempVault::new(&refs)
     }
 
+    /// The N list the #190 footprint is measured over. 405 is the old
+    /// arithmetic cutoff (404 fit, 405 did not); 600/1000 are the densities
+    /// that used to be pressed against the walls while overlapping; 2000 is
+    /// the perf-style case, gated separately.
+    const DENSITIES: [usize; 5] = [150, 300, 405, 600, 1000];
+
+    /// Whether a settled layout keeps every marker pair at the envelope.
+    fn assert_packed(g: &Graph, n: usize) {
+        let e = marker_extent(n);
+        let bad = overlaps(g, e, e);
+        assert!(
+            bad.is_empty(),
+            "{n} notes settle with {} overlapping marker pairs at {e:.3} pt: {:?}",
+            bad.len(),
+            &bad[..bad.len().min(4)]
+        );
+        let min_nn = min_nn(g);
+        assert!(
+            min_nn >= e - 0.01,
+            "{n} notes: closest centre pair {min_nn:.3} pt is inside the {e:.3} pt envelope"
+        );
+    }
+
+    /// The closest centre-to-centre distance in a settled layout.
+    fn min_nn(g: &Graph) -> f32 {
+        let mut min = f32::INFINITY;
+        for i in 0..g.nodes.len() {
+            for j in i + 1..g.nodes.len() {
+                let dx = g.nodes[j].pos[0] - g.nodes[i].pos[0];
+                let dy = g.nodes[j].pos[1] - g.nodes[i].pos[1];
+                min = min.min((dx * dx + dy * dy).sqrt());
+            }
+        }
+        min
+    }
+
+    /// Bbox area as a fraction of the world — the "fill" the issue measured.
+    fn bbox_fill(g: &Graph) -> f32 {
+        let Some([x0, y0, x1, y1]) = bbox(&g.nodes) else {
+            return 0.0;
+        };
+        (x1 - x0) * (y1 - y0) / (WORLD[0] * WORLD[1])
+    }
+
+    /// Nodes exactly on the world clamp (the integrator writes the wall value).
+    fn wall_clamped(g: &Graph) -> usize {
+        g.nodes
+            .iter()
+            .filter(|node| {
+                node.pos[0] <= EDGE
+                    || node.pos[0] >= WORLD[0] - EDGE
+                    || node.pos[1] <= EDGE
+                    || node.pos[1] >= WORLD[1] - EDGE
+            })
+            .count()
+    }
+
     /// Run frames until thirty in a row report no change (the definition of
     /// settled the app's poll loop uses).
     fn settle(g: &mut Graph) -> usize {
@@ -1253,20 +1592,24 @@ mod settle {
     }
 
     #[test]
-    fn a_vault_above_the_pack_limit_still_goes_dormant() {
-        // #144: from 405 notes the settle pack is skipped entirely, and this
-        // density sat in a limit cycle on macOS arm64 (more than 12,000 steps
-        // without 30 quiet ones). The stall guard must stop it on every
-        // platform, and leave the positions frozen once it does.
+    fn a_vault_above_the_old_pack_limit_settles_clean_and_freezes() {
+        // #144: 405 notes used to skip the settle pack entirely and sit in a
+        // limit cycle on macOS arm64. #190 removed the cutoff, so 410 now packs
+        // to its marker envelope, stops well inside the bound, and freezes.
         let tmp = big_vault(410);
         let v = tmp.load();
         let mut g = Graph::new(&v);
         let frames = settle(&mut g);
         assert!(
             frames < 6000,
-            "a vault above the pack limit must stop settling: {frames}"
+            "a vault above the old pack limit must stop settling: {frames}"
         );
         assert_inside_world(&g);
+        assert!(
+            !g.frozen_overlapping(),
+            "the pack must meet the envelope before the layout stops"
+        );
+        assert_packed(&g, 410);
         let frozen: Vec<[f32; 2]> = g.nodes.iter().map(|node| node.pos).collect();
         for _ in 0..30 {
             assert!(!g.step(), "a stalled layout must report no change");
@@ -1299,6 +1642,190 @@ mod settle {
         }
         let bad = overlaps(&one, CARD_W, CARD_H);
         assert!(bad.is_empty(), "a reheated layout settles clean: {bad:?}");
+    }
+
+    /// #190: the footprint has no density cutoff. The table is the issue's
+    /// counterfactual, ±0.1: 45.0 at 405, 36.9 at 600, 28.6 at 1000, 20.2 at
+    /// 2000.
+    #[test]
+    fn marker_extent_is_density_scaled() {
+        for (n, want) in [(405usize, 45.0f32), (600, 36.9), (1000, 28.6), (2000, 20.2)] {
+            let got = marker_extent(n);
+            assert!(
+                (got - want).abs() <= 0.1,
+                "marker_extent({n}) = {got:.3}, want {want} ±0.1"
+            );
+        }
+        // Full marker spacing while it fits, then monotone shrink, never above
+        // the drawn dot's largest size.
+        assert!(marker_extent(1) <= DOT_SEP);
+        assert!(marker_extent(150) <= DOT_SEP);
+        let mut last = marker_extent(1);
+        for n in [2usize, 100, 404, 405, 600, 1000, 2000, 5000] {
+            let now = marker_extent(n);
+            assert!(now <= last + 1e-6, "footprint grew at {n}");
+            last = now;
+        }
+    }
+
+    /// Every density packs to the same envelope separation uses; 405 is no
+    /// worse than 404 (the old arithmetic cliff).
+    #[test]
+    fn dense_vaults_pack_to_the_marker_envelope() {
+        for n in DENSITIES {
+            let tmp = linked_vault(n);
+            let v = tmp.load();
+            let mut g = Graph::new(&v);
+            settle(&mut g);
+            assert_inside_world(&g);
+            assert!(
+                !g.frozen_overlapping(),
+                "{n} notes froze with a violated envelope"
+            );
+            assert_packed(&g, n);
+        }
+    }
+
+    #[test]
+    fn a_405_note_vault_is_no_worse_than_404() {
+        let mut counts = Vec::new();
+        for n in [404usize, 405] {
+            let tmp = linked_vault(n);
+            let v = tmp.load();
+            let mut g = Graph::new(&v);
+            settle(&mut g);
+            assert_inside_world(&g);
+            let e = marker_extent(n);
+            let bad = overlaps(&g, e, e);
+            assert!(
+                bad.is_empty(),
+                "{n} notes overlap at their {e:.3} pt envelope: {} pairs",
+                bad.len()
+            );
+            counts.push(bad.len());
+        }
+        assert!(
+            counts[1] <= counts[0],
+            "405 ({}) must be no worse than 404 ({})",
+            counts[1],
+            counts[0]
+        );
+    }
+
+    /// The spread gate from the issue: the settled bbox fills at most 0.75 of
+    /// the world and at most 2% of nodes are wall-clamped. Measured #190 on
+    /// this fixture: fill 0.47/0.70/0.70/0.70/0.70, walls 3/0/0/0/0 at
+    /// 150/300/405/600/1000.
+    #[test]
+    fn dense_vaults_spread_without_pressing_the_walls() {
+        for n in DENSITIES {
+            let tmp = linked_vault(n);
+            let v = tmp.load();
+            let mut g = Graph::new(&v);
+            settle(&mut g);
+            let fill = bbox_fill(&g);
+            assert!(
+                fill <= 0.75,
+                "{n} notes fill {fill:.3} of the world, over the 0.75 gate"
+            );
+            let walls = wall_clamped(&g);
+            let limit = (g.nodes.len() as f32 * 0.02).ceil() as usize;
+            assert!(
+                walls <= limit,
+                "{n} notes leave {walls} nodes wall-clamped (limit {limit})"
+            );
+        }
+    }
+
+    /// Determinism and reheat on the new N list: two identical vaults settle
+    /// to the same positions, and a reheated settled layout does too, still
+    /// inside the envelope.
+    #[test]
+    fn dense_settling_is_deterministic_and_reheats() {
+        let tmp = linked_vault(405);
+        let v = tmp.load();
+        let mut one = Graph::new(&v);
+        let mut two = Graph::new(&v);
+        settle(&mut one);
+        settle(&mut two);
+        for (a, b) in one.nodes.iter().zip(&two.nodes) {
+            assert_eq!(a.pos, b.pos, "{} settled off its twin", a.rel);
+        }
+        for g in [&mut one, &mut two] {
+            g.reheat();
+            assert!(g.step(), "reheat must resume the step");
+            settle(g);
+        }
+        for (a, b) in one.nodes.iter().zip(&two.nodes) {
+            assert_eq!(a.pos, b.pos, "reheat must settle deterministically");
+        }
+        assert_packed(&one, 405);
+    }
+
+    /// The small-vault path must not move: 15 notes never take a dense branch
+    /// (the 90-note card test covers the boundary), so #190 must leave this
+    /// regime and the final pack untouched.
+    ///
+    /// This used to pin a hash of the settled positions. Those positions start
+    /// from `seed`'s `angle.cos()/sin()`, and libm may differ by an ULP across
+    /// Linux/macOS/Windows, so a bit hash proves portability as much as it
+    /// proves the pack. Instead this proves the portable claim directly: the
+    /// fixture stays in card country, and the new pack is a bit-for-bit no-op
+    /// on the settled sample.
+    #[test]
+    fn a_15_note_vault_layout_is_untouched_by_the_pack() {
+        let tmp = linked_vault(15);
+        let v = tmp.load();
+        let mut g = Graph::new(&v);
+        settle(&mut g);
+
+        // The density-scaled marker envelope must not reach this regime: 15
+        // notes keep the full card envelope.
+        let extent = settle_extent(15).expect("15 notes are in card country");
+        assert_eq!(extent, [CARD_W + SETTLE_PAD, CARD_H + SETTLE_PAD]);
+
+        // "The sample does not move" means the pack owes nothing here. Run the
+        // real pack on a copy of the settled nodes and require a no-op, with
+        // every f32 bit unchanged.
+        let before: Vec<[f32; 2]> = g.nodes.iter().map(|node| node.pos).collect();
+        let mut nodes = g.nodes.clone();
+        assert!(
+            !pack_overlaps(&mut nodes, extent),
+            "the 15-note sample must not owe a packing"
+        );
+        for (index, (node, old)) in nodes.iter().zip(&before).enumerate() {
+            assert_eq!(
+                node.pos.map(f32::to_bits),
+                old.map(f32::to_bits),
+                "node {index} moved in the pack; small vaults must stay bit-identical"
+            );
+        }
+    }
+
+    /// The 2,000-note case, perf-gated: the grid pack must clear its 20.2 pt
+    /// envelope within the settling bound, not freeze overlapping.
+    #[test]
+    #[ignore = "perf: 2000-note settle; run with --release -- --include-ignored"]
+    fn a_2000_note_vault_packs_to_its_envelope() {
+        let tmp = linked_vault(2000);
+        let v = tmp.load();
+        let mut g = Graph::new(&v);
+        let frames = settle(&mut g);
+        println!(
+            "2000-note settle: {frames} frames, {} overlaps at {:.3} pt, min NN {:.3}, \
+             fill {:.3}, {} wall-clamped",
+            overlaps(&g, marker_extent(2000), marker_extent(2000)).len(),
+            marker_extent(2000),
+            min_nn(&g),
+            bbox_fill(&g),
+            wall_clamped(&g),
+        );
+        assert!(
+            !g.frozen_overlapping(),
+            "2000 notes froze with a violated envelope at frame {frames}"
+        );
+        assert_inside_world(&g);
+        assert_packed(&g, 2000);
     }
 }
 
