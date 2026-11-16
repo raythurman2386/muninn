@@ -1,7 +1,7 @@
 //! Workspace tasks for Muninn.
 //!
-//! Keeping fmt/clippy/test/layering in one place means CI and contributors run the same
-//! commands, and crate-boundary rules live next to the crates they describe.
+//! Keeping fmt/clippy/test/layering/copy checks in one place means CI and contributors
+//! run the same commands, and crate-boundary rules live next to the crates they describe.
 
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
@@ -9,7 +9,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+mod i18n_lint;
+
+pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -49,10 +51,12 @@ fn dispatch(command: &str, args: &[String]) -> Result<()> {
             ])?;
             run_cargo(&["test", "--workspace", "--all-targets"])?;
             check_layers()?;
+            i18n_lint::run()?;
             println!("all checks passed");
             Ok(())
         }
         "layers" | "check-layers" => check_layers(),
+        "i18n-lint" => i18n_lint::run(),
         "bundle" => bundle(),
         "snapshots" => snapshots(args),
         "run" => {
@@ -63,7 +67,7 @@ fn dispatch(command: &str, args: &[String]) -> Result<()> {
         }
         "help" | "--help" | "-h" => {
             println!(
-                "xtask: fmt | fmt-check | clippy | test | build | check | layers | bundle | snapshots | run [args]"
+                "xtask: fmt | fmt-check | clippy | test | build | check | layers | i18n-lint | bundle | snapshots | run [args]"
             );
             Ok(())
         }
@@ -86,7 +90,7 @@ fn status(mut command: Command) -> Result<()> {
     }
 }
 
-fn workspace_root() -> Result<PathBuf> {
+pub(crate) fn workspace_root() -> Result<PathBuf> {
     Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .ok_or("workspace root not found")?

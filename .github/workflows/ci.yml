@@ -51,6 +51,9 @@ jobs:
       - name: Layering
         run: cargo run --locked -p xtask -- layers
 
+      - name: i18n copy
+        run: cargo run --locked -p xtask -- i18n-lint
+
   docs:
     name: rustdoc
     runs-on: ubuntu-latest
