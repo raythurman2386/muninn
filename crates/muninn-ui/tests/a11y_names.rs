@@ -105,3 +105,50 @@ fn text_fields_the_at_pass_found_unnamed_are_named() {
     let _ = fs::remove_dir_all(&state_home);
     let _ = fs::remove_dir_all(&config);
 }
+
+/// #185: every page/panel close is the same text button, named exactly
+/// "Close" — never an icon-only ✕ or a longer "Close settings (Esc)" name —
+/// and reachable from the keyboard with a focus ring.
+#[test]
+fn page_close_controls_are_named_close_and_focusable() {
+    let vault = TempVault::new(&[("Alpha.md", "# Alpha\n")]);
+    let (config, state_home) = (unique_dir("close-config"), unique_dir("close-state"));
+    let mut settings = Settings::load_from(&config);
+    settings.last_vault = Some(vault.path().to_path_buf());
+    let state = State::with_settings(
+        vault.path().to_path_buf(),
+        state_home.clone(),
+        config.clone(),
+        settings,
+    );
+    let mut rt = Runtime::new(state, view, (1180.0, 780.0), Env::new(true, 2.0));
+    rt.poll = Some(poll);
+    rt.frame(0.0);
+
+    let check = |rt: &Runtime<State>, key: &str| {
+        let close = element(rt, key);
+        assert_eq!(
+            close.label.as_deref(),
+            Some("Close"),
+            "{key} must be named exactly Close"
+        );
+        assert_eq!(close.role, "button", "{key} is a button");
+        assert!(close.focusable, "{key} is a Tab stop");
+    };
+
+    // Help replaces the main column.
+    rt.update(|s, _| s.open_help());
+    rt.frame(0.0);
+    check(&rt, "help-close");
+
+    // Settings does the same; its Esc chord stays in help, not the name.
+    rt.update(|s, _| {
+        s.close_help();
+        s.open_settings();
+    });
+    rt.frame(0.0);
+    check(&rt, "settings-close");
+
+    let _ = fs::remove_dir_all(&state_home);
+    let _ = fs::remove_dir_all(&config);
+}

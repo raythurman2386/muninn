@@ -158,11 +158,9 @@ pub(crate) fn archive_panel(s: &State, k: &Kit, board: &Kanban) -> El {
                     .color(k.c.text_faint)
                     .grow(1.0),
             )
-            .child(archive_button(
+            .child(crate::view::close_button(
                 k,
-                "kanban-archive-close".to_owned(),
-                t(TextKey::Close),
-                k.c.text_base,
+                "kanban-archive-close",
                 State::close_kanban_archive,
             )),
     );

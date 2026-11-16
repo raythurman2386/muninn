@@ -518,6 +518,40 @@ pub(crate) fn pressable(k: &Kit, key: String) -> El {
     target.cursor(Cursor::Pointer)
 }
 
+/// The canonical page/panel **Close** control (#185).
+///
+/// Every surface that replaces the main column — Help, Settings, Board
+/// settings, Archive and Broken links — leaves through this one bordered text
+/// button, so a page close always reads the same: 28 pt high, 10 pt of
+/// horizontal padding, a muted border and the compact UI face. It is a real
+/// `button` with the visible "Close" as its accessible name, focusable with a
+/// focus ring, and right-aligned in its header (put a `spacer()` before it).
+/// Never draw an icon-only ✕ or a differently-styled close for a page; callers
+/// keep their own element key.
+pub(crate) fn close_button(
+    k: &Kit,
+    key: impl Into<String>,
+    on_press: impl Fn(&mut State) + 'static,
+) -> El {
+    let label = t(TextKey::Close);
+    pressable(k, key.into())
+        .h(28.0)
+        .px(10.0)
+        .center_y()
+        .border(1.0, k.c.border_muted)
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.border_focus)
+        .role("button")
+        .label(label)
+        .help(label)
+        .on_press(on_press)
+        .child(
+            text(t(TextKey::Close))
+                .font(k.ty.ui_compact)
+                .color(k.c.text_base),
+        )
+}
+
 /// Stable test key for a folder (`""` → `root`).
 fn folder_slug(folder: &str) -> String {
     if folder.is_empty() {
@@ -1034,9 +1068,10 @@ fn settings_panel(s: &State, k: &Kit) -> El {
 
 /// The page heading, at the same height and rhythm as the Board and Help
 /// pages: title and a faint "saved automatically" line on the left, an
-/// affordance on the right. The close control is a quiet icon button that
-/// names its Esc chord, so it reads as leaving a page rather than dismissing
-/// a dialog.
+/// affordance on the right. The close control is the shared
+/// [`close_button`] — the same text "Close" every page uses — with its Esc
+/// chord as help, so it reads as leaving a page rather than dismissing a
+/// dialog.
 fn settings_header(k: &Kit) -> El {
     row()
         .h(58.0)
@@ -1056,16 +1091,10 @@ fn settings_header(k: &Kit) -> El {
         )
         .child(spacer())
         .child(
-            pressable(k, "settings-close".to_owned())
-                .size(28.0, 28.0)
-                .center()
-                .focusable(true)
-                .focus_ring(2.0, 1.0, k.c.border_focus)
-                .role("button")
-                .label(t(TextKey::SettingsClose))
-                .help(t(TextKey::SettingsClose))
-                .on_press(|s: &mut State| s.close_settings())
-                .child(icon(&ic::CLOSE, 14.0).color(k.c.icon_muted)),
+            close_button(k, "settings-close", |s: &mut State| {
+                s.close_settings();
+            })
+            .help(t(TextKey::SettingsClose)),
         )
 }
 
@@ -2531,7 +2560,7 @@ const ISSUES_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/issues");
 
 /// Horizontal padding of the help page. Column count is chosen from the width
 /// left after this inset, so the grid and the footer share one measure.
-const HELP_PAD_X: f32 = 24.0;
+const HELP_PAD_X: f32 = 28.0;
 
 /// How the shortcut map fills the main column.
 ///
@@ -3056,7 +3085,9 @@ fn help_panel(s: &State, k: &Kit) -> El {
 
 fn help_header(k: &Kit) -> El {
     row()
-        .h(54.0)
+        // #185: the same 58 pt header and 28 pt inset as Settings, Board and
+        // the Kanban panels, so the shared Close lands on the same centre line.
+        .h(58.0)
         .px(HELP_PAD_X)
         .gap(12.0)
         .center_y()
@@ -3066,18 +3097,9 @@ fn help_header(k: &Kit) -> El {
                 .color(k.c.text_base),
         )
         .child(spacer())
-        .child(
-            pressable(k, "help-close".to_owned())
-                .px(10.0)
-                .py(5.0)
-                .border(1.0, k.c.border_base)
-                .child(
-                    text(t(TextKey::Close))
-                        .font(k.ty.ui_compact)
-                        .color(k.c.text_base),
-                )
-                .on_press(|s: &mut State| s.close_help()),
-        )
+        .child(close_button(k, "help-close", |s: &mut State| {
+            s.close_help();
+        }))
 }
 
 fn help_section(
@@ -3717,18 +3739,9 @@ fn broken_links_panel(s: &State, k: &Kit) -> El {
                         .color(k.c.text_faint),
                 )
                 .child(spacer())
-                .child(
-                    pressable(k, "broken-close".to_owned())
-                        .px(10.0)
-                        .py(4.0)
-                        .border(1.0, k.c.border_muted)
-                        .child(
-                            text(t(TextKey::Close))
-                                .font(k.ty.caption())
-                                .color(k.c.text_muted),
-                        )
-                        .on_press(|s: &mut State| s.close_broken_links()),
-                ),
+                .child(close_button(k, "broken-close", |s: &mut State| {
+                    s.close_broken_links();
+                })),
         )
         .child(divider_h(k))
         .child(
