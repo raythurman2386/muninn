@@ -18,8 +18,10 @@
 //!
 //! # What is here, and what comes later
 //!
-//! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. Today the
-//!   only language is `en-US`.
+//! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. `en-US`
+//!   is the only shippable language; [`Lang::Pseudo`] is a test-only catalog
+//!   that brackets the English so a render check can see which drawn strings
+//!   came from here.
 //! - [`files_skipped`], [`notes`], [`relative_day`], [`restore_to`],
 //!   [`filter_by_tag`], [`board_name_taken`], [`no_note_named`],
 //!   [`linked_note_hint`], [`tray_error`] and [`login_item_error`] are the
@@ -54,33 +56,82 @@
 mod dates;
 mod en_us;
 mod key;
+mod pseudo;
 
 pub use dates::{DateNames, EN_US};
 pub use key::Key;
 
+use std::cell::Cell;
+
 /// A language the UI can draw.
 ///
-/// One variant today. This is the seam for a locale setting: when a setting
-/// exists, it selects a `Lang`, and the catalogs keyed by it grow. There is no
-/// setting, no OS-locale detection and no second catalog yet, and adding a
-/// variant must not change what `en-US` renders.
+/// This is the seam for a locale setting: when a setting exists, it selects a
+/// `Lang`, and the catalogs keyed by it grow. There is no setting and no
+/// OS-locale detection yet, and adding a variant must not change what `en-US`
+/// renders.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Lang {
     /// English (United States): the only language Muninn ships.
     EnUs,
+    /// Pseudo-localisation: a **test and verification language**, not a
+    /// shippable locale.
+    ///
+    /// Every key resolves to its English text wrapped in [`PSEUDO_OPEN`] and
+    /// [`PSEUDO_CLOSE`], so a render check can tell catalog copy from a
+    /// hardcoded literal that was built where the lint cannot see it. Nothing
+    /// selects it in a release build; a test sets it with [`set_lang`] and
+    /// resets to [`Lang::EnUs`].
+    Pseudo,
+}
+
+thread_local! {
+    /// The language this thread draws in.
+    ///
+    /// Thread-local rather than global so tests in one binary can render in
+    /// different languages at the same time; a real locale picker would set it
+    /// on the UI thread.
+    static CURRENT: Cell<Lang> = const { Cell::new(Lang::EnUs) };
+}
+
+/// Sets the language [`Lang::current`] returns for **this thread**.
+///
+/// This is the seam a future locale picker will call, and the hook tests use to
+/// render in [`Lang::Pseudo`]. Release builds never call it, so the default
+/// stays [`Lang::EnUs`] and output is unchanged. Set it back to [`Lang::EnUs`]
+/// when a test is done: tests in the same binary share a thread pool, not a
+/// language.
+///
+/// # Examples
+///
+/// ```
+/// use muninn_i18n::{set_lang, Lang, Key, t};
+///
+/// let before = Lang::current();
+/// set_lang(Lang::Pseudo);
+/// assert_eq!(t(Key::Save), "⟦Save⟧");
+/// set_lang(before);
+/// assert_eq!(t(Key::Save), "Save");
+/// ```
+pub fn set_lang(lang: Lang) {
+    CURRENT.with(|current| current.set(lang));
 }
 
 impl Lang {
-    /// The language the UI is drawing in.
+    /// The language the UI is drawing in for this thread.
     ///
-    /// Always [`Lang::EnUs`] today, because no locale setting exists. Draw
-    /// code should call [`t`] and let this decide, rather than pinning a
-    /// language at the call site, so a future setting only changes this
-    /// function.
-    pub const fn current() -> Lang {
-        Lang::EnUs
+    /// [`Lang::EnUs`] unless a test called [`set_lang`]. Draw code should call
+    /// [`t`] and let this decide, rather than pinning a language at the call
+    /// site, so a future setting only changes this function.
+    pub fn current() -> Lang {
+        CURRENT.with(Cell::get)
     }
 }
+
+/// The opening marker of a [`Lang::Pseudo`] string.
+pub const PSEUDO_OPEN: char = '⟦';
+
+/// The closing marker of a [`Lang::Pseudo`] string.
+pub const PSEUDO_CLOSE: char = '⟧';
 
 /// The text for `key` in the current UI language ([`Lang::current`]).
 ///
@@ -103,16 +154,22 @@ pub fn t(key: Key) -> &'static str {
 /// Use this in tests and in anything that deliberately renders a language
 /// other than the UI's. Draw code should normally call [`t`].
 ///
+/// [`Lang::Pseudo`] returns the English text wrapped in [`PSEUDO_OPEN`] and
+/// [`PSEUDO_CLOSE`]; that catalog is built once per process, so a render loop
+/// pays no allocation per frame.
+///
 /// # Examples
 ///
 /// ```
 /// use muninn_i18n::{t_in, Key, Lang};
 ///
 /// assert_eq!(t_in(Lang::EnUs, Key::Save), "Save");
+/// assert_eq!(t_in(Lang::Pseudo, Key::Save), "⟦Save⟧");
 /// ```
 pub fn t_in(lang: Lang, key: Key) -> &'static str {
     match lang {
         Lang::EnUs => en_us::text(key),
+        Lang::Pseudo => pseudo::text(key),
     }
 }
 
