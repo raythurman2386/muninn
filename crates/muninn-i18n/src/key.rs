@@ -44,6 +44,21 @@ macro_rules! keys {
                     $(Key::$variant => $id,)*
                 }
             }
+
+            /// Position of this key in [`Key::ALL`].
+            ///
+            /// Private: the pseudo catalog stores one text per key in
+            /// declaration order, so it needs the position without a scan.
+            pub(crate) const fn index(self) -> usize {
+                let mut index = 0usize;
+                $(
+                    if let Key::$variant = self {
+                        return index;
+                    }
+                    index += 1;
+                )*
+                index
+            }
         }
     };
 }
