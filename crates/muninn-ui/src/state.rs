@@ -12,6 +12,20 @@ use muninn_core::{
     KanbanView, ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag,
 };
 use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
+use muninn_i18n::{
+    Key as TextKey, attachment_not_in_vault, cannot_import, cannot_open_without_note,
+    could_not_add_note_template, could_not_create_folder, could_not_create_note,
+    could_not_create_vault, could_not_delete_folder, could_not_delete_note, could_not_empty_trash,
+    could_not_import_into, could_not_move_note, could_not_open_file, could_not_open_vault,
+    could_not_persist_kanban_recovery, could_not_persist_recovery, could_not_read_note_state,
+    could_not_read_recovery, could_not_read_vault, could_not_recreate_note,
+    could_not_recreate_note_folder, could_not_reload_note, could_not_rename_folder,
+    could_not_rename_note, could_not_restore, could_not_reveal_file, could_not_save,
+    could_not_save_copy, import_partly_refused, import_refused, links_not_updated,
+    moved_links_failed, not_a_file, note_not_in_vault, path_gone, refused_already_exists,
+    refused_not_a_file, refused_unsupported_type, refusing_unsafe_recovery_path,
+    renamed_links_failed, scan_cancelled, t,
+};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::{Camera, CameraGlide};
@@ -171,8 +185,8 @@ impl ConflictState {
     #[must_use]
     pub fn message(&self) -> &'static str {
         match self.reason {
-            ConflictReason::Modified => "External change detected",
-            ConflictReason::Deleted => "file deleted externally",
+            ConflictReason::Modified => t(TextKey::ConflictExternalChange),
+            ConflictReason::Deleted => t(TextKey::ConflictFileDeleted),
         }
     }
 }
@@ -377,9 +391,6 @@ const NOTE_EDITOR_CAP: usize = 24;
 /// sub-frame load would flash for no reason. Larger vaults read their bodies in
 /// bounded chunks from [`crate::poll`], one frame at a time.
 pub(crate) const SCAN_SYNC_LIMIT: usize = 100;
-
-/// Shown when a vault rescan is refused because the open board cannot be saved.
-const RESCAN_BOARD_REFUSED: &str = "Save the current board before rescanning the vault";
 
 /// Note bodies read per poll tick. Reading is the expensive part (the walk is
 /// metadata only); 50 keeps a tick far below one frame on a cold cache while a
@@ -888,10 +899,7 @@ impl State {
             }
             Err(e) => {
                 eprintln!("muninn: cannot read {}: {e}", root.display());
-                (
-                    Vault::empty(root.clone()),
-                    Some(format!("Could not read the vault: {e}")),
-                )
+                (Vault::empty(root.clone()), Some(could_not_read_vault(e)))
             }
         };
         let loading = scan.is_some();
@@ -1278,7 +1286,7 @@ impl State {
             .as_ref()
             .is_some_and(|shown| shown.rel == rel && shown.dirty());
         if kanban_pending && let Err(e) = self.kanban_recovery_tick() {
-            self.error = Some(format!("Could not persist kanban recovery copy: {e}"));
+            self.error = Some(could_not_persist_kanban_recovery(e));
         }
         self.trace_log("autosave", rel);
     }
@@ -1375,7 +1383,7 @@ impl State {
     pub fn open_vault(&mut self, raw: &str) -> bool {
         let raw = raw.trim();
         if raw.is_empty() {
-            self.error = Some("Enter a vault folder path".to_owned());
+            self.error = Some(t(TextKey::ErrorEnterVaultPath).to_owned());
             return false;
         }
         self.switch_vault(expand_path(raw))
@@ -1385,12 +1393,12 @@ impl State {
     pub fn create_vault(&mut self, raw: &str) -> bool {
         let raw = raw.trim();
         if raw.is_empty() {
-            self.error = Some("Enter a folder path for the new vault".to_owned());
+            self.error = Some(t(TextKey::ErrorEnterNewVaultPath).to_owned());
             return false;
         }
         let path = expand_path(raw);
         if let Err(e) = fs::create_dir_all(&path) {
-            self.error = Some(format!("Could not create the vault: {e}"));
+            self.error = Some(could_not_create_vault(e));
             return false;
         }
         self.switch_vault(path)
@@ -1403,19 +1411,18 @@ impl State {
     pub fn switch_vault(&mut self, root: PathBuf) -> bool {
         self.flush();
         if self.dirty() {
-            self.error =
-                Some("Save or resolve the current note before switching vaults".to_owned());
+            self.error = Some(t(TextKey::ErrorSaveNoteBeforeSwitch).to_owned());
             return false;
         }
         // The open board saves into the vault it came from, before that
         // vault is let go; a board that cannot be saved blocks the switch.
         if !self.save_board() {
-            self.error = Some("Save the current board before switching vaults".to_owned());
+            self.error = Some(t(TextKey::ErrorSaveBoardBeforeSwitch).to_owned());
             return false;
         }
         // Kanban slice 4: the same for unsaved kanban edits.
         if !self.save_kanban() {
-            self.error = Some("Save the current kanban before switching vaults".to_owned());
+            self.error = Some(t(TextKey::ErrorSaveKanbanBeforeSwitch).to_owned());
             return false;
         }
         let started = Instant::now();
@@ -1478,7 +1485,7 @@ impl State {
             }
             Err(e) => {
                 self.log_event("open-failed", &format!("{}: {e}", root.display()));
-                self.error = Some(format!("Could not open the vault: {e}"));
+                self.error = Some(could_not_open_vault(e));
                 false
             }
         }
@@ -1819,7 +1826,7 @@ impl State {
             }
             Err(e) => {
                 self.expected_disk = None;
-                self.error = Some(format!("Could not read note state: {e}"));
+                self.error = Some(could_not_read_note_state(e));
             }
         }
         if focus && self.mode == Mode::Editor {
@@ -3254,7 +3261,7 @@ impl State {
                     return true;
                 }
                 Err(e) => {
-                    self.error = Some(format!("Could not save: {e}"));
+                    self.error = Some(could_not_save(e));
                     return false;
                 }
             },
@@ -3288,7 +3295,7 @@ impl State {
             // dirty state and the in-memory note still matches the old file.
             Err(e) => {
                 self.log_save_failure(&e);
-                self.error = Some(format!("Could not save: {e}"));
+                self.error = Some(could_not_save(e));
                 false
             }
         }
@@ -3366,7 +3373,7 @@ impl State {
                 Err(e) => {
                     // Retry at the max-age cadence, not every frame.
                     self.recovery_written_at = Some(t);
-                    self.error = Some(format!("Could not persist recovery copy: {e}"));
+                    self.error = Some(could_not_persist_recovery(e));
                 }
             }
         }
@@ -3455,7 +3462,7 @@ impl State {
                 }
                 Ok(_) => false,
                 Err(e) => {
-                    self.error = Some(format!("Could not read recovery copy: {e}"));
+                    self.error = Some(could_not_read_recovery(e));
                     false
                 }
             };
@@ -3483,15 +3490,14 @@ impl State {
         let text = match self.recovery.load(rel) {
             Ok(text) => text,
             Err(e) => {
-                self.error = Some(format!("Could not read recovery copy: {e}"));
+                self.error = Some(could_not_read_recovery(e));
                 return false;
             }
         };
         // Never silently replace a different dirty buffer that is still open.
         self.flush();
         if self.dirty() {
-            self.error =
-                Some("Save or discard the current note before restoring another".to_owned());
+            self.error = Some(t(TextKey::ErrorSaveNoteBeforeRestore).to_owned());
             return false;
         }
         let path = self.vault.notes[id].path.clone();
@@ -3520,7 +3526,7 @@ impl State {
         // restored buffer recoverable until it is saved again.
         let buffer = self.editor.text.clone();
         if let Err(e) = self.recovery.save(rel, &buffer) {
-            self.error = Some(format!("Could not persist recovery copy: {e}"));
+            self.error = Some(could_not_persist_recovery(e));
         }
         self.log_event("recovery", &format!("restored {rel}"));
         self.recovered
@@ -3555,23 +3561,23 @@ impl State {
         let text = match self.recovery.load(rel) {
             Ok(text) => text,
             Err(e) => {
-                self.error = Some(format!("Could not read recovery copy: {e}"));
+                self.error = Some(could_not_read_recovery(e));
                 return false;
             }
         };
         if !safe_rel(rel) {
-            self.error = Some(format!("Refusing unsafe recovery path {rel}"));
+            self.error = Some(refusing_unsafe_recovery_path(rel));
             return false;
         }
         let path = self.vault.root.join(rel);
         if let Some(parent) = path.parent()
             && let Err(e) = fs::create_dir_all(parent)
         {
-            self.error = Some(format!("Could not recreate note folder: {e}"));
+            self.error = Some(could_not_recreate_note_folder(e));
             return false;
         }
         if let Err(e) = fs::write(&path, &text) {
-            self.error = Some(format!("Could not recreate note: {e}"));
+            self.error = Some(could_not_recreate_note(e));
             return false;
         }
         // The text is on disk now, so this copy has served its purpose.
@@ -3692,7 +3698,7 @@ impl State {
                 true
             }
             Err(e) => {
-                self.error = Some(format!("Could not save: {e}"));
+                self.error = Some(could_not_save(e));
                 self.conflict = Some(conflict);
                 false
             }
@@ -3713,7 +3719,7 @@ impl State {
                 true
             }
             Err(e) => {
-                self.error = Some(format!("Could not reload the note: {e}"));
+                self.error = Some(could_not_reload_note(e));
                 self.conflict = Some(conflict);
                 false
             }
@@ -3738,13 +3744,13 @@ impl State {
         let path = match self.vault.create_note_in(&title, &folder) {
             Ok(path) => path,
             Err(e) => {
-                self.error = Some(format!("Could not save a copy: {e}"));
+                self.error = Some(could_not_save_copy(e));
                 self.conflict = Some(conflict);
                 return false;
             }
         };
         if let Err(e) = fs::write(&path, mine) {
-            self.error = Some(format!("Could not save a copy: {e}"));
+            self.error = Some(could_not_save_copy(e));
             self.conflict = Some(conflict);
             return false;
         }
@@ -3761,7 +3767,7 @@ impl State {
                 self.refresh_index_only();
             }
             Err(e) => {
-                self.error = Some(format!("Could not reload the note: {e}"));
+                self.error = Some(could_not_reload_note(e));
                 self.conflict = Some(conflict);
                 return false;
             }
@@ -3890,7 +3896,7 @@ impl State {
                 self.search.focused = false;
                 self.refresh_watch();
             }
-            Err(e) => self.error = Some(format!("Could not read the vault: {e}")),
+            Err(e) => self.error = Some(could_not_read_vault(e)),
         }
     }
 
@@ -3903,7 +3909,7 @@ impl State {
     /// dropped by the vault the scan installs.
     pub fn retry_startup(&mut self) -> bool {
         if !self.save_board() {
-            self.error = Some(RESCAN_BOARD_REFUSED.to_owned());
+            self.error = Some(t(TextKey::ErrorSaveBoardBeforeRescan).to_owned());
             return false;
         }
         match Vault::scan_start(&self.vault.root) {
@@ -3924,7 +3930,7 @@ impl State {
                 true
             }
             Err(e) => {
-                self.startup_error = Some(format!("Could not read the vault: {e}"));
+                self.startup_error = Some(could_not_read_vault(e));
                 false
             }
         }
@@ -3991,7 +3997,7 @@ impl State {
         self.scan_started = None;
         self.restore_after_scan = None;
         self.scan_field.focused = false;
-        self.startup_error = Some(format!("Scan cancelled after {done} of {total} notes"));
+        self.startup_error = Some(scan_cancelled(done, total));
         self.log_event("scan-cancelled", &format!("done={done} total={total}"));
         true
     }
@@ -4012,7 +4018,7 @@ impl State {
         if !self.save_board() {
             self.restore_after_scan = None;
             self.scan_field.focused = false;
-            self.error = Some(RESCAN_BOARD_REFUSED.to_owned());
+            self.error = Some(t(TextKey::ErrorSaveBoardBeforeRescan).to_owned());
             return false;
         }
         self.vault = vault;
@@ -4252,18 +4258,16 @@ impl State {
                 });
                 self.reload(select);
                 if skipped.is_some() {
-                    let name = skipped_name.unwrap_or_else(|| "the kanban".to_owned());
-                    self.notice = Some(format!("Links in {name} were not updated"));
+                    self.notice = Some(links_not_updated(skipped_name.as_deref()));
                 }
                 if !failures.is_empty() {
-                    self.error = Some(format!(
-                        "Renamed, but {} inbound link file(s) could not be rewritten: {}",
+                    self.error = Some(renamed_links_failed(
                         failures.len(),
-                        self.format_rewrite_failures(&failures)
+                        &self.format_rewrite_failures(&failures),
                     ));
                 }
             }
-            Err(e) => self.error = Some(format!("Could not rename note: {e}")),
+            Err(e) => self.error = Some(could_not_rename_note(e)),
         }
     }
 
@@ -4379,14 +4383,14 @@ impl State {
                         self.burn = burn;
                         self.trash_undo = Some(TrashUndo { label, trash_rel });
                     }
-                    Err(e) => self.error = Some(format!("Could not delete note: {e}")),
+                    Err(e) => self.error = Some(could_not_delete_note(e)),
                 }
             }
             DeleteConfirm::Folder(folder) => {
                 self.trash_undo = None;
                 match self.vault.delete_folder(&folder) {
                     Ok(()) => self.reload(self.selected_path.clone()),
-                    Err(e) => self.error = Some(format!("Could not delete folder: {e}")),
+                    Err(e) => self.error = Some(could_not_delete_folder(e)),
                 }
             }
         }
@@ -4407,7 +4411,7 @@ impl State {
                 true
             }
             Err(e) => {
-                self.error = Some(format!("Could not restore {}: {e}", undo.label));
+                self.error = Some(could_not_restore(&undo.label, e));
                 self.trash_undo = Some(undo);
                 false
             }
@@ -4429,12 +4433,12 @@ impl State {
             Ok(()) => {
                 self.trash_undo = None;
                 self.error = None;
-                self.notice = Some("Trash emptied".to_owned());
+                self.notice = Some(t(TextKey::StatusTrashEmptied).to_owned());
                 self.log_event("trash-empty", &format!("files={files} bytes={bytes}"));
                 true
             }
             Err(e) => {
-                self.error = Some(format!("Could not empty trash: {e}"));
+                self.error = Some(could_not_empty_trash(e));
                 false
             }
         }
@@ -4521,14 +4525,13 @@ impl State {
                 }
                 self.reload(Some(path));
                 if !failures.is_empty() {
-                    self.error = Some(format!(
-                        "Moved, but {} inbound link file(s) could not be rewritten: {}",
+                    self.error = Some(moved_links_failed(
                         failures.len(),
-                        self.format_rewrite_failures(&failures)
+                        &self.format_rewrite_failures(&failures),
                     ));
                 }
             }
-            Err(e) => self.error = Some(format!("Could not move note: {e}")),
+            Err(e) => self.error = Some(could_not_move_note(e)),
         }
     }
 
@@ -4556,7 +4559,7 @@ impl State {
                 // An empty folder has no notes so grouping won't show it;
                 // keep the parent expanded so the next inline field is visible.
             }
-            Err(e) => self.error = Some(format!("Could not create folder: {e}")),
+            Err(e) => self.error = Some(could_not_create_folder(e)),
         }
     }
 
@@ -4677,22 +4680,17 @@ impl State {
                 // Format before reload: reopening can reorder ids, and these
                 // failures name notes in the rewritten (pre-reload) vault.
                 let failure_message = (!failures.is_empty()).then(|| {
-                    format!(
-                        "Renamed, but {} inbound link file(s) could not be rewritten: {}",
-                        failures.len(),
-                        self.format_rewrite_failures(&failures)
-                    )
+                    renamed_links_failed(failures.len(), &self.format_rewrite_failures(&failures))
                 });
                 self.reload(select);
                 if skipped.is_some() {
-                    let name = skipped_name.unwrap_or_else(|| "the kanban".to_owned());
-                    self.notice = Some(format!("Links in {name} were not updated"));
+                    self.notice = Some(links_not_updated(skipped_name.as_deref()));
                 }
                 if failure_message.is_some() {
                     self.error = failure_message;
                 }
             }
-            Err(e) => self.error = Some(format!("Could not rename folder: {e}")),
+            Err(e) => self.error = Some(could_not_rename_folder(e)),
         }
     }
 
@@ -4827,7 +4825,7 @@ impl State {
         match self.vault.create_note_in(title, folder) {
             Ok(path) => {
                 if let Err(e) = self.apply_note_template(&path) {
-                    self.error = Some(format!("Could not add the note template: {e}"));
+                    self.error = Some(could_not_add_note_template(e));
                 }
                 self.reload(Some(path));
                 self.mode = Mode::Editor;
@@ -4836,7 +4834,7 @@ impl State {
                 self.editor.anchor = end;
                 self.editor.focus = end;
             }
-            Err(e) => self.error = Some(format!("Could not create a note: {e}")),
+            Err(e) => self.error = Some(could_not_create_note(e)),
         }
     }
 
@@ -4909,7 +4907,7 @@ impl State {
         match self.vault.notes.get(id).map(|note| note.path.clone()) {
             Some(path) => self.run_file_action(action, &path),
             None => {
-                self.error = Some(format!("Note {id} is no longer in this vault"));
+                self.error = Some(note_not_in_vault(id));
                 false
             }
         }
@@ -4920,13 +4918,11 @@ impl State {
     /// runs, so a stale embed reports a clear error.
     pub fn open_attachment(&mut self, target: &str) -> bool {
         let Some(current) = self.selected else {
-            self.error = Some(format!("Cannot open {target}: no note is selected"));
+            self.error = Some(cannot_open_without_note(target));
             return false;
         };
         let Some(path) = self.vault.attachment_path(target, current) else {
-            self.error = Some(format!(
-                "Attachment {target} is not in this vault — drop it in, or fix the embed"
-            ));
+            self.error = Some(attachment_not_in_vault(target));
             return false;
         };
         self.open_externally(&path)
@@ -4936,11 +4932,11 @@ impl State {
         let absolute = match fs::canonicalize(path) {
             Ok(path) if path.is_file() => path,
             Ok(_) => {
-                self.error = Some(format!("{} is not a file", path.display()));
+                self.error = Some(not_a_file(path.display()));
                 return false;
             }
             Err(_) => {
-                self.error = Some(format!("{} no longer exists", path.display()));
+                self.error = Some(path_gone(path.display()));
                 return false;
             }
         };
@@ -4969,11 +4965,14 @@ impl State {
                 true
             }
             Err(error) => {
-                self.error = Some(format!(
-                    "Could not {verb} {}: {error}. {}",
-                    absolute.display(),
-                    opener_hint()
-                ));
+                self.error = Some(match action {
+                    FileAction::Open => {
+                        could_not_open_file(absolute.display(), error, opener_hint())
+                    }
+                    FileAction::Reveal => {
+                        could_not_reveal_file(absolute.display(), error, opener_hint())
+                    }
+                });
                 false
             }
         }
@@ -4999,10 +4998,7 @@ impl State {
             self.vault.root.join(&folder)
         };
         if let Err(error) = fs::create_dir_all(&dest_dir) {
-            self.error = Some(format!(
-                "Could not import into {}: {error}",
-                dest_dir.display()
-            ));
+            self.error = Some(could_not_import_into(dest_dir.display(), error));
             return report;
         }
         let mut first_note: Option<PathBuf> = None;
@@ -5012,7 +5008,7 @@ impl State {
                 .map(|name| name.to_string_lossy().into_owned())
                 .unwrap_or_else(|| source.display().to_string());
             if !source.is_file() {
-                report.refused.push(format!("{name}: not a file"));
+                report.refused.push(refused_not_a_file(&name));
                 continue;
             }
             let extension = source
@@ -5022,17 +5018,13 @@ impl State {
             let Some(extension) =
                 extension.filter(|extension| IMPORT_EXTENSIONS.contains(&extension.as_str()))
             else {
-                report
-                    .refused
-                    .push(format!("{name}: unsupported file type"));
+                report.refused.push(refused_unsupported_type(&name));
                 continue;
             };
             let some_name = source.file_name().unwrap_or(OsStr::new(""));
             let dest = dest_dir.join(some_name);
             if dest.exists() {
-                report
-                    .refused
-                    .push(format!("{name}: already exists in this folder"));
+                report.refused.push(refused_already_exists(&name));
                 continue;
             }
             match atomic_copy(source, &dest) {
@@ -5063,13 +5055,12 @@ impl State {
         } else {
             self.notice = report.changed().then(|| import_notice(&report));
             self.error = Some(if report.imported.is_empty() {
-                format!("Import refused: {}", report.refused.join("; "))
+                import_refused(&report.refused.join("; "))
             } else {
-                format!(
-                    "Imported {} of {}; refused: {}",
+                import_partly_refused(
                     report.imported.len(),
                     report.imported.len() + report.refused.len(),
-                    report.refused.join("; ")
+                    &report.refused.join("; "),
                 )
             });
         }
@@ -5088,10 +5079,7 @@ impl State {
             })
             .collect();
         self.notice = None;
-        self.error = Some(format!(
-            "Cannot import {}: drop .md, png, jpg, jpeg, gif, webp or pdf files",
-            names.join(", ")
-        ));
+        self.error = Some(cannot_import(&names.join(", ")));
     }
 
     /// Create a note for an unresolved link. A path-qualified target names its
@@ -5348,7 +5336,7 @@ pub fn file_action_command(
     #[cfg(not(any(unix, target_os = "windows")))]
     {
         let _ = (action, path);
-        Err("No file opener is documented for this platform; open the file manually".to_owned())
+        Err(muninn_i18n::no_file_opener().to_owned())
     }
 }
 
@@ -5356,19 +5344,19 @@ pub fn file_action_command(
 fn opener_hint() -> &'static str {
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        "Install xdg-utils (for xdg-open) or open the file manually."
+        t(TextKey::ErrorOpenerHintUnix)
     }
     #[cfg(target_os = "macos")]
     {
-        "The system `open` command failed; open the file from Finder."
+        t(TextKey::ErrorOpenerHintMacos)
     }
     #[cfg(target_os = "windows")]
     {
-        "The system opener failed; open the file from Explorer."
+        t(TextKey::ErrorOpenerHintWindows)
     }
     #[cfg(not(any(unix, target_os = "windows")))]
     {
-        "Open the file manually."
+        t(TextKey::ErrorOpenerHintOther)
     }
 }
 
@@ -5377,19 +5365,11 @@ fn opener_hint() -> &'static str {
 /// never replaces an existing file.
 /// One status line for an import: counts, and why the sidebar may stay empty.
 fn import_notice(report: &ImportReport) -> String {
-    let files = report.imported.len();
-    let mut text = format!("Imported {files} file{}", if files == 1 { "" } else { "s" });
-    if report.notes > 0 {
-        text.push_str(&format!(
-            " · {} note{}",
-            report.notes,
-            if report.notes == 1 { "" } else { "s" }
-        ));
-    }
-    if files > report.notes {
-        text.push_str(" · non-Markdown files stay attachments");
-    }
-    text
+    muninn_i18n::import_notice(
+        report.imported.len(),
+        report.notes,
+        report.imported.len() > report.notes,
+    )
 }
 
 /// Clamp a byte offset to `text` and step back to the nearest character

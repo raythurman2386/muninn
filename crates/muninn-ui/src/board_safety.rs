@@ -30,6 +30,10 @@ use std::io;
 use std::time::Duration;
 
 use muninn_core::Board;
+use muninn_i18n::{
+    Key as TextKey, board_quit_refused, could_not_persist_board_recovery, could_not_read_recovery,
+    refusing_unsafe_recovery_path, t,
+};
 
 use crate::board_tools::fingerprint;
 use crate::board_view::{BoardStatus, OpenBoard};
@@ -41,9 +45,6 @@ use crate::{Mode, State};
 /// edit (or an editor opened) by it is seen by the recovery copy without
 /// waiting for more input.
 pub(crate) const BOARD_EDIT_WAKE: Duration = Duration::from_millis(50);
-
-/// Why a quit was refused.
-const QUIT_REFUSED: &str = "Board not saved and no recovery copy could be written";
 
 /// `true` for a vault-relative path that names a board.
 #[must_use]
@@ -137,7 +138,7 @@ impl State {
         }
         self.board_recovery_wait = None;
         if let Err(e) = self.board_recovery_tick() {
-            let message = format!("Could not persist board recovery copy: {e}");
+            let message = could_not_persist_board_recovery(e);
             if self.error.as_deref() != Some(message.as_str()) {
                 self.error = Some(message);
             }
@@ -252,26 +253,25 @@ impl State {
         if !crate::state::safe_rel(rel)
             || !inside_vault(&self.vault.root, &self.vault.root.join(rel))
         {
-            self.error = Some(format!("Refusing unsafe recovery path {rel}"));
+            self.error = Some(refusing_unsafe_recovery_path(rel));
             return false;
         }
         let text = match self.recovery.load(rel) {
             Ok(text) => text,
             Err(e) => {
-                self.error = Some(format!("Could not read recovery copy: {e}"));
+                self.error = Some(could_not_read_recovery(e));
                 return false;
             }
         };
         let model = match Board::from_json(&text) {
             Ok(model) => model,
             Err(e) => {
-                self.error = Some(format!("Could not read recovery copy: {e}"));
+                self.error = Some(could_not_read_recovery(e));
                 return false;
             }
         };
         if self.board_dirty() && !self.save_board() {
-            self.error =
-                Some("Save or discard the current board before restoring another".to_owned());
+            self.error = Some(t(TextKey::ErrorSaveBoardBeforeRestore).to_owned());
             return false;
         }
         let path = self.vault.root.join(rel);
@@ -294,7 +294,7 @@ impl State {
             .board_open
             .as_ref()
             .is_some_and(|open| open.recovered_at == Some(open.generation));
-        let why = match quit_rule(saved, &copied, current, "board") {
+        let why = match quit_rule(saved, &copied, current, t(TextKey::ErrorDocumentBoard)) {
             Ok(()) => {
                 if !saved {
                     self.log_event("board", "not saved; kept in the recovery copy");
@@ -303,9 +303,7 @@ impl State {
             }
             Err(why) => why,
         };
-        self.error = Some(format!(
-            "{QUIT_REFUSED}: {why}. Use Save copy or fix the folder, then quit again."
-        ));
+        self.error = Some(board_quit_refused(&why));
         false
     }
 

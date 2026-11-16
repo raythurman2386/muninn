@@ -1955,7 +1955,7 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                     if action == "copy_link" {
                         if let Some(link) = s.copy_open_card_link() {
                             tx.copy(link);
-                            s.notice = Some("Copied a link to the card".to_owned());
+                            s.notice = Some(t(TextKey::StatusLinkCopied).to_owned());
                         }
                     } else {
                         s.pick_menu(action);
@@ -4908,19 +4908,19 @@ fn conflict_bar(s: &State, k: &Kit) -> El {
         .child(spacer())
         .child(status_button(
             k,
-            "Keep mine",
+            t(TextKey::ConflictKeepMine),
             "conflict-keep-mine",
             State::resolve_conflict_keep_mine,
         ))
         .child(status_button(
             k,
-            "Load theirs",
+            t(TextKey::ConflictLoadTheirs),
             "conflict-load-theirs",
             State::resolve_conflict_load_theirs,
         ))
         .child(status_button(
             k,
-            "Save copy",
+            t(TextKey::ConflictSaveCopy),
             "conflict-save-copy",
             State::resolve_conflict_save_copy,
         ))
