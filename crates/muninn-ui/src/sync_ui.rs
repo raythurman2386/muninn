@@ -10,7 +10,16 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use muninn_i18n::{Key as TextKey, t};
+use muninn_i18n::{
+    Key as TextKey, browser_failed, connected_as, device_code, last_sync, shared_key_copied,
+    sign_in_failed, sync_authentication_needed, sync_conflict_copies, sync_conflicts,
+    sync_credentials_unavailable, sync_dirty_buffer, sync_excluded, sync_file_error,
+    sync_key_rotation_failed, sync_limit_exceeded, sync_listing_incomplete, sync_local_changed,
+    sync_not_configured, sync_nothing_saved, sync_now_after_error, sync_oauth_scope_rejected,
+    sync_offline, sync_outcome_unknown, sync_permission_denied, sync_previous_credential,
+    sync_provider_error, sync_rate_limited_after, sync_remote_changed, sync_remote_scope_not_found,
+    sync_unsupported, t, tailnet_hosting, tailnet_hosting_ready,
+};
 use muninn_sync::{
     BindingId, CancelToken, CredentialStore, MemoryCredentialStore, NativeCredentialStore,
     OperationId, ProviderKind, Resolution, RunRequest, Secret, SyncReport, TAILNET_DEFAULT_PORT,
@@ -26,10 +35,6 @@ pub const TAILNET_KEY_CLIPBOARD: Duration = Duration::from_secs(60);
 
 /// Default Drive store name. Two vaults on one Google account need two names.
 pub const DEFAULT_DRIVE_STORE: &str = "Muninn";
-
-/// The Sync tab's status when this vault has no saved binding.
-pub const NOT_CONNECTED: &str =
-    "Not connected. Choose a provider and an explicit remote, then Connect.";
 
 pub struct SyncUi {
     pub provider_index: usize,
@@ -185,7 +190,7 @@ impl SyncUi {
     fn with_store(credentials: Arc<dyn CredentialStore>) -> Self {
         Self {
             provider_index: 0,
-            status: NOT_CONNECTED.to_owned(),
+            status: t(TextKey::SyncStatusNotConnected).to_owned(),
             github_owner: TextEdit::new(""),
             github_repo: TextEdit::new(""),
             github_branch: TextEdit::new("muninn-sync"),
@@ -264,13 +269,12 @@ impl State {
 
     pub fn set_tailnet_role(&mut self, index: usize) {
         self.sync_ui.tailnet_role_index = usize::from(index == 1);
-        self.sync_ui.status = if self.sync_ui.tailnet_role_index == 0 {
-            "This device hosts. Muninn serves the commit store on 127.0.0.1 while it is open; tailscale serve publishes it to your tailnet."
-                .to_owned()
+        self.sync_ui.status = t(if self.sync_ui.tailnet_role_index == 0 {
+            TextKey::SyncStatusTailnetHost
         } else {
-            "Join a host. Enter the host's full MagicDNS name and paste the key from Copy key on the host."
-                .to_owned()
-        };
+            TextKey::SyncStatusTailnetJoin
+        })
+        .to_owned();
     }
 
     /// Starts the Tailscale commit-store server if this vault's binding hosts
@@ -287,11 +291,7 @@ impl State {
         }
         match self.start_tailnet_host(&binding) {
             Ok(host) => {
-                self.sync_ui.status = format!(
-                    "Hosting on 127.0.0.1:{}. On this device run: {}",
-                    host.addr().port(),
-                    host.serve_command()
-                );
+                self.sync_ui.status = tailnet_hosting(host.addr().port(), &host.serve_command());
                 self.sync_ui.host = Some(host);
             }
             Err(error) => self.sync_ui.status = error,
@@ -312,7 +312,7 @@ impl State {
             // Keep a failed Connect's reason visible: it is the only place it
             // is shown, and Sync Now repeats it.
             if self.sync_ui.sign_in_error.is_none() {
-                self.sync_ui.status = NOT_CONNECTED.to_owned();
+                self.sync_ui.status = t(TextKey::SyncStatusNotConnected).to_owned();
             }
             return;
         };
@@ -364,20 +364,16 @@ impl State {
         }
         self.sync_ui.status = if binding.provider == "tailscale" {
             // The Tailscale secret is a shared key, not an OAuth token.
-            "Connected. The shared key is in the OS credential store. Sync Now when ready."
-                .to_owned()
+            t(TextKey::SyncStatusConnectedSharedKey).to_owned()
         } else if binding.account.is_empty() {
-            "Connected. The token is in the OS credential store. Sync Now when ready.".to_owned()
+            t(TextKey::SyncStatusConnectedToken).to_owned()
         } else {
-            format!(
-                "Connected as {}. The token is in the OS credential store. Sync Now when ready.",
-                binding.account
-            )
+            connected_as(&binding.account)
         };
     }
 
     fn start_tailnet_host(&self, binding: &VaultSyncBinding) -> Result<TailnetHost, String> {
-        let id = BindingId::parse(&binding.binding_id).map_err(|error| error.to_string())?;
+        let id = BindingId::parse(&binding.binding_id).map_err(|error| sync_error_text(&error))?;
         let key = muninn_sync::CredentialKey {
             provider: ProviderKind::Tailscale,
             binding: id.clone(),
@@ -386,11 +382,8 @@ impl State {
             .sync_ui
             .credentials
             .get(&key)
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| {
-                "The Tailscale shared key is missing from the credential store. Disconnect and connect again."
-                    .to_owned()
-            })?;
+            .map_err(|error| sync_error_text(&error))?
+            .ok_or_else(|| t(TextKey::SyncErrorTailnetKeyMissing).to_owned())?;
         TailnetHost::start(TailnetHostConfig {
             port: binding.tailnet_port,
             store_dir: muninn_sync::tailnet_store_dir(&self.state_home.join("sync"), &id),
@@ -403,14 +396,12 @@ impl State {
                 .map(str::to_owned)
                 .collect(),
         })
-        .map_err(|error| error.to_string())
+        .map_err(|error| sync_error_text(&error))
     }
 
     pub fn connect_sync(&mut self) {
         if !self.sync_ui.phase.is_idle() {
-            self.sync_ui.status =
-                "Wait for the running sync or sign-in to finish, or Disconnect to cancel it."
-                    .to_owned();
+            self.sync_ui.status = t(TextKey::SyncStatusWaitForRun).to_owned();
             return;
         }
         if let Some(reason) = &self.settings.sync.disabled_reason {
@@ -418,8 +409,7 @@ impl State {
             return;
         }
         let Ok(identity) = VaultIdentity::of_canonical(&self.vault.root) else {
-            self.sync_ui.status =
-                "This vault folder cannot be canonicalized, so it cannot be bound.".to_owned();
+            self.sync_ui.status = t(TextKey::SyncErrorVaultNotCanonical).to_owned();
             return;
         };
         let provider = match self.sync_ui.provider_index {
@@ -435,8 +425,7 @@ impl State {
             && (self.sync_ui.github_owner.text.trim().is_empty()
                 || self.sync_ui.github_repo.text.trim().is_empty())
         {
-            self.sync_ui.status =
-                "Enter the GitHub owner and repository before connecting.".to_owned();
+            self.sync_ui.status = t(TextKey::SyncErrorGithubScope).to_owned();
             return;
         }
         if provider == "google_drive" {
@@ -444,7 +433,7 @@ impl State {
                 store: self.sync_ui.drive_store.text.trim().to_owned(),
             };
             if let Err(error) = scope.validate() {
-                self.sync_ui.status = error.to_string();
+                self.sync_ui.status = sync_error_text(&error);
                 return;
             }
         }
@@ -463,7 +452,7 @@ impl State {
         let client = match client {
             Ok(client) => client,
             Err(error) => {
-                self.sync_ui.status = error.to_string();
+                self.sync_ui.status = sync_error_text(&error);
                 return;
             }
         };
@@ -541,11 +530,7 @@ impl State {
                                 provider,
                                 binding: id,
                             })
-                            .map_err(|error| {
-                                format!(
-                                    " The previous connection's credential could not be removed: {error}"
-                                )
-                            })
+                            .map_err(|error| format!(" {}", sync_previous_credential(error)))
                     }
                 }
             }
@@ -573,9 +558,9 @@ impl State {
         self.sync_ui.phase = SyncPhase::Connecting;
         self.sync_ui.cancel = CancelToken::new();
         self.sync_ui.status = if provider == ProviderKind::GitHub {
-            "Asking GitHub for a sign-in code…".to_owned()
+            t(TextKey::SyncStatusAskingGithubCode).to_owned()
         } else {
-            "Opening Google sign-in in your browser…".to_owned()
+            t(TextKey::SyncStatusOpeningGoogle).to_owned()
         };
         let cancel = self.sync_ui.cancel.clone();
         let credentials = Arc::clone(&self.sync_ui.credentials);
@@ -616,19 +601,13 @@ impl State {
     fn sign_in_update(&mut self, update: SignInUpdate) {
         match update {
             SignInUpdate::DeviceCode { user_code, uri } => {
-                self.sync_ui.status = format!(
-                    "Enter code {user_code} at {uri}. Your browser is opening it; Muninn finishes when GitHub approves."
-                );
+                self.sync_ui.status = device_code(&user_code, &uri);
             }
             SignInUpdate::Waiting => {
-                self.sync_ui.status =
-                    "Finish signing in to Google in your browser. Muninn is waiting on 127.0.0.1 for the answer."
-                        .to_owned();
+                self.sync_ui.status = t(TextKey::SyncStatusWaitingGoogle).to_owned();
             }
             SignInUpdate::BrowserFailed { url } => {
-                self.sync_ui.status = format!(
-                    "Could not open a browser. Open this address yourself to continue: {url}"
-                );
+                self.sync_ui.status = browser_failed(&url);
             }
             SignInUpdate::Connected { binding_id, result } => {
                 self.sync_ui.phase = SyncPhase::Idle;
@@ -644,8 +623,7 @@ impl State {
                             // keep a token for a binding that no longer exists.
                             self.forget_credential(&binding_id);
                             self.sync_ui.status =
-                                "Sign-in finished after Disconnect; its token was removed."
-                                    .to_owned();
+                                t(TextKey::SyncStatusSignedInAfterDisconnect).to_owned();
                             return;
                         };
                         self.sync_ui.sign_in_error = None;
@@ -658,25 +636,27 @@ impl State {
                                 self.sync_ui.google_client_id.text.trim().to_owned();
                         }
                         let leftover = self.swap_binding(binding).err().unwrap_or_default();
-                        self.sync_ui.status = if account.is_empty() {
-                            format!(
-                                "Connected. The token is in the OS credential store. Sync Now when ready.{leftover}"
-                            )
+                        let mut status = if account.is_empty() {
+                            t(TextKey::SyncStatusConnectedToken).to_owned()
                         } else {
-                            format!(
-                                "Connected as {account}. The token is in the OS credential store. Sync Now when ready.{leftover}"
-                            )
+                            connected_as(&account)
                         };
+                        status.push_str(&leftover);
+                        self.sync_ui.status = status;
                     }
                     Err(error) => {
                         self.sync_ui.pending = None;
                         let kept = if self.current_binding().is_some() {
-                            " The current connection was not changed."
+                            t(TextKey::SyncStatusCurrentConnectionKept)
                         } else {
                             ""
                         };
-                        self.sync_ui.status =
-                            format!("Sign-in did not finish: {error} No token was stored.{kept}");
+                        let mut status = sign_in_failed(&error);
+                        if !kept.is_empty() {
+                            status.push(' ');
+                            status.push_str(kept);
+                        }
+                        self.sync_ui.status = status;
                         self.sync_ui.sign_in_error = Some(self.sync_ui.status.clone());
                     }
                 }
@@ -691,8 +671,7 @@ impl State {
             match self.sync_ui.tailnet_port.text.trim().parse::<u16>() {
                 Ok(port) if port >= 1024 => port,
                 _ => {
-                    self.sync_ui.status =
-                        "Enter a loopback port between 1024 and 65535 for the host.".to_owned();
+                    self.sync_ui.status = t(TextKey::SyncErrorLoopbackPort).to_owned();
                     return;
                 }
             }
@@ -701,13 +680,11 @@ impl State {
         };
         if !hosting {
             if let Err(error) = muninn_sync::validate_tailnet_host(&host_name) {
-                self.sync_ui.status = error.to_string();
+                self.sync_ui.status = sync_error_text(&error);
                 return;
             }
             if self.sync_ui.tailnet_key.text.trim().len() < 32 {
-                self.sync_ui.status =
-                    "Paste the shared key shown on the host. It is stored in the OS credential store, not in settings."
-                        .to_owned();
+                self.sync_ui.status = t(TextKey::SyncErrorPasteSharedKey).to_owned();
                 return;
             }
         }
@@ -728,7 +705,7 @@ impl State {
             account: String::new(),
         };
         if let Err(error) = self.sync_ui.credentials.put(&credential, &token) {
-            self.sync_ui.status = format!("{error} Nothing was saved.");
+            self.sync_ui.status = sync_nothing_saved(error);
             return;
         }
         self.sync_ui.tailnet_key.replace_text("");
@@ -760,15 +737,14 @@ impl State {
         if hosting {
             self.resume_tailnet_host();
             if self.sync_ui.host.is_some() {
-                self.sync_ui.status = format!(
-                    "Hosting. Run once on this device: {}. Use Copy key to give the shared key to your other devices.{leftover}",
-                    muninn_sync::serve_command(port)
-                );
+                let mut status = tailnet_hosting_ready(&muninn_sync::serve_command(port));
+                status.push_str(&leftover);
+                self.sync_ui.status = status;
             }
         } else {
-            self.sync_ui.status = format!(
-                "Joined. The shared key is in the OS credential store. Sync Now reaches the host over your tailnet.{leftover}"
-            );
+            let mut status = t(TextKey::SyncStatusTailnetJoined).to_owned();
+            status.push_str(&leftover);
+            self.sync_ui.status = status;
         }
     }
 
@@ -784,8 +760,8 @@ impl State {
         let binding = self
             .current_binding()
             .filter(|binding| binding.provider == "tailscale" && binding.tailnet_role == "host")
-            .ok_or_else(|| "This vault does not host a Tailscale store.".to_owned())?;
-        let id = BindingId::parse(&binding.binding_id).map_err(|error| error.to_string())?;
+            .ok_or_else(|| t(TextKey::SyncErrorNotTailnetHost).to_owned())?;
+        let id = BindingId::parse(&binding.binding_id).map_err(|error| sync_error_text(&error))?;
         Ok(muninn_sync::CredentialKey {
             provider: ProviderKind::Tailscale,
             binding: id,
@@ -797,9 +773,9 @@ impl State {
         self.sync_ui
             .credentials
             .get(&key)
-            .map_err(|error| error.to_string())?
+            .map_err(|error| sync_error_text(&error))?
             .map(|token| token.access)
-            .ok_or_else(|| "The shared key is missing from the credential store.".to_owned())
+            .ok_or_else(|| t(TextKey::SyncErrorSharedKeyMissing).to_owned())
     }
 
     /// The host's shared key for a secret clipboard copy, or `None` with the
@@ -807,10 +783,7 @@ impl State {
     pub fn tailnet_key_for_copy(&mut self) -> Option<Secret> {
         match self.read_host_key() {
             Ok(key) => {
-                self.sync_ui.status = format!(
-                    "Shared key copied. The clipboard clears in {} seconds; paste it on the joining device.",
-                    TAILNET_KEY_CLIPBOARD.as_secs()
-                );
+                self.sync_ui.status = shared_key_copied(TAILNET_KEY_CLIPBOARD.as_secs());
                 Some(key)
             }
             Err(error) => {
@@ -835,8 +808,7 @@ impl State {
     /// one. Joined devices keep working only after they join again with it.
     pub fn rotate_tailnet_key(&mut self) {
         if !self.sync_ui.phase.is_idle() {
-            self.sync_ui.status =
-                "Wait for the running sync to finish before rotating the key.".to_owned();
+            self.sync_ui.status = t(TextKey::SyncStatusWaitToRotateKey).to_owned();
             return;
         }
         let credential = match self.host_key_credential() {
@@ -853,7 +825,7 @@ impl State {
             account: String::new(),
         };
         if let Err(error) = self.sync_ui.credentials.put(&credential, &token) {
-            self.sync_ui.status = format!("{error} The old key still works.");
+            self.sync_ui.status = sync_key_rotation_failed(error);
             return;
         }
         self.sync_ui.revealed_key = None;
@@ -861,9 +833,7 @@ impl State {
         self.sync_ui.host = None;
         self.resume_tailnet_host();
         if self.sync_ui.host.is_some() {
-            self.sync_ui.status =
-                "Key rotated; the old key no longer works. On each joined device, Disconnect and join again with the new key (Copy key)."
-                    .to_owned();
+            self.sync_ui.status = t(TextKey::SyncStatusKeyRotated).to_owned();
         }
     }
 
@@ -876,7 +846,7 @@ impl State {
         self.sync_ui.host = None;
         self.sync_ui.revealed_key = None;
         let Some(binding) = self.current_binding().cloned() else {
-            self.sync_ui.status = "Nothing is connected. Local notes were not changed.".to_owned();
+            self.sync_ui.status = t(TextKey::SyncStatusNothingConnected).to_owned();
             return;
         };
         if let Ok(id) = BindingId::parse(&binding.binding_id) {
@@ -886,7 +856,7 @@ impl State {
                 binding: id,
             };
             if let Err(error) = self.sync_ui.credentials.delete(&key) {
-                self.sync_ui.status = error.to_string();
+                self.sync_ui.status = sync_error_text(&error);
                 return;
             }
         }
@@ -900,31 +870,27 @@ impl State {
         // The vault now has no binding; reset the form before saying why, so a
         // stale provider hint never outlives the connection.
         self.reflect_sync_binding();
-        self.sync_ui.status =
-            "Disconnected. Credentials for this binding were removed. Local and remote notes were not deleted."
-                .to_owned();
+        self.sync_ui.status = t(TextKey::SyncStatusDisconnected).to_owned();
     }
 
     pub fn sync_now(&mut self) {
         if self.dirty() || self.conflict.is_some() {
-            self.sync_ui.status =
-                "Save or resolve the open note before Sync Now. Unsaved text is not uploaded or overwritten."
-                    .to_owned();
+            self.sync_ui.status = t(TextKey::SyncStatusSaveBeforeSync).to_owned();
             return;
         }
         if self.sync_ui.phase.is_running() {
-            self.sync_ui.status = "A sync is already running.".to_owned();
+            self.sync_ui.status = t(TextKey::SyncStatusAlreadyRunning).to_owned();
             return;
         }
         if self.sync_ui.phase == SyncPhase::Connecting {
-            self.sync_ui.status = "Finish signing in first, or Disconnect to cancel.".to_owned();
+            self.sync_ui.status = t(TextKey::SyncStatusFinishSignIn).to_owned();
             return;
         }
         let Some(binding) = self.current_binding().cloned() else {
             // Keep why the last Connect failed; a generic hint would hide it.
             self.sync_ui.status = match &self.sync_ui.sign_in_error {
-                Some(error) => format!("{error} Connect again before Sync Now."),
-                None => "Connect a provider for this vault before Sync Now.".to_owned(),
+                Some(error) => sync_now_after_error(error),
+                None => t(TextKey::SyncStatusConnectProvider).to_owned(),
             };
             return;
         };
@@ -978,21 +944,20 @@ impl State {
                     tailnet_api: None,
                 },
                 Err(error) => {
-                    let _ = tx.send(SyncMessage::Finished(Err(error.to_string())));
+                    let _ = tx.send(SyncMessage::Finished(Err(sync_error_text(&error))));
                     return;
                 }
             };
             let result =
-                muninn_sync::run_sync(&engine, &request).map_err(|error| error.to_string());
+                muninn_sync::run_sync(&engine, &request).map_err(|error| sync_error_text(&error));
             let _ = tx.send(SyncMessage::Finished(result));
         });
-        self.sync_ui.status = "Sync started. The window stays responsive.".to_owned();
+        self.sync_ui.status = t(TextKey::SyncStatusSyncStarted).to_owned();
     }
 
     pub fn cancel_sync(&mut self) {
         self.sync_ui.cancel.cancel();
-        self.sync_ui.status =
-            "Cancelling. A change the provider already accepted is kept and reconciled.".to_owned();
+        self.sync_ui.status = t(TextKey::SyncStatusCancelling).to_owned();
     }
 
     pub fn poll_sync(&mut self) -> bool {
@@ -1039,25 +1004,21 @@ impl State {
                 let extra = if exclusions.is_empty() {
                     String::new()
                 } else {
-                    format!(
-                        " {} path(s) excluded by the sync contract.",
-                        exclusions.len()
-                    )
+                    format!(" {}", sync_excluded(exclusions.len()))
                 };
                 let mut extra = extra;
                 if !conflict_copies.is_empty() {
                     let names: Vec<&str> =
                         conflict_copies.iter().map(|path| path.as_str()).collect();
-                    extra.push_str(&format!(
-                        " A note changed on two devices; both versions were kept: {}.",
-                        names.join(", ")
-                    ));
+                    extra.push_str(&format!(" {}", sync_conflict_copies(&names.join(", "))));
                 }
-                self.sync_ui.status = format!("Last successful sync {head}.{extra}");
+                self.sync_ui.status = last_sync(&head);
+                self.sync_ui.status.push_str(&extra);
                 if self.dirty() {
-                    self.sync_ui.status.push_str(
-                        " The open note changed while sync ran; its text was not overwritten.",
-                    );
+                    self.sync_ui.status.push(' ');
+                    self.sync_ui
+                        .status
+                        .push_str(t(TextKey::SyncStatusNoteChangedWhileSyncing));
                 } else {
                     let select = self.selected_path.clone();
                     self.reload(select);
@@ -1071,11 +1032,7 @@ impl State {
                     .iter()
                     .map(|conflict| conflict.path.as_str())
                     .collect();
-                self.sync_ui.status = format!(
-                    "{} conflict(s): {}. Nothing was overwritten.",
-                    conflicts.len(),
-                    names.join(", ")
-                );
+                self.sync_ui.status = sync_conflicts(conflicts.len(), &names.join(", "));
             }
             Err(error) => self.sync_ui.status = error,
         }
@@ -1167,10 +1124,12 @@ fn run_request(
     root: std::path::PathBuf,
     sync_home: std::path::PathBuf,
 ) -> Result<RunRequest, String> {
-    let binding_id = BindingId::parse(&binding.binding_id).map_err(|error| error.to_string())?;
+    let binding_id =
+        BindingId::parse(&binding.binding_id).map_err(|error| sync_error_text(&error))?;
     let state_dir = muninn_sync::binding_state_dir(&sync_home, &binding_id)
-        .map_err(|error| error.to_string())?;
-    let provider = ProviderKind::parse(&binding.provider).map_err(|error| error.to_string())?;
+        .map_err(|error| sync_error_text(&error))?;
+    let provider =
+        ProviderKind::parse(&binding.provider).map_err(|error| sync_error_text(&error))?;
     let github = (provider == ProviderKind::GitHub).then(|| muninn_sync::GitHubScope {
         owner: binding.github_owner.clone(),
         repo: binding.github_repo.clone(),
@@ -1210,9 +1169,57 @@ fn run_request(
     })
 }
 
+/// The status line for a sync failure, in the UI's words.
+///
+/// [`muninn_sync::SyncError`]'s `Display` is the diagnostic rendering used by
+/// logs and by the developer-facing variants below. The sentences a person
+/// reads are the catalog's; each keeps the provider's `detail`, path or
+/// status as written.
+fn sync_error_text(error: &muninn_sync::SyncError) -> String {
+    use muninn_sync::SyncError;
+    match error {
+        SyncError::Offline { detail } => sync_offline(detail),
+        SyncError::Timeout { mutation: true } => t(TextKey::SyncErrorTimedOutAfterSend).to_owned(),
+        SyncError::Timeout { mutation: false } => {
+            t(TextKey::SyncErrorTimedOutBeforeResponse).to_owned()
+        }
+        SyncError::Cancelled => t(TextKey::SyncErrorCancelled).to_owned(),
+        SyncError::RateLimited { retry_after_ms } => match retry_after_ms {
+            Some(ms) => sync_rate_limited_after(*ms),
+            None => t(TextKey::SyncErrorRateLimited).to_owned(),
+        },
+        SyncError::Server { status, detail } => sync_provider_error(*status, detail),
+        SyncError::Auth { detail } => sync_authentication_needed(detail),
+        SyncError::Permission { detail } => sync_permission_denied(detail),
+        SyncError::Scope { detail } => sync_oauth_scope_rejected(detail),
+        SyncError::NotFound { detail } => sync_remote_scope_not_found(detail),
+        SyncError::ConflictRemote { detail } => sync_remote_changed(detail),
+        SyncError::OutcomeUnknown { detail } => sync_outcome_unknown(detail),
+        SyncError::ListingIncomplete { detail } => sync_listing_incomplete(detail),
+        SyncError::Unsupported { path, detail } => sync_unsupported(path, detail),
+        SyncError::Limit { detail } => sync_limit_exceeded(detail),
+        SyncError::Credentials { detail } => sync_credentials_unavailable(detail),
+        SyncError::LeaseBusy => t(TextKey::SyncErrorLeaseBusy).to_owned(),
+        SyncError::DirtyBuffer { path } => sync_dirty_buffer(path),
+        SyncError::LocalChanged { path } => sync_local_changed(path),
+        SyncError::Config { detail } => sync_not_configured(detail),
+        SyncError::Io { detail } => sync_file_error(detail),
+        // Developer diagnostics: they name an internal invariant rather than
+        // a person's next step, so they keep the diagnostic rendering.
+        SyncError::Path { .. }
+        | SyncError::Inventory { .. }
+        | SyncError::Journal { .. }
+        | SyncError::Protocol { .. }
+        | SyncError::InjectedFault { .. } => error.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::State;
+    use muninn_i18n::{
+        Key as TextKey, connected_as, last_sync, sign_in_failed, t, tailnet_hosting,
+    };
     use std::fs;
 
     /// Leaving the Sync tab drops typing focus from every sync field and
@@ -1383,11 +1390,9 @@ mod tests {
         state.set_sync_provider(1);
         state.connect_sync();
         wait_idle(&mut state);
-        assert!(
-            state.sync_ui.status.starts_with("Sign-in did not finish")
-                && state.sync_ui.status.contains("keyring is locked"),
-            "{}",
-            state.sync_ui.status
+        assert_eq!(
+            state.sync_ui.status,
+            sign_in_failed("Credentials unavailable: the keyring is locked")
         );
         assert!(state.settings.sync.vaults.is_empty(), "no binding saved");
         remove_temp(&root);
@@ -1415,7 +1420,10 @@ mod tests {
             state.sync_ui.status
         );
         assert!(
-            !state.sync_ui.status.starts_with("Connect a provider"),
+            !state
+                .sync_ui
+                .status
+                .starts_with(t(TextKey::SyncStatusConnectProvider)),
             "{}",
             state.sync_ui.status
         );
@@ -1587,8 +1595,9 @@ mod tests {
             state.poll_sync();
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
-        assert!(
-            state.sync_ui.status.starts_with("Connected"),
+        assert_eq!(
+            state.sync_ui.status,
+            t(TextKey::SyncStatusConnectedToken),
             "{}",
             state.sync_ui.status
         );
@@ -1698,7 +1707,10 @@ mod tests {
         );
         wait_idle(&mut state);
         assert!(
-            state.sync_ui.status.contains("not changed"),
+            state
+                .sync_ui
+                .status
+                .contains(t(TextKey::SyncStatusCurrentConnectionKept)),
             "{}",
             state.sync_ui.status
         );
@@ -1720,8 +1732,9 @@ mod tests {
         };
         state.connect_sync();
         wait_idle(&mut state);
-        assert!(
-            state.sync_ui.status.starts_with("Connected"),
+        assert_eq!(
+            state.sync_ui.status,
+            t(TextKey::SyncStatusConnectedToken),
             "{}",
             state.sync_ui.status
         );
@@ -1819,14 +1832,15 @@ mod tests {
         assert_eq!(restarted.sync_ui.provider_index, 1);
         assert_eq!(restarted.sync_ui.drive_store.text, "Work");
         assert!(
-            !restarted.sync_status().starts_with("Not connected"),
+            !restarted
+                .sync_status()
+                .starts_with(t(TextKey::SyncStatusNotConnected)),
             "{}",
             restarted.sync_status()
         );
-        assert!(
-            restarted
-                .sync_status()
-                .starts_with("Connected as person@example.com."),
+        assert_eq!(
+            restarted.sync_status(),
+            connected_as("person@example.com"),
             "{}",
             restarted.sync_status()
         );
@@ -1840,8 +1854,9 @@ mod tests {
         restarted.disconnect_sync();
         assert!(restarted.settings.sync.vaults.is_empty());
         assert!(!restarted.sync_ready());
-        assert!(
-            restarted.sync_status().starts_with("Disconnected."),
+        assert_eq!(
+            restarted.sync_status(),
+            t(TextKey::SyncStatusDisconnected),
             "{}",
             restarted.sync_status()
         );
@@ -1871,8 +1886,9 @@ mod tests {
         assert_eq!(state.sync_ui.github_repo.text, "notes");
         assert_eq!(state.sync_ui.github_branch.text, "sync");
         assert_eq!(state.sync_ui.github_prefix.text, "vault");
-        assert!(
-            state.sync_status().starts_with("Connected as octo."),
+        assert_eq!(
+            state.sync_status(),
+            connected_as("octo"),
             "{}",
             state.sync_status()
         );
@@ -1914,7 +1930,7 @@ mod tests {
         assert_eq!(state.sync_ui.tailnet_port.text, port.to_string());
         assert_eq!(state.sync_ui.tailnet_allowed.text, "alice@example.com");
         assert!(
-            state.sync_status().contains("Hosting on 127.0.0.1:"),
+            state.sync_status().starts_with(&tailnet_hosting(port, "")),
             "{}",
             state.sync_status()
         );
@@ -1932,8 +1948,9 @@ mod tests {
         assert_eq!(state.sync_ui.provider_index, 2);
         assert_eq!(state.sync_ui.tailnet_role_index, 1);
         assert_eq!(state.sync_ui.tailnet_host.text, "minis.tail1234.ts.net");
-        assert!(
-            state.sync_status().contains("shared key"),
+        assert_eq!(
+            state.sync_status(),
+            t(TextKey::SyncStatusConnectedSharedKey),
             "{}",
             state.sync_status()
         );
@@ -1980,10 +1997,9 @@ mod tests {
         assert!(state.switch_vault(other.clone()));
         assert_eq!(state.sync_ui.provider_index, 1);
         assert_eq!(state.sync_ui.drive_store.text, "OtherVault");
-        assert!(
-            state
-                .sync_status()
-                .starts_with("Connected as other@example.com."),
+        assert_eq!(
+            state.sync_status(),
+            connected_as("other@example.com"),
             "{}",
             state.sync_status()
         );
@@ -1991,8 +2007,9 @@ mod tests {
         assert!(state.switch_vault(root.clone()));
         assert_eq!(state.sync_ui.provider_index, 0);
         assert_eq!(state.sync_ui.github_owner.text, "muninn");
-        assert!(
-            state.sync_status().starts_with("Connected as octo."),
+        assert_eq!(
+            state.sync_status(),
+            connected_as("octo"),
             "{}",
             state.sync_status()
         );
@@ -2009,14 +2026,11 @@ mod tests {
             .vaults
             .push(binding_for(&state, "google_drive"));
         state.sync_ui.provider_index = 2;
-        state.sync_ui.status = "Sync started. The window stays responsive.".to_owned();
+        state.sync_ui.status = t(TextKey::SyncStatusSyncStarted).to_owned();
         state.sync_ui.phase = super::SyncPhase::Running;
         state.reflect_sync_binding();
         assert_eq!(state.sync_ui.provider_index, 2);
-        assert_eq!(
-            state.sync_ui.status,
-            "Sync started. The window stays responsive."
-        );
+        assert_eq!(state.sync_ui.status, t(TextKey::SyncStatusSyncStarted));
 
         state.sync_ui.phase = super::SyncPhase::Connecting;
         state.sync_ui.status = "Waiting for the browser.".to_owned();
@@ -2274,5 +2288,102 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(&state_home);
         let _ = fs::remove_dir_all(&config_home);
+    }
+
+    /// The already-running refusal and a finished run's line come from the
+    /// catalog, not from literals at the transition.
+    #[test]
+    fn running_and_last_sync_statuses_read_the_catalog() {
+        let (mut state, root) = temp_state("catalog-status");
+        state.sync_ui.phase = super::SyncPhase::Running;
+        state.sync_now();
+        assert_eq!(state.sync_ui.status, t(TextKey::SyncStatusAlreadyRunning));
+
+        state.sync_ui.phase = super::SyncPhase::Idle;
+        state.finish_sync(Ok(muninn_sync::SyncReport::Succeeded {
+            head: "abc123".to_owned(),
+            exclusions: Vec::new(),
+            conflict_copies: Vec::new(),
+        }));
+        assert_eq!(state.sync_ui.status, last_sync("abc123"));
+        assert_eq!(state.sync_ui.status, "Last successful sync abc123.");
+        remove_temp(&root);
+    }
+
+    /// Every catalogued run failure renders exactly as the diagnostic
+    /// `Display` did before the extraction; only the five developer variants
+    /// still use that rendering.
+    #[test]
+    fn sync_error_status_matches_the_diagnostic_rendering() {
+        use muninn_sync::SyncError;
+        let errors = [
+            SyncError::Offline {
+                detail: "connection refused".to_owned(),
+            },
+            SyncError::Timeout { mutation: true },
+            SyncError::Timeout { mutation: false },
+            SyncError::Cancelled,
+            SyncError::RateLimited {
+                retry_after_ms: Some(1500),
+            },
+            SyncError::RateLimited {
+                retry_after_ms: None,
+            },
+            SyncError::Server {
+                status: 500,
+                detail: "internal error".to_owned(),
+            },
+            SyncError::Auth {
+                detail: "token expired".to_owned(),
+            },
+            SyncError::Permission {
+                detail: "no access".to_owned(),
+            },
+            SyncError::Scope {
+                detail: "drive.file required".to_owned(),
+            },
+            SyncError::NotFound {
+                detail: "branch main".to_owned(),
+            },
+            SyncError::ConflictRemote {
+                detail: "commit moved".to_owned(),
+            },
+            SyncError::OutcomeUnknown {
+                detail: "connection dropped".to_owned(),
+            },
+            SyncError::ListingIncomplete {
+                detail: "page 3 of 5".to_owned(),
+            },
+            SyncError::Unsupported {
+                path: "Data.xlsx".to_owned(),
+                detail: "Workspace document".to_owned(),
+            },
+            SyncError::Limit {
+                detail: "file larger than 100 MB".to_owned(),
+            },
+            SyncError::Credentials {
+                detail: "the keyring is locked".to_owned(),
+            },
+            SyncError::LeaseBusy,
+            SyncError::DirtyBuffer {
+                path: "Plan.md".to_owned(),
+            },
+            SyncError::LocalChanged {
+                path: "Plan.md".to_owned(),
+            },
+            SyncError::Config {
+                detail: "missing repository".to_owned(),
+            },
+            SyncError::Io {
+                detail: "read-only folder".to_owned(),
+            },
+        ];
+        for error in errors {
+            assert_eq!(
+                super::sync_error_text(&error),
+                error.to_string(),
+                "{error:?}"
+            );
+        }
     }
 }

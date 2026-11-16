@@ -36,6 +36,10 @@
 //!   [`scan_cancelled`]; their static copy — the vault-path prompts, the
 //!   switch/restore refusals, the conflict labels — is keyed (`error.*`,
 //!   `conflict.*`, `status.*`).
+//!   Settings › Sync adds the status and error sentences: [`connected_as`],
+//!   [`last_sync`], [`device_code`], [`sign_in_failed`], [`tailnet_hosting`],
+//!   [`shared_key_copied`] and the `sync_offline`-style run failures; its
+//!   fixed copy is keyed (`sync.status.*`, `sync.error.*`).
 //! - [`DateNames`] and [`EN_US`] carry month/weekday names, short weekday
 //!   labels, the first day of the week and `AM`/`PM`. `muninn-core`'s
 //!   `format_date_for_display`/`format_time_for_display` read them; the file
@@ -492,6 +496,555 @@ pub fn trash_summary(files: usize, size: &str) -> String {
 /// ```
 pub fn sync_status(label: &str) -> String {
     format!("Sync: {label}")
+}
+
+// ---- Sync status and errors ----------------------------------------------
+//
+// Settings › Sync builds its status line from the sentences below. The fixed
+// part lives here; a provider name, account, commit head, port, browser
+// address, user code or provider/OS error is data and is kept as written. A
+// call site names one helper per sentence instead of assembling copy of its
+// own, the same way [`restore_to`] carries its lane.
+
+/// `"Connected as <account>. The token is in the OS credential store. Sync Now when ready."`.
+///
+/// The Sync tab's status once an OAuth provider is connected and the account
+/// name is known. The account is provider data and stays as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::connected_as("octo"),
+///     "Connected as octo. The token is in the OS credential store. Sync Now when ready."
+/// );
+/// ```
+pub fn connected_as(account: &str) -> String {
+    format!("Connected as {account}. The token is in the OS credential store. Sync Now when ready.")
+}
+
+/// `"Last successful sync <head>."`.
+///
+/// `head` is the commit or snapshot the run published; the caller appends any
+/// exclusion or conflict note after it.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::last_sync("a1b2c3d"),
+///     "Last successful sync a1b2c3d."
+/// );
+/// ```
+pub fn last_sync(head: &str) -> String {
+    format!("Last successful sync {head}.")
+}
+
+/// `"Enter code <code> at <url>. Your browser is opening it; Muninn finishes when GitHub approves."`.
+///
+/// GitHub's device-flow prompt: the user code and verification address are
+/// provider data and stay as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::device_code("ABCD-1234", "https://github.com/login/device"),
+///     "Enter code ABCD-1234 at https://github.com/login/device. Your browser is opening it; Muninn finishes when GitHub approves."
+/// );
+/// ```
+pub fn device_code(code: &str, url: &str) -> String {
+    format!(
+        "Enter code {code} at {url}. Your browser is opening it; Muninn finishes when GitHub approves."
+    )
+}
+
+/// `"Could not open a browser. Open this address yourself to continue: <url>"`.
+///
+/// The browser opener failed; the address is kept verbatim so it can be
+/// copied into whatever browser the person has.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::browser_failed("https://example.test"),
+///     "Could not open a browser. Open this address yourself to continue: https://example.test"
+/// );
+/// ```
+pub fn browser_failed(url: &str) -> String {
+    format!("Could not open a browser. Open this address yourself to continue: {url}")
+}
+
+/// `"Sign-in did not finish: <error> No token was stored."`.
+///
+/// `error` is the provider's or credential store's reason, kept as written.
+/// When an older binding survived the failure, the caller appends
+/// [`Key::SyncStatusCurrentConnectionKept`].
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sign_in_failed("access denied"),
+///     "Sign-in did not finish: access denied No token was stored."
+/// );
+/// ```
+pub fn sign_in_failed(error: impl std::fmt::Display) -> String {
+    format!("Sign-in did not finish: {error} No token was stored.")
+}
+
+/// `"<n> path(s) excluded by the sync contract."`.
+///
+/// The count is plain decimal and the phrase keeps sync's `path(s)` spelling.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_excluded(2),
+///     "2 path(s) excluded by the sync contract."
+/// );
+/// ```
+pub fn sync_excluded(n: usize) -> String {
+    format!("{n} path(s) excluded by the sync contract.")
+}
+
+/// `"A note changed on two devices; both versions were kept: <names>."`.
+///
+/// `names` is the comma-joined list of conflict copies, kept as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_conflict_copies("Plan (remote).md"),
+///     "A note changed on two devices; both versions were kept: Plan (remote).md."
+/// );
+/// ```
+pub fn sync_conflict_copies(names: &str) -> String {
+    format!("A note changed on two devices; both versions were kept: {names}.")
+}
+
+/// `"<n> conflict(s): <names>. Nothing was overwritten."`.
+///
+/// A run that stopped on conflicts names the files; the count and list are
+/// plain data.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_conflicts(1, "Plan.md"),
+///     "1 conflict(s): Plan.md. Nothing was overwritten."
+/// );
+/// ```
+pub fn sync_conflicts(n: usize, names: &str) -> String {
+    format!("{n} conflict(s): {names}. Nothing was overwritten.")
+}
+
+/// `"Hosting on 127.0.0.1:<port>. On this device run: <serve>"`.
+///
+/// The Tailscale host's status once its loopback server is up. `serve` is the
+/// exact `tailscale serve` command and stays as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::tailnet_hosting(8080, "tailscale serve --bg 8080"),
+///     "Hosting on 127.0.0.1:8080. On this device run: tailscale serve --bg 8080"
+/// );
+/// ```
+pub fn tailnet_hosting(port: u16, serve: &str) -> String {
+    format!("Hosting on 127.0.0.1:{port}. On this device run: {serve}")
+}
+
+/// `"Hosting. Run once on this device: <serve>. Use Copy key to give the shared key to your other devices."`.
+///
+/// The status after a Connect chose this device as the host. `serve` is the
+/// exact `tailscale serve` command.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::tailnet_hosting_ready("tailscale serve --bg 8080"),
+///     "Hosting. Run once on this device: tailscale serve --bg 8080. Use Copy key to give the shared key to your other devices."
+/// );
+/// ```
+pub fn tailnet_hosting_ready(serve: &str) -> String {
+    format!(
+        "Hosting. Run once on this device: {serve}. Use Copy key to give the shared key to your other devices."
+    )
+}
+
+/// `"Shared key copied. The clipboard clears in <seconds> seconds; paste it on the joining device."`.
+///
+/// The host's Copy key confirmation; the timeout is plain decimal.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::shared_key_copied(60),
+///     "Shared key copied. The clipboard clears in 60 seconds; paste it on the joining device."
+/// );
+/// ```
+pub fn shared_key_copied(seconds: u64) -> String {
+    format!(
+        "Shared key copied. The clipboard clears in {seconds} seconds; paste it on the joining device."
+    )
+}
+
+/// `"The previous connection's credential could not be removed: <error>"`.
+///
+/// Appended to the Connect success line when the old binding's credential
+/// outlived the swap. `error` is the credential store's reason, kept as
+/// written; the caller adds the separating space.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_previous_credential("permission denied"),
+///     "The previous connection's credential could not be removed: permission denied"
+/// );
+/// ```
+pub fn sync_previous_credential(error: impl std::fmt::Display) -> String {
+    format!("The previous connection's credential could not be removed: {error}")
+}
+
+/// `"<error> Nothing was saved."`.
+///
+/// Tailscale Connect failed before the binding replaced anything; `error` is
+/// the credential store's reason, kept as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_nothing_saved("the keyring is locked"),
+///     "the keyring is locked Nothing was saved."
+/// );
+/// ```
+pub fn sync_nothing_saved(error: impl std::fmt::Display) -> String {
+    format!("{error} Nothing was saved.")
+}
+
+/// `"<error> The old key still works."`.
+///
+/// Rotating the host's shared key failed; the existing key keeps serving.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_key_rotation_failed("the keyring is locked"),
+///     "the keyring is locked The old key still works."
+/// );
+/// ```
+pub fn sync_key_rotation_failed(error: impl std::fmt::Display) -> String {
+    format!("{error} The old key still works.")
+}
+
+/// `"<error> Connect again before Sync Now."`.
+///
+/// Sync Now repeats the last Connect failure so the reason is not lost when
+/// no binding exists.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_now_after_error("access denied"),
+///     "access denied Connect again before Sync Now."
+/// );
+/// ```
+pub fn sync_now_after_error(error: impl std::fmt::Display) -> String {
+    format!("{error} Connect again before Sync Now.")
+}
+
+/// `"Kanban not saved and no recovery copy could be written: <why>. Use Save copy or fix the folder, then quit again."`.
+///
+/// The close/quit refusal for the Kanban page; `why` is the recovery copy's
+/// reason, kept as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::kanban_quit_refused("disk full"),
+///     "Kanban not saved and no recovery copy could be written: disk full. Use Save copy or fix the folder, then quit again."
+/// );
+/// ```
+pub fn kanban_quit_refused(why: &str) -> String {
+    format!(
+        "Kanban not saved and no recovery copy could be written: {why}. Use Save copy or fix the folder, then quit again."
+    )
+}
+
+/// `"could not save a copy: <error>"`.
+///
+/// The Kanban page's Save copy failure. The sentence keeps its historical
+/// lower-case opening, so it is a separate helper from [`could_not_save_copy`]
+/// rather than a call site with a different capital letter.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::kanban_could_not_save_copy("disk full"),
+///     "could not save a copy: disk full"
+/// );
+/// ```
+pub fn kanban_could_not_save_copy(error: impl std::fmt::Display) -> String {
+    format!("could not save a copy: {error}")
+}
+
+/// `"Offline: <detail>"`.
+///
+/// A sync run stopped before the provider answered; `detail` is the network
+/// error, kept as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_offline("connection refused"),
+///     "Offline: connection refused"
+/// );
+/// ```
+pub fn sync_offline(detail: &str) -> String {
+    format!("Offline: {detail}")
+}
+
+/// `"Rate limited; retry after <ms> ms"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_rate_limited_after(1500),
+///     "Rate limited; retry after 1500 ms"
+/// );
+/// ```
+pub fn sync_rate_limited_after(ms: u64) -> String {
+    format!("Rate limited; retry after {ms} ms")
+}
+
+/// `"Provider error <status>: <detail>"`.
+///
+/// `detail` is the provider's own text, kept as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_provider_error(500, "internal error"),
+///     "Provider error 500: internal error"
+/// );
+/// ```
+pub fn sync_provider_error(status: u16, detail: &str) -> String {
+    format!("Provider error {status}: {detail}")
+}
+
+/// `"Authentication needed: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_authentication_needed("token expired"),
+///     "Authentication needed: token expired"
+/// );
+/// ```
+pub fn sync_authentication_needed(detail: &str) -> String {
+    format!("Authentication needed: {detail}")
+}
+
+/// `"Permission denied: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_permission_denied("no access to the repository"),
+///     "Permission denied: no access to the repository"
+/// );
+/// ```
+pub fn sync_permission_denied(detail: &str) -> String {
+    format!("Permission denied: {detail}")
+}
+
+/// `"OAuth scope rejected: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_oauth_scope_rejected("drive.file required"),
+///     "OAuth scope rejected: drive.file required"
+/// );
+/// ```
+pub fn sync_oauth_scope_rejected(detail: &str) -> String {
+    format!("OAuth scope rejected: {detail}")
+}
+
+/// `"Remote scope not found: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_remote_scope_not_found("branch main"),
+///     "Remote scope not found: branch main"
+/// );
+/// ```
+pub fn sync_remote_scope_not_found(detail: &str) -> String {
+    format!("Remote scope not found: {detail}")
+}
+
+/// `"Remote changed: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_remote_changed("commit moved"),
+///     "Remote changed: commit moved"
+/// );
+/// ```
+pub fn sync_remote_changed(detail: &str) -> String {
+    format!("Remote changed: {detail}")
+}
+
+/// `"Outcome unknown, reconcile before retrying: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_outcome_unknown("connection dropped"),
+///     "Outcome unknown, reconcile before retrying: connection dropped"
+/// );
+/// ```
+pub fn sync_outcome_unknown(detail: &str) -> String {
+    format!("Outcome unknown, reconcile before retrying: {detail}")
+}
+
+/// `"Remote listing incomplete; refusing to treat that as deletion: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_listing_incomplete("page 3 of 5"),
+///     "Remote listing incomplete; refusing to treat that as deletion: page 3 of 5"
+/// );
+/// ```
+pub fn sync_listing_incomplete(detail: &str) -> String {
+    format!("Remote listing incomplete; refusing to treat that as deletion: {detail}")
+}
+
+/// `"Unsupported <path>: <detail>"`.
+///
+/// The relative path is file data and stays as written.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_unsupported("Data.xlsx", "Workspace document"),
+///     "Unsupported Data.xlsx: Workspace document"
+/// );
+/// ```
+pub fn sync_unsupported(path: &str, detail: &str) -> String {
+    format!("Unsupported {path}: {detail}")
+}
+
+/// `"Sync limit exceeded: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_limit_exceeded("file larger than 100 MB"),
+///     "Sync limit exceeded: file larger than 100 MB"
+/// );
+/// ```
+pub fn sync_limit_exceeded(detail: &str) -> String {
+    format!("Sync limit exceeded: {detail}")
+}
+
+/// `"Credentials unavailable: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_credentials_unavailable("the keyring is locked"),
+///     "Credentials unavailable: the keyring is locked"
+/// );
+/// ```
+pub fn sync_credentials_unavailable(detail: &str) -> String {
+    format!("Credentials unavailable: {detail}")
+}
+
+/// `"Save or discard unsaved edits in <path> before sync can change it"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_dirty_buffer("Plan.md"),
+///     "Save or discard unsaved edits in Plan.md before sync can change it"
+/// );
+/// ```
+pub fn sync_dirty_buffer(path: &str) -> String {
+    format!("Save or discard unsaved edits in {path} before sync can change it")
+}
+
+/// `"<path> changed during sync; run Sync Now again to replan"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_local_changed("Plan.md"),
+///     "Plan.md changed during sync; run Sync Now again to replan"
+/// );
+/// ```
+pub fn sync_local_changed(path: &str) -> String {
+    format!("{path} changed during sync; run Sync Now again to replan")
+}
+
+/// `"Sync is not configured: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_not_configured("missing repository"),
+///     "Sync is not configured: missing repository"
+/// );
+/// ```
+pub fn sync_not_configured(detail: &str) -> String {
+    format!("Sync is not configured: {detail}")
+}
+
+/// `"File error: <detail>"`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::sync_file_error("read-only folder"),
+///     "File error: read-only folder"
+/// );
+/// ```
+pub fn sync_file_error(detail: &str) -> String {
+    format!("File error: {detail}")
 }
 
 // ---- Errors, notices and conflict bars ------------------------------------

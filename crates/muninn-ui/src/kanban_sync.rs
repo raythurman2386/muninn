@@ -38,7 +38,10 @@ use std::path::Path;
 use std::time::Duration;
 
 use muninn_core::Kanban;
-use muninn_i18n::{Key as TextKey, t};
+use muninn_i18n::{
+    Key as TextKey, could_not_persist_kanban_recovery, kanban_could_not_save_copy,
+    kanban_quit_refused, refusing_unsafe_recovery_path, t,
+};
 
 use crate::board_view::BoardStatus;
 use crate::doc_sync::{
@@ -51,12 +54,6 @@ use crate::kanban_view::ShownKanban;
 use crate::recovery::RecoverySlot;
 use crate::state::{WATCH_INTERVAL, conflict_stamp, safe_rel};
 use crate::{Mode, State};
-
-/// Why a quit was refused.
-const QUIT_REFUSED: &str = "Kanban not saved and no recovery copy could be written";
-/// Why a quit was refused while the open field holds text the kanban
-/// refuses (slice 4's words).
-const FIELD_REFUSED: &str = "Not quitting: the kanban could not be saved. Fix what stopped the save, or undo the edits, then quit again.";
 
 impl State {
     /// The open card editor's or lane field's text, when committing it would
@@ -403,7 +400,7 @@ impl State {
         }
         self.kanban_recovery_wait = None;
         if let Err(e) = self.kanban_recovery_tick() {
-            let message = format!("Could not persist kanban recovery copy: {e}");
+            let message = could_not_persist_kanban_recovery(e);
             if self.error.as_deref() != Some(message.as_str()) {
                 self.error = Some(message);
             }
@@ -419,7 +416,7 @@ impl State {
         if !saved && self.kanban_pending_text().is_err() {
             // Text the model refuses has no kanban to save or copy: slice 4's
             // refusal stands, and the editor keeps it.
-            self.error = Some(FIELD_REFUSED.to_owned());
+            self.error = Some(t(TextKey::KanbanUiFieldRefused).to_owned());
             return false;
         }
         if !saved && let Some(shown) = &mut self.kanban {
@@ -441,9 +438,7 @@ impl State {
                 true
             }
             Err(why) => {
-                self.error = Some(format!(
-                    "{QUIT_REFUSED}: {why}. Use Save copy or fix the folder, then quit again."
-                ));
+                self.error = Some(kanban_quit_refused(&why));
                 false
             }
         }
@@ -475,8 +470,7 @@ impl State {
         let path = root.join(&shown.rel);
         let (rel, source) = (shown.rel.clone(), board.source().to_owned());
         if !inside_vault(&root, &path) {
-            shown.status =
-                BoardStatus::Failed("the kanban is not inside the open vault".to_owned());
+            shown.status = BoardStatus::Failed(t(TextKey::KanbanUiNotInsideVault).to_owned());
             return false;
         }
         let written = match self.vault.notes.iter().position(|note| note.rel == rel) {
@@ -534,7 +528,7 @@ impl State {
         }
         let copy = copy_path(&root, &path, &conflict_stamp());
         if let Err(e) = board.save(&copy) {
-            shown.status = BoardStatus::Failed(format!("could not save a copy: {e}"));
+            shown.status = BoardStatus::Failed(kanban_could_not_save_copy(e));
             return false;
         }
         let new = rel_of(&root, &copy);
@@ -602,15 +596,14 @@ impl State {
         let root = self.vault.root.clone();
         let path = root.join(rel);
         if !safe_rel(rel) || !inside_vault(&root, &path) {
-            self.error = Some(format!("Refusing unsafe recovery path {rel}"));
+            self.error = Some(refusing_unsafe_recovery_path(rel));
             return false;
         }
         let Ok(board) = Kanban::parse(text) else {
             return false;
         };
         if self.kanban_dirty() && !self.save_kanban() {
-            self.error =
-                Some("Save or discard the current kanban before restoring another".to_owned());
+            self.error = Some(t(TextKey::ErrorSaveKanbanBeforeRestore).to_owned());
             return false;
         }
         self.set_mode(Mode::Kanban);

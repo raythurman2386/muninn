@@ -25,6 +25,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::{Value, json};
 
 use muninn_core::KanbanDefaults;
+use muninn_i18n::{Key as TextKey, t};
 
 use crate::{BoardSession, BoardView};
 
@@ -201,10 +202,10 @@ impl SyncPrefs {
             return Self::default();
         };
         if !value.is_object() {
-            return Self::invalid("Sync settings were not an object, so sync is off.");
+            return Self::invalid(t(TextKey::SyncErrorSettingsNotObject));
         }
         if value.get("version").and_then(Value::as_u64) != Some(1) {
-            return Self::invalid("Sync settings version is not supported, so sync is off.");
+            return Self::invalid(t(TextKey::SyncErrorSettingsVersion));
         }
         let mut prefs = Self {
             disabled_reason: value
@@ -225,16 +226,14 @@ impl SyncPrefs {
             vaults: Vec::new(),
         };
         let Some(vaults) = value.get("vaults").and_then(Value::as_array) else {
-            return Self::invalid("Sync vault list was missing, so sync is off.");
+            return Self::invalid(t(TextKey::SyncErrorSettingsVaultList));
         };
         for item in vaults {
             match VaultSyncBinding::from_value(item) {
                 Some(binding) => prefs.vaults.push(binding),
                 None => {
-                    prefs.disabled_reason = Some(
-                        "A sync binding was invalid and was not loaded. Sync is off until it is replaced."
-                            .to_owned(),
-                    );
+                    prefs.disabled_reason =
+                        Some(t(TextKey::SyncErrorSettingsBindingInvalid).to_owned());
                     prefs.vaults.clear();
                     return prefs;
                 }

@@ -885,7 +885,7 @@ fn tailnet_key_row(s: &State, k: &Kit) -> El {
         .w_full()
         .gap(2.0)
         .child(
-            text("Shared key")
+            text(t(TextKey::SyncTailnetKeyLabel))
                 .font(k.ty.caption())
                 .color(k.c.text_muted),
         )
@@ -896,7 +896,7 @@ fn tailnet_key_row(s: &State, k: &Kit) -> El {
                 .gap(6.0)
                 .flex_wrap()
                 .child(
-                    Button::new("Copy key")
+                    Button::new(t(TextKey::SyncTailnetKeyCopy))
                         .variant(ButtonVariant::Ghost)
                         .on_press_tx(|state: &mut State, tx: &mut Tx| {
                             if let Some(key) = state.tailnet_key_for_copy() {
@@ -911,9 +911,9 @@ fn tailnet_key_row(s: &State, k: &Kit) -> El {
                 )
                 .child(
                     Button::new(if shown.is_some() {
-                        "Hide key"
+                        t(TextKey::SyncTailnetKeyHide)
                     } else {
-                        "Show key"
+                        t(TextKey::SyncTailnetKeyShow)
                     })
                     .variant(ButtonVariant::Ghost)
                     .on_press(|state: &mut State| state.toggle_tailnet_key())
@@ -921,7 +921,7 @@ fn tailnet_key_row(s: &State, k: &Kit) -> El {
                     .key("settings-sync-key-show"),
                 )
                 .child(
-                    Button::new("Rotate key")
+                    Button::new(t(TextKey::SyncTailnetKeyRotate))
                         .variant(ButtonVariant::Ghost)
                         .on_press(|state: &mut State| state.rotate_tailnet_key())
                         .build(k)
