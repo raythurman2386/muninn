@@ -32,7 +32,7 @@ use std::time::Duration;
 use muninn_core::Board;
 use muninn_i18n::{
     Key as TextKey, board_quit_refused, could_not_persist_board_recovery, could_not_read_recovery,
-    refusing_unsafe_recovery_path, t,
+    kanban_could_not_save_copy, refusing_unsafe_recovery_path, t,
 };
 
 use crate::board_tools::fingerprint;
@@ -157,11 +157,11 @@ impl State {
             return false;
         };
         if open.vault_root != root {
-            open.status = BoardStatus::Failed("the board belongs to another vault".to_owned());
+            open.status = BoardStatus::Failed(t(TextKey::BoardStatusOtherVault).to_owned());
             return false;
         }
         if !inside_vault(&root, &open.path) {
-            open.status = BoardStatus::Failed("the board is not inside the open vault".to_owned());
+            open.status = BoardStatus::Failed(t(TextKey::BoardStatusInsideVault).to_owned());
             return false;
         }
         if let Some(parent) = open.path.parent()
@@ -206,7 +206,7 @@ impl State {
         let json = model.to_json();
         if let Err(e) = model.save(&copy) {
             open.path = saved;
-            open.status = BoardStatus::Failed(format!("could not save a copy: {e}"));
+            open.status = BoardStatus::Failed(kanban_could_not_save_copy(e));
             return false;
         }
         open.disk = Some(fingerprint(&json));

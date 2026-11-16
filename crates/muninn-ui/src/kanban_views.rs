@@ -35,7 +35,10 @@ use muninn_core::{
     TagSettings, card_checklist, format_date_for_display, format_time_for_display, parse_links,
     scan_card_text,
 };
-use muninn_i18n::{EN_US, Key as TextKey, t};
+use muninn_i18n::{
+    EN_US, Key as TextKey, card_actions, card_actions_in_lane, card_label_in_lane, collapsed_cards,
+    lane_actions, lane_cards, lane_region_label, t,
+};
 use rune::{El, Key, KeyEvent, ScrollSpec, Tx, col, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle};
 use rune_theme_opencode::icons as ic;
@@ -198,20 +201,16 @@ fn list_lane(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane) -> El {
         )
         // Slice 16: the lane is a region; its cards are the list.
         .role("region")
-        .label(format!(
-            "{} lane, {count} cards{}{}",
+        .label(lane_region_label(
             lane.title(),
-            if over { ", over limit" } else { "" },
-            if lane.done_word().is_some() {
-                ", done lane"
-            } else {
-                ""
-            }
+            &count,
+            over,
+            lane.done_word().is_some(),
         ))
         .child(list_head(k, i, lane, &count, over));
     if lane.collapsed() {
         return section.child(
-            text(format!("Collapsed · {} cards", lane.cards().len()))
+            text(collapsed_cards(lane.cards().len()))
                 .key(format!("kanban-list-lane-{i}-collapsed"))
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
@@ -227,7 +226,7 @@ fn list_lane(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane) -> El {
         .w_full()
         .gap(6.0)
         .role("list")
-        .label(format!("{} cards", lane.title()))
+        .label(lane_cards(lane.title()))
         .focus_group()
         .focus_follows();
     for &(j, card) in &cards {
@@ -279,7 +278,7 @@ fn list_head(k: &Kit, i: usize, lane: &Lane, count: &str, over: bool) -> El {
     head.child(menu_button(
         k,
         format!("kanban-list-lane-{i}-menu"),
-        format!("Lane actions: {}", lane.title()),
+        lane_actions(lane.title()),
         move |s: &mut State, _: &mut Tx| s.open_lane_menu(i),
     ))
 }
@@ -314,11 +313,15 @@ fn list_card(
     let (width, border) = mark_border(k, card_mark(current, matching, selected));
     let key = format!("kanban-card-{i}-{j}");
     let focused_key = key.clone();
-    let state_word = if done { "Done" } else { "Open" };
-    let menu_label = if first.trim().is_empty() {
-        format!("Card actions: empty card in {}", lane.title())
+    let state_word = if done {
+        t(TextKey::KanbanFilterDone)
     } else {
-        format!("Card actions: {first}")
+        t(TextKey::KanbanFilterOpen)
+    };
+    let menu_label = if first.trim().is_empty() {
+        card_actions_in_lane(lane.title())
+    } else {
+        card_actions(&first)
     };
     row()
         .key(key)
@@ -329,7 +332,7 @@ fn list_card(
         .fill(k.c.layer_02)
         .border(width, border)
         .role("listitem")
-        .label(format!("{} · {state_word}: {first}", lane.title()))
+        .label(card_label_in_lane(lane.title(), state_word, &first))
         .focusable(true)
         // Slice 16 fix: a nested group puts the row's controls within Tab and
         // arrow reach (checkbox first, then the menu and checklist rows).
@@ -478,7 +481,7 @@ fn table_lane_rows(s: &State, k: &Kit, ctx: &Context, i: usize, lane: &Lane, row
             k,
             i,
             lane,
-            format!("Collapsed · {} cards", lane.cards().len()),
+            collapsed_cards(lane.cards().len()),
             None,
         ));
         return;
@@ -653,10 +656,14 @@ fn table_row(
         })
         .border(width, border)
         .role("row")
-        .label(format!(
-            "{} · {}: {first}",
+        .label(card_label_in_lane(
             lane.title(),
-            if done { "Done" } else { "Open" }
+            if done {
+                t(TextKey::KanbanFilterDone)
+            } else {
+                t(TextKey::KanbanFilterOpen)
+            },
+            &first,
         ))
         .focusable(true)
         // Slice 16 fix: a nested group puts the row's controls (checkbox and

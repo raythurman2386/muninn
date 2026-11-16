@@ -30,6 +30,7 @@
 use std::collections::HashMap;
 
 use muninn_core::Kanban;
+use muninn_i18n::{Key as TextKey, t};
 use rune::{Drag, Phase, PointerButton, Tx};
 
 use crate::State;
@@ -214,7 +215,7 @@ impl State {
     /// The move itself, on indices that match the board as it is now. The
     /// selected card stays selected in its lane.
     fn move_lane_now(&mut self, from: usize, to: usize) {
-        if self.edit_kanban("move the lane", |b| b.move_lane(from, to)) {
+        if self.edit_kanban(t(TextKey::KanbanEditMoveLane), |b| b.move_lane(from, to)) {
             let follow = |l: usize| match l {
                 l if l == from => to,
                 l if from < l && l <= to => l - 1,

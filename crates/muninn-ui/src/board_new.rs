@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use muninn_i18n::could_not_create_board;
+
 use crate::{Mode, State};
 
 /// The name a new board starts with; `Untitled board 2`… when it is taken.
@@ -105,7 +107,7 @@ impl State {
             }
             Err(e) => {
                 self.log_event("board", &format!("new board not created: {e}"));
-                self.notice = Some(format!("Could not create a board: {e}"));
+                self.notice = Some(could_not_create_board(e));
             }
         }
     }

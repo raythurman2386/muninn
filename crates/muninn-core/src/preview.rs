@@ -285,10 +285,11 @@ fn attachment_placeholder(link: &WikiLink, size: Option<u64>, out: &mut String) 
     }
     // Board slice 7: an embedded Excalidraw board says so; the reader's
     // strip opens it on Board.
+    out.push_str("` (");
     out.push_str(if is_board_name(name) {
-        "` (board"
+        muninn_i18n::t(muninn_i18n::Key::PreviewBoardKind)
     } else {
-        "` (attachment"
+        muninn_i18n::t(muninn_i18n::Key::PreviewAttachmentKind)
     });
     if let Some(alias) = &link.alias {
         out.push_str(" — ");
@@ -300,7 +301,10 @@ fn attachment_placeholder(link: &WikiLink, size: Option<u64>, out: &mut String) 
             out.push_str(" · ");
             out.push_str(&human_size(bytes));
         }
-        None => out.push_str(" · missing"),
+        None => {
+            out.push_str(" · ");
+            out.push_str(muninn_i18n::t(muninn_i18n::Key::PreviewMissing));
+        }
     }
 }
 

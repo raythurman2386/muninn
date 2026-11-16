@@ -48,7 +48,7 @@
 use std::io;
 
 use muninn_core::{CardOrder, Kanban};
-use muninn_i18n::{Key as TextKey, t};
+use muninn_i18n::{Key as TextKey, could_not_do, delete_lane, delete_lane_text, lines, t};
 use rune::{El, Key, KeyEvent, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -82,9 +82,6 @@ pub enum CardStep {
     NextLane,
 }
 
-/// Why a card limit was refused.
-const LIMIT_REFUSED: &str = "A card limit is a whole number";
-
 /// The lane field's `typed` text (trimmed) applied to `board` at `slot`, as
 /// committing it does. A blank title changes nothing; a blank limit clears it.
 pub(crate) fn apply_lane_field(board: &mut Kanban, slot: LaneSlot, typed: &str) -> io::Result<()> {
@@ -96,7 +93,10 @@ pub(crate) fn apply_lane_field(board: &mut Kanban, slot: LaneSlot, typed: &str) 
         LaneField::Limit if typed.is_empty() => board.set_lane_limit(lane, None),
         LaneField::Limit => match typed.parse::<u32>() {
             Ok(n) => board.set_lane_limit(lane, Some(n)),
-            Err(_) => Err(io::Error::new(io::ErrorKind::InvalidInput, LIMIT_REFUSED)),
+            Err(_) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                t(TextKey::KanbanLaneLimitInvalid),
+            )),
         },
     }
 }
@@ -156,16 +156,16 @@ impl State {
         let typed = self.kanban_lane_field.text.trim().to_owned();
         let slot = LaneSlot { lane, field };
         let what = match field {
-            LaneField::New => "add the lane",
-            LaneField::Rename => "rename the lane",
-            LaneField::Limit if typed.is_empty() => "clear the limit",
-            LaneField::Limit => "set the limit",
+            LaneField::New => t(TextKey::KanbanEditAddLane),
+            LaneField::Rename => t(TextKey::KanbanEditRenameLane),
+            LaneField::Limit if typed.is_empty() => t(TextKey::KanbanEditClearLimit),
+            LaneField::Limit => t(TextKey::KanbanEditSetLimit),
         };
         let applied = if typed.is_empty() && field != LaneField::Limit {
             true
         } else if field == LaneField::Limit && !typed.is_empty() && typed.parse::<u32>().is_err() {
             if let Some(shown) = &mut self.kanban {
-                shown.error = Some(LIMIT_REFUSED.to_owned());
+                shown.error = Some(t(TextKey::KanbanLaneLimitInvalid).to_owned());
             }
             false
         } else {
@@ -205,7 +205,7 @@ impl State {
             Ok(drops) => drops,
             Err(error) => {
                 // Refused (an open fence): say why, as an edit would.
-                let message = format!("Could not delete the lane: {error}");
+                let message = could_not_do(t(TextKey::KanbanEditDeleteLane), error);
                 if let Some(shown) = &mut self.kanban {
                     shown.error = Some(message);
                 }
@@ -229,21 +229,25 @@ impl State {
         let Some(lane) = self.settle_lane_edit(lane) else {
             return;
         };
-        if self.edit_kanban("delete the lane", |b| b.delete_lane(lane)) {
+        if self.edit_kanban(t(TextKey::KanbanEditDeleteLane), |b| b.delete_lane(lane)) {
             self.kanban_selected = None;
         }
     }
 
     pub fn set_lane_done(&mut self, lane: usize, done: bool) {
         if let Some(lane) = self.settle_lane_edit(lane) {
-            self.edit_kanban("change the done lane", |b| b.set_lane_done(lane, done));
+            self.edit_kanban(t(TextKey::KanbanEditChangeDoneLane), |b| {
+                b.set_lane_done(lane, done)
+            });
         }
     }
 
     pub fn sort_lane(&mut self, lane: usize, order: CardOrder) {
         if let Some(lane) = self.settle_lane_edit(lane) {
             let dates = self.kanban_date_settings();
-            self.edit_kanban("sort the lane", |b| b.sort_cards_with(lane, order, &dates));
+            self.edit_kanban(t(TextKey::KanbanEditSortLane), |b| {
+                b.sort_cards_with(lane, order, &dates)
+            });
         }
     }
 
@@ -255,7 +259,7 @@ impl State {
         let Some(collapsed) = self.kanban_lane(lane).map(muninn_core::Lane::collapsed) else {
             return;
         };
-        self.edit_kanban("collapse the lane", |b| {
+        self.edit_kanban(t(TextKey::KanbanEditCollapseLane), |b| {
             b.set_lane_collapsed(lane, !collapsed)
         });
     }
@@ -278,7 +282,7 @@ impl State {
             return;
         };
         let mark = open && to_lane != lane && self.kanban_lane_is_done(to_lane);
-        let moved = self.edit_kanban("move the card", |b| {
+        let moved = self.edit_kanban(t(TextKey::KanbanEditMoveCard), |b| {
             b.move_card(lane, index, to_lane, to_index)?;
             if mark {
                 b.toggle_done(to_lane, to_index)?;
@@ -417,22 +421,25 @@ pub(crate) fn card_move_items(
     let len = board.lanes().get(lane).map_or(0, |l| l.cards().len());
     let mut items = Vec::new();
     if index > 0 {
-        items.extend([("Move up", "move_up"), ("Move to top", "move_top")]);
+        items.extend([
+            (t(TextKey::KanbanLaneMoveUp), "move_up"),
+            (t(TextKey::KanbanLaneMoveTop), "move_top"),
+        ]);
     }
     if index + 1 < len {
         items.extend([
-            ("Move down", "move_down"),
-            ("Move to bottom", "move_bottom"),
+            (t(TextKey::KanbanLaneMoveDown), "move_down"),
+            (t(TextKey::KanbanLaneMoveBottom), "move_bottom"),
         ]);
     }
     if lane > 0 {
-        items.push(("Move to previous list", "move_previous"));
+        items.push((t(TextKey::KanbanLaneMovePreviousList), "move_previous"));
     }
     if lane + 1 < lanes {
-        items.push(("Move to next list", "move_next"));
+        items.push((t(TextKey::KanbanLaneMoveNextList), "move_next"));
     }
     if lanes > 1 {
-        items.push(("Move to list…", "move_to_list"));
+        items.push((t(TextKey::KanbanLaneMoveToList), "move_to_list"));
     }
     items
 }
@@ -445,28 +452,28 @@ pub(crate) fn lane_items(s: &State, lane: usize) -> Vec<(&'static str, &'static 
         .is_some_and(|l| l.done_word().is_some());
     let lanes = s.kanban_board().map_or(0, |b| b.lanes().len());
     let mut items = vec![
-        ("Insert lane before", "insert_lane_before"),
-        ("Insert lane after", "insert_lane_after"),
+        (t(TextKey::KanbanLaneInsertBefore), "insert_lane_before"),
+        (t(TextKey::KanbanLaneInsertAfter), "insert_lane_after"),
     ];
     // Slice 6: the keyboard and menu equivalents of dragging a lane.
     if lane > 0 {
-        items.push(("Move lane left", "move_lane_left"));
+        items.push((t(TextKey::KanbanLaneMoveLeft), "move_lane_left"));
     }
     if lane + 1 < lanes {
-        items.push(("Move lane right", "move_lane_right"));
+        items.push((t(TextKey::KanbanLaneMoveRight), "move_lane_right"));
     }
     items.extend([
-        ("Rename lane", "rename_lane"),
-        ("Card limit…", "lane_limit"),
+        (t(TextKey::KanbanLaneRename), "rename_lane"),
+        (t(TextKey::KanbanLaneLimit), "lane_limit"),
         if done {
-            ("Mark as not done lane", "not_done_lane")
+            (t(TextKey::KanbanLaneMarkNotDone), "not_done_lane")
         } else {
-            ("Mark as done lane", "done_lane")
+            (t(TextKey::KanbanLaneMarkDone), "done_lane")
         },
-        ("Sort by text", "sort_text"),
-        ("Sort by date", "sort_date"),
-        ("Sort by tags", "sort_tags"),
-        ("Delete lane", "delete_lane"),
+        (t(TextKey::KanbanLaneSortText), "sort_text"),
+        (t(TextKey::KanbanLaneSortDate), "sort_date"),
+        (t(TextKey::KanbanLaneSortTags), "sort_tags"),
+        (t(TextKey::KanbanLaneDelete), "delete_lane"),
     ]);
     items
 }
@@ -537,7 +544,7 @@ pub(crate) fn delete_lane_confirm(s: &State, k: &Kit, lane: usize) -> El {
                 .on_press(|s: &mut State| s.pick_menu("delete")),
         )
         .child(
-            menu_row(k, "menu-cancel".to_owned(), "Cancel".to_owned())
+            menu_row(k, "menu-cancel".to_owned(), t(TextKey::Cancel).to_owned())
                 .on_press(|s: &mut State| s.close_menu()),
         )
 }
@@ -545,27 +552,17 @@ pub(crate) fn delete_lane_confirm(s: &State, k: &Kit, lane: usize) -> El {
 /// The confirmation's question and button. Note text the page doesn't show
 /// is named: kept, or (when it can't stay) counted and quoted.
 fn delete_lane_words(title: &str, cards: usize, drops: &[String]) -> (String, &'static str) {
-    let cards = match cards {
-        0 => String::new(),
-        1 => " and its card".to_owned(),
-        n => format!(" and its {n} cards"),
-    };
     let Some(first) = drops.first() else {
-        let question = format!("Delete “{title}”{cards}? Any note text in it stays in the file.");
-        return (question, "Delete the lane and its cards");
+        return (delete_lane(title, cards), t(TextKey::KanbanLaneDeleteCards));
     };
     let mut preview: String = first.chars().take(48).collect();
     if preview.len() < first.len() {
         preview.push('…');
     }
-    let lines = match drops.len() {
-        1 => "1 line".to_owned(),
-        n => format!("{n} lines"),
-    };
-    let question = format!(
-        "Delete “{title}”{cards}? {lines} of note text the board doesn't show will be deleted too, starting “{preview}”."
-    );
-    (question, "Delete the lane and its note text")
+    (
+        delete_lane_text(title, cards, &lines(drops.len()), &preview),
+        t(TextKey::KanbanLaneDeleteText),
+    )
 }
 
 /// Move to list…: every other lane, by title, under the card.
@@ -581,7 +578,7 @@ pub(crate) fn lane_picker(s: &State, k: &Kit, lane: usize, index: usize) -> El {
         .fill(k.c.layer_02)
         .border(1.0, k.c.border_base)
         .role("menu")
-        .label("Move to lane")
+        .label(t(TextKey::MenuMoveToLane))
         .focus_group()
         // Slice 16 fix: the picker takes the keyboard, Escape and a press
         // outside close it, and closing gives the card the keyboard back.
@@ -598,7 +595,7 @@ pub(crate) fn lane_picker(s: &State, k: &Kit, lane: usize, index: usize) -> El {
         );
     }
     list.child(
-        menu_row(k, "menu-cancel".to_owned(), "Cancel".to_owned())
+        menu_row(k, "menu-cancel".to_owned(), t(TextKey::Cancel).to_owned())
             .on_press(|s: &mut State| s.close_menu()),
     )
 }

@@ -429,20 +429,20 @@ impl State {
 /// board opened from another vault, and a file someone else changed.
 fn write_board(open: &mut OpenBoard, root: &Path) -> Result<(), String> {
     let Some(model) = &open.model else {
-        return Err("the board could not be read, so it is not written".to_owned());
+        return Err(t(TextKey::BoardStatusUnreadable).to_owned());
     };
     if open.vault_root != root {
-        return Err("the board belongs to another vault".to_owned());
+        return Err(t(TextKey::BoardStatusOtherVault).to_owned());
     }
     if !crate::doc_sync::inside_vault(root, &open.path) {
-        return Err("the board is not inside the open vault".to_owned());
+        return Err(t(TextKey::BoardStatusInsideVault).to_owned());
     }
     let on_disk = std::fs::read_to_string(&open.path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => "the file was removed".to_owned(),
+        std::io::ErrorKind::NotFound => t(TextKey::KanbanStatusFileRemoved).to_owned(),
         _ => e.to_string(),
     })?;
     if Some(fingerprint(&on_disk)) != open.disk {
-        return Err("the file changed on disk".to_owned());
+        return Err(t(TextKey::KanbanStatusFileChanged).to_owned());
     }
     let json = model.to_json();
     model.save(&open.path).map_err(|e| e.to_string())?;

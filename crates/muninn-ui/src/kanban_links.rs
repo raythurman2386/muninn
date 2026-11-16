@@ -24,6 +24,7 @@
 use std::path::Path;
 
 use muninn_core::atomic_write;
+use muninn_i18n::{Key as TextKey, could_not_create_note, t};
 use rune::Tx;
 
 use crate::kanban_edit::CardCommit;
@@ -62,7 +63,7 @@ impl State {
             self.vault.notes.get(id)?.stem().to_owned()
         };
         let mut assigned = None;
-        let ok = self.edit_kanban("copy the card link", |board| {
+        let ok = self.edit_kanban(t(TextKey::KanbanEditCopyCardLink), |board| {
             assigned = Some(board.assign_block_id(lane, index)?);
             Ok(())
         });
@@ -102,19 +103,19 @@ impl State {
             Ok(path) => path,
             Err(e) => {
                 self.log_event("kanban", &format!("note from card not created: {e}"));
-                self.notice = Some(format!("Could not create a note: {e}"));
+                self.notice = Some(could_not_create_note(e));
                 return;
             }
         };
         let body = note_from_card_body(&template, &text);
         if let Err(e) = atomic_write(&path, body.as_bytes()) {
             self.log_event("kanban", &format!("note from card not written: {e}"));
-            self.notice = Some(format!("Could not create a note: {e}"));
+            self.notice = Some(could_not_create_note(e));
             return;
         }
         let stem = vault_stem(&self.vault.root, &path);
         let link = format!("[[{stem}]]");
-        if !self.edit_kanban("make a note from the card", |board| {
+        if !self.edit_kanban(t(TextKey::KanbanEditMakeNoteFromCard), |board| {
             board.edit_card(lane, index, &link)
         }) {
             return;

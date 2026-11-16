@@ -180,13 +180,13 @@ fn desktop_exec(exe: &Path) -> io::Result<String> {
     let path = exe.to_str().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            "the executable path is not UTF-8",
+            muninn_i18n::t(muninn_i18n::Key::AutostartPathNotUtf8),
         )
     })?;
     if path.contains(['\n', '\r']) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "the executable path has a line break",
+            muninn_i18n::t(muninn_i18n::Key::AutostartPathLineBreak),
         ));
     }
     let mut quoted = String::from("\"");
@@ -267,13 +267,13 @@ fn windows_run(args: &[String]) -> Result<(), String> {
         .args(args)
         .creation_flags(CREATE_NO_WINDOW)
         .output()
-        .map_err(|e| format!("reg.exe could not run: {e}"))?;
+        .map_err(muninn_i18n::autostart_reg_failed)?;
     if output.status.success() {
         Ok(())
     } else {
         let message = String::from_utf8_lossy(&output.stderr).trim().to_owned();
         Err(if message.is_empty() {
-            format!("reg.exe exited with {}", output.status)
+            muninn_i18n::autostart_reg_exit(output.status)
         } else {
             message
         })

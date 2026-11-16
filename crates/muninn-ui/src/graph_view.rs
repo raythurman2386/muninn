@@ -8,7 +8,9 @@ use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
 use muninn_graph::{NODE_H, NODE_W, WORLD};
-use muninn_i18n::{Key as TextKey, t};
+use muninn_i18n::{
+    Key as TextKey, graph_links, graph_node_parent, graph_stats, note_label_root, t,
+};
 
 use crate::settings::GraphEffects;
 use crate::{BurnMark, BurnSpace, Scope, State};
@@ -496,9 +498,9 @@ fn node_button(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
     let label = if s.vault.is_duplicate(id) {
         let parent = note.parent();
         if parent.is_empty() {
-            format!("{} (root)", note.title)
+            note_label_root(&note.title)
         } else {
-            format!("{} ({parent})", note.title)
+            graph_node_parent(&note.title, parent)
         }
     } else {
         note.title.clone()
@@ -763,7 +765,7 @@ fn stats(_s: &State, k: &Kit, nodes: usize, edges: usize) -> El {
         .border(1.0, k.c.border_base)
         .child(icon(&ic::SHARE, 12.0).color(k.c.icon_faint))
         .child(
-            text(format!("{nodes} notes · {edges} edges"))
+            text(graph_stats(nodes, edges))
                 .font(k.ty.caption())
                 .color(k.c.text_muted),
         )
@@ -772,11 +774,7 @@ fn stats(_s: &State, k: &Kit, nodes: usize, edges: usize) -> El {
 fn info(s: &State, k: &Kit) -> El {
     let Some(id) = s.selected else { return el() };
     let note = &s.vault.notes[id];
-    let stats = format!(
-        "{} · {}",
-        plural(note.links.len(), "outgoing link", "outgoing links"),
-        plural(note.backlinks.len(), "backlink", "backlinks")
-    );
+    let stats = graph_links(note.links.len(), note.backlinks.len());
     col()
         .key("graph-info")
         .pin(Some(14.0), None, None, Some(14.0))
@@ -838,14 +836,6 @@ fn info(s: &State, k: &Kit) -> El {
                     )
                 }),
         )
-}
-
-fn plural(n: usize, one: &str, many: &str) -> String {
-    if n == 1 {
-        format!("1 {one}")
-    } else {
-        format!("{n} {many}")
-    }
 }
 
 fn hint(k: &Kit) -> El {

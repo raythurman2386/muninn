@@ -11,9 +11,12 @@ use rune_theme_opencode::icons as ic;
 
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
 use muninn_i18n::{
-    Key as TextKey, deleted, files_skipped, login_item_error, more_edits, recovered_copies,
-    recovered_for, referrers, scan_ms, status_counts, t, targets, trash_empty, trash_summary,
-    tray_error,
+    Key as TextKey, autosave_help, broken_links, deleted, files_skipped, focus_exit_help,
+    focus_help, link_impact, login_item_error, more_edits, new_folder_in, new_note_in, note_links,
+    note_links_in_folder, palette_kanban_folder, recovered_copies, recovered_for, referrers,
+    results, scan_ms, scan_progress, shortcut_failed, shortcut_on, show_with_chord,
+    sidebar_summary, status_counts, t, targets, theme_label, trash_empty, trash_summary,
+    tray_error, version, welcome_vault_created,
 };
 
 use crate::{
@@ -208,9 +211,15 @@ fn sidebar(s: &State, k: &Kit) -> El {
     }
     if empty && !(s.vault.notes.is_empty() && s.startup_error.is_some()) {
         let (title, hint) = if s.vault.notes.is_empty() {
-            ("No notes yet", "Add .md files here, or make one below.")
+            (
+                t(TextKey::SidebarNoNotesTitle),
+                t(TextKey::SidebarNoNotesHint),
+            )
         } else {
-            ("No notes match", "Try a different search.")
+            (
+                t(TextKey::SidebarNoMatchTitle),
+                t(TextKey::SidebarNoMatchHint),
+            )
         };
         list = list.child(
             col()
@@ -231,7 +240,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
         .center_y()
         .child(logo_mark(24.0))
         .child(
-            text("Muninn")
+            text(t(TextKey::CommonAppName))
                 .font(k.ty.ui_medium)
                 .color(k.c.text_base)
                 .grow(1.0),
@@ -247,7 +256,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
 
     let search = row()
         .key("search-box")
-        .label("Search notes")
+        .label(t(TextKey::SidebarSearch))
         .h(34.0)
         .mx(12.0)
         .px(9.0)
@@ -275,12 +284,12 @@ fn sidebar(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.search, k.ty.ui_compact)
                 .key("search")
-                .label("Search notes")
+                .label(t(TextKey::SidebarSearch))
                 .single_line()
                 .grow(1.0)
                 .color(k.c.text_base)
                 .caret(k.c.text_accent, k.selection())
-                .placeholder("Search notes", k.c.text_faint)
+                .placeholder(t(TextKey::SidebarSearch), k.c.text_faint)
                 .on_edit(|s: &mut State| &mut s.search)
                 .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                     // M2 NAV-01: Up/Down walk the ranked results and wrap.
@@ -322,7 +331,11 @@ fn sidebar(s: &State, k: &Kit) -> El {
         .press(k.c.pressed)
         .cursor(Cursor::Pointer)
         .child(icon(&ic::PLUS, 14.0).color(k.c.text_accent))
-        .child(text("New note").font(k.ty.ui_compact).color(k.c.text_base))
+        .child(
+            text(t(TextKey::CommonNewNote))
+                .font(k.ty.ui_compact)
+                .color(k.c.text_base),
+        )
         .on_press(|s: &mut State| s.new_note());
 
     let count = s.vault.notes.len();
@@ -377,13 +390,9 @@ fn sidebar(s: &State, k: &Kit) -> El {
                 .gap(8.0)
                 .center_y()
                 .child(
-                    text(format!(
-                        "{} · {}",
-                        plural(count, "note", "notes"),
-                        plural(links, "link", "links")
-                    ))
-                    .font(k.ty.caption())
-                    .color(k.c.text_faint),
+                    text(sidebar_summary(count, links))
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint),
                 )
                 .child(spacer())
                 .child(broken_chip(s, k))
@@ -396,9 +405,9 @@ fn sidebar(s: &State, k: &Kit) -> El {
 fn broken_chip(s: &State, k: &Kit) -> El {
     let broken = s.broken_count();
     let (label, color) = if broken == 0 {
-        ("links ok".to_owned(), k.c.text_faint)
+        (t(TextKey::SidebarLinksOk).to_owned(), k.c.text_faint)
     } else {
-        (format!("{broken} broken"), k.c.warning.fg)
+        (broken_links(broken), k.c.warning.fg)
     };
     pressable(k, "broken-chip".to_owned())
         .px(6.0)
@@ -426,7 +435,7 @@ fn broken_chip(s: &State, k: &Kit) -> El {
 fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: bool) -> El {
     let slug = folder_slug(folder);
     let name = if folder.is_empty() {
-        "Vault root".to_owned()
+        t(TextKey::CommonVaultRoot).to_owned()
     } else {
         folder.to_owned()
     };
@@ -471,7 +480,7 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
 fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
     let target = folder.to_owned();
     let place = if folder.is_empty() {
-        "the vault root".to_owned()
+        t(TextKey::SidebarTheVaultRoot).to_owned()
     } else {
         folder.to_owned()
     };
@@ -479,15 +488,15 @@ fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
         .size(22.0, 22.0)
         .center()
         .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
-        .label(format!("New note in {place}"))
-        .help(format!("New note in {place}"))
+        .label(new_note_in(&place))
+        .help(new_note_in(&place))
         .on_press(move |s: &mut State| s.new_note_in(&target))
 }
 
 fn folder_new_folder_button(k: &Kit, slug: &str, folder: &str) -> El {
     let target = folder.to_owned();
     let place = if folder.is_empty() {
-        "the vault root".to_owned()
+        t(TextKey::SidebarTheVaultRoot).to_owned()
     } else {
         folder.to_owned()
     };
@@ -495,8 +504,8 @@ fn folder_new_folder_button(k: &Kit, slug: &str, folder: &str) -> El {
         .size(22.0, 22.0)
         .center()
         .child(icon(&ic::FOLDER_ADD_LEFT, 12.0).color(k.c.icon_muted))
-        .label(format!("New folder in {place}"))
-        .help(format!("New folder in {place}"))
+        .label(new_folder_in(&place))
+        .help(new_folder_in(&place))
         .on_press(move |s: &mut State| s.begin_new_folder(&target))
 }
 
@@ -536,25 +545,11 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
     } else {
         k.alpha(accent, 0.55)
     };
-    let links = match (note.links.len(), note.backlinks.len()) {
-        (0, 0) => "no links".to_owned(),
-        (0, b) => plural(b, "backlink", "backlinks"),
-        (l, 0) => plural(l, "link", "links"),
-        (l, b) => format!(
-            "{} · {}",
-            plural(l, "link", "links"),
-            plural(b, "backlink", "backlinks")
-        ),
-    };
+    let links = note_links(note.links.len(), note.backlinks.len());
     // Duplicate titles are only distinguishable by folder, so the subtitle
     // carries the vault-relative folder for those rows.
     let subtitle = if s.vault.is_duplicate(id) {
-        let folder = note.folder();
-        if folder.is_empty() {
-            format!("vault root · {links}")
-        } else {
-            format!("{folder} · {links}")
-        }
+        note_links_in_folder(note.folder(), note.links.len(), note.backlinks.len())
     } else {
         links
     };
@@ -609,7 +604,7 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
             icon(&ic::CHECKLIST, 13.0)
                 .key(format!("note-row-{id}-kanban"))
                 .color(k.c.icon_muted)
-                .label("Kanban")
+                .label(t(TextKey::ModeKanban))
         } else {
             el()
         })
@@ -620,10 +615,7 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
 }
 
 fn theme_button(k: &Kit, mode: ThemeMode) -> El {
-    let label = format!(
-        "Theme: {} — click to cycle (System, Dark, Light)",
-        mode.label()
-    );
+    let label = theme_label(mode.label());
     el().key("theme")
         .size(28.0, 28.0)
         .radius(7.0)
@@ -661,8 +653,8 @@ fn help_button(k: &Kit) -> El {
                 .font(TextStyle::new(14.0, 600.0))
                 .color(k.c.icon_muted),
         )
-        .label("Keyboard shortcuts")
-        .help("Keyboard shortcuts")
+        .label(t(TextKey::KeyboardShortcuts))
+        .help(t(TextKey::KeyboardShortcuts))
         .on_press(|s: &mut State| s.open_help())
 }
 
@@ -683,8 +675,8 @@ fn settings_button(k: &Kit) -> El {
             }
         })
         .child(icon(&ic::SETTINGS_GEAR, 15.0).color(k.c.icon_muted))
-        .label("Settings")
-        .help("Settings (Ctrl+,)")
+        .label(t(TextKey::SettingsTitle))
+        .help(t(TextKey::TopbarSettingsHelp))
         .on_press(|s: &mut State| s.open_settings())
 }
 
@@ -1052,12 +1044,12 @@ fn settings_header(k: &Kit) -> El {
         .gap(10.0)
         .center_y()
         .child(
-            text("Settings")
+            text(t(TextKey::SettingsTitle))
                 .font(TextStyle::new(16.0, 600.0).lh(22.0))
                 .color(k.c.text_base),
         )
         .child(
-            text("Changes save automatically.")
+            text(t(TextKey::SettingsChangesSave))
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
                 .truncate(),
@@ -1070,8 +1062,8 @@ fn settings_header(k: &Kit) -> El {
                 .focusable(true)
                 .focus_ring(2.0, 1.0, k.c.border_focus)
                 .role("button")
-                .label("Close settings (Esc)")
-                .help("Close settings (Esc)")
+                .label(t(TextKey::SettingsClose))
+                .help(t(TextKey::SettingsClose))
                 .on_press(|s: &mut State| s.close_settings())
                 .child(icon(&ic::CLOSE, 14.0).color(k.c.icon_muted)),
         )
@@ -1093,7 +1085,7 @@ fn settings_tab_bar(s: &State, k: &Kit) -> El {
         .flex_wrap()
         .role("radiogroup")
         .focus_group()
-        .label("Settings section");
+        .label(t(TextKey::SettingsSection));
     for (index, tab) in SettingsTab::ALL.iter().enumerate() {
         let selected = s.settings_tab == *tab;
         bar = bar.child(
@@ -1405,7 +1397,7 @@ fn settings_startup_section(s: &State, k: &Kit) -> El {
     };
     let chord = crate::show_shortcut_label();
     let shortcut = Switch::new(s.show_shortcut())
-        .label(format!("Show Muninn with {chord}"))
+        .label(show_with_chord(chord))
         .on_toggle(|s: &mut State| {
             let on = !s.show_shortcut();
             s.set_show_shortcut(on);
@@ -1413,12 +1405,8 @@ fn settings_startup_section(s: &State, k: &Kit) -> El {
         .build(k)
         .key("settings-show-shortcut");
     let shortcut_status = match (s.show_shortcut(), s.shortcut_phase()) {
-        (_, crate::ShortcutPhase::Failed(error)) => {
-            format!("{chord} could not be registered: {error}")
-        }
-        (true, crate::ShortcutPhase::Bound) => {
-            format!("On. {chord} shows Muninn from any app.")
-        }
+        (_, crate::ShortcutPhase::Failed(error)) => shortcut_failed(chord, error),
+        (true, crate::ShortcutPhase::Bound) => shortcut_on(chord),
         (true, crate::ShortcutPhase::Pending) => {
             t(TextKey::SettingsAppearanceShortcutRegistering).to_owned()
         }
@@ -1675,12 +1663,12 @@ fn new_note_row(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.new_note_field, k.ty.ui_compact)
                 .key("new-note-name")
-                .label("New note name")
+                .label(t(TextKey::NewNoteName))
                 .single_line()
                 .grow(1.0)
                 .color(k.c.text_base)
                 .caret(k.c.text_accent, k.selection())
-                .placeholder("Note name", k.c.text_faint)
+                .placeholder(t(TextKey::NoteNamePlaceholder), k.c.text_faint)
                 .on_edit(|s: &mut State| &mut s.new_note_field)
                 .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                     if e.key == Key::Escape {
@@ -1701,7 +1689,11 @@ fn new_note_row(s: &State, k: &Kit) -> El {
                 .center_y()
                 .cursor(Cursor::Pointer)
                 .hover(k.c.hover)
-                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .child(
+                    text(t(TextKey::Cancel))
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted),
+                )
                 .on_press(|s: &mut State| s.cancel_new_note()),
         )
 }
@@ -1721,7 +1713,7 @@ fn rename_note_row(s: &State, k: &Kit) -> El {
         .child(
             text_input(&s.rename_field, k.ty.ui_compact)
                 .key("rename-note-name")
-                .label("Rename note")
+                .label(t(TextKey::RenameNoteName))
                 .single_line()
                 .grow(1.0)
                 .color(k.c.text_base)
@@ -1746,14 +1738,24 @@ fn rename_note_row(s: &State, k: &Kit) -> El {
                 .center_y()
                 .cursor(Cursor::Pointer)
                 .hover(k.c.hover)
-                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .child(
+                    text(t(TextKey::Cancel))
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted),
+                )
                 .on_press(|s: &mut State| s.cancel_rename_note()),
         )
 }
 
 /// Inline name field for a folder being created under its parent group.
 fn new_folder_row(s: &State, k: &Kit) -> El {
-    folder_field_row(s, k, "new-folder-name", "Folder name", true)
+    folder_field_row(
+        s,
+        k,
+        "new-folder-name",
+        t(TextKey::FolderNamePlaceholder),
+        true,
+    )
 }
 
 /// Inline rename field for a folder, shown under its header.
@@ -1781,9 +1783,9 @@ fn folder_field_row(s: &State, k: &Kit, key: &str, placeholder: &str, is_new: bo
             )
             .key(key)
             .label(if is_new {
-                "New folder name"
+                t(TextKey::NewFolderName)
             } else {
-                "Rename folder"
+                t(TextKey::RenameFolderName)
             })
             .single_line()
             .grow(1.0)
@@ -1828,19 +1830,19 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
     };
     let items: Vec<(&str, &str)> = match &menu.target {
         MenuTarget::Note(_) => vec![
-            ("Open externally", "open_external"),
-            ("Reveal in file manager", "reveal"),
-            ("Rename", "rename"),
-            ("Move to…", "move"),
-            ("Delete", "delete"),
+            (t(TextKey::MenuOpenExternally), "open_external"),
+            (t(TextKey::MenuReveal), "reveal"),
+            (t(TextKey::CommonRename), "rename"),
+            (t(TextKey::MenuMoveTo), "move"),
+            (t(TextKey::CommonDelete), "delete"),
         ],
         MenuTarget::Folder(_) => vec![
-            ("New note here", "new_note"),
-            ("New folder…", "new_folder"),
-            ("Rename", "rename"),
-            ("Delete", "delete"),
+            (t(TextKey::MenuNewNoteHere), "new_note"),
+            (t(TextKey::MenuNewFolder), "new_folder"),
+            (t(TextKey::CommonRename), "rename"),
+            (t(TextKey::CommonDelete), "delete"),
         ],
-        MenuTarget::Board(..) => vec![("Rename", "rename")],
+        MenuTarget::Board(..) => vec![(t(TextKey::CommonRename), "rename")],
         MenuTarget::Card(lane, index) => {
             let done = s
                 .kanban
@@ -1849,27 +1851,34 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                 .and_then(|board| board.lanes().get(*lane)?.cards().get(*index))
                 .is_some_and(muninn_core::Card::is_done);
             let mut items = vec![
-                ("Edit", "edit"),
-                ("Insert card before", "insert_before"),
-                ("Insert card after", "insert_after"),
-                ("Duplicate", "duplicate"),
+                (t(TextKey::CommonEdit), "edit"),
+                (t(TextKey::MenuInsertBefore), "insert_before"),
+                (t(TextKey::MenuInsertAfter), "insert_after"),
+                (t(TextKey::MenuDuplicate), "duplicate"),
             ];
             // Slice 14: the card's checkbox can be hidden by `show-checkboxes`;
             // the menu still toggles the done mark.
-            items.push((if done { "Mark open" } else { "Mark done" }, "toggle_done"));
+            items.push((
+                if done {
+                    t(TextKey::MenuMarkOpen)
+                } else {
+                    t(TextKey::MenuMarkDone)
+                },
+                "toggle_done",
+            ));
             items.push((
                 if crate::kanban_dates::has_token(s, *lane, *index, crate::PickerKind::Date) {
-                    "Change date…"
+                    t(TextKey::MenuChangeDate)
                 } else {
-                    "Add a date…"
+                    t(TextKey::MenuAddDate)
                 },
                 "add_date",
             ));
             items.push((
                 if crate::kanban_dates::has_token(s, *lane, *index, crate::PickerKind::Time) {
-                    "Change time…"
+                    t(TextKey::MenuChangeTime)
                 } else {
-                    "Add a time…"
+                    t(TextKey::MenuAddTime)
                 },
                 "add_time",
             ));
@@ -1880,19 +1889,19 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
                 .and_then(|board| board.lanes().get(*lane)?.cards().get(*index))
                 .is_some_and(|card| card.text().contains('\n'));
             if multi_line {
-                items.push(("Split card", "split"));
+                items.push((t(TextKey::MenuSplitCard), "split"));
             }
             items.extend(crate::kanban_lanes::card_move_items(s, *lane, *index));
-            items.push(("Copy link to card", "copy_link"));
-            items.push(("New note from card", "new_note"));
-            items.push(("Archive", "archive"));
-            items.push(("Delete", "delete"));
+            items.push((t(TextKey::MenuCopyLink), "copy_link"));
+            items.push((t(TextKey::MenuNewNoteFromCard), "new_note"));
+            items.push((t(TextKey::Archive), "archive"));
+            items.push((t(TextKey::CommonDelete), "delete"));
             items
         }
         MenuTarget::Lane(lane) => {
             let mut items = vec![
-                ("Add card", "add_card"),
-                ("Mark all cards done", "mark_done"),
+                (t(TextKey::AddCard), "add_card"),
+                (t(TextKey::MenuMarkAllDone), "mark_done"),
             ];
             items.extend(crate::kanban_lanes::lane_items(s, *lane));
             items
@@ -1974,10 +1983,14 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             .cursor(Cursor::Pointer)
             .press(k.c.pressed)
             .role("menuitem")
-            .label("Cancel")
+            .label(t(TextKey::Cancel))
             .focusable(true)
             .focus_highlight(k.c.hover)
-            .child(text("Cancel").font(k.ty.ui_compact).color(k.c.text_muted))
+            .child(
+                text(t(TextKey::Cancel))
+                    .font(k.ty.ui_compact)
+                    .color(k.c.text_muted),
+            )
             .on_press(|s: &mut State| s.close_menu()),
     )
 }
@@ -1985,12 +1998,12 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
 /// The name a menu announces, from what it acts on.
 fn menu_label(target: &MenuTarget) -> &'static str {
     match target {
-        MenuTarget::Note(_) => "Note actions",
-        MenuTarget::Folder(_) => "Folder actions",
-        MenuTarget::Board(..) => "Board actions",
-        MenuTarget::Card(..) | MenuTarget::MoveCard(..) => "Card actions",
-        MenuTarget::Lane(_) | MenuTarget::DeleteLane(_) => "Lane actions",
-        MenuTarget::ArchiveRestore(_) => "Archive actions",
+        MenuTarget::Note(_) => t(TextKey::MenuNoteActions),
+        MenuTarget::Folder(_) => t(TextKey::MenuFolderActions),
+        MenuTarget::Board(..) => t(TextKey::MenuBoardActions),
+        MenuTarget::Card(..) | MenuTarget::MoveCard(..) => t(TextKey::MenuCardActions),
+        MenuTarget::Lane(_) | MenuTarget::DeleteLane(_) => t(TextKey::MenuLaneActions),
+        MenuTarget::ArchiveRestore(_) => t(TextKey::MenuArchiveActions),
     }
 }
 
@@ -2066,7 +2079,7 @@ fn move_picker(s: &State, k: &Kit, id: usize) -> El {
         .py(4.0);
     for folder in s.vault.folders() {
         let label = if folder.is_empty() {
-            "Vault root".to_owned()
+            t(TextKey::CommonVaultRoot).to_owned()
         } else {
             folder.clone()
         };
@@ -2105,12 +2118,16 @@ fn rename_confirm_row(s: &State, k: &Kit) -> El {
     link_impact_row(
         k,
         "rename-confirm",
-        &referrer_summary(confirm.referrers, "here"),
+        &link_impact(confirm.referrers, t(TextKey::LinkImpactHere)),
         confirm.rewrite,
         State::toggle_rename_rewrite,
         State::confirm_rename_note,
         State::cancel_rename_confirm,
-        ("Rename", "rename-confirm-yes", "rename-confirm-cancel"),
+        (
+            t(TextKey::CommonRename),
+            "rename-confirm-yes",
+            "rename-confirm-cancel",
+        ),
     )
 }
 
@@ -2122,12 +2139,16 @@ fn move_confirm_row(s: &State, k: &Kit) -> El {
     link_impact_row(
         k,
         "move-confirm",
-        &referrer_summary(confirm.referrers, "here"),
+        &link_impact(confirm.referrers, t(TextKey::LinkImpactHere)),
         confirm.rewrite,
         State::toggle_move_rewrite,
         State::confirm_move_note,
         State::cancel_move_confirm,
-        ("Move", "move-confirm-yes", "move-confirm-cancel"),
+        (
+            t(TextKey::CommonMove),
+            "move-confirm-yes",
+            "move-confirm-cancel",
+        ),
     )
 }
 
@@ -2140,26 +2161,16 @@ fn folder_rename_confirm_row(s: &State, k: &Kit) -> El {
     link_impact_row(
         k,
         "folder-rename-confirm",
-        &referrer_summary(confirm.referrers, "into this folder"),
+        &link_impact(confirm.referrers, t(TextKey::LinkImpactIntoFolder)),
         confirm.rewrite,
         State::toggle_folder_rename_rewrite,
         State::confirm_folder_rename,
         State::cancel_folder_rename_confirm,
         (
-            "Rename",
+            t(TextKey::CommonRename),
             "folder-rename-confirm-yes",
             "folder-rename-confirm-cancel",
         ),
-    )
-}
-
-/// `2 notes link here` / `1 note links here`, pluralised once for both rows.
-fn referrer_summary(referrers: usize, place: &str) -> String {
-    format!(
-        "{} note{} link{} {place}",
-        referrers,
-        if referrers == 1 { "" } else { "s" },
-        if referrers == 1 { "s" } else { "" }
     )
 }
 
@@ -2214,9 +2225,9 @@ fn link_impact_row(
                 )
                 .child(
                     text(if rewrite {
-                        "Rewrite links to new name"
+                        t(TextKey::RenameRewriteLinks)
                     } else {
-                        "Leave links dangling"
+                        t(TextKey::RenameLeaveDangling)
                     })
                     .font(k.ty.caption())
                     .color(k.c.text_muted),
@@ -2243,7 +2254,11 @@ fn link_impact_row(
                     pressable(k, cancel_key)
                         .px(8.0)
                         .py(3.0)
-                        .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                        .child(
+                            text(t(TextKey::Cancel))
+                                .font(k.ty.caption())
+                                .color(k.c.text_muted),
+                        )
                         .on_press(move |s: &mut State| cancel(s)),
                 ),
         )
@@ -2253,8 +2268,8 @@ fn link_impact_row(
 fn delete_confirm_row(s: &State, k: &Kit, target: &DeleteConfirm) -> El {
     let _ = s;
     let label = match target {
-        DeleteConfirm::Note(_) => "Delete this note?",
-        DeleteConfirm::Folder(_) => "Delete folder? (empty only)",
+        DeleteConfirm::Note(_) => t(TextKey::DeleteNoteQuestion),
+        DeleteConfirm::Folder(_) => t(TextKey::DeleteFolderQuestion),
     };
     row()
         .key("delete-confirm")
@@ -2279,7 +2294,11 @@ fn delete_confirm_row(s: &State, k: &Kit, target: &DeleteConfirm) -> El {
                 .fill(k.c.danger.fg)
                 .cursor(Cursor::Pointer)
                 .hover(k.c.hover)
-                .child(text("Delete").font(k.ty.caption()).color(Color::WHITE))
+                .child(
+                    text(t(TextKey::CommonDelete))
+                        .font(k.ty.caption())
+                        .color(Color::WHITE),
+                )
                 .on_press(|s: &mut State| s.confirm_delete()),
         )
         .child(
@@ -2291,7 +2310,11 @@ fn delete_confirm_row(s: &State, k: &Kit, target: &DeleteConfirm) -> El {
                 .center_y()
                 .cursor(Cursor::Pointer)
                 .hover(k.c.hover)
-                .child(text("Cancel").font(k.ty.caption()).color(k.c.text_muted))
+                .child(
+                    text(t(TextKey::Cancel))
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted),
+                )
                 .on_press(|s: &mut State| s.cancel_delete()),
         )
 }
@@ -2454,24 +2477,31 @@ fn welcome_banner(s: &State, k: &Kit) -> El {
         .fill(k.alpha(k.c.text_accent, 0.10))
         .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.text_accent))
         .child(
-            text(format!(
-                "New vault created at {} — make your first note",
-                display_path(&s.vault.root)
-            ))
-            .font(k.ty.caption())
-            .color(k.c.text_base)
-            .grow(1.0)
-            .truncate(),
+            text(welcome_vault_created(&display_path(&s.vault.root)))
+                .font(k.ty.caption())
+                .color(k.c.text_base)
+                .grow(1.0)
+                .truncate(),
         )
         .child(welcome_graph_hint(k))
-        .child(status_button(k, "New note", "welcome-new-note", |s| {
-            s.new_note();
-            true
-        }))
-        .child(status_button(k, "Dismiss", "welcome-dismiss", |s| {
-            s.dismiss_welcome();
-            true
-        }))
+        .child(status_button(
+            k,
+            t(TextKey::CommonNewNote),
+            "welcome-new-note",
+            |s| {
+                s.new_note();
+                true
+            },
+        ))
+        .child(status_button(
+            k,
+            t(TextKey::CommonDismiss),
+            "welcome-dismiss",
+            |s| {
+                s.dismiss_welcome();
+                true
+            },
+        ))
 }
 
 /// A one-pill preview of what a `[[link]]` unlocks: open the link graph.
@@ -2485,10 +2515,10 @@ fn welcome_graph_hint(k: &Kit) -> El {
         .fill(k.alpha(k.c.text_accent, 0.12))
         .border(1.0, k.alpha(k.c.text_accent, 0.35))
         .center_y()
-        .label("Open the link graph")
-        .help("See how notes connect through [[links]]")
+        .label(t(TextKey::WelcomeGraphLabel))
+        .help(t(TextKey::WelcomeGraphHelp))
         .child(
-            text("[[a note]] → graph")
+            text(t(TextKey::WelcomeGraphPill))
                 .font(k.ty.caption())
                 .color(k.c.text_accent),
         )
@@ -2779,13 +2809,13 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 .child(
                     text_input(&s.palette_field, k.ty.ui_compact)
                         .key("palette-input")
-                        .label("Search notes and actions")
+                        .label(t(TextKey::PaletteTitle))
                         .active_descendant(format!("palette-item-{selected}"))
                         .single_line()
                         .grow(1.0)
                         .color(k.c.text_base)
                         .caret(k.c.text_accent, k.selection())
-                        .placeholder("Search notes and actions", k.c.text_faint)
+                        .placeholder(t(TextKey::PaletteTitle), k.c.text_faint)
                         .on_edit(|s: &mut State| &mut s.palette_field)
                         .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                             match e.key {
@@ -2830,7 +2860,7 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 .label(if items.is_empty() {
                     t(TextKey::PaletteEmpty)
                 } else {
-                    "Results"
+                    t(TextKey::CommonResults)
                 })
                 .child(rows),
         )
@@ -2844,7 +2874,7 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                 .center_y()
                 .fill(k.c.layer_02)
                 .child(
-                    text(plural(items.len(), "result", "results"))
+                    text(results(items.len()))
                         .font(k.ty.caption())
                         .color(k.c.text_faint),
                 )
@@ -2891,10 +2921,13 @@ fn palette_row(s: &State, k: &Kit, index: usize, item: &PaletteItem, selected: b
     let (title, subtitle, hint, dot) = match item {
         PaletteItem::Recent(id) | PaletteItem::Note(id) => {
             let note = s.vault.notes.get(*id);
-            let title = note.map_or_else(|| "Missing note".to_owned(), |n| n.title.clone());
+            let title = note.map_or_else(
+                || t(TextKey::PaletteMissingNote).to_owned(),
+                |n| n.title.clone(),
+            );
             let folder = note.map(|n| n.folder()).unwrap_or_default();
             let subtitle = if folder.is_empty() {
-                "Vault root".to_owned()
+                t(TextKey::CommonVaultRoot).to_owned()
             } else {
                 folder.to_owned()
             };
@@ -2902,12 +2935,15 @@ fn palette_row(s: &State, k: &Kit, index: usize, item: &PaletteItem, selected: b
         }
         PaletteItem::Kanban(id) => {
             let note = s.vault.notes.get(*id);
-            let title = note.map_or_else(|| "Missing note".to_owned(), |n| n.title.clone());
+            let title = note.map_or_else(
+                || t(TextKey::PaletteMissingNote).to_owned(),
+                |n| n.title.clone(),
+            );
             let folder = note.map(|n| n.folder()).unwrap_or_default();
             let subtitle = if folder.is_empty() {
-                "Kanban · Vault root".to_owned()
+                t(TextKey::PaletteKanbanRoot).to_owned()
             } else {
-                format!("Kanban · {folder}")
+                palette_kanban_folder(folder)
             };
             (title, subtitle, String::new(), k.c.text_accent)
         }
@@ -3107,19 +3143,17 @@ fn help_section_head(k: &Kit, title: &str) -> El {
 /// a caption glued to the log.
 fn help_about(s: &State, k: &Kit) -> El {
     let delay = s.autosave_delay();
-    let version = env!("CARGO_PKG_VERSION");
-    help_card(k, "help-about", "Autosave")
+    let app_version = env!("CARGO_PKG_VERSION");
+    help_card(k, "help-about", t(TextKey::SettingsAutosave))
         .child(
-            text(format!(
-                "Autosave writes {delay:.2} s after you stop typing."
-            ))
-            .font(k.ty.ui_compact.lh(18.0))
-            .color(k.c.text_base)
-            .wrap()
-            .w_full(),
+            text(autosave_help(delay))
+                .font(k.ty.ui_compact.lh(18.0))
+                .color(k.c.text_base)
+                .wrap()
+                .w_full(),
         )
         .child(
-            text(format!("Version {version}."))
+            text(version(app_version))
                 .font(k.ty.ui_compact)
                 .color(k.c.text_muted),
         )
@@ -3163,7 +3197,8 @@ fn help_diagnostics(s: &State, k: &Kit) -> El {
                 .selectable(true),
         );
     }
-    let mut body = help_card(k, "help-diagnostics", "Diagnostics").selection_group(true);
+    let mut body =
+        help_card(k, "help-diagnostics", t(TextKey::SettingsDiagnostics)).selection_group(true);
     for (index, line) in summary.iter().enumerate() {
         body = body.child(
             text(line.clone())
@@ -3195,13 +3230,13 @@ fn help_diagnostics(s: &State, k: &Kit) -> El {
             .child(help_link(
                 k,
                 "help-copy-diagnostics",
-                "Copy diagnostics",
+                t(TextKey::SettingsCopyDiagnostics),
                 true,
             ))
             .child(help_link(
                 k,
                 "help-report-issue",
-                "Report an issue on GitHub",
+                t(TextKey::SettingsReportIssue),
                 false,
             )),
     )
@@ -3487,20 +3522,20 @@ fn loading_page(s: &State, k: &Kit) -> El {
         .items_center()
         .gap(12.0)
         .child(
-            text("Scanning your vault")
+            text(t(TextKey::StartupScanning))
                 .font(k.ty.ui_medium)
                 .color(k.c.text_base),
         )
         .child(bar)
         .child(
-            text(format!("Scanning {done}/{total} notes — Esc to cancel"))
+            text(scan_progress(done, total))
                 .key("scan-progress-label")
                 .font(k.ty.caption())
                 .color(k.c.text_muted),
         )
         .child(status_button(
             k,
-            "Cancel",
+            t(TextKey::Cancel),
             "scan-cancel",
             State::cancel_scan,
         ))
@@ -3529,14 +3564,14 @@ fn vault_error_page(s: &State, k: &Kit) -> El {
     let message = s.startup_error.clone().unwrap_or_default();
     let cancelled = message.starts_with("Scan cancelled");
     let title = if cancelled {
-        "Scan cancelled"
+        t(TextKey::StartupScanCancelled)
     } else {
-        "Could not open the vault"
+        t(TextKey::StartupCouldNotOpen)
     };
     let hint = if cancelled {
-        "Retry scans the vault again, or pick another folder in Settings (⌘,)."
+        t(TextKey::StartupRetryHint)
     } else {
-        "Pick another folder in Settings (⌘,), or pass --vault / set MUNINN_VAULT."
+        t(TextKey::StartupPickFolderHint)
     };
     col()
         .key("vault-error")
@@ -3562,7 +3597,7 @@ fn vault_error_page(s: &State, k: &Kit) -> El {
         )
         .child(status_button(
             k,
-            "Retry",
+            t(TextKey::StatusRetry),
             "vault-retry",
             State::retry_startup,
         ))
@@ -3730,7 +3765,7 @@ fn startup_banner(s: &State, k: &Kit) -> El {
         )
         .child(status_button(
             k,
-            "Retry",
+            t(TextKey::StatusRetry),
             "vault-retry",
             State::retry_startup,
         ))
@@ -3920,9 +3955,9 @@ fn sidebar_toggle(s: &State, k: &Kit) -> El {
         .border(1.0, k.c.border_muted)
         .role("button")
         .label(if s.sidebar_shown() {
-            "Hide sidebar"
+            t(TextKey::TopbarHideSidebar)
         } else {
-            "Show sidebar"
+            t(TextKey::TopbarShowSidebar)
         })
         .on_press_tx(|s: &mut State, tx: &mut Tx| {
             s.toggle_sidebar();
@@ -3947,14 +3982,11 @@ fn focus_toggle(s: &State, k: &Kit) -> El {
         .border(1.0, k.c.border_muted)
         .role("button")
         .label(if s.focus_active() {
-            "Exit focus mode"
+            t(TextKey::FocusExit)
         } else {
-            "Focus mode"
+            t(TextKey::FocusEnter)
         })
-        .help(format!(
-            "Hide the chrome and keep the caret's line centred ({})",
-            crate::focus::FOCUS_CHORD
-        ))
+        .help(focus_help(crate::focus::FOCUS_CHORD))
         .on_press_tx(|s: &mut State, tx: &mut Tx| {
             s.toggle_focus_mode();
             if s.reduced_motion() {
@@ -3981,11 +4013,8 @@ fn focus_exit(k: &Kit) -> El {
         .fill(k.alpha(k.c.bg_base, 0.72))
         .border(1.0, k.alpha(k.c.border_muted, 0.7))
         .role("button")
-        .label("Exit focus mode")
-        .help(format!(
-            "Back to the note's chrome ({})",
-            crate::focus::FOCUS_CHORD
-        ))
+        .label(t(TextKey::FocusExit))
+        .help(focus_exit_help(crate::focus::FOCUS_CHORD))
         .transition(Transition::opacity())
         .on_press_tx(|s: &mut State, tx: &mut Tx| {
             s.leave_focus_mode();
@@ -4036,7 +4065,7 @@ fn mode_switch(s: &State, k: &Kit) -> El {
         .border(1.0, k.c.border_muted)
         .child(mode_button(
             k,
-            "Write",
+            t(TextKey::ModeWrite),
             &ic::EDIT,
             "mode-editor",
             Mode::Editor,
@@ -4044,7 +4073,7 @@ fn mode_switch(s: &State, k: &Kit) -> El {
         ))
         .child(mode_button(
             k,
-            "Read",
+            t(TextKey::ModeRead),
             &ic::OUTLINE_EYE,
             "mode-preview",
             Mode::Preview,
@@ -4052,7 +4081,7 @@ fn mode_switch(s: &State, k: &Kit) -> El {
         ))
         .child(mode_button(
             k,
-            "Graph",
+            t(TextKey::ModeGraph),
             &ic::SHARE,
             "mode-graph",
             Mode::Graph,
@@ -4060,7 +4089,7 @@ fn mode_switch(s: &State, k: &Kit) -> El {
         ))
         .child(mode_button(
             k,
-            "Board",
+            t(TextKey::ModeBoard),
             &ic::DOT_GRID,
             "mode-board",
             Mode::Board,
@@ -4068,7 +4097,7 @@ fn mode_switch(s: &State, k: &Kit) -> El {
         ))
         .child(mode_button(
             k,
-            "Kanban",
+            t(TextKey::ModeKanban),
             &ic::CHECKLIST,
             "mode-kanban",
             Mode::Kanban,
@@ -4132,12 +4161,12 @@ fn find_bar(s: &State, k: &Kit) -> El {
         .child(
             text_input(&find.field, k.ty.ui_compact)
                 .key("find")
-                .label("Find in note")
+                .label(t(TextKey::PreviewFind))
                 .single_line()
                 .w(280.0)
                 .color(k.c.text_base)
                 .caret(k.c.text_accent, k.selection())
-                .placeholder("Find in note", k.c.text_faint)
+                .placeholder(t(TextKey::PreviewFind), k.c.text_faint)
                 .on_edit(|s: &mut State| &mut s.find.as_mut().expect("find bar").field)
                 .on_input_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
                     match e.key {
@@ -4202,14 +4231,11 @@ fn editor(s: &State, k: &Kit) -> El {
     }
     let mut input = text_input(&s.editor, k.ty.body.lh(25.0))
         .key("editor")
-        .label("Note editor")
+        .label(t(TextKey::PreviewEditor))
         .w_full()
         .color(k.c.text_base)
         .caret(k.c.text_accent, k.selection())
-        .placeholder(
-            "Start writing. Type [[ to link another note.",
-            k.c.text_faint,
-        )
+        .placeholder(t(TextKey::PreviewEditorPlaceholder), k.c.text_faint)
         .on_edit(|s: &mut State| &mut s.editor)
         // #111: rich clipboard text becomes Markdown, and a URL pasted over
         // a selection becomes a link. Anything else declines, so Rune's
@@ -4320,7 +4346,7 @@ pub(crate) fn complete_list(
         // points at the highlighted one (its active descendant) and a change
         // is announced.
         .role("listbox")
-        .label("Completions")
+        .label(t(TextKey::PreviewCompletions))
         .live_region(LiveRegion::Polite);
     for (row_index, (row_key, label, pick)) in rows.into_iter().enumerate() {
         let on = index == row_index;
@@ -4366,7 +4392,7 @@ fn preview(s: &State, k: &Kit) -> El {
         return no_note(k);
     };
     if s.editor.text.trim().is_empty() {
-        return empty_page(k, "This note is empty. Write something in the editor.");
+        return empty_page(k, t(TextKey::PreviewEmptyNote));
     }
     let source = s.vault.preview_with_attachments(&s.editor.text, id);
     // EDT-04: top-level heading blocks get stable keys so a deep link can
@@ -4469,7 +4495,11 @@ fn sidebar_kanbans(s: &State, k: &Kit, filtering: bool) -> El {
         .pb(8.0)
         .gap(2.0)
         .role("list")
-        .child(sidebar_section_head(k, "KANBANS", kanbans.len()));
+        .child(sidebar_section_head(
+            k,
+            t(TextKey::SidebarKanbans),
+            kanbans.len(),
+        ));
     for note in kanbans {
         let id = note.id;
         let current = shown == Some(note.rel.as_str());
@@ -4540,7 +4570,11 @@ fn sidebar_boards(s: &State, k: &Kit, filtering: bool) -> El {
         .pb(8.0)
         .gap(2.0)
         .role("list")
-        .child(sidebar_section_head(k, "BOARDS", s.sidebar_boards.len()));
+        .child(sidebar_section_head(
+            k,
+            t(TextKey::SidebarBoards),
+            s.sidebar_boards.len(),
+        ));
     let open = s.board_open.as_ref().map(|open| open.path.as_path());
     for (i, board) in s.sidebar_boards.iter().enumerate() {
         let path = board.path.clone();
@@ -4613,7 +4647,7 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
         let board_path = attachment.path.clone().filter(|_| board);
         let size = attachment
             .size_label()
-            .unwrap_or_else(|| "missing file".to_owned());
+            .unwrap_or_else(|| t(TextKey::PreviewMissingFile).to_owned());
         let mut body = col()
             .grow(1.0)
             .min_w(0.0)
@@ -4656,9 +4690,13 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
                         .center_y()
                         .border(1.0, k.c.border_muted)
                         .child(
-                            text(if board { "Open board" } else { "Open" })
-                                .font(k.ty.caption())
-                                .color(k.c.text_accent),
+                            text(if board {
+                                t(TextKey::PreviewOpenBoard)
+                            } else {
+                                t(TextKey::PreviewOpen)
+                            })
+                            .font(k.ty.caption())
+                            .color(k.c.text_accent),
                         )
                         .on_press(move |s: &mut State| {
                             // Slice 7: an embedded board opens on Board.
@@ -4684,7 +4722,7 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
                 .gap(8.0)
                 .center_y()
                 .child(
-                    text("ATTACHMENTS")
+                    text(t(TextKey::PreviewAttachments))
                         .font(TextStyle::new(10.0, 650.0).tracking(0.9))
                         .color(k.c.text_muted),
                 )
@@ -4695,7 +4733,7 @@ fn attachment_strip(s: &State, current: usize, k: &Kit) -> El {
                 )
                 .child(spacer())
                 .child(
-                    text("Files stay outside the note index")
+                    text(t(TextKey::PreviewAttachmentsNote))
                         .font(k.ty.caption())
                         .color(k.c.text_faint),
                 ),
@@ -4713,12 +4751,12 @@ fn no_note(k: &Kit) -> El {
         .center()
         .gap(10.0)
         .child(
-            text("No note selected")
+            text(t(TextKey::TopbarNoNoteSelected))
                 .font(k.ty.ui_medium)
                 .color(k.c.text_muted),
         )
         .child(
-            text("Make a note to start writing.")
+            text(t(TextKey::PreviewStartWriting))
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )
@@ -4736,7 +4774,11 @@ fn no_note(k: &Kit) -> El {
                 .press(k.c.pressed)
                 .cursor(Cursor::Pointer)
                 .child(icon(&ic::PLUS, 14.0).color(k.c.text_accent))
-                .child(text("New note").font(k.ty.ui_compact).color(k.c.text_base))
+                .child(
+                    text(t(TextKey::CommonNewNote))
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base),
+                )
                 .on_press(|s: &mut State| s.new_note()),
         )
 }
@@ -4964,7 +5006,7 @@ fn rail(s: &State, k: &Kit) -> El {
         outgoing = outgoing.child(rail_link(k, target, &s.vault, false, id, index));
     }
     if note.links.is_empty() {
-        outgoing = outgoing.child(empty(k, "No outgoing links"));
+        outgoing = outgoing.child(empty(k, t(TextKey::PreviewNoOutgoing)));
     }
     let mut backlinks = col().w_full().gap(2.0);
     for (offset, &from) in note.backlinks.iter().enumerate() {
@@ -4978,7 +5020,7 @@ fn rail(s: &State, k: &Kit) -> El {
         ));
     }
     if note.backlinks.is_empty() {
-        backlinks = backlinks.child(empty(k, "No backlinks yet"));
+        backlinks = backlinks.child(empty(k, t(TextKey::PreviewNoBacklinks)));
     }
     col()
         .key("rail")
@@ -4992,7 +5034,7 @@ fn rail(s: &State, k: &Kit) -> El {
                 .gap(8.0)
                 .center_y()
                 .child(
-                    text("LINKS")
+                    text(t(TextKey::PreviewLinks))
                         .font(TextStyle::new(10.0, 650.0).tracking(0.9))
                         .color(k.c.text_muted),
                 )
@@ -5013,19 +5055,29 @@ fn rail(s: &State, k: &Kit) -> El {
                 .scroll(ScrollSpec {
                     stick_bottom: false,
                 })
-                .child(section(k, "OUTGOING", note.links.len(), outgoing))
-                .child(section(k, "BACKLINKS", note.backlinks.len(), backlinks))
+                .child(section(
+                    k,
+                    t(TextKey::PreviewOutgoing),
+                    note.links.len(),
+                    outgoing,
+                ))
+                .child(section(
+                    k,
+                    t(TextKey::PreviewBacklinks),
+                    note.backlinks.len(),
+                    backlinks,
+                ))
                 .child(
                     col()
                         .gap(7.0)
                         .child(section(
                             k,
-                            "GRAPH",
+                            t(TextKey::PreviewGraph),
                             0,
                             col().w_full().gap(6.0).child(local_graph_button(k)),
                         ))
                         .child(
-                            text("See this note and everything it touches.")
+                            text(t(TextKey::PreviewGraphHint))
                                 .font(k.ty.caption())
                                 .color(k.c.text_faint),
                         ),
@@ -5109,7 +5161,7 @@ fn local_graph_button(k: &Kit) -> El {
         .cursor(Cursor::Pointer)
         .child(icon(&ic::SHARE, 13.0).color(k.c.text_accent))
         .child(
-            text("Open local graph")
+            text(t(TextKey::PaletteActionOpenLocalGraph))
                 .font(k.ty.ui_compact)
                 .color(k.c.text_base),
         )
@@ -5121,14 +5173,6 @@ fn empty(k: &Kit, message: &str) -> El {
         .font(k.ty.caption())
         .color(k.c.text_faint)
         .padding(8.0)
-}
-
-fn plural(n: usize, one: &str, many: &str) -> String {
-    if n == 1 {
-        format!("1 {one}")
-    } else {
-        format!("{n} {many}")
-    }
 }
 
 fn divider(k: &Kit) -> El {

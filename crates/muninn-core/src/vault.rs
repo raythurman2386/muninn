@@ -590,7 +590,7 @@ impl Vault {
         }
         let folder = note.folder();
         if folder.is_empty() {
-            format!("{} (root)", note.title)
+            muninn_i18n::note_label_root(&note.title)
         } else {
             format!("{}/{}", folder, note.title)
         }
@@ -1013,7 +1013,7 @@ impl Vault {
         let outside = || {
             io::Error::new(
                 io::ErrorKind::PermissionDenied,
-                format!("{} is outside the vault", dir.display()),
+                muninn_i18n::outside_vault(dir.display()),
             )
         };
         // Check containment before making any folder: the deepest part of
@@ -1043,7 +1043,7 @@ impl Vault {
         let outside = || {
             io::Error::new(
                 io::ErrorKind::PermissionDenied,
-                format!("{} is not a board inside the vault", path.display()),
+                muninn_i18n::not_a_board_in_vault(path.display()),
             )
         };
         let root = fs::canonicalize(&self.root)?;
@@ -1073,7 +1073,7 @@ impl Vault {
         {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("{name}.{} already exists", crate::BOARD_EXTENSION),
+                muninn_i18n::already_exists(format!("{name}.{}", crate::BOARD_EXTENSION)),
             ));
         }
         fs::rename(path, &target)?;
@@ -1187,7 +1187,7 @@ impl Vault {
         if target.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("{} already exists", target.display()),
+                muninn_i18n::already_exists(target.display()),
             ));
         }
         fs::rename(&old, &target)?;
@@ -1239,7 +1239,7 @@ impl Vault {
         if target.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("{} already exists", target.display()),
+                muninn_i18n::already_exists(target.display()),
             ));
         }
         if let Some(parent) = target.parent() {
@@ -1336,7 +1336,7 @@ impl Vault {
         let invalid = || {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("{} is not a trash path", trash_rel),
+                muninn_i18n::not_a_trash_path(&trash_rel),
             )
         };
         let rest = trash_rel
@@ -1360,14 +1360,14 @@ impl Vault {
         if !source.is_file() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("{} is no longer in the trash", trash_rel),
+                muninn_i18n::no_longer_in_trash(&trash_rel),
             ));
         }
         let target = self.root.join(original);
         if target.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("{} already exists", target.display()),
+                muninn_i18n::already_exists(target.display()),
             ));
         }
         if let Some(parent) = target.parent() {
@@ -1386,7 +1386,7 @@ impl Vault {
         if !dir.is_dir() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("{} is not a folder", dir.display()),
+                muninn_i18n::not_a_folder(dir.display()),
             ));
         }
         let name = old
@@ -1400,7 +1400,7 @@ impl Vault {
         if target.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("{} already exists", target.display()),
+                muninn_i18n::already_exists(target.display()),
             ));
         }
         fs::rename(&old, &target)?;
@@ -1432,7 +1432,7 @@ impl Vault {
         if name.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "empty folder name",
+                muninn_i18n::t(muninn_i18n::Key::VaultEmptyFolderName),
             ));
         }
         let parent_dir = folder_dir(&self.root, parent);
@@ -1441,7 +1441,7 @@ impl Vault {
         if dir.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("{} already exists", dir.display()),
+                muninn_i18n::already_exists(dir.display()),
             ));
         }
         fs::create_dir(&dir)?;
@@ -1464,14 +1464,14 @@ impl Vault {
         if folder.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "cannot rename the root",
+                muninn_i18n::t(muninn_i18n::Key::VaultCannotRenameRoot),
             ));
         }
         let name = sanitise_folder_name(new_name);
         if name.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "empty folder name",
+                muninn_i18n::t(muninn_i18n::Key::VaultEmptyFolderName),
             ));
         }
         let (parent, _old) = folder.rsplit_once('/').unwrap_or(("", folder));
@@ -1484,7 +1484,7 @@ impl Vault {
         if target.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("{} already exists", target.display()),
+                muninn_i18n::already_exists(target.display()),
             ));
         }
         fs::rename(&source, &target)?;
@@ -1518,7 +1518,7 @@ impl Vault {
         if folder.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "cannot delete the root",
+                muninn_i18n::t(muninn_i18n::Key::VaultCannotDeleteRoot),
             ));
         }
         fs::remove_dir(folder_dir(&self.root, folder))?;
@@ -1621,7 +1621,7 @@ fn atomic_replace(
         if !replace && path.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                "destination exists",
+                muninn_i18n::t(muninn_i18n::Key::VaultDestinationExists),
             ));
         }
         fs::rename(&temp, path)
@@ -1701,7 +1701,7 @@ fn prepare_root(root: &Path) -> io::Result<()> {
         Ok(meta) if !meta.is_dir() => {
             return Err(io::Error::new(
                 io::ErrorKind::NotADirectory,
-                format!("{} is not a folder", root.display()),
+                muninn_i18n::not_a_folder(root.display()),
             ));
         }
         Ok(_) => {}
@@ -1847,7 +1847,7 @@ pub fn board_name(input: &str) -> io::Result<String> {
     let invalid = |why: &str| {
         Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("a board name {why}"),
+            muninn_i18n::board_name_invalid(why),
         ))
     };
     let mut name = input.trim();
@@ -1863,22 +1863,22 @@ pub fn board_name(input: &str) -> io::Result<String> {
         name = name[..cut].trim_end();
     }
     if name.is_empty() {
-        return invalid("cannot be empty");
+        return invalid(muninn_i18n::t(muninn_i18n::Key::CoreBoardNameEmpty));
     }
     if name.contains(['/', '\\']) || name == "." || name == ".." {
-        return invalid("cannot contain / or \\");
+        return invalid(muninn_i18n::t(muninn_i18n::Key::CoreBoardNameSeparators));
     }
     if name.starts_with('.') {
-        return invalid("cannot start with a dot");
+        return invalid(muninn_i18n::t(muninn_i18n::Key::CoreBoardNameHidden));
     }
     if name
         .chars()
         .any(|c| c.is_control() || matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|'))
     {
-        return invalid("cannot contain : * ? \" < > | or control characters");
+        return invalid(muninn_i18n::t(muninn_i18n::Key::CoreBoardNameForbidden));
     }
     if name.ends_with('.') {
-        return invalid("cannot end with a dot");
+        return invalid(muninn_i18n::t(muninn_i18n::Key::CoreBoardNameTrailingDot));
     }
     let stem = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
     let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
@@ -1886,7 +1886,7 @@ pub fn board_name(input: &str) -> io::Result<String> {
             && stem.len() == 4
             && stem.as_bytes()[3].is_ascii_digit());
     if reserved {
-        return invalid("cannot be a reserved device name");
+        return invalid(muninn_i18n::t(muninn_i18n::Key::CoreBoardNameReserved));
     }
     Ok(name.to_owned())
 }

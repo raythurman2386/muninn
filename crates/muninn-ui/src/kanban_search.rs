@@ -26,7 +26,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use muninn_core::{Card, CivilDate, DateSettings, format_date, scan_card_text, tag_key};
-use muninn_i18n::{Key as TextKey, t};
+use muninn_i18n::{Key as TextKey, kanban_filter_from, kanban_filter_range, kanban_filter_to, t};
 use rune::{El, Key, KeyEvent, TextEdit, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
@@ -182,19 +182,21 @@ impl KanbanFilter {
             parts.push(format!("#{tag}"));
         }
         match self.date_filter() {
-            Some(KanbanDateFilter::Today) => parts.push("today".to_owned()),
-            Some(KanbanDateFilter::Overdue) => parts.push("overdue".to_owned()),
+            Some(KanbanDateFilter::Today) => parts.push(t(TextKey::KanbanFilterToday).to_owned()),
+            Some(KanbanDateFilter::Overdue) => {
+                parts.push(t(TextKey::KanbanFilterOverdueWord).to_owned());
+            }
             Some(KanbanDateFilter::Range(range)) => parts.push(match (range.from, range.to) {
-                (Some(from), Some(to)) => format!("{} – {}", day(from), day(to)),
-                (Some(from), None) => format!("from {}", day(from)),
-                (None, Some(to)) => format!("to {}", day(to)),
+                (Some(from), Some(to)) => kanban_filter_range(&day(from), &day(to)),
+                (Some(from), None) => kanban_filter_from(&day(from)),
+                (None, Some(to)) => kanban_filter_to(&day(to)),
                 (None, None) => String::new(),
             }),
             None => {}
         }
         match self.done {
-            Some(false) => parts.push("open".to_owned()),
-            Some(true) => parts.push("done".to_owned()),
+            Some(false) => parts.push(t(TextKey::KanbanFilterOpenWord).to_owned()),
+            Some(true) => parts.push(t(TextKey::KanbanFilterDoneWord).to_owned()),
             None => {}
         }
         parts.retain(|part| !part.is_empty());

@@ -25,7 +25,10 @@
 use std::path::{Path, PathBuf};
 
 use muninn_core::{Board, BoardFile};
-use muninn_i18n::{Key as TextKey, linked_note_hint, t};
+use muninn_i18n::{
+    Key as TextKey, board_canvas as canvas_label, board_could_not_read, board_kept_as_is, boards,
+    elements, linked_note_hint, not_saved, t, unsaved_saves,
+};
 use rune::{
     Color, Cursor, Drag, El, KeyEvent, MagnifyEvent, Phase, PointerButton, TextStyle, Tx,
     WheelEvent, canvas, col, el, icon, row, spacer, text,
@@ -40,11 +43,14 @@ use crate::{BoardScene, Mode, State};
 
 /// The unsaved indicator on Board and the Kanban page, with the platform's
 /// save chord.
-pub(crate) const UNSAVED: &str = if cfg!(target_os = "macos") {
-    "Unsaved · ⌘S saves"
-} else {
-    "Unsaved · Ctrl+S saves"
-};
+pub(crate) fn unsaved_label() -> String {
+    let chord = if cfg!(target_os = "macos") {
+        "⌘S"
+    } else {
+        "Ctrl+S"
+    };
+    unsaved_saves(chord)
+}
 
 /// Whether the open board's drawing is on disk.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -376,13 +382,9 @@ impl BoardSummary {
     #[must_use]
     pub fn detail(&self) -> String {
         match &self.counts {
-            Ok(c) if c.raw == 0 => plural(c.live, "element", "elements"),
-            Ok(c) => format!(
-                "{} · {} kept as-is",
-                plural(c.live, "element", "elements"),
-                c.raw
-            ),
-            Err(e) => format!("Could not read: {e}"),
+            Ok(c) if c.raw == 0 => elements(c.live),
+            Ok(c) => board_kept_as_is(&elements(c.live), c.raw),
+            Err(e) => board_could_not_read(e),
         }
     }
 }
@@ -851,7 +853,7 @@ fn header(s: &State, k: &Kit) -> El {
                 .color(k.c.text_base),
         )
         .child(
-            text(plural(s.boards.len(), "board", "boards"))
+            text(boards(s.boards.len()))
                 .key("board-count")
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
@@ -970,11 +972,11 @@ fn surface(s: &State, k: &Kit) -> El {
     // #40 recheck: text typed but not committed is unsaved too.
     let typing = s.board_text_pending().is_some();
     let status = s.board_open.as_ref().map(|open| match &open.status {
-        BoardStatus::Clean | BoardStatus::Saved if typing => (UNSAVED.to_owned(), k.c.text_accent),
+        BoardStatus::Clean | BoardStatus::Saved if typing => (unsaved_label(), k.c.text_accent),
         BoardStatus::Clean => (String::new(), k.c.text_faint),
-        BoardStatus::Unsaved => (UNSAVED.to_owned(), k.c.text_accent),
-        BoardStatus::Saved => ("Saved".to_owned(), k.c.text_faint),
-        BoardStatus::Failed(e) => (format!("Not saved: {e}"), k.c.text_accent),
+        BoardStatus::Unsaved => (unsaved_label(), k.c.text_accent),
+        BoardStatus::Saved => (t(TextKey::StatusSaved).to_owned(), k.c.text_faint),
+        BoardStatus::Failed(e) => (not_saved(e), k.c.text_accent),
     });
     let (title, detail) = match (s.selected_board(), s.board_open.as_ref()) {
         (Some(b), _) => (
@@ -1136,15 +1138,11 @@ fn board_canvas_label(s: &State, scene: &BoardScene) -> String {
     } else {
         s.board_tool.map_or("select", crate::BoardTool::name)
     };
-    let mut label = format!(
-        "Board canvas, {}, {tool} tool",
-        plural(scene.drawn + scene.outlined, "element", "elements")
-    );
-    let selected = s.board_selection().len();
-    if selected > 0 {
-        label.push_str(&format!(", {selected} selected"));
-    }
-    label
+    canvas_label(
+        &elements(scene.drawn + scene.outlined),
+        tool,
+        s.board_selection().len(),
+    )
 }
 
 /// The read-only drawing: a world element sized to the board's content that
@@ -1436,8 +1434,4 @@ fn board_hint(k: &Kit) -> El {
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )
-}
-
-fn plural(n: usize, one: &str, many: &str) -> String {
-    format!("{n} {}", if n == 1 { one } else { many })
 }

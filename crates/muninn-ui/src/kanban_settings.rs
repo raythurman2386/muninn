@@ -212,7 +212,7 @@ impl State {
             return true;
         }
         let json = value.to_json();
-        self.edit_kanban_tagged("change the board setting", coalesce, |board| {
+        self.edit_kanban_tagged(t(Key::KanbanEditChangeBoardSetting), coalesce, |board| {
             board.set_setting(key, &json)
         })
     }
@@ -223,7 +223,9 @@ impl State {
         if !self.kanban_footer_sets(key) {
             return;
         }
-        if self.edit_kanban("reset the board setting", |board| board.remove_setting(key)) {
+        if self.edit_kanban(t(Key::KanbanEditResetBoardSetting), |board| {
+            board.remove_setting(key)
+        }) {
             self.refill_text_field(false, key);
         }
     }
@@ -402,7 +404,7 @@ impl State {
             }
             return false;
         }
-        self.edit_kanban("change the board setting", |board| {
+        self.edit_kanban(t(Key::KanbanEditChangeBoardSetting), |board| {
             board.set_setting(key, &value)
         })
     }

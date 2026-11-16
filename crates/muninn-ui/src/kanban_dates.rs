@@ -22,7 +22,7 @@ use muninn_core::{
     CardText, CivilDate, CivilTime, DateSettings, DateToken, Kanban, format_date_for_display,
     format_date_for_file, format_time_for_display, scan_card_text,
 };
-use muninn_i18n::{EN_US, Key as TextKey, t};
+use muninn_i18n::{EN_US, Key as TextKey, day_label, relative_date, relative_day, t};
 use rune::{El, Key, KeyEvent, TextEdit, Tx, col, row, text, text_input};
 use rune_kit::Kit;
 
@@ -276,8 +276,7 @@ impl State {
                     .and_then(|(hour, minute)| CivilTime::new(hour, minute, 0));
                 let Some(time) = time else {
                     if let Some(shown) = &mut self.kanban {
-                        shown.error =
-                            Some("A time needs an hour 0–23 and a minute 0–59".to_owned());
+                        shown.error = Some(t(TextKey::KanbanTimeInvalid).to_owned());
                     }
                     return;
                 };
@@ -302,8 +301,8 @@ impl State {
             }
         } else {
             let what = match picker.kind {
-                PickerKind::Date => "change the date",
-                PickerKind::Time => "change the time",
+                PickerKind::Date => t(TextKey::KanbanEditChangeDate),
+                PickerKind::Time => t(TextKey::KanbanEditChangeTime),
             };
             let (lane, index) = picker.card;
             let Some(text) = self
@@ -361,8 +360,8 @@ impl State {
         let (start, end) = clear_span(&text, range.start, range.end);
         let next = format!("{}{}", &text[..start], &text[end..]);
         let what = match picker.kind {
-            PickerKind::Date => "clear the date",
-            PickerKind::Time => "clear the time",
+            PickerKind::Date => t(TextKey::KanbanEditClearDate),
+            PickerKind::Time => t(TextKey::KanbanEditClearTime),
         };
         self.close_picker();
         self.edit_kanban(what, |board| board.edit_card(lane, index, &next));
@@ -727,7 +726,7 @@ fn date_picker(s: &State, k: &Kit, picker: &KanbanPicker) -> El {
             .hover(k.c.hover)
             .press(k.c.pressed)
             .role("button")
-            .label(format!("Day {day}"))
+            .label(day_label(day))
             .focusable(true)
             .focus_selected(selected)
             .focus_ring(2.0, -1.0, k.c.text_accent)
@@ -982,7 +981,7 @@ pub(crate) fn card_when(
         let shown = match (settings.show_relative_date, date) {
             (true, Some(date)) => {
                 let days = date.days_since_epoch() - today.days_since_epoch();
-                format!("{shown} · {}", relative_days(days))
+                relative_date(&shown, &relative_day(days))
             }
             _ => shown,
         };
@@ -994,7 +993,7 @@ pub(crate) fn card_when(
                 .color(k.c.text_accent)
                 .cursor(rune::Cursor::Pointer)
                 .role("link")
-                .label("Open the date's daily note")
+                .label(t(TextKey::KanbanDailyNoteLink))
                 .on_press_tx(move |s: &mut State, tx: &mut Tx| {
                     // Resolve at press time: the lane is memoised, and the
                     // daily note may have appeared or been renamed since.
@@ -1025,16 +1024,6 @@ pub(crate) fn card_when(
         );
     }
     line
-}
-
-fn relative_days(days: i64) -> String {
-    match days {
-        0 => "today".to_owned(),
-        1 => "tomorrow".to_owned(),
-        -1 => "yesterday".to_owned(),
-        n if n > 0 => format!("in {n} days"),
-        n => format!("{} days ago", -n),
-    }
 }
 
 #[cfg(test)]
@@ -1113,10 +1102,10 @@ mod tests {
 
     #[test]
     fn relative_days_read_naturally() {
-        assert_eq!(relative_days(0), "today");
-        assert_eq!(relative_days(1), "tomorrow");
-        assert_eq!(relative_days(-1), "yesterday");
-        assert_eq!(relative_days(3), "in 3 days");
-        assert_eq!(relative_days(-4), "4 days ago");
+        assert_eq!(relative_day(0), "today");
+        assert_eq!(relative_day(1), "tomorrow");
+        assert_eq!(relative_day(-1), "yesterday");
+        assert_eq!(relative_day(3), "in 3 days");
+        assert_eq!(relative_day(-4), "4 days ago");
     }
 }

@@ -453,31 +453,41 @@ impl Board {
     pub fn from_json(json: &str) -> io::Result<Board> {
         let value: Value = serde_json::from_str(json).map_err(invalid)?;
         let Value::Object(mut obj) = value else {
-            return Err(invalid("a board must be a JSON object"));
+            return Err(invalid(muninn_i18n::t(
+                muninn_i18n::Key::BoardParseNotObject,
+            )));
         };
         match obj.remove("type") {
             Some(Value::String(t)) if t == SCENE_TYPE => {}
             _ => {
-                return Err(invalid(
-                    "not an Excalidraw scene (type is not \"excalidraw\")",
-                ));
+                return Err(invalid(muninn_i18n::t(
+                    muninn_i18n::Key::BoardParseNotExcalidraw,
+                )));
             }
         }
         let version = match obj.remove("version") {
             None => SCENE_VERSION,
-            Some(v) => v
-                .as_u64()
-                .ok_or_else(|| invalid("scene version must be a whole number"))?,
+            Some(v) => v.as_u64().ok_or_else(|| {
+                invalid(muninn_i18n::t(muninn_i18n::Key::BoardParseVersionNumber))
+            })?,
         };
         let source = match obj.remove("source") {
             None => String::new(),
             Some(Value::String(s)) => s,
-            Some(_) => return Err(invalid("scene source must be a string")),
+            Some(_) => {
+                return Err(invalid(muninn_i18n::t(
+                    muninn_i18n::Key::BoardParseSourceString,
+                )));
+            }
         };
         let elements = match obj.remove("elements") {
             None => Vec::new(),
             Some(Value::Array(items)) => items.into_iter().map(Element::from_value).collect(),
-            Some(_) => return Err(invalid("scene elements must be an array")),
+            Some(_) => {
+                return Err(invalid(muninn_i18n::t(
+                    muninn_i18n::Key::BoardParseElementsArray,
+                )));
+            }
         };
         let app_state = take_object(&mut obj, "appState")?;
         let files = take_object(&mut obj, "files")?;
@@ -652,7 +662,7 @@ fn take_object(obj: &mut Map<String, Value>, key: &str) -> io::Result<Map<String
     match obj.remove(key) {
         None | Some(Value::Null) => Ok(Map::new()),
         Some(Value::Object(map)) => Ok(map),
-        Some(_) => Err(invalid(format!("scene {key} must be an object"))),
+        Some(_) => Err(invalid(muninn_i18n::board_scene_key_object(key))),
     }
 }
 
