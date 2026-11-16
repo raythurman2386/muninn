@@ -4,7 +4,7 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.6] - 2026-11-15
 
 ### Added
 
@@ -28,6 +28,19 @@ All notable changes to Muninn are documented here. The format is based on
   carry a small accent dot on the canvas, and the hint above the canvas names
   the note while a linked element is selected. The shortcut map and README
   list the new chords.
+
+### Changed
+
+- **Accessibility polish (#72).** The sidebar search, graph node search, note
+  editor, vault-path field and every Sync field now have accessible names;
+  selected-surface and hover-overlay contrast was audited on every resolved
+  theme, and Board palette swatches gained a neutral ring that stays visible on
+  either paper. English text is unchanged.
+- **User-facing copy now comes from a typed catalogue.** Every sentence the app
+  draws is a `Key` in the new `muninn-i18n` crate, with the English pinned by
+  compilation, a source lint (`xtask i18n-lint`) and a pseudo-locale render
+  check. This release shows the same English as 0.8.5; it is groundwork for a
+  future locale pack, not a translation.
 
 ## [0.8.5] - 2026-11-15
 
