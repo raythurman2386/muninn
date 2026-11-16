@@ -183,7 +183,11 @@ fn external_create_is_visible_on_the_next_watch_tick() {
 
 #[test]
 fn external_create_while_dirty_saves_then_reloads_without_losing_text() {
-    let env = TestEnv::new(&[("Alpha.md", "# Alpha\n")]);
+    // A second, clean note gives the watcher a reliable mtime signal. New-note
+    // detection from the folder mtime is covered by the test above; this test
+    // is about saving a dirty buffer before the reload, and on Windows the
+    // folder mtime can lag (the #183 flake).
+    let env = TestEnv::new(&[("Alpha.md", "# Alpha\n"), ("Side.md", "# Side\n")]);
     let mut s = env.state();
     let id = s.vault.resolve("Alpha").expect("Alpha");
     s.load_note(id, false);
@@ -193,9 +197,11 @@ fn external_create_while_dirty_saves_then_reloads_without_losing_text() {
 
     s.editor.insert("typed before the external create\n");
     fs::write(env.vault.path().join("New.md"), "# New\n").expect("external create");
+    // Change the clean note too, so the reload has a metadata delta that does
+    // not depend on the new file's directory entry being observed (#183).
+    fs::write(env.vault.path().join("Side.md"), "# Side\n\nchanged\n").expect("external edit");
     // Keep polling until New is indexed. poll() also returns true when
-    // autosave writes the dirty buffer, so a true poll is not enough — the
-    // wall-clock wait covers Windows' coarse directory mtimes.
+    // autosave writes the dirty buffer, so a true poll is not enough.
     wait_for_new_note(&mut s, &mut tx);
 
     assert!(s.vault.resolve("New").is_some(), "the new note is indexed");
