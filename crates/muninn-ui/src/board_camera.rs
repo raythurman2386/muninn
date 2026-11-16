@@ -309,6 +309,17 @@ impl BoardCam {
         self.glide.is_some()
     }
 
+    /// Stop a glide in flight where it is: the pose on screen stays, the
+    /// target is dropped. A press that begins a pointer gesture calls this
+    /// (#187), so press, moves and release are all mapped with one pose
+    /// instead of two: the gesture is the pointer path, not a nudge.
+    pub fn hold(&mut self) {
+        if self.glide.is_some() {
+            let view = self.view;
+            self.set(view);
+        }
+    }
+
     /// Finish a glide in flight at its target (leaving the page, quitting).
     pub fn land(&mut self) {
         if let Some(glide) = self.glide.take() {

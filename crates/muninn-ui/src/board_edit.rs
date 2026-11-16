@@ -64,6 +64,8 @@ pub enum Gesture {
     Move {
         start: Vec<Element>,
         from: [f64; 2],
+        /// The camera pose the press pinned; every later `at` maps with it.
+        view: BoardView,
         travel: f32,
     },
     /// A marquee from `from` to `to` (scene), adding to `base`.
@@ -71,8 +73,20 @@ pub enum Gesture {
         from: [f64; 2],
         to: [f64; 2],
         base: Vec<String>,
+        /// The camera pose the press pinned; every later `at` maps with it.
+        view: BoardView,
         travel: f32,
     },
+}
+
+impl Gesture {
+    /// The camera pose the gesture began on (#187): `Move`/`Up` map with it,
+    /// so a drag under a camera glide moves by the pointer delta alone.
+    fn view(&self) -> BoardView {
+        match self {
+            Gesture::Move { view, .. } | Gesture::Marquee { view, .. } => *view,
+        }
+    }
 }
 
 /// The edit state of one open board: what is selected, the gesture in
@@ -243,7 +257,20 @@ impl State {
         let Some(open) = &mut self.board_open else {
             return;
         };
-        let view = open.cam.view();
+        // #187: a press stops a camera glide where it is and pins the pose for
+        // the whole gesture, so a selection drag begun mid-glide moves by the
+        // pointer delta alone (hit test, `from`, marquee and every `at`).
+        if d.phase == Phase::Down {
+            open.cam.hold();
+        }
+        let view = match d.phase {
+            Phase::Down => open.cam.view(),
+            Phase::Move | Phase::Up => open
+                .edit
+                .gesture
+                .as_ref()
+                .map_or_else(|| open.cam.view(), Gesture::view),
+        };
         let at = scene_at(view, d.x, d.y);
         let travel = d.dx.abs().max(d.dy.abs());
         if command && d.phase == Phase::Down {
@@ -321,6 +348,7 @@ impl State {
                             Some(Gesture::Move {
                                 start: model.snapshot(sel),
                                 from: at,
+                                view,
                                 travel: 0.0,
                             })
                         }
@@ -333,6 +361,7 @@ impl State {
                             from: at,
                             to: at,
                             base: open.edit.selection.clone(),
+                            view,
                             travel: 0.0,
                         })
                     }
@@ -345,6 +374,7 @@ impl State {
                         start,
                         from,
                         travel: t,
+                        ..
                     }) => {
                         *t = t.max(travel);
                         let moved = *t >= CLICK_TRAVEL && !d.cancelled();
@@ -370,6 +400,7 @@ impl State {
                         to,
                         base,
                         travel: t,
+                        ..
                     }) => {
                         *t = t.max(travel);
                         *to = at;
@@ -492,7 +523,11 @@ pub(crate) fn overlay(open: &OpenBoard) -> Option<rune::El> {
         }
     }
     if let Some(Gesture::Marquee {
-        from, to, travel, ..
+        from,
+        to,
+        view,
+        travel,
+        ..
     }) = &open.edit.gesture
         && *travel >= CLICK_TRAVEL
     {

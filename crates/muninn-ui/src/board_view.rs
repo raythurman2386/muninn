@@ -1235,6 +1235,11 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
             let Some(open) = &mut s.board_open else {
                 return false;
             };
+            // #187: a stroke holds the camera at its press pose, so a wheel
+            // that arrives mid-stroke applies after the release instead.
+            if open.draft.is_some() {
+                return false;
+            }
             open.auto_fit = false;
             open.needs_fit = false;
             if e.mods.shift {
@@ -1256,6 +1261,10 @@ fn board_canvas(s: &State, k: &Kit, open: &OpenBoard, scene: &BoardScene) -> El 
             let Some(open) = &mut s.board_open else {
                 return false;
             };
+            // #187: as the wheel above: a live stroke keeps its press pose.
+            if open.draft.is_some() {
+                return false;
+            }
             open.auto_fit = false;
             open.needs_fit = false;
             open.cam.zoom_at([e.x, e.y], 1.0 + e.delta);

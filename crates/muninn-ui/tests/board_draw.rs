@@ -9,7 +9,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
 use muninn_core::{Board, Element, ShapeKind};
-use muninn_ui::{BoardStatus, BoardTool, Mode, Settings, State, on_key, poll, view};
+use muninn_ui::{
+    BoardStatus, BoardTool, BoardView, Mode, ReduceMotion, Settings, State, on_key, poll, view,
+};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 use serde_json::Value;
 
@@ -105,6 +107,12 @@ fn open(rt: &mut Runtime<State>, title: &str) {
 fn canvas_origin(rt: &Runtime<State>) -> [f32; 2] {
     let r = rt.presented("board-canvas").expect("board canvas").0;
     [r[0], r[1]]
+}
+
+/// Window point of canvas point `p`.
+fn window(rt: &Runtime<State>, p: [f32; 2]) -> (f32, f32) {
+    let o = canvas_origin(rt);
+    (o[0] + p[0], o[1] + p[1])
 }
 
 /// Press at canvas point `path[0]`, move through the rest, release at the last.
@@ -306,6 +314,120 @@ fn a_click_draws_nothing_and_the_hand_pans() {
     assert_eq!(model(&rt).elements.len(), n);
     assert_ne!(rt.state.board_view().unwrap(), view, "the hand panned");
     assert_eq!(status(&rt), BoardStatus::Clean);
+}
+
+/// #187: press, drag horizontally and release while a camera glide is in
+/// flight. Returns the drawn element, the pose the press pinned, and the
+/// pointer path in canvas points.
+fn stroke_under_glide<F: FnOnce(&mut State)>(
+    rt: &mut Runtime<State>,
+    glide: F,
+) -> (muninn_core::Shape, BoardView, Vec<[f32; 2]>) {
+    rt.key(text("p"));
+    frames(rt, 1);
+    glide(&mut rt.state);
+    frames(rt, 2);
+    assert!(
+        rt.state.board_camera_gliding(),
+        "the glide is still in flight at the press"
+    );
+    let path: Vec<[f32; 2]> = (0..=8).map(|i| [200.0 + 10.0 * i as f32, 320.0]).collect();
+    let (x, y) = window(rt, path[0]);
+    rt.pointer_down(x, y);
+    rt.frame(1.0 / 60.0);
+    assert!(
+        !rt.state.board_camera_gliding(),
+        "the press stops the glide where it is"
+    );
+    let press = rt.state.board_view().expect("open");
+    for p in &path[1..] {
+        let (x, y) = window(rt, *p);
+        rt.pointer_move(x, y);
+        rt.frame(1.0 / 60.0);
+    }
+    let (x, y) = window(rt, *path.last().unwrap());
+    rt.pointer_up(x, y);
+    frames(rt, 2);
+    assert_eq!(
+        rt.state.board_view().expect("open"),
+        press,
+        "the view at the press and at the release is one pose"
+    );
+    (last(rt), press, path)
+}
+
+/// The stored stroke is the pointer path mapped through `view`, within 0.5 pt,
+/// and spans exactly the 80 pt horizontal drag on screen (no skew).
+fn check_pointer_path(s: muninn_core::Shape, view: BoardView, path: &[[f32; 2]], what: &str) {
+    assert_eq!(s.kind, ShapeKind::Freedraw, "{what}");
+    assert_eq!(
+        s.points.len(),
+        path.len(),
+        "{what}: one stored point per pointer sample"
+    );
+    let mut worst = 0.0f64;
+    for (stored, p) in s.points.iter().zip(path) {
+        let want = view.scene(*p);
+        worst = worst
+            .max((s.x + stored[0] - f64::from(want[0])).abs())
+            .max((s.y + stored[1] - f64::from(want[1])).abs());
+    }
+    assert!(worst <= 0.5, "{what}: {worst:.4} pt off the pointer path");
+    let first = view.screen([s.x as f32, s.y as f32]);
+    let end = *s.points.last().unwrap();
+    let end = view.screen([(s.x + end[0]) as f32, (s.y + end[1]) as f32]);
+    assert!(
+        (end[0] - first[0] - 80.0).abs() <= 0.5,
+        "{what}: the drag is {} pt long on screen",
+        end[0] - first[0]
+    );
+    assert!(
+        (end[1] - first[1]).abs() <= 0.5,
+        "{what}: the stroke skewed {} pt sideways",
+        end[1] - first[1]
+    );
+}
+
+#[test]
+fn a_stroke_begun_during_a_camera_glide_is_the_pointer_path() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt, "Draw");
+    // Motion allowed, so the keys below start a spring rather than landing.
+    rt.state.reduced_motion_env = false;
+    rt.state.set_reduce_motion(ReduceMotion::Off);
+
+    // A pan glide in flight at every zoom: the press has already travelled.
+    for zoom in [0.5, 1.0, 2.0] {
+        rt.state
+            .board_open
+            .as_mut()
+            .expect("open")
+            .cam
+            .set(BoardView::new([0.0, 0.0], zoom).expect("a view"));
+        frames(&mut rt, 1);
+        let settled = rt.state.board_view().expect("open");
+        let (pen, press, path) = stroke_under_glide(&mut rt, |s| s.pan_board(-120.0, 0.0));
+        assert_ne!(
+            press, settled,
+            "zoom {zoom}: the pan glide moved the camera before the press"
+        );
+        check_pointer_path(
+            pen,
+            press,
+            &path,
+            &format!("stroke under a pan glide at zoom {zoom}"),
+        );
+    }
+
+    // `+` zoom glide: a second pose would skew a horizontal path in y.
+    let settled = rt.state.board_view().expect("open");
+    let (pen, press, path) = stroke_under_glide(&mut rt, |s| s.zoom_board(1.25));
+    assert_ne!(
+        press, settled,
+        "the zoom glide moved the camera before the press"
+    );
+    check_pointer_path(pen, press, &path, "stroke under a zoom glide");
 }
 
 #[test]
