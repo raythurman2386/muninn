@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use muninn_core::testing::TempVault;
 use muninn_core::{Board, Shape};
-use muninn_ui::{BoardStatus, Mode, Settings, State, on_key, poll, view};
+use muninn_ui::{BoardStatus, Mode, ReduceMotion, Settings, State, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, PhysicalInput, Runtime};
 use serde_json::Value;
 
@@ -713,6 +713,74 @@ fn a_selected_thin_line_arrow_or_small_shape_still_drags_from_itself() {
             x1 - x0
         );
     }
+}
+
+/// #187: drag `keep-rect` 80 screen points to the right with a camera glide in
+/// flight. Returns the element's scene delta and the pointer's delta through
+/// the pose the press pinned.
+fn drag_across_a_glide(rt: &mut Runtime<State>, glide: &str) -> (f64, f64, f64) {
+    let s = shape(rt, "keep-rect");
+    let centre = [(s.x + s.width / 2.0) as f32, (s.y + s.height / 2.0) as f32];
+    match glide {
+        "pan" => rt.state.pan_board(-120.0, 0.0),
+        "zoom" => rt.state.zoom_board(1.25),
+        other => panic!("unknown glide {other}"),
+    }
+    frames(rt, 2);
+    assert!(
+        rt.state.board_camera_gliding(),
+        "{glide}: the glide is still in flight at the press"
+    );
+    let (px, py) = at(rt, centre);
+    rt.pointer_down(px, py);
+    rt.frame(1.0 / 60.0);
+    assert!(
+        !rt.state.board_camera_gliding(),
+        "{glide}: the press stops the glide where it is"
+    );
+    let press = rt.state.board_view().expect("open");
+    let before = shape(rt, "keep-rect");
+    for step in 1..=8 {
+        rt.pointer_move(px + 10.0 * step as f32, py);
+        rt.frame(1.0 / 60.0);
+    }
+    rt.pointer_up(px + 80.0, py);
+    frames(rt, 2);
+    assert_eq!(
+        rt.state.board_view().expect("open"),
+        press,
+        "{glide}: the view at the press and at the release is one pose"
+    );
+    let after = shape(rt, "keep-rect");
+    (
+        after.x - before.x,
+        after.y - before.y,
+        f64::from(80.0 / press.zoom),
+    )
+}
+
+#[test]
+fn a_selection_drag_begun_during_a_camera_glide_moves_by_the_pointer_delta() {
+    let tmp = vault();
+    let mut rt = launch(tmp.path());
+    open(&mut rt);
+    // Motion allowed, so the keys below start a spring rather than landing.
+    rt.state.reduced_motion_env = false;
+    rt.state.set_reduce_motion(ReduceMotion::Off);
+
+    for glide in ["pan", "zoom"] {
+        let (dx, dy, want) = drag_across_a_glide(&mut rt, glide);
+        assert!(
+            (dx - want).abs() <= 0.5,
+            "{glide}: the selection moved {dx:.3} scene pt, the pointer's drag is {want:.3}"
+        );
+        assert!(
+            dy.abs() <= 0.5,
+            "{glide}: the selection skewed {dy:.3} pt sideways"
+        );
+        assert_eq!(selection(&rt), ids(&["keep-rect"]), "{glide}");
+    }
+    assert_eq!(status(&rt), BoardStatus::Unsaved);
 }
 
 #[test]

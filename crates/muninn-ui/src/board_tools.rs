@@ -223,6 +223,10 @@ static LINK: Icon = Icon {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Draft {
     pub tool: BoardTool,
+    /// The camera pose the stroke began on. Every `Move` and `Up` is mapped
+    /// with it (and the preview paints with it), so one element is built from
+    /// one pose even when a camera glide was in flight at the press (#187).
+    pub view: BoardView,
     pub points: Vec<[f64; 2]>,
     /// Screen travel since the press, to ignore a click that never moved.
     moved: f32,
@@ -307,6 +311,14 @@ impl State {
         let Some(tool) = self.board_tool else {
             return;
         };
+        // #187: a press stops a camera glide where it is, so the stroke is
+        // mapped with one pose from press to release instead of two. Text
+        // placement (a click placed on `Up`) is pinned by the same hold.
+        if d.phase == Phase::Down
+            && let Some(open) = &mut self.board_open
+        {
+            open.cam.hold();
+        }
         if tool == BoardTool::Text {
             // Slice 6: a click (on release) opens the text editor there.
             if d.phase == Phase::Up
@@ -327,13 +339,22 @@ impl State {
         if open.model.is_none() {
             return;
         }
-        let view = open.cam.view();
+        // #187: the press pins the view on the draft; every later phase maps
+        // with that pose, never with a newer one from a glide.
+        let view = match d.phase {
+            Phase::Down => open.cam.view(),
+            Phase::Move | Phase::Up => open
+                .draft
+                .as_ref()
+                .map_or_else(|| open.cam.view(), |draft| draft.view),
+        };
         let at = view.scene([d.x, d.y]);
         let at = [f64::from(at[0]), f64::from(at[1])];
         match d.phase {
             Phase::Down => {
                 open.draft = Some(Draft {
                     tool,
+                    view,
                     points: vec![at],
                     moved: 0.0,
                 });
@@ -591,7 +612,9 @@ pub(crate) fn preview(open: &OpenBoard, ink: Ink<'_>) -> Option<El> {
         .scene
         .as_ref()
         .map_or(rune::Color::WHITE, |scene| scene.paper);
-    let shape = draft_shape(draft, open.cam.view(), ink, paper);
+    // #187: the draft's own pose, so the preview and the element it becomes
+    // agree even if the camera moved after the press.
+    let shape = draft_shape(draft, draft.view, ink, paper);
     if shape.is_empty() {
         return None;
     }

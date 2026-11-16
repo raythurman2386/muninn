@@ -361,9 +361,13 @@ def cmd_file(saved_path, original_path, resaved_path, tree):
         min(b[0][0] for b in boxes.values()), min(b[0][1] for b in boxes.values()),
         max(b[0][2] for b in boxes.values()), max(b[0][3] for b in boxes.values()),
     ]
+    # The press-time pose: every stroke in the plan begins after the open fit
+    # has landed, and nothing moves the camera between the strokes, so the fit
+    # view the canvas rect and the file's bounds give is the pose each stroke
+    # was mapped with (#187: one pose per gesture).
     eye, zoom = board_pixels.fitted(bounds, (rect[2], rect[3]))
     to_scene = lambda p: (eye[0] + p[0] / zoom, eye[1] + p[1] / zoom)
-    tol = 1.0 / zoom + 0.5
+    tol = 0.5 / zoom
     for (key, kind, path), e in zip(STROKES, new):
         a, b = to_scene(path[0]), to_scene(path[-1])
         if kind in ("rectangle", "ellipse", "diamond"):
