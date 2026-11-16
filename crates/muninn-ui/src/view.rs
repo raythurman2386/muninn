@@ -1,8 +1,8 @@
 //! The window's chrome: vault sidebar, note title bar, editor, Markdown preview and links rail.
 
 use rune::{
-    Color, Cursor, Cx, El, Key, KeyEvent, LineCap, LinkPaint, LiveRegion, ScrollSpec, Shape, Span,
-    TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
+    Color, Cursor, Cx, El, Icon, Key, KeyEvent, LineCap, LinkPaint, LiveRegion, ScrollSpec, Shape,
+    Span, TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
 use rune_kit::{
     Button, ButtonVariant, Kit, Markdown, MarkdownStyle, SegmentedControl, Switch, TextArea,
@@ -3924,49 +3924,79 @@ fn topbar(s: &State, k: &Kit) -> El {
                 .color(k.c.text_faint)
                 .truncate(),
         );
-    row()
+    let mut bar = row()
         .h(58.0)
         .px(20.0)
         .gap(12.0)
         .center_y()
-        .child(sidebar_toggle(s, k))
-        .child(focus_toggle(s, k))
-        .child(history_button(
+        .child(sidebar_toggle(s, k));
+    // #186: Focus is the note page's own mode, so the button is offered only
+    // where it can act. Leaving it out of the tree (rather than mounting an
+    // empty slot) keeps the row's 12 pt gap from opening a hole on Graph,
+    // Board and Kanban.
+    if s.mode.is_note_mode() {
+        bar = bar.child(focus_toggle(s, k));
+    }
+    bar.child(history_button(
+        k,
+        "history-back",
+        "‹",
+        s.can_back(),
+        State::back,
+    ))
+    .child(history_button(
+        k,
+        "history-forward",
+        "›",
+        s.can_forward(),
+        State::forward,
+    ))
+    .child(title_col)
+    .child(if open_as_kanban {
+        crate::kanban_view::header_button(
             k,
-            "history-back",
-            "‹",
-            s.can_back(),
-            State::back,
-        ))
-        .child(history_button(
-            k,
-            "history-forward",
-            "›",
-            s.can_forward(),
-            State::forward,
-        ))
-        .child(title_col)
-        .child(if open_as_kanban {
-            crate::kanban_view::header_button(
-                k,
-                "open-as-kanban",
-                &ic::CHECKLIST,
-                t(TextKey::TopbarOpenAsKanban),
-                |s: &mut State| s.set_mode(Mode::Kanban),
-            )
-        } else {
-            el()
-        })
-        .child(mode_switch(s, k))
+            "open-as-kanban",
+            &ic::CHECKLIST,
+            t(TextKey::TopbarOpenAsKanban),
+            |s: &mut State| s.set_mode(Mode::Kanban),
+        )
+    } else {
+        el()
+    })
+    .child(mode_switch(s, k))
+}
+
+/// #186: the Focus glyph, flattened for Rune's rasteriser.
+///
+/// `ic::OUTLINE_EXPAND` is the theme's only 24-unit icon and wraps its path in
+/// `<g transform="scale(1.2)" stroke-width="1.25">`. Rune's icon painter reads
+/// only `path`/`rect`/`circle`/`ellipse`/`line` and splits the body on `>`, so
+/// the group is dropped: the raw 4.583…15.416 coordinates centre the ink at
+/// 10/24 instead of 12/24 (1.17 pt up-left at 14 pt), and the stroke draws at
+/// 1.25 units instead of the 1.5 the group's scale gives it. This is the same
+/// mark with that scale baked into the coordinates, in a 16-unit box, and a
+/// 1-unit stroke written on the path — the same weight as `SIDEBAR` beside it.
+/// The ink then centres on the box, which [`chrome_icon_button`] draws the
+/// target around.
+static FOCUS_EXPAND: Icon = Icon {
+    name: "focus-expand",
+    view: 16.0,
+    body: r#"<path d="M3.6667 8.3333V12.3333H7.6667M8.3333 3.6667H12.3333V7.6667" stroke="currentColor" stroke-width="1" stroke-linecap="square"/>"#,
+};
+
+/// The title bar's 26 pt bordered icon chip: target, border and centring are
+/// defined once so every glyph in the row is framed and placed the same way.
+fn chrome_icon_button(k: &Kit, key: &'static str, border: Color) -> El {
+    pressable(k, key.to_owned())
+        .size(26.0, 26.0)
+        .center()
+        .border(1.0, border)
+        .role("button")
 }
 
 /// Slice 8: show or hide the notes sidebar (also Cmd/Ctrl+\\).
 fn sidebar_toggle(s: &State, k: &Kit) -> El {
-    pressable(k, "sidebar-toggle".to_owned())
-        .size(26.0, 26.0)
-        .center()
-        .border(1.0, k.c.border_muted)
-        .role("button")
+    chrome_icon_button(k, "sidebar-toggle", k.c.border_muted)
         .label(if s.sidebar_shown() {
             t(TextKey::TopbarHideSidebar)
         } else {
@@ -3989,11 +4019,7 @@ fn sidebar_toggle(s: &State, k: &Kit) -> El {
 /// It sits beside the sidebar toggle, the other piece of chrome a writer
 /// hides; in Focus the title bar is gone, so [`focus_exit`] is the way back.
 fn focus_toggle(s: &State, k: &Kit) -> El {
-    pressable(k, "focus-toggle".to_owned())
-        .size(26.0, 26.0)
-        .center()
-        .border(1.0, k.c.border_muted)
-        .role("button")
+    chrome_icon_button(k, "focus-toggle", k.c.border_muted)
         .label(if s.focus_active() {
             t(TextKey::FocusExit)
         } else {
@@ -4006,7 +4032,7 @@ fn focus_toggle(s: &State, k: &Kit) -> El {
                 tx.instant();
             }
         })
-        .child(icon(&ic::OUTLINE_EXPAND, 14.0).color(if s.focus_active() {
+        .child(icon(&FOCUS_EXPAND, 14.0).color(if s.focus_active() {
             k.c.text_accent
         } else {
             k.c.text_muted
@@ -4018,14 +4044,10 @@ fn focus_toggle(s: &State, k: &Kit) -> El {
 /// its button) went away. It enters on Rune's fade, which reduced motion
 /// makes instant along with every other chrome change.
 fn focus_exit(k: &Kit) -> El {
-    pressable(k, "focus-exit".to_owned())
+    chrome_icon_button(k, "focus-exit", k.alpha(k.c.border_muted, 0.7))
         .pin(None, Some(10.0), Some(12.0), None)
-        .size(26.0, 26.0)
-        .center()
         .radius(999.0)
         .fill(k.alpha(k.c.bg_base, 0.72))
-        .border(1.0, k.alpha(k.c.border_muted, 0.7))
-        .role("button")
         .label(t(TextKey::FocusExit))
         .help(focus_exit_help(crate::focus::FOCUS_CHORD))
         .transition(Transition::opacity())
@@ -4035,7 +4057,7 @@ fn focus_exit(k: &Kit) -> El {
                 tx.instant();
             }
         })
-        .child(icon(&ic::OUTLINE_EXPAND, 14.0).color(k.c.text_faint))
+        .child(icon(&FOCUS_EXPAND, 14.0).color(k.c.text_faint))
 }
 
 /// M2 NAV-03: a compact Back/Forward chip. Disabled chips dim but keep their
@@ -5268,5 +5290,92 @@ mod help_layout_tests {
         let (summary, logs) = diagnostics_parts("Muninn 0.3.0\n(no log lines yet)");
         assert_eq!(summary, vec!["Muninn 0.3.0".to_owned()]);
         assert_eq!(logs, vec!["(no log lines yet)".to_owned()]);
+    }
+}
+
+/// #186: the title bar's icons must sit in the middle of their 26 pt chips.
+///
+/// These measure the rasterised ink itself — the same coverage atlas Rune
+/// uploads — so a glyph that centres on its path but not on its pixels (or one
+/// whose `<g transform>` the painter drops) fails here rather than in a
+/// screenshot review. `SIDEBAR` and `SETTINGS_GEAR` are the controls: their
+/// chips were measured exactly centred by hand.
+#[cfg(test)]
+mod icon_centring_tests {
+    use super::FOCUS_EXPAND;
+    use rune::Icon;
+    use rune::text::icon_coverage;
+
+    /// The ink's bounding box at `px` × `px`, in pixels: `(x0, x1, y0, y1)`
+    /// with the maxima exclusive, so a box from pixel 3 to pixel 10 ends at 11.
+    /// `ink` is the coverage a pixel must reach to count: 1 takes the faint
+    /// antialiased fringe, 128 matches the ≥50 % measurement the bug report
+    /// used.
+    fn ink_bbox(icon: &Icon, px: u32, ink: u8) -> (f32, f32, f32, f32) {
+        let cov = icon_coverage(icon, px);
+        let (mut x0, mut x1, mut y0, mut y1) = (px as i32, -1, px as i32, -1);
+        for y in 0..px as i32 {
+            for x in 0..px as i32 {
+                if cov[(y * px as i32 + x) as usize] >= ink {
+                    x0 = x0.min(x);
+                    x1 = x1.max(x);
+                    y0 = y0.min(y);
+                    y1 = y1.max(y);
+                }
+            }
+        }
+        assert!(
+            x1 >= x0 && y1 >= y0,
+            "{} draws no ink at {px} pt",
+            icon.name
+        );
+        (x0 as f32, (x1 + 1) as f32, y0 as f32, (y1 + 1) as f32)
+    }
+
+    /// How far the ink's centre sits from the box's, on each axis, in points.
+    fn centre_error(icon: &Icon, px: u32, ink: u8) -> (f32, f32) {
+        let (x0, x1, y0, y1) = ink_bbox(icon, px, ink);
+        let middle = px as f32 / 2.0;
+        ((x0 + x1) / 2.0 - middle, (y0 + y1) / 2.0 - middle)
+    }
+
+    #[test]
+    fn the_focus_glyph_centres_like_its_neighbours() {
+        // The glyph is drawn at 14 pt; the same coverage at 1x, 2x and 4x
+        // scale keeps the centre where the layout put it.
+        for px in [14, 28, 56] {
+            for ink in [1, 128] {
+                let (dx, dy) = centre_error(&FOCUS_EXPAND, px, ink);
+                assert!(
+                    dx.abs() <= 0.5 && dy.abs() <= 0.5,
+                    "FOCUS_EXPAND is off-centre by ({dx}, {dy}) pt at {px} pt (ink ≥ {ink})"
+                );
+            }
+        }
+
+        // The width is the one the old 24-unit asset drew through its group:
+        // ~8.5 pt of ink at 14 pt, not the ~7 pt the dropped transform left.
+        for px in [14, 28, 56] {
+            let (x0, x1, y0, y1) = ink_bbox(&FOCUS_EXPAND, px, 128);
+            let (w, h) = (x1 - x0, y1 - y0);
+            let expected = 8.35 * px as f32 / 14.0;
+            assert!(
+                (w - expected).abs() <= 1.0 && (h - expected).abs() <= 1.0,
+                "FOCUS_EXPAND ink is {w}×{h} pt at {px} pt, expected ~{expected}"
+            );
+        }
+
+        // The controls are centred in their own chips, so they hold the same
+        // contract this test asks of the Focus glyph.
+        let sidebar = centre_error(&rune_kit::shell::SIDEBAR, 14, 1);
+        assert!(
+            sidebar.0.abs() <= 0.5 && sidebar.1.abs() <= 0.5,
+            "SIDEBAR is off-centre by {sidebar:?} pt"
+        );
+        let gear = centre_error(&rune_theme_opencode::icons::SETTINGS_GEAR, 15, 1);
+        assert!(
+            gear.0.abs() <= 0.5 && gear.1.abs() <= 0.5,
+            "SETTINGS_GEAR is off-centre by {gear:?} pt"
+        );
     }
 }
