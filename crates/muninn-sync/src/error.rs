@@ -1,5 +1,8 @@
-//! Failures a sync run can surface. Messages are safe to show in the UI:
-//! they carry relative paths and provider status text, never tokens or note bodies.
+//! Failures a sync run can surface. `Display` is the diagnostic rendering:
+//! it carries relative paths and provider status text, never tokens or note
+//! bodies. Settings › Sync draws the same events from the `muninn-i18n`
+//! catalog (`sync_ui::sync_error_text`), keeping each provider `detail` as
+//! written; this rendering is the fallback for the developer-facing variants.
 
 use std::fmt;
 

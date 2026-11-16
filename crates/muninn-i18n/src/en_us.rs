@@ -213,6 +213,97 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncTailnetRoleLabel => "Tailscale role",
         Key::SyncTailnetRoleHost => "Host here",
         Key::SyncTailnetRoleJoin => "Join host",
+        Key::SyncTailnetKeyLabel => "Shared key",
+        Key::SyncTailnetKeyCopy => "Copy key",
+        Key::SyncTailnetKeyShow => "Show key",
+        Key::SyncTailnetKeyHide => "Hide key",
+        Key::SyncTailnetKeyRotate => "Rotate key",
+        Key::SyncStatusNotConnected => {
+            "Not connected. Choose a provider and an explicit remote, then Connect."
+        }
+        Key::SyncStatusTailnetHost => {
+            "This device hosts. Muninn serves the commit store on 127.0.0.1 while it is open; tailscale serve publishes it to your tailnet."
+        }
+        Key::SyncStatusTailnetJoin => {
+            "Join a host. Enter the host's full MagicDNS name and paste the key from Copy key on the host."
+        }
+        Key::SyncStatusConnectedSharedKey => {
+            "Connected. The shared key is in the OS credential store. Sync Now when ready."
+        }
+        Key::SyncStatusConnectedToken => {
+            "Connected. The token is in the OS credential store. Sync Now when ready."
+        }
+        Key::SyncStatusAskingGithubCode => "Asking GitHub for a sign-in code…",
+        Key::SyncStatusOpeningGoogle => "Opening Google sign-in in your browser…",
+        Key::SyncStatusWaitingGoogle => {
+            "Finish signing in to Google in your browser. Muninn is waiting on 127.0.0.1 for the answer."
+        }
+        Key::SyncStatusSignedInAfterDisconnect => {
+            "Sign-in finished after Disconnect; its token was removed."
+        }
+        Key::SyncStatusTailnetJoined => {
+            "Joined. The shared key is in the OS credential store. Sync Now reaches the host over your tailnet."
+        }
+        Key::SyncStatusSyncStarted => "Sync started. The window stays responsive.",
+        Key::SyncStatusCancelling => {
+            "Cancelling. A change the provider already accepted is kept and reconciled."
+        }
+        Key::SyncStatusNoteChangedWhileSyncing => {
+            "The open note changed while sync ran; its text was not overwritten."
+        }
+        Key::SyncStatusNothingConnected => "Nothing is connected. Local notes were not changed.",
+        Key::SyncStatusDisconnected => {
+            "Disconnected. Credentials for this binding were removed. Local and remote notes were not deleted."
+        }
+        Key::SyncStatusSaveBeforeSync => {
+            "Save or resolve the open note before Sync Now. Unsaved text is not uploaded or overwritten."
+        }
+        Key::SyncStatusAlreadyRunning => "A sync is already running.",
+        Key::SyncStatusFinishSignIn => "Finish signing in first, or Disconnect to cancel.",
+        Key::SyncStatusConnectProvider => "Connect a provider for this vault before Sync Now.",
+        Key::SyncStatusWaitForRun => {
+            "Wait for the running sync or sign-in to finish, or Disconnect to cancel it."
+        }
+        Key::SyncStatusWaitToRotateKey => {
+            "Wait for the running sync to finish before rotating the key."
+        }
+        Key::SyncStatusKeyRotated => {
+            "Key rotated; the old key no longer works. On each joined device, Disconnect and join again with the new key (Copy key)."
+        }
+        Key::SyncStatusCurrentConnectionKept => "The current connection was not changed.",
+        Key::SyncErrorVaultNotCanonical => {
+            "This vault folder cannot be canonicalized, so it cannot be bound."
+        }
+        Key::SyncErrorGithubScope => "Enter the GitHub owner and repository before connecting.",
+        Key::SyncErrorLoopbackPort => "Enter a loopback port between 1024 and 65535 for the host.",
+        Key::SyncErrorPasteSharedKey => {
+            "Paste the shared key shown on the host. It is stored in the OS credential store, not in settings."
+        }
+        Key::SyncErrorNotTailnetHost => "This vault does not host a Tailscale store.",
+        Key::SyncErrorSharedKeyMissing => "The shared key is missing from the credential store.",
+        Key::SyncErrorTailnetKeyMissing => {
+            "The Tailscale shared key is missing from the credential store. Disconnect and connect again."
+        }
+        Key::SyncErrorCancelled => "Sync cancelled",
+        Key::SyncErrorTimedOutAfterSend => {
+            "Timed out after a change was sent; reconcile before retrying"
+        }
+        Key::SyncErrorTimedOutBeforeResponse => "Timed out before the provider responded",
+        Key::SyncErrorRateLimited => "Rate limited",
+        Key::SyncErrorLeaseBusy => "Another Muninn instance is writing this vault",
+        Key::SyncErrorSettingsNotObject => "Sync settings were not an object, so sync is off.",
+        Key::SyncErrorSettingsVersion => "Sync settings version is not supported, so sync is off.",
+        Key::SyncErrorSettingsVaultList => "Sync vault list was missing, so sync is off.",
+        Key::SyncErrorSettingsBindingInvalid => {
+            "A sync binding was invalid and was not loaded. Sync is off until it is replaced."
+        }
+        Key::KanbanUiNotInsideVault => "the kanban is not inside the open vault",
+        Key::KanbanUiFieldRefused => {
+            "Not quitting: the kanban could not be saved. Fix what stopped the save, or undo the edits, then quit again."
+        }
+        Key::ErrorSaveKanbanBeforeRestore => {
+            "Save or discard the current kanban before restoring another"
+        }
         Key::PaletteTitle => "Command palette",
         Key::PaletteEmpty => "No notes or actions match",
         Key::PaletteFooter => "↑↓ move · Enter open · Esc close",
