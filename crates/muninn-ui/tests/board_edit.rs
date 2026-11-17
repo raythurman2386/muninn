@@ -112,6 +112,10 @@ fn open(rt: &mut Runtime<State>) {
         .iter()
         .position(|b| b.file.title == "Draw")
         .expect("Draw");
+    let (x, y) = rt.find("board-picker").expect("picker button");
+    rt.pointer_down(x, y);
+    rt.pointer_up(x, y);
+    frames(rt, 2);
     let (x, y) = rt.find(&format!("board-row-{i}")).expect("row");
     rt.pointer_down(x, y);
     rt.pointer_up(x, y);

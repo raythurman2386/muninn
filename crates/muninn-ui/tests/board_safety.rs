@@ -107,6 +107,8 @@ fn open_draw(rt: &mut Runtime<State>) {
         .iter()
         .position(|b| b.file.title == "Draw")
         .expect("Draw");
+    // #188: the list floats under its button; open it, then pick the row.
+    click(rt, "board-picker");
     click(rt, &format!("board-row-{i}"));
     frames(rt, 60);
 }

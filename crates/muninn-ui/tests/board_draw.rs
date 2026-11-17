@@ -100,6 +100,8 @@ fn open(rt: &mut Runtime<State>, title: &str) {
         .iter()
         .position(|b| b.file.title == title)
         .unwrap_or_else(|| panic!("no board {title}"));
+    // #188: the list floats under its button; open it, then pick the row.
+    click(rt, "board-picker");
     click(rt, &format!("board-row-{i}"));
     frames(rt, 60);
 }
@@ -580,6 +582,7 @@ fn a_file_changed_on_disk_is_never_overwritten() {
         .iter()
         .position(|b| b.file.title == "Smoke")
         .unwrap();
+    click(&mut rt, "board-picker");
     click(&mut rt, &format!("board-row-{i}"));
     assert!(
         rt.state

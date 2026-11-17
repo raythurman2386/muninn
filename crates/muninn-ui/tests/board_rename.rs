@@ -1,7 +1,6 @@
 //! Board rename in the app (Raymond, #43: "I can't seem to update the name of
-//! the new board"): F2 on Board, Rename in a board row's right-click menu (the
-//! Board panel and the notes sidebar's Boards section), and a double click on
-//! the board's title. Headless.
+//! the new board"): F2 on Board (its title), Rename in a sidebar board row's
+//! right-click menu, and a double click on the board's title. Headless.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -175,8 +174,14 @@ fn names_under(dir: &Path) -> Vec<String> {
 fn new_board(app: &mut App) {
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
-    press(&mut app.rt, "board-new-empty");
+    press(&mut app.rt, "board-new");
     frames(&mut app.rt, 10);
+}
+
+/// Open the header's board picker and pick its row `i` (#188).
+fn pick_board(rt: &mut Runtime<State>, i: usize) {
+    press(rt, "board-picker");
+    press(rt, &format!("board-row-{i}"));
 }
 
 fn rename_field_open(rt: &Runtime<State>) -> bool {
@@ -323,7 +328,7 @@ fn a_taken_or_invalid_name_is_refused_and_the_field_stays_open() {
 // ---- Right-click Rename, double-click the title ----------------------------
 
 #[test]
-fn rename_from_the_board_panel_row_menu() {
+fn rename_from_a_sidebar_row_menu_leaves_the_open_board_open() {
     let fx = Fixture::new(&[
         ("Alpha.md", "# Alpha\n"),
         ("A.excalidraw", DRAW),
@@ -332,9 +337,11 @@ fn rename_from_the_board_panel_row_menu() {
     let mut app = fx.launch();
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
-    press(&mut app.rt, "board-row-0");
+    pick_board(&mut app.rt, 0);
     frames(&mut app.rt, 20);
-    right_click(&mut app.rt, "board-row-1");
+    // Board starts with the sidebar collapsed; reopen it for its Boards list.
+    press(&mut app.rt, "sidebar-toggle");
+    right_click(&mut app.rt, "sidebar-board-1");
     assert!(
         app.rt.find("menu-rename").is_some(),
         "the row offers Rename"
@@ -406,7 +413,7 @@ fn embeds_of_a_renamed_board_follow_it_in_the_open_note_too() {
     assert!(app.rt.state.editor.text.contains("Plan.excalidraw"));
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
-    press(&mut app.rt, "board-row-0");
+    pick_board(&mut app.rt, 0);
     key(&mut app.rt, Key::Function(2));
     type_text(&mut app.rt, "Roadmap");
     key(&mut app.rt, Key::Enter);
@@ -443,7 +450,7 @@ fn hiding_the_sidebar_or_leaving_board_cancels_a_board_rename() {
     // Started on Board with F2, then Cmd+1 leaves Board.
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
-    press(&mut app.rt, "board-row-0");
+    pick_board(&mut app.rt, 0);
     key(&mut app.rt, Key::Function(2));
     assert!(rename_field_open(&app.rt));
     command(&mut app.rt, '1');
@@ -508,11 +515,11 @@ fn a_multibyte_name_renames_the_board_without_crashing() {
     assert_eq!(open_path(&app.rt), Some(again));
     assert!(!rename_field_open(&app.rt) && app.rt.state.board_rename.is_none());
 }
-/// MF-B: a board with no row in the Board panel (here in a hidden folder,
+/// MF-B: a board the Board list does not hold (here in a hidden folder,
 /// opened from a note's embed) took F2 into an invisible field: Board's keys
 /// died and Esc left Board. F2 now renames it in the title instead.
 #[test]
-fn f2_on_a_board_with_no_panel_row_renames_in_the_title() {
+fn f2_on_a_board_the_list_does_not_hold_renames_in_the_title() {
     let fx = Fixture::new(&[
         ("Home.md", "# Home\n\n![[.hidden/Secret.excalidraw]]\n"),
         (".hidden/Secret.excalidraw", DRAW),
@@ -526,7 +533,7 @@ fn f2_on_a_board_with_no_panel_row_renames_in_the_title() {
     assert_eq!(open_path(&app.rt), Some(secret.clone()));
     assert!(
         !app.rt.state.boards.iter().any(|b| b.file.path == secret),
-        "precondition: no panel row for it"
+        "precondition: the list does not hold it"
     );
 
     key(&mut app.rt, Key::Function(2));
@@ -549,8 +556,8 @@ fn f2_on_a_board_with_no_panel_row_renames_in_the_title() {
     assert!(field_matches_state(&app.rt));
 }
 
-/// MF-B, the other ways in: a row menu or a title rename for a board with no
-/// such row is refused, and a field whose row goes away (the file deleted by
+/// MF-B, the other ways in: a row menu or a title rename for a board no list
+/// holds is refused, and a field whose row goes away (the file deleted by
 /// another app) closes with it.
 #[test]
 fn a_board_rename_never_has_the_keyboard_without_a_field() {
@@ -566,7 +573,6 @@ fn a_board_rename_never_has_the_keyboard_without_a_field() {
     app.rt.state.open_board_at(shown.clone());
     frames(&mut app.rt, 10);
     for place in [
-        muninn_ui::BoardPlace::Panel,
         muninn_ui::BoardPlace::Sidebar,
         muninn_ui::BoardPlace::Header,
     ] {
@@ -584,8 +590,11 @@ fn a_board_rename_never_has_the_keyboard_without_a_field() {
     frames(&mut app.rt, 3);
     assert!(app.rt.state.board_rename.is_none(), "not the open board");
 
-    // A panel-row rename whose board another app deletes.
-    right_click(&mut app.rt, "board-row-0");
+    // A sidebar-row rename whose board another app deletes. Board starts with
+    // the sidebar collapsed; reopen it for its Boards list.
+    press(&mut app.rt, "sidebar-toggle");
+    frames(&mut app.rt, 3);
+    right_click(&mut app.rt, "sidebar-board-0");
     press(&mut app.rt, "menu-rename");
     assert_eq!(
         app.rt.state.board_rename.as_ref().map(|r| r.path.clone()),

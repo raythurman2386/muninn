@@ -166,8 +166,8 @@ def inside(expected, rect, margin=8):
     }
 
 
-def compare(measured, expected, tol, what):
-    if len(expected) < 3:
+def compare(measured, expected, tol, what, least=3):
+    if len(expected) < least:
         die(f"{what}: only {len(expected)} comparable shapes")
     for key, want in expected.items():
         got = measured.get(key)
@@ -231,7 +231,8 @@ def cmd_moved(png, tree, prev, dx, dy, out):
     before = json.load(open(prev))
     expected = {k: [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy] for k, b in before.items()}
     expected = inside(expected, rect)
-    compare(measured, expected, 2.0, f"moved {dx:+.0f},{dy:+.0f}")
+    # #188: see cmd_zoomed: the wider canvas leaves two whole shapes in view.
+    compare(measured, expected, 2.0, f"moved {dx:+.0f},{dy:+.0f}", least=2)
     save(out, measured)
 
 
@@ -267,14 +268,18 @@ def cmd_zoomed(png, tree, prev, px, py, factor, out):
         for k, b in before.items()
     }
     expected = inside(expected, rect)
-    compare(measured, expected, 3.0, f"zoomed x{f:.4f} at ({px:.0f}, {py:.0f})")
+    # #188: the page's rail is gone, so the canvas is wider and the fit camera
+    # closer; a 1.25 zoom then leaves two whole shapes in view, not three.
+    compare(measured, expected, 3.0, f"zoomed x{f:.4f} at ({px:.0f}, {py:.0f})", least=2)
     save(out, measured)
 
 
 def cmd_same(png, tree, prev, out):
     measured, _, _ = boxes(png, canvas_rect(tree))
     before = json.load(open(prev))
-    compare(measured, before, 1.5, "same")
+    # #188: a zoomed canvas may hold only two whole shapes; both must still be
+    # in the same place.
+    compare(measured, before, 1.5, "same", least=2)
     save(out, measured)
 
 

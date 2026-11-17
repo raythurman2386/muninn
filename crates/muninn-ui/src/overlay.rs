@@ -39,6 +39,8 @@ pub enum Layer {
     /// file changed under unsaved edits, its three choices outrank the page.
     KanbanConflict,
     Menu,
+    /// Issue #188: the Board page's header picker, a modal list.
+    BoardPicker,
     KanbanPicker,
     /// The Kanban page's archive page, above the lanes it replaces.
     ArchivePage,
@@ -534,6 +536,9 @@ impl State {
         if self.menu.is_some() {
             return Some(Layer::Menu);
         }
+        if self.board_picker.is_some() {
+            return Some(Layer::BoardPicker);
+        }
         if self.kanban_picker.is_some() {
             return Some(Layer::KanbanPicker);
         }
@@ -580,6 +585,7 @@ impl State {
             Layer::MoveConfirm => self.cancel_move_confirm(),
             Layer::FolderRenameConfirm => self.cancel_folder_rename_confirm(),
             Layer::Menu => self.close_menu(),
+            Layer::BoardPicker => self.close_board_picker(),
             Layer::KanbanConflict => self.dismiss_kanban_conflict(),
             Layer::KanbanPicker => self.dismiss_picker(),
             Layer::ArchivePage => self.close_kanban_archive(),

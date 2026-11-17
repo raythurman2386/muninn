@@ -121,11 +121,8 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
             s.toggle_help();
             return true;
         }
-        // #43: on Board, F2 renames the open board (in its panel row).
-        if e.key == Key::Function(2)
-            && s.mode == Mode::Board
-            && s.begin_rename_open_board(crate::BoardPlace::Panel)
-        {
+        // #43: on Board, F2 renames the open board (in its header title).
+        if e.key == Key::Function(2) && s.mode == Mode::Board && s.begin_rename_open_board() {
             return true;
         }
         if e.key == Key::Function(2)

@@ -306,6 +306,8 @@ fn a_selected_board_row_keeps_its_detail_legible() {
     for theme in [ThemeMode::Light, ThemeMode::Dark] {
         let mut rt = runtime(vault.path(), theme);
         open_board(&mut rt, "Sketch");
+        // #188: the rows are in the header picker; open it to inspect them.
+        click(&mut rt, "board-picker");
         let i = rt
             .state
             .boards
@@ -414,6 +416,7 @@ fn open_board(rt: &mut Runtime<State>, title: &str) {
         .iter()
         .position(|b| b.file.title == title)
         .unwrap_or_else(|| panic!("no board {title}"));
+    click(rt, "board-picker");
     click(rt, &format!("board-row-{i}"));
     frames(rt, 60);
 }

@@ -53,6 +53,7 @@ def cmd_script(tree, fixture, out):
     p = points(plan)
     ev = [
         {"t": 0.3, "type": "key", "name": "4", "cmd": True},
+        {"t": 0.6, "type": "tap", "key": "board-picker"},
         {"t": 0.8, "type": "tap", "key": ROW},
         {"t": 2.0, "type": "mark", "name": "before"},
         {"t": 2.4, "type": "key", "name": "t"},

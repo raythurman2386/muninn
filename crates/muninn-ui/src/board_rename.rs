@@ -3,9 +3,9 @@
 //!
 //! Three ways in, one inline name field:
 //! - **F2** on Board (when no text field has the keyboard) renames the open
-//!   board in its Boards-panel row, or in its title when it has no row;
-//! - **Rename** in the right-click menu of a board row, in the Board panel
-//!   or in the notes sidebar's Boards section;
+//!   board in its title above the canvas;
+//! - **Rename** in the right-click menu of a board row in the notes sidebar's
+//!   Boards section;
 //! - a **double click** on the open board's title above the canvas.
 //!
 //! The field holds the name without `.excalidraw` (it stays implicit), all
@@ -34,8 +34,6 @@ use crate::{Mode, State};
 /// Where a board's rename field is drawn (and which menu asked for it).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoardPlace {
-    /// A row in Board mode's Boards panel (F2 uses this one).
-    Panel,
     /// A row in the notes sidebar's Boards section.
     Sidebar,
     /// The open board's title above the canvas.
@@ -64,7 +62,7 @@ impl State {
                 self.search.text.trim().is_empty()
                     && self.sidebar_boards.iter().any(|b| b.path == path)
             }
-            BoardPlace::Panel | BoardPlace::Header => self.board_rename_shows(&path, place),
+            BoardPlace::Header => self.board_rename_shows(&path, place),
         };
         if !listed {
             self.log_event(
@@ -106,29 +104,19 @@ impl State {
         true
     }
 
-    /// F2 on Board: rename the open board in its panel row, or in its title
-    /// when it has no row (a board in a hidden folder, or one opened from
-    /// outside the vault through an embed).
-    pub fn begin_rename_open_board(&mut self, place: BoardPlace) -> bool {
+    /// F2 on Board: rename the open board in its title above the canvas.
+    pub fn begin_rename_open_board(&mut self) -> bool {
         let Some(path) = self.board_open.as_ref().map(|open| open.path.clone()) else {
             return false;
         };
-        let place = if place == BoardPlace::Panel && !self.board_rename_shows(&path, place) {
-            BoardPlace::Header
-        } else {
-            place
-        };
-        self.begin_rename_board(path, place)
+        self.begin_rename_board(path, BoardPlace::Header)
     }
 
     /// Whether a name field for `path` at `place` is drawn right now: the
-    /// Board panel lists it, the shown sidebar lists it (not while a search
-    /// hides its Boards section), or it is the open board's title on Board.
+    /// shown sidebar lists it (not while a search hides its Boards section),
+    /// or it is the open board's title on Board.
     pub(crate) fn board_rename_shows(&self, path: &Path, place: BoardPlace) -> bool {
         match place {
-            BoardPlace::Panel => {
-                self.mode == Mode::Board && self.boards.iter().any(|b| b.file.path == path)
-            }
             BoardPlace::Sidebar => {
                 self.sidebar_shown()
                     && self.search.text.trim().is_empty()
@@ -297,7 +285,7 @@ impl State {
     }
 
     /// The field's place is about to go out of sight: leaving Board takes
-    /// the panel and the title with it.
+    /// the title with it.
     pub(crate) fn board_rename_left_board(&mut self, mode: Mode) {
         if mode != Mode::Board
             && self

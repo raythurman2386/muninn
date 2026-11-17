@@ -526,6 +526,13 @@ step_headless_board() {
   python3 "$harness" sidebar-open "$root/scripts/ui-smoke/board.json" "$work/board-open.json" || return 1
   reopen_sidebar
   for mark in $BOARD_MARKS; do board_snap "$mark" || return 1; done
+  # #188: a tree with the header's picker open, for the X11 click on a row.
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-picker"},{"t":1.4,"type":"mark","name":"listed"}]}' >"$work/board-listed.json"
+  python3 "$harness" sidebar-open "$work/board-listed.json" "$work/board-listed.json" || return 1
+  export XDG_CONFIG_HOME="$work/config-board-listed"
+  rm -rf "$XDG_CONFIG_HOME"; mkdir -p "$XDG_CONFIG_HOME"
+  "$bin" --vault "$vault" --script "$work/board-listed.json" --at "mark:listed+0.2" --scale 1 \
+    --snap "$out/screens/board-listed.png" --tree "$out/trees/board-listed.json" || return 1
   local s="$out/screens" t="$out/trees" m="$work/measure"
   mkdir -p "$m"
   python3 "$harness" tree-mode "$t/board-fit.json" board || return 1
@@ -619,10 +626,14 @@ step_headless_draw() {
   python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
   local s="$out/screens" t="$out/trees" m="$work/draw"
   mkdir -p "$m"
-  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.6,"type":"tap","key":"board-picker"},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
     >"$m/open.json"
   python3 "$harness" sidebar-open "$m/open.json" "$m/open.json" || return 1
   draw_run before "$m/open.json" before || return 1
+  # #188: a tree with the header's picker open, for the X11 click on a row.
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-picker"},{"t":1.4,"type":"mark","name":"listed"}]}' >"$m/listed.json"
+  python3 "$harness" sidebar-open "$m/listed.json" "$m/listed.json" || return 1
+  draw_run listed "$m/listed.json" listed || return 1
   python3 "$harness" tree-text "$t/draw-before.json" board-surface-title Tools || return 1
   python3 "$draw" script "$t/draw-before.json" "$m/draw.json" || return 1
   python3 "$harness" sidebar-open "$m/draw.json" "$m/draw.json" || return 1
@@ -663,9 +674,12 @@ step_headless_edit() {
   python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
   local s="$out/screens" t="$out/trees" m="$work/edit" mark
   mkdir -p "$m"
-  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.6,"type":"tap","key":"board-picker"},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
     >"$m/open.json"
   edit_run before "$m/open.json" before || return 1
+  # #188: a tree with the header's picker open, for the X11 click on a row.
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-picker"},{"t":1.4,"type":"mark","name":"listed"}]}' >"$m/listed.json"
+  edit_run listed "$m/listed.json" listed || return 1
   python3 "$harness" tree-text "$t/edit-before.json" board-surface-title Tools || return 1
   python3 "$edit" script "$t/edit-before.json" "$draw_fixture" "$m/edit.json" || return 1
   python3 "$edit" pixels before "$s/edit-before.png" "$s/edit-before.png" "$t/edit-before.json" "$draw_fixture" || return 1
@@ -735,7 +749,11 @@ step_headless_board_safety() {
   mkdir -p "$m"
   # Search focus: Board keys stay out of the focused sidebar search.
   cp "$draw_fixture" "$draw_board"
-  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"},{"t":2.3,"type":"tap","key":"search-box"},{"t":2.6,"type":"type","text":"road1x+0","every":0.06},{"t":3.4,"type":"mark","name":"typed"}]}' \
+  # #188: a tree with the header's picker open, for the X11 click on a row.
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-picker"},{"t":1.4,"type":"mark","name":"listed"}]}' >"$m/listed.json"
+  python3 "$harness" sidebar-open "$m/listed.json" "$m/listed.json" || return 1
+  safety_run listed "$m/listed.json" listed || return 1
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.6,"type":"tap","key":"board-picker"},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"},{"t":2.3,"type":"tap","key":"search-box"},{"t":2.6,"type":"type","text":"road1x+0","every":0.06},{"t":3.4,"type":"mark","name":"typed"}]}' \
     >"$m/search.json"
   python3 "$harness" sidebar-open "$m/search.json" "$m/search.json" || return 1
   safety_run search-before "$m/search.json" before || return 1
@@ -957,8 +975,9 @@ step_x11_board() {
     echo "app exit status: $status"
     [ "$status" = 0 ]
   }
-  local row cx cy
-  row="$(python3 "$harness" tree-center "$tree" board-row-1)" || return 1
+  local picker row cx cy
+  picker="$(python3 "$harness" tree-center "$tree" board-picker)" || return 1
+  row="$(python3 "$harness" tree-center "$out/trees/board-listed.json" board-row-1)" || return 1
   read -r cx cy < <(python3 "$harness" tree-center "$tree" board-canvas) || return 1
   launch || return 1
   # Let the Board page finish appearing first: a click during its entrance can miss
@@ -966,6 +985,7 @@ step_x11_board() {
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
   # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
   python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
+  python3 "$harness" x11-click "$wid" $picker && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 1-fit || return 1
   python3 "$pixels" fit "$s/x11-board-1-fit.png" "$tree" "$smoke_fixture" "$m/fit.json" || return 1
   # The hand tool pans (a plain drag on empty canvas is the slice 5 marquee).
@@ -1041,12 +1061,14 @@ step_x11_draw() {
     echo "app exit status: $status"
     [ "$status" = 0 ]
   }
-  local row
-  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  local picker row
+  picker="$(python3 "$harness" tree-center "$tree" board-picker)" || return 1
+  row="$(python3 "$harness" tree-center "$out/trees/draw-listed.json" board-row-2)" || return 1
   launch || return 1
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
   # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
   python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
+  python3 "$harness" x11-click "$wid" $picker && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 1-before || return 1
   python3 "$draw" x11 "$wid" "$tree" && shot 2-drawn || return 1
   python3 "$draw" pixels "$s/x11-draw-1-before.png" "$s/x11-draw-2-drawn.png" "$tree" || return 1
@@ -1121,8 +1143,9 @@ step_x11_board_safety() {
     python3 "$harness" x11-drag "$wid" $(( cx + 300 + $1 )) $(( cy + 330 )) 90 60 || return 1
     python3 "$harness" x11-chord "$wid" v
   }
-  local row keep copy restore cx cy
-  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  local picker row keep copy restore cx cy
+  picker="$(python3 "$harness" tree-center "$tree" board-picker)" || return 1
+  row="$(python3 "$harness" tree-center "$out/trees/safety-listed.json" board-row-2)" || return 1
   keep="$(python3 "$harness" tree-center "$restored" board-keep-mine)" || return 1
   copy="$(python3 "$harness" tree-center "$changed" board-save-copy)" || return 1
   restore="$(python3 "$harness" tree-center "$out/trees/safety-banner.json" recovery-restore-0)" || return 1
@@ -1133,6 +1156,7 @@ step_x11_board_safety() {
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
   # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
   python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
+  python3 "$harness" x11-click "$wid" $picker && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 1-open || return 1
   draw_one 0 && shot 2-drawn || return 1
   python3 "$safety" recovery "$XDG_STATE_HOME" Tools.excalidraw 6 || return 1
@@ -1248,8 +1272,9 @@ step_x11_edit() {
     echo "app exit status: $status"
     [ "$status" = 0 ]
   }
-  local row rect moved text from to
-  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  local picker row rect moved text from to
+  picker="$(python3 "$harness" tree-center "$tree" board-picker)" || return 1
+  row="$(python3 "$harness" tree-center "$out/trees/edit-listed.json" board-row-2)" || return 1
   rect="$(python3 "$edit" point "$tree" "$draw_fixture" rect)" || return 1
   moved="$(python3 "$edit" point "$tree" "$draw_fixture" rect-moved)" || return 1
   text="$(python3 "$edit" point "$tree" "$draw_fixture" text)" || return 1
@@ -1257,6 +1282,7 @@ step_x11_edit() {
   to="$(python3 "$edit" point "$tree" "$draw_fixture" marquee-to)" || return 1
   launch || return 1
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
+  python3 "$harness" x11-click "$wid" $picker && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot 0-before || return 1
   check before 0-before || return 1
   python3 "$harness" x11-click "$wid" $rect && shot 1-selected || return 1
@@ -1336,10 +1362,14 @@ step_headless_text() {
   python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
   local s="$out/screens" t="$out/trees" m="$work/text" mark
   mkdir -p "$m"
-  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.6,"type":"tap","key":"board-picker"},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
     >"$m/open.json"
   python3 "$harness" sidebar-open "$m/open.json" "$m/open.json" || return 1
   text_run before "$m/open.json" before || return 1
+  # #188: a tree with the header's picker open, for the X11 click on a row.
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-picker"},{"t":1.4,"type":"mark","name":"listed"}]}' >"$m/listed.json"
+  python3 "$harness" sidebar-open "$m/listed.json" "$m/listed.json" || return 1
+  text_run listed "$m/listed.json" listed || return 1
   python3 "$harness" tree-text "$t/text-before.json" board-surface-title Tools || return 1
   python3 "$texts" script "$t/text-before.json" "$draw_fixture" "$m/text.json" || return 1
   python3 "$harness" sidebar-open "$m/text.json" "$m/text.json" || return 1
@@ -1394,8 +1424,9 @@ step_x11_text() {
   sleep 2
   shot() { sleep "$(python3 -c "print(1.5 * max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"; import -window "$wid" "$s/x11-text-$1.png"; }
   check() { python3 "$texts" pixels "$1" "$s/x11-text-$2.png" "$s/x11-text-before.png" "$tree" "$draw_fixture"; }
-  local row new text from to
-  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  local picker row new text from to
+  picker="$(python3 "$harness" tree-center "$tree" board-picker)" || return 1
+  row="$(python3 "$harness" tree-center "$out/trees/text-listed.json" board-row-2)" || return 1
   new="$(python3 "$texts" point "$tree" "$draw_fixture" new)" || return 1
   text="$(python3 "$texts" point "$tree" "$draw_fixture" text)" || return 1
   from="$(python3 "$texts" point "$tree" "$draw_fixture" drag-from)" || return 1
@@ -1404,6 +1435,7 @@ step_x11_text() {
   # Slice 8: reopen the notes sidebar, as the headless trees these clicks come from.
   python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
   # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $picker && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && shot before || return 1
   check before before || return 1
   python3 "$texts" x11-type "$wid" t || return 1
@@ -1454,9 +1486,12 @@ step_headless_sync() {
   python3 -c 'import PIL' 2>/dev/null || { echo "missing python-pillow"; return 1; }
   local t="$out/trees" m="$work/sync"
   mkdir -p "$m"
-  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.6,"type":"tap","key":"board-picker"},{"t":0.8,"type":"tap","key":"board-row-2"},{"t":2.0,"type":"mark","name":"before"}]}' \
     >"$m/open.json"
   sync_run before "$m/open.json" before || return 1
+  # #188: a tree with the header's picker open, for the X11 click on a row.
+  printf '{"events":[{"t":0.3,"type":"key","name":"4","cmd":true},{"t":0.8,"type":"tap","key":"board-picker"},{"t":1.4,"type":"mark","name":"listed"}]}' >"$m/listed.json"
+  sync_run listed "$m/listed.json" listed || return 1
   python3 "$harness" tree-text "$t/sync-before.json" board-surface-title Tools || return 1
   python3 "$syncs" script "$t/sync-before.json" "$draw_fixture" "$m/sync.json" || return 1
   sync_run typed "$m/sync.json" typed || return 1
@@ -1499,12 +1534,13 @@ step_x11_sync() {
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"
   echo "Xvfb on $DISPLAY, vulkan icd $icd"
-  local wid s="$out/screens" m="$work/sync-x11" slow row new rect
+  local wid s="$out/screens" m="$work/sync-x11" slow picker row new rect
   mkdir -p "$m"
   slow="$(python3 -c "print(max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
   shot() { sleep "$(python3 -c "print(1.5 * $slow)")"; import -window "$wid" "$s/x11-sync-$1.png"; }
   rest() { sleep "$(python3 -c "print($1 * $slow)")"; }
-  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  picker="$(python3 "$harness" tree-center "$tree" board-picker)" || return 1
+  row="$(python3 "$harness" tree-center "$out/trees/sync-listed.json" board-row-2)" || return 1
   new="$(python3 "$syncs" point "$tree" "$draw_fixture" new)" || return 1
   rect="$(python3 "$syncs" point "$tree" "$draw_fixture" rect)" || return 1
   launch() { # launch NAME: the app on Tools, with this run's settings
@@ -1514,6 +1550,7 @@ step_x11_sync() {
     sleep 2
     python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
     # shellcheck disable=SC2086
+    python3 "$harness" x11-click "$wid" $picker && sleep 1 || return 1
     python3 "$harness" x11-click "$wid" $row && shot "$1" || return 1
   }
   quit() {
@@ -1650,9 +1687,10 @@ step_x11_chrome() {
   for i in $(seq 50); do [ -e "/tmp/.X11-unix/X$n" ] && break; sleep 0.1; done
   export DISPLAY=":$n"
   echo "Xvfb on $DISPLAY, vulkan icd $icd"
-  local wid s="$out/screens/chrome" chrome="$root/scripts/ui-smoke/board_chrome.py" row rect new
+  local wid s="$out/screens/chrome" chrome="$root/scripts/ui-smoke/board_chrome.py" picker row rect new
   mkdir -p "$s"
-  row="$(python3 "$harness" tree-center "$tree" board-row-2)" || return 1
+  picker="$(python3 "$harness" tree-center "$tree" board-picker)" || return 1
+  row="$(python3 "$harness" tree-center "$out/trees/sync-listed.json" board-row-2)" || return 1
   rect="$(python3 "$syncs" point "$tree" "$draw_fixture" rect)" || return 1
   new="$(python3 "$syncs" point "$tree" "$draw_fixture" new)" || return 1
   export XDG_CONFIG_HOME="$work/config-x11-chrome" XDG_STATE_HOME="$work/state-x11-chrome"
@@ -1664,6 +1702,7 @@ step_x11_chrome() {
   sleep 2
   python3 "$harness" x11-chord "$wid" ctrl+4 && sleep 1 || return 1
   # shellcheck disable=SC2086
+  python3 "$harness" x11-click "$wid" $picker && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $row && sleep 3 || return 1
   # Select, deselect, select again: each click, then 12 quick grabs (about
   # every 40-60 ms) and one once settled, all against the shot before it.
@@ -1716,12 +1755,17 @@ step_headless_new_board() {
   printf '# Idea\n' >"$empty_vault/Ideas/Idea.md"
   listing >"$m/before.txt"
   # 1. Board on a vault with no boards: nothing written, sidebar collapsed, New board offered.
-  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.5,"type":"mark","name":"empty"}]}' >"$m/empty.json"
+  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.5,"type":"mark","name":"empty"},{"t":2.0,"type":"tap","key":"board-picker"},{"t":2.8,"type":"mark","name":"listed"}]}' >"$m/empty.json"
   empty_run empty "$m/empty.json" empty || return 1
+  empty_run listed "$m/empty.json" listed || return 1
   python3 "$harness" tree-mode "$t/new-empty.json" board || return 1
-  python3 "$harness" tree-text "$t/new-empty.json" board-new-empty "New board" || return 1
-  python3 "$harness" tree-text "$t/new-empty.json" board-list-empty "No boards in this vault yet" || return 1
-  python3 "$harness" tree-text "$t/new-empty.json" board-surface-title "No boards yet" || return 1
+  # #188: one New board in the header; the placeholder says "no boards" once,
+  # and the open picker says it once there.
+  python3 "$harness" tree-text "$t/new-empty.json" board-new "New board" || return 1
+  no_key "$t/new-empty.json" board-new-empty || return 1
+  python3 "$harness" tree-text "$t/new-empty.json" board-placeholder-title "No boards in this vault yet" || return 1
+  no_key "$t/new-empty.json" board-surface-title || return 1
+  python3 "$harness" tree-text "$t/new-listed.json" board-list-empty "No boards in this vault yet" || return 1
   no_key "$t/new-empty.json" search-box || return 1
   listing >"$m/after-open.txt"
   diff "$m/before.txt" "$m/after-open.txt" || { echo "opening Board wrote into the vault"; return 1; }
@@ -1730,7 +1774,7 @@ step_headless_new_board() {
   # 2. New board in the empty state: an empty Untitled board, open. With no board open
   #    it goes where New note would: the selected note's folder (Ideas/Idea.md is the
   #    note a fresh launch shows), never the vault root by surprise.
-  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.5,"type":"tap","key":"board-new-empty"},{"t":2.5,"type":"mark","name":"created"}]}' >"$m/create.json"
+  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.5,"type":"tap","key":"board-new"},{"t":2.5,"type":"mark","name":"created"}]}' >"$m/create.json"
   empty_run created "$m/create.json" created || return 1
   [ -f "$empty_vault/Ideas/Untitled board.excalidraw" ] || { echo "no Untitled board.excalidraw"; ls -R "$empty_vault"; return 1; }
   python3 "$harness" tree-text "$t/new-created.json" board-surface-title "Untitled board" || return 1
@@ -1738,7 +1782,11 @@ step_headless_new_board() {
     "$empty_vault/Ideas/Untitled board.excalidraw" || return 1
   "$roundtrip" "$empty_vault/Ideas/Untitled board.excalidraw" || return 1
   must_fail "the empty-state tree as a created board" python3 "$harness" tree-text "$t/new-empty.json" board-surface-title "Untitled board" || return 1
-  # 3. New board again from the panel header: never overwrites, takes the next name.
+  # #188: a tree with the sidebar and the header picker open, for the X11 row
+  # click and its sidebar right-click rename.
+  printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.0,"type":"key","name":"\\\\","cmd":true},{"t":1.6,"type":"tap","key":"board-picker"},{"t":2.4,"type":"mark","name":"listed"}]}' >"$m/listed.json"
+  empty_run listed "$m/listed.json" listed || return 1
+  # 3. New board again from the header: never overwrites, takes the next name.
   printf '{"events":[{"t":0.5,"type":"key","name":"4","cmd":true},{"t":1.5,"type":"tap","key":"board-new"},{"t":2.5,"type":"mark","name":"second"}]}' >"$m/second.json"
   empty_run second "$m/second.json" second || return 1
   [ -f "$empty_vault/Ideas/Untitled board 2.excalidraw" ] || { echo "no Untitled board 2"; ls -R "$empty_vault"; return 1; }
@@ -1777,7 +1825,7 @@ step_x11_new_board() {
   local wid s="$out/screens" slow at toggle
   slow="$(python3 -c "print(max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
   shot() { sleep "$(python3 -c "print(1.5 * $slow)")"; import -window "$wid" "$s/x11-new-$1.png"; }
-  at="$(python3 "$harness" tree-center "$tree" board-new-empty)" || return 1
+  at="$(python3 "$harness" tree-center "$tree" board-new)" || return 1
   toggle="$(python3 "$harness" tree-center "$tree" sidebar-toggle)" || return 1
   rm -rf "$empty_vault"; mkdir -p "$empty_vault/Ideas"
   printf '# Start\n\nNo boards here yet.\n' >"$empty_vault/Start.md"
@@ -1828,8 +1876,8 @@ step_x11_board_rename() {
   need Xvfb xorg-server-xvfb || return 1
   need import imagemagick || return 1
   python3 -c 'import Xlib, PIL' 2>/dev/null || { echo "missing python-xlib or python-pillow"; return 1; }
-  local tree="$out/trees/new-empty.json" made="$out/trees/new-created.json"
-  [ -f "$made" ] || { echo "run headless_new_board first (needs $made)"; return 1; }
+  local tree="$out/trees/new-empty.json" made="$out/trees/new-created.json" listed="$out/trees/new-listed.json"
+  [ -f "$made" ] && [ -f "$listed" ] || { echo "run headless_new_board first (needs $made and $listed)"; return 1; }
   local icd
   icd="$(find_lavapipe)" || { echo "missing lavapipe (see x11_modes)"; return 1; }
   export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
@@ -1846,10 +1894,12 @@ step_x11_board_rename() {
   slow="$(python3 -c "print(max(float('${UI_SMOKE_SLOW:-1}' or 1), 1))")"
   shot() { sleep "$(python3 -c "print(1.5 * $slow)")"; import -window "$wid" "$s/x11-rename-$1.png"; }
   rects() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print([e["type"] for e in d["elements"] if not e.get("isDeleted")].count("rectangle"))' "$1"; }
-  at="$(python3 "$harness" tree-center "$tree" board-new-empty)" || return 1
+  at="$(python3 "$harness" tree-center "$tree" board-new)" || return 1
   read -r cx cy _ <<<"$(python3 -c 'import json,sys; sys.path.insert(0, sys.argv[2]); import board_pixels as b; r=b.canvas_rect(sys.argv[1]); print(int(r[0]), int(r[1]))' "$made" "$root/scripts/ui-smoke")"
   read -r tx ty tw th <<<"$(python3 "$harness" tree-rect "$made" board-surface-title)" || return 1
-  read -r rx ry rw rh <<<"$(python3 "$harness" tree-rect "$made" board-row-0)" || return 1
+  # #188: the row menu is the notes sidebar's Boards row now (the page's own
+  # rail is gone); this tree was measured with the sidebar open.
+  read -r rx ry rw rh <<<"$(python3 "$harness" tree-rect "$listed" sidebar-board-0)" || return 1
   draw() { # draw DX: a rectangle with the R tool on the canvas
     python3 "$harness" x11-chord "$wid" r || return 1
     python3 "$harness" x11-drag "$wid" $(( cx + 260 + $1 )) $(( cy + 260 )) 110 70 || return 1
@@ -1898,13 +1948,17 @@ step_x11_board_rename() {
   python3 "$harness" x11-chord "$wid" enter && shot 6-title-renamed || return 1
   [ -f "$d/Sketch.excalidraw" ] && [ ! -e "$d/Roadmap.excalidraw" ] || { echo "double-click on the title did not rename"; ls -R "$empty_vault"; return 1; }
   echo "ok a double click on the title renamed Roadmap to Sketch"
-  # 5. Rename in the board row's right-click menu (its first item, under the row).
+  # 5. Rename in the sidebar board row's right-click menu (its first item,
+  #    under the row). The page's own rail is gone, so this is the sidebar's
+  #    Boards section; open it for the click and close it after the commit.
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
   python3 "$harness" x11-click "$wid" $(( rx + rw / 2 )) $(( ry + rh / 2 )) 3 && shot 7-menu || return 1
   python3 "$harness" x11-click "$wid" $(( rx + rw / 2 )) $(( ry + rh + 21 )) && shot 8-menu-field || return 1
   python3 "$harness" x11-type "$wid" Plan || return 1
   python3 "$harness" x11-chord "$wid" enter && shot 9-menu-renamed || return 1
-  [ -f "$d/Plan.excalidraw" ] && [ ! -e "$d/Sketch.excalidraw" ] || { echo "Rename in the row menu did not rename"; ls -R "$empty_vault"; return 1; }
-  echo "ok Rename in the row's right-click menu renamed Sketch to Plan"
+  [ -f "$d/Plan.excalidraw" ] && [ ! -e "$d/Sketch.excalidraw" ] || { echo "Rename in the sidebar row menu did not rename"; ls -R "$empty_vault"; return 1; }
+  echo "ok Rename in the sidebar row's right-click menu renamed Sketch to Plan"
+  python3 "$harness" x11-chord "$wid" ctrl+backslash && sleep 1 || return 1
   # 4. GK B-1: a multibyte name whose byte length (12) put the old
   # `.excalidraw` check mid-character crashed the app on Enter. F2 to it,
   # then back to Plan for the checks below.

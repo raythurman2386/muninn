@@ -4619,32 +4619,26 @@ fn sidebar_boards(s: &State, k: &Kit, filtering: bool) -> El {
         }
         let menu_path = path.clone();
         let current = s.mode == Mode::Board && open == Some(board.path.as_path());
-        let folder = board.folder();
-        let mut body = row().grow(1.0).min_w(0.0).gap(6.0).center_y().child(
-            text(&board.title)
-                .key(format!("sidebar-board-title-{i}"))
-                .font(k.ty.ui_compact)
-                .color(if current {
-                    k.c.text_accent
-                } else {
-                    k.c.text_base
-                })
-                .truncate(),
+        // #188: one row builder for the page's picker and this section, so a
+        // board's title, folder and detail read the same in both.
+        let body = crate::board_view::board_row_body(
+            k,
+            &board.title,
+            board.folder(),
+            (Some(format!("sidebar-board-title-{i}")), None),
+            current,
+            false,
         );
-        if !folder.is_empty() {
-            body = body.child(
-                text(folder)
-                    .font(k.ty.caption())
-                    .color(k.c.text_faint)
-                    .truncate(),
-            );
-        }
         list = list.child(
             pressable(k, format!("sidebar-board-{i}"))
                 .h(30.0)
                 .px(8.0)
                 .gap(8.0)
                 .center_y()
+                // #188: as the Kanban rows are, a named button to a screen
+                // reader rather than an anonymous row.
+                .role("button")
+                .label(board.title.clone())
                 .child(icon(&ic::DOT_GRID, 14.0).color(k.c.icon_muted))
                 .child(body)
                 .on_press(move |s: &mut State| s.open_board_at(path.clone()))
