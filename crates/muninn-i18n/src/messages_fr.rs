@@ -201,10 +201,10 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
 
         MsgKey::LinksNotUpdated => "Les liens dans {0} n’ont pas été mis à jour",
         MsgKey::RenamedLinksFailed => {
-            "Renommé, mais {0} fichier(s) contenant des liens entrants n’ont pas pu être réécrits\u{a0}: {1}"
+            "Note renommée, mais {0} fichier(s) contenant des liens entrants n’ont pas pu être réécrits\u{a0}: {1}"
         }
         MsgKey::MovedLinksFailed => {
-            "Déplacé, mais {0} fichier(s) contenant des liens entrants n’ont pas pu être réécrits\u{a0}: {1}"
+            "Note déplacée, mais {0} fichier(s) contenant des liens entrants n’ont pas pu être réécrits\u{a0}: {1}"
         }
         MsgKey::NoteNotInVault => "La note {0} n’est plus dans ce coffre",
         MsgKey::CannotOpenWithoutNote => {
@@ -241,10 +241,10 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::CouldNotCreateKanban => "Impossible de créer un kanban\u{a0}: {0}",
         MsgKey::CouldNotConvertKanban => "Impossible de convertir en kanban\u{a0}: {0}",
 
-        MsgKey::BoardKeptAsIs => "{0} · {1} conservé tel quel",
+        MsgKey::BoardKeptAsIs => "{0} · {1} sans modification",
         MsgKey::BoardCouldNotRead => "Impossible de lire\u{a0}: {0}",
         MsgKey::BoardNoteLinkMissing => "{0} (manquant)",
-        MsgKey::UnsavedSaves => "Non enregistré · {0} enregistrements",
+        MsgKey::UnsavedSaves => "Non enregistré · {0} enregistre",
         MsgKey::NotSaved => "Non enregistré\u{a0}: {0}",
         MsgKey::LinkDescription => "Ouvrir {0}",
         MsgKey::NoteLabelRoot => "{0} (racine)",
@@ -270,7 +270,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
             "Supprimer «\u{a0}{0}\u{a0}»{1}\u{a0}? Tout texte de note qu’elle contient reste dans le fichier."
         }
         MsgKey::DeleteLaneText => {
-            "Supprimer «\u{a0}{0}\u{a0}»{1}\u{a0}? {2} de texte de note que le tableau n’affiche pas sera aussi supprimé, à partir de «\u{a0}{3}\u{a0}»."
+            "Supprimer «\u{a0}{0}\u{a0}»{1}\u{a0}? Le texte de note que le tableau n’affiche pas sera aussi supprimé ({2}), à partir de «\u{a0}{3}\u{a0}»."
         }
         MsgKey::DeleteCardsOne => " et sa carte",
         MsgKey::DeleteCardsOther => " et ses {0} cartes",
@@ -282,7 +282,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::CardLabelInLane => "{0} · {1}\u{a0}: {2}",
 
         MsgKey::DeviceCode => {
-            "Saisissez le code {0} sur {1}. Votre navigateur l’ouvre\u{a0}; Muninn termine lorsque GitHub approuve."
+            "Saisissez le code {0} sur {1}. Votre navigateur ouvre cette adresse\u{a0}; Muninn termine lorsque GitHub approuve."
         }
         MsgKey::BrowserFailed => {
             "Impossible d’ouvrir un navigateur. Ouvrez vous-même cette adresse pour continuer\u{a0}: {0}"
@@ -304,7 +304,9 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         }
         MsgKey::SyncNothingSaved => "{0} Rien n’a été enregistré.",
         MsgKey::SyncKeyRotationFailed => "{0} L’ancienne clé fonctionne toujours.",
-        MsgKey::SyncNowAfterError => "{0} Reconnectez avant Synchroniser maintenant.",
+        MsgKey::SyncNowAfterError => {
+            "{0} Reconnectez-vous avant de lancer Synchroniser maintenant."
+        }
         MsgKey::SyncOffline => "Hors ligne\u{a0}: {0}",
         MsgKey::SyncRateLimitedAfter => "Trop de requêtes\u{a0}; réessayez dans {0} ms",
         MsgKey::SyncProviderError => "Erreur du fournisseur {0}\u{a0}: {1}",
@@ -324,7 +326,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
             "Enregistrez ou abandonnez les modifications non enregistrées dans {0} avant que la synchronisation puisse le modifier"
         }
         MsgKey::SyncLocalChanged => {
-            "{0} a changé pendant la synchronisation\u{a0}; relancez Synchroniser maintenant pour replanifier"
+            "{0} a changé pendant la synchronisation\u{a0}; relancez Synchroniser maintenant pour recalculer le plan"
         }
         MsgKey::SyncNotConfigured => "La synchronisation n’est pas configurée\u{a0}: {0}",
         MsgKey::SyncFileError => "Erreur de fichier\u{a0}: {0}",

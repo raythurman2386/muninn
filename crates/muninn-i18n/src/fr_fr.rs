@@ -76,7 +76,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpKanbanMoveThroughControls => "Parcourir les contrôles du tableau",
         Key::HelpKanbanMoveBetweenLaneCards => "Parcourir les cartes de la colonne active",
         Key::HelpKanbanMoveSelectionAcrossLanes => "Déplacer la sélection entre les colonnes",
-        Key::HelpKanbanToggleCardDone => "Basculer la marque terminée de la carte sélectionnée",
+        Key::HelpKanbanToggleCardDone => "Basculer la coche « terminé » de la carte sélectionnée",
         Key::HelpKanbanMoveSelectedCard => "Déplacer la carte sélectionnée",
         Key::HelpKanbanMoveCardToEdgeOrLane => {
             "La déplacer en haut, en bas ou dans une autre colonne"
@@ -96,7 +96,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpGraphToggleIsolate => "Basculer l’isolement",
         Key::HelpGraphLeaveGraph => "Quitter le graphique",
         Key::HelpGroupBoard => "Tableau",
-        Key::HelpBoardPanWithDrag => "Déplacer le tableau (ou faire glisser avec la main)",
+        Key::HelpBoardPanWithDrag => "Déplacer le tableau (ou faire glisser avec l’outil Main)",
         Key::HelpBoardZoomAtPointer => "Zoomer au pointeur",
         Key::HelpBoardZoomAtCanvasCentre => "Zoomer au centre du canevas",
         Key::HelpBoardPanTheBoard => "Déplacer le tableau",
@@ -106,13 +106,15 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::HelpBoardDrawShape => "Dessiner cette forme\u{a0}; l’outil reste sélectionné",
         Key::HelpBoardPlaceText => "Placer du texte, puis cliquer et le saisir sur place",
-        Key::HelpBoardEditTextLabel => "Écrire ou modifier son étiquette de texte",
+        Key::HelpBoardEditTextLabel => "Écrire ou modifier son libellé de texte",
         Key::HelpBoardDropTheTool => "Relâcher l’outil (retour à la sélection)",
         Key::HelpBoardSelectElementOrToggle => "Sélectionner un élément / l’ajouter ou le retirer",
         Key::HelpBoardNudgeSelection => "Décaler la sélection de 1 unité (Shift\u{a0}: 5)",
         Key::HelpBoardDeleteSelection => "Supprimer la sélection",
         Key::HelpBoardSelectEveryElement => "Sélectionner tous les éléments",
-        Key::HelpBoardLinkToNote => "Lier les éléments sélectionnés à une note (vide les délie)",
+        Key::HelpBoardLinkToNote => {
+            "Lier les éléments sélectionnés à une note (vider retire le lien)"
+        }
         Key::HelpBoardOpenLinkedNote => "Ouvrir la note liée de l’élément sélectionné",
         Key::HelpBoardOpenClickedLinkedNote => {
             "Ouvrir la note liée de l’élément cliqué (un clic sélectionne seulement)"
@@ -128,7 +130,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpSidebarMoveBetweenPanes => "Passer d’un volet à l’autre",
         Key::HelpSidebarMoveThroughAList => "Parcourir une liste",
         Key::HelpSidebarOpenFocusedRow => "Ouvrir la ligne active",
-        Key::HelpSidebarNoteAndFolderActions => "Actions de note et de dossier",
+        Key::HelpSidebarNoteAndFolderActions => "Actions de la note et du dossier",
         Key::HelpSidebarSettings => {
             "Paramètres (coffres, thème, effets du graphique, valeurs par défaut du Kanban)"
         }
@@ -179,7 +181,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::SettingsAppearanceTrayShow => "Afficher l’icône de notification",
         Key::SettingsAppearanceTrayStatusOn => {
-            "Activé. Linux l’affiche si un hôte de notification est actif\u{a0}; GNOME requiert une extension AppIndicator."
+            "Activé. Linux l’affiche si votre bureau dispose d’une zone de notification\u{a0}; GNOME requiert une extension AppIndicator."
         }
         Key::SettingsAppearanceCloseToTrayTitle => "Fermer dans la zone de notification",
         Key::SettingsAppearanceCloseToTrayNeedsTray => {
@@ -233,7 +235,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Google Drive sélectionné. La synchronisation conserve un historique de commits géré par l’application dans les données privées de Muninn de votre Drive, et non des fichiers Markdown modifiables."
         }
         Key::SyncProviderDriveCaption => {
-            "Conservé dans les données privées de Muninn de votre Drive, pas dans un dossier visible. Utilisez le même nom de stockage sur chaque appareil."
+            "Conservé dans les données privées de Muninn, dans votre Drive, et non dans un dossier visible. Utilisez le même nom de stockage sur chaque appareil."
         }
         Key::SyncProviderTailscaleName => "Tailscale",
         Key::SyncProviderTailscaleDescription => {
@@ -248,7 +250,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncFieldGoogleClientId => "ID client Google (facultatif)",
         Key::SyncFieldLoopbackPort => "Port de bouclage",
         Key::SyncFieldAllowedLogins => {
-            "Connexions Tailscale autorisées (facultatif, séparées par des virgules)"
+            "Connexions Tailscale autorisées (facultatives, séparées par des virgules)"
         }
         Key::SyncFieldMagicDnsName => "Nom MagicDNS de l’hôte (device.tailnet.ts.net)",
         Key::SyncFieldSharedKey => "Clé partagée de l’hôte",
@@ -270,7 +272,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Cet appareil héberge. Muninn sert le stockage de commits sur 127.0.0.1 tant qu’il est ouvert\u{a0}; tailscale serve le publie sur votre tailnet."
         }
         Key::SyncStatusTailnetJoin => {
-            "Rejoignez un hôte. Saisissez le nom MagicDNS complet de l’hôte et collez la clé fournie par Copier la clé sur celui-ci."
+            "Rejoignez un hôte. Saisissez le nom MagicDNS complet de l’hôte, puis collez la clé obtenue avec Copier la clé sur l’hôte."
         }
         Key::SyncStatusConnectedSharedKey => {
             "Connecté. La clé partagée est dans le magasin d’identifiants du système. Lancez Synchroniser maintenant quand vous êtes prêt."
@@ -323,10 +325,10 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::SyncStatusCurrentConnectionKept => "La connexion actuelle n’a pas été modifiée.",
         Key::SyncErrorVaultNotCanonical => {
-            "Le chemin de ce coffre ne peut pas être canonicalisé, il ne peut donc pas être lié."
+            "Le dossier de ce coffre ne peut pas être résolu en chemin canonique\u{a0}; il ne peut donc pas être lié à la synchronisation."
         }
         Key::SyncErrorGithubScope => {
-            "Saisissez le propriétaire et le dépôt GitHub avant de connecter."
+            "Saisissez le propriétaire et le dépôt GitHub avant de vous connecter."
         }
         Key::SyncErrorLoopbackPort => {
             "Saisissez un port de bouclage entre 1024 et 65535 pour l’hôte."
@@ -337,7 +339,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncErrorNotTailnetHost => "Ce coffre n’héberge pas de stockage Tailscale.",
         Key::SyncErrorSharedKeyMissing => "La clé partagée est absente du magasin d’identifiants.",
         Key::SyncErrorTailnetKeyMissing => {
-            "La clé partagée Tailscale est absente du magasin d’identifiants. Déconnectez puis reconnectez."
+            "La clé partagée Tailscale est absente du magasin d’identifiants. Déconnectez-vous, puis reconnectez-vous."
         }
         Key::SyncErrorCancelled => "Synchronisation annulée",
         Key::SyncErrorTimedOutAfterSend => {
@@ -491,7 +493,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::KanbanSectionTagsTitle => "Étiquettes",
         Key::KanbanSectionTagsCaption => {
-            "Puces d’étiquette et liste de couleurs d’étiquette conservée."
+            "Puces d’étiquette et liste des couleurs d’étiquette conservées."
         }
         Key::KanbanSectionMetadataTitle => "Métadonnées de la note liée",
         Key::KanbanSectionMetadataCaption => {
@@ -690,7 +692,9 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Où le bouton + Ajouter une carte place la nouvelle carte."
         }
         Key::KanbanSettingShowCheckboxesLabel => "Afficher les cases à cocher",
-        Key::KanbanSettingShowCheckboxesHelp => "Affiche la case terminée de chaque carte.",
+        Key::KanbanSettingShowCheckboxesHelp => {
+            "Affiche la case à cocher « terminé » de chaque carte."
+        }
         Key::KanbanSettingShowFilterButtonLabel => "Bouton Filtrer",
         Key::KanbanSettingShowFilterButtonHelp => "Affiche le bouton Filtrer dans l’en-tête.",
         Key::KanbanSettingShowArchiveButtonLabel => "Bouton Archiver",
@@ -705,11 +709,11 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::KanbanSettingNewNoteTemplateLabel => "Modèle des nouvelles notes",
         Key::KanbanSettingNewNoteTemplateHelp => {
-            "Chemin d’une note dont le texte commence la nouvelle note\u{a0}; vide reprend le modèle de note de l’application."
+            "Chemin d’une note dont le texte sert d’amorce à la nouvelle note\u{a0}; vide reprend le modèle de note de l’application."
         }
         Key::KanbanSettingKanbanAutosaveLabel => "Sauvegarde automatique du kanban",
         Key::KanbanSettingKanbanAutosaveHelp => {
-            "Enregistre les modifications du kanban une fois au repos. Désactivé laisse l’enregistrement à ⌘S."
+            "Enregistre les modifications du kanban dès qu’elles sont au repos. Désactivé, l’enregistrement reste à ⌘S."
         }
         Key::StatusSaving => "Enregistrement…",
         Key::StatusSaved => "Enregistré",
@@ -719,7 +723,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::RecoveryRestore => "Restaurer",
         Key::RecoveryRestoreAll => "Tout restaurer",
         Key::RecoveryDismiss => "Ignorer",
-        Key::RecoveryWriteEdits => "— Modifications d’écriture",
+        Key::RecoveryWriteEdits => "— Modifications en mode Écriture",
         Key::RecoveryKanbanEdits => "— Modifications du Kanban",
         Key::BrokenAllResolve => "Tous les liens sont valides",
         Key::BrokenTitle => "Liens rompus",
@@ -736,7 +740,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::TrayQuit => "Quitter Muninn",
         Key::TrayNotConnected => "Non connecté.",
         Key::TrayTooltip => "Muninn",
-        Key::ErrorEnterVaultPath => "Saisissez le chemin d’un dossier de coffre",
+        Key::ErrorEnterVaultPath => "Saisissez le chemin du dossier du coffre",
         Key::ErrorEnterNewVaultPath => "Saisissez le chemin d’un dossier pour le nouveau coffre",
         Key::ErrorSaveNoteBeforeSwitch => {
             "Enregistrez ou résolvez la note actuelle avant de changer de coffre"
@@ -781,7 +785,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::StatusTrashEmptied => "Corbeille vidée",
         Key::StatusLinkCopied => "Lien vers la carte copié",
         Key::ConflictExternalChange => "Modification externe détectée",
-        Key::ConflictFileDeleted => "fichier supprimé à l’extérieur",
+        Key::ConflictFileDeleted => "fichier supprimé en dehors de Muninn",
         Key::ConflictChangedOnDisk => "Modifié sur le disque par une autre application",
         Key::ConflictMissingOnDisk => "Supprimé ou renommé sur le disque",
         Key::ConflictKeepMine => "Garder la mienne",
@@ -926,9 +930,9 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanLaneMoveTop => "Déplacer en haut",
         Key::KanbanLaneMoveDown => "Descendre",
         Key::KanbanLaneMoveBottom => "Déplacer en bas",
-        Key::KanbanLaneMovePreviousList => "Déplacer vers la liste précédente",
-        Key::KanbanLaneMoveNextList => "Déplacer vers la liste suivante",
-        Key::KanbanLaneMoveToList => "Déplacer vers la liste…",
+        Key::KanbanLaneMovePreviousList => "Déplacer vers la colonne précédente",
+        Key::KanbanLaneMoveNextList => "Déplacer vers la colonne suivante",
+        Key::KanbanLaneMoveToList => "Déplacer vers une colonne…",
         Key::KanbanLaneInsertBefore => "Insérer une colonne avant",
         Key::KanbanLaneInsertAfter => "Insérer une colonne après",
         Key::KanbanLaneMoveLeft => "Déplacer la colonne vers la gauche",
@@ -952,7 +956,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanEditDeleteCard => "supprimer la carte",
         Key::KanbanEditDuplicateCard => "dupliquer la carte",
         Key::KanbanEditSplitCard => "scinder la carte",
-        Key::KanbanEditChangeDoneMark => "modifier la marque terminée",
+        Key::KanbanEditChangeDoneMark => "modifier la coche « terminé »",
         Key::KanbanEditToggleChecklistItem => "basculer l’élément de la liste de tâches",
         Key::KanbanEditMarkCardsDone => "marquer les cartes comme terminées",
         Key::KanbanEditAddLane => "ajouter la colonne",
@@ -982,9 +986,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanStatusFileUnchecked => "le fichier n’a pas pu être vérifié",
         Key::KanbanStatusFileRemoved => "le fichier a été supprimé",
         Key::KanbanStatusFileChanged => "le fichier a changé sur le disque",
-        Key::KanbanTimeInvalid => {
-            "Une heure requiert une heure entre 0 et 23 et des minutes entre 0 et 59"
-        }
+        Key::KanbanTimeInvalid => "Saisissez une heure entre 0 et 23 et une minute entre 0 et 59",
         Key::KanbanLaneLimitInvalid => "La limite de cartes doit être un nombre entier",
         Key::VaultEmptyFolderName => "nom de dossier vide",
         Key::VaultCannotRenameRoot => "impossible de renommer la racine",
@@ -1009,7 +1011,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::CoreBoardNameSeparators => "ne peut pas contenir / ni \\",
         Key::CoreBoardNameHidden => "ne peut pas commencer par un point",
         Key::CoreBoardNameForbidden => {
-            "ne peut pas contenir\u{a0}: * ? \" < > | ni de caractères de contrôle"
+            "ne peut pas contenir les caractères «\u{a0}: * ? \" < > |\u{a0}» ni de caractères de contrôle"
         }
         Key::CoreBoardNameTrailingDot => "ne peut pas se terminer par un point",
         Key::CoreBoardNameReserved => "ne peut pas être un nom de périphérique réservé",
