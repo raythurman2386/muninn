@@ -12,7 +12,15 @@
 //! byte-identical English.
 
 use muninn_core::testing::TempVault;
-use muninn_i18n::{Key, Lang, PSEUDO_CLOSE, PSEUDO_OPEN, set_lang, t, t_in};
+use muninn_i18n::{
+    Key, Lang, PSEUDO_CLOSE, PSEUDO_OPEN, autosave_help, board_canvas, board_name_taken,
+    board_quit_refused, card_label, could_not_be_read, could_not_open_vault, could_not_restore,
+    could_not_save, deleted, files_skipped, filter_by_tag, import_document_notice, import_progress,
+    import_unsupported, link_impact, linked_note_hint, more_edits, no_note_named, note_links,
+    notes, referrers, refusing_unsafe_recovery_path, restore_to, scan_cancelled, scan_ms, set_lang,
+    show_with_chord, sidebar_summary, status_counts, sync_conflicts, sync_excluded, sync_status, t,
+    t_in, targets, theme_label, trash_empty, trash_summary, version,
+};
 use muninn_ui::{SettingsTab, State, ThemeMode, on_key, poll, view};
 use rune::{Env, Runtime};
 
@@ -238,7 +246,7 @@ fn the_scan_catches_hardcoded_copy() {
         "⟦Close⟧",
         "⌘K",
         "⌘⇧F",
-        "scan 9 ms",
+        "0.55 s",
         "log C:\\Users\\runner\\AppData\\Local\\Temp\\muninn\\session.log",
         "",
     ]);
@@ -247,16 +255,115 @@ fn the_scan_catches_hardcoded_copy() {
         ["Close", "This sentence never went through the catalog."],
         "the scan must report unbracketed copy and keep allowlisted non-copy"
     );
+    // A converted helper's bare English no longer passes: the helper now
+    // renders a bracketed sentence, so the only way to draw "scan 9 ms" is to
+    // bypass the seam.
+    assert!(!copy_violations(["scan 9 ms"]).is_empty());
+    assert!(copy_violations(["⟦scan 9 ms⟧"]).is_empty());
+}
+
+/// Part 1 of #191 moved the count, error, sync, board and settings sentences
+/// onto `MsgKey` templates, so they render bracketed like catalog copy. This
+/// pins one sample per converted family: a helper that falls back to English
+/// fails here even if no screen happens to draw it.
+#[test]
+fn converted_helpers_render_bracketed() {
+    let _language = PseudoLanguage::enter();
+    let outputs: Vec<(&str, String)> = vec![
+        ("files_skipped", files_skipped(2)),
+        ("notes", notes(1)),
+        ("targets", targets(2)),
+        ("referrers", referrers(2)),
+        ("status_counts", status_counts(12, 2, 0)),
+        ("trash_summary", trash_summary(1, "2.0 KB")),
+        ("trash_empty", trash_empty().to_owned()),
+        ("more_edits", more_edits(2)),
+        ("deleted", deleted("Plan.md")),
+        ("scan_ms", scan_ms(9.0)),
+        ("restore_to", restore_to("To do")),
+        ("filter_by_tag", filter_by_tag("x")),
+        ("link_impact", link_impact(1, "here")),
+        ("sidebar_summary", sidebar_summary(1, 0)),
+        ("note_links", note_links(0, 0)),
+        ("could_not_save", could_not_save("disk full")),
+        ("could_not_open_vault", could_not_open_vault("denied")),
+        ("could_not_be_read", could_not_be_read("board")),
+        (
+            "could_not_restore",
+            could_not_restore("Plan.md", "name taken"),
+        ),
+        (
+            "refusing_unsafe_recovery_path",
+            refusing_unsafe_recovery_path("../x.md"),
+        ),
+        ("board_quit_refused", board_quit_refused("disk full")),
+        ("scan_cancelled", scan_cancelled(12, 40)),
+        ("import_unsupported", import_unsupported("notes.bin")),
+        ("import_progress", import_progress("report.docx")),
+        (
+            "import_document_notice",
+            import_document_notice("Quarterly Report"),
+        ),
+        ("sync_status", sync_status("Not connected.")),
+        ("sync_excluded", sync_excluded(2)),
+        ("sync_conflicts", sync_conflicts(1, "Plan.md")),
+        ("board_name_taken", board_name_taken("Plan")),
+        ("no_note_named", no_note_named("Plan")),
+        ("linked_note_hint", linked_note_hint("Plan")),
+        ("board_canvas", board_canvas("2 elements", "rectangle", 1)),
+        ("card_label", card_label("Done", "Ship it")),
+        ("theme_label", theme_label("Dark")),
+        ("autosave_help", autosave_help(1.5)),
+        ("version", version("0.8.0")),
+        ("show_with_chord", show_with_chord("Ctrl+Alt+M")),
+    ];
+    for (helper, text) in outputs {
+        assert!(
+            is_catalog_copy(&text),
+            "{helper} does not render bracketed copy: {text:?}"
+        );
+    }
+}
+
+/// The TODO list stays honest: every deferred sample is still English and
+/// still allowed, so a later part knows exactly which row to delete.
+#[test]
+fn deferred_helpers_are_still_documented() {
+    for &(sample, helper) in DEFERRED_HELPERS {
+        assert!(
+            !is_catalog_copy(sample),
+            "{helper} renders bracketed copy; delete its TODO(#191) row"
+        );
+        assert_eq!(
+            allowlisted(sample),
+            Some(helper),
+            "{helper} lost its documented allowance"
+        );
+    }
 }
 
 // ---- The allowlist -------------------------------------------------------
 //
 // Everything below is non-copy that the three screens legitimately draw. It is
 // deliberately narrow: each rule names what it covers, so a future hardcoded
-// sentence has nowhere to hide. Typed helpers from `muninn-i18n` build their
-// sentences from parameters and are not covered by the pseudo catalog; each
-// one that appears here is named on its rule. If a new helper shows up, add a
-// rule that names it rather than a bare string.
+// sentence has nowhere to hide. A typed helper whose sentence goes through a
+// `MsgKey` template is bracketed like catalog copy, so it needs no row here;
+// the rows that remain are helpers that part 1 of #191 did not convert yet
+// (see `DEFERRED_HELPERS`). If a new helper shows up, add a rule that names it
+// rather than a bare string.
+
+/// Helper-output allowances that this part of #191 does **not** convert yet.
+///
+/// Each entry is a rendered sample and the helper it comes from. They stay
+/// allowlisted until their own part converts them; that conversion removes the
+/// matching row from [`allowlisted`] and adds the helper to
+/// `converted_helpers_render_bracketed` below.
+///
+/// TODO(#191): convert and delete the row for each entry.
+const DEFERRED_HELPERS: &[(&str, &str)] = &[
+    ("New note in ⟦Projects⟧", "muninn_i18n::new_note_in"),
+    ("New folder in ⟦Projects⟧", "muninn_i18n::new_folder_in"),
+];
 
 /// Key names drawn in a keycap. `keycap_text` upper-cases a single letter, so
 /// letters are matched by [`is_single_letter`] instead of this list.
@@ -363,12 +470,6 @@ fn is_count(text: &str) -> bool {
     !text.is_empty() && text.chars().all(|c| c.is_ascii_digit())
 }
 
-/// `"1 note"` / `"2 notes"`, the shape `muninn-i18n`'s private `counted` makes.
-fn is_counted(text: &str, one: &str, many: &str) -> bool {
-    text.split_once(' ')
-        .is_some_and(|(n, noun)| is_count(n) && (noun == one || noun == many))
-}
-
 /// The Help diagnostic block: the startup summary and log tail. Version
 /// numbers, the vault path, counts and log lines are data, drawn from the
 /// session log rather than the catalog.
@@ -386,37 +487,9 @@ fn is_fixture_note(text: &str) -> bool {
     text == "Alpha" || text == "Alpha.md" || text.contains("# Alpha")
 }
 
-/// The autosave delay readout (`"0.55 s"`), a number and its unit.
-/// `muninn_i18n::scan_ms`: `"scan 9 ms"` (the scan duration changes by
-/// machine and platform, so the rule matches the shape, not one value).
-fn is_scan_ms(text: &str) -> bool {
-    let Some(rest) = text.strip_prefix("scan ") else {
-        return false;
-    };
-    let Some(ms) = rest.strip_suffix(" ms") else {
-        return false;
-    };
-    !ms.is_empty() && ms.chars().all(|c| c.is_ascii_digit())
-}
-
-/// The autosave-delay readout such as `0.55 s` (a number and unit).
+/// The autosave delay readout such as `0.55 s` (a number and unit).
 fn is_delay_readout(text: &str) -> bool {
     text.strip_suffix(" s")
-        .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit() || c == '.'))
-}
-
-/// `muninn_i18n::version`: `"Version 0.8.5."`.
-fn is_version(text: &str) -> bool {
-    text.strip_prefix("Version ")
-        .and_then(|rest| rest.strip_suffix('.'))
-        .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit() || c == '.'))
-}
-
-/// `muninn_i18n::autosave_help`: `"Autosave writes 0.55 s after you stop
-/// typing."`.
-fn is_autosave_help(text: &str) -> bool {
-    text.strip_prefix("Autosave writes ")
-        .and_then(|rest| rest.strip_suffix(" s after you stop typing."))
         .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit() || c == '.'))
 }
 
@@ -425,38 +498,6 @@ fn is_autosave_help(text: &str) -> bool {
 fn is_new_in(text: &str, prefix: &str) -> bool {
     text.strip_prefix(prefix)
         .is_some_and(|place| place.starts_with(PSEUDO_OPEN) && place.ends_with(PSEUDO_CLOSE))
-}
-
-/// `muninn_i18n::theme_label`: the theme name is catalog copy; the sentence
-/// around it is the helper's fixed English.
-fn is_theme_label(text: &str) -> bool {
-    const SUFFIX: &str = " — click to cycle (System, Dark, Light)";
-    text.strip_prefix("Theme: ")
-        .and_then(|rest| rest.strip_suffix(SUFFIX))
-        .is_some_and(|theme| theme.starts_with(PSEUDO_OPEN) && theme.ends_with(PSEUDO_CLOSE))
-}
-
-/// `muninn_i18n::show_with_chord`: `"Show Muninn with Ctrl+Alt+M"`.
-fn is_show_with_chord(text: &str) -> bool {
-    text.strip_prefix("Show Muninn with ")
-        .is_some_and(|chord| is_chord(chord) || is_modifier_chord(chord))
-}
-
-/// `muninn_i18n::sidebar_summary`: `"1 note · 0 links"`.
-fn is_sidebar_summary(text: &str) -> bool {
-    let parts: Vec<&str> = text.split(" · ").collect();
-    parts.len() == 2
-        && is_counted(parts[0], "note", "notes")
-        && is_counted(parts[1], "link", "links")
-}
-
-/// `muninn_i18n::status_counts`: `"2 words · 0 links · 0 backlinks"`.
-fn is_status_counts(text: &str) -> bool {
-    let parts: Vec<&str> = text.split(" · ").collect();
-    parts.len() == 3
-        && is_counted(parts[0], "word", "words")
-        && is_counted(parts[1], "link", "links")
-        && is_counted(parts[2], "backlink", "backlinks")
 }
 
 /// Why `text` is legitimate non-copy, or `None` if it should have come from
@@ -502,9 +543,6 @@ fn allowlisted(text: &str) -> Option<&'static str> {
     if is_modifier_chord(trimmed) {
         return Some("modifier chord");
     }
-    if is_scan_ms(trimmed) {
-        return Some("muninn_i18n::scan_ms");
-    }
     if is_delay_readout(trimmed) {
         return Some("autosave delay readout (number and unit)");
     }
@@ -514,38 +552,11 @@ fn allowlisted(text: &str) -> Option<&'static str> {
     if is_fixture_note(trimmed) {
         return Some("the test vault's note title, path or body (file data)");
     }
-    if trimmed == "Trash is empty" {
-        return Some("muninn_i18n::trash_empty");
-    }
-    if trimmed == "no links" {
-        return Some("muninn_i18n::note_links(0, 0)");
-    }
-    if is_version(trimmed) {
-        return Some("muninn_i18n::version");
-    }
-    if is_autosave_help(trimmed) {
-        return Some("muninn_i18n::autosave_help");
-    }
     if is_new_in(trimmed, "New note in ") {
         return Some("muninn_i18n::new_note_in");
     }
     if is_new_in(trimmed, "New folder in ") {
         return Some("muninn_i18n::new_folder_in");
-    }
-    if is_theme_label(trimmed) {
-        return Some("muninn_i18n::theme_label");
-    }
-    if is_show_with_chord(trimmed) {
-        return Some("muninn_i18n::show_with_chord");
-    }
-    if is_sidebar_summary(trimmed) {
-        return Some("muninn_i18n::sidebar_summary");
-    }
-    if is_status_counts(trimmed) {
-        return Some("muninn_i18n::status_counts");
-    }
-    if is_counted(trimmed, "result", "results") {
-        return Some("muninn_i18n::results");
     }
     None
 }

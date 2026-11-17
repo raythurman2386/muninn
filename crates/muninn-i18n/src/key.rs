@@ -795,4 +795,5 @@ keys! {
     CoreBoardNameForbidden => "board.name.forbidden",
     CoreBoardNameTrailingDot => "board.name.trailing_dot",
     CoreBoardNameReserved => "board.name.reserved",
+    TrashEmpty => "trash.empty",
 }

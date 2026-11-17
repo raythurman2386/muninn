@@ -896,6 +896,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::AutostartPathNotUtf8 => "the executable path is not UTF-8",
         Key::AutostartPathLineBreak => "the executable path has a line break",
         Key::NoteNoLongerIndexed => "note is no longer indexed",
+        Key::TrashEmpty => "Trash is empty",
         Key::CoreBoardNameEmpty => "cannot be empty",
         Key::CoreBoardNameSeparators => "cannot contain / or \\",
         Key::CoreBoardNameHidden => "cannot start with a dot",
