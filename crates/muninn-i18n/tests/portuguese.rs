@@ -163,7 +163,7 @@ fn representative_copy_families_are_portuguese() {
     assert_eq!(t_in(Lang::PtBr, Key::PaletteTitle), "Paleta de comandos");
 
     // Status, errors, sync and the tray.
-    assert_eq!(t_in(Lang::PtBr, Key::BrokenTitle), "Links quebrados");
+    assert_eq!(t_in(Lang::PtBr, Key::BrokenTitle), "Links não resolvidos");
     assert_eq!(
         t_in(Lang::PtBr, Key::StartupCouldNotOpen),
         "Não foi possível abrir o cofre"

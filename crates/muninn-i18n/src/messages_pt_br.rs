@@ -98,7 +98,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::CouldNotRestore => "Não foi possível restaurar {0}: {1}",
         MsgKey::CouldNotOpenFile => "Não foi possível abrir {0}: {1}. {2}",
         MsgKey::CouldNotRevealFile => "Não foi possível mostrar {0}: {1}. {2}",
-        MsgKey::CouldNotImportInto => "Não foi possível importar em {0}: {1}",
+        MsgKey::CouldNotImportInto => "Não foi possível importar para {0}: {1}",
         MsgKey::RefusingUnsafeRecoveryPath => "Recusando o caminho de recuperação inseguro {0}",
         MsgKey::BoardQuitRefused => {
             "O quadro não foi salvo e nenhuma cópia de recuperação pôde ser gravada: {0}. Use Salvar cópia ou corrija a pasta e saia novamente."
@@ -152,7 +152,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         }
         MsgKey::LastSync => "Última sincronização bem-sucedida: {0}.",
         MsgKey::SyncStatus => "Sincronização: {0}",
-        MsgKey::SyncExcluded => "Caminhos excluídos pelo contrato de sincronização: {0}.",
+        MsgKey::SyncExcluded => "{0} caminho(s) excluído(s) pelo contrato de sincronização.",
         MsgKey::SyncConflicts => "{0} conflito(s): {1}. Nada foi sobrescrito.",
         MsgKey::SyncConflictCopies => {
             "Uma nota mudou em dois dispositivos; as duas versões foram mantidas: {0}."
@@ -204,7 +204,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::AttachmentNotInVault => {
             "O anexo {0} não está neste cofre — arraste-o para cá ou corrija a incorporação"
         }
-        MsgKey::BrokenLinksCount => "{0} não resolvidos",
+        MsgKey::BrokenLinksCount => "{0} não resolvido(s)",
 
         MsgKey::NotAFile => "{0} não é um arquivo",
         MsgKey::PathGone => "{0} não existe mais",
@@ -232,10 +232,10 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::CouldNotCreateKanban => "Não foi possível criar um kanban: {0}",
         MsgKey::CouldNotConvertKanban => "Não foi possível converter em kanban: {0}",
 
-        MsgKey::BoardKeptAsIs => "{0} · {1} mantido como está",
+        MsgKey::BoardKeptAsIs => "{0} · {1} sem alterações",
         MsgKey::BoardCouldNotRead => "Não foi possível ler: {0}",
         MsgKey::BoardNoteLinkMissing => "{0} (ausente)",
-        MsgKey::UnsavedSaves => "Não salvo · {0} salvamentos",
+        MsgKey::UnsavedSaves => "Não salvo · {0} salva",
         MsgKey::NotSaved => "Não salvo: {0}",
         MsgKey::LinkDescription => "Abrir {0}",
         MsgKey::NoteLabelRoot => "{0} (raiz)",
@@ -261,7 +261,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
             "Excluir “{0}”{1}? Qualquer texto de nota contido nela permanece no arquivo."
         }
         MsgKey::DeleteLaneText => {
-            "Excluir “{0}”{1}? Também será excluído o texto de nota que o quadro não mostra: {2}, a partir de “{3}”."
+            "Excluir “{0}”{1}? Também será excluído texto de nota que o quadro não mostra ({2} no total), a partir de “{3}”."
         }
         MsgKey::DeleteCardsOne => " e seu cartão",
         MsgKey::DeleteCardsOther => " e seus {0} cartões",
@@ -273,7 +273,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::CardLabelInLane => "{0} · {1}: {2}",
 
         MsgKey::DeviceCode => {
-            "Digite o código {0} em {1}. Seu navegador está abrindo; o Muninn termina quando o GitHub aprova."
+            "Digite o código {0} em {1}. Seu navegador está abrindo a página; o Muninn conclui quando o GitHub aprova."
         }
         MsgKey::BrowserFailed => {
             "Não foi possível abrir um navegador. Abra este endereço você mesmo para continuar: {0}"
@@ -292,7 +292,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncNothingSaved => "{0} Nada foi salvo.",
         MsgKey::SyncKeyRotationFailed => "{0} A chave antiga ainda funciona.",
         MsgKey::SyncNowAfterError => "{0} Conecte novamente antes de Sincronizar agora.",
-        MsgKey::SyncOffline => "Sem conexão: {0}",
+        MsgKey::SyncOffline => "Sem rede: {0}",
         MsgKey::SyncRateLimitedAfter => "Muitas solicitações; tente novamente em {0} ms",
         MsgKey::SyncProviderError => "Erro do provedor {0}: {1}",
         MsgKey::SyncAuthenticationNeeded => "Autenticação necessária: {0}",
@@ -310,7 +310,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncLimitExceeded => "Limite de sincronização excedido: {0}",
         MsgKey::SyncCredentialsUnavailable => "Credenciais indisponíveis: {0}",
         MsgKey::SyncDirtyBuffer => {
-            "Salve ou descarte as edições não salvas em {0} antes que a sincronização possa alterá-la"
+            "Salve ou descarte as edições não salvas em {0} antes de a sincronização poder alterá-lo"
         }
         MsgKey::SyncLocalChanged => {
             "{0} mudou durante a sincronização; execute Sincronizar agora novamente para replanejar"
@@ -318,7 +318,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncNotConfigured => "A sincronização não está configurada: {0}",
         MsgKey::SyncFileError => "Erro de arquivo: {0}",
 
-        MsgKey::RecoveredFor => "Edições não salvas recuperadas de {0}",
+        MsgKey::RecoveredFor => "Edições não salvas recuperadas para {0}",
         MsgKey::ImportedFilesOne => "{0} importado",
         MsgKey::ImportedFilesOther => "{0} importados",
         MsgKey::ImportJoin => " · {0}",

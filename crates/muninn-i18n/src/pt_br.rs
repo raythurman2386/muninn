@@ -51,7 +51,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpEditHideCardsByTextTagDateOrState => {
             "Ocultar cartões por texto, etiqueta, data ou estado"
         }
-        Key::HelpEditPerBoardOverrides => "Ajustes por quadro, uma chave de cada vez",
+        Key::HelpEditPerBoardOverrides => "Substituições por quadro, uma chave de cada vez",
         Key::HelpEditInsertWikilink => "Inserir um link wiki",
         Key::HelpEditNewNote => "Nova nota",
         Key::HelpEditImportDocument => "Importar um documento como nota",
@@ -105,7 +105,9 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpBoardNudgeSelection => "Mover a seleção 1 unidade (Shift: 5)",
         Key::HelpBoardDeleteSelection => "Excluir a seleção",
         Key::HelpBoardSelectEveryElement => "Selecionar todos os elementos",
-        Key::HelpBoardLinkToNote => "Vincular os elementos selecionados a uma nota (vazio remove)",
+        Key::HelpBoardLinkToNote => {
+            "Vincular os elementos selecionados a uma nota (vazio desfaz o vínculo)"
+        }
         Key::HelpBoardOpenLinkedNote => "Abrir a nota vinculada do elemento selecionado",
         Key::HelpBoardOpenClickedLinkedNote => {
             "Abrir a nota vinculada do elemento clicado (um clique só seleciona)"
@@ -250,7 +252,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncActionDisconnect => "Desconectar",
         Key::SyncTailnetRoleLabel => "Função do Tailscale",
         Key::SyncTailnetRoleHost => "Hospedar aqui",
-        Key::SyncTailnetRoleJoin => "Entrar em um host",
+        Key::SyncTailnetRoleJoin => "Conectar-se a um host",
         Key::SyncTailnetKeyLabel => "Chave compartilhada",
         Key::SyncTailnetKeyCopy => "Copiar chave",
         Key::SyncTailnetKeyShow => "Mostrar chave",
@@ -263,7 +265,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Este dispositivo hospeda. O Muninn serve o armazenamento de commits em 127.0.0.1 enquanto está aberto; o tailscale serve o publica na sua tailnet."
         }
         Key::SyncStatusTailnetJoin => {
-            "Entre em um host. Digite o nome MagicDNS completo do host e cole a chave de Copiar chave no host."
+            "Conecte-se a um host. Digite o nome MagicDNS completo do host e cole a chave de Copiar chave no host."
         }
         Key::SyncStatusConnectedSharedKey => {
             "Conectado. A chave compartilhada está no armazenamento de credenciais do sistema operacional. Clique em Sincronizar agora quando quiser."
@@ -446,7 +448,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::BoardLinkTitle => "Vincular nota",
         Key::BoardLinkHelp => "Vincular os elementos selecionados a uma nota (⌘L)",
         Key::BoardLinkName => "Nome ou caminho da nota",
-        Key::BoardLinkHint => "um nome ou caminho do cofre · vazio remove",
+        Key::BoardLinkHint => "um nome ou caminho do cofre · vazio desfaz o vínculo",
         Key::BoardRenameName => "Nome do quadro",
         Key::BoardPaletteTitle => "Cores do quadro",
         Key::BoardPaletteHelp => "Cores de traço e preenchimento",
@@ -468,7 +470,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::GraphPageFindPlaceholder => "Buscar nó · Enter",
         Key::GraphPageSelected => "SELECIONADO",
         Key::GraphPageHint => {
-            "Setas focar · Enter abrir · +/- aproximar · 0/F ajustar · I isolar · Arrastar deslocar · Rolar aproximar"
+            "Setas focar · Enter abrir · +/- aproximar/afastar · 0/F ajustar · I isolar · Arrastar deslocar · Rolar aproximar/afastar"
         }
         Key::GraphScopeGlobal => "Global",
         Key::GraphScopeLocal => "Local",
@@ -521,7 +523,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanUiSourceAppIgnored => "Valor do aplicativo ignorado",
         Key::KanbanUiSourceAppDefault => "Padrão do aplicativo",
         Key::KanbanUiSourceDefault => "Padrão",
-        Key::KanbanUiResetBuiltIn => "Redefinir para o integrado",
+        Key::KanbanUiResetBuiltIn => "Redefinir para o padrão interno",
         Key::KanbanUiResetBoard => "Redefinir quadro",
         Key::KanbanUiResetAppDefault => "Redefinir padrão do aplicativo",
         Key::KanbanUiRemove => "Remover",
@@ -576,7 +578,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanFilterText => "Texto",
         Key::KanbanFilterDate => "Data",
         Key::KanbanFilterAnyDate => "Qualquer data",
-        Key::KanbanFilterOverdue => "Atrasados",
+        Key::KanbanFilterOverdue => "Atrasado",
         Key::KanbanFilterStatus => "Status",
         Key::KanbanFilterAny => "Qualquer",
         Key::KanbanFilterOpen => "Aberto",
@@ -706,8 +708,8 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::RecoveryDismiss => "Descartar",
         Key::RecoveryWriteEdits => "— Edições de escrita",
         Key::RecoveryKanbanEdits => "— Edições do Kanban",
-        Key::BrokenAllResolve => "Todos os links resolvem",
-        Key::BrokenTitle => "Links quebrados",
+        Key::BrokenAllResolve => "Todos os links foram resolvidos",
+        Key::BrokenTitle => "Links não resolvidos",
         Key::TopbarNoNoteSelected => "Nenhuma nota selecionada",
         Key::TopbarOpenAsKanban => "Abrir como kanban",
         Key::TrashTitle => "Lixeira",
@@ -764,7 +766,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::ConflictChangedOnDisk => "Alterado no disco por outro aplicativo",
         Key::ConflictMissingOnDisk => "Removido ou renomeado no disco",
         Key::ConflictKeepMine => "Manter a minha",
-        Key::ConflictLoadTheirs => "Carregar a dele",
+        Key::ConflictLoadTheirs => "Carregar a versão externa",
         Key::ConflictSaveCopy => "Salvar cópia",
         Key::ConflictDiscard => "Descartar",
         Key::CommonAppName => "Muninn",
@@ -831,7 +833,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PreviewNoOutgoing => "Nenhum link de saída",
         Key::PreviewNoBacklinks => "Ainda não há backlinks",
         Key::PreviewLinks => "LINKS",
-        Key::PreviewOutgoing => "SAÍDA",
+        Key::PreviewOutgoing => "LINKS DE SAÍDA",
         Key::PreviewBacklinks => "BACKLINKS",
         Key::PreviewGraph => "GRÁFICO",
         Key::PreviewGraphHint => "Veja esta nota e tudo o que ela toca.",
@@ -878,7 +880,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::MenuArchiveActions => "Ações dos arquivados",
         Key::MenuMoveToLane => "Mover para a coluna",
         Key::LinkImpactHere => "aqui",
-        Key::LinkImpactIntoFolder => "nesta pasta",
+        Key::LinkImpactIntoFolder => "para esta pasta",
         Key::LinkThisNote => "Esta nota",
         Key::LinkNameFallback => "Link",
         Key::RenameRewriteLinks => "Reescrever os links para o novo nome",
@@ -902,10 +904,10 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanLaneMoveUp => "Mover para cima",
         Key::KanbanLaneMoveTop => "Mover para o topo",
         Key::KanbanLaneMoveDown => "Mover para baixo",
-        Key::KanbanLaneMoveBottom => "Mover para o fim",
-        Key::KanbanLaneMovePreviousList => "Mover para a lista anterior",
-        Key::KanbanLaneMoveNextList => "Mover para a próxima lista",
-        Key::KanbanLaneMoveToList => "Mover para a lista…",
+        Key::KanbanLaneMoveBottom => "Mover para o final",
+        Key::KanbanLaneMovePreviousList => "Mover para a coluna anterior",
+        Key::KanbanLaneMoveNextList => "Mover para a próxima coluna",
+        Key::KanbanLaneMoveToList => "Mover para uma coluna…",
         Key::KanbanLaneInsertBefore => "Inserir coluna antes",
         Key::KanbanLaneInsertAfter => "Inserir coluna depois",
         Key::KanbanLaneMoveLeft => "Mover a coluna para a esquerda",
