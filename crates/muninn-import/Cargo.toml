@@ -1,0 +1,17 @@
+[package]
+name = "muninn-import"
+description = "Document-to-Markdown conversion for Muninn imports."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+# A leaf on purpose: conversion is pure and never touches the vault, the UI or
+# the network. The UI crate decides where the Markdown and assets are written.
+[dependencies]
+anydoc.workspace = true
+
+[lints]
+workspace = true
