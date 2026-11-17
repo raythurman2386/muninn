@@ -13,13 +13,36 @@
 
 use muninn_core::testing::TempVault;
 use muninn_i18n::{
-    Key, Lang, PSEUDO_CLOSE, PSEUDO_OPEN, autosave_help, board_canvas, board_name_taken,
-    board_quit_refused, card_label, could_not_be_read, could_not_open_vault, could_not_restore,
-    could_not_save, deleted, files_skipped, filter_by_tag, import_document_notice, import_progress,
-    import_unsupported, link_impact, linked_note_hint, more_edits, no_note_named, note_links,
-    notes, referrers, refusing_unsafe_recovery_path, restore_to, scan_cancelled, scan_ms, set_lang,
-    show_with_chord, sidebar_summary, status_counts, sync_conflicts, sync_excluded, sync_status, t,
-    t_in, targets, theme_label, trash_empty, trash_summary, version,
+    Key, Lang, PSEUDO_CLOSE, PSEUDO_OPEN, add_card_to_lane, already_exists,
+    attachment_not_in_vault, autosave_help, autostart_reg_exit, autostart_reg_failed, board_canvas,
+    board_could_not_read, board_kept_as_is, board_name_invalid, board_name_taken,
+    board_note_link_missing, board_quit_refused, board_renamed_embeds_failed,
+    board_scene_key_object, broken_links, browser_failed, cannot_open_without_note, card_actions,
+    card_actions_in_lane, card_label, card_label_in_lane, checklist_label, checklist_progress,
+    collapse_lane, collapsed_cards, collapsed_lane_label, could_not_be_read,
+    could_not_convert_kanban, could_not_create_board, could_not_create_kanban, could_not_do,
+    could_not_open_vault, could_not_restore, could_not_save, day_label, delete_lane,
+    delete_lane_text, deleted, device_code, expand_lane, files_skipped, filter_by_tag,
+    focus_exit_help, focus_help, graph_node_parent, graph_stats, import_document_notice,
+    import_notice, import_progress, import_unsupported, kanban_could_not_save_copy,
+    kanban_filter_from, kanban_filter_range, kanban_filter_to, kanban_quit_refused, lane_actions,
+    lane_cards, lane_controls, lane_label, lane_region_label, lines, link_description, link_impact,
+    linked_note_hint, links_not_updated, login_item_error, more_edits, moved_links_failed,
+    new_folder_in, new_note_in, no_file_opener, no_longer_in_trash, no_note_named,
+    not_a_board_in_vault, not_a_file, not_a_folder, not_a_trash_path, not_saved, note_label_root,
+    note_links, note_not_in_vault, notes, outside_vault, palette_kanban_folder, recovered_copies,
+    recovered_for, referrers, refusing_unsafe_recovery_path, relative_date, relative_day,
+    renamed_links_failed, restore_to, scan_cancelled, scan_ms, scan_progress, set_lang,
+    shared_key_copied, shortcut_failed, shortcut_on, show_with_chord, sidebar_summary,
+    sign_in_failed, status_counts, sync_authentication_needed, sync_conflicts,
+    sync_credentials_unavailable, sync_dirty_buffer, sync_excluded, sync_file_error,
+    sync_key_rotation_failed, sync_limit_exceeded, sync_listing_incomplete, sync_local_changed,
+    sync_not_configured, sync_nothing_saved, sync_now_after_error, sync_oauth_scope_rejected,
+    sync_offline, sync_outcome_unknown, sync_permission_denied, sync_previous_credential,
+    sync_provider_error, sync_rate_limited_after, sync_remote_changed, sync_remote_scope_not_found,
+    sync_status, sync_unsupported, t, t_in, tailnet_hosting, tailnet_hosting_ready, targets,
+    theme_label, trash_empty, trash_summary, tray_error, unsaved_saves, version,
+    welcome_vault_created,
 };
 use muninn_ui::{SettingsTab, State, ThemeMode, on_key, poll, view};
 use rune::{Env, Runtime};
@@ -262,10 +285,11 @@ fn the_scan_catches_hardcoded_copy() {
     assert!(copy_violations(["⟦scan 9 ms⟧"]).is_empty());
 }
 
-/// Part 1 of #191 moved the count, error, sync, board and settings sentences
-/// onto `MsgKey` templates, so they render bracketed like catalog copy. This
-/// pins one sample per converted family: a helper that falls back to English
-/// fails here even if no screen happens to draw it.
+/// The first wave of #191 moved the count, error, sync, board and settings
+/// sentences onto `MsgKey` templates, so they render bracketed like catalog
+/// copy. This pins one sample per family: a helper that falls back to English
+/// fails here even if no screen happens to draw it. The rest of the helpers are
+/// in `remaining_helpers_render_bracketed` below.
 #[test]
 fn converted_helpers_render_bracketed() {
     let _language = PseudoLanguage::enter();
@@ -325,19 +349,214 @@ fn converted_helpers_render_bracketed() {
     }
 }
 
-/// The TODO list stays honest: every deferred sample is still English and
-/// still allowed, so a later part knows exactly which row to delete.
+/// The rest of #191: every remaining parameterised helper names a `MsgKey`,
+/// so its output is bracketed copy like the catalog's. Each family has a
+/// sample here, including the sentences that compose other phrases.
 #[test]
-fn deferred_helpers_are_still_documented() {
-    for &(sample, helper) in DEFERRED_HELPERS {
+fn remaining_helpers_render_bracketed() {
+    let _language = PseudoLanguage::enter();
+    let outputs: Vec<(&str, String)> = vec![
+        // Dates and relative days.
+        ("relative_day today", relative_day(0)),
+        ("relative_day tomorrow", relative_day(1)),
+        ("relative_day yesterday", relative_day(-1)),
+        ("relative_day future", relative_day(3)),
+        ("relative_day past", relative_day(-2)),
+        (
+            "relative_date",
+            relative_date("2026-11-14", &relative_day(0)),
+        ),
+        ("day_label", day_label(14)),
+        // Actions and notices.
+        ("new_note_in", new_note_in("Projects")),
+        ("new_folder_in", new_folder_in("Projects")),
+        ("welcome_vault_created", welcome_vault_created("~/notes")),
+        ("tray_error", tray_error("no dock")),
+        ("login_item_error", login_item_error("denied")),
+        ("scan_progress", scan_progress(3, 12)),
+        ("focus_help", focus_help("⌘⇧F")),
+        ("focus_exit_help", focus_exit_help("⌘⇧F")),
+        ("palette_kanban_folder", palette_kanban_folder("Projects")),
+        ("shortcut_failed", shortcut_failed("Ctrl+Alt+M", "taken")),
+        ("shortcut_on", shortcut_on("Ctrl+Alt+M")),
+        ("no_file_opener", no_file_opener().to_owned()),
+        // Links and paths.
+        ("links_not_updated", links_not_updated(None)),
+        ("links_not_updated named", links_not_updated(Some("Board"))),
+        ("links_not_updated empty", links_not_updated(Some(""))),
+        (
+            "renamed_links_failed",
+            renamed_links_failed(1, "Plan.md: denied"),
+        ),
+        (
+            "moved_links_failed",
+            moved_links_failed(1, "Plan.md: denied"),
+        ),
+        ("note_not_in_vault", note_not_in_vault(7)),
+        (
+            "cannot_open_without_note",
+            cannot_open_without_note("pic.png"),
+        ),
+        (
+            "attachment_not_in_vault",
+            attachment_not_in_vault("pic.png"),
+        ),
+        ("not_a_file", not_a_file("/vault/assets")),
+        ("broken_links", broken_links(3)),
+        ("outside_vault", outside_vault("/tmp/notes")),
+        (
+            "not_a_board_in_vault",
+            not_a_board_in_vault("Plan.excalidraw"),
+        ),
+        ("already_exists", already_exists("Plan.md")),
+        ("not_a_trash_path", not_a_trash_path("../Plan.md")),
+        ("no_longer_in_trash", no_longer_in_trash("1/Plan.md")),
+        ("not_a_folder", not_a_folder("Notes.md")),
+        (
+            "board_name_invalid",
+            board_name_invalid(t(Key::CoreBoardNameEmpty)),
+        ),
+        ("board_scene_key_object", board_scene_key_object("appState")),
+        (
+            "board_renamed_embeds_failed",
+            board_renamed_embeds_failed(1, "a.md"),
+        ),
+        ("board_note_link_missing", board_note_link_missing("Plan")),
+        ("autostart_reg_failed", autostart_reg_failed("denied")),
+        ("autostart_reg_exit", autostart_reg_exit("exit code: 1")),
+        // Board and graph chrome.
+        ("board_kept_as_is", board_kept_as_is("1 element", 2)),
+        ("board_could_not_read", board_could_not_read("bad json")),
+        ("unsaved_saves", unsaved_saves("⌘S")),
+        ("not_saved", not_saved("the file was removed")),
+        (
+            "could_not_do",
+            could_not_do(t(Key::KanbanEditAddCard), "read-only"),
+        ),
+        ("could_not_create_board", could_not_create_board("denied")),
+        ("could_not_create_kanban", could_not_create_kanban("denied")),
+        (
+            "could_not_convert_kanban",
+            could_not_convert_kanban("has text"),
+        ),
+        ("link_description", link_description("Plan")),
+        ("note_label_root", note_label_root("Plan")),
+        ("graph_node_parent", graph_node_parent("Plan", "Projects")),
+        ("graph_stats", graph_stats(12, 30)),
+        // Kanban chrome.
+        ("kanban_filter_from", kanban_filter_from("2026-11-01")),
+        ("kanban_filter_to", kanban_filter_to("2026-11-30")),
+        (
+            "kanban_filter_range",
+            kanban_filter_range("2026-11-01", "2026-11-30"),
+        ),
+        ("lane_actions", lane_actions("To do")),
+        ("lane_controls", lane_controls("To do")),
+        ("collapse_lane", collapse_lane("To do")),
+        ("expand_lane", expand_lane("To do")),
+        ("lane_cards", lane_cards("To do")),
+        ("add_card_to_lane", add_card_to_lane("To do")),
+        ("lane_label", lane_label("To do", "3", false, false)),
+        ("lane_label flags", lane_label("Done", "2", true, true)),
+        (
+            "lane_region_label",
+            lane_region_label("To do", "3", true, false),
+        ),
+        (
+            "collapsed_lane_label",
+            collapsed_lane_label("To do", "3", true),
+        ),
+        ("collapsed_cards", collapsed_cards(3)),
+        ("delete_lane", delete_lane("To do", 1)),
+        ("delete_lane none", delete_lane("To do", 0)),
+        ("delete_lane many", delete_lane("To do", 3)),
+        (
+            "delete_lane_text",
+            delete_lane_text("To do", 1, &lines(1), "hidden"),
+        ),
+        ("card_actions", card_actions("Ship it")),
+        ("card_actions empty", card_actions("")),
+        ("card_actions_in_lane", card_actions_in_lane("To do")),
+        ("checklist_progress", checklist_progress(1, 2)),
+        ("checklist_label", checklist_label(1, 2)),
+        (
+            "card_label_in_lane",
+            card_label_in_lane("To do", t(Key::KanbanFilterDone), "Ship it"),
+        ),
+        ("kanban_quit_refused", kanban_quit_refused("disk full")),
+        (
+            "kanban_could_not_save_copy",
+            kanban_could_not_save_copy("disk full"),
+        ),
+        // Sync status and errors.
+        (
+            "device_code",
+            device_code("ABCD-1234", "https://example.test"),
+        ),
+        ("browser_failed", browser_failed("https://example.test")),
+        ("sign_in_failed", sign_in_failed("access denied")),
+        ("tailnet_hosting", tailnet_hosting(8080, "tailscale serve")),
+        (
+            "tailnet_hosting_ready",
+            tailnet_hosting_ready("tailscale serve"),
+        ),
+        ("shared_key_copied", shared_key_copied(60)),
+        (
+            "sync_previous_credential",
+            sync_previous_credential("denied"),
+        ),
+        ("sync_nothing_saved", sync_nothing_saved("denied")),
+        (
+            "sync_key_rotation_failed",
+            sync_key_rotation_failed("denied"),
+        ),
+        ("sync_now_after_error", sync_now_after_error("denied")),
+        ("sync_offline", sync_offline("connection refused")),
+        ("sync_rate_limited_after", sync_rate_limited_after(1500)),
+        ("sync_provider_error", sync_provider_error(500, "inner")),
+        (
+            "sync_authentication_needed",
+            sync_authentication_needed("token expired"),
+        ),
+        ("sync_permission_denied", sync_permission_denied("none")),
+        (
+            "sync_oauth_scope_rejected",
+            sync_oauth_scope_rejected("drive.file"),
+        ),
+        (
+            "sync_remote_scope_not_found",
+            sync_remote_scope_not_found("branch main"),
+        ),
+        ("sync_remote_changed", sync_remote_changed("moved")),
+        ("sync_outcome_unknown", sync_outcome_unknown("dropped")),
+        (
+            "sync_listing_incomplete",
+            sync_listing_incomplete("page 3 of 5"),
+        ),
+        ("sync_unsupported", sync_unsupported("Data.xlsx", "doc")),
+        ("sync_limit_exceeded", sync_limit_exceeded("too big")),
+        (
+            "sync_credentials_unavailable",
+            sync_credentials_unavailable("locked"),
+        ),
+        ("sync_dirty_buffer", sync_dirty_buffer("Plan.md")),
+        ("sync_local_changed", sync_local_changed("Plan.md")),
+        ("sync_not_configured", sync_not_configured("missing")),
+        ("sync_file_error", sync_file_error("read-only")),
+        // Composition.
+        ("recovered_for", recovered_for(&recovered_copies(1, 0))),
+        ("import_notice", import_notice(2, 1, true)),
+        ("import_notice files", import_notice(1, 0, false)),
+    ];
+    for (helper, text) in outputs {
         assert!(
-            !is_catalog_copy(sample),
-            "{helper} renders bracketed copy; delete its TODO(#191) row"
+            is_catalog_copy(&text),
+            "{helper} does not render bracketed copy: {text:?}"
         );
         assert_eq!(
-            allowlisted(sample),
-            Some(helper),
-            "{helper} lost its documented allowance"
+            text.matches(PSEUDO_OPEN).count(),
+            1,
+            "{helper} wraps a fragment separately: {text:?}"
         );
     }
 }
@@ -346,24 +565,10 @@ fn deferred_helpers_are_still_documented() {
 //
 // Everything below is non-copy that the three screens legitimately draw. It is
 // deliberately narrow: each rule names what it covers, so a future hardcoded
-// sentence has nowhere to hide. A typed helper whose sentence goes through a
-// `MsgKey` template is bracketed like catalog copy, so it needs no row here;
-// the rows that remain are helpers that part 1 of #191 did not convert yet
-// (see `DEFERRED_HELPERS`). If a new helper shows up, add a rule that names it
-// rather than a bare string.
-
-/// Helper-output allowances that this part of #191 does **not** convert yet.
-///
-/// Each entry is a rendered sample and the helper it comes from. They stay
-/// allowlisted until their own part converts them; that conversion removes the
-/// matching row from [`allowlisted`] and adds the helper to
-/// `converted_helpers_render_bracketed` below.
-///
-/// TODO(#191): convert and delete the row for each entry.
-const DEFERRED_HELPERS: &[(&str, &str)] = &[
-    ("New note in ⟦Projects⟧", "muninn_i18n::new_note_in"),
-    ("New folder in ⟦Projects⟧", "muninn_i18n::new_folder_in"),
-];
+// sentence has nowhere to hide. Every parameterised helper now renders through
+// a `MsgKey` template (`phrase`/`compose`), so it is bracketed like catalog
+// copy and needs no row here; the rows that remain are keycaps, Help's input
+// tokens, and field/file data.
 
 /// Key names drawn in a keycap. `keycap_text` upper-cases a single letter, so
 /// letters are matched by [`is_single_letter`] instead of this list.
@@ -493,13 +698,6 @@ fn is_delay_readout(text: &str) -> bool {
         .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit() || c == '.'))
 }
 
-/// `muninn_i18n::new_note_in` / `new_folder_in`: the English frame carries a
-/// catalog place name, which is bracketed here.
-fn is_new_in(text: &str, prefix: &str) -> bool {
-    text.strip_prefix(prefix)
-        .is_some_and(|place| place.starts_with(PSEUDO_OPEN) && place.ends_with(PSEUDO_CLOSE))
-}
-
 /// Why `text` is legitimate non-copy, or `None` if it should have come from
 /// the catalog.
 fn allowlisted(text: &str) -> Option<&'static str> {
@@ -551,12 +749,6 @@ fn allowlisted(text: &str) -> Option<&'static str> {
     }
     if is_fixture_note(trimmed) {
         return Some("the test vault's note title, path or body (file data)");
-    }
-    if is_new_in(trimmed, "New note in ") {
-        return Some("muninn_i18n::new_note_in");
-    }
-    if is_new_in(trimmed, "New folder in ") {
-        return Some("muninn_i18n::new_folder_in");
     }
     None
 }

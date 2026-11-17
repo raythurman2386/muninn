@@ -220,4 +220,135 @@ messages! {
     AutosaveHelp => "msg.settings.autosave_help", 1;
     Version => "msg.settings.version", 1;
     ShowWithChord => "msg.settings.show_with_chord", 1;
+    ShortcutFailed => "msg.settings.shortcut_failed", 2;
+    ShortcutOn => "msg.settings.shortcut_on", 1;
+
+    // ---- Dates and relative days ------------------------------------------
+    // One template per branch: a language that inflects a day count supplies
+    // its own wording for each.
+    RelativeToday => "msg.date.today", 0;
+    RelativeTomorrow => "msg.date.tomorrow", 0;
+    RelativeYesterday => "msg.date.yesterday", 0;
+    RelativeInDays => "msg.date.in_days", 1;
+    RelativeDaysAgo => "msg.date.days_ago", 1;
+    DayLabel => "msg.date.day_label", 1;
+    RelativeDate => "msg.date.relative_date", 2;
+
+    // ---- Actions and welcome ----------------------------------------------
+    NewNoteIn => "msg.action.new_note_in", 1;
+    NewFolderIn => "msg.action.new_folder_in", 1;
+    WelcomeVaultCreated => "msg.welcome.vault_created", 1;
+
+    // ---- Status, Help and palette -----------------------------------------
+    ScanProgress => "msg.status.scan_progress", 2;
+    FocusHelp => "msg.help.focus", 1;
+    FocusExitHelp => "msg.help.focus_exit", 1;
+    PaletteKanbanFolder => "msg.palette.kanban_folder", 1;
+
+    // ---- Link notices ------------------------------------------------------
+    LinksNotUpdated => "msg.links.not_updated", 1;
+    RenamedLinksFailed => "msg.links.renamed_failed", 2;
+    MovedLinksFailed => "msg.links.moved_failed", 2;
+    NoteNotInVault => "msg.links.note_not_in_vault", 1;
+    CannotOpenWithoutNote => "msg.links.cannot_open_without_note", 1;
+    AttachmentNotInVault => "msg.links.attachment_not_in_vault", 1;
+    BrokenLinksCount => "msg.links.broken", 1;
+
+    // ---- Path and vault refusals ------------------------------------------
+    NotAFile => "msg.error.not_a_file", 1;
+    PathGone => "msg.error.path_gone", 1;
+    TrayError => "msg.error.tray", 1;
+    LoginItemError => "msg.error.login_item", 1;
+    OutsideVault => "msg.error.outside_vault", 1;
+    NotABoardInVault => "msg.error.not_a_board_in_vault", 1;
+    AlreadyExists => "msg.error.already_exists", 1;
+    NotATrashPath => "msg.error.not_a_trash_path", 1;
+    NoLongerInTrash => "msg.error.no_longer_in_trash", 1;
+    NotAFolder => "msg.error.not_a_folder", 1;
+    BoardNameInvalid => "msg.error.board_name_invalid", 1;
+    BoardSceneKeyObject => "msg.error.board_scene_key_object", 1;
+    BoardRenamedEmbedsFailed => "msg.error.board_renamed_embeds_failed", 2;
+    AutostartRegFailed => "msg.error.autostart_reg_failed", 1;
+    AutostartRegExit => "msg.error.autostart_reg_exit", 1;
+    KanbanQuitRefused => "msg.error.kanban_quit_refused", 1;
+    KanbanCouldNotSaveCopy => "msg.error.kanban_could_not_save_copy", 1;
+    CouldNotDo => "msg.error.could_not_do", 2;
+    CouldNotCreateBoard => "msg.error.could_not_create_board", 1;
+    CouldNotCreateKanban => "msg.error.could_not_create_kanban", 1;
+    CouldNotConvertKanban => "msg.error.could_not_convert_kanban", 1;
+
+    // ---- Board and graph chrome -------------------------------------------
+    BoardKeptAsIs => "msg.board.kept_as_is", 2;
+    BoardCouldNotRead => "msg.board.could_not_read", 1;
+    BoardNoteLinkMissing => "msg.board.note_link_missing", 1;
+    UnsavedSaves => "msg.board.unsaved_saves", 1;
+    NotSaved => "msg.board.not_saved", 1;
+    LinkDescription => "msg.board.link_description", 1;
+    NoteLabelRoot => "msg.graph.note_label_root", 1;
+    GraphNodeParent => "msg.graph.node_parent", 2;
+    GraphStats => "msg.graph.stats", 2;
+
+    // ---- Kanban chrome -----------------------------------------------------
+    KanbanFilterFrom => "msg.kanban.filter_from", 1;
+    KanbanFilterTo => "msg.kanban.filter_to", 1;
+    KanbanFilterRange => "msg.kanban.filter_range", 2;
+    LaneActions => "msg.kanban.lane_actions", 1;
+    LaneControls => "msg.kanban.lane_controls", 1;
+    CollapseLane => "msg.kanban.collapse_lane", 1;
+    ExpandLane => "msg.kanban.expand_lane", 1;
+    LaneCards => "msg.kanban.lane_cards", 1;
+    AddCardToLane => "msg.kanban.add_card_to_lane", 1;
+    LaneLabel => "msg.kanban.lane_label", 2;
+    LaneOverLimit => "msg.kanban.over_limit", 0;
+    LaneDone => "msg.kanban.done_lane", 0;
+    LaneRegionLabel => "msg.kanban.lane_region_label", 2;
+    CollapsedLaneLabel => "msg.kanban.collapsed_lane_label", 2;
+    CollapsedCards => "msg.kanban.collapsed_cards", 1;
+    DeleteLane => "msg.kanban.delete_lane", 2;
+    DeleteLaneText => "msg.kanban.delete_lane_text", 4;
+    DeleteCardsOne => "msg.kanban.delete_cards.one", 0;
+    DeleteCardsOther => "msg.kanban.delete_cards.other", 1;
+    CardActions => "msg.kanban.card_actions", 1;
+    CardActionsEmpty => "msg.kanban.card_actions.empty", 0;
+    CardActionsInLane => "msg.kanban.card_actions_in_lane", 1;
+    ChecklistProgress => "msg.kanban.checklist_progress", 2;
+    ChecklistLabel => "msg.kanban.checklist_label", 2;
+    CardLabelInLane => "msg.card_label.in_lane", 3;
+
+    // ---- Sync status and provider errors ----------------------------------
+    DeviceCode => "msg.sync.device_code", 2;
+    BrowserFailed => "msg.sync.browser_failed", 1;
+    SignInFailed => "msg.sync.sign_in_failed", 1;
+    TailnetHosting => "msg.sync.tailnet_hosting", 2;
+    TailnetHostingReady => "msg.sync.tailnet_hosting_ready", 1;
+    SharedKeyCopied => "msg.sync.shared_key_copied", 1;
+    SyncPreviousCredential => "msg.sync.previous_credential", 1;
+    SyncNothingSaved => "msg.sync.nothing_saved", 1;
+    SyncKeyRotationFailed => "msg.sync.key_rotation_failed", 1;
+    SyncNowAfterError => "msg.sync.now_after_error", 1;
+    SyncOffline => "msg.sync.error.offline", 1;
+    SyncRateLimitedAfter => "msg.sync.error.rate_limited", 1;
+    SyncProviderError => "msg.sync.error.provider", 2;
+    SyncAuthenticationNeeded => "msg.sync.error.authentication_needed", 1;
+    SyncPermissionDenied => "msg.sync.error.permission_denied", 1;
+    SyncOauthScopeRejected => "msg.sync.error.oauth_scope_rejected", 1;
+    SyncRemoteScopeNotFound => "msg.sync.error.remote_scope_not_found", 1;
+    SyncRemoteChanged => "msg.sync.error.remote_changed", 1;
+    SyncOutcomeUnknown => "msg.sync.error.outcome_unknown", 1;
+    SyncListingIncomplete => "msg.sync.error.listing_incomplete", 1;
+    SyncUnsupported => "msg.sync.error.unsupported", 2;
+    SyncLimitExceeded => "msg.sync.error.limit_exceeded", 1;
+    SyncCredentialsUnavailable => "msg.sync.error.credentials_unavailable", 1;
+    SyncDirtyBuffer => "msg.sync.error.dirty_buffer", 1;
+    SyncLocalChanged => "msg.sync.error.local_changed", 1;
+    SyncNotConfigured => "msg.sync.error.not_configured", 1;
+    SyncFileError => "msg.sync.error.file_error", 1;
+
+    // ---- Composition fragments --------------------------------------------
+    // A composed sentence is built from these in the current language and
+    // wrapped once, so a pseudo render has one marker pair around the line.
+    RecoveredFor => "msg.recovered.for", 1;
+    ImportedFiles => "msg.import.imported_files", 1;
+    ImportJoin => "msg.import.join", 1;
+    ImportAttachmentsNote => "msg.import.attachments_note", 0;
 }
