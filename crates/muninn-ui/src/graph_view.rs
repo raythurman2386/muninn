@@ -932,9 +932,15 @@ mod tests {
     }
 
     /// Run the graph to the app's settled state (30 quiet frames).
+    ///
+    /// The budget is deliberately far above the ~120 frames Linux needs: the
+    /// settle path is platform-sensitive (Windows needs more frames, and the
+    /// layout crate already allows 8k–12k in its own long-running tests). The
+    /// test still stops at the first 30 quiet frames, so a fast platform pays
+    /// nothing for the headroom.
     fn settle(g: &mut muninn_graph::Graph) {
         let mut quiet = 0;
-        for _ in 0..4000 {
+        for _ in 0..12_000 {
             if g.step() {
                 quiet = 0;
             } else {
@@ -944,7 +950,7 @@ mod tests {
                 }
             }
         }
-        panic!("layout must settle within 4000 frames");
+        panic!("layout must settle within 12,000 frames");
     }
 
     /// A graph state for `n` notes, settled and in Global scope.

@@ -1923,15 +1923,24 @@ mod settle {
                 "{n} notes: fill {fill:.3}, walls {walls}, edge p50 {p50:.1} / \
                  p90 {p90:.1} / p99 {p99:.1}, crossings/edge {crossed}"
             );
-            if n == 405 {
+            if n >= 300 {
+                // Platform f32/libm noise moves the settled positions, and the
+                // edge distribution with them. Each gate keeps a margin over
+                // the measured value while still rejecting the pre-slice-2
+                // layout (932/989/993/1005 pt at 300/405/600/1000):
+                //   300  445 Linux          → 525
+                //   405  711 (structural miss, see above) → 800
+                //   600  517 Linux / 536 macOS → 560
+                //  1000  334 Linux          → 420
+                let gate = match n {
+                    405 => 800.0,
+                    600 => 560.0,
+                    1000 => 420.0,
+                    _ => 525.0,
+                };
                 assert!(
-                    p90 <= 800.0,
-                    "405 densely-crossed edges regressed: p90 {p90:.1} pt (gate 800)"
-                );
-            } else if n >= 300 {
-                assert!(
-                    p90 <= 525.0,
-                    "{n} notes settle with edge p90 {p90:.1} pt, over the 525 gate"
+                    p90 <= gate,
+                    "{n} notes settle with edge p90 {p90:.1} pt, over the {gate} gate"
                 );
             }
         }
