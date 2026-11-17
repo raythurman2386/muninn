@@ -183,7 +183,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::SettingsAppearanceCloseToTrayOff => "Aus. Das Schließen des Fensters beendet Muninn.",
         Key::SettingsAppearanceCloseToTrayOn => {
-            "Ein. Das Schließen des Fensters lässt Muninn im Infobereich; „Muninn beenden“ im Infobereich beendet es. Wenn kein Tray-Host das Symbol anzeigt, lassen Sie dies aus."
+            "Ein. Das Schließen des Fensters lässt Muninn im Infobereich; „Muninn beenden“ im Infobereich beendet Muninn. Wenn kein Tray-Host das Symbol anzeigt, lassen Sie dies aus."
         }
         Key::SettingsAppearanceCloseToTrayNoIcon => {
             "Ein, aber derzeit gibt es kein Symbol im Infobereich, daher beendet das Schließen des Fensters Muninn."
