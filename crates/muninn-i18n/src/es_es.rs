@@ -334,7 +334,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Falta la clave compartida en el almacén de credenciales."
         }
         Key::SyncErrorTailnetKeyMissing => {
-            "Falta la clave compartida de Tailscale en el almacén de credenciales. Desconecta y vuelve a conectar."
+            "Falta la clave compartida de Tailscale en el almacén de credenciales. Desconéctate y vuelve a conectarte."
         }
         Key::SyncErrorCancelled => "Sincronización cancelada",
         Key::SyncErrorTimedOutAfterSend => {
@@ -888,7 +888,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::MenuArchiveActions => "Acciones del archivo",
         Key::MenuMoveToLane => "Mover a la columna",
         Key::LinkImpactHere => "aquí",
-        Key::LinkImpactIntoFolder => "para esta carpeta",
+        Key::LinkImpactIntoFolder => "en esta carpeta",
         Key::LinkThisNote => "Esta nota",
         Key::LinkNameFallback => "Enlace",
         Key::RenameRewriteLinks => "Reescribir los enlaces al nombre nuevo",

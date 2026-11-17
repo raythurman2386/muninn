@@ -243,7 +243,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
             "¿Eliminar «{0}»{1}? Cualquier texto de nota que contenga permanece en el archivo."
         }
         MsgKey::DeleteLaneText => {
-            "¿Eliminar «{0}»{1}? También se borrará texto de nota que el tablero no muestra: {2}, a partir de «{3}»."
+            "¿Eliminar «{0}»{1}? También se borrará texto de nota que el tablero no muestra ({2} en total), a partir de «{3}»."
         }
         MsgKey::DeleteCardsOne => " y su tarjeta",
         MsgKey::DeleteCardsOther => " y sus {0} tarjetas",
