@@ -170,7 +170,13 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
     allowed.insert("muninn-sync", BTreeSet::new());
     allowed.insert(
         "muninn-ui",
-        BTreeSet::from(["muninn-core", "muninn-graph", "muninn-sync", "muninn-i18n"]),
+        BTreeSet::from([
+            "muninn-core",
+            "muninn-graph",
+            "muninn-import",
+            "muninn-sync",
+            "muninn-i18n",
+        ]),
     );
     allowed.insert(
         "muninn-app",

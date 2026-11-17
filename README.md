@@ -38,6 +38,10 @@ connections as a graph.
   Table views, all stored as Markdown.
 - **Paste as Markdown.** Rich text from a browser or document arrives with its headings, lists,
   links and emphasis; paste a URL over a selection to make `[selection](url)`.
+- **Import documents.** Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV and text PDFs
+  become a new Markdown note in the current folder — via the sidebar's import icon, `⌘I` /
+  `Ctrl+I`, the command palette, or a drop on the window. The converted images and the original
+  document are kept beside the note, and the conversion runs locally with no OCR or network.
 - **Saves itself.** Autosave after a short idle (0.55 s by default), atomic writes, and a trash
   you can undo.
 - **Sync when you choose.** GitHub, Google Drive or Tailscale, with a manual Sync Now and sync
@@ -126,6 +130,7 @@ and the credential store is described in [docs/sync-setup.md](docs/sync-setup.md
 | `[[` | Wikilink completion while typing |
 | `⌘S` / `Ctrl+S` | Save now (autosave is already on) |
 | `⌘N` / `Ctrl+N` | New note |
+| `⌘I` / `Ctrl+I` | Import a document as a note |
 | `⌘E` / `Ctrl+E` | Toggle Write / Read |
 | `⌘⇧F` / `Ctrl+Shift+F` | Focus mode: hide the chrome, dim inactive paragraphs, centre the caret |
 | `⌘1`…`⌘5` / `Ctrl+1`…`Ctrl+5` | Write / Read / Graph / Board / Kanban |

@@ -4,6 +4,23 @@ All notable changes to Muninn are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Import documents as notes (#189).** The sidebar's new import icon, `⌘I` / `Ctrl+I`, the
+  command palette's **Import document…** action, and a drop of a Word, PowerPoint, Excel,
+  OpenDocument, RTF, EPUB, CSV or text PDF file all convert the document into a new Markdown
+  note in the current folder. The conversion runs locally on a worker thread, so a large file
+  cannot freeze a frame and a parser panic costs one import rather than the window. The note
+  is titled from its first `# ` heading (else the file stem), with the existing ` 2` dedupe and
+  no note template. Embedded images are written beside it as `<stem>-image-<n>.<ext>`, the
+  original document is copied alongside, and the body ends with one `![[name]]` embed per
+  written file. A dropped PDF is now a note rather than an attachment; images still import as
+  attachments. Unsupported, encrypted, malformed, over-limit and scanned-PDF (with page
+  numbers) failures use their own catalogue copy and leave the vault untouched. On a Linux
+  desktop without an XDG file-chooser portal the dialog error points at drag-and-drop.
+
 ## [0.8.6] - 2026-11-15
 
 ### Added

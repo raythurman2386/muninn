@@ -42,6 +42,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpEditPerBoardOverrides => "Per-board overrides, one key at a time",
         Key::HelpEditInsertWikilink => "Insert a wikilink",
         Key::HelpEditNewNote => "New note",
+        Key::HelpEditImportDocument => "Import a document as a note",
         Key::HelpEditSaveNow => "Save now (autosave is on)",
         Key::HelpEditToggleWriteRead => "Toggle Write / Read",
         Key::HelpEditWikilinkCompletion => "Wikilink completion",
@@ -318,6 +319,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionToggleFocusMode => "Toggle focus mode",
         Key::PaletteActionNewKanban => "New Kanban",
         Key::PaletteActionConvertToKanban => "Convert empty note to Kanban",
+        Key::PaletteActionImportDocument => "Import document…",
         Key::PaletteHintGraphLocal => "Graph · Local",
         Key::PaletteHintVaults => "Vaults",
         Key::PaletteHintHelp => "Help",
@@ -335,6 +337,9 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::PaletteKeywordsNewKanban => "kanban create add lanes cards tasks",
         Key::PaletteKeywordsConvertToKanban => "kanban empty blank turn lanes cards tasks",
+        Key::PaletteKeywordsImportDocument => {
+            "import document docx doc word pdf office odt rtf epub csv"
+        }
         Key::PaletteSectionRecent => "Recent",
         Key::PaletteSectionNotes => "Notes",
         Key::PaletteSectionActions => "Actions",
@@ -664,6 +669,13 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::ErrorOpenerHintOther => "Open the file manually.",
         Key::ErrorDocumentBoard => "board",
         Key::ErrorDocumentKanban => "kanban",
+        Key::ImportDocument => "Import document…",
+        Key::ImportDocumentHelp => "Import a document as a new note",
+        Key::ImportDialogTitle => "Import document",
+        Key::ImportDialogFilterDocuments => "Documents",
+        Key::ErrorImportDialogUnavailable => {
+            "No file dialog on this desktop — drop the document on the window instead."
+        }
         Key::StatusTrashEmptied => "Trash emptied",
         Key::StatusLinkCopied => "Copied a link to the card",
         Key::ConflictExternalChange => "External change detected",

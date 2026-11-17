@@ -397,10 +397,18 @@ pub(crate) const SCAN_SYNC_LIMIT: usize = 100;
 /// 2,000-note vault finishes in about forty ticks.
 pub(crate) const SCAN_CHUNK: usize = 50;
 
-/// File types drag-and-drop imports: Markdown becomes a note, the rest are
-/// copied as attachments. Only the `.md` files reach the sidebar/index; the
-/// vault scan deliberately ignores every other extension.
-pub const IMPORT_EXTENSIONS: &[&str] = &["md", "png", "jpg", "jpeg", "gif", "webp", "pdf"];
+/// File types drag-and-drop imports: Markdown becomes a note, document and
+/// office formats convert into one, and images stay attachments. Only `.md`
+/// files and converted documents reach the sidebar/index; the vault scan
+/// deliberately ignores every other extension.
+///
+/// A PDF is a document now (#189): it converts to a note, not an opaque
+/// attachment. Images keep the attachment-only path.
+pub const IMPORT_EXTENSIONS: &[&str] = &[
+    "md", "png", "jpg", "jpeg", "gif", "webp", // notes and attachments
+    "doc", "docm", "docx", "odt", "ods", "odp", // word processing and sheets
+    "pdf", "ppt", "pptm", "pptx", "rtf", "epub", "xls", "xlsb", "xlsm", "xlsx", "csv",
+];
 
 /// Which system handler a path should reach.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -418,15 +426,19 @@ pub struct ImportReport {
     pub imported: Vec<PathBuf>,
     /// How many of [`ImportReport::imported`] are Markdown notes.
     pub notes: usize,
+    /// Documents queued for conversion on the worker. They are written into
+    /// the vault once the conversion lands.
+    pub queued: usize,
     /// Why individual files were refused (`name: reason`), never overwritten.
     pub refused: Vec<String>,
 }
 
 impl ImportReport {
-    /// A successful write happened.
+    /// This call changed what the user will see: files were written, or a
+    /// document started converting into a note.
     #[must_use]
     pub fn changed(&self) -> bool {
-        !self.imported.is_empty()
+        !self.imported.is_empty() || self.queued > 0
     }
 }
 
@@ -794,6 +806,11 @@ pub struct State {
     /// [`State::graph_step`] can reheat once when it turns off.
     graph_was_reduced: bool,
     pub sync_ui: crate::sync_ui::SyncUi,
+    /// #189: finished document conversions, drained in [`crate::poll`].
+    pub(crate) import_inbox:
+        Option<std::sync::mpsc::Receiver<crate::import_document::ImportMessage>>,
+    /// Documents waiting behind the one converting, in drop order.
+    pub(crate) import_queue: Vec<crate::import_document::ImportQueueItem>,
     /// The optional tray icon ([`crate::tray`]).
     pub(crate) tray: crate::tray::TrayLink,
     /// Start Muninn at login ([`crate::autostart`]).
@@ -1097,6 +1114,8 @@ impl State {
             system_reduced_motion: std::cell::Cell::new(false),
             graph_was_reduced: false,
             sync_ui: crate::sync_ui::SyncUi::memory(),
+            import_inbox: None,
+            import_queue: Vec::new(),
             tray: crate::tray::TrayLink::default(),
             autostart: crate::autostart::AutostartLink::default(),
             shortcut: crate::global_shortcut::ShortcutLink::default(),
@@ -1663,25 +1682,26 @@ impl State {
     }
 
     /// Enter in the palette: run the highlighted row.
-    pub fn palette_run(&mut self) {
+    pub fn palette_run(&mut self, tx: &mut rune::Tx) {
         self.palette_tick();
-        self.palette_run_index(self.palette_selected());
+        let index = self.palette_selected();
+        self.palette_run_index(index, tx);
     }
 
     /// Run the row at `index` (also used by pointer presses on a row).
-    pub fn palette_run_index(&mut self, index: usize) {
+    pub fn palette_run_index(&mut self, index: usize, tx: &mut rune::Tx) {
         let Some(item) = self.palette_items().get(index).cloned() else {
             return;
         };
         self.close_palette();
         match item {
             PaletteItem::Recent(id) | PaletteItem::Note(id) => self.open_note(id),
-            PaletteItem::Action(action) => self.palette_run_action(action),
+            PaletteItem::Action(action) => self.palette_run_action(action, tx),
             PaletteItem::Kanban(id) => self.open_kanban(id),
         }
     }
 
-    fn palette_run_action(&mut self, action: PaletteAction) {
+    fn palette_run_action(&mut self, action: PaletteAction, tx: &mut rune::Tx) {
         match action {
             PaletteAction::OpenLocalGraph => self.open_local_graph(),
             PaletteAction::SwitchVault => {
@@ -1690,6 +1710,7 @@ impl State {
             }
             PaletteAction::OpenSettings => self.open_settings(),
             PaletteAction::NewNote => self.new_note(),
+            PaletteAction::ImportDocument => self.open_import_document(tx),
             PaletteAction::TogglePreview => self.toggle_preview(),
             PaletteAction::ToggleGraph => self.toggle_graph(),
             PaletteAction::ToggleBoard => self.toggle_board(),
@@ -4987,14 +5008,15 @@ impl State {
 
     /// Import dropped files into the current folder, then reload the vault.
     ///
-    /// Markdown becomes notes; images and PDFs are copied as attachments the
-    /// scan deliberately ignores, so the sidebar shows no row for them. Every
-    /// destination is written through a hidden temp file + rename (the same
-    /// crash-safe pattern as note saves) and an existing file is never
-    /// overwritten: the refusal names the file.
+    /// Markdown becomes a note, document formats (including PDF) convert into
+    /// a new note on a worker thread, and images stay attachments the scan
+    /// deliberately ignores. Every written file goes through a hidden temp
+    /// file and rename (the same crash-safe pattern as note saves) and an
+    /// existing file is never overwritten: the refusal names the file.
     pub fn import_files(&mut self, paths: &[PathBuf]) -> ImportReport {
         let mut report = ImportReport::default();
         self.notice = None;
+        self.error = None;
         if paths.is_empty() {
             return report;
         }
@@ -5028,6 +5050,13 @@ impl State {
                 report.refused.push(refused_unsupported_type(&name));
                 continue;
             };
+            // #189: a document becomes a note. The conversion is local, so the
+            // original is copied beside the note and the body embeds it.
+            if crate::import_document::DOCUMENT_EXTENSIONS.contains(&extension.as_str()) {
+                self.queue_import(source.clone(), folder.clone());
+                report.queued += 1;
+                continue;
+            }
             let some_name = source.file_name().unwrap_or(OsStr::new(""));
             let dest = dest_dir.join(some_name);
             if dest.exists() {
@@ -5054,19 +5083,26 @@ impl State {
             self.reload(Some(first_note));
         }
         if report.refused.is_empty() {
-            self.notice = Some(import_notice(&report));
+            if report.queued == 0 {
+                self.notice = Some(import_notice(&report));
+            }
             self.trace_log(
                 "import",
-                &format!("files={} notes={}", report.imported.len(), report.notes),
+                &format!(
+                    "files={} notes={} queued={}",
+                    report.imported.len(),
+                    report.notes,
+                    report.queued
+                ),
             );
         } else {
             self.notice = report.changed().then(|| import_notice(&report));
-            self.error = Some(if report.imported.is_empty() {
+            self.error = Some(if report.imported.is_empty() && report.queued == 0 {
                 import_refused(&report.refused.join("; "))
             } else {
                 import_partly_refused(
-                    report.imported.len(),
-                    report.imported.len() + report.refused.len(),
+                    report.imported.len() + report.queued,
+                    report.imported.len() + report.queued + report.refused.len(),
                     &report.refused.join("; "),
                 )
             });

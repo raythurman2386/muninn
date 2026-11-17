@@ -163,6 +163,10 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.forward();
     } else if e.is_command('n') {
         s.new_note();
+    } else if e.is_command('i') {
+        // #189: import a document as a new note (also the sidebar icon and the
+        // palette's Import document action).
+        s.open_import_document(tx);
     } else if e.is_command('s') {
         s.save_now();
         // Board slice 4: on Board the chord also saves the open board;
