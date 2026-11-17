@@ -583,7 +583,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanFilterDone => "Concluído",
         Key::KanbanFilterClearAll => "Limpar tudo",
         Key::KanbanFilterDateError => {
-            "Um filtro de data usa AAAA-MM-DD; o intervalo não é aplicado."
+            "Um filtro de data usa YYYY-MM-DD; o intervalo não é aplicado."
         }
         Key::KanbanFilterPreviousMatch => "Correspondência anterior",
         Key::KanbanFilterNextMatch => "Próxima correspondência",
