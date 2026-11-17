@@ -13,6 +13,29 @@ fn the_catalog_is_not_empty() {
     assert!(!Key::ALL.is_empty(), "the catalog must seed some keys");
 }
 
+/// A file-format token is part of the on-disk contract, not display copy: every
+/// shipped language keeps `YYYY-MM-DD`, `@{` and `@@{` exactly as the parser
+/// and file formatter write them. A pack that localises one (for example
+/// `AAAA-MM-DD`) tells the user to type something the app rejects.
+#[test]
+fn file_format_tokens_stay_english() {
+    for &lang in Lang::SHIPPED {
+        for (key, token) in [
+            (Key::KanbanFilterDateError, "YYYY-MM-DD"),
+            (Key::KanbanSettingDateTriggerHelp, "@{"),
+            (Key::KanbanSettingTimeTriggerHelp, "@@{"),
+        ] {
+            let text = t_in(lang, key);
+            assert!(
+                text.contains(token),
+                "{} in {} lost the file-format token {token:?}: {text:?}",
+                key.id(),
+                lang.tag()
+            );
+        }
+    }
+}
+
 #[test]
 fn ids_are_unique_and_dotted() {
     let mut seen = BTreeSet::new();
