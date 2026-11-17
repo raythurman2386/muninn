@@ -154,6 +154,148 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::AutosaveHelp => "Autosave writes {0} s after you stop typing.",
         MsgKey::Version => "Version {0}.",
         MsgKey::ShowWithChord => "Show Muninn with {0}",
+        MsgKey::ShortcutFailed => "{0} could not be registered: {1}",
+        MsgKey::ShortcutOn => "On. {0} shows Muninn from any app.",
+
+        MsgKey::RelativeToday => "today",
+        MsgKey::RelativeTomorrow => "tomorrow",
+        MsgKey::RelativeYesterday => "yesterday",
+        MsgKey::RelativeInDays => "in {0} days",
+        MsgKey::RelativeDaysAgo => "{0} days ago",
+        MsgKey::DayLabel => "Day {0}",
+        MsgKey::RelativeDate => "{0} · {1}",
+
+        MsgKey::NewNoteIn => "New note in {0}",
+        MsgKey::NewFolderIn => "New folder in {0}",
+        MsgKey::WelcomeVaultCreated => "New vault created at {0} — make your first note",
+
+        MsgKey::ScanProgress => "Scanning {0}/{1} notes — Esc to cancel",
+        MsgKey::FocusHelp => "Hide the chrome and keep the caret's line centred ({0})",
+        MsgKey::FocusExitHelp => "Back to the note's chrome ({0})",
+        MsgKey::PaletteKanbanFolder => "Kanban · {0}",
+
+        MsgKey::LinksNotUpdated => "Links in {0} were not updated",
+        MsgKey::RenamedLinksFailed => {
+            "Renamed, but {0} inbound link file(s) could not be rewritten: {1}"
+        }
+        MsgKey::MovedLinksFailed => {
+            "Moved, but {0} inbound link file(s) could not be rewritten: {1}"
+        }
+        MsgKey::NoteNotInVault => "Note {0} is no longer in this vault",
+        MsgKey::CannotOpenWithoutNote => "Cannot open {0}: no note is selected",
+        MsgKey::AttachmentNotInVault => {
+            "Attachment {0} is not in this vault — drop it in, or fix the embed"
+        }
+        MsgKey::BrokenLinksCount => "{0} broken",
+
+        MsgKey::NotAFile => "{0} is not a file",
+        MsgKey::PathGone => "{0} no longer exists",
+        MsgKey::TrayError => "The tray icon could not be added: {0}",
+        MsgKey::LoginItemError => "The login item could not be changed: {0}",
+        MsgKey::OutsideVault => "{0} is outside the vault",
+        MsgKey::NotABoardInVault => "{0} is not a board inside the vault",
+        MsgKey::AlreadyExists => "{0} already exists",
+        MsgKey::NotATrashPath => "{0} is not a trash path",
+        MsgKey::NoLongerInTrash => "{0} is no longer in the trash",
+        MsgKey::NotAFolder => "{0} is not a folder",
+        MsgKey::BoardNameInvalid => "a board name {0}",
+        MsgKey::BoardSceneKeyObject => "scene {0} must be an object",
+        MsgKey::BoardRenamedEmbedsFailed => {
+            "Renamed, but {0} note(s) embedding it could not be updated: {1}"
+        }
+        MsgKey::AutostartRegFailed => "reg.exe could not run: {0}",
+        MsgKey::AutostartRegExit => "reg.exe exited with {0}",
+        MsgKey::KanbanQuitRefused => {
+            "Kanban not saved and no recovery copy could be written: {0}. Use Save copy or fix the folder, then quit again."
+        }
+        MsgKey::KanbanCouldNotSaveCopy => "could not save a copy: {0}",
+        MsgKey::CouldNotDo => "Could not {0}: {1}",
+        MsgKey::CouldNotCreateBoard => "Could not create a board: {0}",
+        MsgKey::CouldNotCreateKanban => "Could not create a kanban: {0}",
+        MsgKey::CouldNotConvertKanban => "Could not convert to a kanban: {0}",
+
+        MsgKey::BoardKeptAsIs => "{0} · {1} kept as-is",
+        MsgKey::BoardCouldNotRead => "Could not read: {0}",
+        MsgKey::BoardNoteLinkMissing => "{0} (missing)",
+        MsgKey::UnsavedSaves => "Unsaved · {0} saves",
+        MsgKey::NotSaved => "Not saved: {0}",
+        MsgKey::LinkDescription => "Open {0}",
+        MsgKey::NoteLabelRoot => "{0} (root)",
+        MsgKey::GraphNodeParent => "{0} ({1})",
+        MsgKey::GraphStats => "{0} notes · {1} edges",
+
+        MsgKey::KanbanFilterFrom => "from {0}",
+        MsgKey::KanbanFilterTo => "to {0}",
+        MsgKey::KanbanFilterRange => "{0} – {1}",
+        MsgKey::LaneActions => "Lane actions: {0}",
+        MsgKey::LaneControls => "{0} controls",
+        MsgKey::CollapseLane => "Collapse lane: {0}",
+        MsgKey::ExpandLane => "Expand lane: {0}",
+        MsgKey::LaneCards => "{0} cards",
+        MsgKey::AddCardToLane => "Add card to {0}",
+        MsgKey::LaneLabel => "{0}, {1} cards",
+        MsgKey::LaneOverLimit => ", over limit",
+        MsgKey::LaneDone => ", done lane",
+        MsgKey::LaneRegionLabel => "{0} lane, {1} cards",
+        MsgKey::CollapsedLaneLabel => "{0}, {1} cards, collapsed",
+        MsgKey::CollapsedCards => "Collapsed · {0} cards",
+        MsgKey::DeleteLane => "Delete “{0}”{1}? Any note text in it stays in the file.",
+        MsgKey::DeleteLaneText => {
+            "Delete “{0}”{1}? {2} of note text the board doesn't show will be deleted too, starting “{3}”."
+        }
+        MsgKey::DeleteCardsOne => " and its card",
+        MsgKey::DeleteCardsOther => " and its {0} cards",
+        MsgKey::CardActions => "Card actions: {0}",
+        MsgKey::CardActionsEmpty => "Card actions: empty card",
+        MsgKey::CardActionsInLane => "Card actions: empty card in {0}",
+        MsgKey::ChecklistProgress => "{0} of {1} done",
+        MsgKey::ChecklistLabel => "Checklist, {0} of {1} done",
+        MsgKey::CardLabelInLane => "{0} · {1}: {2}",
+
+        MsgKey::DeviceCode => {
+            "Enter code {0} at {1}. Your browser is opening it; Muninn finishes when GitHub approves."
+        }
+        MsgKey::BrowserFailed => {
+            "Could not open a browser. Open this address yourself to continue: {0}"
+        }
+        MsgKey::SignInFailed => "Sign-in did not finish: {0} No token was stored.",
+        MsgKey::TailnetHosting => "Hosting on 127.0.0.1:{0}. On this device run: {1}",
+        MsgKey::TailnetHostingReady => {
+            "Hosting. Run once on this device: {0}. Use Copy key to give the shared key to your other devices."
+        }
+        MsgKey::SharedKeyCopied => {
+            "Shared key copied. The clipboard clears in {0} seconds; paste it on the joining device."
+        }
+        MsgKey::SyncPreviousCredential => {
+            "The previous connection's credential could not be removed: {0}"
+        }
+        MsgKey::SyncNothingSaved => "{0} Nothing was saved.",
+        MsgKey::SyncKeyRotationFailed => "{0} The old key still works.",
+        MsgKey::SyncNowAfterError => "{0} Connect again before Sync Now.",
+        MsgKey::SyncOffline => "Offline: {0}",
+        MsgKey::SyncRateLimitedAfter => "Rate limited; retry after {0} ms",
+        MsgKey::SyncProviderError => "Provider error {0}: {1}",
+        MsgKey::SyncAuthenticationNeeded => "Authentication needed: {0}",
+        MsgKey::SyncPermissionDenied => "Permission denied: {0}",
+        MsgKey::SyncOauthScopeRejected => "OAuth scope rejected: {0}",
+        MsgKey::SyncRemoteScopeNotFound => "Remote scope not found: {0}",
+        MsgKey::SyncRemoteChanged => "Remote changed: {0}",
+        MsgKey::SyncOutcomeUnknown => "Outcome unknown, reconcile before retrying: {0}",
+        MsgKey::SyncListingIncomplete => {
+            "Remote listing incomplete; refusing to treat that as deletion: {0}"
+        }
+        MsgKey::SyncUnsupported => "Unsupported {0}: {1}",
+        MsgKey::SyncLimitExceeded => "Sync limit exceeded: {0}",
+        MsgKey::SyncCredentialsUnavailable => "Credentials unavailable: {0}",
+        MsgKey::SyncDirtyBuffer => "Save or discard unsaved edits in {0} before sync can change it",
+        MsgKey::SyncLocalChanged => "{0} changed during sync; run Sync Now again to replan",
+        MsgKey::SyncNotConfigured => "Sync is not configured: {0}",
+        MsgKey::SyncFileError => "File error: {0}",
+
+        MsgKey::RecoveredFor => "Recovered unsaved edits for {0}",
+        MsgKey::ImportedFiles => "Imported {0}",
+        MsgKey::ImportJoin => " · {0}",
+        MsgKey::ImportAttachmentsNote => " · non-Markdown files stay attachments",
     }
 }
 

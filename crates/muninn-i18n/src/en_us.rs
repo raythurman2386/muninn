@@ -299,6 +299,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "A sync binding was invalid and was not loaded. Sync is off until it is replaced."
         }
         Key::KanbanUiNotInsideVault => "the kanban is not inside the open vault",
+        Key::KanbanUiThis => "the kanban",
         Key::KanbanUiFieldRefused => {
             "Not quitting: the kanban could not be saved. Fix what stopped the save, or undo the edits, then quit again."
         }
@@ -664,6 +665,9 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::ErrorSaveBoardBeforeRescan => "Save the current board before rescanning the vault",
         Key::ErrorOpenerHintUnix => "Install xdg-utils (for xdg-open) or open the file manually.",
+        Key::ErrorNoFileOpener => {
+            "No file opener is documented for this platform; open the file manually"
+        }
         Key::ErrorOpenerHintMacos => "The system `open` command failed; open the file from Finder.",
         Key::ErrorOpenerHintWindows => "The system opener failed; open the file from Explorer.",
         Key::ErrorOpenerHintOther => "Open the file manually.",

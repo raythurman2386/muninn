@@ -16,7 +16,7 @@
 //! exactly as it does now. See `docs/i18n.md` §5.3 for the API and §5.4 for the
 //! layering rule.
 //!
-//! # What is here, and what comes later
+//! # What is here
 //!
 //! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. `en-US`
 //!   is the only shippable language; [`Lang::Pseudo`] is a test-only catalog
@@ -37,11 +37,11 @@
 //!   sentence with `format!`, so counts, relative dates, lane names, tags,
 //!   board and note names and OS errors get typed functions instead. The
 //!   helpers in this crate name a [`MsgKey`] or a [`Key`]; a caller never
-//!   passes an English frame. The status, recovery, Broken-links, trash and
-//!   tray surfaces add [`deleted`], [`scan_ms`], [`recovered_for`],
-//!   [`recovered_copies`], [`more_edits`], [`targets`], [`referrers`],
-//!   [`status_counts`], [`trash_summary`], [`trash_empty`] and
-//!   [`sync_status`] the same way.
+//!   passes an English frame, and every helper's output follows [`Lang`].
+//!   The status, recovery, Broken-links, trash and tray surfaces add
+//!   [`deleted`], [`scan_ms`], [`recovered_for`], [`recovered_copies`],
+//!   [`more_edits`], [`targets`], [`referrers`], [`status_counts`],
+//!   [`trash_summary`], [`trash_empty`] and [`sync_status`] the same way.
 //!   The status bar's errors, its drop and link notices and the two conflict
 //!   bars (note and page) add the [`could_not_save`]-style sentences,
 //!   [`links_not_updated`], [`import_notice`], [`board_quit_refused`] and
@@ -52,11 +52,21 @@
 //!   [`last_sync`], [`device_code`], [`sign_in_failed`], [`tailnet_hosting`],
 //!   [`shared_key_copied`] and the `sync_offline`-style run failures; its
 //!   fixed copy is keyed (`sync.status.*`, `sync.error.*`).
+//! - A helper that **composes** a sentence ([`import_notice`],
+//!   [`recovered_for`], the lane labels) builds it from named fragments with
+//!   the private `render` and wraps the joined line once with `compose`, so
+//!   [`Lang::Pseudo`] brackets the sentence rather than each fragment. An
+//!   argument that is itself catalogued copy or another helper's sentence is
+//!   passed through `strip_pseudo`, so a composed render never nests markers.
 //! - [`DateNames`] and [`EN_US`] carry month/weekday names, short weekday
 //!   labels, the first day of the week and `AM`/`PM`. `muninn-core`'s
 //!   `format_date_for_display`/`format_time_for_display` read them; the file
 //!   formatters keep their own English table, and `Do` still spells an English
 //!   ordinal until a locale pack supplies its own rule.
+//!
+//! The only helpers that do not name a key are pure data formatters — the byte
+//! size in `file_size`, the count/date strings a caller already formatted — and
+//! the substitution engine itself.
 //!
 //! Extraction of the call sites is the follow-up work, area by area, keeping
 //! English output byte-identical. This crate is the target those changes land
@@ -214,11 +224,65 @@ pub fn t_in(lang: Lang, key: Key) -> &'static str {
 /// );
 /// ```
 pub fn phrase(lang: Lang, key: MsgKey, args: &[&str]) -> String {
-    let rendered = substitute(messages::template(key), args);
+    let rendered = render(lang, key, args);
     match lang {
         Lang::EnUs => rendered,
         Lang::Pseudo => format!("{PSEUDO_OPEN}{rendered}{PSEUDO_CLOSE}"),
     }
+}
+
+/// The sentence for `key` in `lang` with `args` substituted, without the
+/// pseudo marker.
+///
+/// Private: [`phrase`] adds the marker once to a finished sentence. A helper
+/// that **composes** a sentence from fragments ([`import_notice`],
+/// [`recovered_for`], the lane labels) renders each fragment here and calls
+/// [`compose`] once on the joined line, so a pseudo render has one marker pair
+/// around the whole sentence instead of one per fragment. A language pack adds
+/// its template table in this function.
+fn render(lang: Lang, key: MsgKey, args: &[&str]) -> String {
+    match lang {
+        Lang::EnUs | Lang::Pseudo => substitute(messages::template(key), args),
+    }
+}
+
+/// [`render`] in the current UI language ([`Lang::current`]).
+fn render_current(key: MsgKey, args: &[&str]) -> String {
+    render(Lang::current(), key, args)
+}
+
+/// Marks a sentence assembled from [`render_current`] fragments for
+/// [`Lang::Pseudo`], exactly once.
+///
+/// This is [`phrase`]'s marker step without a template: composition renders
+/// the pieces and finishes with this call, so the pseudo render brackets the
+/// sentence rather than each fragment.
+fn compose(text: String) -> String {
+    match Lang::current() {
+        Lang::EnUs => text,
+        Lang::Pseudo => format!("{PSEUDO_OPEN}{text}{PSEUDO_CLOSE}"),
+    }
+}
+
+/// `text` without the pseudo marker pair [`phrase`]/[`compose`] added, if it
+/// is exactly one bracketed sentence.
+///
+/// A helper that takes another helper's finished sentence as an argument
+/// ([`recovered_for`], [`board_canvas`], [`relative_date`]) strips that inner
+/// marker so the composed line is bracketed once, not nested. Text with more
+/// than one marker pair (a caller-joined list, say) is left as it is: stripping
+/// the outer pair would cut into the fragments.
+fn strip_pseudo(text: &str) -> &str {
+    let Some(inner) = text
+        .strip_prefix(PSEUDO_OPEN)
+        .and_then(|rest| rest.strip_suffix(PSEUDO_CLOSE))
+    else {
+        return text;
+    };
+    if inner.contains(PSEUDO_OPEN) || inner.contains(PSEUDO_CLOSE) {
+        return text;
+    }
+    inner
 }
 
 /// The sentence for `key` in the current UI language ([`Lang::current`]).
@@ -319,11 +383,11 @@ pub fn notes(n: usize) -> String {
 /// ```
 pub fn relative_day(days: i64) -> String {
     match days {
-        0 => "today".to_owned(),
-        1 => "tomorrow".to_owned(),
-        -1 => "yesterday".to_owned(),
-        n if n > 0 => format!("in {n} days"),
-        n => format!("{} days ago", -n),
+        0 => phrase_current(MsgKey::RelativeToday, &[]),
+        1 => phrase_current(MsgKey::RelativeTomorrow, &[]),
+        -1 => phrase_current(MsgKey::RelativeYesterday, &[]),
+        n if n > 0 => phrase_current(MsgKey::RelativeInDays, &[&n.to_string()]),
+        n => phrase_current(MsgKey::RelativeDaysAgo, &[&(-n).to_string()]),
     }
 }
 
@@ -374,7 +438,7 @@ pub fn filter_by_tag(tag: &str) -> String {
 /// );
 /// ```
 pub fn tray_error(error: &str) -> String {
-    format!("The tray icon could not be added: {error}")
+    phrase_current(MsgKey::TrayError, &[error])
 }
 
 /// `"The login item could not be changed: <error>"`.
@@ -391,7 +455,7 @@ pub fn tray_error(error: &str) -> String {
 /// );
 /// ```
 pub fn login_item_error(error: &str) -> String {
-    format!("The login item could not be changed: {error}")
+    phrase_current(MsgKey::LoginItemError, &[error])
 }
 
 /// `"A board named “<name>” is already in this folder"`.
@@ -462,6 +526,17 @@ fn counted(n: usize, one: MsgKey, many: MsgKey) -> String {
     phrase_current(key, &[&count])
 }
 
+/// [`counted`] in `lang`, **without** the pseudo marker, for a helper that
+/// joins the count into a larger sentence.
+///
+/// A composed sentence renders its fragments here and wraps once with
+/// [`compose`]; using [`counted`] would put a marker pair inside the line.
+fn counted_in(lang: Lang, n: usize, one: MsgKey, many: MsgKey) -> String {
+    let count = n.to_string();
+    let key = if n == 1 { one } else { many };
+    render(lang, key, &[&count])
+}
+
 /// `"Deleted <label>"`.
 ///
 /// The status bar's undo line after a note or board went to the trash. The
@@ -507,7 +582,7 @@ pub fn scan_ms(ms: f64) -> String {
 /// );
 /// ```
 pub fn recovered_for(note: &str) -> String {
-    format!("Recovered unsaved edits for {note}")
+    phrase_current(MsgKey::RecoveredFor, &[strip_pseudo(note)])
 }
 
 /// `"1 note"`, `"2 boards"`, `"1 note and 2 boards"`.
@@ -523,12 +598,13 @@ pub fn recovered_for(note: &str) -> String {
 /// assert_eq!(muninn_i18n::recovered_copies(1, 2), "1 note and 2 boards");
 /// ```
 pub fn recovered_copies(notes: usize, boards: usize) -> String {
+    let lang = Lang::current();
     match (notes, boards) {
         (notes, 0) => counted(notes, MsgKey::NoteOne, MsgKey::NoteOther),
         (0, boards) => counted(boards, MsgKey::BoardOne, MsgKey::BoardOther),
         (notes, boards) => {
-            let notes = counted(notes, MsgKey::NoteOne, MsgKey::NoteOther);
-            let boards = counted(boards, MsgKey::BoardOne, MsgKey::BoardOther);
+            let notes = counted_in(lang, notes, MsgKey::NoteOne, MsgKey::NoteOther);
+            let boards = counted_in(lang, boards, MsgKey::BoardOne, MsgKey::BoardOther);
             phrase_current(MsgKey::RecoveredCopies, &[&notes, &boards])
         }
     }
@@ -589,9 +665,10 @@ pub fn referrers(n: usize) -> String {
 /// );
 /// ```
 pub fn status_counts(words: usize, links: usize, backlinks: usize) -> String {
-    let words = counted(words, MsgKey::WordOne, MsgKey::WordOther);
-    let links = counted(links, MsgKey::LinkOne, MsgKey::LinkOther);
-    let backlinks = counted(backlinks, MsgKey::BacklinkOne, MsgKey::BacklinkOther);
+    let lang = Lang::current();
+    let words = counted_in(lang, words, MsgKey::WordOne, MsgKey::WordOther);
+    let links = counted_in(lang, links, MsgKey::LinkOne, MsgKey::LinkOther);
+    let backlinks = counted_in(lang, backlinks, MsgKey::BacklinkOne, MsgKey::BacklinkOther);
     phrase_current(MsgKey::StatusCounts, &[&words, &links, &backlinks])
 }
 
@@ -628,7 +705,7 @@ pub fn trash_empty() -> &'static str {
 /// );
 /// ```
 pub fn trash_summary(files: usize, size: &str) -> String {
-    let count = counted(files, MsgKey::NoteOne, MsgKey::NoteOther);
+    let count = counted_in(Lang::current(), files, MsgKey::NoteOne, MsgKey::NoteOther);
     phrase_current(MsgKey::TrashSummary, &[&count, size])
 }
 
@@ -706,9 +783,7 @@ pub fn last_sync(head: &str) -> String {
 /// );
 /// ```
 pub fn device_code(code: &str, url: &str) -> String {
-    format!(
-        "Enter code {code} at {url}. Your browser is opening it; Muninn finishes when GitHub approves."
-    )
+    phrase_current(MsgKey::DeviceCode, &[code, url])
 }
 
 /// `"Could not open a browser. Open this address yourself to continue: <url>"`.
@@ -725,7 +800,7 @@ pub fn device_code(code: &str, url: &str) -> String {
 /// );
 /// ```
 pub fn browser_failed(url: &str) -> String {
-    format!("Could not open a browser. Open this address yourself to continue: {url}")
+    phrase_current(MsgKey::BrowserFailed, &[url])
 }
 
 /// `"Sign-in did not finish: <error> No token was stored."`.
@@ -743,7 +818,7 @@ pub fn browser_failed(url: &str) -> String {
 /// );
 /// ```
 pub fn sign_in_failed(error: impl std::fmt::Display) -> String {
-    format!("Sign-in did not finish: {error} No token was stored.")
+    with_error(MsgKey::SignInFailed, error)
 }
 
 /// `"<n> path(s) excluded by the sync contract."`.
@@ -809,7 +884,7 @@ pub fn sync_conflicts(n: usize, names: &str) -> String {
 /// );
 /// ```
 pub fn tailnet_hosting(port: u16, serve: &str) -> String {
-    format!("Hosting on 127.0.0.1:{port}. On this device run: {serve}")
+    phrase_current(MsgKey::TailnetHosting, &[&port.to_string(), serve])
 }
 
 /// `"Hosting. Run once on this device: <serve>. Use Copy key to give the shared key to your other devices."`.
@@ -826,9 +901,7 @@ pub fn tailnet_hosting(port: u16, serve: &str) -> String {
 /// );
 /// ```
 pub fn tailnet_hosting_ready(serve: &str) -> String {
-    format!(
-        "Hosting. Run once on this device: {serve}. Use Copy key to give the shared key to your other devices."
-    )
+    phrase_current(MsgKey::TailnetHostingReady, &[serve])
 }
 
 /// `"Shared key copied. The clipboard clears in <seconds> seconds; paste it on the joining device."`.
@@ -844,9 +917,7 @@ pub fn tailnet_hosting_ready(serve: &str) -> String {
 /// );
 /// ```
 pub fn shared_key_copied(seconds: u64) -> String {
-    format!(
-        "Shared key copied. The clipboard clears in {seconds} seconds; paste it on the joining device."
-    )
+    phrase_current(MsgKey::SharedKeyCopied, &[&seconds.to_string()])
 }
 
 /// `"The previous connection's credential could not be removed: <error>"`.
@@ -864,7 +935,7 @@ pub fn shared_key_copied(seconds: u64) -> String {
 /// );
 /// ```
 pub fn sync_previous_credential(error: impl std::fmt::Display) -> String {
-    format!("The previous connection's credential could not be removed: {error}")
+    with_error(MsgKey::SyncPreviousCredential, error)
 }
 
 /// `"<error> Nothing was saved."`.
@@ -881,7 +952,7 @@ pub fn sync_previous_credential(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn sync_nothing_saved(error: impl std::fmt::Display) -> String {
-    format!("{error} Nothing was saved.")
+    with_error(MsgKey::SyncNothingSaved, error)
 }
 
 /// `"<error> The old key still works."`.
@@ -897,7 +968,7 @@ pub fn sync_nothing_saved(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn sync_key_rotation_failed(error: impl std::fmt::Display) -> String {
-    format!("{error} The old key still works.")
+    with_error(MsgKey::SyncKeyRotationFailed, error)
 }
 
 /// `"<error> Connect again before Sync Now."`.
@@ -914,7 +985,7 @@ pub fn sync_key_rotation_failed(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn sync_now_after_error(error: impl std::fmt::Display) -> String {
-    format!("{error} Connect again before Sync Now.")
+    with_error(MsgKey::SyncNowAfterError, error)
 }
 
 /// `"Kanban not saved and no recovery copy could be written: <why>. Use Save copy or fix the folder, then quit again."`.
@@ -931,9 +1002,7 @@ pub fn sync_now_after_error(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn kanban_quit_refused(why: &str) -> String {
-    format!(
-        "Kanban not saved and no recovery copy could be written: {why}. Use Save copy or fix the folder, then quit again."
-    )
+    phrase_current(MsgKey::KanbanQuitRefused, &[why])
 }
 
 /// `"could not save a copy: <error>"`.
@@ -951,7 +1020,7 @@ pub fn kanban_quit_refused(why: &str) -> String {
 /// );
 /// ```
 pub fn kanban_could_not_save_copy(error: impl std::fmt::Display) -> String {
-    format!("could not save a copy: {error}")
+    with_error(MsgKey::KanbanCouldNotSaveCopy, error)
 }
 
 /// `"Offline: <detail>"`.
@@ -968,7 +1037,7 @@ pub fn kanban_could_not_save_copy(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn sync_offline(detail: &str) -> String {
-    format!("Offline: {detail}")
+    phrase_current(MsgKey::SyncOffline, &[detail])
 }
 
 /// `"Rate limited; retry after <ms> ms"`.
@@ -982,7 +1051,7 @@ pub fn sync_offline(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_rate_limited_after(ms: u64) -> String {
-    format!("Rate limited; retry after {ms} ms")
+    phrase_current(MsgKey::SyncRateLimitedAfter, &[&ms.to_string()])
 }
 
 /// `"Provider error <status>: <detail>"`.
@@ -998,7 +1067,7 @@ pub fn sync_rate_limited_after(ms: u64) -> String {
 /// );
 /// ```
 pub fn sync_provider_error(status: u16, detail: &str) -> String {
-    format!("Provider error {status}: {detail}")
+    phrase_current(MsgKey::SyncProviderError, &[&status.to_string(), detail])
 }
 
 /// `"Authentication needed: <detail>"`.
@@ -1012,7 +1081,7 @@ pub fn sync_provider_error(status: u16, detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_authentication_needed(detail: &str) -> String {
-    format!("Authentication needed: {detail}")
+    phrase_current(MsgKey::SyncAuthenticationNeeded, &[detail])
 }
 
 /// `"Permission denied: <detail>"`.
@@ -1026,7 +1095,7 @@ pub fn sync_authentication_needed(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_permission_denied(detail: &str) -> String {
-    format!("Permission denied: {detail}")
+    phrase_current(MsgKey::SyncPermissionDenied, &[detail])
 }
 
 /// `"OAuth scope rejected: <detail>"`.
@@ -1040,7 +1109,7 @@ pub fn sync_permission_denied(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_oauth_scope_rejected(detail: &str) -> String {
-    format!("OAuth scope rejected: {detail}")
+    phrase_current(MsgKey::SyncOauthScopeRejected, &[detail])
 }
 
 /// `"Remote scope not found: <detail>"`.
@@ -1054,7 +1123,7 @@ pub fn sync_oauth_scope_rejected(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_remote_scope_not_found(detail: &str) -> String {
-    format!("Remote scope not found: {detail}")
+    phrase_current(MsgKey::SyncRemoteScopeNotFound, &[detail])
 }
 
 /// `"Remote changed: <detail>"`.
@@ -1068,7 +1137,7 @@ pub fn sync_remote_scope_not_found(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_remote_changed(detail: &str) -> String {
-    format!("Remote changed: {detail}")
+    phrase_current(MsgKey::SyncRemoteChanged, &[detail])
 }
 
 /// `"Outcome unknown, reconcile before retrying: <detail>"`.
@@ -1082,7 +1151,7 @@ pub fn sync_remote_changed(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_outcome_unknown(detail: &str) -> String {
-    format!("Outcome unknown, reconcile before retrying: {detail}")
+    phrase_current(MsgKey::SyncOutcomeUnknown, &[detail])
 }
 
 /// `"Remote listing incomplete; refusing to treat that as deletion: <detail>"`.
@@ -1096,7 +1165,7 @@ pub fn sync_outcome_unknown(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_listing_incomplete(detail: &str) -> String {
-    format!("Remote listing incomplete; refusing to treat that as deletion: {detail}")
+    phrase_current(MsgKey::SyncListingIncomplete, &[detail])
 }
 
 /// `"Unsupported <path>: <detail>"`.
@@ -1112,7 +1181,7 @@ pub fn sync_listing_incomplete(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_unsupported(path: &str, detail: &str) -> String {
-    format!("Unsupported {path}: {detail}")
+    phrase_current(MsgKey::SyncUnsupported, &[path, detail])
 }
 
 /// `"Sync limit exceeded: <detail>"`.
@@ -1126,7 +1195,7 @@ pub fn sync_unsupported(path: &str, detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_limit_exceeded(detail: &str) -> String {
-    format!("Sync limit exceeded: {detail}")
+    phrase_current(MsgKey::SyncLimitExceeded, &[detail])
 }
 
 /// `"Credentials unavailable: <detail>"`.
@@ -1140,7 +1209,7 @@ pub fn sync_limit_exceeded(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_credentials_unavailable(detail: &str) -> String {
-    format!("Credentials unavailable: {detail}")
+    phrase_current(MsgKey::SyncCredentialsUnavailable, &[detail])
 }
 
 /// `"Save or discard unsaved edits in <path> before sync can change it"`.
@@ -1154,7 +1223,7 @@ pub fn sync_credentials_unavailable(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_dirty_buffer(path: &str) -> String {
-    format!("Save or discard unsaved edits in {path} before sync can change it")
+    phrase_current(MsgKey::SyncDirtyBuffer, &[path])
 }
 
 /// `"<path> changed during sync; run Sync Now again to replan"`.
@@ -1168,7 +1237,7 @@ pub fn sync_dirty_buffer(path: &str) -> String {
 /// );
 /// ```
 pub fn sync_local_changed(path: &str) -> String {
-    format!("{path} changed during sync; run Sync Now again to replan")
+    phrase_current(MsgKey::SyncLocalChanged, &[path])
 }
 
 /// `"Sync is not configured: <detail>"`.
@@ -1182,7 +1251,7 @@ pub fn sync_local_changed(path: &str) -> String {
 /// );
 /// ```
 pub fn sync_not_configured(detail: &str) -> String {
-    format!("Sync is not configured: {detail}")
+    phrase_current(MsgKey::SyncNotConfigured, &[detail])
 }
 
 /// `"File error: <detail>"`.
@@ -1196,7 +1265,7 @@ pub fn sync_not_configured(detail: &str) -> String {
 /// );
 /// ```
 pub fn sync_file_error(detail: &str) -> String {
-    format!("File error: {detail}")
+    phrase_current(MsgKey::SyncFileError, &[detail])
 }
 
 // ---- Errors, notices and conflict bars ------------------------------------
@@ -1576,7 +1645,8 @@ pub fn refusing_unsafe_recovery_path(rel: &str) -> String {
 /// );
 /// ```
 pub fn links_not_updated(name: Option<&str>) -> String {
-    format!("Links in {} were not updated", name.unwrap_or("the kanban"))
+    let name = name.unwrap_or_else(|| t(Key::KanbanUiThis));
+    phrase_current(MsgKey::LinksNotUpdated, &[strip_pseudo(name)])
 }
 
 /// `"the <what> could not be read"`.
@@ -1594,7 +1664,7 @@ pub fn links_not_updated(name: Option<&str>) -> String {
 /// );
 /// ```
 pub fn could_not_be_read(what: &str) -> String {
-    phrase_current(MsgKey::CouldNotBeRead, &[what])
+    phrase_current(MsgKey::CouldNotBeRead, &[strip_pseudo(what)])
 }
 
 /// `"Renamed, but <n> inbound link file(s) could not be rewritten: <list>"`.
@@ -1608,7 +1678,7 @@ pub fn could_not_be_read(what: &str) -> String {
 /// );
 /// ```
 pub fn renamed_links_failed(count: usize, list: &str) -> String {
-    format!("Renamed, but {count} inbound link file(s) could not be rewritten: {list}")
+    phrase_current(MsgKey::RenamedLinksFailed, &[&count.to_string(), list])
 }
 
 /// `"Moved, but <n> inbound link file(s) could not be rewritten: <list>"`.
@@ -1622,7 +1692,7 @@ pub fn renamed_links_failed(count: usize, list: &str) -> String {
 /// );
 /// ```
 pub fn moved_links_failed(count: usize, list: &str) -> String {
-    format!("Moved, but {count} inbound link file(s) could not be rewritten: {list}")
+    phrase_current(MsgKey::MovedLinksFailed, &[&count.to_string(), list])
 }
 
 /// `"Note <id> is no longer in this vault"`.
@@ -1636,7 +1706,7 @@ pub fn moved_links_failed(count: usize, list: &str) -> String {
 /// );
 /// ```
 pub fn note_not_in_vault(id: usize) -> String {
-    format!("Note {id} is no longer in this vault")
+    phrase_current(MsgKey::NoteNotInVault, &[&id.to_string()])
 }
 
 /// `"Cannot open <target>: no note is selected"`.
@@ -1652,7 +1722,7 @@ pub fn note_not_in_vault(id: usize) -> String {
 /// );
 /// ```
 pub fn cannot_open_without_note(target: &str) -> String {
-    format!("Cannot open {target}: no note is selected")
+    phrase_current(MsgKey::CannotOpenWithoutNote, &[target])
 }
 
 /// `"Attachment <target> is not in this vault — drop it in, or fix the embed"`.
@@ -1666,7 +1736,7 @@ pub fn cannot_open_without_note(target: &str) -> String {
 /// );
 /// ```
 pub fn attachment_not_in_vault(target: &str) -> String {
-    format!("Attachment {target} is not in this vault \u{2014} drop it in, or fix the embed")
+    phrase_current(MsgKey::AttachmentNotInVault, &[target])
 }
 
 /// `"<path> is not a file"`.
@@ -1680,7 +1750,7 @@ pub fn attachment_not_in_vault(target: &str) -> String {
 /// );
 /// ```
 pub fn not_a_file(path: impl std::fmt::Display) -> String {
-    format!("{path} is not a file")
+    phrase_current(MsgKey::NotAFile, &[&path.to_string()])
 }
 
 /// `"<path> no longer exists"`.
@@ -1694,7 +1764,7 @@ pub fn not_a_file(path: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn path_gone(path: impl std::fmt::Display) -> String {
-    format!("{path} no longer exists")
+    phrase_current(MsgKey::PathGone, &[&path.to_string()])
 }
 
 /// `<sentence> <path>: <error>. <hint>` for an OS file action.
@@ -1761,7 +1831,7 @@ pub fn could_not_reveal_file(
 /// );
 /// ```
 pub fn no_file_opener() -> &'static str {
-    "No file opener is documented for this platform; open the file manually"
+    t(Key::ErrorNoFileOpener)
 }
 
 /// `"Could not import into <path>: <error>"`.
@@ -2090,20 +2160,17 @@ pub fn board_quit_refused(why: &str) -> String {
 /// assert_eq!(muninn_i18n::import_notice(1, 1, false), "Imported 1 file · 1 note");
 /// ```
 pub fn import_notice(files: usize, notes: usize, attachments: bool) -> String {
-    let mut text = format!(
-        "Imported {}",
-        counted(files, MsgKey::FileOne, MsgKey::FileOther)
-    );
+    let lang = Lang::current();
+    let files = counted_in(lang, files, MsgKey::FileOne, MsgKey::FileOther);
+    let mut text = render_current(MsgKey::ImportedFiles, &[&files]);
     if notes > 0 {
-        text.push_str(&format!(
-            " · {}",
-            counted(notes, MsgKey::NoteOne, MsgKey::NoteOther)
-        ));
+        let notes = counted_in(lang, notes, MsgKey::NoteOne, MsgKey::NoteOther);
+        text.push_str(&render_current(MsgKey::ImportJoin, &[&notes]));
     }
     if attachments {
-        text.push_str(" · non-Markdown files stay attachments");
+        text.push_str(&render_current(MsgKey::ImportAttachmentsNote, &[]));
     }
-    text
+    compose(text)
 }
 
 /// `"<name>: not a file"`.
@@ -2160,7 +2227,7 @@ pub fn refused_already_exists(name: &str) -> String {
 /// assert_eq!(muninn_i18n::broken_links(3), "3 broken");
 /// ```
 pub fn broken_links(n: usize) -> String {
-    format!("{n} broken")
+    phrase_current(MsgKey::BrokenLinksCount, &[&n.to_string()])
 }
 
 /// `"1 link"`, `"0 links"`, `"2 links"`.
@@ -2186,13 +2253,14 @@ pub fn links(n: usize) -> String {
 /// assert_eq!(muninn_i18n::note_links(1, 2), "1 link · 2 backlinks");
 /// ```
 pub fn note_links(links: usize, backlinks: usize) -> String {
+    let lang = Lang::current();
     match (links, backlinks) {
         (0, 0) => phrase_current(MsgKey::NoLinks, &[]),
         (0, b) => counted(b, MsgKey::BacklinkOne, MsgKey::BacklinkOther),
         (l, 0) => counted(l, MsgKey::LinkOne, MsgKey::LinkOther),
         (l, b) => {
-            let links = counted(l, MsgKey::LinkOne, MsgKey::LinkOther);
-            let backlinks = counted(b, MsgKey::BacklinkOne, MsgKey::BacklinkOther);
+            let links = counted_in(lang, l, MsgKey::LinkOne, MsgKey::LinkOther);
+            let backlinks = counted_in(lang, b, MsgKey::BacklinkOne, MsgKey::BacklinkOther);
             phrase_current(MsgKey::NoteLinks, &[&links, &backlinks])
         }
     }
@@ -2216,10 +2284,11 @@ pub fn note_links(links: usize, backlinks: usize) -> String {
 /// ```
 pub fn note_links_in_folder(folder: &str, links: usize, backlinks: usize) -> String {
     let summary = note_links(links, backlinks);
+    let summary = strip_pseudo(&summary);
     if folder.is_empty() {
-        phrase_current(MsgKey::NoteLinksRoot, &[&summary])
+        phrase_current(MsgKey::NoteLinksRoot, &[summary])
     } else {
-        phrase_current(MsgKey::NoteLinksFolder, &[folder, &summary])
+        phrase_current(MsgKey::NoteLinksFolder, &[folder, summary])
     }
 }
 
@@ -2231,8 +2300,9 @@ pub fn note_links_in_folder(folder: &str, links: usize, backlinks: usize) -> Str
 /// assert_eq!(muninn_i18n::sidebar_summary(12, 3), "12 notes · 3 links");
 /// ```
 pub fn sidebar_summary(notes: usize, links: usize) -> String {
-    let notes = counted(notes, MsgKey::NoteOne, MsgKey::NoteOther);
-    let links = counted(links, MsgKey::LinkOne, MsgKey::LinkOther);
+    let lang = Lang::current();
+    let notes = counted_in(lang, notes, MsgKey::NoteOne, MsgKey::NoteOther);
+    let links = counted_in(lang, links, MsgKey::LinkOne, MsgKey::LinkOther);
     phrase_current(MsgKey::SidebarSummary, &[&notes, &links])
 }
 
@@ -2248,7 +2318,7 @@ pub fn sidebar_summary(notes: usize, links: usize) -> String {
 /// );
 /// ```
 pub fn new_note_in(place: &str) -> String {
-    format!("New note in {place}")
+    phrase_current(MsgKey::NewNoteIn, &[strip_pseudo(place)])
 }
 
 /// `"New folder in <place>"`, where `place` is a folder name or
@@ -2263,7 +2333,7 @@ pub fn new_note_in(place: &str) -> String {
 /// );
 /// ```
 pub fn new_folder_in(place: &str) -> String {
-    format!("New folder in {place}")
+    phrase_current(MsgKey::NewFolderIn, &[strip_pseudo(place)])
 }
 
 /// The theme button's accessible label: `"Theme: Dark — click to cycle
@@ -2278,7 +2348,7 @@ pub fn new_folder_in(place: &str) -> String {
 /// );
 /// ```
 pub fn theme_label(theme: &str) -> String {
-    phrase_current(MsgKey::ThemeLabel, &[theme])
+    phrase_current(MsgKey::ThemeLabel, &[strip_pseudo(theme)])
 }
 
 /// `"2 notes link here"`: the rename/move confirmation's link-impact count.
@@ -2298,7 +2368,7 @@ pub fn link_impact(referrers: usize, place: &str) -> String {
     } else {
         MsgKey::LinkImpactOther
     };
-    phrase_current(key, &[&count, place])
+    phrase_current(key, &[&count, strip_pseudo(place)])
 }
 
 /// `"Show Muninn with <chord>"`, the global-shortcut switch's label.
@@ -2326,7 +2396,7 @@ pub fn show_with_chord(chord: &str) -> String {
 /// );
 /// ```
 pub fn shortcut_failed(chord: &str, error: impl std::fmt::Display) -> String {
-    format!("{chord} could not be registered: {error}")
+    phrase_current(MsgKey::ShortcutFailed, &[chord, &error.to_string()])
 }
 
 /// `"On. <chord> shows Muninn from any app."`.
@@ -2340,7 +2410,7 @@ pub fn shortcut_failed(chord: &str, error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn shortcut_on(chord: &str) -> String {
-    format!("On. {chord} shows Muninn from any app.")
+    phrase_current(MsgKey::ShortcutOn, &[chord])
 }
 
 /// `"Autosave writes 1.50 s after you stop typing."`, with the delay kept to
@@ -2380,7 +2450,7 @@ pub fn version(version: &str) -> String {
 /// );
 /// ```
 pub fn welcome_vault_created(path: &str) -> String {
-    format!("New vault created at {path} — make your first note")
+    phrase_current(MsgKey::WelcomeVaultCreated, &[path])
 }
 
 /// `"Scanning 3/12 notes — Esc to cancel"`.
@@ -2394,7 +2464,10 @@ pub fn welcome_vault_created(path: &str) -> String {
 /// );
 /// ```
 pub fn scan_progress(done: usize, total: usize) -> String {
-    format!("Scanning {done}/{total} notes — Esc to cancel")
+    phrase_current(
+        MsgKey::ScanProgress,
+        &[&done.to_string(), &total.to_string()],
+    )
 }
 
 /// `"Hide the chrome and keep the caret's line centred (<chord>)"`.
@@ -2408,7 +2481,7 @@ pub fn scan_progress(done: usize, total: usize) -> String {
 /// );
 /// ```
 pub fn focus_help(chord: &str) -> String {
-    format!("Hide the chrome and keep the caret's line centred ({chord})")
+    phrase_current(MsgKey::FocusHelp, &[chord])
 }
 
 /// `"Back to the note's chrome (<chord>)"`.
@@ -2422,7 +2495,7 @@ pub fn focus_help(chord: &str) -> String {
 /// );
 /// ```
 pub fn focus_exit_help(chord: &str) -> String {
-    format!("Back to the note's chrome ({chord})")
+    phrase_current(MsgKey::FocusExitHelp, &[chord])
 }
 
 /// `"Kanban · <folder>"`, the palette's folder subtitle for a kanban. `folder`
@@ -2437,7 +2510,7 @@ pub fn focus_exit_help(chord: &str) -> String {
 /// );
 /// ```
 pub fn palette_kanban_folder(folder: &str) -> String {
-    format!("Kanban · {folder}")
+    phrase_current(MsgKey::PaletteKanbanFolder, &[folder])
 }
 
 /// `"1 result"`, `"0 results"`, `"2 results"`.
@@ -2476,7 +2549,10 @@ pub fn elements(n: usize) -> String {
 /// );
 /// ```
 pub fn board_kept_as_is(elements: &str, raw: usize) -> String {
-    format!("{elements} · {raw} kept as-is")
+    phrase_current(
+        MsgKey::BoardKeptAsIs,
+        &[strip_pseudo(elements), &raw.to_string()],
+    )
 }
 
 /// `"Could not read: <error>"`, a board list row's detail.
@@ -2490,7 +2566,7 @@ pub fn board_kept_as_is(elements: &str, raw: usize) -> String {
 /// );
 /// ```
 pub fn board_could_not_read(error: impl std::fmt::Display) -> String {
-    format!("Could not read: {error}")
+    with_error(MsgKey::BoardCouldNotRead, error)
 }
 
 /// The Board canvas's accessible name: `"Board canvas, 2 elements, rectangle
@@ -2510,6 +2586,7 @@ pub fn board_could_not_read(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn board_canvas(elements: &str, tool: &str, selected: usize) -> String {
+    let elements = strip_pseudo(elements);
     if selected > 0 {
         phrase_current(
             MsgKey::BoardCanvasSelected,
@@ -2531,7 +2608,7 @@ pub fn board_canvas(elements: &str, tool: &str, selected: usize) -> String {
 /// );
 /// ```
 pub fn unsaved_saves(chord: &str) -> String {
-    format!("Unsaved · {chord} saves")
+    phrase_current(MsgKey::UnsavedSaves, &[chord])
 }
 
 /// `"<title> (root)"`: a duplicate title, identified by the vault root.
@@ -2542,7 +2619,7 @@ pub fn unsaved_saves(chord: &str) -> String {
 /// assert_eq!(muninn_i18n::note_label_root("Plan"), "Plan (root)");
 /// ```
 pub fn note_label_root(title: &str) -> String {
-    format!("{title} (root)")
+    phrase_current(MsgKey::NoteLabelRoot, &[title])
 }
 
 /// `"<title> (<parent>)"`: a duplicate-title graph node's folder.
@@ -2556,7 +2633,7 @@ pub fn note_label_root(title: &str) -> String {
 /// );
 /// ```
 pub fn graph_node_parent(title: &str, parent: &str) -> String {
-    format!("{title} ({parent})")
+    phrase_current(MsgKey::GraphNodeParent, &[title, parent])
 }
 
 /// `"12 notes · 30 edges"`. The readout keeps the plural words at any count,
@@ -2569,7 +2646,10 @@ pub fn graph_node_parent(title: &str, parent: &str) -> String {
 /// assert_eq!(muninn_i18n::graph_stats(1, 1), "1 notes · 1 edges");
 /// ```
 pub fn graph_stats(nodes: usize, edges: usize) -> String {
-    format!("{nodes} notes · {edges} edges")
+    phrase_current(
+        MsgKey::GraphStats,
+        &[&nodes.to_string(), &edges.to_string()],
+    )
 }
 
 /// `"1 outgoing link · 2 backlinks"`.
@@ -2583,12 +2663,14 @@ pub fn graph_stats(nodes: usize, edges: usize) -> String {
 /// );
 /// ```
 pub fn graph_links(links: usize, backlinks: usize) -> String {
-    let links = counted(
+    let lang = Lang::current();
+    let links = counted_in(
+        lang,
         links,
         MsgKey::GraphOutgoingLinkOne,
         MsgKey::GraphOutgoingLinkOther,
     );
-    let backlinks = counted(backlinks, MsgKey::BacklinkOne, MsgKey::BacklinkOther);
+    let backlinks = counted_in(lang, backlinks, MsgKey::BacklinkOne, MsgKey::BacklinkOther);
     phrase_current(MsgKey::GraphLinks, &[&links, &backlinks])
 }
 
@@ -2604,7 +2686,7 @@ pub fn graph_links(links: usize, backlinks: usize) -> String {
 /// );
 /// ```
 pub fn kanban_filter_from(day: &str) -> String {
-    format!("from {day}")
+    phrase_current(MsgKey::KanbanFilterFrom, &[day])
 }
 
 /// `"to 2026-11-30"`: the kanban filter summary's range end.
@@ -2618,7 +2700,7 @@ pub fn kanban_filter_from(day: &str) -> String {
 /// );
 /// ```
 pub fn kanban_filter_to(day: &str) -> String {
-    format!("to {day}")
+    phrase_current(MsgKey::KanbanFilterTo, &[day])
 }
 
 /// `"2026-11-01 – 2026-11-30"`: the kanban filter summary's full range.
@@ -2632,7 +2714,7 @@ pub fn kanban_filter_to(day: &str) -> String {
 /// );
 /// ```
 pub fn kanban_filter_range(from: &str, to: &str) -> String {
-    format!("{from} – {to}")
+    phrase_current(MsgKey::KanbanFilterRange, &[from, to])
 }
 
 /// `"Day 14"`: the date picker's per-day accessible name.
@@ -2643,7 +2725,7 @@ pub fn kanban_filter_range(from: &str, to: &str) -> String {
 /// assert_eq!(muninn_i18n::day_label(14), "Day 14");
 /// ```
 pub fn day_label(day: u32) -> String {
-    format!("Day {day}")
+    phrase_current(MsgKey::DayLabel, &[&day.to_string()])
 }
 
 /// `"2026-11-14 · today"`: a card date with its relative day.
@@ -2657,7 +2739,7 @@ pub fn day_label(day: u32) -> String {
 /// );
 /// ```
 pub fn relative_date(shown: &str, relative: &str) -> String {
-    format!("{shown} · {relative}")
+    phrase_current(MsgKey::RelativeDate, &[shown, strip_pseudo(relative)])
 }
 
 /// `"1 archived card"`, `"3 archived cards"`.
@@ -2680,7 +2762,7 @@ pub fn archived_cards(n: usize) -> String {
 /// assert_eq!(muninn_i18n::lane_actions("To do"), "Lane actions: To do");
 /// ```
 pub fn lane_actions(title: &str) -> String {
-    format!("Lane actions: {title}")
+    phrase_current(MsgKey::LaneActions, &[title])
 }
 
 /// `"To do controls"`, a lane header's accessible name.
@@ -2691,7 +2773,7 @@ pub fn lane_actions(title: &str) -> String {
 /// assert_eq!(muninn_i18n::lane_controls("To do"), "To do controls");
 /// ```
 pub fn lane_controls(title: &str) -> String {
-    format!("{title} controls")
+    phrase_current(MsgKey::LaneControls, &[title])
 }
 
 /// `"Collapse lane: To do"`.
@@ -2705,7 +2787,7 @@ pub fn lane_controls(title: &str) -> String {
 /// );
 /// ```
 pub fn collapse_lane(title: &str) -> String {
-    format!("Collapse lane: {title}")
+    phrase_current(MsgKey::CollapseLane, &[title])
 }
 
 /// `"Expand lane: To do"`.
@@ -2716,7 +2798,7 @@ pub fn collapse_lane(title: &str) -> String {
 /// assert_eq!(muninn_i18n::expand_lane("To do"), "Expand lane: To do");
 /// ```
 pub fn expand_lane(title: &str) -> String {
-    format!("Expand lane: {title}")
+    phrase_current(MsgKey::ExpandLane, &[title])
 }
 
 /// `"To do cards"`, a lane's card list's accessible name.
@@ -2727,7 +2809,7 @@ pub fn expand_lane(title: &str) -> String {
 /// assert_eq!(muninn_i18n::lane_cards("To do"), "To do cards");
 /// ```
 pub fn lane_cards(title: &str) -> String {
-    format!("{title} cards")
+    phrase_current(MsgKey::LaneCards, &[title])
 }
 
 /// `"Add card to To do"`.
@@ -2738,7 +2820,7 @@ pub fn lane_cards(title: &str) -> String {
 /// assert_eq!(muninn_i18n::add_card_to_lane("To do"), "Add card to To do");
 /// ```
 pub fn add_card_to_lane(title: &str) -> String {
-    format!("Add card to {title}")
+    phrase_current(MsgKey::AddCardToLane, &[title])
 }
 
 /// A lane region's label: `"To do, 3 cards"`, `", over limit"` and
@@ -2757,9 +2839,9 @@ pub fn add_card_to_lane(title: &str) -> String {
 /// );
 /// ```
 pub fn lane_label(title: &str, count: &str, over: bool, done: bool) -> String {
-    let mut label = format!("{title}, {count} cards");
+    let mut label = render_current(MsgKey::LaneLabel, &[title, count]);
     push_lane_flags(&mut label, over, done);
-    label
+    compose(label)
 }
 
 /// The List view's lane region label: `"To do lane, 3 cards"`, with the same
@@ -2774,9 +2856,9 @@ pub fn lane_label(title: &str, count: &str, over: bool, done: bool) -> String {
 /// );
 /// ```
 pub fn lane_region_label(title: &str, count: &str, over: bool, done: bool) -> String {
-    let mut label = format!("{title} lane, {count} cards");
+    let mut label = render_current(MsgKey::LaneRegionLabel, &[title, count]);
     push_lane_flags(&mut label, over, done);
-    label
+    compose(label)
 }
 
 /// A collapsed lane's label: `"To do, 3 cards, collapsed"`, and
@@ -2791,11 +2873,11 @@ pub fn lane_region_label(title: &str, count: &str, over: bool, done: bool) -> St
 /// );
 /// ```
 pub fn collapsed_lane_label(title: &str, count: &str, done: bool) -> String {
-    let mut label = format!("{title}, {count} cards, collapsed");
+    let mut label = render_current(MsgKey::CollapsedLaneLabel, &[title, count]);
     if done {
-        label.push_str(", done lane");
+        label.push_str(&render_current(MsgKey::LaneDone, &[]));
     }
-    label
+    compose(label)
 }
 
 /// `"Collapsed · 3 cards"`, the List view's collapsed lane line.
@@ -2809,15 +2891,15 @@ pub fn collapsed_lane_label(title: &str, count: &str, done: bool) -> String {
 /// );
 /// ```
 pub fn collapsed_cards(n: usize) -> String {
-    format!("Collapsed · {n} cards")
+    phrase_current(MsgKey::CollapsedCards, &[&n.to_string()])
 }
 
 fn push_lane_flags(label: &mut String, over: bool, done: bool) {
     if over {
-        label.push_str(", over limit");
+        label.push_str(&render_current(MsgKey::LaneOverLimit, &[]));
     }
     if done {
-        label.push_str(", done lane");
+        label.push_str(&render_current(MsgKey::LaneDone, &[]));
     }
 }
 
@@ -2833,10 +2915,8 @@ fn push_lane_flags(label: &mut String, over: bool, done: bool) {
 /// );
 /// ```
 pub fn delete_lane(title: &str, cards: usize) -> String {
-    format!(
-        "Delete “{title}”{}? Any note text in it stays in the file.",
-        delete_cards(cards)
-    )
+    let cards = delete_cards(cards);
+    phrase_current(MsgKey::DeleteLane, &[title, &cards])
 }
 
 /// The delete-lane question when note text is lost too:
@@ -2852,17 +2932,18 @@ pub fn delete_lane(title: &str, cards: usize) -> String {
 /// );
 /// ```
 pub fn delete_lane_text(title: &str, cards: usize, lines: &str, preview: &str) -> String {
-    format!(
-        "Delete “{title}”{}? {lines} of note text the board doesn't show will be deleted too, starting “{preview}”.",
-        delete_cards(cards)
+    let cards = delete_cards(cards);
+    phrase_current(
+        MsgKey::DeleteLaneText,
+        &[title, &cards, strip_pseudo(lines), preview],
     )
 }
 
 fn delete_cards(cards: usize) -> String {
     match cards {
         0 => String::new(),
-        1 => " and its card".to_owned(),
-        n => format!(" and its {n} cards"),
+        1 => render_current(MsgKey::DeleteCardsOne, &[]),
+        n => render_current(MsgKey::DeleteCardsOther, &[&n.to_string()]),
     }
 }
 
@@ -2890,9 +2971,9 @@ pub fn lines(n: usize) -> String {
 /// ```
 pub fn card_label(state: &str, first: &str) -> String {
     if first.trim().is_empty() {
-        phrase_current(MsgKey::CardLabelEmpty, &[state])
+        phrase_current(MsgKey::CardLabelEmpty, &[strip_pseudo(state)])
     } else {
-        phrase_current(MsgKey::CardLabel, &[state, first])
+        phrase_current(MsgKey::CardLabel, &[strip_pseudo(state), first])
     }
 }
 
@@ -2909,9 +2990,9 @@ pub fn card_label(state: &str, first: &str) -> String {
 /// ```
 pub fn card_actions(first: &str) -> String {
     if first.trim().is_empty() {
-        "Card actions: empty card".to_owned()
+        phrase_current(MsgKey::CardActionsEmpty, &[])
     } else {
-        format!("Card actions: {first}")
+        phrase_current(MsgKey::CardActions, &[first])
     }
 }
 
@@ -2926,7 +3007,7 @@ pub fn card_actions(first: &str) -> String {
 /// );
 /// ```
 pub fn card_actions_in_lane(lane: &str) -> String {
-    format!("Card actions: empty card in {lane}")
+    phrase_current(MsgKey::CardActionsInLane, &[lane])
 }
 
 /// `"1 of 2 done"`, a checklist's progress readout.
@@ -2937,7 +3018,10 @@ pub fn card_actions_in_lane(lane: &str) -> String {
 /// assert_eq!(muninn_i18n::checklist_progress(1, 2), "1 of 2 done");
 /// ```
 pub fn checklist_progress(done: usize, total: usize) -> String {
-    format!("{done} of {total} done")
+    phrase_current(
+        MsgKey::ChecklistProgress,
+        &[&done.to_string(), &total.to_string()],
+    )
 }
 
 /// `"Checklist, 1 of 2 done"`, the checklist list's accessible name.
@@ -2951,7 +3035,10 @@ pub fn checklist_progress(done: usize, total: usize) -> String {
 /// );
 /// ```
 pub fn checklist_label(done: usize, total: usize) -> String {
-    format!("Checklist, {done} of {total} done")
+    phrase_current(
+        MsgKey::ChecklistLabel,
+        &[&done.to_string(), &total.to_string()],
+    )
 }
 
 /// `"Not saved: <reason>"`, the Board and Kanban page's failed-save status.
@@ -2965,7 +3052,7 @@ pub fn checklist_label(done: usize, total: usize) -> String {
 /// );
 /// ```
 pub fn not_saved(reason: &str) -> String {
-    format!("Not saved: {reason}")
+    phrase_current(MsgKey::NotSaved, &[reason])
 }
 
 /// `"Could not <action>: <error>"`, where `action` is catalogued copy such as
@@ -2982,7 +3069,10 @@ pub fn not_saved(reason: &str) -> String {
 /// );
 /// ```
 pub fn could_not_do(action: &str, error: impl std::fmt::Display) -> String {
-    format!("Could not {action}: {error}")
+    phrase_current(
+        MsgKey::CouldNotDo,
+        &[strip_pseudo(action), &error.to_string()],
+    )
 }
 
 /// `"Could not create a board: <error>"`.
@@ -2996,7 +3086,7 @@ pub fn could_not_do(action: &str, error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn could_not_create_board(error: impl std::fmt::Display) -> String {
-    format!("Could not create a board: {error}")
+    with_error(MsgKey::CouldNotCreateBoard, error)
 }
 
 /// `"Could not create a kanban: <error>"`.
@@ -3010,7 +3100,7 @@ pub fn could_not_create_board(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn could_not_create_kanban(error: impl std::fmt::Display) -> String {
-    format!("Could not create a kanban: {error}")
+    with_error(MsgKey::CouldNotCreateKanban, error)
 }
 
 /// `"Could not convert to a kanban: <error>"`.
@@ -3024,7 +3114,7 @@ pub fn could_not_create_kanban(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn could_not_convert_kanban(error: impl std::fmt::Display) -> String {
-    format!("Could not convert to a kanban: {error}")
+    with_error(MsgKey::CouldNotConvertKanban, error)
 }
 
 /// `"Open <name>"`, a link's tooltip. `name` is the link's own display name.
@@ -3035,7 +3125,7 @@ pub fn could_not_convert_kanban(error: impl std::fmt::Display) -> String {
 /// assert_eq!(muninn_i18n::link_description("Plan"), "Open Plan");
 /// ```
 pub fn link_description(name: &str) -> String {
-    format!("Open {name}")
+    phrase_current(MsgKey::LinkDescription, &[name])
 }
 
 /// `"1 board"`, `"0 boards"`, `"4 boards"`.
@@ -3063,7 +3153,7 @@ pub fn boards(n: usize) -> String {
 /// );
 /// ```
 pub fn card_label_in_lane(lane: &str, state: &str, first: &str) -> String {
-    format!("{lane} · {state}: {first}")
+    phrase_current(MsgKey::CardLabelInLane, &[lane, strip_pseudo(state), first])
 }
 
 /// `"<path> is outside the vault"`.
@@ -3077,7 +3167,7 @@ pub fn card_label_in_lane(lane: &str, state: &str, first: &str) -> String {
 /// );
 /// ```
 pub fn outside_vault(path: impl std::fmt::Display) -> String {
-    format!("{path} is outside the vault")
+    phrase_current(MsgKey::OutsideVault, &[&path.to_string()])
 }
 
 /// `"<path> is not a board inside the vault"`.
@@ -3091,7 +3181,7 @@ pub fn outside_vault(path: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn not_a_board_in_vault(path: impl std::fmt::Display) -> String {
-    format!("{path} is not a board inside the vault")
+    phrase_current(MsgKey::NotABoardInVault, &[&path.to_string()])
 }
 
 /// `"<name> already exists"`.
@@ -3105,7 +3195,7 @@ pub fn not_a_board_in_vault(path: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn already_exists(name: impl std::fmt::Display) -> String {
-    format!("{name} already exists")
+    phrase_current(MsgKey::AlreadyExists, &[&name.to_string()])
 }
 
 /// `"<path> is not a trash path"`.
@@ -3119,7 +3209,7 @@ pub fn already_exists(name: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn not_a_trash_path(path: impl std::fmt::Display) -> String {
-    format!("{path} is not a trash path")
+    phrase_current(MsgKey::NotATrashPath, &[&path.to_string()])
 }
 
 /// `"<path> is no longer in the trash"`.
@@ -3133,7 +3223,7 @@ pub fn not_a_trash_path(path: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn no_longer_in_trash(path: impl std::fmt::Display) -> String {
-    format!("{path} is no longer in the trash")
+    phrase_current(MsgKey::NoLongerInTrash, &[&path.to_string()])
 }
 
 /// `"<path> is not a folder"`.
@@ -3147,7 +3237,7 @@ pub fn no_longer_in_trash(path: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn not_a_folder(path: impl std::fmt::Display) -> String {
-    format!("{path} is not a folder")
+    phrase_current(MsgKey::NotAFolder, &[&path.to_string()])
 }
 
 /// `"a board name <why>"`, where `why` is a catalogued reason such as
@@ -3164,7 +3254,7 @@ pub fn not_a_folder(path: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn board_name_invalid(why: &str) -> String {
-    format!("a board name {why}")
+    phrase_current(MsgKey::BoardNameInvalid, &[strip_pseudo(why)])
 }
 
 /// `"scene <key> must be an object"`.
@@ -3178,7 +3268,7 @@ pub fn board_name_invalid(why: &str) -> String {
 /// );
 /// ```
 pub fn board_scene_key_object(key: &str) -> String {
-    format!("scene {key} must be an object")
+    phrase_current(MsgKey::BoardSceneKeyObject, &[key])
 }
 
 /// `"Renamed, but 2 note(s) embedding it could not be updated: a.md, b.md"`.
@@ -3192,7 +3282,10 @@ pub fn board_scene_key_object(key: &str) -> String {
 /// );
 /// ```
 pub fn board_renamed_embeds_failed(count: usize, list: &str) -> String {
-    format!("Renamed, but {count} note(s) embedding it could not be updated: {list}")
+    phrase_current(
+        MsgKey::BoardRenamedEmbedsFailed,
+        &[&count.to_string(), list],
+    )
 }
 
 /// `"<target> (missing)"`, a board note link whose note is gone.
@@ -3206,7 +3299,7 @@ pub fn board_renamed_embeds_failed(count: usize, list: &str) -> String {
 /// );
 /// ```
 pub fn board_note_link_missing(target: &str) -> String {
-    format!("{target} (missing)")
+    phrase_current(MsgKey::BoardNoteLinkMissing, &[target])
 }
 
 /// `"reg.exe could not run: <error>"`: the Windows login-item command.
@@ -3220,7 +3313,7 @@ pub fn board_note_link_missing(target: &str) -> String {
 /// );
 /// ```
 pub fn autostart_reg_failed(error: impl std::fmt::Display) -> String {
-    format!("reg.exe could not run: {error}")
+    with_error(MsgKey::AutostartRegFailed, error)
 }
 
 /// `"reg.exe exited with <status>"`.
@@ -3234,5 +3327,5 @@ pub fn autostart_reg_failed(error: impl std::fmt::Display) -> String {
 /// );
 /// ```
 pub fn autostart_reg_exit(status: impl std::fmt::Display) -> String {
-    format!("reg.exe exited with {status}")
+    with_error(MsgKey::AutostartRegExit, status)
 }
