@@ -209,6 +209,27 @@ fn german_is_shipped_and_any_de_region_resolves_to_it() {
 }
 
 #[test]
+fn portuguese_is_shipped_and_any_pt_br_region_resolves_to_it() {
+    assert!(
+        Lang::SHIPPED.contains(&Lang::PtBr),
+        "the Portuguese pack is shipped"
+    );
+    assert_eq!(Lang::from_tag("pt-BR"), Some(Lang::PtBr));
+    assert_eq!(Lang::from_tag("pt_BR.UTF-8"), Some(Lang::PtBr));
+    assert_eq!(Lang::from_tag("pt"), Some(Lang::PtBr));
+    assert_eq!(Lang::PtBr.tag(), "pt-BR");
+    assert_eq!(Lang::PtBr.endonym(), "Português (Brasil)");
+    assert_eq!(Lang::PtBr.locale_tag(), LocaleTag::PtBr);
+    // CLDR pt-BR is one/other: only exactly 1 is singular, so 0 is plural.
+    assert_eq!(Lang::PtBr.plural_category(0), PluralCategory::Other);
+    assert_eq!(Lang::PtBr.plural_category(1), PluralCategory::One);
+    assert_eq!(Lang::PtBr.plural_category(2), PluralCategory::Other);
+    // European Portuguese is a separate catalog, not this pack.
+    assert_eq!(LocaleTag::parse("pt-PT"), None);
+    assert_eq!(Lang::from_tag("pt-PT"), None);
+}
+
+#[test]
 fn shipped_languages_are_complete() {
     assert!(!Lang::SHIPPED.is_empty());
     for &lang in Lang::SHIPPED {

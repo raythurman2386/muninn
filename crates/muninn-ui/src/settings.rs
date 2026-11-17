@@ -1473,6 +1473,27 @@ mod tests {
             );
         }
 
+        // Brazilian Portuguese round-trips too; a bare `pt` or a pt_BR
+        // spelling is canonicalised to the shipped pt-BR tag.
+        let portuguese = Settings {
+            ui_language: LanguageChoice::Language(Lang::PtBr),
+            ..Settings::default()
+        };
+        portuguese.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"ui_language\": \"pt-BR\""), "{text}");
+        assert_eq!(
+            Settings::load_from(&home).ui_language,
+            LanguageChoice::Language(Lang::PtBr)
+        );
+        for spelling in ["pt_BR.UTF-8", "pt-BR", "pt"] {
+            assert_eq!(
+                Settings::from_value(&serde_json::json!({ "ui_language": spelling })).ui_language,
+                LanguageChoice::Language(Lang::PtBr),
+                "{spelling}"
+            );
+        }
+
         let system = Settings {
             ui_language: LanguageChoice::System,
             ..Settings::default()
@@ -1509,6 +1530,10 @@ mod tests {
             LanguageChoice::System.resolve(Some(LocaleTag::De)),
             Lang::De
         );
+        assert_eq!(
+            LanguageChoice::System.resolve(Some(LocaleTag::PtBr)),
+            Lang::PtBr
+        );
         // An explicit choice ignores detection.
         assert_eq!(
             LanguageChoice::Language(Lang::EnUs).resolve(Some(LocaleTag::Fr)),
@@ -1521,6 +1546,10 @@ mod tests {
         assert_eq!(
             LanguageChoice::Language(Lang::De).resolve(Some(LocaleTag::EnUs)),
             Lang::De
+        );
+        assert_eq!(
+            LanguageChoice::Language(Lang::PtBr).resolve(Some(LocaleTag::EnUs)),
+            Lang::PtBr
         );
         assert_eq!(
             LanguageChoice::Language(Lang::Es).resolve(Some(LocaleTag::EnUs)),
@@ -1544,7 +1573,11 @@ mod tests {
             LanguageChoice::from_index(4),
             LanguageChoice::Language(Lang::De)
         );
-        assert_eq!(LanguageChoice::from_index(5), LanguageChoice::System);
+        assert_eq!(
+            LanguageChoice::from_index(5),
+            LanguageChoice::Language(Lang::PtBr)
+        );
+        assert_eq!(LanguageChoice::from_index(6), LanguageChoice::System);
         assert_eq!(
             LanguageChoice::from_index(usize::MAX),
             LanguageChoice::System

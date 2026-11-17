@@ -108,10 +108,10 @@ reduced motion, or set up sync.
 Settings › **Appearance** › **Language** picks the interface language. **System** (the default)
 follows your operating system's locale, falling back to English when Muninn has no pack for it.
 The picker lists every shipped language under its own name: **English (United States)**,
-**Español**, **Français** and **Deutsch** ship today, with Brazilian Portuguese arriving as a
-locale pack. An explicit pick is saved in `settings.json` and restored on the next launch, and
-a switch re-renders the window and tray immediately without a restart. Spanish, French and
-German use Monday-first calendars and their own month and weekday names on screen; dates
+**Español**, **Français**, **Deutsch** and **Português (Brasil)**. An explicit pick is saved in
+`settings.json` and restored on the next launch, and a switch re-renders the window and tray
+immediately without a restart. Spanish, French and German use Monday-first calendars, Brazilian
+Portuguese uses Sunday-first, and each has its own month and weekday names on screen; dates
 Muninn writes into a vault stay English and ASCII, so the files do not change with the
 interface language. Only what Muninn draws follows it.
 

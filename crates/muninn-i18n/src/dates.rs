@@ -251,6 +251,45 @@ pub const DE: DateNames = DateNames {
     pm: "PM",
 };
 
+/// Brazilian Portuguese (Brazil) date names: Sunday-first weeks, lower-case
+/// months and weekdays, and Brazil's `AM`/`PM` markers.
+///
+/// Brazil writes day and month names in lower case (`12 de novembro`,
+/// `domingo`), so the table keeps them lower case. `week_start` is Sunday,
+/// the CLDR first day for `pt-BR` and the Brazilian calendar convention. The
+/// narrow row is the CLDR pt-BR one: `D S T Q Q S S`, repeated initials
+/// included; the short row keeps `ter`/`qui` distinct.
+pub const PT_BR: DateNames = DateNames {
+    months: [
+        "janeiro",
+        "fevereiro",
+        "março",
+        "abril",
+        "maio",
+        "junho",
+        "julho",
+        "agosto",
+        "setembro",
+        "outubro",
+        "novembro",
+        "dezembro",
+    ],
+    weekdays: [
+        "domingo",
+        "segunda-feira",
+        "terça-feira",
+        "quarta-feira",
+        "quinta-feira",
+        "sexta-feira",
+        "sábado",
+    ],
+    weekdays_short: ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"],
+    weekdays_narrow: ["D", "S", "T", "Q", "Q", "S", "S"],
+    week_start: 0,
+    am: "AM",
+    pm: "PM",
+};
+
 /// The display date names for `lang`.
 ///
 /// The UI's date sites call this with [`Lang::current`] instead of naming
@@ -271,6 +310,7 @@ pub const DE: DateNames = DateNames {
 /// assert_eq!(date_names(Lang::Es).months[0], "enero");
 /// assert_eq!(date_names(Lang::Fr).months[0], "janvier");
 /// assert_eq!(date_names(Lang::De).months[0], "Januar");
+/// assert_eq!(date_names(Lang::PtBr).months[0], "janeiro");
 /// ```
 #[must_use]
 pub const fn date_names(lang: Lang) -> &'static DateNames {
@@ -279,5 +319,6 @@ pub const fn date_names(lang: Lang) -> &'static DateNames {
         Lang::Es => &ES,
         Lang::Fr => &FR,
         Lang::De => &DE,
+        Lang::PtBr => &PT_BR,
     }
 }
