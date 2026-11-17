@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Generate the 1200x630 Open Graph images from the official logo and the
-// committed Inter path SVGs in scripts/og-text/. Do not hand-edit the PNGs;
-// re-run this script instead.
+// Generate the 1200x630 Open Graph images. The home/default card is the
+// supplied light social card in assets/social-card.png; every other page is
+// composed from the official logo and the committed Inter path SVGs in
+// scripts/og-text/. Do not hand-edit the PNGs; re-run this script instead.
 //
 //   cd site && npm ci && npm run generate:og
 //
@@ -16,6 +17,10 @@ import sharp from 'sharp';
 const SITE_DIR = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const REPO_DIR = dirname(SITE_DIR);
 const LOGO = join(REPO_DIR, 'assets', 'logo.svg');
+// The finished light social card. The home/default OG image is this asset
+// resized to the Open Graph canvas; the per-page cards keep their text
+// wordmarks below.
+const HOME_CARD = join(REPO_DIR, 'assets', 'social-card.png');
 const TEXT_DIR = join(SITE_DIR, 'scripts', 'og-text');
 const PUBLIC = join(SITE_DIR, 'public');
 const OG_DIR = join(PUBLIC, 'assets', 'og');
@@ -49,20 +54,32 @@ const ogLogoTop = Math.round((HEIGHT - LOGO_SIZE) / 2);
 const ogTextLeft = OG_LEFT + LOGO_SIZE + OG_GAP;
 
 for (const page of PAGES) {
-  const wordmark = await sharp(join(TEXT_DIR, page.text)).png().toBuffer();
-  const meta = await sharp(wordmark).metadata();
-  const textTop = Math.round((HEIGHT - (meta.height || 130)) / 2);
-  const textWidth = meta.width || 0;
-  if (ogTextLeft + textWidth > WIDTH - 80) {
-    throw new Error(`${page.slug} wordmark is too wide (${textWidth}px)`);
+  if (page.slug === 'home') {
+    // The supplied social card is already art-directed; only fit it to the
+    // 1200x630 canvas without cropping the wordmark.
+    await sharp(HOME_CARD)
+      .resize(WIDTH, HEIGHT, {
+        fit: 'contain',
+        background: { r: 250, g: 250, b: 250, alpha: 1 },
+      })
+      .png({ compressionLevel: 9 })
+      .toFile(page.dest);
+  } else {
+    const wordmark = await sharp(join(TEXT_DIR, page.text)).png().toBuffer();
+    const meta = await sharp(wordmark).metadata();
+    const textTop = Math.round((HEIGHT - (meta.height || 130)) / 2);
+    const textWidth = meta.width || 0;
+    if (ogTextLeft + textWidth > WIDTH - 80) {
+      throw new Error(`${page.slug} wordmark is too wide (${textWidth}px)`);
+    }
+    await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: BACKGROUND } })
+      .composite([
+        { input: logoOg, left: OG_LEFT, top: ogLogoTop },
+        { input: wordmark, left: ogTextLeft, top: textTop },
+      ])
+      .png({ compressionLevel: 9 })
+      .toFile(page.dest);
   }
-  await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: BACKGROUND } })
-    .composite([
-      { input: logoOg, left: OG_LEFT, top: ogLogoTop },
-      { input: wordmark, left: ogTextLeft, top: textTop },
-    ])
-    .png({ compressionLevel: 9 })
-    .toFile(page.dest);
   const outMeta = await sharp(page.dest).metadata();
   if (outMeta.width !== WIDTH || outMeta.height !== HEIGHT) {
     throw new Error(`${page.dest} is ${outMeta.width}x${outMeta.height}, expected ${WIDTH}x${HEIGHT}`);
