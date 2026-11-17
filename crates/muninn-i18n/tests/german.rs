@@ -145,6 +145,10 @@ const INVARIANT_MESSAGES: &[(&str, &str)] = &[
     ),
     ("msg.import.join", "a leading separator and one count"),
     (
+        "msg.sync.error.offline",
+        "Offline is the established German term",
+    ),
+    (
         "msg.palette.kanban_folder",
         "product term and folder joined by ·",
     ),

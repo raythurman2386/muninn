@@ -95,7 +95,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::CouldNotImportInto => "Konnte nicht nach {0} importieren: {1}",
         MsgKey::RefusingUnsafeRecoveryPath => "Unsicherer Wiederherstellungspfad {0} abgelehnt",
         MsgKey::BoardQuitRefused => {
-            "Tafel nicht gespeichert und es konnte keine Wiederherstellungskopie geschrieben werden: {0}. Verwenden Sie Kopie speichern oder beheben Sie den Ordner, und beenden Sie dann erneut."
+            "Tafel nicht gespeichert und es konnte keine Wiederherstellungskopie geschrieben werden: {0}. Verwenden Sie „Kopie speichern“ oder beheben Sie den Ordner, und beenden Sie dann erneut."
         }
         MsgKey::ScanCancelled => "Scan nach {0} von {1} Notizen abgebrochen",
         MsgKey::ImportRefused => "Import abgelehnt: {0}",
@@ -174,7 +174,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::WelcomeVaultCreated => {
             "Neuer Tresor erstellt unter {0} — erstellen Sie Ihre erste Notiz"
         }
-        MsgKey::ScanProgress => "Scanne {0}/{1} Notizen — Esc zum Abbrechen",
+        MsgKey::ScanProgress => "Scan läuft: {0}/{1} Notizen — Esc zum Abbrechen",
         MsgKey::FocusHelp => {
             "Oberfläche ausblenden und die Zeile des Cursors zentriert halten ({0})"
         }
@@ -204,24 +204,24 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::NoLongerInTrash => "{0} ist nicht mehr im Papierkorb",
         MsgKey::NotAFolder => "{0} ist kein Ordner",
         MsgKey::BoardNameInvalid => "ein Tafelname {0}",
-        MsgKey::BoardSceneKeyObject => "Szenen-{0} muss ein Objekt sein",
+        MsgKey::BoardSceneKeyObject => "{0} in der Szene muss ein Objekt sein",
         MsgKey::BoardRenamedEmbedsFailed => {
             "Umbenannt, aber {0} Notiz(en), die sie einbetten, konnten nicht aktualisiert werden: {1}"
         }
         MsgKey::AutostartRegFailed => "reg.exe konnte nicht ausgeführt werden: {0}",
         MsgKey::AutostartRegExit => "reg.exe wurde mit {0} beendet",
         MsgKey::KanbanQuitRefused => {
-            "Kanban nicht gespeichert und es konnte keine Wiederherstellungskopie geschrieben werden: {0}. Verwenden Sie Kopie speichern oder beheben Sie den Ordner, und beenden Sie dann erneut."
+            "Kanban nicht gespeichert und es konnte keine Wiederherstellungskopie geschrieben werden: {0}. Verwenden Sie „Kopie speichern“ oder beheben Sie den Ordner, und beenden Sie dann erneut."
         }
         MsgKey::KanbanCouldNotSaveCopy => "konnte keine Kopie speichern: {0}",
-        MsgKey::CouldNotDo => "Konnte {0} nicht: {1}",
+        MsgKey::CouldNotDo => "„{0}“ konnte nicht ausgeführt werden: {1}",
         MsgKey::CouldNotCreateBoard => "Konnte keine Tafel erstellen: {0}",
         MsgKey::CouldNotCreateKanban => "Konnte kein Kanban erstellen: {0}",
         MsgKey::CouldNotConvertKanban => "Konnte nicht in ein Kanban umwandeln: {0}",
         MsgKey::BoardKeptAsIs => "{0} · {1} unverändert beibehalten",
         MsgKey::BoardCouldNotRead => "Konnte nicht lesen: {0}",
         MsgKey::BoardNoteLinkMissing => "{0} (fehlt)",
-        MsgKey::UnsavedSaves => "Ungespeichert · {0} Speicherungen",
+        MsgKey::UnsavedSaves => "Ungespeichert · {0} speichert",
         MsgKey::NotSaved => "Nicht gespeichert: {0}",
         MsgKey::LinkDescription => "{0} öffnen",
         MsgKey::NoteLabelRoot => "{0} (Stammverzeichnis)",
@@ -244,7 +244,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::CollapsedCards => "Eingeklappt · {0} Karten",
         MsgKey::DeleteLane => "„{0}“{1} löschen? Jeder Notiztext darin bleibt in der Datei.",
         MsgKey::DeleteLaneText => {
-            "„{0}“{1} löschen? {2} Notiztext, den die Tafel nicht anzeigt, wird ebenfalls gelöscht, beginnend mit „{3}“."
+            "„{0}“{1} löschen? Dabei wird auch Notiztext gelöscht, den die Tafel nicht anzeigt ({2}), beginnend mit „{3}“."
         }
         MsgKey::DeleteCardsOne => " und ihre Karte",
         MsgKey::DeleteCardsOther => " und ihre {0} Karten",
@@ -255,7 +255,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::ChecklistLabel => "Checkliste, {0} von {1} erledigt",
         MsgKey::CardLabelInLane => "{0} · {1}: {2}",
         MsgKey::DeviceCode => {
-            "Geben Sie den Code {0} unter {1} ein. Ihr Browser wird geöffnet; Muninn schließt ab, sobald GitHub zustimmt."
+            "Geben Sie den Code {0} unter {1} ein. Ihr Browser öffnet die Seite bereits; Muninn schließt den Vorgang ab, sobald GitHub zustimmt."
         }
         MsgKey::BrowserFailed => {
             "Konnte keinen Browser öffnen. Öffnen Sie diese Adresse selbst, um fortzufahren: {0}"
@@ -277,14 +277,16 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         }
         MsgKey::SyncNothingSaved => "{0} Es wurde nichts gespeichert.",
         MsgKey::SyncKeyRotationFailed => "{0} Der alte Schlüssel funktioniert weiterhin.",
-        MsgKey::SyncNowAfterError => "{0} Verbinden Sie erneut, bevor Sie Jetzt synchronisieren.",
-        MsgKey::SyncOffline => "Keine Verbindung: {0}",
-        MsgKey::SyncRateLimitedAfter => "Ratenbegrenzt; erneut versuchen nach {0} ms",
+        MsgKey::SyncNowAfterError => {
+            "{0} Verbinden Sie erneut, bevor Sie „Jetzt synchronisieren“ wählen."
+        }
+        MsgKey::SyncOffline => "Offline: {0}",
+        MsgKey::SyncRateLimitedAfter => "Zu viele Anfragen; erneut versuchen nach {0} ms",
         MsgKey::SyncProviderError => "Anbieterfehler {0}: {1}",
         MsgKey::SyncAuthenticationNeeded => "Authentifizierung erforderlich: {0}",
         MsgKey::SyncPermissionDenied => "Zugriff verweigert: {0}",
-        MsgKey::SyncOauthScopeRejected => "OAuth-Bereich abgelehnt: {0}",
-        MsgKey::SyncRemoteScopeNotFound => "Remote-Bereich nicht gefunden: {0}",
+        MsgKey::SyncOauthScopeRejected => "OAuth-Berechtigung abgelehnt: {0}",
+        MsgKey::SyncRemoteScopeNotFound => "Berechtigungsbereich im Remote nicht gefunden: {0}",
         MsgKey::SyncRemoteChanged => "Remote geändert: {0}",
         MsgKey::SyncOutcomeUnknown => {
             "Ergebnis unbekannt, vor dem erneuten Versuch abgleichen: {0}"
@@ -292,7 +294,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncListingIncomplete => {
             "Remote-Auflistung unvollständig; wird nicht als Löschung behandelt: {0}"
         }
-        MsgKey::SyncUnsupported => "Nicht unterstützt {0}: {1}",
+        MsgKey::SyncUnsupported => "{0} wird nicht unterstützt: {1}",
         MsgKey::SyncLimitExceeded => "Synchronisierungslimit überschritten: {0}",
         MsgKey::SyncCredentialsUnavailable => "Anmeldedaten nicht verfügbar: {0}",
         MsgKey::SyncDirtyBuffer => {

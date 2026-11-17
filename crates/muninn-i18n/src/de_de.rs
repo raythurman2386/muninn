@@ -60,7 +60,9 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpEditPasteRichText => {
             "Formatierter Text wird zu Markdown; eine URL über einer Auswahl wird zum Link"
         }
-        Key::HelpEditRenameSelectedNote => "Ausgewählte Notiz umbenennen (in Tafel: die Tafel)",
+        Key::HelpEditRenameSelectedNote => {
+            "Ausgewählte Notiz umbenennen (auf der Tafel: die Tafel)"
+        }
         Key::HelpEditDeleteSelectedNote => "Ausgewählte Notiz löschen",
         Key::HelpGroupKanban => "Kanban",
         Key::HelpKanbanMoveThroughControls => "Durch die Steuerelemente der Tafel navigieren",
@@ -103,7 +105,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpBoardDeleteSelection => "Auswahl löschen",
         Key::HelpBoardSelectEveryElement => "Alle Elemente auswählen",
         Key::HelpBoardLinkToNote => {
-            "Ausgewählte Elemente mit einer Notiz verknüpfen (leer entfernt sie)"
+            "Ausgewählte Elemente mit einer Notiz verknüpfen (leer hebt die Verknüpfung auf)"
         }
         Key::HelpBoardOpenLinkedNote => "Verknüpfte Notiz des ausgewählten Elements öffnen",
         Key::HelpBoardOpenClickedLinkedNote => {
@@ -124,7 +126,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpSidebarOpenFocusedRow => "Fokussierte Zeile öffnen",
         Key::HelpSidebarNoteAndFolderActions => "Aktionen für Notizen und Ordner",
         Key::HelpSidebarSettings => {
-            "Einstellungen (Tresore, Design, Graph-Effekte, Kanban-Standards)"
+            "Einstellungen (Tresore, Design, Graph-Effekte, Kanban-Standardwerte)"
         }
         Key::SettingsTabVaults => "Tresore",
         Key::SettingsTabEditor => "Editor",
@@ -181,7 +183,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::SettingsAppearanceCloseToTrayOff => "Aus. Das Schließen des Fensters beendet Muninn.",
         Key::SettingsAppearanceCloseToTrayOn => {
-            "Ein. Das Schließen des Fensters behält Muninn im Infobereich; Beenden beendet es dort. Wenn kein Infobereich das Symbol anzeigt, lassen Sie dies aus."
+            "Ein. Das Schließen des Fensters lässt Muninn im Infobereich; „Muninn beenden“ im Infobereich beendet es. Wenn kein Tray-Host das Symbol anzeigt, lassen Sie dies aus."
         }
         Key::SettingsAppearanceCloseToTrayNoIcon => {
             "Ein, aber derzeit gibt es kein Symbol im Infobereich, daher beendet das Schließen des Fensters Muninn."
@@ -260,7 +262,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Dieses Gerät hostet. Muninn stellt den Commit-Speicher auf 127.0.0.1 bereit, solange es geöffnet ist; tailscale serve veröffentlicht ihn in Ihrem Tailnet."
         }
         Key::SyncStatusTailnetJoin => {
-            "Einem Host beitreten. Geben Sie den vollständigen MagicDNS-Namen des Hosts ein und fügen Sie den Schlüssel aus Schlüssel kopieren auf dem Host ein."
+            "Einem Host beitreten. Geben Sie den vollständigen MagicDNS-Namen des Hosts ein und fügen Sie den Schlüssel ein, den „Schlüssel kopieren“ auf dem Host liefert."
         }
         Key::SyncStatusConnectedSharedKey => {
             "Verbunden. Der gemeinsame Schlüssel liegt im Anmeldedatenspeicher des Betriebssystems. Jetzt synchronisieren, wenn bereit."
@@ -293,7 +295,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Getrennt. Anmeldedaten für diese Bindung wurden entfernt. Lokale und entfernte Notizen wurden nicht gelöscht."
         }
         Key::SyncStatusSaveBeforeSync => {
-            "Speichern oder klären Sie die geöffnete Notiz, bevor Sie Jetzt synchronisieren. Ungespeicherter Text wird nicht hochgeladen oder überschrieben."
+            "Speichern oder klären Sie die geöffnete Notiz, bevor Sie „Jetzt synchronisieren“ wählen. Ungespeicherter Text wird nicht hochgeladen oder überschrieben."
         }
         Key::SyncStatusAlreadyRunning => "Eine Synchronisierung läuft bereits.",
         Key::SyncStatusFinishSignIn => {
@@ -336,7 +338,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncErrorTimedOutBeforeResponse => {
             "Zeitüberschreitung, bevor der Anbieter geantwortet hat"
         }
-        Key::SyncErrorRateLimited => "Ratenbegrenzt",
+        Key::SyncErrorRateLimited => "Zu viele Anfragen",
         Key::SyncErrorLeaseBusy => "Eine andere Muninn-Instanz schreibt diesen Tresor",
         Key::SyncErrorSettingsNotObject => {
             "Die Synchronisierungseinstellungen waren kein Objekt, daher ist die Synchronisierung aus."
@@ -445,7 +447,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::BoardLinkTitle => "Notiz verknüpfen",
         Key::BoardLinkHelp => "Ausgewählte Elemente mit einer Notiz verknüpfen (⌘L)",
         Key::BoardLinkName => "Notizname oder -pfad",
-        Key::BoardLinkHint => "ein Name oder Tresorpfad · leer entfernt",
+        Key::BoardLinkHint => "ein Name oder Tresorpfad · leer hebt die Verknüpfung auf",
         Key::BoardRenameName => "Tafelname",
         Key::BoardPaletteTitle => "Tafelfarben",
         Key::BoardPaletteHelp => "Strich- und Füllfarben",
@@ -531,7 +533,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanPageTitle => "Kanban",
         Key::KanbanPageViewSwitcher => "Kanban-Ansicht",
         Key::KanbanPageFilter => "Filtern",
-        Key::KanbanPageClearFilters => "Filter löschen",
+        Key::KanbanPageClearFilters => "Filter zurücksetzen",
         Key::KanbanPageOpenMarkdown => "Als Markdown öffnen",
         Key::KanbanPageResolveConflict => "Konflikt beheben",
         Key::KanbanPageEmptyTitle => "Kein Kanban geöffnet",
@@ -580,7 +582,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanFilterAny => "Beliebig",
         Key::KanbanFilterOpen => "Offen",
         Key::KanbanFilterDone => "Erledigt",
-        Key::KanbanFilterClearAll => "Alle löschen",
+        Key::KanbanFilterClearAll => "Alle zurücksetzen",
         Key::KanbanFilterDateError => {
             "Ein Datumsfilter ist YYYY-MM-DD; der Bereich wird nicht angewendet."
         }
@@ -689,11 +691,11 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::KanbanSettingShowOpenMarkdownButtonLabel => "Schaltfläche „Als Markdown öffnen“",
         Key::KanbanSettingShowOpenMarkdownButtonHelp => {
-            "Zeigt die Schaltfläche Als Markdown öffnen in der Kopfzeile."
+            "Zeigt die Schaltfläche „Als Markdown öffnen“ in der Kopfzeile."
         }
         Key::KanbanSettingNewNoteFolderLabel => "Ordner für neue Notizen",
         Key::KanbanSettingNewNoteFolderHelp => {
-            "Ordner für „Neue Notiz aus Karte“; leer verwendet den Ordner, den Neue Notiz verwendet."
+            "Ordner für „Neue Notiz aus Karte“; leer gilt der Ordner, den „Neue Notiz“ verwendet."
         }
         Key::KanbanSettingNewNoteTemplateLabel => "Vorlage für neue Notizen",
         Key::KanbanSettingNewNoteTemplateHelp => {
@@ -703,7 +705,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanSettingKanbanAutosaveHelp => {
             "Speichert ungespeicherte Kanban-Änderungen, sobald sie ruhen. Aus überlässt das Speichern ⌘S."
         }
-        Key::StatusSaving => "Speichern…",
+        Key::StatusSaving => "Wird gespeichert…",
         Key::StatusSaved => "Gespeichert",
         Key::StatusAutosaveOn => "Automatisches Speichern ein",
         Key::StatusRetry => "Erneut versuchen",
@@ -891,7 +893,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::MenuCardActions => "Kartenaktionen",
         Key::MenuLaneActions => "Spaltenaktionen",
         Key::MenuArchiveActions => "Archivaktionen",
-        Key::MenuMoveToLane => "In Spalte verschieben",
+        Key::MenuMoveToLane => "In eine Spalte verschieben",
         Key::LinkImpactHere => "hier",
         Key::LinkImpactIntoFolder => "in diesen Ordner",
         Key::LinkThisNote => "Diese Notiz",
@@ -922,7 +924,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanLaneMoveBottom => "An das Ende verschieben",
         Key::KanbanLaneMovePreviousList => "In die vorherige Liste verschieben",
         Key::KanbanLaneMoveNextList => "In die nächste Liste verschieben",
-        Key::KanbanLaneMoveToList => "In Liste verschieben…",
+        Key::KanbanLaneMoveToList => "In eine Liste verschieben…",
         Key::KanbanLaneInsertBefore => "Spalte davor einfügen",
         Key::KanbanLaneInsertAfter => "Spalte danach einfügen",
         Key::KanbanLaneMoveLeft => "Spalte nach links verschieben",
@@ -976,7 +978,9 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanStatusFileUnchecked => "die Datei konnte nicht geprüft werden",
         Key::KanbanStatusFileRemoved => "die Datei wurde entfernt",
         Key::KanbanStatusFileChanged => "die Datei wurde auf dem Datenträger geändert",
-        Key::KanbanTimeInvalid => "Eine Uhrzeit braucht eine Stunde 0–23 und eine Minute 0–59",
+        Key::KanbanTimeInvalid => {
+            "Eine Uhrzeit braucht eine Stunde von 0 bis 23 und eine Minute von 0 bis 59"
+        }
         Key::KanbanLaneLimitInvalid => "Ein Kartenlimit ist eine ganze Zahl",
         Key::VaultEmptyFolderName => "leerer Ordnername",
         Key::VaultCannotRenameRoot => "das Stammverzeichnis kann nicht umbenannt werden",
