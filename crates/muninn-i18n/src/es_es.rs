@@ -47,7 +47,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::HelpEditHideCardsByTextTagDateOrState => {
             "Ocultar tarjetas por texto, etiqueta, fecha o estado"
         }
-        Key::HelpEditPerBoardOverrides => "Ajustes por tablero, una clave a la vez",
+        Key::HelpEditPerBoardOverrides => "Anulaciones por tablero, un ajuste a la vez",
         Key::HelpEditInsertWikilink => "Insertar un enlace wiki",
         Key::HelpEditNewNote => "Nueva nota",
         Key::HelpEditImportDocument => "Importar un documento como nota",
@@ -97,7 +97,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::HelpBoardDrawShape => "Dibujar esa forma; la herramienta sigue seleccionada",
         Key::HelpBoardPlaceText => "Colocar texto y escribirlo en el sitio con un clic",
-        Key::HelpBoardEditTextLabel => "Escribir o editar su etiqueta de texto",
+        Key::HelpBoardEditTextLabel => "Escribir o editar su rótulo de texto",
         Key::HelpBoardDropTheTool => "Soltar la herramienta (volver a seleccionar)",
         Key::HelpBoardSelectElementOrToggle => {
             "Seleccionar un elemento o añadirlo o quitarlo de la selección"
@@ -210,7 +210,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SettingsGraphReduceMotionOff => "Ahora desactivado.",
         Key::SettingsGraphEffectsTitle => "Efectos del gráfico",
         Key::SettingsGraphEffectsCaption => {
-            "La misma familia de efectos dibuja el borde de la selección y las líneas que toca: Clásico mantiene las líneas simples de siempre, Eléctrico crea arcos en ambas y Desactivado dibuja líneas simples sin capas de efecto. Reducir el movimiento congela la opción que elijas."
+            "La misma familia de efectos dibuja el borde de la selección y las líneas que toca: Clásico mantiene las líneas simples de siempre, Eléctrico crea arcos en el borde y en las líneas y Desactivado dibuja líneas simples sin capas de efecto. Reducir el movimiento congela la opción que elijas."
         }
         Key::SettingsGraphIntensityTitle => "Intensidad del efecto",
         Key::SettingsGraphIntensityCaption => {
@@ -267,7 +267,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Este dispositivo aloja. Muninn sirve el almacén de confirmaciones en 127.0.0.1 mientras está abierto; tailscale serve lo publica en tu tailnet."
         }
         Key::SyncStatusTailnetJoin => {
-            "Únete a un host. Escribe el nombre MagicDNS completo del host y pega la clave de Copiar clave en el host."
+            "Únete a un host. Escribe el nombre MagicDNS completo del host y pega la clave que muestra Copiar clave en el host."
         }
         Key::SyncStatusConnectedSharedKey => {
             "Conectado. La clave compartida está en el almacén de credenciales del sistema operativo. Pulsa Sincronizar ahora cuando quieras."
@@ -284,7 +284,7 @@ pub(crate) fn text(key: Key) -> &'static str {
             "El inicio de sesión terminó después de Desconectar; su token se eliminó."
         }
         Key::SyncStatusTailnetJoined => {
-            "Unido. La clave compartida está en el almacén de credenciales del sistema operativo. Sincronizar ahora llega al host a través de tu tailnet."
+            "Conectado al host. La clave compartida está en el almacén de credenciales del sistema operativo. Sincronizar ahora llega al host a través de tu tailnet."
         }
         Key::SyncStatusSyncStarted => "Sincronización iniciada. La ventana sigue respondiendo.",
         Key::SyncStatusCancelling => {
@@ -474,7 +474,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::GraphPageFindPlaceholder => "Buscar nodo · Enter",
         Key::GraphPageSelected => "SELECCIONADO",
         Key::GraphPageHint => {
-            "Flechas enfocar · Enter abrir · +/- acercar · 0/F ajustar · I aislar · Arrastrar desplazar · Rueda acercar"
+            "Flechas enfocar · Enter abrir · +/- acercar/alejar · 0/F ajustar · I aislar · Arrastrar desplazar · Rueda acercar/alejar"
         }
         Key::GraphScopeGlobal => "Global",
         Key::GraphScopeLocal => "Local",
@@ -483,10 +483,12 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::GraphActionIsolate => "Aislar",
         Key::GraphActionOpenNote => "Abrir nota",
         Key::KanbanSectionDatesTitle => "Fechas y horas",
-        Key::KanbanSectionDatesCaption => "Cómo se escriben y se muestran las fechas y las horas.",
+        Key::KanbanSectionDatesCaption => {
+            "Cómo se teclean, se escriben y se muestran las fechas y las horas."
+        }
         Key::KanbanSectionTagsTitle => "Etiquetas",
         Key::KanbanSectionTagsCaption => {
-            "Etiquetas de las tarjetas y la lista de colores de etiqueta que se conserva."
+            "Chips de etiqueta y la lista de colores de etiqueta que se conserva."
         }
         Key::KanbanSectionMetadataTitle => "Metadatos de la nota vinculada",
         Key::KanbanSectionMetadataCaption => {
@@ -524,8 +526,8 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanUiSourceAppDefault => "Valor predeterminado de la aplicación",
         Key::KanbanUiSourceDefault => "Predeterminado",
         Key::KanbanUiResetBuiltIn => "Restablecer al valor integrado",
-        Key::KanbanUiResetBoard => "Restablecer el tablero",
-        Key::KanbanUiResetAppDefault => "Restablecer el valor predeterminado de la aplicación",
+        Key::KanbanUiResetBoard => "Restablecer el valor del tablero",
+        Key::KanbanUiResetAppDefault => "Restablecer al valor de la aplicación",
         Key::KanbanUiRemove => "Quitar",
         Key::KanbanUiAdd => "Añadir",
         Key::KanbanUiContainsMarkdown => "Contiene Markdown",
@@ -534,7 +536,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanPageTitle => "Kanban",
         Key::KanbanPageViewSwitcher => "Vista de Kanban",
         Key::KanbanPageFilter => "Filtrar",
-        Key::KanbanPageClearFilters => "Borrar filtros",
+        Key::KanbanPageClearFilters => "Limpiar filtros",
         Key::KanbanPageOpenMarkdown => "Abrir como Markdown",
         Key::KanbanPageResolveConflict => "Resolver conflicto",
         Key::KanbanPageEmptyTitle => "Ningún kanban abierto",
@@ -583,7 +585,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanFilterAny => "Cualquiera",
         Key::KanbanFilterOpen => "Abierta",
         Key::KanbanFilterDone => "Completada",
-        Key::KanbanFilterClearAll => "Borrar todo",
+        Key::KanbanFilterClearAll => "Limpiar todo",
         Key::KanbanFilterDateError => "Un filtro de fecha usa YYYY-MM-DD; el rango no se aplica.",
         Key::KanbanFilterPreviousMatch => "Coincidencia anterior",
         Key::KanbanFilterNextMatch => "Coincidencia siguiente",
@@ -652,7 +654,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanSettingArchiveWithDateHelp => {
             "Añade la fecha al texto de la tarjeta cuando se archiva."
         }
-        Key::KanbanSettingArchiveDateFormatLabel => "Formato de fecha del archivo",
+        Key::KanbanSettingArchiveDateFormatLabel => "Formato de fecha del archivado",
         Key::KanbanSettingArchiveDateFormatHelp => {
             "El formato de fecha usado al archivar; los mismos tokens que Formato de fecha."
         }
@@ -684,7 +686,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanSettingShowCheckboxesHelp => "Dibuja la casilla de completado de cada tarjeta.",
         Key::KanbanSettingShowFilterButtonLabel => "Botón de filtro",
         Key::KanbanSettingShowFilterButtonHelp => "Muestra el botón Filtrar de la cabecera.",
-        Key::KanbanSettingShowArchiveButtonLabel => "Botón de archivo",
+        Key::KanbanSettingShowArchiveButtonLabel => "Botón Archivar",
         Key::KanbanSettingShowArchiveButtonHelp => "Muestra el botón Archivar de la cabecera.",
         Key::KanbanSettingShowOpenMarkdownButtonLabel => "Botón Abrir como Markdown",
         Key::KanbanSettingShowOpenMarkdownButtonHelp => {
@@ -886,7 +888,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::MenuArchiveActions => "Acciones del archivo",
         Key::MenuMoveToLane => "Mover a la columna",
         Key::LinkImpactHere => "aquí",
-        Key::LinkImpactIntoFolder => "en esta carpeta",
+        Key::LinkImpactIntoFolder => "para esta carpeta",
         Key::LinkThisNote => "Esta nota",
         Key::LinkNameFallback => "Enlace",
         Key::RenameRewriteLinks => "Reescribir los enlaces al nombre nuevo",
@@ -966,7 +968,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::KanbanStatusNoteGone => "la nota ya no está en la bóveda",
         Key::KanbanStatusFileUnchecked => "no se pudo comprobar el archivo",
         Key::KanbanStatusFileRemoved => "el archivo se eliminó",
-        Key::KanbanStatusFileChanged => "el archivo cambió en el disco",
+        Key::KanbanStatusFileChanged => "el archivo cambió en disco",
         Key::KanbanTimeInvalid => "La hora debe estar entre 0 y 23, y los minutos entre 0 y 59",
         Key::KanbanLaneLimitInvalid => "El límite de tarjetas debe ser un número entero",
         Key::VaultEmptyFolderName => "nombre de carpeta vacío",

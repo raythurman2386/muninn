@@ -91,7 +91,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::CouldNotRestore => "No se pudo restaurar {0}: {1}",
         MsgKey::CouldNotOpenFile => "No se pudo abrir {0}: {1}. {2}",
         MsgKey::CouldNotRevealFile => "No se pudo mostrar {0}: {1}. {2}",
-        MsgKey::CouldNotImportInto => "No se pudo importar en {0}: {1}",
+        MsgKey::CouldNotImportInto => "No se pudo importar a {0}: {1}",
         MsgKey::RefusingUnsafeRecoveryPath => "Se rechaza la ruta de recuperación no segura {0}",
         MsgKey::BoardQuitRefused => {
             "El tablero no se guardó y no se pudo escribir ninguna copia de recuperación: {0}. Usa Guardar copia o corrige la carpeta y vuelve a salir."
@@ -141,7 +141,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         }
         MsgKey::LastSync => "Última sincronización correcta: {0}.",
         MsgKey::SyncStatus => "Sincronización: {0}",
-        MsgKey::SyncExcluded => "Rutas excluidas por el contrato de sincronización: {0}.",
+        MsgKey::SyncExcluded => "{0} ruta(s) excluida(s) por el contrato de sincronización.",
         MsgKey::SyncConflicts => "{0} conflicto(s): {1}. No se sobrescribió nada.",
         MsgKey::SyncConflictCopies => {
             "Una nota cambió en dos dispositivos; se conservaron ambas versiones: {0}."
@@ -254,7 +254,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::ChecklistLabel => "Lista de tareas, {0} de {1} completadas",
         MsgKey::CardLabelInLane => "{0} · {1}: {2}",
         MsgKey::DeviceCode => {
-            "Escribe el código {0} en {1}. Tu navegador lo está abriendo; Muninn termina cuando GitHub lo aprueba."
+            "Escribe el código {0} en {1}. Tu navegador está abriendo esa página; Muninn termina cuando GitHub lo aprueba."
         }
         MsgKey::BrowserFailed => {
             "No se pudo abrir un navegador. Abre esta dirección tú mismo para continuar: {0}"
@@ -272,7 +272,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         }
         MsgKey::SyncNothingSaved => "{0} No se guardó nada.",
         MsgKey::SyncKeyRotationFailed => "{0} La clave anterior sigue funcionando.",
-        MsgKey::SyncNowAfterError => "{0} Vuelve a conectar antes de Sincronizar ahora.",
+        MsgKey::SyncNowAfterError => "{0} Vuelve a conectarte antes de Sincronizar ahora.",
         MsgKey::SyncOffline => "Sin conexión: {0}",
         MsgKey::SyncRateLimitedAfter => "Demasiadas peticiones; reintenta en {0} ms",
         MsgKey::SyncProviderError => "Error del proveedor {0}: {1}",
@@ -296,7 +296,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         }
         MsgKey::SyncNotConfigured => "La sincronización no está configurada: {0}",
         MsgKey::SyncFileError => "Error de archivo: {0}",
-        MsgKey::RecoveredFor => "Se recuperaron cambios sin guardar de {0}",
+        MsgKey::RecoveredFor => "Se recuperaron cambios sin guardar para {0}",
         MsgKey::ImportedFilesOne => "Se importó {0}",
         MsgKey::ImportedFilesOther => "Se importaron {0}",
         MsgKey::ImportJoin => " · {0}",
