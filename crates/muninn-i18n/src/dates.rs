@@ -175,6 +175,43 @@ pub const ES: DateNames = DateNames {
     pm: "p. m.",
 };
 
+/// French (France) date names: Monday-first weeks, lower-case months and
+/// weekdays, and the 24-hour `AM`/`PM` markers.
+///
+/// France writes day and month names in lower case (`12 novembre`,
+/// `dimanche`), so the table keeps them lower case and the display
+/// formatter's capitalisation rules stay as they are. `week_start` is Monday,
+/// the CLDR first day for `fr-FR`. The narrow row is the CLDR French one:
+/// `D L M M J V S`, with two `M`s (mardi and mercredi share an initial), so
+/// the date picker's narrow header repeats `M`. That is expected French
+/// behaviour, not a typo; the two-letter short row keeps `mar` and `mer`
+/// distinct. A 24-hour clock ignores `am`/`pm`, but the table still supplies
+/// the labels a 12-hour surface would ask for.
+pub const FR: DateNames = DateNames {
+    months: [
+        "janvier",
+        "février",
+        "mars",
+        "avril",
+        "mai",
+        "juin",
+        "juillet",
+        "août",
+        "septembre",
+        "octobre",
+        "novembre",
+        "décembre",
+    ],
+    weekdays: [
+        "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
+    ],
+    weekdays_short: ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"],
+    weekdays_narrow: ["D", "L", "M", "M", "J", "V", "S"],
+    week_start: 1,
+    am: "AM",
+    pm: "PM",
+};
+
 /// The display date names for `lang`.
 ///
 /// The UI's date sites call this with [`Lang::current`] instead of naming
@@ -193,11 +230,13 @@ pub const ES: DateNames = DateNames {
 /// assert_eq!(*date_names(Lang::EnUs), EN_US);
 /// assert_eq!(*date_names(Lang::Pseudo), EN_US);
 /// assert_eq!(date_names(Lang::Es).months[0], "enero");
+/// assert_eq!(date_names(Lang::Fr).months[0], "janvier");
 /// ```
 #[must_use]
 pub const fn date_names(lang: Lang) -> &'static DateNames {
     match lang {
         Lang::EnUs | Lang::Pseudo => &EN_US,
         Lang::Es => &ES,
+        Lang::Fr => &FR,
     }
 }

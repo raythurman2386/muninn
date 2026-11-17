@@ -99,9 +99,9 @@ fn runtime(scene: Scene, size: (f32, f32), lang: Lang) -> (TempVault, Runtime<St
     let settings = Settings {
         theme: ThemeMode::Dark,
         // Pseudo is the longest catalog and is longer than any wave-1
-        // translation. Spanish is the first real pack: it must fit too, so the
-        // harness runs both. A German worst-string fixture for #195 belongs
-        // here, beside this setting, once its pack exists.
+        // translation. Spanish and French are real packs: they must fit too,
+        // so the harness runs all three. A German worst-string fixture for
+        // #195 belongs here, beside this setting, once its pack exists.
         ui_language: LanguageChoice::Language(lang),
         ..Settings::default()
     };
@@ -293,9 +293,10 @@ fn every_copy_heavy_screen_fits_its_clips_at_both_sizes() {
         Scene::Settings(SettingsTab::Sync),
         Scene::Settings(SettingsTab::Kanban),
     ];
-    // Pseudo is the growth proxy; Spanish is the shipped pack. Both must fit
-    // at both sizes, and the Spanish run is real copy, not an allowlist.
-    for lang in [Lang::Pseudo, Lang::Es] {
+    // Pseudo is the growth proxy; Spanish and French are the shipped packs.
+    // All must fit at both sizes, and the pack runs are real copy, not an
+    // allowlist.
+    for lang in [Lang::Pseudo, Lang::Es, Lang::Fr] {
         for size in WINDOW_SIZES {
             for scene in scenes {
                 let (_vault, rt) = runtime(scene, size, lang);

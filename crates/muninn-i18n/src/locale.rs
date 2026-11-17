@@ -3,7 +3,7 @@
 //! A [`LocaleTag`] is the identity of a language the UI can be set to, and the
 //! one value detection, persistence and date/plural data all agree on. It is
 //! deliberately *not* [`crate::Lang`]: `Lang` is what has a catalog in this
-//! build, so a tag can be recognised (`fr-FR`) while no French catalog exists
+//! build, so a tag can be recognised (`de-DE`) while no German catalog exists
 //! yet. [`Lang::from_tag`](crate::Lang::from_tag) is the bridge, and it only
 //! accepts shipped variants.
 //!

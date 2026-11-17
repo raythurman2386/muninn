@@ -31,6 +31,16 @@ All notable changes to Muninn are documented here. The format is based on
   `es-*` OS locale uses this pack; Catalan (`ca`) is a separate language and is
   not covered. The catalog is machine-authored and awaits a native or fluent
   reviewer's sign-off before release; the PR records the terminology choices.
+- **French (fr-FR) interface pack (#194).** The second wave-1 language: the
+  picker now lists **Français**, a French desktop resolves to it under
+  **System**, and an explicit pick persists as `"fr-FR"` (any `fr-*` OS locale,
+  including `fr_CA.UTF-8`, uses this pack). Every static key and parameterised
+  sentence is translated, with French typography (U+2019 elisions, a no-break
+  space before `:` `;` `!` `?` and inside « »), CLDR French plurals where 0 and
+  1 are singular (`0 note`, `1 note`, `2 notes`), Monday-first calendars and
+  French month and weekday names. Dates written into files stay English/ASCII.
+  The catalog is machine-authored and awaits a native or fluent reviewer's
+  sign-off before release.
 - **Import documents as notes (#189).** The sidebar's new import icon, `⌘I` / `Ctrl+I`, the
   command palette's **Import document…** action, and a drop of a Word, PowerPoint, Excel,
   OpenDocument, RTF, EPUB, CSV or text PDF file all convert the document into a new Markdown

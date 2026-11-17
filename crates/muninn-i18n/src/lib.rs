@@ -1,26 +1,26 @@
 //! UI copy for Muninn, behind one seam.
 //!
 //! This crate is the catalog **and locale seam**: it holds the keys, the
-//! `en-US` and `es-ES` text, the parameterised copy that cannot be a single
-//! string, the date name tables, locale identity and detection, and wave-1
-//! plural categories. English and Spanish ship; `en-US` output is
-//! byte-identical to the hardcoded string it replaced, and `Lang::SHIPPED`
-//! grows as #194–#196 land their packs.
+//! `en-US`, `es-ES` and `fr-FR` text, the parameterised copy that cannot be a
+//! single string, the date name tables, locale identity and detection, and
+//! wave-1 plural categories. English, Spanish and French ship; `en-US` output
+//! is byte-identical to the hardcoded string it replaced, and `Lang::SHIPPED`
+//! grows as #195–#196 land their packs.
 //!
 //! # Why a typed catalog
 //!
 //! Text is looked up by [`Key`], a `Copy` enum, not by a string id. Each
-//! language catalog is an exhaustive `match` (`en_us`, `es_es`), so adding a
-//! key without text fails `cargo check`; a runtime string lookup would only
-//! fail when the message was drawn. Every function here returns
+//! language catalog is an exhaustive `match` (`en_us`, `es_es`, `fr_fr`), so
+//! adding a key without text fails `cargo check`; a runtime string lookup
+//! would only fail when the message was drawn. Every function here returns
 //! `&'static str` or an owned `String`, so a migrated call site keeps today's
 //! signature and allocates exactly as it does now. See `docs/i18n.md` §5.3 for
 //! the API, §5.4 for the layering rule and §5.8 for the locale seam.
 //!
 //! # What is here
 //!
-//! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. English
-//!   and Spanish are shipped; [`Lang::Pseudo`] is a test-only catalog that
+//! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. English,
+//!   Spanish and French are shipped; [`Lang::Pseudo`] is a test-only catalog that
 //!   brackets the English so a render check can see which drawn strings came
 //!   from here.
 //! - [`LocaleTag`], [`LocaleTag::parse`], [`system_locale`] and [`locale_from`]
@@ -35,12 +35,12 @@
 //! - [`MsgKey`] is the second table, for **parameterised sentences**:
 //!   [`phrase`] / [`phrase_current`] substitute positional arguments into a
 //!   template and return an owned `String`. The English templates are the
-//!   exact `format!` strings the helpers used to hold, the Spanish table
-//!   mirrors them arm for arm, and [`Lang::Pseudo`] wraps the **rendered**
+//!   exact `format!` strings the helpers used to hold, the Spanish and French
+//!   tables mirror them arm for arm, and [`Lang::Pseudo`] wraps the **rendered**
 //!   sentence, so a count or a file name is inside the brackets. Keeping the
 //!   templates in their own table preserves the catalog's no-placeholder rule
-//!   for [`Key`], and `messages`/`messages_es` are exhaustive matches, so a
-//!   message without text fails `cargo check`.
+//!   for [`Key`], and `messages`/`messages_es`/`messages_fr` are exhaustive
+//!   matches, so a message without text fails `cargo check`.
 //! - [`files_skipped`], [`notes`], [`relative_day`], [`restore_to`],
 //!   [`filter_by_tag`], [`board_name_taken`], [`no_note_named`],
 //!   [`linked_note_hint`], [`tray_error`] and [`login_item_error`] are the
@@ -69,7 +69,7 @@
 //!   [`Lang::Pseudo`] brackets the sentence rather than each fragment. An
 //!   argument that is itself catalogued copy or another helper's sentence is
 //!   passed through `strip_pseudo`, so a composed render never nests markers.
-//! - [`DateNames`], [`EN_US`] and [`ES`] carry month/weekday names, short
+//! - [`DateNames`], [`EN_US`], [`ES`] and [`FR`] carry month/weekday names, short
 //!   weekday labels, the first day of the week and `AM`/`PM`. [`date_names`]
 //!   is the language lookup the UI's five display sites use.
 //!   `muninn-core`'s `format_date_for_display`/`format_time_for_display` read
@@ -89,14 +89,16 @@
 mod dates;
 mod en_us;
 mod es_es;
+mod fr_fr;
 mod key;
 mod locale;
 mod messages;
 mod messages_es;
+mod messages_fr;
 mod msg;
 mod pseudo;
 
-pub use dates::{DateNames, EN_US, ES, date_names};
+pub use dates::{DateNames, EN_US, ES, FR, date_names};
 pub use key::Key;
 pub use locale::{LocaleTag, PluralCategory, locale_from, system_locale};
 pub use msg::MsgKey;
@@ -120,6 +122,14 @@ pub enum Lang {
     /// dates. Files stay English and ASCII; only the UI copy, the date display
     /// tables and the parameterised sentences follow it.
     Es,
+    /// French (France), `fr-FR`: the second wave-1 language pack.
+    ///
+    /// Neutral software French with the CLDR French plural rule (0 and 1 are
+    /// singular, 2 and up are plural), Monday-first dates and French
+    /// typography (a no-break space U+00A0 before `:` `;` `!` `?`). Files stay
+    /// English and ASCII; only the UI copy, the date display tables and the
+    /// parameterised sentences follow it.
+    Fr,
     /// Pseudo-localisation: a **test and verification language**, not a
     /// shippable locale.
     ///
@@ -134,11 +144,10 @@ pub enum Lang {
 impl Lang {
     /// The languages a user can pick in Settings › Appearance.
     ///
-    /// This is the picker's data and the completeness tests' loop. Spanish is
-    /// the first wave-1 pack; #194–#196 add French, German and Brazilian
-    /// Portuguese the same way. `Pseudo` is a test language and is never
-    /// listed.
-    pub const SHIPPED: &'static [Lang] = &[Lang::EnUs, Lang::Es];
+    /// This is the picker's data and the completeness tests' loop. English,
+    /// Spanish and French ship; #195–#196 add German and Brazilian Portuguese
+    /// the same way. `Pseudo` is a test language and is never listed.
+    pub const SHIPPED: &'static [Lang] = &[Lang::EnUs, Lang::Es, Lang::Fr];
 
     /// The language's canonical BCP 47 tag, for persistence and for Rune.
     ///
@@ -150,6 +159,7 @@ impl Lang {
         match self {
             Lang::EnUs | Lang::Pseudo => "en-US",
             Lang::Es => "es-ES",
+            Lang::Fr => "fr-FR",
         }
     }
 
@@ -164,6 +174,7 @@ impl Lang {
         match self {
             Lang::EnUs => "English (United States)",
             Lang::Es => "Español",
+            Lang::Fr => "Français",
             Lang::Pseudo => "Pseudo (test)",
         }
     }
@@ -172,14 +183,16 @@ impl Lang {
     /// build has no catalog for it.
     ///
     /// Detection and a saved setting both go through this: a French OS locale
-    /// is recognised by [`LocaleTag::parse`], but `from_tag("fr-FR")` is
-    /// `None` until the French pack adds its variant and catalog.
+    /// is recognised by [`LocaleTag::parse`] and resolves to [`Lang::Fr`],
+    /// while a German or Brazilian Portuguese tag stays `None` until its pack
+    /// lands.
     #[must_use]
     pub fn from_tag(tag: &str) -> Option<Lang> {
         match LocaleTag::parse(tag)? {
             LocaleTag::EnUs => Some(Lang::EnUs),
             LocaleTag::Es => Some(Lang::Es),
-            LocaleTag::Fr | LocaleTag::De | LocaleTag::PtBr => None,
+            LocaleTag::Fr => Some(Lang::Fr),
+            LocaleTag::De | LocaleTag::PtBr => None,
         }
     }
 
@@ -193,6 +206,7 @@ impl Lang {
         match self {
             Lang::EnUs | Lang::Pseudo => LocaleTag::EnUs,
             Lang::Es => LocaleTag::Es,
+            Lang::Fr => LocaleTag::Fr,
         }
     }
 
@@ -205,11 +219,17 @@ impl Lang {
     }
 
     /// This language's encoded value in [`process_lang`]'s atomic.
+    ///
+    /// The numbers are a stable encoding for the process atomic (nothing else
+    /// reads them): a new pack takes the next free slot so an existing value
+    /// never shifts. French takes slot 3, after English (0), Pseudo (1) and
+    /// Spanish (2).
     const fn as_u8(self) -> u8 {
         match self {
             Lang::EnUs => 0,
             Lang::Pseudo => 1,
             Lang::Es => 2,
+            Lang::Fr => 3,
         }
     }
 
@@ -218,6 +238,7 @@ impl Lang {
         match value {
             1 => Lang::Pseudo,
             2 => Lang::Es,
+            3 => Lang::Fr,
             _ => Lang::EnUs,
         }
     }
@@ -345,6 +366,7 @@ pub fn t_in(lang: Lang, key: Key) -> &'static str {
     match lang {
         Lang::EnUs => en_us::text(key),
         Lang::Es => es_es::text(key),
+        Lang::Fr => fr_fr::text(key),
         Lang::Pseudo => pseudo::text(key),
     }
 }
@@ -379,7 +401,7 @@ pub fn t_in(lang: Lang, key: Key) -> &'static str {
 pub fn phrase(lang: Lang, key: MsgKey, args: &[&str]) -> String {
     let rendered = render(lang, key, args);
     match lang {
-        Lang::EnUs | Lang::Es => rendered,
+        Lang::EnUs | Lang::Es | Lang::Fr => rendered,
         Lang::Pseudo => format!("{PSEUDO_OPEN}{rendered}{PSEUDO_CLOSE}"),
     }
 }
@@ -397,6 +419,7 @@ fn render(lang: Lang, key: MsgKey, args: &[&str]) -> String {
     match lang {
         Lang::EnUs | Lang::Pseudo => substitute(messages::template(key), args),
         Lang::Es => substitute(messages_es::template(key), args),
+        Lang::Fr => substitute(messages_fr::template(key), args),
     }
 }
 
@@ -413,7 +436,7 @@ fn render_current(key: MsgKey, args: &[&str]) -> String {
 /// sentence rather than each fragment.
 fn compose(text: String) -> String {
     match Lang::current() {
-        Lang::EnUs | Lang::Es => text,
+        Lang::EnUs | Lang::Es | Lang::Fr => text,
         Lang::Pseudo => format!("{PSEUDO_OPEN}{text}{PSEUDO_CLOSE}"),
     }
 }
