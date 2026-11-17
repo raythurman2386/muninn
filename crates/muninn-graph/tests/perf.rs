@@ -8,7 +8,7 @@
 use std::time::{Duration, Instant};
 
 use muninn_core::testing::big_vault;
-use muninn_graph::Graph;
+use muninn_graph::{Graph, marker_extent};
 
 #[test]
 fn step_p95_fits_the_2000_note_budget() {
@@ -145,6 +145,21 @@ fn settle_time_at_2000_notes_is_reported() {
             settle.residual
         );
     }
+    // The layout that stopped is packed, not merely quiet on top of itself:
+    // no pair is closer than the density-scaled marker envelope (#190).
+    let e = marker_extent(g.nodes.len());
+    let overlaps = (0..g.nodes.len())
+        .flat_map(|i| (i + 1..g.nodes.len()).map(move |j| (i, j)))
+        .filter(|&(i, j)| {
+            let dx = (g.nodes[j].pos[0] - g.nodes[i].pos[0]).abs();
+            let dy = (g.nodes[j].pos[1] - g.nodes[i].pos[1]).abs();
+            dx < e - 0.01 && dy < e - 0.01
+        })
+        .count();
+    assert_eq!(
+        overlaps, 0,
+        "2000-note layout went dormant with {overlaps} pairs inside its {e:.2} pt envelope"
+    );
 }
 
 /// Manual measurement against a real vault copy. The vault is only read;

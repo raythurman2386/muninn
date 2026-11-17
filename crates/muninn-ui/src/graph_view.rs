@@ -7,7 +7,7 @@ use rune::{
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
-use muninn_graph::{NODE_H, NODE_W, WORLD, marker_extent};
+use muninn_graph::{NODE_H, NODE_W, WORLD, cards_fit, marker_extent};
 use muninn_i18n::{
     Key as TextKey, graph_links, graph_node_parent, graph_stats, note_label_root, t,
 };
@@ -23,6 +23,13 @@ const HIGHLIGHT_SPRING: Spring = Spring::new(0.24, 0.0);
 /// labelled chips: at fit-zoom for hundreds of notes full cards are dense,
 /// unreadable, and dominate the instance count. The sample vault fits near
 /// zoom 0.9 so it keeps chips and its snapshots do not change.
+///
+/// Zoom is not the only signal (#190): the layout switches to marker spacing
+/// as soon as full cards cannot all fit (`cards_fit`), which happens at 111
+/// notes. A vault in the 116–118 band fits near 0.61–0.62 — above this zoom —
+/// yet the settled layout only guarantees dot spacing, so drawing every card
+/// there stacked 141–153 card pairs over a dot-packed world. Global therefore
+/// goes dots-only when either the zoom or the density says so.
 const LOD_ZOOM: f32 = 0.6;
 /// Local has only one hop around the selection, so labels stay useful a
 /// little longer; below this only the selection keeps its card.
@@ -45,14 +52,25 @@ const DOT: f32 = 28.0;
 /// be wider than the spacing the settled layout guarantees (#190).
 const DOT_PACK_PAD: f32 = 1.0;
 
+/// Whether Global or Local draws this frame as dots only.
+///
+/// Global is density-aware (#190): the layout only guarantees card spacing
+/// while `cards_fit`, so above it the view draws the [marker envelope] every
+/// zoom. Local has a handful of notes, so its zoom threshold is unchanged.
+///
+/// [marker envelope]: muninn_graph::marker_extent
+fn graph_dots_only(scope: Scope, zoom: f32, visible: usize) -> bool {
+    match scope {
+        Scope::Global => zoom < LOD_ZOOM || !cards_fit(visible),
+        Scope::Local => zoom < LOCAL_LOD_ZOOM,
+    }
+}
+
 pub fn graph(s: &State, k: &Kit) -> El {
     let visible = s.visible_notes();
     let edges = s.graph.visible_edges(&visible);
     let viewport = viewport_rect(s);
-    let dots_only = match s.scope {
-        Scope::Global => s.cam.zoom() < LOD_ZOOM,
-        Scope::Local => s.cam.zoom() < LOCAL_LOD_ZOOM,
-    };
+    let dots_only = graph_dots_only(s.scope, s.cam.zoom(), visible.len());
     let mut world = el()
         .key("graph-world")
         .size(WORLD[0], WORLD[1])
@@ -379,10 +397,7 @@ fn node_size(s: &State, id: usize, as_dot: bool) -> (f32, f32) {
 /// than in the delete path: the same LOD and card-size rules decide both.
 pub(crate) fn node_footprint(s: &State, id: usize) -> Option<([f32; 2], [f32; 2])> {
     let node = s.graph.node(id)?;
-    let dots_only = match s.scope {
-        Scope::Global => s.cam.zoom() < LOD_ZOOM,
-        Scope::Local => s.cam.zoom() < LOCAL_LOD_ZOOM,
-    };
+    let dots_only = graph_dots_only(s.scope, s.cam.zoom(), s.visible_notes().len());
     let focused = s.graph_focus == Some(id);
     let as_dot = node_is_dot(s, id, dots_only, focused);
     let (w, h) = node_size(s, id, as_dot);
@@ -866,6 +881,8 @@ fn hint(k: &Kit) -> El {
 mod tests {
     use super::*;
 
+    use muninn_core::testing::linked_vault;
+
     /// #190: the drawn dot must never be wider than the layout's packed
     /// envelope, so the view cannot show dots overlapping a clean layout.
     #[test]
@@ -883,5 +900,159 @@ mod tests {
         // Below card country the envelope is the full 45 pt marker, so an
         // ordinary dot keeps its long-standing 28 pt size.
         assert_eq!(dot_size(15, 0), DOT);
+    }
+
+    /// #190 slice 2: Global LOD is density-aware, not just zoom-aware. The
+    /// 116–118 band fits at 0.607/0.623 — above the 0.6 zoom cliff — while the
+    /// layout is already in marker country, so the old rule drew every card
+    /// over dot spacing (141/153 overlapping pairs). Local is unchanged.
+    #[test]
+    fn global_lod_flips_on_density_before_the_zoom_cliff() {
+        for (n, fit) in [(116usize, 0.607f32), (118, 0.623)] {
+            assert!(!cards_fit(n), "{n} notes are marker country");
+            assert!(fit >= LOD_ZOOM, "{n} fits above the zoom cliff at {fit}");
+            assert!(
+                graph_dots_only(Scope::Global, fit, n),
+                "{n} notes at fit zoom {fit} must draw dots"
+            );
+            assert!(
+                graph_dots_only(Scope::Global, 1.5, n),
+                "density alone must flip {n} notes to dots, at any zoom"
+            );
+        }
+        // 90 notes still have room for cards, and its ~0.602 fit zoom keeps
+        // them; the zoom rule still applies below the cliff.
+        assert!(cards_fit(90));
+        assert!(!graph_dots_only(Scope::Global, 0.602, 90));
+        assert!(graph_dots_only(Scope::Global, 0.599, 90));
+
+        // Local keeps its old zoom-only rule.
+        assert!(!graph_dots_only(Scope::Local, 0.607, 116));
+        assert!(graph_dots_only(Scope::Local, 0.549, 116));
+    }
+
+    /// Run the graph to the app's settled state (30 quiet frames).
+    fn settle(g: &mut muninn_graph::Graph) {
+        let mut quiet = 0;
+        for _ in 0..4000 {
+            if g.step() {
+                quiet = 0;
+            } else {
+                quiet += 1;
+                if quiet == 30 {
+                    return;
+                }
+            }
+        }
+        panic!("layout must settle within 4000 frames");
+    }
+
+    /// A graph state for `n` notes, settled and in Global scope.
+    fn settled_state(tmp: &muninn_core::testing::TempVault) -> State {
+        let state_home = tmp.path().with_extension("state");
+        let mut s = State::with_state_home(tmp.path().to_path_buf(), state_home);
+        // Above 100 notes the startup scan is chunked (as in the app); finish
+        // it before reading the vault.
+        while s.loading() {
+            s.scan_tick();
+        }
+        s.scope = Scope::Global;
+        s.graph_isolate = false;
+        settle(&mut s.graph);
+        s
+    }
+
+    /// Whether two axis-aligned footprints around node centres overlap.
+    fn footprints_overlap(a: ([f32; 2], [f32; 2]), b: ([f32; 2], [f32; 2])) -> bool {
+        (a.0[0] - b.0[0]).abs() < (a.1[0] + b.1[0]) / 2.0
+            && (a.0[1] - b.0[1]).abs() < (a.1[1] + b.1[1]) / 2.0
+    }
+
+    /// The drawn footprints of `ids` as `node_footprint` would draw them.
+    fn footprints(s: &State, ids: &[usize]) -> Vec<([f32; 2], [f32; 2])> {
+        ids.iter()
+            .map(|&id| node_footprint(s, id).expect("a visible node has a footprint"))
+            .collect()
+    }
+
+    fn assert_no_overlaps(what: &str, shapes: &[([f32; 2], [f32; 2])]) {
+        for i in 0..shapes.len() {
+            for j in i + 1..shapes.len() {
+                assert!(
+                    !footprints_overlap(shapes[i], shapes[j]),
+                    "{what}: footprints {:?} and {:?} overlap",
+                    shapes[i],
+                    shapes[j]
+                );
+            }
+        }
+    }
+
+    /// #190 slice 2: in the 116–118 band only the selected neighbourhood keeps
+    /// a card; every other visible note is a dot, and no two drawn dots overlap
+    /// at fit zoom.
+    #[test]
+    fn the_116_to_118_band_draws_only_the_selected_neighbourhood() {
+        for n in [116usize, 118] {
+            let tmp = linked_vault(n);
+            let mut s = settled_state(&tmp);
+            let selected = s.vault.notes[0].id;
+            s.selected = Some(selected);
+            // The reported fit zooms for the band (issue #190 measurement).
+            s.cam.set([0.0, 0.0], if n == 116 { 0.607 } else { 0.623 });
+            let visible = s.visible_notes();
+            let dots_only = graph_dots_only(s.scope, s.cam.zoom(), visible.len());
+            assert!(dots_only, "{n} notes at fit zoom must draw dots");
+            let mut cards = Vec::new();
+            let mut dots = Vec::new();
+            for &id in &visible {
+                if node_is_dot(&s, id, dots_only, false) {
+                    dots.push(id);
+                } else {
+                    cards.push(id);
+                }
+            }
+            assert!(
+                cards.len() <= 10,
+                "{n} notes draw {} cards; only the selected neighbourhood (≤10) may",
+                cards.len()
+            );
+            assert!(cards.contains(&selected), "the selection keeps its card");
+            assert_eq!(
+                cards.len() + dots.len(),
+                visible.len(),
+                "every visible note is drawn exactly once"
+            );
+            assert!(
+                cards.len() < visible.len(),
+                "{n} notes must not draw every card"
+            );
+            // Dots must not overlap: the layout packs at the marker envelope.
+            // The few neighbourhood cards may still overlap each other — card
+            // space is only reserved below `cards_fit`, and reserving it at
+            // every density is an explicit non-goal of #190.
+            assert_no_overlaps(&format!("{n} dots"), &footprints(&s, &dots));
+        }
+    }
+
+    /// #190 slice 2: 90 notes are still card country, so Global draws all 90
+    /// cards at its fit zoom and the packed layout keeps them apart.
+    #[test]
+    fn a_90_note_global_view_draws_every_card_without_overlap() {
+        let tmp = linked_vault(90);
+        let mut s = settled_state(&tmp);
+        s.selected = None;
+        s.cam.set([0.0, 0.0], 0.602);
+        let visible = s.visible_notes();
+        let dots_only = graph_dots_only(s.scope, s.cam.zoom(), visible.len());
+        assert!(!dots_only, "90 notes keep cards at fit zoom");
+        for &id in &visible {
+            assert!(
+                !node_is_dot(&s, id, dots_only, false),
+                "no node is a dot at 90 notes"
+            );
+        }
+        assert_eq!(visible.len(), 90);
+        assert_no_overlaps("90 cards", &footprints(&s, &visible));
     }
 }

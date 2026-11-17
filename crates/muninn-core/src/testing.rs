@@ -71,9 +71,35 @@ pub fn remove_on_thread_exit(dir: &Path) {
     SCRATCH.with(|s| s.borrow_mut().push(Scratch(dir.to_path_buf())));
 }
 
+/// A dense synthetic vault: `n` notes, each linking to four others at a fixed
+/// stride (+1/+7/+13/+29), so the graph is as link-dense as a real vault's and
+/// the fixture is deterministic. The four strides reproduce #136: at 90 notes
+/// the settled layout drew 61 overlapping card pairs before the settle pack,
+/// and this fixture is what the regression tests measure. It is also the
+/// stride fixture #190 uses for marker packing, spread and edge length.
+#[must_use]
+pub fn linked_vault(n: usize) -> TempVault {
+    let files: Vec<(String, String)> = (0..n)
+        .map(|i| {
+            let mut body = format!("# Note {i:03}\n\n");
+            for step in [1usize, 7, 13, 29] {
+                body.push_str(&format!("[[Note {:03}]] ", (i + step) % n));
+            }
+            body.push('\n');
+            (format!("Note {i:03}.md"), body)
+        })
+        .collect();
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(name, body)| (name.as_str(), body.as_str()))
+        .collect();
+    TempVault::new(&refs)
+}
+
 /// A deterministic synthetic vault of `n` notes: 25-note star groups plus a
 /// chain, so every note links to its group hub and the previous note. Used by
-/// graph and UI performance/settle tests so the fixture lives in one place.
+/// graph and UI performance/settle tests so the fixture lives in one place;
+/// it is the hub shape #190 checks at 1,000 notes.
 #[must_use]
 pub fn big_vault(n: usize) -> TempVault {
     let files: Vec<(String, String)> = (0..n)
