@@ -348,7 +348,8 @@ messages! {
     // A composed sentence is built from these in the current language and
     // wrapped once, so a pseudo render has one marker pair around the line.
     RecoveredFor => "msg.recovered.for", 1;
-    ImportedFiles => "msg.import.imported_files", 1;
+    ImportedFilesOne => "msg.import.imported_files.one", 1;
+    ImportedFilesOther => "msg.import.imported_files.other", 1;
     ImportJoin => "msg.import.join", 1;
     ImportAttachmentsNote => "msg.import.attachments_note", 0;
 }

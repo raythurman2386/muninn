@@ -293,7 +293,8 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncFileError => "File error: {0}",
 
         MsgKey::RecoveredFor => "Recovered unsaved edits for {0}",
-        MsgKey::ImportedFiles => "Imported {0}",
+        MsgKey::ImportedFilesOne => "Imported {0}",
+        MsgKey::ImportedFilesOther => "Imported {0}",
         MsgKey::ImportJoin => " · {0}",
         MsgKey::ImportAttachmentsNote => " · non-Markdown files stay attachments",
     }

@@ -1410,6 +1410,26 @@ mod tests {
             Settings::from_value(&serde_json::json!({ "ui_language": "en_US.UTF-8" })).ui_language,
             LanguageChoice::Language(Lang::EnUs)
         );
+        // The first non-English pack round-trips, and an OS spelling or a
+        // regional variant is canonicalised to the shipped tag.
+        let spanish = Settings {
+            ui_language: LanguageChoice::Language(Lang::Es),
+            ..Settings::default()
+        };
+        spanish.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"ui_language\": \"es-ES\""), "{text}");
+        assert_eq!(
+            Settings::load_from(&home).ui_language,
+            LanguageChoice::Language(Lang::Es)
+        );
+        for spelling in ["es_ES.UTF-8", "es-MX", "es"] {
+            assert_eq!(
+                Settings::from_value(&serde_json::json!({ "ui_language": spelling })).ui_language,
+                LanguageChoice::Language(Lang::Es),
+                "{spelling}"
+            );
+        }
 
         let system = Settings {
             ui_language: LanguageChoice::System,
@@ -1434,6 +1454,11 @@ mod tests {
             LanguageChoice::System.resolve(Some(LocaleTag::EnUs)),
             Lang::EnUs
         );
+        // A shipped pack is resolved.
+        assert_eq!(
+            LanguageChoice::System.resolve(Some(LocaleTag::Es)),
+            Lang::Es
+        );
         // Recognised but not shipped in this build: English, the documented
         // fallback (not a silent French UI).
         assert_eq!(
@@ -1445,12 +1470,21 @@ mod tests {
             LanguageChoice::Language(Lang::EnUs).resolve(Some(LocaleTag::Fr)),
             Lang::EnUs
         );
+        assert_eq!(
+            LanguageChoice::Language(Lang::Es).resolve(Some(LocaleTag::EnUs)),
+            Lang::Es
+        );
         // The picker is System followed by the shipped endonyms.
         assert_eq!(LanguageChoice::from_index(0), LanguageChoice::System);
         assert_eq!(
             LanguageChoice::from_index(1),
             LanguageChoice::Language(Lang::EnUs)
         );
+        assert_eq!(
+            LanguageChoice::from_index(2),
+            LanguageChoice::Language(Lang::Es)
+        );
+        assert_eq!(LanguageChoice::from_index(3), LanguageChoice::System);
         assert_eq!(
             LanguageChoice::from_index(usize::MAX),
             LanguageChoice::System

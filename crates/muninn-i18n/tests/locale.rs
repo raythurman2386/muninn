@@ -26,7 +26,10 @@ fn os_spellings_parse_to_canonical_tags() {
         ("de_DE@euro", Some(LocaleTag::De)),
         ("de-DE", Some(LocaleTag::De)),
         ("es_ES.UTF-8", Some(LocaleTag::Es)),
+        ("es-ES", Some(LocaleTag::Es)),
         ("es", Some(LocaleTag::Es)),
+        ("es_MX.UTF-8", Some(LocaleTag::Es)),
+        ("ES-ar", Some(LocaleTag::Es)),
         ("pt_BR.utf8", Some(LocaleTag::PtBr)),
         ("pt-BR", Some(LocaleTag::PtBr)),
         ("pt", Some(LocaleTag::PtBr)),
@@ -132,7 +135,35 @@ fn plural_categories_at_zero_one_and_two_for_every_wave_one_tag() {
     // which the counted helpers will pick up when the French pack lands.
     assert_eq!(Lang::EnUs.plural_category(1), PluralCategory::One);
     assert_eq!(Lang::EnUs.plural_category(0), PluralCategory::Other);
+    assert_eq!(Lang::Es.plural_category(1), PluralCategory::One);
+    assert_eq!(Lang::Es.plural_category(0), PluralCategory::Other);
     assert_eq!(Lang::Pseudo.locale_tag(), LocaleTag::EnUs);
+}
+
+#[test]
+fn spanish_is_shipped_and_any_es_region_resolves_to_it() {
+    assert!(
+        Lang::SHIPPED.contains(&Lang::Es),
+        "the Spanish pack is shipped"
+    );
+    assert_eq!(Lang::from_tag("es-ES"), Some(Lang::Es));
+    assert_eq!(Lang::from_tag("es_ES.UTF-8"), Some(Lang::Es));
+    assert_eq!(Lang::Es.tag(), "es-ES");
+    assert_eq!(Lang::Es.endonym(), "Español");
+    assert_eq!(Lang::Es.locale_tag(), LocaleTag::Es);
+    // One Spanish catalog serves every Spanish region and a bare `es`: the
+    // alternative is English, which is further away than the es-ES pack.
+    for tag in ["es", "es-MX", "es_AR.UTF-8", "ES"] {
+        assert_eq!(
+            Lang::from_tag(tag),
+            Some(Lang::Es),
+            "{tag} should resolve to the Spanish pack"
+        );
+    }
+    // A still-unshipped language stays unshipped, so the test cannot hide a
+    // missing arm behind the Spanish fallback.
+    assert_eq!(LocaleTag::parse("fr-FR"), Some(LocaleTag::Fr));
+    assert_eq!(Lang::from_tag("fr-FR"), None);
 }
 
 #[test]
