@@ -8,10 +8,11 @@
 //! $XDG_CONFIG_HOME/muninn/settings.json      (fallback: ~/.config/muninn/)
 //! ```
 //!
-//! It stores the theme choice, collapsed sidebar folders, the last vault, the
-//! last note and mode/scope, the recent-vault MRU list, the autosave delay,
-//! the default body inserted into new notes, the Reduce motion choice, and the
-//! graph effect preset with its intensity. Decoding is intentionally forgiving:
+//! It stores the theme choice, the interface language, collapsed sidebar
+//! folders, the last vault, the last note and mode/scope, the recent-vault MRU
+//! list, the autosave delay, the default body inserted into new notes, the
+//! Reduce motion choice, and the graph effect preset with its intensity.
+//! Decoding is intentionally forgiving:
 //! a corrupt or partially-written file falls back to defaults instead of
 //! failing startup. Writes use the same temp-file-then-rename pattern as note
 //! saves, so a crash leaves either the old complete file or the new one.
@@ -25,7 +26,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::{Value, json};
 
 use muninn_core::KanbanDefaults;
-use muninn_i18n::{Key as TextKey, t};
+use muninn_i18n::{Key as TextKey, Lang, LocaleTag, t};
 
 use crate::{BoardSession, BoardView};
 
@@ -146,6 +147,101 @@ fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
             Err(_) => ThemeMode::default(),
         },
         None => ThemeMode::default(),
+    }
+}
+
+/// The UI language choice (Settings › Appearance).
+///
+/// Serialized as `"ui_language": "system" | "<bcp47 tag>"`, such as
+/// `"system"` or `"en-US"`. [`LanguageChoice::System`] is the default and
+/// follows the OS locale; only an explicit choice is persisted as a tag, so a
+/// settings file written by an older build (no key) loads as System.
+///
+/// Loading is deliberately forgiving: an unknown spelling, a tag for a
+/// language this build does not ship (a settings file copied from a newer
+/// build, or `fr-FR` before the French pack), a number, or a malformed value
+/// all load as System. Falling back to the OS or English is safer than
+/// refusing to start, and matches how the other settings enums decode.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LanguageChoice {
+    /// Follow the OS locale, falling back to English.
+    #[default]
+    System,
+    /// An explicit language, which stays selected across restarts.
+    Language(Lang),
+}
+
+impl LanguageChoice {
+    /// The stored spelling: `"system"`, else the language's BCP 47 tag.
+    #[must_use]
+    pub const fn as_key(self) -> &'static str {
+        match self {
+            LanguageChoice::System => "system",
+            LanguageChoice::Language(lang) => lang.tag(),
+        }
+    }
+
+    /// Parse the `ui_language` value. Missing and unknown values are
+    /// [`LanguageChoice::System`]; a known tag must name a shipped language,
+    /// otherwise it is unknown too (see the type docs).
+    #[must_use]
+    pub fn from_key(value: Option<&str>) -> LanguageChoice {
+        match value {
+            Some(tag) if tag != "system" => Lang::from_tag(tag)
+                .map_or(LanguageChoice::System, |lang| {
+                    LanguageChoice::Language(lang)
+                }),
+            _ => LanguageChoice::System,
+        }
+    }
+
+    /// The picker's label: catalog copy for System, the endonym otherwise.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            LanguageChoice::System => t(TextKey::SettingsAppearanceLanguageSystem),
+            LanguageChoice::Language(lang) => lang.endonym(),
+        }
+    }
+
+    /// Position in the picker: System, then [`Lang::SHIPPED`] in order.
+    #[must_use]
+    pub fn index(self) -> usize {
+        match self {
+            LanguageChoice::System => 0,
+            LanguageChoice::Language(lang) => Lang::SHIPPED
+                .iter()
+                .position(|shipped| *shipped == lang)
+                .map_or(0, |index| index + 1),
+        }
+    }
+
+    /// The choice at a picker position. Out-of-range positions, and a
+    /// non-shipped language (only reachable from a test), are System.
+    #[must_use]
+    pub fn from_index(index: usize) -> LanguageChoice {
+        index
+            .checked_sub(1)
+            .and_then(|position| Lang::SHIPPED.get(position))
+            .map_or(LanguageChoice::System, |lang| {
+                LanguageChoice::Language(*lang)
+            })
+    }
+
+    /// The language to draw in: an explicit choice as-is, System as the
+    /// detected locale when this build ships it, else English.
+    ///
+    /// `detected` is a parameter rather than an environment read so tests can
+    /// exercise System without mutating the process environment. The app
+    /// passes [`muninn_i18n::system_locale`].
+    #[must_use]
+    pub fn resolve(self, detected: Option<LocaleTag>) -> Lang {
+        match self {
+            LanguageChoice::System => detected
+                .and_then(|tag| Lang::from_tag(tag.tag()))
+                .unwrap_or(Lang::EnUs),
+            LanguageChoice::Language(lang) => lang,
+        }
     }
 }
 
@@ -633,6 +729,10 @@ pub struct Settings {
     /// [`GraphEffectIntensity::Balanced`], the look every file had before the
     /// setting existed.
     pub graph_effect_intensity: GraphEffectIntensity,
+    /// Settings › Appearance › Language. Defaults to
+    /// [`LanguageChoice::System`], so a fresh install follows the OS locale;
+    /// only an explicit pick is persisted as a tag.
+    pub ui_language: LanguageChoice,
 }
 
 impl Default for Settings {
@@ -660,6 +760,7 @@ impl Default for Settings {
             kanban_defaults: KanbanDefaults::default(),
             graph_effects: GraphEffects::Classic,
             graph_effect_intensity: GraphEffectIntensity::Balanced,
+            ui_language: LanguageChoice::System,
         }
     }
 }
@@ -724,6 +825,7 @@ impl Settings {
             "kanban_autosave": self.kanban_autosave,
             "graph_effects": self.graph_effects.as_key(),
             "graph_effect_intensity": self.graph_effect_intensity.as_key(),
+            "ui_language": self.ui_language.as_key(),
             "board": self.board.as_ref().map(|b| {
                 let mut value = json!({ "rel": b.rel });
                 if let Some(view) = b.view {
@@ -833,6 +935,8 @@ impl Settings {
         settings.graph_effect_intensity = GraphEffectIntensity::from_key(
             value.get("graph_effect_intensity").and_then(Value::as_str),
         );
+        settings.ui_language =
+            LanguageChoice::from_key(value.get("ui_language").and_then(Value::as_str));
         settings
     }
 }
@@ -964,6 +1068,7 @@ mod tests {
             },
             graph_effects: GraphEffects::Electric,
             graph_effect_intensity: GraphEffectIntensity::Intense,
+            ui_language: LanguageChoice::Language(Lang::EnUs),
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
@@ -1257,6 +1362,98 @@ mod tests {
             Settings::from_value(&serde_json::json!({ "graph_effect_intensity": "ludicrous" }))
                 .graph_effect_intensity,
             GraphEffectIntensity::Balanced
+        );
+    }
+
+    #[test]
+    fn language_defaults_to_system_and_old_files_have_no_key() {
+        assert_eq!(Settings::default().ui_language, LanguageChoice::System);
+        // A file written before this setting existed has no key at all.
+        assert_eq!(
+            Settings::from_value(&serde_json::json!({ "theme": "dark" })).ui_language,
+            LanguageChoice::System
+        );
+        assert_eq!(LanguageChoice::from_key(None), LanguageChoice::System);
+        assert_eq!(
+            LanguageChoice::from_key(Some("system")),
+            LanguageChoice::System
+        );
+    }
+
+    #[test]
+    fn language_round_trips_and_corrupt_values_are_system() {
+        let home = temp_config("language");
+        let settings = Settings {
+            ui_language: LanguageChoice::Language(Lang::EnUs),
+            ..Settings::default()
+        };
+        settings.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"ui_language\": \"en-US\""), "{text}");
+        assert_eq!(Settings::load_from(&home).ui_language, settings.ui_language);
+
+        for bad in [
+            serde_json::json!({ "ui_language": "fr-FR" }),
+            serde_json::json!({ "ui_language": "klingon" }),
+            serde_json::json!({ "ui_language": 3 }),
+            serde_json::json!({ "ui_language": null }),
+        ] {
+            assert_eq!(
+                Settings::from_value(&bad).ui_language,
+                LanguageChoice::System,
+                "{bad}"
+            );
+        }
+        // An OS spelling of a shipped language is recognised and later written
+        // back in canonical form.
+        assert_eq!(
+            Settings::from_value(&serde_json::json!({ "ui_language": "en_US.UTF-8" })).ui_language,
+            LanguageChoice::Language(Lang::EnUs)
+        );
+
+        let system = Settings {
+            ui_language: LanguageChoice::System,
+            ..Settings::default()
+        };
+        system.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"ui_language\": \"system\""), "{text}");
+        assert_eq!(
+            Settings::load_from(&home).ui_language,
+            LanguageChoice::System
+        );
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn system_resolves_only_shipped_languages() {
+        use muninn_i18n::LocaleTag;
+
+        assert_eq!(LanguageChoice::System.resolve(None), Lang::EnUs);
+        assert_eq!(
+            LanguageChoice::System.resolve(Some(LocaleTag::EnUs)),
+            Lang::EnUs
+        );
+        // Recognised but not shipped in this build: English, the documented
+        // fallback (not a silent French UI).
+        assert_eq!(
+            LanguageChoice::System.resolve(Some(LocaleTag::Fr)),
+            Lang::EnUs
+        );
+        // An explicit choice ignores detection.
+        assert_eq!(
+            LanguageChoice::Language(Lang::EnUs).resolve(Some(LocaleTag::Fr)),
+            Lang::EnUs
+        );
+        // The picker is System followed by the shipped endonyms.
+        assert_eq!(LanguageChoice::from_index(0), LanguageChoice::System);
+        assert_eq!(
+            LanguageChoice::from_index(1),
+            LanguageChoice::Language(Lang::EnUs)
+        );
+        assert_eq!(
+            LanguageChoice::from_index(usize::MAX),
+            LanguageChoice::System
         );
     }
 

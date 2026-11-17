@@ -327,6 +327,11 @@ fn run_tray_action(handle: &rune::AppHandle<State>, action: TrayAction) {
 fn init() -> State {
     let settings = Settings::load();
     let mut state = State::new(vault_path(rune::extra_args(), &settings));
+    // Apply the saved language before the tray icon (installed by the caller
+    // right after this) and the first frame. `State::new` already applied it;
+    // repeating it here makes the startup order explicit and keeps a non-app
+    // host on the same path.
+    state.apply_saved_language();
     state.set_trace(TRACE.load(Ordering::Relaxed));
     if let Some(theme) = THEME.lock().expect("theme lock").take() {
         state.theme = theme;

@@ -8,6 +8,19 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- **Interface language setting (#192).** Settings › Appearance › Language lists
+  **System** (the default) and every shipped language by its own name. System
+  follows the OS locale (`LC_ALL`, `LC_MESSAGES`, then `LANG` on Linux; English
+  when the platform exposes none), and an explicit pick is saved in
+  `settings.json` and restored at startup. Switching re-renders the window and
+  rebuilds the tray menu immediately, without a restart, and sets Rune's text
+  shaping language. Only English ships in this release; the locale seam
+  (plural categories, date tables, overflow geometry checks) is what the
+  language packs fill in. At window widths below 1000 points the Kanban
+  header's action buttons drop their visible words (keeping the icon,
+  tooltip and accessible name) so the header fits at the 840-point minimum in
+  English and in longer translations. Rune's own field/spellcheck menu labels
+  stay English because the pinned Rune revision has no `labels::set_locale`.
 - **Import documents as notes (#189).** The sidebar's new import icon, `⌘I` / `Ctrl+I`, the
   command palette's **Import document…** action, and a drop of a Word, PowerPoint, Excel,
   OpenDocument, RTF, EPUB, CSV or text PDF file all convert the document into a new Markdown

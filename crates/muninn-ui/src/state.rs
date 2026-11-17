@@ -13,7 +13,7 @@ use muninn_core::{
 };
 use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
 use muninn_i18n::{
-    Key as TextKey, attachment_not_in_vault, cannot_import, cannot_open_without_note,
+    Key as TextKey, LocaleTag, attachment_not_in_vault, cannot_import, cannot_open_without_note,
     could_not_add_note_template, could_not_create_folder, could_not_create_note,
     could_not_create_vault, could_not_delete_folder, could_not_delete_note, could_not_empty_trash,
     could_not_import_into, could_not_move_note, could_not_open_file, could_not_open_vault,
@@ -32,8 +32,8 @@ use crate::camera::{Camera, CameraGlide};
 use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
 use crate::settings::{
-    GraphEffectIntensity, GraphEffects, ReduceMotion, Settings, ThemeMode, clamp_note_template,
-    config_home,
+    GraphEffectIntensity, GraphEffects, LanguageChoice, ReduceMotion, Settings, ThemeMode,
+    clamp_note_template, config_home,
 };
 use crate::watch::{self, VaultSnapshot};
 
@@ -1182,6 +1182,11 @@ impl State {
         // The Sync tab starts on its defaults; show what this vault is
         // actually bound to instead of "Not connected".
         state.reflect_sync_binding();
+        // Apply the saved language before the first frame, so a non-app host
+        // (a test, an embedding) draws the persisted choice too. The app also
+        // calls `apply_saved_language` in `init` to make the order explicit:
+        // it runs before the tray and UI are built.
+        state.apply_saved_language();
         state
     }
 
@@ -2695,6 +2700,57 @@ impl State {
         }
         self.theme = theme;
         self.save_settings();
+    }
+
+    /// The UI language choice from Settings (not the resolved language).
+    #[must_use]
+    pub fn ui_language(&self) -> LanguageChoice {
+        self.settings.ui_language
+    }
+
+    /// Set and persist the UI language, and switch the running app now.
+    ///
+    /// `System` resolves through the OS locale (with English as the fallback);
+    /// an explicit choice stays selected across restarts. The switch sets both
+    /// language seams — the process default for the tray and any worker, and
+    /// this thread's override for the UI, which is about to redraw — and
+    /// already-selected copy in the tray is rebuilt (`sync_tray` only refreshes
+    /// when the menu changed). Rune's text shaping follows the tag through
+    /// `rune::text::set_language`; the next frame renders the new catalog.
+    ///
+    /// Rune at the pinned revision has no `rune::labels::set_locale` (it lands
+    /// in a later revision), so Rune's own field and spellcheck menus stay
+    /// English until the Rune pin moves. See `docs/i18n.md`.
+    pub fn set_ui_language(&mut self, choice: LanguageChoice) {
+        self.settings.ui_language = choice;
+        self.apply_language(muninn_i18n::system_locale());
+        self.save_settings();
+        // Rebuild the tray menu now: its labels are catalog copy, and the
+        // menu only changes when `sync_tray` sees different text.
+        self.sync_tray();
+    }
+
+    /// Apply the saved language without writing settings back.
+    ///
+    /// [`State::new`]/[`State::with_settings`] call this before returning, and
+    /// `muninn-app` calls it again in `init` before the tray and window exist.
+    /// It never persists `System` as a tag: the saved file keeps the choice.
+    pub fn apply_saved_language(&mut self) {
+        self.apply_language(muninn_i18n::system_locale());
+    }
+
+    /// Resolve `self.settings.ui_language` against `detected` and set both
+    /// language seams. Private because the public paths differ in persistence:
+    /// [`State::set_ui_language`] writes the choice, [`State::apply_saved_language`]
+    /// does not. Tests exercise [`LanguageChoice::resolve`] for the System path.
+    fn apply_language(&self, detected: Option<LocaleTag>) {
+        let lang = self.settings.ui_language.resolve(detected);
+        muninn_i18n::set_process_lang(lang);
+        muninn_i18n::set_lang(lang);
+        // #160: shaping and CJK fallback follow the interface language. The
+        // pinned Rune has no `labels::set_locale`, so this is the whole Rune
+        // hook today.
+        rune::text::set_language(Some(lang.tag()));
     }
 
     /// The Reduce motion choice from Settings (not the resolved value).
