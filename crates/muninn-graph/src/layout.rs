@@ -447,11 +447,14 @@ impl Graph {
         if self.cooling() {
             moved |= self.pack();
         }
-        // #144: a dense vault no longer settling by the motion gate still has to
-        // stop; the stall probe and the hard bound guarantee it does. The guard
-        // also watches a packed layout whose envelope the pack could not meet,
-        // so it can still reach the hard bound (#190).
-        if dense && self.heat == 0.0 && !self.frozen {
+        // #144/#190: any cooled layout in the scaled-link regime has to stop.
+        // Above ~60 notes the density-scaled link length changes the force
+        // balance, and the small-vault path (n <= EXHAUSTIVE_LIMIT) has no
+        // dormancy gate of its own; on Windows a 116-note layout cycled past
+        // 12,000 frames. The guard is motion/stillness based, so it freezes a
+        // layout that is already still without moving it; the 15-note sample
+        // keeps the unscaled link and never enters this branch.
+        if self.heat == 0.0 && !self.frozen && link_len(self.nodes.len()) < LINK_LEN {
             self.guard_stall();
         }
         moved
