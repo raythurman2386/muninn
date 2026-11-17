@@ -156,6 +156,24 @@ fn the_language_setting_round_trips_and_loads_forgivingly() {
         "a detected region is persisted as the shipped tag: {text}"
     );
 
+    // German round-trips too; an Austrian OS spelling is canonicalised to
+    // the shipped de-DE tag.
+    write(r#"{"ui_language":"de-DE"}"#);
+    let loaded = Settings::load_from(&home);
+    assert_eq!(loaded.ui_language, LanguageChoice::Language(Lang::De));
+    loaded.save_to(&home).expect("save");
+    let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
+    assert!(text.contains("\"ui_language\": \"de-DE\""), "{text}");
+    write(r#"{"ui_language":"de_AT.UTF-8"}"#);
+    let loaded = Settings::load_from(&home);
+    assert_eq!(loaded.ui_language, LanguageChoice::Language(Lang::De));
+    loaded.save_to(&home).expect("save");
+    let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
+    assert!(
+        text.contains("\"ui_language\": \"de-DE\""),
+        "a detected region is persisted as the shipped tag: {text}"
+    );
+
     // System stays the word "system", never a tag.
     Settings::default().save_to(&home).expect("save system");
     let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
@@ -163,7 +181,7 @@ fn the_language_setting_round_trips_and_loads_forgivingly() {
 
     // A tag this build does not ship, and a malformed value, are System.
     for json in [
-        r#"{"ui_language":"de-DE"}"#,
+        r#"{"ui_language":"it-IT"}"#,
         r#"{"ui_language":"klingon"}"#,
         r#"{"ui_language":3}"#,
         r#"{"ui_language":null}"#,
@@ -214,12 +232,16 @@ fn system_resolution_uses_the_detected_locale_and_falls_back_to_english() {
         Lang::EnUs,
         "an explicit choice ignores detection"
     );
-    // German is recognised but not shipped in this build: English, the
-    // documented fallback (not a silent German UI).
+    // German is the third shipped pack, so a German desktop starts in German.
     assert_eq!(
         LanguageChoice::System.resolve(Some(LocaleTag::De)),
-        Lang::EnUs,
-        "a recognised but unshipped locale falls back to English"
+        Lang::De,
+        "a shipped German locale resolves to the German pack"
+    );
+    assert_eq!(
+        LanguageChoice::Language(Lang::De).resolve(Some(LocaleTag::EnUs)),
+        Lang::De,
+        "an explicit choice ignores detection"
     );
 }
 
@@ -325,6 +347,32 @@ fn set_ui_language_flips_both_seams_persists_and_redraws() {
         "no English fallback in the French chrome: {texts:?}"
     );
 
+    // Explicit German: the third catalog follows the same seams, persists
+    // the canonical tag and redraws German copy.
+    rt.update(|s, _| s.set_ui_language(LanguageChoice::Language(Lang::De)));
+    assert_eq!(Lang::current(), Lang::De);
+    assert_eq!(process_lang(), Lang::De);
+    assert_eq!(
+        Settings::load_from(&config).ui_language,
+        LanguageChoice::Language(Lang::De)
+    );
+    let text = fs::read_to_string(config.join("muninn/settings.json")).expect("read settings");
+    assert!(text.contains("\"ui_language\": \"de-DE\""), "{text}");
+    frame(&mut rt);
+    let texts = drawn(&rt);
+    assert!(
+        texts
+            .iter()
+            .any(|text| text == t_in(Lang::De, Key::CommonNewNote)),
+        "a German frame draws the German catalog: {texts:?}"
+    );
+    assert!(
+        !texts
+            .iter()
+            .any(|text| text == t_in(Lang::EnUs, Key::CommonNewNote)),
+        "no English fallback in the German chrome: {texts:?}"
+    );
+
     // And back, so the guard's restore matches the last switch.
     rt.update(|s, _| s.set_ui_language(LanguageChoice::Language(Lang::EnUs)));
     frame(&mut rt);
@@ -376,6 +424,10 @@ fn the_picker_lists_system_and_every_shipped_endonym() {
     assert!(
         texts.iter().any(|text| text == "Français"),
         "the French pack is listed: {texts:?}"
+    );
+    assert!(
+        texts.iter().any(|text| text == "Deutsch"),
+        "the German pack is listed: {texts:?}"
     );
 
     // The picker is System followed by the shipped endonyms: the explicit

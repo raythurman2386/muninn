@@ -163,10 +163,9 @@ fn spanish_is_shipped_and_any_es_region_resolves_to_it() {
             "{tag} should resolve to the Spanish pack"
         );
     }
-    // A still-unshipped language stays unshipped, so the test cannot hide a
+    // A tag outside wave 1 stays unshipped, so the test cannot hide a
     // missing arm behind the Spanish fallback.
-    assert_eq!(LocaleTag::parse("de-DE"), Some(LocaleTag::De));
-    assert_eq!(Lang::from_tag("de-DE"), None);
+    assert_eq!(Lang::from_tag("it-IT"), None);
 }
 
 #[test]
@@ -185,10 +184,28 @@ fn french_is_shipped_and_any_fr_region_resolves_to_it() {
     assert_eq!(Lang::Fr.plural_category(0), PluralCategory::One);
     assert_eq!(Lang::Fr.plural_category(1), PluralCategory::One);
     assert_eq!(Lang::Fr.plural_category(2), PluralCategory::Other);
-    // A still-unshipped language stays unshipped, so the test cannot hide a
+    // A tag outside wave 1 stays unshipped, so the test cannot hide a
     // missing arm behind a regional fallback.
-    assert_eq!(LocaleTag::parse("de-DE"), Some(LocaleTag::De));
-    assert_eq!(Lang::from_tag("de-DE"), None);
+    assert_eq!(Lang::from_tag("it-IT"), None);
+}
+
+#[test]
+fn german_is_shipped_and_any_de_region_resolves_to_it() {
+    assert!(
+        Lang::SHIPPED.contains(&Lang::De),
+        "the German pack is shipped"
+    );
+    assert_eq!(Lang::from_tag("de-DE"), Some(Lang::De));
+    assert_eq!(Lang::from_tag("de"), Some(Lang::De));
+    assert_eq!(Lang::from_tag("de_AT.UTF-8"), Some(Lang::De));
+    assert_eq!(Lang::from_tag("de_DE@euro"), Some(Lang::De));
+    assert_eq!(Lang::De.tag(), "de-DE");
+    assert_eq!(Lang::De.endonym(), "Deutsch");
+    assert_eq!(Lang::De.locale_tag(), LocaleTag::De);
+    // CLDR German is one/other: only exactly 1 is singular, so 0 is plural.
+    assert_eq!(Lang::De.plural_category(0), PluralCategory::Other);
+    assert_eq!(Lang::De.plural_category(1), PluralCategory::One);
+    assert_eq!(Lang::De.plural_category(2), PluralCategory::Other);
 }
 
 #[test]
@@ -226,9 +243,8 @@ fn shipped_languages_are_complete() {
         assert_eq!(names.weekdays.len(), 7);
         assert!((names.week_start as usize) < 7);
     }
-    // A tag no pack has claimed is recognised but not shipped.
-    assert_eq!(LocaleTag::parse("de-DE"), Some(LocaleTag::De));
-    assert_eq!(Lang::from_tag("de-DE"), None);
+    // A tag outside wave 1 is not shipped.
+    assert_eq!(Lang::from_tag("it-IT"), None);
     assert_eq!(Lang::from_tag("pt-PT"), None);
 }
 
