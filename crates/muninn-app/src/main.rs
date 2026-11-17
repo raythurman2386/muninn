@@ -660,6 +660,17 @@ fn scenes() -> &'static [Scene] {
         }),
         // Board slice 2: the Board page (`scripts/ui-smoke.sh`).
         ("board", |s| s.set_mode(Mode::Board)),
+        // Documentation stills for the sample vault.
+        ("docs-board", |s| {
+            s.open_board_at(s.vault.root.join("Muninn board.excalidraw"));
+            s.set_mode(Mode::Board);
+        }),
+        ("docs-kanban", |s| {
+            if let Some(id) = s.vault.resolve("Launch Week") {
+                s.load_note(id, false);
+            }
+            s.set_mode(Mode::Kanban);
+        }),
     ]
 }
 
@@ -702,6 +713,8 @@ mod tests {
                 "settings-sync-tailscale",
                 "settings-sync-conflict",
                 "board",
+                "docs-board",
+                "docs-kanban",
             ]
         );
     }

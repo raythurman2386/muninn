@@ -49,7 +49,7 @@ export const DOC_PAGES: readonly DocPage[] = [
     slug: 'keyboard-shortcuts',
     title: 'Keyboard shortcuts',
     description: 'The essential shortcut map; the full map is in the in-app Help.',
-    source: { kind: 'readme', startHeading: '## Keys', endHeading: '## For developers' },
+    source: { kind: 'readme', startHeading: '## Keys', endHeading: '## Docs' },
   },
   {
     slug: 'sync-setup',

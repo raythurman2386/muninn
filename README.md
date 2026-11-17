@@ -59,8 +59,13 @@ connections as a graph.
 
 | Write | Graph | Local graph |
 | --- | --- | --- |
-| ![A note open in Write mode](docs/notes.png) | ![The whole vault as a graph](docs/graph.png) | ![The Local graph around one note](docs/local.png) |
+| ![The Knowledge Graph note open in Write mode](docs/notes.png) | ![The tutorial vault as a graph](docs/graph.png) | ![The Local graph around one note](docs/local.png) |
 | Write and Read share one note, with the sidebar and links rail always in reach. | The whole vault as a graph, pannable and zoomable, with a Find node field. | Local scope keeps the open note and its immediate neighbours. |
+
+| Board | Kanban |
+| --- | --- |
+| ![The sample board with shapes and a text label](docs/board.png) | ![The sample Launch Week Kanban](docs/kanban.png) |
+| Draw on an `.excalidraw` board in place: shapes, arrows, freehand, text, selection and undo. | Plan in a Markdown Kanban: drag cards between lanes, add dates and tags, switch Board / List / Table. |
 
 ## Install
 
@@ -77,6 +82,14 @@ Then run against the sample vault in this repository:
 ```sh
 cargo run -p muninn-app -- --vault vault
 ```
+
+### Sample vault
+
+`vault/` is a tutorial, not a hidden database. It includes a Welcome note and Getting
+Started, Markdown and wikilink examples, a graph tutorial, a sample Kanban (**Launch Week**) and
+a sample Excalidraw board (**Muninn board.excalidraw**). Copy the folder to a scratch location if
+you want to edit the examples without dirtying the repository; deleting the copy is the full
+reset.
 
 Or point it at your own notes:
 
@@ -160,6 +173,15 @@ and the credential store is described in [docs/sync-setup.md](docs/sync-setup.md
 
 The full map — graph navigation, card and lane actions, every board gesture — is in the in-app
 Help: `⌘?` or `Ctrl+?`, or plain `?` when no text field has focus. `Esc` closes it.
+
+## Docs
+
+- [Sync setup](docs/sync-setup.md) — the OAuth clients, credential store and Tailscale host.
+- [Sync safety](docs/sync-safety.md) — what sync will and will not do with a note.
+- [Kanban format](docs/kanban-format.md) — the frontmatter, lanes, cards, dates and settings
+  footer.
+- [Accessibility checklist](docs/a11y-checklist.md) — a screen-reader pass and what is covered.
+- [Internationalisation](docs/i18n.md) — the catalog seam and the locale packs.
 
 ## For developers
 
