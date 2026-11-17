@@ -189,7 +189,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::SettingsAppearanceCloseToTrayOff => "Désactivé. Fermer la fenêtre quitte Muninn.",
         Key::SettingsAppearanceCloseToTrayOn => {
-            "Activé. Fermer la fenêtre garde Muninn dans la zone de notification\u{a0}; Quitter Muninn à cet endroit quitte l’application. Si aucun hôte n’affiche l’icône, laissez cette option désactivée."
+            "Activé. Fermer la fenêtre garde Muninn dans la zone de notification\u{a0}; Quitter Muninn à cet endroit quitte l’application. Si votre bureau n’affiche pas l’icône, laissez cette option désactivée."
         }
         Key::SettingsAppearanceCloseToTrayNoIcon => {
             "Activé, mais aucune icône de notification n’est disponible\u{a0}: fermer la fenêtre quitte Muninn."
