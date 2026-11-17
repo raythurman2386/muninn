@@ -162,6 +162,9 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
     allowed.insert("muninn-i18n", BTreeSet::new());
     allowed.insert("muninn-core", BTreeSet::from(["muninn-i18n"]));
     allowed.insert("muninn-graph", BTreeSet::from(["muninn-core"]));
+    // Import conversion is pure: anydoc in, Markdown and images out. It never
+    // reads the vault or the UI, so it is a leaf like i18n and sync.
+    allowed.insert("muninn-import", BTreeSet::new());
     // Sync is UI-free. It does not depend on the vault index: the file bytes
     // are the source of truth, and the UI coordinates editor/watcher state.
     allowed.insert("muninn-sync", BTreeSet::new());

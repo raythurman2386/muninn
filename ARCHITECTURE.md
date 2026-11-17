@@ -16,6 +16,7 @@ muninn-app ──► muninn-ui ──► muninn-graph ──► muninn-core
      └──► rune-fx, wgpu
 
 muninn-core, muninn-ui, muninn-app ──► muninn-i18n   (leaf: no dependencies)
+muninn-import ──► anydoc                             (leaf: no workspace dependencies)
 ```
 
 | Crate | May depend on | Why |
@@ -24,6 +25,7 @@ muninn-core, muninn-ui, muninn-app ──► muninn-i18n   (leaf: no dependencie
 | `muninn-graph` | `muninn-core` | Needs note ids and links, nothing else. |
 | `muninn-i18n` | nothing in the workspace | English UI copy, typed helpers for counts and relative dates, and `DateNames` (months, weekdays, week start, AM/PM). A leaf with no external dependencies, so core, ui and app can all depend on it without an edge cycle. See `docs/i18n.md`. |
 | `muninn-sync` | nothing in the workspace | Plans and transfers vault bytes. It does not read the UI or the link index. |
+| `muninn-import` | nothing in the workspace | Converts a local document to Markdown and its embedded images through `anydoc`. It never writes to the vault, starts work, or touches the network, so the UI decides where the results land. |
 | `muninn-ui` | `muninn-core`, `muninn-graph`, `muninn-sync`, `muninn-i18n`, Rune | Owns state, rendering, input, and the manual sync session. |
 | `muninn-app` | `muninn-ui`, `muninn-i18n`, Rune, `rune-fx`, `wgpu` | Entry point, plus the FX compositor that owns the `rune-fx` renderer and the `wgpu` device types Rune hands it. |
 | `xtask` | tooling crates | Never linked into the app. |
