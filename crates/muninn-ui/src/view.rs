@@ -11,7 +11,7 @@ use rune_theme_opencode::icons as ic;
 
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
 use muninn_i18n::{
-    Key as TextKey, autosave_help, broken_links, deleted, files_skipped, focus_exit_help,
+    Key as TextKey, Lang, autosave_help, broken_links, deleted, files_skipped, focus_exit_help,
     focus_help, link_impact, login_item_error, more_edits, new_folder_in, new_note_in, note_links,
     note_links_in_folder, palette_kanban_folder, recovered_copies, recovered_for, referrers,
     results, scan_ms, scan_progress, shortcut_failed, shortcut_on, show_with_chord,
@@ -20,8 +20,8 @@ use muninn_i18n::{
 };
 
 use crate::{
-    BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, MenuTarget, Mode, PaletteItem,
-    ReduceMotion, SettingsTab, State, ThemeMode,
+    BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, LanguageChoice, MenuTarget, Mode,
+    PaletteItem, ReduceMotion, SettingsTab, State, ThemeMode,
 };
 
 pub(crate) const SIDEBAR: f32 = 258.0;
@@ -1328,8 +1328,8 @@ fn settings_editor_tab(s: &State, k: &Kit) -> El {
         ))
 }
 
-/// Appearance tab: theme, the optional tray icon, start at login and the
-/// global shortcut.
+/// Appearance tab: language, theme, the optional tray icon, start at login
+/// and the global shortcut.
 fn settings_appearance_tab(s: &State, k: &Kit) -> El {
     let theme = if crate::omarchy::is_following(s) {
         text(t(TextKey::SettingsAppearanceThemeFollowing))
@@ -1356,6 +1356,7 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
         .key("settings-tab-appearance")
         .w_full()
         .gap(18.0)
+        .child(settings_language_section(s, k))
         .child(settings_section(
             k,
             t(TextKey::SettingsAppearanceThemeTitle),
@@ -1364,6 +1365,34 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
         ))
         .child(settings_tray_section(s, k))
         .child(settings_startup_section(s, k))
+}
+
+/// Appearance › Language: System plus every shipped language, named by its
+/// endonym (which is never translated). The control is a segmented control
+/// like Theme, so one shipped language still leaves a usable System/English
+/// pair rather than a disabled list.
+fn settings_language_section(s: &State, k: &Kit) -> El {
+    let mut labels: Vec<&str> = Vec::with_capacity(1 + Lang::SHIPPED.len());
+    labels.push(LanguageChoice::System.label());
+    labels.extend(
+        Lang::SHIPPED
+            .iter()
+            .map(|lang| LanguageChoice::Language(*lang).label()),
+    );
+    let control = SegmentedControl::new(&labels, Some(s.ui_language().index()))
+        .label(t(TextKey::SettingsAppearanceLanguageTitle))
+        .fit()
+        .on_pick(|s: &mut State, index, _: &mut Tx| {
+            s.set_ui_language(LanguageChoice::from_index(index));
+        })
+        .build(k)
+        .key("settings-language");
+    settings_section(
+        k,
+        t(TextKey::SettingsAppearanceLanguageTitle),
+        Some(t(TextKey::SettingsAppearanceLanguageCaption)),
+        control,
+    )
 }
 
 /// Appearance › Tray icon: Show tray icon and Close to tray, each with a

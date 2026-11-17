@@ -132,6 +132,11 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SettingsEditorTemplatePlaceholder => "Markdown inserted at the top of each new note",
         Key::SettingsAppearanceThemeTitle => "Theme",
         Key::SettingsAppearanceThemeFollowing => "Following Omarchy system theme",
+        Key::SettingsAppearanceLanguageTitle => "Language",
+        Key::SettingsAppearanceLanguageCaption => {
+            "System follows your operating system's language, falling back to English when no language pack matches."
+        }
+        Key::SettingsAppearanceLanguageSystem => "System",
         Key::SettingsAppearanceUnavailable => "Not available on macOS yet.",
         Key::SettingsAppearanceStateOn => "On.",
         Key::SettingsAppearanceStateOff => "Off.",

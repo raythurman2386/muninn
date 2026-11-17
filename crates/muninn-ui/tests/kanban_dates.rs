@@ -314,6 +314,37 @@ fn a_typed_trigger_inserts_at_the_caret_and_escape_leaves_it_alone() {
 }
 
 #[test]
+fn pseudo_language_keeps_english_date_names() {
+    // #192: the five UI date sites look their table up with
+    // `date_names(Lang::current())`. Pseudo follows en-US, so a pseudo render
+    // still shows the English month table, unwrapped; a pack supplies a new
+    // `DateNames` and the same call sites follow it.
+    struct Restore(muninn_i18n::Lang);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            muninn_i18n::set_lang(self.0);
+        }
+    }
+    let footer = r#"{"kanban-plugin":"board","hide-date-in-title":false,"date-display-format":"D MMMM YYYY"}"#;
+    let dated = "---\nkanban-plugin: board\n---\n\n## To do\n\n\
+                 - [ ] Due @{2026-11-12}\n\n%% kanban:settings\n```\n{}\n```\n%%\n";
+    let tmp = vault_with(&dated.replace("{}", footer));
+    let mut rt = on_board(&tmp);
+    let _restore = Restore(muninn_i18n::Lang::current());
+    muninn_i18n::set_lang(muninn_i18n::Lang::Pseudo);
+    frame(&mut rt);
+    let page = page_text(&rt);
+    assert!(
+        page.contains("12 November 2026"),
+        "the English date table still renders under Pseudo: {page}"
+    );
+    assert!(
+        !page.contains("⟦November⟧"),
+        "month names are date data, not catalog copy: {page}"
+    );
+}
+
+#[test]
 fn display_settings_resolve_from_the_footer_and_from_app_defaults() {
     let dated = "---\nkanban-plugin: board\n---\n\n## To do\n\n\
                  - [ ] Due @{2026-11-12}\n\n%% kanban:settings\n```\n{}\n```\n%%\n";

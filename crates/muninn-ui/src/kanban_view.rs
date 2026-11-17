@@ -616,6 +616,11 @@ fn message(s: &State, k: &Kit) -> El {
 
 fn header(s: &State, k: &Kit) -> El {
     let head = row().h(58.0).px(28.0).gap(10.0).center_y();
+    // At the 840-point minimum the labelled action buttons do not fit beside
+    // the view switcher (in English too). Drop their visible words there and
+    // keep the accessible name and tooltip; the same labels return on a wider
+    // window. This is why a longer translation stays inside 840.
+    let compact = s.window_width < 1000.0;
     let Some(shown) = &s.kanban else {
         return head.child(
             text(t(TextKey::KanbanPageTitle))
@@ -641,6 +646,7 @@ fn header(s: &State, k: &Kit) -> El {
                 .font(k.ty.ui_medium)
                 .color(k.c.text_base)
                 .shrink()
+                .min_w(0.0)
                 .truncate()
                 .help_when_truncated(title),
         )
@@ -650,6 +656,7 @@ fn header(s: &State, k: &Kit) -> El {
                 .font(k.ty.caption())
                 .color(k.c.text_faint)
                 .shrink()
+                .min_w(0.0)
                 .truncate(),
         )
         .child(
@@ -659,13 +666,15 @@ fn header(s: &State, k: &Kit) -> El {
                 .font(k.ty.caption())
                 .color(status_color)
                 .grow(1.0)
+                .min_w(0.0)
                 .truncate()
                 .help_when_truncated(status),
         )
         .child(match shown.conflict {
             // Slice 16: Escape put the bar away; the conflict and its save
             // block stay, and this brings the bar back.
-            Some(_) if shown.conflict_hidden => header_button(
+            Some(_) if shown.conflict_hidden => page_button(
+                compact,
                 k,
                 "kanban-conflict-review",
                 &ic::CIRCLE_EXCLAMATION,
@@ -690,7 +699,8 @@ fn header(s: &State, k: &Kit) -> El {
     let layout = s.kanban_board_settings();
     let mut head = head;
     if layout.show_filter_button {
-        head = head.child(header_button(
+        head = head.child(page_button(
+            compact,
             k,
             "kanban-filter-toggle",
             &ic::OUTLINE_SLIDERS,
@@ -699,7 +709,8 @@ fn header(s: &State, k: &Kit) -> El {
         ));
     }
     if layout.show_archive_button {
-        head = head.child(header_button(
+        head = head.child(page_button(
+            compact,
             k,
             "kanban-archive",
             &ic::ARCHIVE,
@@ -710,7 +721,8 @@ fn header(s: &State, k: &Kit) -> El {
     if shown.board.is_some() {
         head = head.child(view_switch(s, k));
         // An unreadable board has no settings panel to open.
-        head = head.child(header_button(
+        head = head.child(page_button(
+            compact,
             k,
             "kanban-settings",
             &ic::SETTINGS_GEAR,
@@ -719,7 +731,8 @@ fn header(s: &State, k: &Kit) -> El {
         ));
     }
     if layout.show_open_markdown_button {
-        head = head.child(header_button(
+        head = head.child(page_button(
+            compact,
             k,
             "kanban-open-markdown",
             &ic::EDIT,
@@ -2016,7 +2029,48 @@ pub(crate) fn header_button(
     label: &'static str,
     action: fn(&mut State),
 ) -> El {
-    row()
+    header_button_with(k, key, glyph, label, action, true)
+}
+
+/// The header's icon-only form: the same button and accessible label, without
+/// the visible words. The Kanban header uses it at the 840-point minimum so
+/// the action row and the view switcher fit, in English and in every
+/// translation; the tooltip and AccessKit name still say what it does.
+fn header_icon_button(
+    k: &Kit,
+    key: &'static str,
+    glyph: &'static rune::Icon,
+    label: &'static str,
+    action: fn(&mut State),
+) -> El {
+    header_button_with(k, key, glyph, label, action, false)
+}
+
+/// A header action, choosing the labelled or icon-only form for the width.
+fn page_button(
+    compact: bool,
+    k: &Kit,
+    key: &'static str,
+    glyph: &'static rune::Icon,
+    label: &'static str,
+    action: fn(&mut State),
+) -> El {
+    if compact {
+        header_icon_button(k, key, glyph, label, action)
+    } else {
+        header_button(k, key, glyph, label, action)
+    }
+}
+
+fn header_button_with(
+    k: &Kit,
+    key: &'static str,
+    glyph: &'static rune::Icon,
+    label: &'static str,
+    action: fn(&mut State),
+    words: bool,
+) -> El {
+    let button = row()
         .key(key)
         .h(28.0)
         .px(10.0)
@@ -2041,8 +2095,12 @@ pub(crate) fn header_button(
             }
         })
         .on_press(action)
-        .child(icon(glyph, 12.0).color(k.c.text_accent))
-        .child(text(label).font(k.ty.ui_compact).color(k.c.text_base))
+        .child(icon(glyph, 12.0).color(k.c.text_accent));
+    if words {
+        button.child(text(label).font(k.ty.ui_compact).color(k.c.text_base))
+    } else {
+        button
+    }
 }
 
 #[cfg(test)]

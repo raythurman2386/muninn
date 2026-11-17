@@ -1,10 +1,11 @@
 //! English UI copy for Muninn, behind one seam.
 //!
-//! This crate is the catalog **seam only**: it holds the keys, the `en-US`
-//! text, the parameterised copy that cannot be a single string, and the date
-//! name tables. It ships no translation and changes no user-visible text:
-//! `muninn-core` and `muninn-ui` read it, and they pass [`EN_US`], so every
-//! rendered string is byte-identical to the hardcoded one it replaced.
+//! This crate is the catalog **and locale seam**: it holds the keys, the
+//! `en-US` text, the parameterised copy that cannot be a single string, the
+//! date name tables, locale identity and detection, and wave-1 plural
+//! categories. English is the only shipped language, so every rendered string
+//! is byte-identical to the hardcoded one it replaced; `Lang::SHIPPED` and the
+//! picker grow when a pack lands (#193–#196).
 //!
 //! # Why a typed catalog
 //!
@@ -13,15 +14,24 @@
 //! fails `cargo check`; a runtime string lookup would only fail when the
 //! message was drawn. Every function here returns `&'static str` or an owned
 //! `String`, so a migrated call site keeps today's signature and allocates
-//! exactly as it does now. See `docs/i18n.md` §5.3 for the API and §5.4 for the
-//! layering rule.
+//! exactly as it does now. See `docs/i18n.md` §5.3 for the API, §5.4 for the
+//! layering rule and §5.8 for the locale seam.
 //!
 //! # What is here
 //!
-//! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. `en-US`
+//! - [`t`] / [`t_in`] resolve a key to text in the current [`Lang`]. English
 //!   is the only shippable language; [`Lang::Pseudo`] is a test-only catalog
 //!   that brackets the English so a render check can see which drawn strings
 //!   came from here.
+//! - [`LocaleTag`], [`LocaleTag::parse`], [`system_locale`] and [`locale_from`]
+//!   identify the OS locale; [`PluralCategory`] and [`LocaleTag::plural_category`]
+//!   carry the wave-1 plural rules. [`Lang::tag`], [`Lang::endonym`],
+//!   [`Lang::from_tag`], [`Lang::SHIPPED`] and [`Lang::locale_tag`] are the
+//!   bridge a language pack fills in.
+//! - [`set_lang`] is the per-thread override, [`set_process_lang`] the
+//!   process-wide default, [`clear_lang`] drops the override, and
+//!   [`Lang::current`] prefers the override. The app sets both on a switch so
+//!   the UI, tray and workers agree without serialising parallel tests.
 //! - [`MsgKey`] is the second table, for **parameterised sentences**:
 //!   [`phrase`] / [`phrase_current`] substitute positional arguments into a
 //!   template and return an owned `String`. The English templates are the
@@ -59,42 +69,48 @@
 //!   argument that is itself catalogued copy or another helper's sentence is
 //!   passed through `strip_pseudo`, so a composed render never nests markers.
 //! - [`DateNames`] and [`EN_US`] carry month/weekday names, short weekday
-//!   labels, the first day of the week and `AM`/`PM`. `muninn-core`'s
-//!   `format_date_for_display`/`format_time_for_display` read them; the file
-//!   formatters keep their own English table, and `Do` still spells an English
-//!   ordinal until a locale pack supplies its own rule.
+//!   labels, the first day of the week and `AM`/`PM`. [`date_names`] is the
+//!   language lookup the UI's five display sites use.
+//!   `muninn-core`'s `format_date_for_display`/`format_time_for_display` read
+//!   them; the file formatters keep their own English table, and `Do` still
+//!   spells an English ordinal until a locale pack supplies its own rule.
 //!
 //! The only helpers that do not name a key are pure data formatters — the byte
 //! size in `file_size`, the count/date strings a caller already formatted — and
 //! the substitution engine itself.
 //!
-//! Extraction of the call sites is the follow-up work, area by area, keeping
-//! English output byte-identical. This crate is the target those changes land
-//! in; it is a leaf with no dependencies so `muninn-core`, `muninn-ui` and
-//! `muninn-app` can all point at it without an edge cycle.
+//! Extraction of the call sites is done, area by area, keeping English output
+//! byte-identical. This crate is the target those changes landed in; it is a
+//! leaf with no dependencies so `muninn-core`, `muninn-ui` and `muninn-app`
+//! can all point at it without an edge cycle. A language pack adds catalog
+//! data and one [`Lang`] variant here; `docs/i18n.md` §5.8 lists the arms.
 
 mod dates;
 mod en_us;
 mod key;
+mod locale;
 mod messages;
 mod msg;
 mod pseudo;
 
-pub use dates::{DateNames, EN_US};
+pub use dates::{DateNames, EN_US, date_names};
 pub use key::Key;
+pub use locale::{LocaleTag, PluralCategory, locale_from, system_locale};
 pub use msg::MsgKey;
 
 use std::cell::Cell;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 /// A language the UI can draw.
 ///
-/// This is the seam for a locale setting: when a setting exists, it selects a
-/// `Lang`, and the catalogs keyed by it grow. There is no setting and no
-/// OS-locale detection yet, and adding a variant must not change what `en-US`
-/// renders.
+/// A locale pack adds one variant here plus its exhaustive catalog, and lists
+/// the variant in [`Lang::SHIPPED`]; the setting, picker, detection, date
+/// names and plural rules then reach it without touching their code. Adding a
+/// variant must not change what `en-US` renders.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Lang {
-    /// English (United States): the only language Muninn ships.
+    /// English (United States), `en-US`: the only language Muninn ships and
+    /// the default everywhere.
     EnUs,
     /// Pseudo-localisation: a **test and verification language**, not a
     /// shippable locale.
@@ -103,26 +119,121 @@ pub enum Lang {
     /// [`PSEUDO_CLOSE`], so a render check can tell catalog copy from a
     /// hardcoded literal that was built where the lint cannot see it. Nothing
     /// selects it in a release build; a test sets it with [`set_lang`] and
-    /// resets to [`Lang::EnUs`].
+    /// resets it. It follows `en-US` for date names, tags and plural rules.
     Pseudo,
 }
 
-thread_local! {
-    /// The language this thread draws in.
+impl Lang {
+    /// The languages a user can pick in Settings › Appearance.
     ///
-    /// Thread-local rather than global so tests in one binary can render in
-    /// different languages at the same time; a real locale picker would set it
-    /// on the UI thread.
-    static CURRENT: Cell<Lang> = const { Cell::new(Lang::EnUs) };
+    /// This is the picker's data and the completeness tests' loop. It holds
+    /// only [`Lang::EnUs`] until #193–#196 add their catalogs; `Pseudo` is a
+    /// test language and is never listed.
+    pub const SHIPPED: &'static [Lang] = &[Lang::EnUs];
+
+    /// The language's canonical BCP 47 tag, for persistence and for Rune.
+    ///
+    /// [`Lang::Pseudo`] names the locale it emulates (`en-US`): its copy is
+    /// bracketed English, and Rune's shaping and spellcheck should follow the
+    /// same locale as the English it is built from.
+    #[must_use]
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Lang::EnUs | Lang::Pseudo => "en-US",
+        }
+    }
+
+    /// The language's own name, shown untranslated in the picker.
+    ///
+    /// An endonym is not catalog copy: a French user looking for French must
+    /// see `Français` even while the UI is English, so each pack supplies its
+    /// own spelling. [`Lang::Pseudo`] is a test language and is never drawn in
+    /// the picker.
+    #[must_use]
+    pub const fn endonym(self) -> &'static str {
+        match self {
+            Lang::EnUs => "English (United States)",
+            Lang::Pseudo => "Pseudo (test)",
+        }
+    }
+
+    /// The shipped language for an OS or settings tag, or `None` when this
+    /// build has no catalog for it.
+    ///
+    /// Detection and a saved setting both go through this: a French OS locale
+    /// is recognised by [`LocaleTag::parse`], but `from_tag("fr-FR")` is
+    /// `None` until the French pack adds its variant and catalog.
+    #[must_use]
+    pub fn from_tag(tag: &str) -> Option<Lang> {
+        match LocaleTag::parse(tag)? {
+            LocaleTag::EnUs => Some(Lang::EnUs),
+            LocaleTag::Es | LocaleTag::Fr | LocaleTag::De | LocaleTag::PtBr => None,
+        }
+    }
+
+    /// The locale identity behind this language, for date names and plurals.
+    ///
+    /// [`Lang::Pseudo`] follows `en-US`, so a pseudo render shows English
+    /// dates and plurals exactly as the default does; only catalog copy is
+    /// marked.
+    #[must_use]
+    pub const fn locale_tag(self) -> LocaleTag {
+        LocaleTag::EnUs
+    }
+
+    /// The CLDR plural category of `n` in this language.
+    ///
+    /// See [`LocaleTag::plural_category`] for the wave-1 rules.
+    #[must_use]
+    pub const fn plural_category(self, n: u64) -> PluralCategory {
+        self.locale_tag().plural_category(n)
+    }
+
+    /// This language's encoded value in [`process_lang`]'s atomic.
+    const fn as_u8(self) -> u8 {
+        match self {
+            Lang::EnUs => 0,
+            Lang::Pseudo => 1,
+        }
+    }
+
+    /// Decode [`Lang::as_u8`]; an unknown byte is English, the safe default.
+    const fn from_u8(value: u8) -> Lang {
+        match value {
+            1 => Lang::Pseudo,
+            _ => Lang::EnUs,
+        }
+    }
+}
+
+/// The process-wide default language, for threads with no override.
+///
+/// The app sets this once at startup and on every language switch, so the UI
+/// thread, the tray and any worker agree. It is deliberately separate from
+/// the per-thread override: tests in one binary run in parallel, and a
+/// process-wide value alone would let them race.
+static PROCESS: AtomicU8 = AtomicU8::new(Lang::EnUs.as_u8());
+
+thread_local! {
+    /// The language this thread draws in, when it differs from the process
+    /// default.
+    ///
+    /// Tests and a UI thread that renders a language other than the setting
+    /// (the pseudo render check) use this. A worker with no override follows
+    /// [`process_lang`].
+    static OVERRIDE: Cell<Option<Lang>> = const { Cell::new(None) };
 }
 
 /// Sets the language [`Lang::current`] returns for **this thread**.
 ///
-/// This is the seam a future locale picker will call, and the hook tests use to
-/// render in [`Lang::Pseudo`]. Release builds never call it, so the default
-/// stays [`Lang::EnUs`] and output is unchanged. Set it back to [`Lang::EnUs`]
-/// when a test is done: tests in the same binary share a thread pool, not a
-/// language.
+/// This is the override tests use to render in [`Lang::Pseudo`], and the
+/// thread half of the live switch: the settings page sets the process default
+/// with [`set_process_lang`] and this thread's value with `set_lang`, so the
+/// next frame draws the new language even if the process default is read by
+/// another thread. Call [`clear_lang`] to follow the process default again.
+///
+/// Set it back to [`Lang::EnUs`] when a test is done: tests in the same binary
+/// share a thread pool, not a language.
 ///
 /// # Examples
 ///
@@ -136,17 +247,41 @@ thread_local! {
 /// assert_eq!(t(Key::Save), "Save");
 /// ```
 pub fn set_lang(lang: Lang) {
-    CURRENT.with(|current| current.set(lang));
+    OVERRIDE.with(|current| current.set(Some(lang)));
+}
+
+/// Drops this thread's override, so [`Lang::current`] follows
+/// [`process_lang`].
+pub fn clear_lang() {
+    OVERRIDE.with(|current| current.set(None));
+}
+
+/// Sets the process-wide default language, the value every thread without an
+/// override follows.
+///
+/// The app calls this at startup and on a language switch. Tests that change
+/// it own the global for their test binary; see `tests/locale.rs`.
+pub fn set_process_lang(lang: Lang) {
+    PROCESS.store(lang.as_u8(), Ordering::Release);
+}
+
+/// The process-wide default language ([`set_process_lang`]).
+///
+/// [`Lang::EnUs`] until the app starts and applies the saved setting.
+#[must_use]
+pub fn process_lang() -> Lang {
+    Lang::from_u8(PROCESS.load(Ordering::Acquire))
 }
 
 impl Lang {
-    /// The language the UI is drawing in for this thread.
+    /// The language the UI draws in on this thread: the override when one is
+    /// set, else the process default.
     ///
-    /// [`Lang::EnUs`] unless a test called [`set_lang`]. Draw code should call
-    /// [`t`] and let this decide, rather than pinning a language at the call
-    /// site, so a future setting only changes this function.
+    /// Draw code should call [`t`] and let this decide, rather than pinning a
+    /// language at the call site, so a language switch only changes the seam.
+    #[must_use]
     pub fn current() -> Lang {
-        CURRENT.with(Cell::get)
+        OVERRIDE.with(Cell::get).unwrap_or_else(process_lang)
     }
 }
 
@@ -522,7 +657,11 @@ pub fn linked_note_hint(label: &str) -> String {
 /// helper that names the thing it counts, not build a sentence of its own.
 fn counted(n: usize, one: MsgKey, many: MsgKey) -> String {
     let count = n.to_string();
-    let key = if n == 1 { one } else { many };
+    let key = if Lang::current().locale_tag().plural_category(n as u64) == PluralCategory::One {
+        one
+    } else {
+        many
+    };
     phrase_current(key, &[&count])
 }
 
@@ -533,7 +672,11 @@ fn counted(n: usize, one: MsgKey, many: MsgKey) -> String {
 /// [`compose`]; using [`counted`] would put a marker pair inside the line.
 fn counted_in(lang: Lang, n: usize, one: MsgKey, many: MsgKey) -> String {
     let count = n.to_string();
-    let key = if n == 1 { one } else { many };
+    let key = if lang.locale_tag().plural_category(n as u64) == PluralCategory::One {
+        one
+    } else {
+        many
+    };
     render(lang, key, &[&count])
 }
 

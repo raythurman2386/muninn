@@ -44,7 +44,7 @@ use muninn_i18n::{
     theme_label, trash_empty, trash_summary, tray_error, unsaved_saves, version,
     welcome_vault_created,
 };
-use muninn_ui::{SettingsTab, State, ThemeMode, on_key, poll, view};
+use muninn_ui::{LanguageChoice, Settings, SettingsTab, State, ThemeMode, on_key, poll, view};
 use rune::{Env, Runtime};
 
 /// The typed query below, drawn back by the palette's search field. It is user
@@ -76,9 +76,22 @@ impl Drop for PseudoLanguage {
 fn runtime() -> (PseudoLanguage, TempVault, Runtime<State>) {
     let language = PseudoLanguage::enter();
     let tmp = TempVault::new(&[("Alpha.md", "# Alpha\n")]);
-    let mut state =
-        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state"));
-    state.theme = ThemeMode::Dark;
+    // Build with Pseudo as the saved choice so startup (which applies the
+    // setting) and every cached sentence agree with the guard; entering the
+    // language only after construction would leave Sync's startup status in
+    // English.
+    let settings = Settings {
+        theme: ThemeMode::Dark,
+        ui_language: LanguageChoice::Language(Lang::Pseudo),
+        ..Settings::default()
+    };
+    let config = tmp.path().with_extension("config");
+    let state = State::with_settings(
+        tmp.path().to_path_buf(),
+        tmp.path().with_extension("state"),
+        config,
+        settings,
+    );
     let mut rt = Runtime::new(state, view, (1180.0, 780.0), Env::new(true, 1.0));
     rt.poll = Some(poll);
     rt.on_key = Some(on_key);
@@ -747,8 +760,19 @@ fn allowlisted(text: &str) -> Option<&'static str> {
     if is_diagnostics(trimmed) {
         return Some("Help diagnostics: session log, paths, versions and counts (data)");
     }
+    if muninn_i18n::Lang::SHIPPED
+        .iter()
+        .any(|lang| lang.endonym() == trimmed)
+    {
+        return Some(
+            "language endonym: a picker names each language in its own words, never translated",
+        );
+    }
     if is_fixture_note(trimmed) {
         return Some("the test vault's note title, path or body (file data)");
+    }
+    if std::path::Path::new(trimmed).starts_with(std::env::temp_dir()) {
+        return Some("the test vault's folder path (file data)");
     }
     None
 }

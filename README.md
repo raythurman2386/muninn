@@ -86,9 +86,18 @@ MUNINN_VAULT=~/notes cargo run -p muninn-app
 ```
 
 Without either, Muninn reopens the last vault you used, falling back to `~/Muninn` (created
-when needed). `⌘,` / `Ctrl+,` opens Settings, where you can switch vaults, pick a theme, adjust
-the autosave delay and default template, choose a graph effect preset or reduced motion, or set
-up sync.
+when needed). `⌘,` / `Ctrl+,` opens Settings, where you can switch vaults, pick a theme and UI
+language, adjust the autosave delay and default template, choose a graph effect preset or
+reduced motion, or set up sync.
+
+### Language
+
+Settings › **Appearance** › **Language** picks the interface language. **System** (the default)
+follows your operating system's locale, falling back to English when Muninn has no pack for it.
+Muninn currently ships English (United States); more languages arrive as locale packs. An
+explicit pick is saved in `settings.json` and restored on the next launch, and a switch
+re-renders the window and tray immediately without a restart. Dates Muninn writes into a vault
+stay English and ASCII; only what Muninn draws follows the interface language.
 
 ### Inspect a vault
 

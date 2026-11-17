@@ -12,6 +12,8 @@
 //! `crates/muninn-core/src/kanban/dates.rs`, so using `EN_US` changes no
 //! output.
 
+use crate::Lang;
+
 /// Localised date words and the first day of the week.
 ///
 /// `weekdays` is indexed like `CivilDate::weekday()`: Sunday is 0. A date
@@ -131,3 +133,28 @@ pub const EN_US: DateNames = DateNames {
     am: "AM",
     pm: "PM",
 };
+
+/// The display date names for `lang`.
+///
+/// The UI's date sites call this with [`Lang::current`] instead of naming
+/// [`EN_US`], so a locale pack adds its `&'static DateNames` here and every
+/// picker, card foot and table follows. [`Lang::Pseudo`] follows `en-US`: its
+/// job is to mark catalog copy, not to fake a date language.
+///
+/// File formatting never calls this. `muninn-core`'s file formatters keep
+/// their own English table, so a translated UI never rewrites a note.
+///
+/// # Examples
+///
+/// ```
+/// use muninn_i18n::{EN_US, Lang, date_names};
+///
+/// assert_eq!(*date_names(Lang::EnUs), EN_US);
+/// assert_eq!(*date_names(Lang::Pseudo), EN_US);
+/// ```
+#[must_use]
+pub const fn date_names(lang: Lang) -> &'static DateNames {
+    match lang {
+        Lang::EnUs | Lang::Pseudo => &EN_US,
+    }
+}

@@ -36,8 +36,8 @@ use muninn_core::{
     scan_card_text,
 };
 use muninn_i18n::{
-    EN_US, Key as TextKey, card_actions, card_actions_in_lane, card_label_in_lane, collapsed_cards,
-    lane_actions, lane_cards, lane_region_label, t,
+    Key as TextKey, Lang, card_actions, card_actions_in_lane, card_label_in_lane, collapsed_cards,
+    date_names, lane_actions, lane_cards, lane_region_label, t,
 };
 use rune::{El, Key, KeyEvent, ScrollSpec, Tx, col, icon, row, text};
 use rune_kit::{Kit, Markdown, MarkdownStyle};
@@ -825,13 +825,21 @@ fn table_date(settings: &DateSettings, found: &CardText) -> String {
         let raw = crate::kanban_dates::link_target(&token.value);
         parts.push(settings.parse_date(raw).map_or_else(
             || raw.to_owned(),
-            |date| format_date_for_display(date, &settings.date_display_format, &EN_US),
+            |date| {
+                format_date_for_display(
+                    date,
+                    &settings.date_display_format,
+                    date_names(Lang::current()),
+                )
+            },
         ));
     }
     if let Some(token) = &found.time {
         parts.push(settings.parse_time(&token.value).map_or_else(
             || token.value.clone(),
-            |time| format_time_for_display(time, &settings.time_format, &EN_US),
+            |time| {
+                format_time_for_display(time, &settings.time_format, date_names(Lang::current()))
+            },
         ));
     }
     parts.join(" ")
