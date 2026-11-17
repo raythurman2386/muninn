@@ -54,6 +54,10 @@ jobs:
       - name: i18n copy
         run: cargo run --locked -p xtask -- i18n-lint
 
+      - name: i18n review tool
+        if: runner.os == 'Linux'
+        run: python3 -m unittest discover -s scripts/i18n-review -p 'test_*.py'
+
   docs:
     name: rustdoc
     runs-on: ubuntu-latest
