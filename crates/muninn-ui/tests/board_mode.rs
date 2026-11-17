@@ -224,6 +224,9 @@ fn the_board_page_lists_vault_boards_with_element_counts() {
     assert!(rt.state.boards[1].detail().starts_with("Could not read"));
     assert_eq!(rt.state.boards[2].detail(), "0 elements");
     assert_eq!(rt.state.vault.notes.len(), 2, "boards are not notes");
+    // #188: the rows are in the header picker.
+    click(&mut rt, "board-picker");
+    frame(&mut rt);
     assert!(rt.find("board-row-0").is_some());
 
     click(&mut rt, "board-row-0");
@@ -328,6 +331,9 @@ fn switching_vaults_drops_the_old_vaults_boards_and_selection() {
             .all(|x| x.file.path.starts_with(b.path())),
         "every listed board is under B"
     );
+    rt.state.open_board_picker();
+    rt.invalidate();
+    frame(&mut rt);
     assert!(rt.find("board-row-0").is_some());
     assert!(rt.find("board-row-1").is_none(), "A's board row is gone");
 }

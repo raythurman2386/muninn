@@ -74,11 +74,13 @@ impl State {
             // mounted here; the Kanban page's own Find bar replaces it.
             self.find = None;
         }
-        // #43: a rename field in the Board panel or title goes with them.
+        // #43: a rename field in the Board title goes with it.
         self.board_rename_left_board(mode);
-        // #73: the note-link prompt belongs to the Board canvas.
+        // #73: the note-link prompt belongs to the Board canvas; #188: so
+        // does the header's board picker.
         if mode != Mode::Board {
             self.cancel_board_note_link();
+            self.close_board_picker();
         }
         self.pending_heading = None;
         self.pending_top = false;

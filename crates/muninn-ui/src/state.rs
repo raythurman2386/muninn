@@ -495,6 +495,10 @@ pub struct State {
     pub board_open: Option<crate::board_view::OpenBoard>,
     /// Views of boards opened earlier this session, by path.
     pub board_views: HashMap<PathBuf, crate::BoardView>,
+    /// Issue #188: the header's board picker. `Some(row)` while its list is
+    /// open, highlighting that row (`0` is the first board; `boards.len()` is
+    /// the New board footer); `None` when closed. Never written to settings.
+    pub board_picker: Option<usize>,
     /// The last session's board, applied on the first board refresh.
     pub board_restore: Option<crate::BoardSession>,
     /// Kanban slice 2: the kanban note Kanban mode falls back to when the
@@ -947,6 +951,7 @@ impl State {
             board_selected: None,
             board_open: None,
             board_views: HashMap::new(),
+            board_picker: None,
             board_restore: if restore_vault {
                 settings.board.clone()
             } else {

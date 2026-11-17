@@ -73,6 +73,7 @@ def cmd_script(tree, out):
     x0, y0, _, _ = canvas(tree)
     ev = [
         {"t": 0.3, "type": "key", "name": "4", "cmd": True},
+        {"t": 0.6, "type": "tap", "key": "board-picker"},
         {"t": 0.8, "type": "tap", "key": ROW},
         {"t": 2.0, "type": "mark", "name": "before"},
     ]

@@ -143,16 +143,10 @@ fn the_empty_board_page_draws_the_catalog_empty_states() {
     let vault = TempVault::new(&[("Alpha.md", "# Alpha\n")]);
     let rt = runtime("board-empty", &vault, Mode::Board);
 
-    // No board on disk: the panel line, the placeholder and its way in.
+    // #188: no board on disk reads as the placeholder and its hint once; the
+    // heading that repeated it, and the duplicate New board, are gone.
     assert_eq!(t(Key::NoBoards), "No boards in this vault yet");
-    assert_eq!(t(Key::BoardPageEmptyTitle), "No boards yet");
-    assert_eq!(t(Key::BoardPageEmptyDetail), "Make one with New board");
-    for key in [
-        Key::NoBoards,
-        Key::BoardPageEmptyTitle,
-        Key::BoardPageEmptyDetail,
-        Key::BoardPageEmptyHint,
-    ] {
+    for key in [Key::NoBoards, Key::BoardPageEmptyHint] {
         assert!(
             has_text(&rt, t(key)),
             "{} ({:?}) is drawn on the empty Board page",
@@ -160,6 +154,10 @@ fn the_empty_board_page_draws_the_catalog_empty_states() {
             t(key)
         );
     }
+    assert!(
+        !has_text(&rt, t(Key::BoardPageEmptyTitle)),
+        "the heading no longer repeats the placeholder"
+    );
 }
 
 #[test]

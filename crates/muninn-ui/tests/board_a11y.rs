@@ -55,6 +55,10 @@ fn on_board(tmp: &TempVault) -> Runtime<State> {
         },
     });
     frames(&mut rt, 2);
+    let picker = rt.find("board-picker").expect("the header's picker");
+    rt.pointer_down(picker.0, picker.1);
+    rt.pointer_up(picker.0, picker.1);
+    frames(&mut rt, 2);
     let row = board_row(&rt, "Draw");
     rt.pointer_down(row.0, row.1);
     rt.pointer_up(row.0, row.1);
@@ -249,4 +253,17 @@ fn board_a11y_canvas_is_named_with_its_tool_and_selection() {
         label.contains(&format!("{selected} selected")),
         "the selection is announced: {label}"
     );
+}
+
+#[test]
+fn board_a11y_sidebar_board_rows_are_named_buttons() {
+    let tmp = vault();
+    let mut rt = on_board(&tmp);
+    // Board starts with the sidebar collapsed; reopen it for its Boards list.
+    rt.update(|s, _| s.toggle_sidebar());
+    frames(&mut rt, 60);
+
+    let row = element(&rt, "sidebar-board-0");
+    assert_eq!(row.role, "button", "as the Kanban rows are");
+    assert_eq!(row.label.as_deref(), Some("Draw"));
 }

@@ -5,6 +5,7 @@
   {"t":4.0,"type":"key","name":"4","cmd":true},{"t":4.0,"type":"mark","name":"board-shortcut"},
   {"t":5.0,"type":"key","name":"Escape"},{"t":5.0,"type":"mark","name":"board-esc"},
   {"t":6.0,"type":"tap","key":"mode-board"},{"t":6.0,"type":"mark","name":"board-button"},
+  {"t":6.5,"type":"tap","key":"board-picker"},
   {"t":7.0,"type":"tap","key":"board-row-0"},{"t":7.0,"type":"mark","name":"board-selected"},
   {"t":8.0,"type":"key","name":"3","cmd":true},{"t":8.0,"type":"mark","name":"graph-after"},
   {"t":9.5,"type":"key","name":"p","cmd":true,"shift":true},

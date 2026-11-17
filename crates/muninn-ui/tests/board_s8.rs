@@ -103,27 +103,32 @@ fn board_mode_in_a_vault_with_no_boards_writes_nothing_and_offers_new_board() {
     command(&mut app.rt, '4');
     frames(&mut app.rt, 60);
     assert_eq!(app.rt.state.mode, Mode::Board);
+    // #188: one New board, in the header; the placeholder is the only
+    // no-boards message (the picker repeats it only while open).
     assert!(
-        app.rt.find("board-new-empty").is_some(),
-        "the empty state offers New board"
+        app.rt.find("board-new-empty").is_none(),
+        "the placeholder no longer repeats New board"
     );
     assert!(
         app.rt.find("board-new").is_some(),
-        "and so does the Boards panel"
+        "the header offers New board"
     );
     assert_eq!(files(tmp.path()), before, "opening Board writes nothing");
-    // Raymond's screenshot: with no boards at all, "No board selected / Pick a
-    // board on the left" points at a list that is empty.
     let title = app
         .rt
         .elements()
         .into_iter()
-        .find(|e| e.key.as_deref() == Some("board-surface-title"))
-        .and_then(|e| e.text)
-        .unwrap_or_default();
-    assert_eq!(
-        title, "No boards yet",
-        "the heading says why, not 'pick one'"
+        .find(|e| e.key.as_deref() == Some("board-placeholder-title"))
+        .and_then(|e| e.text);
+    assert_eq!(title.as_deref(), Some("No boards in this vault yet"));
+    assert!(
+        app.rt.find("board-surface-title").is_none(),
+        "no heading repeats the placeholder"
+    );
+    press(&mut app.rt, "board-picker");
+    assert!(
+        app.rt.find("board-list-empty").is_some(),
+        "the open picker says so once too"
     );
 }
 
@@ -133,7 +138,7 @@ fn new_board_creates_an_untitled_board_in_the_vault_and_opens_it() {
     let mut app = launch(tmp.path());
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
-    press(&mut app.rt, "board-new-empty");
+    press(&mut app.rt, "board-new");
     let path = tmp.path().join("Untitled board.excalidraw");
     assert!(path.is_file(), "created: {:?}", files(tmp.path()));
     let board = Board::from_json(&fs::read_to_string(&path).unwrap()).expect("a valid board");
@@ -184,6 +189,7 @@ fn new_board_goes_next_to_the_open_board() {
     let mut app = launch(tmp.path());
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
+    press(&mut app.rt, "board-picker");
     press(&mut app.rt, "board-row-0");
     assert!(open_path(&app.rt).is_some_and(|p| p.ends_with("Sketches/Plan.excalidraw")));
     press(&mut app.rt, "board-new");
@@ -207,7 +213,7 @@ fn new_board_with_no_board_open_goes_in_the_current_notes_folder_like_new_note()
     app.rt.state.open_note(beta);
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
-    press(&mut app.rt, "board-new-empty");
+    press(&mut app.rt, "board-new");
     assert!(
         tmp.path().join("Work/Untitled board.excalidraw").is_file(),
         "{:?}",
@@ -221,7 +227,7 @@ fn notes_create_rename_and_delete_still_work_beside_a_new_board() {
     let mut app = launch(tmp.path());
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
-    press(&mut app.rt, "board-new-empty");
+    press(&mut app.rt, "board-new");
     command(&mut app.rt, '1');
     app.rt.state.create_note_named_in("Gamma", "");
     frames(&mut app.rt, 2);
@@ -316,6 +322,7 @@ fn toggling_the_sidebar_on_board_moves_the_chrome_at_once_without_a_slide() {
     let mut app = launch(tmp.path());
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
+    press(&mut app.rt, "board-picker");
     press(&mut app.rt, "board-row-0");
     frames(&mut app.rt, 60);
     for round in 0..2 {
@@ -378,6 +385,7 @@ fn board_then_write() -> (TempVault, App) {
     let mut app = launch(tmp.path());
     command(&mut app.rt, '4');
     frames(&mut app.rt, 10);
+    press(&mut app.rt, "board-picker");
     press(&mut app.rt, "board-row-0");
     frames(&mut app.rt, 30);
     assert!(open_path(&app.rt).is_some());

@@ -30,8 +30,8 @@ use muninn_i18n::{
     elements, linked_note_hint, not_saved, t, unsaved_saves,
 };
 use rune::{
-    Color, Cursor, Drag, El, KeyEvent, MagnifyEvent, Phase, PointerButton, TextStyle, Tx,
-    WheelEvent, canvas, col, el, icon, row, spacer, text,
+    Color, Cursor, Drag, El, KeyEvent, MagnifyEvent, Phase, PointerButton, ScrollSpec, TextStyle,
+    Tx, WheelEvent, canvas, col, el, icon, row, spacer, text,
 };
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
@@ -483,6 +483,11 @@ impl State {
             .map(BoardSummary::read)
             .collect();
         self.sidebar_boards = self.boards.iter().map(|b| b.file.clone()).collect();
+        // #188: the picker reads the same list; keep its highlight on a row (or
+        // the New board footer) when boards went away.
+        if let Some(at) = self.board_picker {
+            self.board_picker = Some(at.min(self.boards.len()));
+        }
         // Slice 7: the board watcher's baseline is the files as just read.
         self.board_stats = self
             .boards
@@ -582,6 +587,79 @@ impl State {
         self.save_settings();
     }
 
+    /// #188: open the header's board picker, its keyboard starting on the open
+    /// board (or the first row when none is open).
+    pub fn open_board_picker(&mut self) {
+        let at = self
+            .board_selected
+            .as_ref()
+            .and_then(|path| self.boards.iter().position(|b| &b.file.path == path))
+            .unwrap_or(0);
+        self.board_picker = Some(at);
+    }
+
+    /// Close the header's board picker.
+    pub fn close_board_picker(&mut self) {
+        self.board_picker = None;
+    }
+
+    /// Show or hide the header's board picker (its button).
+    pub fn toggle_board_picker(&mut self) {
+        if self.board_picker.is_some() {
+            self.close_board_picker();
+        } else {
+            self.open_board_picker();
+        }
+    }
+
+    /// The picker's keys: Up/Down move its highlight, Home/End jump to the
+    /// ends, Enter opens the highlighted row (the footer makes a board).
+    /// Escape and a press outside are the modal's.
+    pub fn board_picker_key(&mut self, e: &KeyEvent) -> bool {
+        let Some(at) = self.board_picker else {
+            return false;
+        };
+        if e.mods != rune::Mods::default() {
+            return false;
+        }
+        match e.key {
+            rune::Key::Up => self.board_picker = Some(at.saturating_sub(1)),
+            rune::Key::Down => self.board_picker = Some((at + 1).min(self.boards.len())),
+            rune::Key::Home => self.board_picker = Some(0),
+            rune::Key::End => self.board_picker = Some(self.boards.len()),
+            rune::Key::Enter => self.activate_board_picker(),
+            _ => return false,
+        }
+        true
+    }
+
+    /// Enter in the picker: open the highlighted board, or make one from the
+    /// footer when the highlight is on it.
+    pub fn activate_board_picker(&mut self) {
+        let Some(at) = self.board_picker else {
+            return;
+        };
+        if at < self.boards.len() {
+            self.pick_board_row(at);
+        } else {
+            self.new_board_from_picker();
+        }
+    }
+
+    /// Pick the picker's row `i`: close the list, then open that board.
+    pub fn pick_board_row(&mut self, i: usize) {
+        self.close_board_picker();
+        if let Some(path) = self.boards.get(i).map(|b| b.file.path.clone()) {
+            self.select_board(path);
+        }
+    }
+
+    /// The picker's footer: make a board (and open it) with the list closed.
+    pub fn new_board_from_picker(&mut self) {
+        self.close_board_picker();
+        self.new_board();
+    }
+
     /// Remember the open board's view for this session.
     fn stash_board_view(&mut self) {
         if let Some(open) = &self.board_open
@@ -623,6 +701,7 @@ impl State {
     /// Forget every open board and remembered view (another vault opened).
     pub fn clear_boards(&mut self) {
         self.cancel_board_note_link();
+        self.close_board_picker();
         self.boards.clear();
         self.board_selected = None;
         self.board_open = None;
@@ -821,7 +900,7 @@ impl State {
 }
 
 pub fn board(s: &State, k: &Kit) -> El {
-    col()
+    let mut page = col()
         .key("board-page")
         .w_full()
         .grow(1.0)
@@ -833,12 +912,16 @@ pub fn board(s: &State, k: &Kit) -> El {
                 .w_full()
                 .grow(1.0)
                 .min_h(0.0)
-                .gap(16.0)
                 .px(28.0)
                 .pb(24.0)
-                .child(board_list(s, k))
                 .child(surface(s, k)),
-        )
+        );
+    // #188: the board list floats under its header button; the surface takes
+    // the whole body width instead of a second, page-local rail.
+    if s.board_picker.is_some() {
+        page = page.child(board_picker(s, k));
+    }
+    page
 }
 
 fn header(s: &State, k: &Kit) -> El {
@@ -847,6 +930,37 @@ fn header(s: &State, k: &Kit) -> El {
         .px(28.0)
         .gap(10.0)
         .center_y()
+        .child(board_picker_button(s, k))
+        .child(spacer())
+        .child(new_board_button(k, "board-new"))
+}
+
+/// #188: `Boards · N` is the picker's button: it says what the page is and
+/// opens the list of boards.
+fn board_picker_button(s: &State, k: &Kit) -> El {
+    let open = s.board_picker.is_some();
+    row()
+        .key("board-picker")
+        .h(30.0)
+        .px(8.0)
+        .gap(7.0)
+        .radius(7.0)
+        .center_y()
+        .fill(if open {
+            k.c.layer_03
+        } else {
+            Color::TRANSPARENT
+        })
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .role("button")
+        .label(t(TextKey::BoardPagePickerLabel))
+        .help(t(TextKey::BoardPagePickerHelp))
+        .expanded(open)
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .on_press(|s: &mut State| s.toggle_board_picker())
         .child(
             text(t(TextKey::BoardPageTitle))
                 .font(k.ty.ui_medium)
@@ -858,8 +972,131 @@ fn header(s: &State, k: &Kit) -> El {
                 .font(k.ty.caption())
                 .color(k.c.text_faint),
         )
-        .child(spacer())
-        .child(new_board_button(k, "board-new"))
+        .child(
+            icon(&ic::CHEVRON_DOWN, 10.0)
+                .color(k.c.icon_muted)
+                .icon_rotation(if open { std::f32::consts::PI } else { 0.0 }),
+        )
+}
+
+/// #188: the floating board list, pinned under the header button. One focus
+/// stop: Up/Down move the highlight (the open board, or the footer), Enter
+/// opens it. Escape, a press outside, or picking a row closes the list and
+/// gives the button back the keyboard.
+fn board_picker(s: &State, k: &Kit) -> El {
+    // The footer (New board) is the row after the last board, so the keyboard
+    // can reach it as well.
+    let at = s.board_picker.unwrap_or(0);
+    let mut rows = col()
+        .key("board-picker-rows")
+        .w_full()
+        .min_w(0.0)
+        .gap(2.0)
+        // About 60% of the page, so a long vault scrolls rather than running
+        // off the window.
+        .max_h((s.window_height * 0.6).max(120.0))
+        .scroll(ScrollSpec {
+            stick_bottom: false,
+        });
+    if s.boards.is_empty() {
+        rows = rows.child(
+            text(t(TextKey::NoBoards))
+                .key("board-list-empty")
+                .font(k.ty.caption())
+                .color(k.c.text_faint)
+                .padding(8.0),
+        );
+    }
+    for (i, b) in s.boards.iter().enumerate() {
+        let on = s.board_selected.as_ref() == Some(&b.file.path);
+        let detail = b.detail();
+        let highlighted = at == i;
+        rows = rows.child(
+            col()
+                .key(format!("board-row-{i}"))
+                .w_full()
+                .min_w(0.0)
+                .px(10.0)
+                .py(7.0)
+                .gap(2.0)
+                .radius(7.0)
+                .fill(if on {
+                    k.c.layer_03
+                } else if highlighted {
+                    k.alpha(k.c.text_accent, 0.13)
+                } else {
+                    Color::TRANSPARENT
+                })
+                .outline(if highlighted { 1.0 } else { 0.0 }, -1.0, k.c.text_accent)
+                .hover(k.c.hover)
+                .cursor(Cursor::Pointer)
+                // The list opens on the open board; the highlight starts there.
+                .focus_selected(on)
+                .role("option")
+                .label(format!("{} · {}", b.file.title, detail))
+                .on_press(move |s: &mut State| s.pick_board_row(i))
+                .child(board_row_body(
+                    k,
+                    &b.file.title,
+                    &detail,
+                    (None, Some(format!("board-row-{i}-detail"))),
+                    on,
+                    true,
+                )),
+        );
+    }
+    let mut list = col()
+        .key("board-picker-list")
+        .w(280.0)
+        .min_w(0.0)
+        .gap(2.0)
+        .padding(6.0)
+        .radius(10.0)
+        .fill(k.c.layer_02)
+        .border(1.0, k.c.border_base)
+        .role("listbox")
+        .label(t(TextKey::BoardPagePickerMenu))
+        // The panel is the one Tab stop; it owns Up/Down/Enter and the modal
+        // owns Escape and the press outside.
+        .focusable(true)
+        .no_focus_ring()
+        .focus_return("board-picker")
+        .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| s.board_picker_key(e))
+        .modal(true, |s: &mut State| s.close_board_picker())
+        .child(rows);
+    list = list.child(
+        row()
+            .key("board-picker-new")
+            .w_full()
+            .h(30.0)
+            .px(10.0)
+            .gap(6.0)
+            .radius(6.0)
+            .center_y()
+            .fill(if at == s.boards.len() {
+                k.alpha(k.c.text_accent, 0.13)
+            } else {
+                Color::TRANSPARENT
+            })
+            .outline(
+                if at == s.boards.len() { 1.0 } else { 0.0 },
+                -1.0,
+                k.c.text_accent,
+            )
+            .hover(k.c.hover)
+            .press(k.c.pressed)
+            .cursor(Cursor::Pointer)
+            .role("button")
+            .label(t(TextKey::BoardPageNew))
+            .on_press(|s: &mut State| s.new_board_from_picker())
+            .child(icon(&ic::PLUS, 12.0).color(k.c.text_accent))
+            .child(
+                text(t(TextKey::BoardPageNew))
+                    .font(k.ty.ui_compact)
+                    .color(k.c.text_base),
+            ),
+    );
+    list.absolute(28.0, 58.0)
 }
 
 /// Slice 8: New board (an empty `Untitled board.excalidraw`, opened).
@@ -886,86 +1123,63 @@ fn new_board_button(k: &Kit, key: &str) -> El {
         )
 }
 
-fn board_list(s: &State, k: &Kit) -> El {
-    let mut list = col()
-        .key("board-list")
-        .w(240.0)
-        .gap(4.0)
-        .focus_group()
-        .role("list");
-    if s.boards.is_empty() {
-        list = list.child(
-            text(t(TextKey::NoBoards))
-                .key("board-list-empty")
-                .font(k.ty.caption())
-                .color(k.c.text_faint)
-                .padding(8.0),
-        );
+/// One board row's title and its second line, shared by the page's picker and
+/// the notes sidebar's Boards section so the two cannot fork: a board reads
+/// the same wherever it is listed.
+///
+/// `stacked` puts the detail under the title (the picker's list); otherwise it
+/// follows the title on one line (the sidebar's compact rows). `current` is
+/// the open board, whose title carries the accent and whose detail uses the
+/// stronger secondary ink (the picker also fills its row).
+pub(crate) fn board_row_body(
+    k: &Kit,
+    title: &str,
+    detail: &str,
+    keys: (Option<String>, Option<String>),
+    current: bool,
+    stacked: bool,
+) -> El {
+    let mut title_el = text(title.to_owned())
+        .font(k.ty.ui_compact)
+        .color(if current {
+            k.c.text_accent
+        } else {
+            k.c.text_base
+        })
+        .truncate();
+    if let Some(key) = keys.0 {
+        title_el = title_el.key(key);
     }
-    for (i, b) in s.boards.iter().enumerate() {
-        let on = s.board_selected.as_ref() == Some(&b.file.path);
-        let path = b.file.path.clone();
-        if s.renaming_board_at(&path, crate::BoardPlace::Panel) {
-            list = list.child(crate::board_rename::rename_field(s, k));
-            continue;
-        }
-        let menu_path = path.clone();
-        list = list.child(
-            col()
-                .key(format!("board-row-{i}"))
-                .w_full()
-                .px(10.0)
-                .py(7.0)
-                .gap(2.0)
-                .radius(7.0)
-                .fill(if on {
-                    k.c.layer_03
-                } else {
-                    rune::Color::TRANSPARENT
-                })
-                .hover(k.c.hover)
-                .cursor(Cursor::Pointer)
-                .focusable(true)
-                .focus_ring(2.0, 1.0, k.c.text_accent)
-                .on_press_tx(move |s: &mut State, tx: &mut Tx| {
-                    s.select_board(path.clone());
-                    // Hand the keyboard to the canvas so arrows pan the board
-                    // instead of moving through the list.
-                    tx.blur();
-                })
-                .on_secondary_press(move |s: &mut State, press, _| {
-                    s.open_board_menu(
-                        menu_path.clone(),
-                        crate::BoardPlace::Panel,
-                        press.x,
-                        press.y,
-                    );
-                })
-                .child(
-                    text(b.file.title.clone())
-                        .font(k.ty.ui_compact)
-                        .color(k.c.text_base)
-                        .truncate(),
-                )
-                .child(
-                    text(b.detail())
-                        .key(format!("board-row-{i}-detail"))
-                        .font(k.ty.caption())
-                        // #72 follow-up: on the selected row this sits on
-                        // `layer_03` under the hover overlay, where `faint`
-                        // would be under 4.5:1; the stronger secondary ink
-                        // clears it in both themes.
-                        .color(if on { k.c.text_muted } else { k.c.text_faint })
-                        .truncate(),
-                ),
-        );
-        if s.menu.as_ref().is_some_and(|m| {
-            m.target == crate::MenuTarget::Board(b.file.path.clone(), crate::BoardPlace::Panel)
-        }) {
-            list = list.child(crate::view::context_menu(s, k));
-        }
+    let mut detail_el = text(detail.to_owned())
+        .font(k.ty.caption())
+        // #72 follow-up: on the selected row this sits on `layer_03` under a
+        // highlight, where `faint` would be under 4.5:1; the stronger
+        // secondary ink clears it in both themes.
+        .color(if current {
+            k.c.text_muted
+        } else {
+            k.c.text_faint
+        })
+        .truncate();
+    if let Some(key) = keys.1 {
+        detail_el = detail_el.key(key);
     }
-    list
+    if stacked {
+        col()
+            .w_full()
+            .min_w(0.0)
+            .gap(2.0)
+            .child(title_el)
+            .child(detail_el)
+    } else {
+        row()
+            .grow(1.0)
+            .min_w(0.0)
+            .gap(6.0)
+            .center_y()
+            .child(title_el)
+            .child(detail_el)
+    }
 }
 
 fn surface(s: &State, k: &Kit) -> El {
@@ -994,7 +1208,8 @@ fn surface(s: &State, k: &Kit) -> El {
                 .to_string_lossy()
                 .replace('\\', "/"),
         ),
-        // Slice 8: with no boards at all there is nothing on the left to pick.
+        // Slice 8: with no boards at all the placeholder below says so; #188
+        // drops the heading so the page says it once.
         (None, None) if s.boards.is_empty() => (
             t(TextKey::BoardPageEmptyTitle).to_owned(),
             t(TextKey::BoardPageEmptyDetail).to_owned(),
@@ -1023,7 +1238,7 @@ fn surface(s: &State, k: &Kit) -> El {
             title_el
                 .label(t(TextKey::BoardPageTitleLabel))
                 .on_double_press(|s: &mut State| {
-                    s.begin_rename_open_board(crate::BoardPlace::Header);
+                    s.begin_rename_open_board();
                 })
         } else {
             title_el
@@ -1069,15 +1284,15 @@ fn surface(s: &State, k: &Kit) -> El {
                 e,
             ),
         },
-        // Slice 8: an empty Board offers a way in, not just a message.
+        // Slice 8: an empty Board shows the no-board placeholder once; the
+        // header's New board is the one way in (#188 drops the copy inside).
         None if s.boards.is_empty() => placeholder(
             k,
             "board-placeholder",
             &ic::DOT_GRID,
             t(TextKey::NoBoards),
             t(TextKey::BoardPageEmptyHint),
-        )
-        .child(new_board_button(k, "board-new-empty")),
+        ),
         None => placeholder(
             k,
             "board-placeholder",
@@ -1087,14 +1302,18 @@ fn surface(s: &State, k: &Kit) -> El {
         )
         .child(new_board_button(k, "board-new-empty")),
     };
-    col()
+    let mut panel = col()
         .key("board-surface")
         .grow(1.0)
         .min_w(0.0)
         .h_full()
-        .gap(6.0)
-        .child(heading)
-        .child(body)
+        .gap(6.0);
+    // #188: with no boards at all, the placeholder is the whole story; the
+    // heading would say "No boards yet" a second time.
+    if !(s.board_open.is_none() && s.boards.is_empty()) {
+        panel = panel.child(heading);
+    }
+    panel.child(body)
 }
 
 /// An empty or error state filling the page: a glyph, a title (keyed

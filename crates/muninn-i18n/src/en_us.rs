@@ -347,17 +347,22 @@ pub(crate) fn text(key: Key) -> &'static str {
             "A board is an Excalidraw file in your vault. Make one to start drawing."
         }
         Key::BoardPageNoSelectionTitle => "No board selected",
-        Key::BoardPageNoSelectionDetail => "Pick a board on the left to see what it holds",
+        Key::BoardPageNoSelectionDetail => {
+            "Pick a board from the picker above to see what it holds"
+        }
         Key::BoardPageTitleLabel => "Board name; double-click to rename",
         Key::BoardPageUnreadableTitle => "This board could not be read",
         Key::BoardPageNoOpenTitle => "No board open",
         Key::BoardPageNoOpenDetail => {
-            "Pick a board on the left, or make a new one. Boards are Excalidraw files in your vault."
+            "Pick a board from the picker above, or make a new one. Boards are Excalidraw files in your vault."
         }
         Key::BoardPageEmptyCanvas => "Nothing drawn on this board yet",
         Key::BoardPageHint => {
             "Click/drag select · Del delete · ⌘Z undo · R D O A L P draw · H pan · ⌘L link note · ⌘S save · 0 fit"
         }
+        Key::BoardPagePickerLabel => "Choose a board",
+        Key::BoardPagePickerHelp => "Open the board list",
+        Key::BoardPagePickerMenu => "Boards",
         Key::BoardToolToolbar => "Board tools",
         Key::BoardToolHand => "Hand",
         Key::BoardToolHandHelp => "Pan the board (H)",

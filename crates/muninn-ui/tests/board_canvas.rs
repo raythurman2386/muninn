@@ -45,13 +45,17 @@ struct Session {
 }
 
 fn launch(root: &Path, config: &Path, state_home: &Path) -> Runtime<State> {
+    launch_at(root, config, state_home, (1180.0, 780.0))
+}
+
+fn launch_at(root: &Path, config: &Path, state_home: &Path, size: (f32, f32)) -> Runtime<State> {
     let state = State::with_settings(
         root.to_path_buf(),
         state_home.to_path_buf(),
         config.to_path_buf(),
         Settings::load_from(config),
     );
-    let mut rt = Runtime::new(state, view, (1180.0, 780.0), Env::new(true, 2.0));
+    let mut rt = Runtime::new(state, view, size, Env::new(true, 2.0));
     rt.poll = Some(poll);
     rt.on_key = Some(on_key);
     rt.frame(0.0);
@@ -98,7 +102,7 @@ fn click(rt: &mut Runtime<State>, key: &str) {
     frames(rt, 2);
 }
 
-/// Enter Board and open the board titled `title` from the list.
+/// Enter Board and open the board titled `title` from the header picker.
 fn open(rt: &mut Runtime<State>, title: &str) {
     if rt.state.mode != Mode::Board {
         rt.key(command('4'));
@@ -110,6 +114,8 @@ fn open(rt: &mut Runtime<State>, title: &str) {
         .iter()
         .position(|b| b.file.title == title)
         .unwrap_or_else(|| panic!("no board {title}"));
+    // #188: the list floats under its button; open it, then pick the row.
+    click(rt, "board-picker");
     click(rt, &format!("board-row-{i}"));
     // The canvas reports its size once its entry settles; the fit follows.
     frames(rt, 60);
@@ -130,6 +136,35 @@ fn near(a: [f32; 2], b: [f32; 2], tol: f32) -> bool {
 fn bounds(rt: &Runtime<State>) -> [f32; 4] {
     let open = rt.state.board_open.as_ref().expect("open");
     open.scene.as_ref().expect("scene").bounds.expect("bounds")
+}
+
+#[test]
+fn the_canvas_takes_the_width_the_page_rail_used_to_hold() {
+    // #188: 1180×780 used to give 868×597 (a 240 pt list and a 16 pt gap);
+    // 840×560 gave 528×377. The header picker reclaims both.
+    let tmp = vault();
+    for (size, want) in [
+        ((1180.0, 780.0), [1124.0, 597.0]),
+        ((840.0, 560.0), [784.0, 377.0]),
+    ] {
+        let (config, state_home) = (unique_dir("config"), unique_dir("state"));
+        let mut rt = launch_at(tmp.path(), &config, &state_home, size);
+        open(&mut rt, "Smoke");
+        let rect = canvas_rect(&rt);
+        assert_eq!(
+            (rect[0], rect[2], rect[3]),
+            (28.0, want[0], want[1]),
+            "{size:?}"
+        );
+    }
+    // The app sidebar keeps the page honest when it is reopened on Board.
+    let (config, state_home) = (unique_dir("config"), unique_dir("state"));
+    let mut rt = launch(tmp.path(), &config, &state_home);
+    open(&mut rt, "Smoke");
+    rt.update(|s, _| s.toggle_sidebar());
+    frames(&mut rt, 90);
+    let rect = canvas_rect(&rt);
+    assert_eq!((rect[2], rect[3]), (865.0, 597.0), "{rect:?}");
 }
 
 #[test]
@@ -456,6 +491,7 @@ fn a_board_is_remembered_for_the_next_launch_only_once_a_frame_drew_it() {
             .iter()
             .position(|b| b.file.title == "Smoke")
             .unwrap();
+    click(&mut s.rt, "board-picker");
     let (x, y) = s.rt.find(&format!("board-row-{i}")).unwrap();
     s.rt.pointer_down(x, y);
     s.rt.pointer_up(x, y);

@@ -105,6 +105,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
                 state.menu = None;
             }
         }
+        Layer::BoardPicker => state.board_picker = on.then_some(0),
         // A Kanban conflict needs a shown kanban, which this state has not:
         // `kanban_conflict_is_a_layer_above_the_menu` sets one up.
         Layer::KanbanConflict => {}
@@ -168,7 +169,7 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
     }
 }
 
-const ESCAPE_ORDER: [Layer; 21] = [
+const ESCAPE_ORDER: [Layer; 22] = [
     Layer::Palette,
     Layer::Settings,
     Layer::Help,
@@ -182,6 +183,7 @@ const ESCAPE_ORDER: [Layer; 21] = [
     Layer::MoveConfirm,
     Layer::FolderRenameConfirm,
     Layer::Menu,
+    Layer::BoardPicker,
     Layer::KanbanPicker,
     Layer::ArchivePage,
     Layer::NewNote,

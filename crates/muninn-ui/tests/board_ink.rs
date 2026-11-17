@@ -129,6 +129,8 @@ fn open_board(rt: &mut Runtime<State>, title: &str) {
         .iter()
         .position(|b| b.file.title == title)
         .unwrap_or_else(|| panic!("no board {title}"));
+    // #188: the list floats under its button; open it, then pick the row.
+    click(rt, "board-picker");
     click(rt, &format!("board-row-{i}"));
     frames(rt, 60);
 }
