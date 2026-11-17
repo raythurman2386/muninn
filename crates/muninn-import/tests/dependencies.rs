@@ -1,4 +1,4 @@
-//! The import crate stays a local, offline leaf.
+//! The import crate stays a local leaf.
 //!
 //! `cargo metadata` is the resolved dependency graph Cargo actually builds, so
 //! this test fails if a future version of `anydoc` (or a feature) pulls in an
@@ -25,7 +25,9 @@ const HTTP_CLIENTS: &[&str] = &[
 fn metadata() -> String {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = Command::new(cargo)
-        .args(["metadata", "--format-version", "1", "--locked", "--offline"])
+        // No `--offline`: metadata resolves every platform's dependencies, and
+        // CI's cache may not hold a Windows-only crate on Linux (#189 CI).
+        .args(["metadata", "--format-version", "1", "--locked"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .expect("run cargo metadata");
