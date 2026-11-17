@@ -1,4 +1,4 @@
-# Boards and Kanban
+# Visual modes
 
 Both modes are files, not a separate store.
 

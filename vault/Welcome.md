@@ -19,9 +19,9 @@ around.
 - [[Wikilinks]] — links, aliases and headings
 - [[Backlinks]] — the other half of a link
 - [[Knowledge Graph]] and [[Local Graph]] — the whole map and one neighbourhood
-- [[Boards and Kanban]] — the two visual modes
+- [[Visual modes]] — Board and Kanban
 - [[Launch Week]] — a sample Kanban; open it and press `⌘5`
-- [[Daily Notes]], [[Design Principles]], [[Typography]] and [[Scratchpad]]
+- [[Daily Notes]], [[Design Principles]] and [[Typography]]; **Scratchpad** is an unlinked island
 
 Use `⌘K` (or `Ctrl+K`) to search, `⌘N` to make a note, `⌘I` to import a
 document, `⌘G` to open the graph, and `⌘?` for every shortcut. Settings is

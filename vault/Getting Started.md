@@ -35,7 +35,7 @@ outgoing links and backlinks, with the line that made each backlink. Press
 
 `⌘K` / `Ctrl+K` searches notes. `⌘P` / `Ctrl+P` inserts a wikilink at the
 caret. `⌘1`…`⌘5` / `Ctrl+1`…`Ctrl+5` switches Write, Read, Graph, Board and
-Kanban; [[Boards and Kanban]] explains the last two. `⌘?` / `Ctrl+?` opens the
+Kanban; [[Visual modes]] explains the last two. `⌘?` / `Ctrl+?` opens the
 full shortcut map.
 
 Related: [[Markdown]], [[Wikilinks]] and [[Daily Notes]].
