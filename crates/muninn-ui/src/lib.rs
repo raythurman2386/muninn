@@ -22,6 +22,7 @@ mod doc_sync;
 mod focus;
 mod global_shortcut;
 mod graph_view;
+mod import_document;
 mod kanban_archive;
 mod kanban_dates;
 mod kanban_drag;
@@ -68,6 +69,7 @@ pub use board_view::{
 pub use contrast::{TEXT, UI, at_least, board_stroke, meets, over, ratio as contrast_ratio};
 pub use doc_sync::DocConflict;
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
+pub use import_document::DOCUMENT_EXTENSIONS;
 pub use kanban_dates::{KanbanPicker, PickerInsert, PickerKind};
 pub use kanban_edit::{CardSlot, KanbanHistory};
 pub use kanban_lanes::{CardStep, LaneField, LaneSlot};
@@ -88,8 +90,8 @@ pub use settings::{
 pub use state::{
     BurnMark, BurnSpace, ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState,
     FileAction, FindState, FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry,
-    ImportReport, LinkComplete, MenuTarget, MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt,
-    State, TagComplete, TrashUndo, file_action_command,
+    IMPORT_EXTENSIONS, ImportReport, LinkComplete, MenuTarget, MoveConfirm, NamePrompt,
+    RenameConfirm, RenamePrompt, State, TagComplete, TrashUndo, file_action_command,
 };
 pub use tray::{
     TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,

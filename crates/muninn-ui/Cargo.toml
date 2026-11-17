@@ -12,6 +12,7 @@ authors.workspace = true
 muninn-core.workspace = true
 muninn-graph.workspace = true
 muninn-i18n.workspace = true
+muninn-import.workspace = true
 muninn-sync.workspace = true
 rune.workspace = true
 rune-kit.workspace = true

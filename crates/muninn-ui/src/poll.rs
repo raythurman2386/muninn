@@ -69,6 +69,14 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.poll_sync() {
         changed = true;
     }
+    // #189: a document converts on a worker; land the note here and keep the
+    // window polling while a conversion or a queued document waits.
+    if s.poll_import() {
+        changed = true;
+    }
+    if s.import_busy() {
+        tx.wake_after(crate::import_document::IMPORT_WAKE);
+    }
     // A hidden window (closed to the tray) only polls on a timer, so keep
     // checking while a run or sign-in is in flight; otherwise its result and
     // the tray's status row would wait for the window to show again.

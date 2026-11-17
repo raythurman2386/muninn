@@ -245,6 +245,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
                 .color(k.c.text_base)
                 .grow(1.0),
         )
+        .child(import_button(k))
         .child(help_button(k))
         .child(settings_button(k));
     // Following the shared Omarchy palette hides the switcher: Omarchy is the
@@ -665,6 +666,30 @@ fn theme_button(k: &Kit, mode: ThemeMode) -> El {
         .label(label.clone())
         .help(label)
         .on_press(|s: &mut State| s.cycle_theme())
+}
+
+/// #189: import a document as a new note. A 26 pt icon beside Help and
+/// Settings in the sidebar's brand row; opening the desktop file dialog is the
+/// same path the palette action and ⌘I take.
+fn import_button(k: &Kit) -> El {
+    pressable(k, "import-document".to_owned())
+        .size(26.0, 26.0)
+        .center()
+        .focusable(true)
+        .focus_ring(2.0, 1.0, k.c.text_accent)
+        .role("button")
+        .on_key(|s: &mut State, e: &KeyEvent, tx: &mut Tx| {
+            if e.key == Key::Enter {
+                s.open_import_document(tx);
+                true
+            } else {
+                false
+            }
+        })
+        .child(icon(&ic::FILE_DOCUMENT, 15.0).color(k.c.icon_muted))
+        .label(t(TextKey::ImportDocument))
+        .help(t(TextKey::ImportDocumentHelp))
+        .on_press_tx(|s: &mut State, tx: &mut Tx| s.open_import_document(tx))
 }
 
 /// DES-01: the sidebar Help button, next to the theme toggle.
@@ -2691,6 +2716,7 @@ fn shortcut_groups() -> [(TextKey, &'static [(&'static str, TextKey)]); 6] {
                 ),
                 ("⌘P / Ctrl+P", TextKey::HelpEditInsertWikilink),
                 ("⌘N / Ctrl+N", TextKey::HelpEditNewNote),
+                ("⌘I / Ctrl+I", TextKey::HelpEditImportDocument),
                 ("⌘S / Ctrl+S", TextKey::HelpEditSaveNow),
                 ("⌘E / Ctrl+E", TextKey::HelpEditToggleWriteRead),
                 ("[[", TextKey::HelpEditWikilinkCompletion),
@@ -2865,7 +2891,7 @@ fn palette_layer(s: &State, k: &Kit) -> El {
                             crate::shortcut(s, e, tx)
                         })
                         .on_submit(|s: &mut State, tx: &mut Tx| {
-                            s.palette_run();
+                            s.palette_run(tx);
                             // Focus mode (the only chrome-changing action) comes
                             // and goes at once under reduced motion.
                             if s.reduced_motion() {
@@ -3020,7 +3046,7 @@ fn palette_row(s: &State, k: &Kit, index: usize, item: &PaletteItem, selected: b
         .role("option")
         .label(title.clone())
         .focus_selected(selected)
-        .on_press(move |s: &mut State| s.palette_run_index(index))
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| s.palette_run_index(index, tx))
         .child(
             el().size(6.0, 6.0)
                 .radius(3.0)

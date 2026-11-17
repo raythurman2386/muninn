@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 muninn-core.workspace = true
 muninn-ui.workspace = true
-rune.workspace = true
+rune = { workspace = true, features = ["native-file-dialog"] }
 rune-fx.workspace = true
 rune-theme-opencode.workspace = true
 serde_json.workspace = true

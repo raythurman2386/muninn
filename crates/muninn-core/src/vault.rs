@@ -960,6 +960,31 @@ impl Vault {
     /// independent of the root.
     pub fn create_note_in(&self, title: &str, folder: &str) -> io::Result<PathBuf> {
         let title = sanitise_title(title);
+        let body = format!("# {title}\n\n");
+        self.create_note_file(&title, folder, body.as_bytes())
+    }
+
+    /// Create `title.md` (or `title 2.md`, …) inside `folder` with `body`
+    /// written in one [`atomic_write`], returning its path.
+    ///
+    /// Document import writes a converted note this way: the body is complete
+    /// before the file exists, so there is no empty stub on disk and no second
+    /// write to race a sync or a watcher. The title is sanitised and deduped
+    /// exactly like [`Vault::create_note_in`]; an existing file is never
+    /// overwritten.
+    pub fn create_note_with_body_in(
+        &self,
+        title: &str,
+        folder: &str,
+        body: &str,
+    ) -> io::Result<PathBuf> {
+        let title = sanitise_title(title);
+        self.create_note_file(&title, folder, body.as_bytes())
+    }
+
+    /// The shared title dedupe and single atomic write behind
+    /// [`Vault::create_note_in`] and [`Vault::create_note_with_body_in`].
+    fn create_note_file(&self, title: &str, folder: &str, body: &[u8]) -> io::Result<PathBuf> {
         let dir = folder_dir(&self.root, folder);
         fs::create_dir_all(&dir)?;
         let mut n = 1;
@@ -971,8 +996,7 @@ impl Vault {
             };
             let path = dir.join(name);
             if !path.exists() {
-                let body = format!("# {title}\n\n");
-                atomic_write(&path, body.as_bytes())?;
+                atomic_write(&path, body)?;
                 return Ok(path);
             }
             n += 1;

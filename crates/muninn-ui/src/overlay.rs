@@ -142,6 +142,9 @@ pub enum PaletteAction {
     ToggleFocusMode,
     /// Write `Untitled Kanban.md` and open it on the Kanban page.
     NewKanban,
+    /// #189: open Rune's file dialog and convert the chosen document into a
+    /// new note in the current folder. Its hint is ⌘I.
+    ImportDocument,
     /// Write the New Kanban layout into the selected note. Offered only
     /// while that note is empty, so it is not in [`PaletteAction::ALL`].
     ConvertToKanban,
@@ -150,11 +153,12 @@ pub enum PaletteAction {
 impl PaletteAction {
     /// Every action always offered, in the order shown before a query is
     /// typed. [`PaletteAction::ConvertToKanban`] follows them when offered.
-    pub const ALL: [PaletteAction; 10] = [
+    pub const ALL: [PaletteAction; 11] = [
         PaletteAction::OpenLocalGraph,
         PaletteAction::SwitchVault,
         PaletteAction::OpenSettings,
         PaletteAction::NewNote,
+        PaletteAction::ImportDocument,
         PaletteAction::TogglePreview,
         PaletteAction::ToggleGraph,
         PaletteAction::ToggleBoard,
@@ -171,6 +175,7 @@ impl PaletteAction {
             PaletteAction::SwitchVault => TextKey::PaletteActionSwitchVault,
             PaletteAction::OpenSettings => TextKey::PaletteActionOpenSettings,
             PaletteAction::NewNote => TextKey::PaletteActionNewNote,
+            PaletteAction::ImportDocument => TextKey::PaletteActionImportDocument,
             PaletteAction::TogglePreview => TextKey::PaletteActionTogglePreview,
             PaletteAction::ToggleGraph => TextKey::PaletteActionToggleGraph,
             PaletteAction::ToggleBoard => TextKey::PaletteActionToggleBoard,
@@ -192,6 +197,7 @@ impl PaletteAction {
             PaletteAction::SwitchVault => t(TextKey::PaletteHintVaults),
             PaletteAction::OpenSettings => t(TextKey::PaletteHintHelp),
             PaletteAction::NewNote => "⌘N",
+            PaletteAction::ImportDocument => crate::import_document::IMPORT_CHORD,
             PaletteAction::TogglePreview => "⌘E",
             PaletteAction::ToggleGraph => "⌘G",
             PaletteAction::ToggleBoard => "⌘4",
@@ -214,6 +220,7 @@ impl PaletteAction {
             PaletteAction::SwitchVault => TextKey::PaletteKeywordsSwitchVault,
             PaletteAction::OpenSettings => TextKey::PaletteKeywordsOpenSettings,
             PaletteAction::NewNote => TextKey::PaletteKeywordsNewNote,
+            PaletteAction::ImportDocument => TextKey::PaletteKeywordsImportDocument,
             PaletteAction::TogglePreview => TextKey::PaletteKeywordsTogglePreview,
             PaletteAction::ToggleGraph => TextKey::PaletteKeywordsToggleGraph,
             PaletteAction::ToggleBoard => TextKey::PaletteKeywordsToggleBoard,

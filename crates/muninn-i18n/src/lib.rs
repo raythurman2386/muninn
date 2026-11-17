@@ -1717,18 +1717,231 @@ pub fn import_partly_refused(imported: usize, total: usize, list: &str) -> Strin
     format!("Imported {imported} of {total}; refused: {list}")
 }
 
-/// `"Cannot import <names>: drop .md, png, jpg, jpeg, gif, webp or pdf files"`.
+/// `"Cannot import <names>: drop Markdown, image, PDF or office documents"`.
 ///
 /// # Examples
 ///
 /// ```
 /// assert_eq!(
 ///     muninn_i18n::cannot_import("a.txt, b.zip"),
-///     "Cannot import a.txt, b.zip: drop .md, png, jpg, jpeg, gif, webp or pdf files"
+///     "Cannot import a.txt, b.zip: drop Markdown, image, PDF or office documents"
 /// );
 /// ```
 pub fn cannot_import(names: &str) -> String {
-    format!("Cannot import {names}: drop .md, png, jpg, jpeg, gif, webp or pdf files")
+    format!("Cannot import {names}: drop Markdown, image, PDF or office documents")
+}
+
+/// `"Importing <name>…"`.
+///
+/// The status line while a document converts on the worker thread.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_progress("report.docx"),
+///     "Importing report.docx…"
+/// );
+/// ```
+pub fn import_progress(name: &str) -> String {
+    format!("Importing {name}…")
+}
+
+/// `"Imported <title>"`.
+///
+/// The success line once the note, its images and the source document are
+/// inside the vault.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_document_notice("Quarterly Report"),
+///     "Imported Quarterly Report"
+/// );
+/// ```
+pub fn import_document_notice(title: &str) -> String {
+    format!("Imported {title}")
+}
+
+/// `"Could not import <name>: this file type cannot be converted."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_unsupported("notes.bin"),
+///     "Could not import notes.bin: this file type cannot be converted."
+/// );
+/// ```
+pub fn import_unsupported(name: &str) -> String {
+    format!("Could not import {name}: this file type cannot be converted.")
+}
+
+/// Why a scanned PDF could not become a note, naming the OCR pages.
+///
+/// `pages` are 1-indexed and `page_count` is the document's page count.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_needs_ocr("scan.pdf", &[2, 3], 9),
+///     "Could not import scan.pdf: pages 2, 3 of 9 are scanned images and need OCR, which Muninn does not do. Export a text version first."
+/// );
+/// ```
+pub fn import_needs_ocr(name: &str, pages: &[u32], page_count: u32) -> String {
+    let list = pages
+        .iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
+    if pages.len() == 1 {
+        format!(
+            "Could not import {name}: page {list} of {page_count} is a scanned image and needs OCR, which Muninn does not do. Export a text version first."
+        )
+    } else {
+        format!(
+            "Could not import {name}: pages {list} of {page_count} are scanned images and need OCR, which Muninn does not do. Export a text version first."
+        )
+    }
+}
+
+/// `"Could not import <name>: the document is encrypted. Remove its password and import it again."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_encrypted("private.docx"),
+///     "Could not import private.docx: the document is encrypted. Remove its password and import it again."
+/// );
+/// ```
+pub fn import_encrypted(name: &str) -> String {
+    format!(
+        "Could not import {name}: the document is encrypted. Remove its password and import it again."
+    )
+}
+
+/// `"Could not import <name>: the file is damaged, or it is not a readable document."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_malformed("broken.docx"),
+///     "Could not import broken.docx: the file is damaged, or it is not a readable document."
+/// );
+/// ```
+pub fn import_malformed(name: &str) -> String {
+    format!("Could not import {name}: the file is damaged, or it is not a readable document.")
+}
+
+/// `"Could not import <name>: the document is too complex to convert."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_resource_limit("huge.xlsx"),
+///     "Could not import huge.xlsx: the document is too complex to convert."
+/// );
+/// ```
+pub fn import_resource_limit(name: &str) -> String {
+    format!("Could not import {name}: the document is too complex to convert.")
+}
+
+/// `"Could not import <name>: the document is missing a part it needs."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_missing_part("report.docx"),
+///     "Could not import report.docx: the document is missing a part it needs."
+/// );
+/// ```
+pub fn import_missing_part(name: &str) -> String {
+    format!("Could not import {name}: the document is missing a part it needs.")
+}
+
+/// `"Could not import <name>: the file could not be read."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_io("gone.docx"),
+///     "Could not import gone.docx: the file could not be read."
+/// );
+/// ```
+pub fn import_io(name: &str) -> String {
+    format!("Could not import {name}: the file could not be read.")
+}
+
+/// `"Could not import <name>: the document could not be converted."`.
+///
+/// The fallback for a parser failure the catalog does not model yet.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_failed("odd.docx"),
+///     "Could not import odd.docx: the document could not be converted."
+/// );
+/// ```
+pub fn import_failed(name: &str) -> String {
+    format!("Could not import {name}: the document could not be converted.")
+}
+
+/// `"Could not import <name>: the file is <size>, over the <limit> limit."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_too_large("big.docx", 51 * 1024 * 1024, 50 * 1024 * 1024),
+///     "Could not import big.docx: the file is 51 MB, over the 50 MB limit."
+/// );
+/// ```
+pub fn import_too_large(name: &str, size: u64, limit: u64) -> String {
+    format!(
+        "Could not import {name}: the file is {}, over the {} limit.",
+        file_size(size),
+        file_size(limit)
+    )
+}
+
+/// `"Could not import <name>: the converted note is <size>, over the <limit> limit."`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::import_body_too_large("wide.csv", 11 * 1024 * 1024, 10 * 1024 * 1024),
+///     "Could not import wide.csv: the converted note is 11 MB, over the 10 MB limit."
+/// );
+/// ```
+pub fn import_body_too_large(name: &str, size: usize, limit: usize) -> String {
+    format!(
+        "Could not import {name}: the converted note is {}, over the {} limit.",
+        file_size(size as u64),
+        file_size(limit as u64)
+    )
+}
+
+/// A compact byte count for the import limits (`51 MB`, `900 KB`, `12 B`).
+fn file_size(bytes: u64) -> String {
+    const KIB: u64 = 1024;
+    const MIB: u64 = 1024 * KIB;
+    if bytes >= MIB {
+        format!("{:.0} MB", bytes as f64 / MIB as f64)
+    } else if bytes >= KIB {
+        format!("{:.0} KB", bytes as f64 / KIB as f64)
+    } else {
+        format!("{bytes} B")
+    }
 }
 
 /// `"Scan cancelled after <done> of <total> notes"`.
