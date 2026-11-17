@@ -584,6 +584,11 @@ impl Graph {
             }
             return self.max_speed_sq() <= DORMANT_SPEED_SQ && !self.overlaps_owed();
         }
+        // The stall guard is the only dormancy a small scaled-link layout has;
+        // once it freezes, `step` must stop integrating it (#190 Windows).
+        if self.frozen {
+            return true;
+        }
         self.packed && !self.nodes.iter().any(|node| node.fixed)
     }
 
