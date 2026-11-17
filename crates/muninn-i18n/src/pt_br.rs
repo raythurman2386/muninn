@@ -880,7 +880,7 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::MenuArchiveActions => "Ações dos arquivados",
         Key::MenuMoveToLane => "Mover para a coluna",
         Key::LinkImpactHere => "aqui",
-        Key::LinkImpactIntoFolder => "para esta pasta",
+        Key::LinkImpactIntoFolder => "a esta pasta",
         Key::LinkThisNote => "Esta nota",
         Key::LinkNameFallback => "Link",
         Key::RenameRewriteLinks => "Reescrever os links para o novo nome",
