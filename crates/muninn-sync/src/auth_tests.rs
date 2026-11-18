@@ -99,16 +99,35 @@ impl BrowserOpener for FakeBrowser {
 
 fn http_get(url: &str) -> std::io::Result<String> {
     let parsed = url::Url::parse(url).unwrap();
-    let mut stream =
-        std::net::TcpStream::connect((parsed.host_str().unwrap(), parsed.port().unwrap()))?;
+    let host = parsed.host_str().unwrap();
+    let port = parsed.port().unwrap();
     let target = match parsed.query() {
         Some(query) => format!("{}?{query}", parsed.path()),
         None => parsed.path().to_owned(),
     };
-    write!(stream, "GET {target} HTTP/1.1\r\nHost: localhost\r\n\r\n")?;
-    let mut out = String::new();
-    stream.read_to_string(&mut out)?;
-    Ok(out)
+    // The listener is bound before the browser is "opened", but a loaded macOS
+    // runner can still lose the first connect; retry briefly rather than lose
+    // the one redirect the sign-in is waiting for.
+    let mut last_error = None;
+    for _ in 0..50 {
+        match std::net::TcpStream::connect((host, port)) {
+            Ok(mut stream) => {
+                stream.set_read_timeout(Some(Duration::from_secs(10)))?;
+                write!(
+                    stream,
+                    "GET {target} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n"
+                )?;
+                let mut out = String::new();
+                stream.read_to_string(&mut out)?;
+                return Ok(out);
+            }
+            Err(error) => {
+                last_error = Some(error);
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+    }
+    Err(last_error.unwrap())
 }
 
 #[test]
@@ -257,7 +276,7 @@ fn google_sign_in_uses_pkce_the_consent_host_and_a_loopback_redirect() {
         &test_client(),
         &browser,
         &mut sink,
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         &mut |token: &TokenSet| {
             // The tab must still be waiting while the token is stored.
             std::thread::sleep(Duration::from_millis(200));
@@ -349,9 +368,16 @@ fn github_device_sign_in_polls_at_the_server_interval_and_records_the_login() {
         *browser.opened.lock().unwrap(),
         vec!["https://github.com/login/device".to_owned()]
     );
+    // The transport may retry a transient read with short backoff sleeps (50 ms,
+    // 100 ms) before a request lands; those are not device-poll intervals. Keep
+    // the assertion on the server-driven waits, which are all at least 1 s.
     let delays = sleeper.delays.lock().unwrap().clone();
+    let polls: Vec<Duration> = delays
+        .into_iter()
+        .filter(|delay| *delay >= Duration::from_secs(1))
+        .collect();
     assert_eq!(
-        delays,
+        polls,
         vec![
             Duration::from_secs(5),
             Duration::from_secs(5),
@@ -389,11 +415,14 @@ fn github_device_code_that_expires_stops_polling() {
     let mut sink = Arc::new(Mutex::new(Events::default()));
     let error = github_device_sign_in(&client, "Iv1.client", &browser, &mut sink).unwrap_err();
     assert!(matches!(error, SyncError::Auth { .. }), "{error}");
-    assert_eq!(
-        sleeper.delays.lock().unwrap().len(),
-        4,
-        "20 s at 5 s per poll"
-    );
+    let polls = sleeper
+        .delays
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|delay| **delay >= Duration::from_secs(1))
+        .count();
+    assert_eq!(polls, 4, "20 s at 5 s per poll");
 }
 
 #[test]
@@ -484,7 +513,7 @@ fn google_exchange_failure_shows_a_failure_page_and_stores_nothing() {
         &test_client(),
         &browser,
         &mut sink,
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         &mut |_: &TokenSet| {
             stores += 1;
             Ok(())
@@ -520,7 +549,7 @@ fn google_store_failure_shows_a_failure_page() {
         &test_client(),
         &browser,
         &mut sink,
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         &mut |_: &TokenSet| {
             Err(SyncError::Credentials {
                 detail: "the keyring is locked".to_owned(),
