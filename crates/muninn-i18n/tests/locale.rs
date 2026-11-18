@@ -131,12 +131,15 @@ fn plural_categories_at_zero_one_and_two_for_every_wave_one_tag() {
             assert_eq!(tag.plural_category(n), want, "{} at {n}", tag.tag());
         }
     }
-    // The `Lang` seam follows the same rules, including French's 0 = one,
-    // which the counted helpers will pick up when the French pack lands.
+    // The `Lang` seam follows the same rules; French 0 = one is what the
+    // counted helpers pick up once the French pack is selected.
     assert_eq!(Lang::EnUs.plural_category(1), PluralCategory::One);
     assert_eq!(Lang::EnUs.plural_category(0), PluralCategory::Other);
     assert_eq!(Lang::Es.plural_category(1), PluralCategory::One);
     assert_eq!(Lang::Es.plural_category(0), PluralCategory::Other);
+    assert_eq!(Lang::Fr.plural_category(0), PluralCategory::One);
+    assert_eq!(Lang::Fr.plural_category(1), PluralCategory::One);
+    assert_eq!(Lang::Fr.plural_category(2), PluralCategory::Other);
     assert_eq!(Lang::Pseudo.locale_tag(), LocaleTag::EnUs);
 }
 
@@ -162,8 +165,30 @@ fn spanish_is_shipped_and_any_es_region_resolves_to_it() {
     }
     // A still-unshipped language stays unshipped, so the test cannot hide a
     // missing arm behind the Spanish fallback.
-    assert_eq!(LocaleTag::parse("fr-FR"), Some(LocaleTag::Fr));
-    assert_eq!(Lang::from_tag("fr-FR"), None);
+    assert_eq!(LocaleTag::parse("de-DE"), Some(LocaleTag::De));
+    assert_eq!(Lang::from_tag("de-DE"), None);
+}
+
+#[test]
+fn french_is_shipped_and_any_fr_region_resolves_to_it() {
+    assert!(
+        Lang::SHIPPED.contains(&Lang::Fr),
+        "the French pack is shipped"
+    );
+    assert_eq!(Lang::from_tag("fr-FR"), Some(Lang::Fr));
+    assert_eq!(Lang::from_tag("fr"), Some(Lang::Fr));
+    assert_eq!(Lang::from_tag("fr_CA.UTF-8"), Some(Lang::Fr));
+    assert_eq!(Lang::Fr.tag(), "fr-FR");
+    assert_eq!(Lang::Fr.endonym(), "Français");
+    assert_eq!(Lang::Fr.locale_tag(), LocaleTag::Fr);
+    // The CLDR French rule: 0 and 1 are singular, 2 and up are plural.
+    assert_eq!(Lang::Fr.plural_category(0), PluralCategory::One);
+    assert_eq!(Lang::Fr.plural_category(1), PluralCategory::One);
+    assert_eq!(Lang::Fr.plural_category(2), PluralCategory::Other);
+    // A still-unshipped language stays unshipped, so the test cannot hide a
+    // missing arm behind a regional fallback.
+    assert_eq!(LocaleTag::parse("de-DE"), Some(LocaleTag::De));
+    assert_eq!(Lang::from_tag("de-DE"), None);
 }
 
 #[test]
@@ -202,8 +227,8 @@ fn shipped_languages_are_complete() {
         assert!((names.week_start as usize) < 7);
     }
     // A tag no pack has claimed is recognised but not shipped.
-    assert_eq!(LocaleTag::parse("fr-FR"), Some(LocaleTag::Fr));
-    assert_eq!(Lang::from_tag("fr-FR"), None);
+    assert_eq!(LocaleTag::parse("de-DE"), Some(LocaleTag::De));
+    assert_eq!(Lang::from_tag("de-DE"), None);
     assert_eq!(Lang::from_tag("pt-PT"), None);
 }
 
