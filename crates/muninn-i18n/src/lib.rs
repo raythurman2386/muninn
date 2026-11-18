@@ -190,7 +190,7 @@ impl Lang {
     #[must_use]
     pub const fn endonym(self) -> &'static str {
         match self {
-            Lang::EnUs => "English (United States)",
+            Lang::EnUs => "English",
             Lang::Es => "Español",
             Lang::Fr => "Français",
             Lang::De => "Deutsch",
