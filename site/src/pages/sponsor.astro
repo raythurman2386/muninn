@@ -3,6 +3,10 @@
 // raythurman2386 was confirmed live (HTTP 200 at https://github.com/sponsors/raythurman2386,
 // title "Sponsor @raythurman2386") on 14 Nov 2026. Buy Me a Coffee is listed
 // in .github/FUNDING.yml. There is no payment form on this page.
+// The page also displays the project's current sponsors; each logo is
+// self-hosted under /assets/img/sponsors/ (the CSP keeps img-src 'self'),
+// copied from the sponsor's GitHub avatar so it never loads a third-party
+// host. Synteq's is from avatars.githubusercontent.com/u/280769118.
 import Base from '../layouts/Base.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
@@ -34,6 +38,20 @@ const sourceUrl = 'https://github.com/raythurman2386/muninn';
         <a class="btn btn-primary" href={sponsorsUrl}>Sponsor on GitHub</a>
         <a class="btn btn-secondary" href={coffeeUrl}>Buy Me a Coffee</a>
       </div>
+
+      <h2>Current sponsors</h2>
+      <p>Muninn is grateful to everyone who backs its development — thank you for finding the work worth backing.</p>
+
+      <ul class="sponsor-list">
+        <li>
+          <a class="sponsor-card" href="https://synteq.com">
+            <img src="/assets/img/sponsors/synteq.png" width="72" height="72" alt="Synteq logo" />
+            <span class="sponsor-name">Synteq</span>
+            <span class="sponsor-desc">Deploy globally, scale easily, and build on the platform that offers incredibly fast compute solutions.</span>
+            <span class="sponsor-link">synteq.com</span>
+          </a>
+        </li>
+      </ul>
 
       <h2>Where it goes</h2>
       <p>There is no paid product and no sponsor tier on this site. Contributions help cover the time spent on the app and the cost of running the website and related services. Nothing here is required to download or use Muninn.</p>

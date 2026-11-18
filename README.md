@@ -23,6 +23,23 @@ note is a file you can read in any editor, diff, back up or keep in version cont
 written as `[[Note]]`, `[[Note|alias]]` or `[[Note#heading]]`; Muninn indexes them and draws the
 connections as a graph.
 
+## Sponsors
+
+Muninn's development is backed by its sponsors, and every one of them has this
+project's lasting gratitude — thank you for finding the work worth backing.
+
+<p align="center">
+  <a href="https://github.com/Synteq-HPC">
+    <img src="https://github.com/Synteq-HPC.png" width="96" height="96" alt="Synteq" />
+  </a>
+</p>
+
+**[Synteq](https://github.com/Synteq-HPC)** ([synteq.com](https://synteq.com)) — deploy globally,
+scale easily, and build on the platform that offers incredibly fast compute solutions.
+
+If Muninn is useful to you, consider
+[sponsoring its development](https://github.com/sponsors/raythurman2386).
+
 ## What you get
 
 - **Your notes stay yours.** The vault is a folder of `.md` files — read it, diff it, back it up,

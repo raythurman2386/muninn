@@ -119,6 +119,34 @@ body:has(.simple-page) .simple-page {
 }
 .logo-card .btn { align-self: flex-start; height: 36px; padding: 0 14px; font-size: 14px; }
 
+/* Sponsors on /sponsor/: one card per sponsor, added as they come in. */
+.sponsor-list {
+  list-style: none;
+  margin: 0 0 1.5em;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 300px));
+  justify-content: center;
+  gap: 16px;
+}
+.sponsor-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 20px;
+  border: 1px solid var(--border-base);
+  border-radius: var(--r-xl);
+  background: var(--bg-base);
+  text-align: center;
+  text-decoration: none;
+}
+.sponsor-card:hover { border-color: var(--border-strong); }
+.sponsor-card img { display: block; border-radius: var(--r-lg); }
+.sponsor-name { font-size: 17px; font-weight: 600; color: var(--text-base); }
+.sponsor-desc { font-size: 14px; color: var(--text-muted); }
+.sponsor-link { font-size: 13px; color: var(--text-faint); }
+
 .shot-grid {
   list-style: none;
   margin: 0;

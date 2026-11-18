@@ -6,6 +6,11 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Sponsors.** The README and the site's sponsor page now display the
+  project's sponsors, starting with Synteq ([synteq.com](https://synteq.com)).
+
 ## [0.8.7] - 2026-11-18
 
 ### Added
