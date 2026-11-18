@@ -174,6 +174,24 @@ fn the_language_setting_round_trips_and_loads_forgivingly() {
         "a detected region is persisted as the shipped tag: {text}"
     );
 
+    // Brazilian Portuguese round-trips too; a bare `pt` or a pt_BR spelling
+    // is canonicalised to the shipped pt-BR tag.
+    write(r#"{"ui_language":"pt-BR"}"#);
+    let loaded = Settings::load_from(&home);
+    assert_eq!(loaded.ui_language, LanguageChoice::Language(Lang::PtBr));
+    loaded.save_to(&home).expect("save");
+    let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
+    assert!(text.contains("\"ui_language\": \"pt-BR\""), "{text}");
+    write(r#"{"ui_language":"pt_BR.UTF-8"}"#);
+    let loaded = Settings::load_from(&home);
+    assert_eq!(loaded.ui_language, LanguageChoice::Language(Lang::PtBr));
+    loaded.save_to(&home).expect("save");
+    let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
+    assert!(
+        text.contains("\"ui_language\": \"pt-BR\""),
+        "a detected region is persisted as the shipped tag: {text}"
+    );
+
     // System stays the word "system", never a tag.
     Settings::default().save_to(&home).expect("save system");
     let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
@@ -238,9 +256,20 @@ fn system_resolution_uses_the_detected_locale_and_falls_back_to_english() {
         Lang::De,
         "a shipped German locale resolves to the German pack"
     );
+    // Portuguese is the fourth shipped pack.
+    assert_eq!(
+        LanguageChoice::System.resolve(Some(LocaleTag::PtBr)),
+        Lang::PtBr,
+        "a shipped Portuguese locale resolves to the Portuguese pack"
+    );
     assert_eq!(
         LanguageChoice::Language(Lang::De).resolve(Some(LocaleTag::EnUs)),
         Lang::De,
+        "an explicit choice ignores detection"
+    );
+    assert_eq!(
+        LanguageChoice::Language(Lang::PtBr).resolve(Some(LocaleTag::EnUs)),
+        Lang::PtBr,
         "an explicit choice ignores detection"
     );
 }
@@ -373,6 +402,32 @@ fn set_ui_language_flips_both_seams_persists_and_redraws() {
         "no English fallback in the German chrome: {texts:?}"
     );
 
+    // Explicit Brazilian Portuguese: the fourth catalog follows the same
+    // seams, persists the canonical tag and redraws Portuguese copy.
+    rt.update(|s, _| s.set_ui_language(LanguageChoice::Language(Lang::PtBr)));
+    assert_eq!(Lang::current(), Lang::PtBr);
+    assert_eq!(process_lang(), Lang::PtBr);
+    assert_eq!(
+        Settings::load_from(&config).ui_language,
+        LanguageChoice::Language(Lang::PtBr)
+    );
+    let text = fs::read_to_string(config.join("muninn/settings.json")).expect("read settings");
+    assert!(text.contains("\"ui_language\": \"pt-BR\""), "{text}");
+    frame(&mut rt);
+    let texts = drawn(&rt);
+    assert!(
+        texts
+            .iter()
+            .any(|text| text == t_in(Lang::PtBr, Key::CommonNewNote)),
+        "a Portuguese frame draws the Portuguese catalog: {texts:?}"
+    );
+    assert!(
+        !texts
+            .iter()
+            .any(|text| text == t_in(Lang::EnUs, Key::CommonNewNote)),
+        "no English fallback in the Portuguese chrome: {texts:?}"
+    );
+
     // And back, so the guard's restore matches the last switch.
     rt.update(|s, _| s.set_ui_language(LanguageChoice::Language(Lang::EnUs)));
     frame(&mut rt);
@@ -428,6 +483,10 @@ fn the_picker_lists_system_and_every_shipped_endonym() {
     assert!(
         texts.iter().any(|text| text == "Deutsch"),
         "the German pack is listed: {texts:?}"
+    );
+    assert!(
+        texts.iter().any(|text| text == "Português (Brasil)"),
+        "the Portuguese pack is listed: {texts:?}"
     );
 
     // The picker is System followed by the shipped endonyms: the explicit

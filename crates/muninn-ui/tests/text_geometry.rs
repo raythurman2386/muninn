@@ -296,7 +296,7 @@ fn every_copy_heavy_screen_fits_its_clips_at_both_sizes() {
     // Pseudo is the growth proxy; Spanish and French are the shipped packs.
     // All must fit at both sizes, and the pack runs are real copy, not an
     // allowlist.
-    for lang in [Lang::Pseudo, Lang::Es, Lang::Fr, Lang::De] {
+    for lang in [Lang::Pseudo, Lang::Es, Lang::Fr, Lang::De, Lang::PtBr] {
         for size in WINDOW_SIZES {
             for scene in scenes {
                 let (_vault, rt) = runtime(scene, size, lang);

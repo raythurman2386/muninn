@@ -52,6 +52,16 @@ All notable changes to Muninn are documented here. The format is based on
   allowlist or a layout change. The catalog is machine-authored and awaits a
   native or fluent reviewer's sign-off before release; the PR records the
   terminology choices.
+- **Brazilian Portuguese (pt-BR) interface pack (#196).** The fourth wave-1
+  language: the picker lists **Português (Brasil)**, bare `pt` and `pt-BR`
+  desktops resolve to it under **System**, and an explicit pick persists as
+  `"pt-BR"`. Every static key and parameterised sentence is translated with
+  pt-BR vocabulary (tela, arquivo, usuário, configurações, salvar, excluir,
+  senha), one/other plurals (`1 nota`, `2 notas`) and Sunday-first calendars
+  with Portuguese month and weekday names. `arquivo` means "file"; the Kanban
+  archive is `arquivar`/`arquivados`. `pt-PT` stays a separate future catalog.
+  The catalog is machine-authored and awaits a native or fluent reviewer's
+  sign-off before release; the PR records the terminology choices.
 - **Import documents as notes (#189).** The sidebar's new import icon, `⌘I` / `Ctrl+I`, the
   command palette's **Import document…** action, and a drop of a Word, PowerPoint, Excel,
   OpenDocument, RTF, EPUB, CSV or text PDF file all convert the document into a new Markdown
