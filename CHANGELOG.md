@@ -41,6 +41,17 @@ All notable changes to Muninn are documented here. The format is based on
   French month and weekday names. Dates written into files stay English/ASCII.
   The catalog is machine-authored and awaits a native or fluent reviewer's
   sign-off before release.
+- **German (de-DE) interface pack (#195).** The third wave-1 language: the
+  picker now lists **Deutsch**, a German desktop resolves to it under
+  **System**, and an explicit pick persists as `"de-DE"` (any `de-*` OS
+  locale uses this pack). Every static key and parameterised sentence is
+  translated, with one/other plurals (`0 Notizen`, `1 Notiz`, `2 Notizen`),
+  Monday-first calendars and German month and weekday names. Dates written
+  into files stay English/ASCII. German is the overflow stress case: its
+  longer compounds are rendered at 840×640 and 1180×780 and fit without an
+  allowlist or a layout change. The catalog is machine-authored and awaits a
+  native or fluent reviewer's sign-off before release; the PR records the
+  terminology choices.
 - **Import documents as notes (#189).** The sidebar's new import icon, `⌘I` / `Ctrl+I`, the
   command palette's **Import document…** action, and a drop of a Word, PowerPoint, Excel,
   OpenDocument, RTF, EPUB, CSV or text PDF file all convert the document into a new Markdown

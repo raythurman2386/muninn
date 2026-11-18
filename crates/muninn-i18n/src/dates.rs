@@ -212,6 +212,45 @@ pub const FR: DateNames = DateNames {
     pm: "PM",
 };
 
+/// German (Germany) date names: Monday-first weeks, capitalised months and
+/// weekdays, and the 24-hour `AM`/`PM` markers.
+///
+/// German capitalises month and weekday names (`Januar`, `Sonntag`), so the
+/// table keeps them capitalised. `week_start` is Monday, the CLDR first day
+/// for `de-DE`. The narrow row is the CLDR German one: `S M D M D F S`,
+/// with repeated initials for Mittwoch/Montag and Dienstag/Donnerstag; the
+/// two-letter short row keeps `Mo`/`Mi` and `Di`/`Do` distinct.
+pub const DE: DateNames = DateNames {
+    months: [
+        "Januar",
+        "Februar",
+        "März",
+        "April",
+        "Mai",
+        "Juni",
+        "Juli",
+        "August",
+        "September",
+        "Oktober",
+        "November",
+        "Dezember",
+    ],
+    weekdays: [
+        "Sonntag",
+        "Montag",
+        "Dienstag",
+        "Mittwoch",
+        "Donnerstag",
+        "Freitag",
+        "Samstag",
+    ],
+    weekdays_short: ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
+    weekdays_narrow: ["S", "M", "D", "M", "D", "F", "S"],
+    week_start: 1,
+    am: "AM",
+    pm: "PM",
+};
+
 /// The display date names for `lang`.
 ///
 /// The UI's date sites call this with [`Lang::current`] instead of naming
@@ -231,6 +270,7 @@ pub const FR: DateNames = DateNames {
 /// assert_eq!(*date_names(Lang::Pseudo), EN_US);
 /// assert_eq!(date_names(Lang::Es).months[0], "enero");
 /// assert_eq!(date_names(Lang::Fr).months[0], "janvier");
+/// assert_eq!(date_names(Lang::De).months[0], "Januar");
 /// ```
 #[must_use]
 pub const fn date_names(lang: Lang) -> &'static DateNames {
@@ -238,5 +278,6 @@ pub const fn date_names(lang: Lang) -> &'static DateNames {
         Lang::EnUs | Lang::Pseudo => &EN_US,
         Lang::Es => &ES,
         Lang::Fr => &FR,
+        Lang::De => &DE,
     }
 }

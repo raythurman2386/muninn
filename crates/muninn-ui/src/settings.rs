@@ -159,7 +159,7 @@ fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
 ///
 /// Loading is deliberately forgiving: an unknown spelling, a tag for a
 /// language this build does not ship (a settings file copied from a newer
-/// build, or `de-DE` before the German pack), a number, or a malformed value
+/// build (for example a future tag), a number, or a malformed value
 /// all load as System. Falling back to the OS or English is safer than
 /// refusing to start, and matches how the other settings enums decode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1393,7 +1393,7 @@ mod tests {
         assert_eq!(Settings::load_from(&home).ui_language, settings.ui_language);
 
         for bad in [
-            serde_json::json!({ "ui_language": "de-DE" }),
+            serde_json::json!({ "ui_language": "it-IT" }),
             serde_json::json!({ "ui_language": "klingon" }),
             serde_json::json!({ "ui_language": 3 }),
             serde_json::json!({ "ui_language": null }),
@@ -1452,6 +1452,27 @@ mod tests {
             );
         }
 
+        // German round-trips the same way; an Austrian OS spelling is
+        // canonicalised to the shipped de-DE tag.
+        let german = Settings {
+            ui_language: LanguageChoice::Language(Lang::De),
+            ..Settings::default()
+        };
+        german.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"ui_language\": \"de-DE\""), "{text}");
+        assert_eq!(
+            Settings::load_from(&home).ui_language,
+            LanguageChoice::Language(Lang::De)
+        );
+        for spelling in ["de_DE.UTF-8", "de-AT", "de"] {
+            assert_eq!(
+                Settings::from_value(&serde_json::json!({ "ui_language": spelling })).ui_language,
+                LanguageChoice::Language(Lang::De),
+                "{spelling}"
+            );
+        }
+
         let system = Settings {
             ui_language: LanguageChoice::System,
             ..Settings::default()
@@ -1484,11 +1505,9 @@ mod tests {
             LanguageChoice::System.resolve(Some(LocaleTag::Fr)),
             Lang::Fr
         );
-        // Recognised but not shipped in this build: English, the documented
-        // fallback (not a silent German UI).
         assert_eq!(
             LanguageChoice::System.resolve(Some(LocaleTag::De)),
-            Lang::EnUs
+            Lang::De
         );
         // An explicit choice ignores detection.
         assert_eq!(
@@ -1498,6 +1517,10 @@ mod tests {
         assert_eq!(
             LanguageChoice::Language(Lang::Fr).resolve(Some(LocaleTag::EnUs)),
             Lang::Fr
+        );
+        assert_eq!(
+            LanguageChoice::Language(Lang::De).resolve(Some(LocaleTag::EnUs)),
+            Lang::De
         );
         assert_eq!(
             LanguageChoice::Language(Lang::Es).resolve(Some(LocaleTag::EnUs)),
@@ -1517,7 +1540,11 @@ mod tests {
             LanguageChoice::from_index(3),
             LanguageChoice::Language(Lang::Fr)
         );
-        assert_eq!(LanguageChoice::from_index(4), LanguageChoice::System);
+        assert_eq!(
+            LanguageChoice::from_index(4),
+            LanguageChoice::Language(Lang::De)
+        );
+        assert_eq!(LanguageChoice::from_index(5), LanguageChoice::System);
         assert_eq!(
             LanguageChoice::from_index(usize::MAX),
             LanguageChoice::System

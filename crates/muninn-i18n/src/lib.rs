@@ -1,11 +1,11 @@
 //! UI copy for Muninn, behind one seam.
 //!
 //! This crate is the catalog **and locale seam**: it holds the keys, the
-//! `en-US`, `es-ES` and `fr-FR` text, the parameterised copy that cannot be a
-//! single string, the date name tables, locale identity and detection, and
-//! wave-1 plural categories. English, Spanish and French ship; `en-US` output
-//! is byte-identical to the hardcoded string it replaced, and `Lang::SHIPPED`
-//! grows as #195–#196 land their packs.
+//! `en-US`, `es-ES`, `fr-FR` and `de-DE` text, the parameterised copy that
+//! cannot be a single string, the date name tables, locale identity and
+//! detection, and wave-1 plural categories. English, Spanish, French and
+//! German ship; `en-US` output is byte-identical to the hardcoded string it
+//! replaced, and `Lang::SHIPPED` grows as #196 lands Portuguese.
 //!
 //! # Why a typed catalog
 //!
@@ -87,18 +87,20 @@
 //! data and one [`Lang`] variant here; `docs/i18n.md` §5.8 lists the arms.
 
 mod dates;
+mod de_de;
 mod en_us;
 mod es_es;
 mod fr_fr;
 mod key;
 mod locale;
 mod messages;
+mod messages_de;
 mod messages_es;
 mod messages_fr;
 mod msg;
 mod pseudo;
 
-pub use dates::{DateNames, EN_US, ES, FR, date_names};
+pub use dates::{DE, DateNames, EN_US, ES, FR, date_names};
 pub use key::Key;
 pub use locale::{LocaleTag, PluralCategory, locale_from, system_locale};
 pub use msg::MsgKey;
@@ -130,6 +132,12 @@ pub enum Lang {
     /// English and ASCII; only the UI copy, the date display tables and the
     /// parameterised sentences follow it.
     Fr,
+    /// German (Germany), `de-DE`: the third wave-1 language pack.
+    ///
+    /// Neutral software German with one/other plurals and Monday-first dates.
+    /// Files stay English and ASCII; only the UI copy, the date display
+    /// tables and the parameterised sentences follow it.
+    De,
     /// Pseudo-localisation: a **test and verification language**, not a
     /// shippable locale.
     ///
@@ -145,9 +153,9 @@ impl Lang {
     /// The languages a user can pick in Settings › Appearance.
     ///
     /// This is the picker's data and the completeness tests' loop. English,
-    /// Spanish and French ship; #195–#196 add German and Brazilian Portuguese
-    /// the same way. `Pseudo` is a test language and is never listed.
-    pub const SHIPPED: &'static [Lang] = &[Lang::EnUs, Lang::Es, Lang::Fr];
+    /// Spanish, French and German ship; #196 adds Brazilian Portuguese the
+    /// same way. `Pseudo` is a test language and is never listed.
+    pub const SHIPPED: &'static [Lang] = &[Lang::EnUs, Lang::Es, Lang::Fr, Lang::De];
 
     /// The language's canonical BCP 47 tag, for persistence and for Rune.
     ///
@@ -160,6 +168,7 @@ impl Lang {
             Lang::EnUs | Lang::Pseudo => "en-US",
             Lang::Es => "es-ES",
             Lang::Fr => "fr-FR",
+            Lang::De => "de-DE",
         }
     }
 
@@ -175,6 +184,7 @@ impl Lang {
             Lang::EnUs => "English (United States)",
             Lang::Es => "Español",
             Lang::Fr => "Français",
+            Lang::De => "Deutsch",
             Lang::Pseudo => "Pseudo (test)",
         }
     }
@@ -182,17 +192,17 @@ impl Lang {
     /// The shipped language for an OS or settings tag, or `None` when this
     /// build has no catalog for it.
     ///
-    /// Detection and a saved setting both go through this: a French OS locale
-    /// is recognised by [`LocaleTag::parse`] and resolves to [`Lang::Fr`],
-    /// while a German or Brazilian Portuguese tag stays `None` until its pack
-    /// lands.
+    /// Detection and a saved setting both go through this: French and German
+    /// OS locales resolve to [`Lang::Fr`] and [`Lang::De`], while a Brazilian
+    /// Portuguese tag stays `None` until its pack lands.
     #[must_use]
     pub fn from_tag(tag: &str) -> Option<Lang> {
         match LocaleTag::parse(tag)? {
             LocaleTag::EnUs => Some(Lang::EnUs),
             LocaleTag::Es => Some(Lang::Es),
             LocaleTag::Fr => Some(Lang::Fr),
-            LocaleTag::De | LocaleTag::PtBr => None,
+            LocaleTag::De => Some(Lang::De),
+            LocaleTag::PtBr => None,
         }
     }
 
@@ -207,6 +217,7 @@ impl Lang {
             Lang::EnUs | Lang::Pseudo => LocaleTag::EnUs,
             Lang::Es => LocaleTag::Es,
             Lang::Fr => LocaleTag::Fr,
+            Lang::De => LocaleTag::De,
         }
     }
 
@@ -222,14 +233,15 @@ impl Lang {
     ///
     /// The numbers are a stable encoding for the process atomic (nothing else
     /// reads them): a new pack takes the next free slot so an existing value
-    /// never shifts. French takes slot 3, after English (0), Pseudo (1) and
-    /// Spanish (2).
+    /// never shifts. French takes slot 3 and German slot 4, after English
+    /// (0), Pseudo (1) and Spanish (2).
     const fn as_u8(self) -> u8 {
         match self {
             Lang::EnUs => 0,
             Lang::Pseudo => 1,
             Lang::Es => 2,
             Lang::Fr => 3,
+            Lang::De => 4,
         }
     }
 
@@ -239,6 +251,7 @@ impl Lang {
             1 => Lang::Pseudo,
             2 => Lang::Es,
             3 => Lang::Fr,
+            4 => Lang::De,
             _ => Lang::EnUs,
         }
     }
@@ -367,6 +380,7 @@ pub fn t_in(lang: Lang, key: Key) -> &'static str {
         Lang::EnUs => en_us::text(key),
         Lang::Es => es_es::text(key),
         Lang::Fr => fr_fr::text(key),
+        Lang::De => de_de::text(key),
         Lang::Pseudo => pseudo::text(key),
     }
 }
@@ -401,7 +415,7 @@ pub fn t_in(lang: Lang, key: Key) -> &'static str {
 pub fn phrase(lang: Lang, key: MsgKey, args: &[&str]) -> String {
     let rendered = render(lang, key, args);
     match lang {
-        Lang::EnUs | Lang::Es | Lang::Fr => rendered,
+        Lang::EnUs | Lang::Es | Lang::Fr | Lang::De => rendered,
         Lang::Pseudo => format!("{PSEUDO_OPEN}{rendered}{PSEUDO_CLOSE}"),
     }
 }
@@ -420,6 +434,7 @@ fn render(lang: Lang, key: MsgKey, args: &[&str]) -> String {
         Lang::EnUs | Lang::Pseudo => substitute(messages::template(key), args),
         Lang::Es => substitute(messages_es::template(key), args),
         Lang::Fr => substitute(messages_fr::template(key), args),
+        Lang::De => substitute(messages_de::template(key), args),
     }
 }
 
@@ -436,7 +451,7 @@ fn render_current(key: MsgKey, args: &[&str]) -> String {
 /// sentence rather than each fragment.
 fn compose(text: String) -> String {
     match Lang::current() {
-        Lang::EnUs | Lang::Es | Lang::Fr => text,
+        Lang::EnUs | Lang::Es | Lang::Fr | Lang::De => text,
         Lang::Pseudo => format!("{PSEUDO_OPEN}{text}{PSEUDO_CLOSE}"),
     }
 }
