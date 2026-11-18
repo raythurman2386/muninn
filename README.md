@@ -107,10 +107,13 @@ reduced motion, or set up sync.
 
 Settings › **Appearance** › **Language** picks the interface language. **System** (the default)
 follows your operating system's locale, falling back to English when Muninn has no pack for it.
-Muninn currently ships English (United States); more languages arrive as locale packs. An
+The picker lists every shipped language under its own name: **English (United States)** and
+**Español** today, with French, German and Brazilian Portuguese arriving as locale packs. An
 explicit pick is saved in `settings.json` and restored on the next launch, and a switch
-re-renders the window and tray immediately without a restart. Dates Muninn writes into a vault
-stay English and ASCII; only what Muninn draws follows the interface language.
+re-renders the window and tray immediately without a restart. Spanish uses Monday-first
+calendars and Spanish month and weekday names on screen; dates Muninn writes into a vault
+stay English and ASCII, so the files do not change with the interface language. Only what
+Muninn draws follows it.
 
 ### Inspect a vault
 

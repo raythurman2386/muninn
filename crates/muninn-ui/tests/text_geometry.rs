@@ -1,12 +1,13 @@
-//! #192: translated copy must fit at the app's narrow and default sizes.
+//! #192/#193: translated copy must fit at the app's narrow and default sizes.
 //!
 //! The pseudo language is longer than English (it brackets every catalog
-//! string), so it is the growth proxy a language pack will resemble. This
-//! renders every copy-heavy surface at 840×640 and 1180×780 and reads the
-//! runtime's laid-out geometry: a text element's `visible` rect is its rect
-//! intersected with every ancestor clip, so `visible` smaller than the part a
-//! scroll viewport allows means a box, card or column clipped its text. A
-//! non-scrolled text element must also sit inside the window.
+//! string), so it is the growth proxy a language pack will resemble; Spanish
+//! is the first real pack and proves the shipped copy fits. This renders every
+//! copy-heavy surface at 840×640 and 1180×780 in **both** languages and reads
+//! the runtime's laid-out geometry: a text element's `visible` rect is its
+//! rect intersected with every ancestor clip, so `visible` smaller than the
+//! part a scroll viewport allows means a box, card or column clipped its text.
+//! A non-scrolled text element must also sit inside the window.
 //!
 //! Legitimate clipping, and only this:
 //!
@@ -65,8 +66,8 @@ fn unique_dir(tag: &str) -> PathBuf {
     dir
 }
 
-/// A scene rendered under the pseudo language. Each one is a full frame: the
-/// window chrome is always there, and the overlay replaces the main column.
+/// A scene rendered under one language. Each one is a full frame: the window
+/// chrome is always there, and the overlay replaces the main column.
 #[derive(Clone, Copy, Debug)]
 enum Scene {
     Editor,
@@ -88,7 +89,7 @@ impl Scene {
     }
 }
 
-fn runtime(scene: Scene, size: (f32, f32)) -> (TempVault, Runtime<State>) {
+fn runtime(scene: Scene, size: (f32, f32), lang: Lang) -> (TempVault, Runtime<State>) {
     let vault = TempVault::new(&[
         ("Alpha.md", "# Alpha\n\nA note with some body text.\n"),
         ("Board.md", BOARD),
@@ -98,9 +99,10 @@ fn runtime(scene: Scene, size: (f32, f32)) -> (TempVault, Runtime<State>) {
     let settings = Settings {
         theme: ThemeMode::Dark,
         // Pseudo is the longest catalog and is longer than any wave-1
-        // translation. A German worst-string fixture for #195 belongs here,
-        // beside this setting, once its pack exists.
-        ui_language: LanguageChoice::Language(Lang::Pseudo),
+        // translation. Spanish is the first real pack: it must fit too, so the
+        // harness runs both. A German worst-string fixture for #195 belongs
+        // here, beside this setting, once its pack exists.
+        ui_language: LanguageChoice::Language(lang),
         ..Settings::default()
     };
     let state = State::with_settings(vault.path().to_path_buf(), state_home, config, settings);
@@ -291,11 +293,20 @@ fn every_copy_heavy_screen_fits_its_clips_at_both_sizes() {
         Scene::Settings(SettingsTab::Sync),
         Scene::Settings(SettingsTab::Kanban),
     ];
-    for size in WINDOW_SIZES {
-        for scene in scenes {
-            let (_vault, rt) = runtime(scene, size);
-            let found = clipped_text(&rt.elements(), size);
-            assert!(found.is_empty(), "{}", report(scene, size, &found));
+    // Pseudo is the growth proxy; Spanish is the shipped pack. Both must fit
+    // at both sizes, and the Spanish run is real copy, not an allowlist.
+    for lang in [Lang::Pseudo, Lang::Es] {
+        for size in WINDOW_SIZES {
+            for scene in scenes {
+                let (_vault, rt) = runtime(scene, size, lang);
+                let found = clipped_text(&rt.elements(), size);
+                assert!(
+                    found.is_empty(),
+                    "[{}] {}",
+                    lang.tag(),
+                    report(scene, size, &found)
+                );
+            }
         }
     }
 }

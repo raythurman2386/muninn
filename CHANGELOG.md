@@ -14,13 +14,23 @@ All notable changes to Muninn are documented here. The format is based on
   when the platform exposes none), and an explicit pick is saved in
   `settings.json` and restored at startup. Switching re-renders the window and
   rebuilds the tray menu immediately, without a restart, and sets Rune's text
-  shaping language. Only English ships in this release; the locale seam
-  (plural categories, date tables, overflow geometry checks) is what the
-  language packs fill in. At window widths below 1000 points the Kanban
-  header's action buttons drop their visible words (keeping the icon,
-  tooltip and accessible name) so the header fits at the 840-point minimum in
-  English and in longer translations. Rune's own field/spellcheck menu labels
-  stay English because the pinned Rune revision has no `labels::set_locale`.
+  shaping language. The locale seam (plural categories, date tables, overflow
+  geometry checks) is what the language packs fill in. At window widths below
+  1000 points the Kanban header's action buttons drop their visible words
+  (keeping the icon, tooltip and accessible name) so the header fits at the
+  840-point minimum in English and in longer translations. Rune's own
+  field/spellcheck menu labels stay English because the pinned Rune revision
+  has no `labels::set_locale`.
+- **Spanish (es-ES) interface pack (#193).** The first wave-1 language: the
+  language picker now lists **Español**, a Spanish desktop resolves to it under
+  **System**, and an explicit pick persists as `"es-ES"`. Every static key and
+  every parameterised sentence is translated (chrome, menus, Settings, Help,
+  palette, Kanban, Board, Graph, status/recovery/sync errors and the tray), with
+  one/other plurals (`1 nota`, `2 notas`), Monday-first calendars and Spanish
+  month and weekday names. Dates written into files stay English/ASCII. Any
+  `es-*` OS locale uses this pack; Catalan (`ca`) is a separate language and is
+  not covered. The catalog is machine-authored and awaits a native or fluent
+  reviewer's sign-off before release; the PR records the terminology choices.
 - **Import documents as notes (#189).** The sidebar's new import icon, `⌘I` / `Ctrl+I`, the
   command palette's **Import document…** action, and a drop of a Word, PowerPoint, Excel,
   OpenDocument, RTF, EPUB, CSV or text PDF file all convert the document into a new Markdown

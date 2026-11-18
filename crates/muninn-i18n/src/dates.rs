@@ -134,6 +134,47 @@ pub const EN_US: DateNames = DateNames {
     pm: "PM",
 };
 
+/// Spanish (Spain) date names: Monday-first weeks, lower-case months and
+/// weekdays, and Spain's dotted `a. m.`/`p. m.` markers.
+///
+/// Spain writes day and month names in lower case (`12 de noviembre`,
+/// `domingo`), so the table keeps them lower case and the display formatter's
+/// capitalisation rules stay as they are. `week_start` is Monday, the CLDR
+/// first day for `es-ES`. The two-letter weekday labels are the forms a
+/// Spanish calendar header uses; the narrow row follows the Spanish one-letter
+/// convention (`X` for miércoles, so `M` stays martes and `mié` stays
+/// distinct).
+pub const ES: DateNames = DateNames {
+    months: [
+        "enero",
+        "febrero",
+        "marzo",
+        "abril",
+        "mayo",
+        "junio",
+        "julio",
+        "agosto",
+        "septiembre",
+        "octubre",
+        "noviembre",
+        "diciembre",
+    ],
+    weekdays: [
+        "domingo",
+        "lunes",
+        "martes",
+        "miércoles",
+        "jueves",
+        "viernes",
+        "sábado",
+    ],
+    weekdays_short: ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"],
+    weekdays_narrow: ["D", "L", "M", "X", "J", "V", "S"],
+    week_start: 1,
+    am: "a. m.",
+    pm: "p. m.",
+};
+
 /// The display date names for `lang`.
 ///
 /// The UI's date sites call this with [`Lang::current`] instead of naming
@@ -151,10 +192,12 @@ pub const EN_US: DateNames = DateNames {
 ///
 /// assert_eq!(*date_names(Lang::EnUs), EN_US);
 /// assert_eq!(*date_names(Lang::Pseudo), EN_US);
+/// assert_eq!(date_names(Lang::Es).months[0], "enero");
 /// ```
 #[must_use]
 pub const fn date_names(lang: Lang) -> &'static DateNames {
     match lang {
         Lang::EnUs | Lang::Pseudo => &EN_US,
+        Lang::Es => &ES,
     }
 }

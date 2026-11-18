@@ -601,7 +601,8 @@ const CASES: &[(MsgKey, &[&str], &str)] = &[
         &["1 note"],
         "Recovered unsaved edits for 1 note",
     ),
-    (MsgKey::ImportedFiles, &["2 files"], "Imported 2 files"),
+    (MsgKey::ImportedFilesOne, &["1 file"], "Imported 1 file"),
+    (MsgKey::ImportedFilesOther, &["2 files"], "Imported 2 files"),
     (MsgKey::ImportJoin, &["1 note"], " · 1 note"),
     (
         MsgKey::ImportAttachmentsNote,

@@ -107,6 +107,10 @@ impl LocaleTag {
     /// - `pt-PT` and any other `pt-<region>` except `pt-BR`/`pt_BR` are
     ///   `None`, never silently Brazilian: choosing a locale for the user is
     ///   worse than falling back to English.
+    /// - `es` with **any** region (`es-ES`, `es-MX`, `es-AR`) is Spanish:
+    ///   wave 1 ships one Spanish catalog, and an unshipped regional variant
+    ///   is closer to the shipped pack than to English. The same rule maps
+    ///   every `en-<region>` to [`LocaleTag::EnUs`].
     /// - Any other language (`ja-JP`, `zh-Hans`) is `None`; it is not a
     ///   wave-1 pack, and English is the documented fallback.
     ///
@@ -117,6 +121,7 @@ impl LocaleTag {
     ///
     /// assert_eq!(LocaleTag::parse("pt_BR.utf8"), Some(LocaleTag::PtBr));
     /// assert_eq!(LocaleTag::parse("de_DE@euro"), Some(LocaleTag::De));
+    /// assert_eq!(LocaleTag::parse("es_MX.UTF-8"), Some(LocaleTag::Es));
     /// assert_eq!(LocaleTag::parse("pt-PT"), None);
     /// assert_eq!(LocaleTag::parse("C"), None);
     /// ```

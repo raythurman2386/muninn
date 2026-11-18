@@ -15,6 +15,7 @@ use std::sync::{Mutex, MutexGuard};
 use muninn_core::testing::TempVault;
 use muninn_i18n::{
     Key, Lang, PSEUDO_CLOSE, PSEUDO_OPEN, clear_lang, process_lang, set_lang, set_process_lang, t,
+    t_in,
 };
 use muninn_ui::{
     LanguageChoice, Settings, SettingsTab, State, TRAY_SHOW, TrayFactory, TrayPort, on_key, poll,
@@ -119,6 +120,24 @@ fn the_language_setting_round_trips_and_loads_forgivingly() {
     let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
     assert!(text.contains("\"ui_language\": \"en-US\""), "{text}");
 
+    // The first non-English pack round-trips the same way, and an OS spelling
+    // of it loads and is written back in canonical form.
+    write(r#"{"ui_language":"es-ES"}"#);
+    let loaded = Settings::load_from(&home);
+    assert_eq!(loaded.ui_language, LanguageChoice::Language(Lang::Es));
+    loaded.save_to(&home).expect("save");
+    let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
+    assert!(text.contains("\"ui_language\": \"es-ES\""), "{text}");
+    write(r#"{"ui_language":"es_MX.UTF-8"}"#);
+    let loaded = Settings::load_from(&home);
+    assert_eq!(loaded.ui_language, LanguageChoice::Language(Lang::Es));
+    loaded.save_to(&home).expect("save");
+    let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
+    assert!(
+        text.contains("\"ui_language\": \"es-ES\""),
+        "a detected region is persisted as the shipped tag: {text}"
+    );
+
     // System stays the word "system", never a tag.
     Settings::default().save_to(&home).expect("save system");
     let text = fs::read_to_string(home.join("muninn/settings.json")).expect("read");
@@ -156,6 +175,18 @@ fn system_resolution_uses_the_detected_locale_and_falls_back_to_english() {
         LanguageChoice::System.resolve(Some(LocaleTag::EnUs)),
         Lang::EnUs
     );
+    // A shipped pack is resolved, so a Spanish desktop starts in Spanish.
+    assert_eq!(
+        LanguageChoice::System.resolve(Some(LocaleTag::Es)),
+        Lang::Es
+    );
+    assert_eq!(
+        LanguageChoice::Language(Lang::Es).resolve(Some(LocaleTag::EnUs)),
+        Lang::Es,
+        "an explicit choice ignores detection"
+    );
+    // French is recognised but not shipped in this build: English, the
+    // documented fallback (not a silent French UI).
     assert_eq!(
         LanguageChoice::System.resolve(Some(LocaleTag::Fr)),
         Lang::EnUs,
@@ -211,6 +242,43 @@ fn set_ui_language_flips_both_seams_persists_and_redraws() {
         !texts.iter().any(|text| is_bracketed(text)),
         "English still draws English: {texts:?}"
     );
+    assert!(
+        texts
+            .iter()
+            .any(|text| text == t_in(Lang::EnUs, Key::CommonNewNote)),
+        "the English chrome is back: {texts:?}"
+    );
+
+    // Explicit Spanish: the same seams follow the pack, the file keeps the
+    // canonical tag, and the next frame draws Spanish, not English.
+    rt.update(|s, _| s.set_ui_language(LanguageChoice::Language(Lang::Es)));
+    assert_eq!(Lang::current(), Lang::Es);
+    assert_eq!(process_lang(), Lang::Es);
+    assert_eq!(
+        Settings::load_from(&config).ui_language,
+        LanguageChoice::Language(Lang::Es)
+    );
+    let text = fs::read_to_string(config.join("muninn/settings.json")).expect("read settings");
+    assert!(text.contains("\"ui_language\": \"es-ES\""), "{text}");
+    frame(&mut rt);
+    let texts = drawn(&rt);
+    assert!(
+        texts
+            .iter()
+            .any(|text| text == t_in(Lang::Es, Key::CommonNewNote)),
+        "a Spanish frame draws the Spanish catalog: {texts:?}"
+    );
+    assert!(
+        !texts
+            .iter()
+            .any(|text| text == t_in(Lang::EnUs, Key::CommonNewNote)),
+        "no English fallback in the Spanish chrome: {texts:?}"
+    );
+
+    // And back, so the guard's restore matches the last switch.
+    rt.update(|s, _| s.set_ui_language(LanguageChoice::Language(Lang::EnUs)));
+    frame(&mut rt);
+    assert_eq!(Lang::current(), Lang::EnUs);
 }
 
 #[test]
@@ -251,9 +319,13 @@ fn the_picker_lists_system_and_every_shipped_endonym() {
             lang.tag()
         );
     }
+    assert!(
+        texts.iter().any(|text| text == "Español"),
+        "the Spanish pack is listed: {texts:?}"
+    );
 
-    // With one shipped language the control is still a usable System/English
-    // pair: two segments and the explicit choice selected after a pick.
+    // The picker is System, English and Español: the explicit choice is one
+    // segment past System, and selecting it is a usable third position.
     let control = rt
         .elements()
         .into_iter()
