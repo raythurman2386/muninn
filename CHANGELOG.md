@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-11-18
+
 ### Added
 
 - **Interface language setting (#192).** Settings › Appearance › Language lists
@@ -14,8 +16,8 @@ All notable changes to Muninn are documented here. The format is based on
   when the platform exposes none), and an explicit pick is saved in
   `settings.json` and restored at startup. Switching re-renders the window and
   rebuilds the tray menu immediately, without a restart, and sets Rune's text
-  shaping language. The locale seam (plural categories, date tables, overflow
-  geometry checks) is what the language packs fill in. At window widths below
+  shaping language. All four wave-1 packs ship: Spanish, French, German and
+  Brazilian Portuguese. At window widths below
   1000 points the Kanban header's action buttons drop their visible words
   (keeping the icon, tooltip and accessible name) so the header fits at the
   840-point minimum in English and in longer translations. Rune's own
@@ -29,8 +31,9 @@ All notable changes to Muninn are documented here. The format is based on
   one/other plurals (`1 nota`, `2 notas`), Monday-first calendars and Spanish
   month and weekday names. Dates written into files stay English/ASCII. Any
   `es-*` OS locale uses this pack; Catalan (`ca`) is a separate language and is
-  not covered. The catalog is machine-authored and awaits a native or fluent
-  reviewer's sign-off before release; the PR records the terminology choices.
+  not covered. The catalog was checked by the offline heuristic and a bilingual
+  semantic pass; native review remains welcome, and the PR records the
+  terminology choices.
 - **French (fr-FR) interface pack (#194).** The second wave-1 language: the
   picker now lists **Français**, a French desktop resolves to it under
   **System**, and an explicit pick persists as `"fr-FR"` (any `fr-*` OS locale,
@@ -39,8 +42,8 @@ All notable changes to Muninn are documented here. The format is based on
   space before `:` `;` `!` `?` and inside « »), CLDR French plurals where 0 and
   1 are singular (`0 note`, `1 note`, `2 notes`), Monday-first calendars and
   French month and weekday names. Dates written into files stay English/ASCII.
-  The catalog is machine-authored and awaits a native or fluent reviewer's
-  sign-off before release.
+  The catalog was checked by the offline heuristic and a bilingual semantic
+  pass; native review remains welcome.
 - **German (de-DE) interface pack (#195).** The third wave-1 language: the
   picker now lists **Deutsch**, a German desktop resolves to it under
   **System**, and an explicit pick persists as `"de-DE"` (any `de-*` OS
@@ -49,9 +52,9 @@ All notable changes to Muninn are documented here. The format is based on
   Monday-first calendars and German month and weekday names. Dates written
   into files stay English/ASCII. German is the overflow stress case: its
   longer compounds are rendered at 840×640 and 1180×780 and fit without an
-  allowlist or a layout change. The catalog is machine-authored and awaits a
-  native or fluent reviewer's sign-off before release; the PR records the
-  terminology choices.
+  allowlist or a layout change. The catalog was checked by the offline heuristic
+  and a bilingual semantic pass; native review remains welcome, and the PR
+  records the terminology choices.
 - **Brazilian Portuguese (pt-BR) interface pack (#196).** The fourth wave-1
   language: the picker lists **Português (Brasil)**, bare `pt` and `pt-BR`
   desktops resolve to it under **System**, and an explicit pick persists as
@@ -60,8 +63,9 @@ All notable changes to Muninn are documented here. The format is based on
   senha), one/other plurals (`1 nota`, `2 notas`) and Sunday-first calendars
   with Portuguese month and weekday names. `arquivo` means "file"; the Kanban
   archive is `arquivar`/`arquivados`. `pt-PT` stays a separate future catalog.
-  The catalog is machine-authored and awaits a native or fluent reviewer's
-  sign-off before release; the PR records the terminology choices.
+  The catalog was checked by the offline heuristic and a bilingual semantic
+  pass; native review remains welcome, and the PR records the terminology
+  choices.
 - **Import documents as notes (#189).** The sidebar's new import icon, `⌘I` / `Ctrl+I`, the
   command palette's **Import document…** action, and a drop of a Word, PowerPoint, Excel,
   OpenDocument, RTF, EPUB, CSV or text PDF file all convert the document into a new Markdown
@@ -74,6 +78,28 @@ All notable changes to Muninn are documented here. The format is based on
   attachments. Unsupported, encrypted, malformed, over-limit and scanned-PDF (with page
   numbers) failures use their own catalogue copy and leave the vault untouched. On a Linux
   desktop without an XDG file-chooser portal the dialog error points at drag-and-drop.
+
+- **Board header picker (#188).** The 240-point board rail is gone; the
+  header's board menu switches boards and the canvas gains 256 points
+  (868 → 1124).
+- **Graph scale (#190).** Density-scaled footprints, packing at every vault
+  size, density-aware LOD and scaled links keep zero overlaps through 2,000
+  notes; a 2,000-note vault settles in 0.76 s. The 405-note stride fixture
+  keeps a documented edge-p90 exception; edge routing is out of scope.
+
+### Changed
+
+- **Focus control (#186).** The Focus glyph is centred and the button is
+  hidden where focus mode cannot act.
+- **Board drawing (#187).** One camera pose per stroke and selection drag; the
+  canvas no longer drifts under the pointer.
+- **Documentation.** The README and tutorial vault are current, with
+  Write/Graph/Local, Board and Kanban stills and the new light social card.
+
+### Fixed
+
+- **One Close control (#185).** Pages and panels use one text Close control
+  instead of duplicate glyphs.
 
 ## [0.8.6] - 2026-11-15
 
