@@ -1,74 +1,74 @@
 {
-  "tag": "v0.8.6",
-  "name": "v0.8.6",
-  "htmlUrl": "https://github.com/raythurman2386/muninn/releases/tag/v0.8.6",
-  "publishedAt": "2026-11-16T03:18:09Z",
-  "body": "## What's Changed\n* site: refresh the release snapshot to v0.8.5 by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/147\n* fix(ui): name the text fields a real AT pass found unnamed (#72) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/148\n* feat(board): a shape with no label can be given one (#73) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/149\n* fix(ui): audit layer_03, overlays and palette swatch rings (#72) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/150\n* feat(board): link shapes and board text to vault notes (#73) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/151\n* i18n: add the muninn-i18n catalog seam (#153) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/161\n* i18n: split file and display date formatting (#154) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/162\n* i18n: move Help copy into the catalog (#155, part 1) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/163\n* i18n: move command palette copy into the catalog (#155, part 2) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/164\n* i18n: move Settings and Kanban schema copy into the catalog (#156, part 1) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/165\n* i18n: move Sync settings copy into the catalog (#156, part 2) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/166\n* i18n: move Kanban chrome into the catalog (#157, part 1) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/167\n* i18n: move Board and Graph chrome into the catalog (#157, part 2) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/168\n* test(sync): bound the Tailscale host-stop wait (#170) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/171\n* test(ui): wait for the new note, not for any poll change (#172) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/173\n* i18n: move status, recovery, trash and tray copy into the catalog (#158, part 1) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/169\n* i18n: move user-facing errors and conflict copy into the catalog (#158, part 2) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/175\n* i18n: move sync runtime status and error copy into the catalog (#158, part 3) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/176\n* i18n: extract the remaining app chrome (#174) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/177\n* i18n: add xtask i18n-lint and wire it into check/CI (#159, part 1) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/178\n* i18n: add the pseudo-locale render check (#159, part 2) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/179\n* docs(i18n): link the filed Rune RTL upstream request (#160) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/180\n* Release 0.8.6: bump version and changelog by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/181\n\n\n**Full Changelog**: https://github.com/raythurman2386/muninn/compare/v0.8.5...v0.8.6",
+  "tag": "v0.8.7",
+  "name": "v0.8.7",
+  "htmlUrl": "https://github.com/raythurman2386/muninn/releases/tag/v0.8.7",
+  "publishedAt": "2026-11-18T14:22:58Z",
+  "body": "## What's Changed\n* site: refresh the release snapshot to v0.8.6 by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/182\n* test(ui): give the dirty-buffer watcher test a reliable signal (#183) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/184\n* fix(ui): one text Close control for every page and panel (#185) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/197\n* fix(board): one camera pose per stroke and selection drag (#187) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/198\n* fix(ui): centre the Focus glyph and hide its button where it cannot act (#186) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/199\n* fix(graph): density-scaled footprint and packing at every vault size (#190, part 1) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/200\n* feat(board): replace the 240 pt rail with a header board picker (#188) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/201\n* feat(import): AnyDoc document conversion crate (#189, part 1) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/203\n* fix(graph): density-aware LOD and scaled link/force lengths (#190, part 2) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/202\n* feat(import): import documents as Markdown notes (#189, part 2) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/204\n* i18n: add the message-template seam and convert 86 helpers (#191, part 1) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/205\n* i18n: convert the remaining helpers and close the pseudo allowlist (#191, part 2) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/206\n* i18n: locale-pack infrastructure — picker, OS detection, dates, plurals, overflow (#192) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/207\n* chore(i18n): add offline translation-review tooling by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/212\n* docs: refresh README, tutorial vault and renders by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/213\n* i18n: ship the Spanish (es-ES) catalog (#193) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/208\n* i18n: ship the French (fr-FR) catalog (#194) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/211\n* i18n: ship the German (de-DE) catalog (#195) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/210\n* test(sync): stabilize the auth loopback tests on loaded runners by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/214\n* i18n: ship the Brazilian Portuguese (pt-BR) catalog (#196) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/209\n* Release 0.8.7: bump version and changelog by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/215\n\n\n**Full Changelog**: https://github.com/raythurman2386/muninn/compare/v0.8.6...v0.8.7",
   "assets": [
     {
       "name": "checksums.txt",
       "size": 583,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.6/checksums.txt",
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.7/checksums.txt",
       "contentType": "text/plain; charset=utf-8",
-      "digest": "sha256:a151b762a568e53650ef800335471ac6f2b49cc9a95d1776f97dd1399d7119d3",
-      "sha256": "a151b762a568e53650ef800335471ac6f2b49cc9a95d1776f97dd1399d7119d3"
+      "digest": "sha256:0d9b4f66b0abed87081411be36350e7387fa07abcded26319532e3ce59b8a70e",
+      "sha256": "0d9b4f66b0abed87081411be36350e7387fa07abcded26319532e3ce59b8a70e"
     },
     {
       "name": "checksums.txt.sigstore.json",
-      "size": 10339,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.6/checksums.txt.sigstore.json",
+      "size": 10595,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.7/checksums.txt.sigstore.json",
       "contentType": "application/json",
-      "digest": "sha256:9128a3b6018f3b86c445806b936b8a8573a56b0e8b3fa5d2d72d6ca0b69fb174",
-      "sha256": "9128a3b6018f3b86c445806b936b8a8573a56b0e8b3fa5d2d72d6ca0b69fb174"
+      "digest": "sha256:129484abba5764a4ee235bbc2f6e70b5432e5ab50e3c220066aecf999e7b529b",
+      "sha256": "129484abba5764a4ee235bbc2f6e70b5432e5ab50e3c220066aecf999e7b529b"
     },
     {
-      "name": "muninn_0.8.6-1_amd64.deb",
-      "size": 11650440,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.6/muninn_0.8.6-1_amd64.deb",
+      "name": "muninn_0.8.7-1_amd64.deb",
+      "size": 14658452,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.7/muninn_0.8.7-1_amd64.deb",
       "contentType": "application/x-debian-package",
-      "digest": "sha256:96dea33b6a1e7f919f872fd69283c00853889cf83a1d309bd4641d8628d369d0",
-      "sha256": "96dea33b6a1e7f919f872fd69283c00853889cf83a1d309bd4641d8628d369d0"
+      "digest": "sha256:2c61d685ea60a4a518d9d6b839e4244ddc156f4866ae289c5567d26ec5efa9fc",
+      "sha256": "2c61d685ea60a4a518d9d6b839e4244ddc156f4866ae289c5567d26ec5efa9fc"
     },
     {
-      "name": "muninn_0.8.6-1_arm64.deb",
-      "size": 10126964,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.6/muninn_0.8.6-1_arm64.deb",
+      "name": "muninn_0.8.7-1_arm64.deb",
+      "size": 13007316,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.7/muninn_0.8.7-1_arm64.deb",
       "contentType": "application/x-debian-package",
-      "digest": "sha256:614354d7fd8fd293085afc52a411ffee36df7f7fa483a06df5a6adf140e02143",
-      "sha256": "614354d7fd8fd293085afc52a411ffee36df7f7fa483a06df5a6adf140e02143"
+      "digest": "sha256:0a48f1bd52f80bd2c720c0203ad2e1a914464bf7f8d768dab5887f571c5ebe3b",
+      "sha256": "0a48f1bd52f80bd2c720c0203ad2e1a914464bf7f8d768dab5887f571c5ebe3b"
     },
     {
-      "name": "muninn_v0.8.6_linux_aarch64.tar.gz",
-      "size": 16225968,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.6/muninn_v0.8.6_linux_aarch64.tar.gz",
+      "name": "muninn_v0.8.7_linux_aarch64.tar.gz",
+      "size": 20637353,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.7/muninn_v0.8.7_linux_aarch64.tar.gz",
       "contentType": "application/x-gtar",
-      "digest": "sha256:2755ee4061d6249d2d9b2babc48f041087b0d8836137cd43b17a0767f6c9f29f",
-      "sha256": "2755ee4061d6249d2d9b2babc48f041087b0d8836137cd43b17a0767f6c9f29f"
+      "digest": "sha256:03b87fcfd294073e942be12336e461eb612073d692f7c88d13bbde5661a7402b",
+      "sha256": "03b87fcfd294073e942be12336e461eb612073d692f7c88d13bbde5661a7402b"
     },
     {
-      "name": "muninn_v0.8.6_linux_x86_64.tar.gz",
-      "size": 17202432,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.6/muninn_v0.8.6_linux_x86_64.tar.gz",
+      "name": "muninn_v0.8.7_linux_x86_64.tar.gz",
+      "size": 21928897,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.7/muninn_v0.8.7_linux_x86_64.tar.gz",
       "contentType": "application/x-gtar",
-      "digest": "sha256:43337ee9a3fe384a1f67670792c1f7770ab0d70a00aaee02e779459e69583862",
-      "sha256": "43337ee9a3fe384a1f67670792c1f7770ab0d70a00aaee02e779459e69583862"
+      "digest": "sha256:a76e72c0c48f17bfe95b3d76c3d66ea5d3043a0b15284ac9377f0354198fd2c6",
+      "sha256": "a76e72c0c48f17bfe95b3d76c3d66ea5d3043a0b15284ac9377f0354198fd2c6"
     },
     {
-      "name": "muninn_v0.8.6_macos_aarch64.tar.gz",
-      "size": 13583447,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.6/muninn_v0.8.6_macos_aarch64.tar.gz",
+      "name": "muninn_v0.8.7_macos_aarch64.tar.gz",
+      "size": 17814892,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.7/muninn_v0.8.7_macos_aarch64.tar.gz",
       "contentType": "application/x-gtar",
-      "digest": "sha256:39a59e49fad6b08d51dc52ff0e75b18d7e4dd7f7a667fe84face780c009bae38",
-      "sha256": "39a59e49fad6b08d51dc52ff0e75b18d7e4dd7f7a667fe84face780c009bae38"
+      "digest": "sha256:4a0af3fe2d01144c30bd4e03f66d7ca5663607fffda7b3735721bb63dabbaa1e",
+      "sha256": "4a0af3fe2d01144c30bd4e03f66d7ca5663607fffda7b3735721bb63dabbaa1e"
     },
     {
-      "name": "muninn_v0.8.6_windows_x86_64.zip",
-      "size": 13874183,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.6/muninn_v0.8.6_windows_x86_64.zip",
+      "name": "muninn_v0.8.7_windows_x86_64.zip",
+      "size": 17874088,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.8.7/muninn_v0.8.7_windows_x86_64.zip",
       "contentType": "application/zip",
-      "digest": "sha256:b44020b5e52828700ec6527ba759872412550a6f5e7780a4aa44470cbaa19357",
-      "sha256": "b44020b5e52828700ec6527ba759872412550a6f5e7780a4aa44470cbaa19357"
+      "digest": "sha256:b7a4b084918516b04890be7b67f7e1e45c74e3f0eedb6b1987dedf5dfa61da7e",
+      "sha256": "b7a4b084918516b04890be7b67f7e1e45c74e3f0eedb6b1987dedf5dfa61da7e"
     }
   ],
-  "checksumsTxt": "2755ee4061d6249d2d9b2babc48f041087b0d8836137cd43b17a0767f6c9f29f  muninn_v0.8.6_linux_aarch64.tar.gz\n43337ee9a3fe384a1f67670792c1f7770ab0d70a00aaee02e779459e69583862  muninn_v0.8.6_linux_x86_64.tar.gz\n39a59e49fad6b08d51dc52ff0e75b18d7e4dd7f7a667fe84face780c009bae38  muninn_v0.8.6_macos_aarch64.tar.gz\nb44020b5e52828700ec6527ba759872412550a6f5e7780a4aa44470cbaa19357  muninn_v0.8.6_windows_x86_64.zip\n96dea33b6a1e7f919f872fd69283c00853889cf83a1d309bd4641d8628d369d0  muninn_0.8.6-1_amd64.deb\n614354d7fd8fd293085afc52a411ffee36df7f7fa483a06df5a6adf140e02143  muninn_0.8.6-1_arm64.deb\n"
+  "checksumsTxt": "03b87fcfd294073e942be12336e461eb612073d692f7c88d13bbde5661a7402b  muninn_v0.8.7_linux_aarch64.tar.gz\na76e72c0c48f17bfe95b3d76c3d66ea5d3043a0b15284ac9377f0354198fd2c6  muninn_v0.8.7_linux_x86_64.tar.gz\n4a0af3fe2d01144c30bd4e03f66d7ca5663607fffda7b3735721bb63dabbaa1e  muninn_v0.8.7_macos_aarch64.tar.gz\nb7a4b084918516b04890be7b67f7e1e45c74e3f0eedb6b1987dedf5dfa61da7e  muninn_v0.8.7_windows_x86_64.zip\n2c61d685ea60a4a518d9d6b839e4244ddc156f4866ae289c5567d26ec5efa9fc  muninn_0.8.7-1_amd64.deb\n0a48f1bd52f80bd2c720c0203ad2e1a914464bf7f8d768dab5887f571c5ebe3b  muninn_0.8.7-1_arm64.deb\n"
 }
