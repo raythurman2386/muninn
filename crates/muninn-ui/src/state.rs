@@ -1647,11 +1647,15 @@ impl State {
         }
         // Kanban slice 3: every kanban note by name (the index caches which
         // notes are kanbans), filtered by the query like the actions.
+        // Kanban is closed for a locked note (v1), even while this session
+        // holds its plaintext; offering it would open nothing.
         let kanbans = self
             .vault
             .notes
             .iter()
-            .filter(|note| note.is_kanban() && note.title.to_lowercase().contains(&query))
+            .filter(|note| {
+                note.is_kanban() && !note.is_locked() && note.title.to_lowercase().contains(&query)
+            })
             .map(|note| PaletteItem::Kanban(note.id));
         let mut items = Vec::new();
         if query.is_empty() {
@@ -1977,7 +1981,7 @@ impl State {
                 .vault
                 .notes
                 .get(id)
-                .is_some_and(|note| note.is_kanban())
+                .is_some_and(|note| note.is_kanban() && !note.is_locked())
         {
             self.open_kanban(id);
             return;
@@ -1999,7 +2003,7 @@ impl State {
             .vault
             .notes
             .get(id)
-            .is_some_and(|note| note.is_kanban())
+            .is_some_and(|note| note.is_kanban() && !note.is_locked())
         {
             self.open_kanban(id);
         } else {

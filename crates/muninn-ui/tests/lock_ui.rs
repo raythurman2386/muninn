@@ -590,3 +590,39 @@ fn the_prompt_fields_are_secure_and_named() {
     assert!(rt.find("lock-warning").is_none());
     assert!(rt.find("lock-password").is_some());
 }
+
+#[test]
+fn an_unlocked_locked_kanban_is_not_offered_as_a_board() {
+    let secret = lock(KANBAN, PW, "Board").expect("lock");
+    let env = TestEnv::new(&[("Board.md", secret.as_str())]);
+    let mut s = env.state();
+    let id = s.vault.resolve("Board").expect("Board");
+    s.unlock_note(id, PW).expect("unlock");
+    assert!(
+        s.vault.notes[id].is_kanban(),
+        "the session overlay is a kanban"
+    );
+
+    s.toggle_palette();
+    assert!(
+        !s.palette_items()
+            .iter()
+            .any(|item| matches!(item, PaletteItem::Kanban(k) if *k == id)),
+        "a locked kanban is not offered in the palette"
+    );
+    s.close_palette();
+
+    s.open_from_search(id);
+    assert_eq!(s.mode, Mode::Editor, "the pick stays in Write");
+    assert!(s.kanban.is_none(), "no board was opened");
+
+    let rt = runtime(s);
+    assert!(
+        rt.find("sidebar-kanbans").is_none(),
+        "the locked kanban is not in the Kanban section"
+    );
+    assert!(
+        rt.find("open-as-kanban").is_none(),
+        "the topbar does not offer a board for a locked note"
+    );
+}
