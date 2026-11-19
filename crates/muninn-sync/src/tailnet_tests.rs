@@ -509,9 +509,27 @@ fn tailnet_stale_peer_is_refused_and_edit_conflicts_use_the_planner() {
 #[test]
 fn tailnet_host_down_is_offline_and_leaves_the_vault_alone() {
     let dirs = Dirs::new("offline");
-    let unused = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let dead = format!("http://{}", unused.local_addr().unwrap());
-    drop(unused);
+    // Keep a listener bound and have it close each connection before writing
+    // a response. Dropping an ephemeral port lets a parallel test's host
+    // rebind it, which made this sync succeed on a loaded arm64 runner; a
+    // live listener that hangs up is deterministic and is still an `Offline`
+    // ("dropped connection before a response").
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let dead = format!("http://{}", listener.local_addr().unwrap());
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop_thread = std::sync::Arc::clone(&stop);
+    let server = std::thread::spawn(move || {
+        while !stop_thread.load(std::sync::atomic::Ordering::SeqCst) {
+            match listener.accept() {
+                Ok((stream, _)) => drop(stream),
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(_) => break,
+            }
+        }
+    });
     let credentials = MemoryCredentialStore::default();
     let binding = bind(&credentials);
     let vault = dirs.dir("vault");
@@ -523,6 +541,8 @@ fn tailnet_host_down_is_offline_and_leaves_the_vault_alone() {
         &request(&vault, &state, &binding, peer_role(), "abcd000000000021"),
     )
     .expect_err("host is down");
+    stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    server.join().unwrap();
     assert!(matches!(error, SyncError::Offline { .. }), "{error:?}");
     assert_eq!(
         std::fs::read_to_string(vault.join("keep.md")).unwrap(),
