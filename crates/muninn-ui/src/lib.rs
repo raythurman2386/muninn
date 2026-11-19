@@ -92,8 +92,9 @@ pub use settings::{
 pub use state::{
     BurnMark, BurnSpace, ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState,
     FileAction, FindState, FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry,
-    IMPORT_EXTENSIONS, ImportReport, LinkComplete, MenuTarget, MoveConfirm, NamePrompt,
-    RenameConfirm, RenamePrompt, State, TagComplete, TrashUndo, file_action_command,
+    IMPORT_EXTENSIONS, ImportReport, LinkComplete, LockPrompt, LockPromptKind, MenuTarget,
+    MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TagComplete, TrashUndo,
+    file_action_command,
 };
 pub use tray::{
     TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,

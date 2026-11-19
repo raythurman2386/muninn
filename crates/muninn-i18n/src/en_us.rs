@@ -912,5 +912,37 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::CoreBoardNameForbidden => "cannot contain : * ? \" < > | or control characters",
         Key::CoreBoardNameTrailingDot => "cannot end with a dot",
         Key::CoreBoardNameReserved => "cannot be a reserved device name",
+        Key::MenuLockNote => "Lock note…",
+        Key::MenuUnlockNote => "Unlock note…",
+        Key::LockNoteTitle => "Lock note",
+        Key::UnlockNoteTitle => "Unlock note",
+        Key::LockPassword => "Password",
+        Key::LockConfirmPassword => "Confirm password",
+        Key::LockLostPasswordWarning => {
+            "There is no password reset, recovery key or Muninn account. If you lose this \
+             password, the note is gone. Earlier backups and sync history may still contain the \
+             plaintext."
+        }
+        Key::LockSubmit => "Lock",
+        Key::UnlockSubmit => "Unlock",
+        Key::LockPasswordMismatch => "The passwords do not match.",
+        Key::LockPasswordEmpty => "Enter a password.",
+        Key::LockedNoteHeading => "This note is locked",
+        Key::LockedNoteBody => "Unlock it with its password to read or edit it.",
+        Key::LockedNoteRecoveryOff => {
+            "Crash recovery is off for a locked note; unsaved edits rely on autosave."
+        }
+        Key::LockedNoteBadge => "Locked note",
+        Key::UnlockWrongPassword => "That password did not open the note.",
+        Key::UnlockUnsupportedVersion => "This note was locked by a newer Muninn.",
+        Key::UnlockMalformed => "This locked note is damaged.",
+        Key::UnlockWrongNote => "This locked note belongs to a different filename.",
+        Key::UnlockRollback => "This note is older than the last version Muninn saw.",
+        Key::UnlockFailed => "The note could not be unlocked.",
+        Key::LockRefusedSave => "This note is locked. Unlock it to keep your edits.",
+        Key::PaletteActionLockNote => "Lock note",
+        Key::PaletteActionUnlockNote => "Unlock note",
+        Key::PaletteKeywordsLockNote => "encrypt password private protect",
+        Key::PaletteKeywordsUnlockNote => "open decrypt password",
     }
 }

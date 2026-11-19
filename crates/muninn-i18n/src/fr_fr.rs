@@ -1015,5 +1015,46 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::CoreBoardNameTrailingDot => "ne peut pas se terminer par un point",
         Key::CoreBoardNameReserved => "ne peut pas être un nom de périphérique réservé",
+        Key::MenuLockNote => "Verrouiller la note…",
+        Key::MenuUnlockNote => "Déverrouiller la note…",
+        Key::LockNoteTitle => "Verrouiller la note",
+        Key::UnlockNoteTitle => "Déverrouiller la note",
+        Key::LockPassword => "Mot de passe",
+        Key::LockConfirmPassword => "Confirmer le mot de passe",
+        Key::LockLostPasswordWarning => {
+            "Il n’existe aucune réinitialisation de mot de passe, clé de récupération ni compte \
+             Muninn. Si vous perdez ce mot de passe, la note est perdue. Les sauvegardes et \
+             l’historique de synchronisation antérieurs peuvent encore contenir le texte en clair."
+        }
+        Key::LockSubmit => "Verrouiller",
+        Key::UnlockSubmit => "Déverrouiller",
+        Key::LockPasswordMismatch => "Les mots de passe ne correspondent pas.",
+        Key::LockPasswordEmpty => "Saisissez un mot de passe.",
+        Key::LockedNoteHeading => "Cette note est verrouillée",
+        Key::LockedNoteBody => {
+            "Déverrouillez-la avec son mot de passe pour la lire ou la modifier."
+        }
+        Key::LockedNoteRecoveryOff => {
+            "La récupération après plantage est désactivée pour une note verrouillée ; les \
+             modifications non enregistrées dépendent de l’enregistrement automatique."
+        }
+        Key::LockedNoteBadge => "Note verrouillée",
+        Key::UnlockWrongPassword => "Ce mot de passe n’a pas ouvert la note.",
+        Key::UnlockUnsupportedVersion => {
+            "Cette note a été verrouillée par une version plus récente de Muninn."
+        }
+        Key::UnlockMalformed => "Cette note verrouillée est endommagée.",
+        Key::UnlockWrongNote => "Cette note verrouillée appartient à un autre nom de fichier.",
+        Key::UnlockRollback => {
+            "Cette note est plus ancienne que la dernière version vue par Muninn."
+        }
+        Key::UnlockFailed => "La note n’a pas pu être déverrouillée.",
+        Key::LockRefusedSave => {
+            "Cette note est verrouillée. Déverrouillez-la pour conserver vos modifications."
+        }
+        Key::PaletteActionLockNote => "Verrouiller la note",
+        Key::PaletteActionUnlockNote => "Déverrouiller la note",
+        Key::PaletteKeywordsLockNote => "chiffrer mot de passe privé protéger",
+        Key::PaletteKeywordsUnlockNote => "ouvrir déchiffrer mot de passe",
     }
 }

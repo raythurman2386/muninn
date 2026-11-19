@@ -990,5 +990,40 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::CoreBoardNameForbidden => "não pode conter : * ? \" < > | nem caracteres de controle",
         Key::CoreBoardNameTrailingDot => "não pode terminar com ponto",
         Key::CoreBoardNameReserved => "não pode ser um nome de dispositivo reservado",
+        Key::MenuLockNote => "Bloquear nota…",
+        Key::MenuUnlockNote => "Desbloquear nota…",
+        Key::LockNoteTitle => "Bloquear nota",
+        Key::UnlockNoteTitle => "Desbloquear nota",
+        Key::LockPassword => "Senha",
+        Key::LockConfirmPassword => "Confirmar senha",
+        Key::LockLostPasswordWarning => {
+            "Não há redefinição de senha, chave de recuperação nem conta Muninn. Se você perder \
+             esta senha, a nota será perdida. Backups e o histórico de sincronização anteriores \
+             ainda podem conter o texto não criptografado."
+        }
+        Key::LockSubmit => "Bloquear",
+        Key::UnlockSubmit => "Desbloquear",
+        Key::LockPasswordMismatch => "As senhas não coincidem.",
+        Key::LockPasswordEmpty => "Digite uma senha.",
+        Key::LockedNoteHeading => "Esta nota está bloqueada",
+        Key::LockedNoteBody => "Desbloqueie-a com a senha para lê-la ou editá-la.",
+        Key::LockedNoteRecoveryOff => {
+            "A recuperação de falhas fica desativada para uma nota bloqueada; edições não salvas \
+             dependem do salvamento automático."
+        }
+        Key::LockedNoteBadge => "Nota bloqueada",
+        Key::UnlockWrongPassword => "Essa senha não abriu a nota.",
+        Key::UnlockUnsupportedVersion => {
+            "Esta nota foi bloqueada por uma versão mais recente do Muninn."
+        }
+        Key::UnlockMalformed => "Esta nota bloqueada está danificada.",
+        Key::UnlockWrongNote => "Esta nota bloqueada pertence a outro nome de arquivo.",
+        Key::UnlockRollback => "Esta nota é mais antiga que a última versão vista pelo Muninn.",
+        Key::UnlockFailed => "Não foi possível desbloquear a nota.",
+        Key::LockRefusedSave => "Esta nota está bloqueada. Desbloqueie-a para manter suas edições.",
+        Key::PaletteActionLockNote => "Bloquear nota",
+        Key::PaletteActionUnlockNote => "Desbloquear nota",
+        Key::PaletteKeywordsLockNote => "criptografar senha privado proteger",
+        Key::PaletteKeywordsUnlockNote => "abrir descriptografar senha",
     }
 }

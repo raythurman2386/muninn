@@ -39,6 +39,9 @@ pub enum Layer {
     /// file changed under unsaved edits, its three choices outrank the page.
     KanbanConflict,
     Menu,
+    /// #134: the lock/unlock password prompt. Above a menu (it is opened from
+    /// one) and below Settings/Help, which replace the page it sits over.
+    NoteLock,
     /// Issue #188: the Board page's header picker, a modal list.
     BoardPicker,
     KanbanPicker,
@@ -148,6 +151,13 @@ pub enum PaletteAction {
     /// Write the New Kanban layout into the selected note. Offered only
     /// while that note is empty, so it is not in [`PaletteAction::ALL`].
     ConvertToKanban,
+    /// #134: seal the selected plain note under a password. Note-specific like
+    /// [`PaletteAction::ConvertToKanban`], so it is not in
+    /// [`PaletteAction::ALL`].
+    LockNote,
+    /// #134: open the selected locked note with its password. Offered only
+    /// over a locked note, so it is not in [`PaletteAction::ALL`].
+    UnlockNote,
 }
 
 impl PaletteAction {
@@ -183,6 +193,8 @@ impl PaletteAction {
             PaletteAction::ToggleFocusMode => TextKey::PaletteActionToggleFocusMode,
             PaletteAction::NewKanban => TextKey::PaletteActionNewKanban,
             PaletteAction::ConvertToKanban => TextKey::PaletteActionConvertToKanban,
+            PaletteAction::LockNote => TextKey::PaletteActionLockNote,
+            PaletteAction::UnlockNote => TextKey::PaletteActionUnlockNote,
         })
     }
 
@@ -206,6 +218,9 @@ impl PaletteAction {
             PaletteAction::NewKanban | PaletteAction::ConvertToKanban => {
                 t(TextKey::PaletteHintKanban)
             }
+            // #134: the lock actions have no chord; their prompt asks for a
+            // password, so the field's label is the affordance shown.
+            PaletteAction::LockNote | PaletteAction::UnlockNote => t(TextKey::LockPassword),
         }
     }
 
@@ -228,6 +243,8 @@ impl PaletteAction {
             PaletteAction::ToggleFocusMode => TextKey::PaletteKeywordsToggleFocusMode,
             PaletteAction::NewKanban => TextKey::PaletteKeywordsNewKanban,
             PaletteAction::ConvertToKanban => TextKey::PaletteKeywordsConvertToKanban,
+            PaletteAction::LockNote => TextKey::PaletteKeywordsLockNote,
+            PaletteAction::UnlockNote => TextKey::PaletteKeywordsUnlockNote,
         })
     }
 
@@ -285,6 +302,10 @@ impl State {
             || self.folder_rename_confirm.is_some()
             || self.new_note_prompt.is_some()
             || self.rename_prompt.is_some()
+            // #134: the password prompt is modal, so it owns the keyboard even
+            // if a click blurred both secure fields: nothing behind it may run
+            // a shell chord.
+            || self.lock_prompt.is_some()
             || self.new_folder_prompt.is_some()
             || self.rename_folder_prompt.is_some()
             || self.board_rename.is_some()
@@ -502,6 +523,11 @@ impl State {
         if self.help {
             return Some(Layer::Help);
         }
+        // #134: the password prompt outranks the menu it was opened from, and
+        // the page it covers; Settings and Help replace that page entirely.
+        if self.lock_prompt.is_some() {
+            return Some(Layer::NoteLock);
+        }
         if self.complete.is_some() {
             return Some(Layer::Complete);
         }
@@ -591,6 +617,7 @@ impl State {
             Layer::RenameConfirm => self.cancel_rename_confirm(),
             Layer::MoveConfirm => self.cancel_move_confirm(),
             Layer::FolderRenameConfirm => self.cancel_folder_rename_confirm(),
+            Layer::NoteLock => self.cancel_lock_prompt(),
             Layer::Menu => self.close_menu(),
             Layer::BoardPicker => self.close_board_picker(),
             Layer::KanbanConflict => self.dismiss_kanban_conflict(),
@@ -612,11 +639,15 @@ mod tests {
 
     /// #155: every action's copy is catalog data. `ConvertToKanban` is offered
     /// only over an empty note, so it is not in `ALL` and needs its own row.
+    /// #134 adds the two note-lock actions, offered only over the matching
+    /// note, the same way.
     #[test]
     fn every_palette_action_has_label_hint_keywords_and_section() {
-        let actions = PaletteAction::ALL
-            .into_iter()
-            .chain([PaletteAction::ConvertToKanban]);
+        let actions = PaletteAction::ALL.into_iter().chain([
+            PaletteAction::ConvertToKanban,
+            PaletteAction::LockNote,
+            PaletteAction::UnlockNote,
+        ]);
         for action in actions {
             assert!(!action.label().is_empty(), "{action:?} has no label");
             assert!(!action.hint().is_empty(), "{action:?} has no hint");
@@ -632,9 +663,11 @@ mod tests {
     /// its label: the synonyms survived the move into the catalog unchanged.
     #[test]
     fn keywords_still_find_their_action() {
-        let actions = PaletteAction::ALL
-            .into_iter()
-            .chain([PaletteAction::ConvertToKanban]);
+        let actions = PaletteAction::ALL.into_iter().chain([
+            PaletteAction::ConvertToKanban,
+            PaletteAction::LockNote,
+            PaletteAction::UnlockNote,
+        ]);
         for action in actions {
             let keyword = action
                 .keywords()

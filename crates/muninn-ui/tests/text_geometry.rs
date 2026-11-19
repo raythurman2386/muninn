@@ -75,6 +75,9 @@ enum Scene {
     Settings(SettingsTab),
     Palette,
     Kanban,
+    /// #134: the lock prompt, whose lost-password warning is the longest
+    /// paragraph this layer can show.
+    LockPrompt,
 }
 
 impl Scene {
@@ -85,6 +88,7 @@ impl Scene {
             Scene::Settings(tab) => format!("Settings › {tab:?}"),
             Scene::Palette => "command palette".to_owned(),
             Scene::Kanban => "Kanban".to_owned(),
+            Scene::LockPrompt => "lock prompt".to_owned(),
         }
     }
 }
@@ -127,6 +131,10 @@ fn runtime(scene: Scene, size: (f32, f32), lang: Lang) -> (TempVault, Runtime<St
         Scene::Kanban => {
             let id = rt.state.vault.resolve("Board").expect("Board note");
             rt.update(move |s, _| s.open_kanban(id));
+        }
+        Scene::LockPrompt => {
+            let id = rt.state.vault.resolve("Alpha").expect("Alpha note");
+            rt.update(move |s, _| s.begin_lock_note(id));
         }
     }
     for _ in 0..12 {
@@ -292,6 +300,7 @@ fn every_copy_heavy_screen_fits_its_clips_at_both_sizes() {
         Scene::Settings(SettingsTab::Graph),
         Scene::Settings(SettingsTab::Sync),
         Scene::Settings(SettingsTab::Kanban),
+        Scene::LockPrompt,
     ];
     // Pseudo is the growth proxy; Spanish and French are the shipped packs.
     // All must fit at both sizes, and the pack runs are real copy, not an

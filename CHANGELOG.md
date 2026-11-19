@@ -10,6 +10,18 @@ All notable changes to Muninn are documented here. The format is based on
 
 - **Sponsors.** The README and the site's sponsor page now display the
   project's sponsors, starting with Synteq ([synteq.com](https://synteq.com)).
+- **Lock notes (#134).** Any note can be locked from its context menu or the
+  command palette (`Lock note…`). The password prompt asks for the password
+  twice, states that there is no password reset, recovery key or Muninn
+  account, and warns that earlier backups and sync history may still contain
+  the plaintext. A locked note shows a lock page and a lock glyph in the
+  sidebar until it is opened again with `Unlock note…`; its body, tags, links
+  and Kanban stay out of search and the index while it is locked, and its
+  envelope is never put in the editor or handed to an external app. Crash
+  recovery is off for a locked note (unsaved edits rely on autosave), and a
+  save with no unlock session is refused with a status line rather than
+  writing plaintext. The Open externally, Rename and Move actions are hidden
+  for a locked note: its filename is part of what the envelope authenticates.
 
 ## [0.8.7] - 2026-11-18
 

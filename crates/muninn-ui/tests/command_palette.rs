@@ -171,13 +171,19 @@ fn palette_empty_query_is_actions_and_recent_notes_only() {
     rt.key(palette_chord());
     frame(&mut rt);
     let items = rt.state.palette_items();
+    // #134: the selected plain note adds the note-specific Lock note action
+    // to the fixed list.
     assert_eq!(
         items
             .iter()
             .filter(|item| matches!(item, PaletteItem::Action(_)))
             .count(),
-        PaletteAction::ALL.len(),
-        "every action is offered before typing"
+        PaletteAction::ALL.len() + 1,
+        "every action, plus Lock note for the selected note, is offered before typing"
+    );
+    assert!(
+        items.contains(&PaletteItem::Action(PaletteAction::LockNote)),
+        "the selected plain note can be locked"
     );
     assert_eq!(
         items.first(),
