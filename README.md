@@ -15,6 +15,7 @@
   <a href="#install">Install</a> ·
   <a href="#sync">Sync</a> ·
   <a href="#keys">Keys</a> ·
+  <a href="#lock-a-note">Lock a note</a> ·
   <a href="#license">License</a>
 </p>
 
@@ -44,6 +45,9 @@ If Muninn is useful to you, consider
 
 - **Your notes stay yours.** The vault is a folder of `.md` files — read it, diff it, back it up,
   or move it with anything you already use.
+- **Lock a note.** Give a note its own password and its `.md` file becomes a UTF-8 ciphertext
+  envelope; the body, tags and content links stay out of the editor, search, graph text and sync
+  until you unlock it. Kanban stays closed for locked notes in v1. There is no password reset.
 - **Links become a map.** `[[Note]]`, `[[Note|alias]]` and `[[Note#heading]]` resolve into
   backlinks and a graph; click a missing link to create the note.
 - **Write or Read.** A focused editor with `[[` completion, and a reader that resolves links,
@@ -193,6 +197,26 @@ and the credential store is described in [docs/sync-setup.md](docs/sync-setup.md
 
 The full map — graph navigation, card and lane actions, every board gesture — is in the in-app
 Help: `⌘?` or `Ctrl+?`, or plain `?` when no text field has focus. `Esc` closes it.
+
+## Lock a note
+
+Right-click a note and choose **Lock note…**, or run **Lock note** from the command palette. The
+prompt asks for the password twice and states the rule plainly: there is no password reset,
+recovery key or Muninn account, so a lost password loses the note. Earlier backups and sync
+history may still contain the old plaintext.
+
+A locked note keeps its filename and title, but its body, frontmatter, tags and content-derived
+links become a versioned `MUNINN-NOTE-LOCK v2` envelope: Argon2id derives the key and AES-256-GCM
+authenticates the ciphertext. The note appears in the sidebar with a lock glyph and a lock page;
+**Unlock note…** asks for the password and keeps only the derived key for 15 idle minutes. Search,
+tags, links and graph text ignore the body until then; Kanban stays closed for locked notes in
+v1. Crash recovery is off for a locked note (autosave still writes the envelope).
+
+Renaming or moving a locked note re-encrypts it while it is unlocked; a folder holding a locked
+note refuses a folder rename. In v1, Kanban is closed for locked notes, a link inside an unlocked
+locked note is not rewritten when another note is renamed, and a sync conflict copy keeps the
+original name binding until it is renamed back. The
+[design and threat model](docs/per-note-encryption.md) document the full format and the limits.
 
 ## Docs
 

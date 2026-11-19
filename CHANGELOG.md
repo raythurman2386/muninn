@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-19
+
 ### Added
 
 - **Sponsors.** The README and the site's sponsor page now display the
@@ -31,6 +33,12 @@ All notable changes to Muninn are documented here. The format is based on
   what sync uploads, and the v1 limitations (no recovery key, links inside an
   unlocked locked note are not rewritten, a conflict copy must be renamed
   back).
+
+### Fixed
+
+- **Locked Kanban affordances.** A locked note that is also a Kanban is no
+  longer offered in the Kanban sidebar, the command palette or the topbar's
+  Open as Kanban; Kanban remains closed for locked notes in v1.
 
 ## [0.8.7] - 2026-11-18
 
