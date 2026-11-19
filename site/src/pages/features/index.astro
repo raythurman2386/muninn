@@ -14,9 +14,9 @@ const still = { width: 1600, height: 1000, widths: [960, 1600], sizes: stillSize
 ---
 <Base
   title="Features — Muninn"
-  description="Muninn’s modes: Write, Read, Graph, Board, and Kanban, plus optional sync, a tray icon, and reduced motion. Every note is a file in a folder you choose."
+  description="Muninn’s modes: Write, Read, Graph, Board, and Kanban, plus a per-note password lock, optional sync, a tray icon, and reduced motion. Every note is a file in a folder you choose."
   ogTitle="Features — Muninn"
-  ogDescription="Notes, Board, Kanban, and the knowledge graph."
+  ogDescription="Notes, Board, Kanban, the knowledge graph, and per-note locks."
   ogImage={OG.features.image}
   ogImageAlt={OG.features.alt}
 >
@@ -26,7 +26,7 @@ const still = { width: 1600, height: 1000, widths: [960, 1600], sizes: stillSize
   <main id="main" class="features-page">
     <div class="wrap">
       <h1>Features</h1>
-      <p class="lede">Five modes on the same vault: Write, Read, and Graph for a note, Board for an <code>.excalidraw</code> whiteboard, and Kanban for a kanban note. Sync, the tray, and reduced motion stay out of the way until you want them.</p>
+      <p class="lede">Five modes on the same vault, plus a per-note password lock. Write, Read, and Graph for a note, Board for an <code>.excalidraw</code> whiteboard, and Kanban for a kanban note. Sync, the tray, and reduced motion stay out of the way until you want them.</p>
       <nav aria-label="On this page">
         <ul class="feature-toc">
           <li><a href="#write">Write</a></li>
@@ -35,6 +35,7 @@ const still = { width: 1600, height: 1000, widths: [960, 1600], sizes: stillSize
           <li><a href="#local-graph">Local graph</a></li>
           <li><a href="#board">Board</a></li>
           <li><a href="#kanban">Kanban</a></li>
+          <li><a href="#locked-notes">Locked notes</a></li>
           <li><a href="#sync">Sync</a></li>
           <li><a href="#tray">Tray</a></li>
           <li><a href="#accessibility">Accessibility</a></li>
@@ -148,6 +149,16 @@ const still = { width: 1600, height: 1000, widths: [960, 1600], sizes: stillSize
         />
         <figcaption>The Launch Week kanban: To do, Doing, and Done.</figcaption>
       </figure>
+    </article>
+
+    <article class="feature-section wrap" id="locked-notes">
+      <div class="feature-prose">
+        <h2>Locked notes</h2>
+        <p>Give a note its own password. The file keeps its title and <code>.md</code> name, but its body, tags and content links become an encrypted envelope on disk and in sync. The editor, Read view, search and graph text ignore it until you unlock it for the session; Kanban stays closed for locked notes in v1.</p>
+        <p>There is no password reset, recovery key or Muninn account. Crash recovery is off for a locked note; autosave still writes the envelope. Rename or move it while it is unlocked, and a folder that holds a locked note refuses a folder rename.</p>
+        <p>In v1, a link inside an unlocked locked note is not rewritten when another note is renamed, and a sync conflict copy must be renamed back.</p>
+        <p class="more"><a href="https://github.com/raythurman2386/muninn/blob/main/docs/per-note-encryption.md">The format, threat model and limits</a></p>
+      </div>
     </article>
 
     <article class="feature-section wrap" id="sync">
