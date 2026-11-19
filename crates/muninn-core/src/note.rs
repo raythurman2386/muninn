@@ -22,6 +22,9 @@ pub struct Note {
     /// [`crate::is_kanban`] of `source`, cached by [`crate::Vault::reindex`]
     /// so a frame never re-detects it.
     pub(crate) kanban: bool,
+    /// [`crate::note_lock::is_locked`] of `source`, cached by
+    /// [`crate::Vault::reindex`] so a frame never re-checks it.
+    pub(crate) locked: bool,
 }
 
 impl Note {
@@ -30,6 +33,14 @@ impl Note {
     #[must_use]
     pub fn is_kanban(&self) -> bool {
         self.kanban
+    }
+
+    /// Whether this note's source is a locked-note envelope, as of the last
+    /// index rebuild. A cheap cached prefix check: it never derives a key and
+    /// never decrypts, so a caller may gate on it on every frame.
+    #[must_use]
+    pub fn is_locked(&self) -> bool {
+        self.locked
     }
 
     /// Tags in this note, as of the last index rebuild.

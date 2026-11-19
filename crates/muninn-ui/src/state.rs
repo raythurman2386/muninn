@@ -935,7 +935,10 @@ impl State {
         // vault id (canonicalization succeeds then). A symlinked path would
         // otherwise write copies under one id and look for them under another.
         let recovery = RecoveryStore::at(&state_home, &root);
-        let recovered = recovery.scan();
+        let mut recovered = recovery.scan();
+        // A locked note never keeps a plaintext recovery copy (#132); the
+        // chunked path sweeps again once the real vault is installed.
+        crate::recovery::clear_locked(&vault, &recovery, &mut recovered);
         let first = vault.notes.first().map(|n| n.id);
         let graph = Graph::new(&vault);
         let mut state = State {
@@ -1490,6 +1493,7 @@ impl State {
                 let recovery = RecoveryStore::at(&self.state_home, &self.vault.root);
                 self.recovered = recovery.scan();
                 self.recovery = recovery;
+                self.sweep_locked_recovery();
                 let root = self.vault.root.clone();
                 self.settings.push_recent(&root);
                 self.settings.last_vault = Some(root);
@@ -3407,10 +3411,66 @@ impl State {
         self.recovery.path_for_slot(rel, RecoverySlot::Kanban)
     }
 
+    /// Is `rel` a locked note in the current index? Reads the cached flag, so
+    /// it never decrypts. The lookup is a linear scan, so this is for the
+    /// load/write/kanban paths; the per-frame editor guard uses
+    /// `selected_is_locked`, which indexes the selected note directly.
+    pub(crate) fn rel_is_locked(&self, rel: &str) -> bool {
+        self.note_id(rel)
+            .and_then(|id| self.vault.notes.get(id))
+            .is_some_and(|note| note.is_locked())
+    }
+
+    /// Is the open note a locked envelope? `selected_rel`'s lookup without the
+    /// extra scan: the selected id indexes the note directly.
+    fn selected_is_locked(&self) -> bool {
+        self.selected
+            .and_then(|id| self.vault.notes.get(id))
+            .is_some_and(|note| note.is_locked())
+    }
+
+    /// Per-note encryption (#132): drop every recovery copy (both slots) for a
+    /// note whose source is a locked envelope, and forget the editor-slot
+    /// bookkeeping when that is the copy we were tracking. Called whenever a
+    /// vault becomes live, so a note locked after its copy was written never
+    /// leaves plaintext in the state directory.
+    pub(crate) fn sweep_locked_recovery(&mut self) {
+        crate::recovery::clear_locked(&self.vault, &self.recovery, &mut self.recovered);
+        let rel = self.recovery_rel.clone();
+        if let Some(rel) = rel
+            && self.rel_is_locked(&rel)
+        {
+            self.recovery_rel = None;
+            self.recovery_text = None;
+            self.recovery_pending_text = None;
+            self.recovery_at = None;
+            self.recovery_written_at = None;
+        }
+    }
+
     /// One recovery tick: once the buffer has been idle for
     /// [`RECOVERY_DEBOUNCE`], copy it to the state directory. Clean buffers
     /// only clear their own file; they are never written.
     pub(crate) fn recovery_tick(&mut self, t: f64) {
+        // A locked note's buffer is plaintext in memory only (#132): clear any
+        // copy from before the note was locked and never write one. Its edits
+        // are still autosaved; only the crash sidecar is suppressed.
+        if self.selected_is_locked() {
+            self.recovery_at = None;
+            self.recovery_written_at = None;
+            self.recovery_pending_text = None;
+            if let Some(rel) = self.selected_rel().map(str::to_owned)
+                && (self.recovery_rel.as_deref() == Some(rel.as_str())
+                    || self.recovered.iter().any(|entry| entry.rel == rel))
+            {
+                // Only touch the disk when a copy is known to exist: this runs
+                // on every poll while a locked note is open. An orphan `.txt`
+                // with no sidecar is not in `recovered` and is left to the
+                // load/switch sweep in `sweep_locked_recovery`.
+                self.clear_recovery(&rel);
+            }
+            return;
+        }
         if !self.dirty() {
             self.recovery_at = None;
             self.recovery_written_at = None;
@@ -3465,6 +3525,12 @@ impl State {
         let Some(rel) = self.selected_rel().map(str::to_owned) else {
             return Ok(());
         };
+        // Second guard (#132): the tick refuses a locked note, and so does the
+        // write itself, so no path can leave plaintext in the state directory.
+        if self.selected_is_locked() {
+            self.clear_recovery(&rel);
+            return Ok(());
+        }
         if !self.dirty() {
             return Ok(());
         }
@@ -4127,6 +4193,9 @@ impl State {
         self.dirty_at = None;
         self.trash_undo = None;
         self.broken_panel = false;
+        // The chunked path had no note bodies at startup, so this is where a
+        // locked note's stale plaintext recovery copy is cleared (#132).
+        self.sweep_locked_recovery();
         if !same_vault {
             self.clear_boards();
             self.clear_kanban();

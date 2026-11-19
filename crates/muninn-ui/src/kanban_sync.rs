@@ -327,12 +327,26 @@ impl State {
         let Some(shown) = &self.kanban else {
             return Ok(());
         };
-        let key = (shown.generation, typed.clone());
-        if shown.dirty() || typed.is_some() {
-            if shown.recovered.as_ref() == Some(&key) {
+        let rel = shown.rel.clone();
+        let dirty = shown.dirty();
+        let typed_some = typed.is_some();
+        let key = (shown.generation, typed);
+        let copied = shown.recovered.as_ref() == Some(&key);
+        let had_copy = shown.recovered.is_some();
+        // Nothing borrows `self.kanban` past this point, so the guard below can
+        // clear the copy.
+        //
+        // A locked note is never a kanban (its source is an envelope), and its
+        // plaintext must never reach the state directory (#132): drop any copy
+        // from before the note was locked and write nothing.
+        if self.rel_is_locked(&rel) {
+            self.forget_kanban_recovery(&rel);
+            return Ok(());
+        }
+        if dirty || typed_some {
+            if copied {
                 return Ok(());
             }
-            let rel = shown.rel.clone();
             // A field the model refuses has no text to copy, but edits
             // committed before it still do: copy the committed board's own
             // text rather than fail the tick (the refused text stays in the
@@ -341,7 +355,7 @@ impl State {
             let text = match self.kanban_pending_text() {
                 Ok(Some(text)) => text,
                 Ok(None) => return Ok(()),
-                Err(_) if shown.dirty() => match self.kanban_board() {
+                Err(_) if dirty => match self.kanban_board() {
                     Some(board) => board.source().to_owned(),
                     None => return Ok(()),
                 },
@@ -353,13 +367,13 @@ impl State {
             }
             return Ok(());
         }
-        let rel = shown.rel.clone();
-        if let Some(shown) = &mut self.kanban
-            && shown.recovered.take().is_some()
-        {
+        if had_copy {
             self.recovery.clear_slot(&rel, RecoverySlot::Kanban);
             self.recovered
                 .retain(|entry| !(entry.rel == rel && entry.slot == RecoverySlot::Kanban));
+            if let Some(shown) = &mut self.kanban {
+                shown.recovered = None;
+            }
         }
         Ok(())
     }

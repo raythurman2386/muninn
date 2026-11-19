@@ -417,13 +417,15 @@ This slice only records the design + prototype under `[Unreleased]`.
   and write the envelope, never the buffer. The in-memory `saved` copy can
   stay plaintext so dirty detection keeps working, but `Note.source` and the
   disk file are the envelope.
-- **Recovery is a plaintext sidecar today.**
+- **Recovery copies are suppressed for locked notes (v1).**
   `crates/muninn-ui/src/recovery.rs` writes dirty editor buffers as `.txt`
-  under `$XDG_STATE_HOME/muninn/recovery/`. For a locked note that would leak
-  the body outside the vault. The follow-up must either store a `lock`ed
-  envelope in that `.txt` (and ask for the password on restore) or suppress
-  recovery for locked notes and say so in the UI. Do not ship the lock UI
-  before this is decided.
+  under `$XDG_STATE_HOME/muninn/recovery/`, which for a locked note would leak
+  the body outside the vault. A note whose indexed source is an envelope
+  (`Note::is_locked`) never gets a copy in either slot (editor or kanban), and
+  a copy left from before the note was locked is deleted when the vault is
+  loaded (including when a chunked scan finishes), on an explicit vault switch,
+  and when the selected note is or becomes locked. Unsaved edits of a locked
+  note therefore rely on autosave; the UI says so in the lock layer's copy.
 - A sync conflict on a locked note follows the “keep both” rule above. The
   editor may show both files; each asks for its own password.
 - `Vault::write_note_if_unmodified` still compares `disk_state` (mtime and
@@ -447,8 +449,10 @@ This slice only records the design + prototype under `[Unreleased]`.
    avoids retaining the password but adds API surface and must never reuse a
    nonce. Lock-on-blur, an idle timeout, and clearing on vault switch are UX
    decisions for the follow-up.
-2. **Recovery copies.** Encrypt them with the same session key or suppress
-   them. This must be settled before users can edit a locked note.
+2. **Recovery copies (settled for v1).** Suppress them for locked notes in
+   both slots, and clear a stale copy on load, on a vault switch and as soon as
+   a note is seen locked; unsaved edits rely on autosave. Encrypting the copy
+   with the session key remains a possible later refinement.
 3. **Note identity in the AAD.** Binding the vault-relative stem would stop
    envelope substitution but makes rename require a re-encrypt (only possible
    while unlocked). Decide whether that cost is worth it.
