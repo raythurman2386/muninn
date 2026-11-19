@@ -5,6 +5,8 @@
 // active features, docs, or changelog page; Download uses the request path.
 // The Early access item is included only when PUBLIC_WAITLIST_ENABLED=true, so
 // a default build stays byte-identical to main (aside from the Features href).
+// Phones get a <details> disclosure sheet; both link lists are rendered from
+// the same array so the two navs cannot drift apart.
 import { WAITLIST_ENABLED } from '../lib/waitlist';
 
 interface Props {
@@ -18,6 +20,15 @@ const brandLabel = home ? 'Muninn, back to top' : 'Muninn, home';
 const featuresHref = home ? '#features' : '/features/';
 const downloadHref = '/download/';
 const downloadCurrent = Astro.url.pathname === '/download' || Astro.url.pathname === '/download/';
+
+const links = [
+  { href: featuresHref, label: 'Features', current: current === 'features' },
+  { href: downloadHref, label: 'Download', current: downloadCurrent },
+  { href: '/docs/', label: 'Docs', current: current === 'docs' },
+  { href: '/changelog/', label: 'Changelog', current: current === 'changelog' },
+  ...(WAITLIST_ENABLED ? [{ href: '/waitlist/', label: 'Early access', current: false }] : []),
+  { href: 'https://github.com/raythurman2386/muninn', label: 'GitHub', current: false },
+];
 ---
   <header class="site-header">
     <div class="wrap header-row">
@@ -25,14 +36,11 @@ const downloadCurrent = Astro.url.pathname === '/download' || Astro.url.pathname
         <img src="/assets/logo.svg" alt="" width="28" height="28">
         <span>Muninn</span>
       </a>
-      <nav aria-label="Primary">
+      <nav class="nav-desktop" aria-label="Primary">
         <ul class="nav">
-          <li><a href={featuresHref} aria-current={current === 'features' ? 'page' : undefined}>Features</a></li>
-          <li><a href={downloadHref} aria-current={downloadCurrent ? "page" : undefined}>Download</a></li>
-          <li><a href="/docs/" aria-current={current === 'docs' ? 'page' : undefined}>Docs</a></li>
-          <li><a href="/changelog/" aria-current={current === 'changelog' ? 'page' : undefined}>Changelog</a></li>
-          {WAITLIST_ENABLED && <li><a href="/waitlist/">Early access</a></li>}
-          <li><a href="https://github.com/raythurman2386/muninn">GitHub</a></li>
+          {links.map((link) => (
+            <li><a href={link.href} aria-current={link.current ? 'page' : undefined}>{link.label}</a></li>
+          ))}
         </ul>
       </nav>
       <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Use light theme">
@@ -40,5 +48,19 @@ const downloadCurrent = Astro.url.pathname === '/download' || Astro.url.pathname
         <svg class="i-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A6.75 6.75 0 0 1 7.8 3.5a6.75 6.75 0 1 0 8.7 8.7Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
         <span class="toggle-label">Light</span>
       </button>
+      <details class="mobile-menu">
+        <summary class="menu-toggle" aria-label="Menu">
+          <svg class="i-menu" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-close" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </summary>
+        <nav class="mobile-nav" aria-label="Primary">
+          <ul>
+            {links.map((link) => (
+              <li><a href={link.href} aria-current={link.current ? 'page' : undefined}>{link.label}</a></li>
+            ))}
+          </ul>
+        </nav>
+      </details>
+      <div class="menu-scrim" aria-hidden="true"></div>
     </div>
   </header>

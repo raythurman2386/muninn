@@ -15,11 +15,11 @@ body:has(.download-page) .nav a[aria-current="page"] { color: var(--text-base); 
 .download-page code, .download-page pre { overflow-wrap: anywhere; }
 
 .download-page {
-  padding: clamp(48px, 8vw, 96px) 0 clamp(64px, 10vw, 120px);
+  padding: clamp(40px, 8vw, 96px) 0 clamp(56px, 10vw, 120px);
 }
 .download-page .download-hero {
   max-width: 720px;
-  margin: 0 0 clamp(36px, 5vw, 56px);
+  margin: 0 0 clamp(32px, 5vw, 56px);
 }
 .download-page .eyebrow { margin-bottom: 16px; }
 .download-page h1 {
@@ -47,7 +47,7 @@ body:has(.download-page) .nav a[aria-current="page"] { color: var(--text-base); 
 .callouts {
   display: grid;
   gap: 12px;
-  margin: 0 0 clamp(36px, 5vw, 56px);
+  margin: 0 0 clamp(32px, 5vw, 56px);
 }
 .callout {
   margin: 0;
@@ -155,6 +155,10 @@ body:has(.download-page) .nav a[aria-current="page"] { color: var(--text-base); 
   margin: 12px 0 0;
 }
 .verify-details summary {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 44px;
   cursor: pointer;
   font: 500 13px/1.4 var(--font-sans);
   color: var(--text-muted);
@@ -232,4 +236,5 @@ body:has(.download-page) .nav a[aria-current="page"] { color: var(--text-base); 
 @media (max-width: 640px) {
   .os-card { padding: 16px; }
   .asset-actions .btn { width: 100%; justify-content: center; }
+  .callout { padding: 14px 16px; }
 }

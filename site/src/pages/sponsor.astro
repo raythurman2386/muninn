@@ -29,7 +29,7 @@ const sourceUrl = 'https://github.com/raythurman2386/muninn';
 
   <Header />
 
-  <main id="main" class="simple-page">
+  <main id="main" class="simple-page sponsor-page">
     <div class="wrap simple-inner">
       <h1>Sponsor Muninn</h1>
       <p class="lede">Muninn is free and open source under the MIT license. If you want to support the work, these are the two places listed in the project's funding file.</p>
@@ -39,23 +39,33 @@ const sourceUrl = 'https://github.com/raythurman2386/muninn';
         <a class="btn btn-secondary" href={coffeeUrl}>Buy Me a Coffee</a>
       </div>
 
-      <h2>Current sponsors</h2>
-      <p>Muninn is grateful to everyone who backs its development — thank you for finding the work worth backing.</p>
+      <section class="sponsor-block" aria-labelledby="backers-title">
+        <p class="eyebrow">Backers</p>
+        <h2 id="backers-title">Current sponsors</h2>
+        <p class="sponsor-lede">Muninn is grateful to everyone who backs its development — thank you for finding the work worth backing.</p>
 
-      <ul class="sponsor-list">
-        <li>
-          <a class="sponsor-card" href="https://synteq.com">
-            <img src="/assets/img/sponsors/synteq.png" width="72" height="72" alt="Synteq logo" />
-            <span class="sponsor-name">Synteq</span>
-            <span class="sponsor-desc">Deploy globally, scale easily, and build on the platform that offers incredibly fast compute solutions.</span>
-            <span class="sponsor-link">synteq.com</span>
-          </a>
-        </li>
-      </ul>
+        <ul class="sponsor-list">
+          <li>
+            <a class="sponsor-card" href="https://synteq.com">
+              <img src="/assets/img/sponsors/synteq.png" width="72" height="72" alt="Synteq logo" />
+              <span class="sponsor-copy">
+                <span class="sponsor-name">Synteq</span>
+                <span class="sponsor-desc">Deploy globally, scale easily, and build on the platform that offers incredibly fast compute solutions.</span>
+                <span class="sponsor-link">
+                  <span>synteq.com</span>
+                  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+              </span>
+            </a>
+          </li>
+        </ul>
+      </section>
 
-      <h2>Where it goes</h2>
-      <p>There is no paid product and no sponsor tier on this site. Contributions help cover the time spent on the app and the cost of running the website and related services. Nothing here is required to download or use Muninn.</p>
-      <p>You can also <a href={sourceUrl}>star the repository</a> or <a href="https://github.com/raythurman2386/muninn/blob/main/CONTRIBUTING.md">contribute a change</a>.</p>
+      <section class="sponsor-block" aria-labelledby="where-title">
+        <h2 id="where-title">Where it goes</h2>
+        <p>There is no paid product and no sponsor tier on this site. Contributions help cover the time spent on the app and the cost of running the website and related services. Nothing here is required to download or use Muninn.</p>
+        <p>You can also <a href={sourceUrl}>star the repository</a> or <a href="https://github.com/raythurman2386/muninn/blob/main/CONTRIBUTING.md">contribute a change</a>.</p>
+      </section>
     </div>
   </main>
 
