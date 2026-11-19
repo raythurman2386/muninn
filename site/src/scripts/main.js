@@ -269,6 +269,30 @@
     refreshLoops();
   });
 
+  // Phone menu is a native <details>; this only closes it once the choice is
+  // made (link, Escape, outside click, or growing past the breakpoint).
+  var mobileMenu = document.querySelector('.mobile-menu');
+  if (mobileMenu) {
+    var menuSummary = mobileMenu.querySelector('summary');
+    var menuLinks = mobileMenu.querySelectorAll('a');
+    var menuScrim = document.querySelector('.menu-scrim');
+    var closeMenu = function () {
+      if (mobileMenu.open) mobileMenu.open = false;
+    };
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || !mobileMenu.open) return;
+      closeMenu();
+      if (menuSummary) menuSummary.focus();
+    });
+    document.addEventListener('click', function (e) {
+      if (mobileMenu.open && !mobileMenu.contains(e.target)) closeMenu();
+    });
+    if (menuScrim) menuScrim.addEventListener('click', closeMenu);
+    for (var m = 0; m < menuLinks.length; m++) menuLinks[m].addEventListener('click', closeMenu);
+    var wide = window.matchMedia('(min-width: 641px)');
+    if (wide.addEventListener) wide.addEventListener('change', function () { if (wide.matches) closeMenu(); });
+  }
+
   syncToggle();
   if (hero) mountVideo();
 })();

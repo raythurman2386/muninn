@@ -3,7 +3,7 @@
    pages, not by the shared Base layout. */
 
 .page-main {
-  padding: clamp(48px, 8vw, 96px) 0 clamp(64px, 10vw, 120px);
+  padding: clamp(40px, 8vw, 96px) 0 clamp(56px, 10vw, 120px);
 }
 
 body:has(.docs-shell) {
@@ -231,3 +231,33 @@ body:has(.docs-shell) .page-main {
    code or URLs must wrap at 390 px instead of widening the page. */
 .doc :is(h1, h2, h3, h4) { scroll-margin-top: 80px; }
 .doc code, .doc a { overflow-wrap: anywhere; }
+
+/* Phones and tablets: the sidebar and the (long) version list become one
+   swipeable row of 44px chips instead of a column that pushes the document
+   below a thousand pixels of links. */
+@media (max-width: 899px) {
+  .docs-shell { gap: 24px; }
+  .docs-sidebar ul, .version-nav ul {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 2px 2px 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+  .docs-sidebar li, .version-nav li { flex: 0 0 auto; scroll-snap-align: start; }
+  .docs-sidebar ul a, .version-nav ul a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+    margin: 0;
+    border: 1px solid var(--border-muted);
+    border-radius: var(--r-lg);
+    white-space: nowrap;
+  }
+  .docs-sidebar ul a:focus-visible, .version-nav ul a:focus-visible { outline-offset: -2px; }
+  .docs-sidebar-title, .version-nav-title { margin-bottom: 6px; }
+}
