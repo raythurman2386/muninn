@@ -640,7 +640,7 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
                 ),
         )
         // Kanban slice 3: a kanban note is still a note; the glyph says so.
-        .child(if note.is_kanban() {
+        .child(if note.is_kanban() && !note.is_locked() {
             icon(&ic::CHECKLIST, 13.0)
                 .key(format!("note-row-{id}-kanban"))
                 .color(k.c.icon_muted)
@@ -4326,7 +4326,7 @@ fn topbar(s: &State, k: &Kit) -> El {
     let open_as_kanban = s.mode.is_note_mode()
         && s.selected
             .and_then(|id| s.vault.notes.get(id))
-            .is_some_and(|note| note.is_kanban());
+            .is_some_and(|note| note.is_kanban() && !note.is_locked());
     let dirty = s.dirty();
     let title_col = col()
         .grow(1.0)
@@ -4945,7 +4945,14 @@ fn heading_keys(source: &str) -> Vec<(usize, String)> {
 /// Boards. Every kanban note (cached in the index), by title; a row opens it
 /// in Kanban mode. Hidden while searching notes and in a vault with none.
 fn sidebar_kanbans(s: &State, k: &Kit, filtering: bool) -> El {
-    let kanbans: Vec<_> = s.vault.notes.iter().filter(|n| n.is_kanban()).collect();
+    // A locked note's Kanban page is closed in v1, even while it is unlocked
+    // here, so it is not offered as a board row; it stays in the notes list.
+    let kanbans: Vec<_> = s
+        .vault
+        .notes
+        .iter()
+        .filter(|n| n.is_kanban() && !n.is_locked())
+        .collect();
     if filtering || kanbans.is_empty() {
         return el();
     }
