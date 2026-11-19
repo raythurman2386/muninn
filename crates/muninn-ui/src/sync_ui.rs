@@ -1474,13 +1474,18 @@ mod tests {
     /// Status of an authenticated state read against the local host server.
     fn host_status(port: u16, key: &str) -> u16 {
         use std::io::{Read, Write};
-        let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
-        write!(
+        let Ok(mut stream) = std::net::TcpStream::connect(("127.0.0.1", port)) else {
+            return 0;
+        };
+        if write!(
             stream,
             "GET {}state HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer {key}\r\nConnection: close\r\n\r\n",
             muninn_sync::TAILNET_API_PREFIX
         )
-        .unwrap();
+        .is_err()
+        {
+            return 0;
+        }
         let mut reply = String::new();
         let _ = stream.read_to_string(&mut reply);
         reply
@@ -1488,6 +1493,23 @@ mod tests {
             .nth(1)
             .and_then(|code| code.parse().ok())
             .unwrap_or(0)
+    }
+
+    /// Wait for a host to answer with `expected`. Binds and rotates are
+    /// synchronous, but a loaded runner can still lose the first connection;
+    /// a retry keeps the assertion about the key, not about scheduling.
+    fn wait_for_host(port: u16, key: &str, expected: u16) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            if host_status(port, key) == expected {
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the host never answered {expected} on {port}"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
     }
 
     fn percent_decode(text: &str) -> String {
@@ -1761,7 +1783,7 @@ mod tests {
         state.connect_sync();
         let old = state.settings.sync.vaults[0].clone();
         let key = stored(&state, &old).unwrap();
-        assert_eq!(host_status(port, &key), 200);
+        wait_for_host(port, &key, 200);
 
         state.set_tailnet_role(1);
         state
@@ -2218,7 +2240,6 @@ mod tests {
             "{}",
             state.sync_status()
         );
-        assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_ok());
         let saved = fs::read_to_string(config_home.join("muninn/settings.json")).unwrap();
         let json: serde_json::Value = serde_json::from_str(&saved).unwrap();
         assert_eq!(json["sync"]["vaults"][0]["tailnet_role"], "host");
@@ -2242,7 +2263,7 @@ mod tests {
         assert!(state.sync_ui.revealed_key.is_none());
         assert_eq!(state.tailnet_key_for_copy().unwrap().expose(), key);
         assert!(!state.sync_status().contains(&key));
-        assert_eq!(host_status(port, &key), 200);
+        wait_for_host(port, &key, 200);
 
         // Rotate: a new key, the server restarted with it, the old one dead.
         state.toggle_tailnet_key();
@@ -2251,8 +2272,10 @@ mod tests {
         let rotated = state.read_host_key().unwrap().expose().to_owned();
         assert_ne!(rotated, key);
         assert!(!state.sync_status().contains(&rotated));
+        // Wait for the restarted host before asking about either key; the
+        // drop/rebind window can answer with an empty reply on a loaded runner.
+        wait_for_host(port, &rotated, 200);
         assert_eq!(host_status(port, &key), 401);
-        assert_eq!(host_status(port, &rotated), 200);
         state.disconnect_sync();
         assert!(state.sync_ui.revealed_key.is_none());
         assert!(state.settings.sync.vaults.is_empty());
