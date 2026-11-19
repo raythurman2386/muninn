@@ -25,6 +25,12 @@ impl TestEnv {
         Self { vault, home }
     }
 
+    /// A fixture the test built itself (a large vault, for the chunked path).
+    fn from_vault(vault: TempVault) -> Self {
+        let home = vault.path().with_extension("state");
+        Self { vault, home }
+    }
+
     fn state(&self) -> State {
         State::with_state_home(self.vault.path().to_path_buf(), self.home.clone())
     }
@@ -386,4 +392,165 @@ fn a_single_row_still_truncates_its_long_path_cleanly() {
         Some(LONG_REL),
         "the cut path's help keeps the whole path"
     );
+}
+
+/// #132: a locked note's body must never reach the crash-recovery directory.
+const SECRET_MARKER: &str = "TOP SECRET BODY";
+
+fn lock_note(text: &str) -> String {
+    // The fixture locks the vault-root `Secret.md`; its id has no `.md`.
+    muninn_core::lock(text, "pw", "Secret").expect("lock")
+}
+
+/// Any recovery file under `env`'s state home whose bytes contain `needle`.
+fn recovery_file_with(env: &TestEnv, needle: &str) -> Option<PathBuf> {
+    let dir = env.home.join("muninn").join("recovery");
+    fs::read_dir(dir).ok()?.flatten().find_map(|entry| {
+        let path = entry.path();
+        let text = fs::read_to_string(&path).ok()?;
+        text.contains(needle).then_some(path)
+    })
+}
+
+#[test]
+fn a_locked_note_never_gets_a_plaintext_recovery_copy() {
+    let envelope = lock_note("# Secret\n\nsecret body\n");
+    let env = TestEnv::new(&[("Secret.md", envelope.as_str())]);
+    let mut s = env.state();
+    let id = s.vault.resolve("Secret").expect("Secret");
+    assert!(
+        s.vault.notes[id].is_locked(),
+        "the envelope is a locked note"
+    );
+    s.load_note(id, false);
+    let rel = s.vault.notes[id].rel.clone();
+    s.editor.replace_text("# Secret\n\nTOP SECRET BODY\n");
+    assert!(s.dirty());
+
+    let mut tx = Tx::default();
+    poll(&mut s, 0.0, &mut tx);
+    // Past RECOVERY_DEBOUNCE, before autosave.
+    poll(&mut s, 0.4, &mut tx);
+    assert!(s.dirty(), "the buffer is still unsaved");
+    assert!(
+        !s.recovery_path(&rel).exists(),
+        "a locked note gets no editor copy"
+    );
+    assert!(
+        !s.kanban_recovery_path(&rel).exists(),
+        "a locked note gets no kanban copy"
+    );
+    assert_eq!(
+        recovery_file_with(&env, SECRET_MARKER),
+        None,
+        "no file under the recovery directory holds the body"
+    );
+    assert_eq!(
+        s.editor.text, "# Secret\n\nTOP SECRET BODY\n",
+        "the in-memory buffer is untouched"
+    );
+}
+
+#[test]
+fn a_stale_plaintext_copy_is_cleared_once_the_note_is_locked() {
+    let body = "# Secret\n\nTOP SECRET BODY\n";
+    let env = TestEnv::new(&[("Secret.md", "# Secret\n\nplain for now\n")]);
+    let rel;
+    let stale;
+    {
+        let mut s = env.state();
+        let id = s.vault.resolve("Secret").expect("Secret");
+        s.load_note(id, false);
+        rel = s.vault.notes[id].rel.clone();
+        s.editor.replace_text(body);
+        let mut tx = Tx::default();
+        poll(&mut s, 0.0, &mut tx);
+        poll(&mut s, 0.4, &mut tx);
+        stale = s.recovery_path(&rel);
+        assert!(
+            stale.is_file(),
+            "the copy exists while the note is plaintext"
+        );
+        assert_eq!(fs::read_to_string(&stale).expect("copy"), body);
+    }
+    // Lock the note on disk, as the lock layer does.
+    fs::write(env.vault.path().join("Secret.md"), lock_note(body)).expect("lock");
+
+    // The next launch must not offer it, and must delete the plaintext.
+    let s = env.state();
+    assert!(
+        !s.recovered.iter().any(|entry| entry.rel == rel),
+        "the banner never lists a locked note's plaintext"
+    );
+    assert!(!stale.exists(), "the stale copy is deleted on load");
+    assert_eq!(recovery_file_with(&env, SECRET_MARKER), None);
+}
+
+/// The chunked path has no note bodies at startup: the sweep must run when the
+/// finished scan is installed, not only in the constructor.
+#[test]
+fn the_chunked_scan_sweeps_a_locked_note_once_the_vault_lands() {
+    let body = "# Secret\n\nTOP SECRET BODY\n";
+    let mut files: Vec<(String, String)> = (0..120)
+        .map(|i| (format!("Note {i:03}.md"), format!("# Note {i:03}\n")))
+        .collect();
+    files.push((
+        "Secret.md".to_owned(),
+        "# Secret\n\nplain for now\n".to_owned(),
+    ));
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(name, text)| (name.as_str(), text.as_str()))
+        .collect();
+    let env = TestEnv::from_vault(TempVault::new(&refs));
+
+    let rel;
+    let stale;
+    {
+        let mut s = env.state();
+        assert!(s.loading(), "121 notes take the chunked path");
+        let mut tx = Tx::default();
+        let mut t = 0.0;
+        while s.loading() {
+            poll(&mut s, t, &mut tx);
+            t += 0.05;
+        }
+        let id = s.vault.resolve("Secret").expect("Secret");
+        s.load_note(id, false);
+        rel = s.vault.notes[id].rel.clone();
+        s.editor.replace_text(body);
+        poll(&mut s, 0.0, &mut tx);
+        poll(&mut s, 0.4, &mut tx);
+        stale = s.recovery_path(&rel);
+        assert!(
+            stale.is_file(),
+            "the copy exists while the note is plaintext"
+        );
+    }
+    fs::write(env.vault.path().join("Secret.md"), lock_note(body)).expect("lock");
+
+    let mut s = env.state();
+    assert!(s.loading(), "a large vault scans in chunks");
+    assert!(
+        s.recovered.iter().any(|entry| entry.rel == rel),
+        "the copy is listed before the scan finishes"
+    );
+    let mut tx = Tx::default();
+    let mut t = 2.0;
+    while s.loading() {
+        poll(&mut s, t, &mut tx);
+        t += 0.05;
+    }
+    assert!(
+        s.vault
+            .notes
+            .iter()
+            .any(|note| note.rel == rel && note.is_locked()),
+        "the installed vault marks the note locked"
+    );
+    assert!(
+        !s.recovered.iter().any(|entry| entry.rel == rel),
+        "installing the scan swept the banner row"
+    );
+    assert!(!stale.exists(), "the stale copy is deleted");
 }

@@ -1009,5 +1009,69 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::CoreBoardNameForbidden => "darf weder : * ? \" < > | noch Steuerzeichen enthalten",
         Key::CoreBoardNameTrailingDot => "darf nicht mit einem Punkt enden",
         Key::CoreBoardNameReserved => "darf kein reservierter Gerätename sein",
+        Key::MenuLockNote => "Notiz sperren…",
+        Key::MenuUnlockNote => "Notiz entsperren…",
+        Key::LockNoteTitle => "Notiz sperren",
+        Key::UnlockNoteTitle => "Notiz entsperren",
+        Key::LockPassword => "Passwort",
+        Key::LockConfirmPassword => "Passwort bestätigen",
+        Key::LockLostPasswordWarning => {
+            "Es gibt kein Zurücksetzen des Passworts, keinen Wiederherstellungsschlüssel und kein \
+             Muninn-Konto. Wenn Sie dieses Passwort verlieren, ist die Notiz verloren. Ältere \
+             Sicherungen und der Synchronisierungsverlauf können den Klartext noch enthalten."
+        }
+        Key::LockSubmit => "Sperren",
+        Key::UnlockSubmit => "Entsperren",
+        Key::LockPasswordMismatch => "Die Passwörter stimmen nicht überein.",
+        Key::LockPasswordEmpty => "Geben Sie ein Passwort ein.",
+        Key::LockedNoteHeading => "Diese Notiz ist gesperrt",
+        Key::LockedNoteBody => {
+            "Entsperren Sie sie mit ihrem Passwort, um sie zu lesen oder zu bearbeiten."
+        }
+        Key::LockedNoteRecoveryOff => {
+            "Die Absturzrettung ist für eine gesperrte Notiz deaktiviert; ungespeicherte \
+             Änderungen hängen von der automatischen Speicherung ab."
+        }
+        Key::LockedNoteBadge => "Gesperrte Notiz",
+        Key::UnlockWrongPassword => "Dieses Passwort hat die Notiz nicht geöffnet.",
+        Key::UnlockUnsupportedVersion => {
+            "Diese Notiz wurde von einer neueren Muninn-Version gesperrt."
+        }
+        Key::UnlockMalformed => "Diese gesperrte Notiz ist beschädigt.",
+        Key::UnlockWrongNote => "Diese gesperrte Notiz gehört zu einem anderen Dateinamen.",
+        Key::UnlockRollback => "Diese Notiz ist älter als die letzte von Muninn gesehene Version.",
+        Key::UnlockFailed => "Die Notiz konnte nicht entsperrt werden.",
+        Key::LockRefusedSave => {
+            "Diese Notiz ist gesperrt. Entsperren Sie sie, um Ihre Änderungen zu behalten."
+        }
+        Key::LockRefusedRename => {
+            "Entsperren Sie diese Notiz, bevor Sie sie umbenennen oder verschieben."
+        }
+        Key::LockRefusedFolderRename => {
+            "Entsperren oder entfernen Sie die gesperrten Notizen in diesem Ordner, bevor Sie ihn \
+             umbenennen."
+        }
+        Key::LockConflictSaveCopy => {
+            "Das Speichern einer Kopie einer gesperrten Notiz wird nicht unterstützt. Entsperren \
+             Sie sie zuerst."
+        }
+        Key::HelpGroupLock => "Gesperrte Notizen",
+        Key::HelpLockLock => "Notiz sperren: Passwort hinzufügen; die Datei wird zu Chiffrat.",
+        Key::HelpLockUnlock => "Notiz entsperren: Passwort für diese Sitzung eingeben.",
+        Key::HelpLockLost => {
+            "Es gibt kein Zurücksetzen des Passworts und keinen Wiederherstellungsschlüssel. Ein \
+             verlorenes Passwort bedeutet eine verlorene Notiz."
+        }
+        Key::HelpLockRecovery => {
+            "Die Absturzrettung ist für gesperrte Notizen deaktiviert; die automatische \
+             Speicherung schreibt weiterhin den Umschlag."
+        }
+        Key::HelpLockRename => {
+            "Entsperren Sie eine gesperrte Notiz, bevor Sie sie umbenennen oder verschieben."
+        }
+        Key::PaletteActionLockNote => "Notiz sperren",
+        Key::PaletteActionUnlockNote => "Notiz entsperren",
+        Key::PaletteKeywordsLockNote => "verschlüsseln passwort privat schützen",
+        Key::PaletteKeywordsUnlockNote => "öffnen entschlüsseln passwort",
     }
 }

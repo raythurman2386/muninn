@@ -280,6 +280,13 @@ impl State {
     /// unsaved edits (the editor gives it up), so nothing typed is dropped.
     pub(crate) fn read_kanban(&mut self, rel: String) -> Option<ShownKanban> {
         let note = self.vault.notes.iter().find(|note| note.rel == rel)?;
+        // Per-note encryption (#134, v1): a locked note's file is an envelope,
+        // not a board. Never parse it, even after this session unlocked the
+        // note: the page would then save `board.source()` — plaintext — over
+        // the envelope.
+        if note.is_locked() {
+            return None;
+        }
         let id = note.id;
         let source = fs::read_to_string(&note.path).ok()?;
         let disk = self.vault.disk_state(id).ok();
@@ -321,6 +328,18 @@ impl State {
     /// so the page's own keys (Esc) reach it.
     pub fn open_kanban(&mut self, id: usize) {
         self.load_note(id, false);
+        // Per-note encryption (#134, v1): a locked note is never a kanban, even
+        // while this session holds its plaintext — the file is still the
+        // envelope, and the page's save would write plaintext over it. Keep the
+        // note page (Write/Read); the lock page shows when it is not unlocked.
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked())
+        {
+            return;
+        }
         self.set_mode(Mode::Kanban);
         self.set_text_focus(false, false);
     }
@@ -350,19 +369,36 @@ impl State {
     }
 
     /// The palette offers Convert empty note to Kanban only while the
-    /// selected note holds nothing but whitespace.
+    /// selected note holds nothing but whitespace. A locked note is never
+    /// offered (#134): converting would write the layout over its envelope.
     #[must_use]
     pub fn can_convert_to_kanban(&self) -> bool {
-        self.selected.is_some() && self.editor.text.trim().is_empty()
+        let unlocked = self
+            .selected
+            .and_then(|id| self.vault.notes.get(id))
+            .is_some_and(|note| !note.is_locked());
+        unlocked && self.editor.text.trim().is_empty()
     }
 
     /// Convert empty note to Kanban: write the New Kanban layout into the
     /// selected note and show it on the Kanban page. A note with text is
     /// refused and nothing is written.
+    ///
+    /// A locked note is refused too (#134): its file is an envelope, so the
+    /// conversion would replace the lock with plaintext.
     pub fn convert_to_kanban(&mut self) {
         let Some(id) = self.selected else {
             return;
         };
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked())
+        {
+            self.notice = Some(t(TextKey::LockRefusedSave).to_owned());
+            return;
+        }
         self.flush();
         if let Err(e) = self
             .vault

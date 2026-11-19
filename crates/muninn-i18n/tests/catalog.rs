@@ -62,16 +62,20 @@ fn ids_are_unique_and_dotted() {
 }
 
 #[test]
-fn the_help_groups_are_six_and_distinct() {
+fn the_help_groups_are_seven_and_distinct() {
     let groups: Vec<&str> = Key::ALL
         .iter()
         .map(|key| key.id())
         .filter(|id| id.starts_with("help.group."))
         .collect();
-    assert_eq!(groups.len(), 6, "the Help page has six groups: {groups:?}");
+    assert_eq!(
+        groups.len(),
+        7,
+        "the Help page has seven groups: {groups:?}"
+    );
     assert_eq!(
         groups.iter().collect::<BTreeSet<_>>().len(),
-        6,
+        7,
         "group ids repeat: {groups:?}"
     );
 }

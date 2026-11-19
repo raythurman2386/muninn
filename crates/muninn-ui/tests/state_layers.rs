@@ -31,6 +31,17 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
         }
         Layer::Settings => state.settings_open = on,
         Layer::Help => state.help = on,
+        // #134: the prompt is written directly, so setting the layer does not
+        // run `begin_lock_note` (which dismisses the palette and the menu).
+        Layer::NoteLock => {
+            state.lock_prompt = on.then(|| muninn_ui::LockPrompt {
+                id: 0,
+                kind: muninn_ui::LockPromptKind::Lock,
+                password: rune::TextEdit::new("").secure(),
+                confirm: rune::TextEdit::new("").secure(),
+                error: None,
+            });
+        }
         Layer::Complete => {
             if on {
                 state.complete = Some(muninn_ui::LinkComplete {
@@ -169,10 +180,11 @@ fn set_layer(state: &mut State, layer: Layer, on: bool) {
     }
 }
 
-const ESCAPE_ORDER: [Layer; 22] = [
+const ESCAPE_ORDER: [Layer; 23] = [
     Layer::Palette,
     Layer::Settings,
     Layer::Help,
+    Layer::NoteLock,
     Layer::Complete,
     Layer::Find,
     Layer::KanbanFind,

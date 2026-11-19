@@ -34,7 +34,10 @@
 //! the user typed it.
 //!
 //! A recovery file is removed as soon as the buffer reaches disk or the user
-//! discards it. Clean buffers are never written here.
+//! discards it. Clean buffers are never written here. Neither is a note whose
+//! on-disk source is a locked envelope (per-note encryption, #132): its
+//! plaintext must never reach this directory, so its copies are cleared
+//! whenever a vault becomes live and never written.
 
 use std::fs::{self, File};
 use std::io::{self, Write as _};
@@ -266,8 +269,47 @@ pub(crate) fn state_home() -> PathBuf {
     crate::settings::xdg_dir("XDG_STATE_HOME", &[".local", "state"], "muninn-state")
 }
 
+/// Delete every recovery copy that belongs to a locked note and drop its banner
+/// rows, for both the editor and the kanban slot.
+///
+/// Per-note encryption (#132): a recovery `.txt` is the editor buffer as
+/// plaintext, so keeping one for a note whose on-disk source is an envelope
+/// would leak the body outside the vault. A stale copy can exist when the note
+/// was locked after the copy was written, so this runs whenever a vault becomes
+/// live (startup, the end of a chunked scan, an explicit switch) rather than
+/// only when a copy is written. A locked note relies on autosave instead.
+///
+/// Each slot is unlinked only when its text file is there, so a vault with many
+/// locked notes and no copies costs one stat per slot, not an unlink. The text
+/// file is also what makes this catch an orphan copy whose sidecar is gone
+/// (which [`RecoveryStore::scan`] does not list).
+pub(crate) fn clear_locked(
+    vault: &muninn_core::Vault,
+    store: &RecoveryStore,
+    recovered: &mut Vec<RecoveryEntry>,
+) {
+    let locked: Vec<&str> = vault
+        .notes
+        .iter()
+        .filter(|note| note.is_locked())
+        .map(|note| note.rel.as_str())
+        .collect();
+    if locked.is_empty() {
+        return;
+    }
+    for rel in &locked {
+        for slot in [RecoverySlot::Editor, RecoverySlot::Kanban] {
+            // The text file is the plaintext; the sidecar is only an index.
+            if store.path_for_slot(rel, slot).is_file() {
+                store.clear_slot(rel, slot);
+            }
+        }
+    }
+    recovered.retain(|entry| !locked.contains(&entry.rel.as_str()));
+}
+
 /// Stable 64-bit FNV-1a of the canonical vault path.
-fn vault_id(root: &Path) -> String {
+pub(crate) fn vault_id(root: &Path) -> String {
     let canonical = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in canonical.to_string_lossy().as_bytes() {

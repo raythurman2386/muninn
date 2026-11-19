@@ -1,8 +1,8 @@
 //! The window's chrome: vault sidebar, note title bar, editor, Markdown preview and links rail.
 
 use rune::{
-    Color, Cursor, Cx, El, Icon, Key, KeyEvent, LineCap, LinkPaint, LiveRegion, ScrollSpec, Shape,
-    Span, TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
+    Align, Color, Cursor, Cx, El, Icon, Key, KeyEvent, LineCap, LinkPaint, LiveRegion, ScrollSpec,
+    Shape, Span, TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
 };
 use rune_kit::{
     Button, ButtonVariant, Kit, Markdown, MarkdownStyle, SegmentedControl, Switch, TextArea,
@@ -20,8 +20,8 @@ use muninn_i18n::{
 };
 
 use crate::{
-    BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, LanguageChoice, MenuTarget, Mode,
-    PaletteItem, ReduceMotion, SettingsTab, State, ThemeMode,
+    BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, LanguageChoice, LockPromptKind,
+    MenuTarget, Mode, PaletteItem, ReduceMotion, SettingsTab, State, ThemeMode,
 };
 
 pub(crate) const SIDEBAR: f32 = 258.0;
@@ -103,6 +103,11 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
     }
     if s.palette.is_some() {
         base = base.child(palette_layer(s, &k));
+    }
+    // #134: the password card sits above the palette: it can be opened from a
+    // palette action or a sidebar menu, and owns Escape while it is up.
+    if s.lock_prompt.is_some() {
+        base = base.child(lock_prompt_layer(s, &k));
     }
     base
 }
@@ -640,6 +645,16 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
                 .key(format!("note-row-{id}-kanban"))
                 .color(k.c.icon_muted)
                 .label(t(TextKey::ModeKanban))
+        } else {
+            el()
+        })
+        // #134: a locked note keeps its glyph while it is unlocked, so the row
+        // says what the row will do again when the session ends.
+        .child(if note.is_locked() {
+            icon(&ic::LOCK, 13.0)
+                .key(format!("note-row-{id}-lock"))
+                .color(k.c.icon_muted)
+                .label(t(TextKey::LockedNoteBadge))
         } else {
             el()
         })
@@ -1912,13 +1927,32 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
         return el();
     };
     let items: Vec<(&str, &str)> = match &menu.target {
-        MenuTarget::Note(_) => vec![
-            (t(TextKey::MenuOpenExternally), "open_external"),
-            (t(TextKey::MenuReveal), "reveal"),
-            (t(TextKey::CommonRename), "rename"),
-            (t(TextKey::MenuMoveTo), "move"),
-            (t(TextKey::CommonDelete), "delete"),
-        ],
+        // #134: a locked note's envelope cannot be handed to an external app.
+        // Rename and Move are offered only once it is unlocked in this window:
+        // they change the note id and therefore re-encrypt the file, which
+        // needs the session's key and plaintext.
+        MenuTarget::Note(id) => {
+            let note = s.vault.notes.get(*id);
+            let locked = note.is_some_and(|note| note.is_locked());
+            let unlock = note.is_some_and(|note| note.readable_source().is_none());
+            let editable = !locked || note.is_some_and(|note| note.is_unlocked());
+            let mut items = Vec::with_capacity(6);
+            if !locked {
+                items.push((t(TextKey::MenuOpenExternally), "open_external"));
+            }
+            items.push((t(TextKey::MenuReveal), "reveal"));
+            items.push(if unlock {
+                (t(TextKey::MenuUnlockNote), "unlock")
+            } else {
+                (t(TextKey::MenuLockNote), "lock")
+            });
+            if editable {
+                items.push((t(TextKey::CommonRename), "rename"));
+                items.push((t(TextKey::MenuMoveTo), "move"));
+            }
+            items.push((t(TextKey::CommonDelete), "delete"));
+            items
+        }
         MenuTarget::Folder(_) => vec![
             (t(TextKey::MenuNewNoteHere), "new_note"),
             (t(TextKey::MenuNewFolder), "new_folder"),
@@ -2483,6 +2517,97 @@ fn main(s: &State, k: &Kit) -> El {
     page
 }
 
+/// #134: the note page for a locked note that is not unlocked in this window.
+///
+/// It replaces the editor and reader rather than showing them empty: the note
+/// has content, it just cannot be read without the password. The envelope is
+/// never put in a buffer, so there is nothing here to select, search or spell
+/// check. Recovery is off while the note is locked, and the page says so.
+fn locked_note_page(s: &State, k: &Kit, id: usize) -> El {
+    let note = &s.vault.notes[id];
+    let folder = note.folder();
+    let subtitle = if folder.is_empty() {
+        t(TextKey::CommonVaultRoot).to_owned()
+    } else {
+        folder.to_owned()
+    };
+    col()
+        .key("locked-note-page")
+        .w_full()
+        .grow(1.0)
+        .min_h(0.0)
+        .px(28.0)
+        .py(24.0)
+        .center()
+        .items_center()
+        .child(
+            col()
+                .key("locked-note-card")
+                .w(460.0)
+                .max_w(460.0)
+                .min_w(0.0)
+                .gap(8.0)
+                .padding(24.0)
+                .radius(k.radius.lg)
+                .fill(k.c.layer_01)
+                .border(1.0, k.c.border_base)
+                .items_center()
+                .child(icon(&ic::LOCK, 26.0).color(k.c.icon_muted))
+                .child(
+                    text(note.title.clone())
+                        .key("locked-note-title")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base)
+                        .wrap()
+                        .w_full()
+                        .align(Align::Center),
+                )
+                .child(
+                    text(subtitle)
+                        .key("locked-note-folder")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint)
+                        .truncate()
+                        .max_w(360.0),
+                )
+                .child(
+                    text(t(TextKey::LockedNoteHeading))
+                        .key("locked-note-heading")
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_accent)
+                        .wrap()
+                        .w_full()
+                        .align(Align::Center)
+                        .pt(6.0),
+                )
+                .child(
+                    text(t(TextKey::LockedNoteBody))
+                        .key("locked-note-body")
+                        .font(k.ty.caption())
+                        .color(k.c.text_muted)
+                        .wrap()
+                        .w_full()
+                        .align(Align::Center),
+                )
+                .child(
+                    text(t(TextKey::LockedNoteRecoveryOff))
+                        .key("locked-note-recovery")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint)
+                        .wrap()
+                        .w_full()
+                        .align(Align::Center),
+                )
+                .child(
+                    Button::new(t(TextKey::UnlockSubmit))
+                        .variant(ButtonVariant::Submit)
+                        .on_press(move |s: &mut State| s.begin_unlock_note(id))
+                        .build(k)
+                        .key("locked-note-unlock"),
+                ),
+        )
+}
+
 /// Pick the body under the chrome: the loading progress page first (no partial
 /// vault exists yet), then the error page, dashboards, graph or note surface.
 fn main_body(s: &State, k: &Kit) -> El {
@@ -2500,6 +2625,17 @@ fn main_body(s: &State, k: &Kit) -> El {
     }
     if s.mode == Mode::Board {
         return crate::board_view::board(s, k);
+    }
+    // #134: a locked note has no text to edit or preview, and its envelope must
+    // never reach Kanban's parser. Graph and Board stay usable (they index the
+    // note as empty); Write and Read show the lock page instead.
+    if let Some(id) = s.selected
+        && s.vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked() && note.readable_source().is_none())
+    {
+        return locked_note_page(s, k, id);
     }
     if s.mode == Mode::Kanban {
         return crate::kanban_view::kanban(s, k);
@@ -2829,6 +2965,215 @@ fn shortcut_groups() -> [(TextKey, &'static [(&'static str, TextKey)]); 6] {
     ]
 }
 
+/// #134: the lock/unlock password card.
+///
+/// Drawn at the window root above the palette, so the sidebar, title bar and
+/// note page behind it are inert while it is open. `modal` gives Escape and a
+/// press outside the card the same meaning as Cancel.
+fn lock_prompt_layer(s: &State, k: &Kit) -> El {
+    let Some(prompt) = &s.lock_prompt else {
+        return el();
+    };
+    let lock = prompt.kind == LockPromptKind::Lock;
+    let title = if lock {
+        t(TextKey::LockNoteTitle)
+    } else {
+        t(TextKey::UnlockNoteTitle)
+    };
+    let note_title = s
+        .vault
+        .notes
+        .get(prompt.id)
+        .map_or_else(String::new, |note| note.title.clone());
+    let mut card = col()
+        .key("lock-prompt")
+        .w(460.0)
+        .max_w(460.0)
+        .min_w(0.0)
+        .gap(10.0)
+        .padding(22.0)
+        .radius(k.radius.lg)
+        .fill(k.c.layer_01)
+        .border(1.0, k.c.border_base)
+        .shadow(10.0, 32.0, k.alpha(k.c.black, 0.35))
+        .role("dialog")
+        .label(title)
+        .modal(true, |s: &mut State| s.cancel_lock_prompt())
+        .child(
+            row()
+                .w_full()
+                .min_w(0.0)
+                .gap(8.0)
+                .center_y()
+                .child(icon(&ic::LOCK, 16.0).color(k.c.icon_muted).a11y_hidden())
+                .child(
+                    text(title)
+                        .font(k.ty.ui_medium)
+                        .color(k.c.text_base)
+                        .grow(1.0)
+                        .min_w(0.0),
+                ),
+        )
+        .child(
+            text(note_title)
+                .key("lock-prompt-note")
+                .font(k.ty.caption())
+                .color(k.c.text_faint)
+                .truncate()
+                .w_full(),
+        );
+    if lock {
+        // The one sentence that matters most in the flow: it is the only
+        // warning, and it wraps so no language truncates it.
+        card = card.child(
+            text(t(TextKey::LockLostPasswordWarning))
+                .key("lock-warning")
+                .font(k.ty.caption())
+                .color(k.c.warning.fg)
+                .wrap()
+                .w_full(),
+        );
+    }
+    card = card
+        .child(lock_field_label(
+            k,
+            "lock-password-label",
+            TextKey::LockPassword,
+        ))
+        .child(
+            row()
+                .key("lock-password-box")
+                .w_full()
+                .h(30.0)
+                .px(9.0)
+                .center_y()
+                .radius(k.radius.md)
+                .fill(k.c.layer_02)
+                .border(1.0, k.c.border_muted)
+                .child(
+                    text_input(&prompt.password, k.ty.ui_compact)
+                        .key("lock-password")
+                        .label(t(TextKey::LockPassword))
+                        .single_line()
+                        .w_full()
+                        .color(k.c.text_base)
+                        .caret(k.c.text_accent, k.selection())
+                        .on_edit(|s: &mut State| {
+                            &mut s
+                                .lock_prompt
+                                .as_mut()
+                                .expect("the lock prompt is open")
+                                .password
+                        })
+                        .on_input_key(lock_prompt_key)
+                        .on_submit(|s: &mut State, _| s.submit_lock_prompt()),
+                ),
+        );
+    if lock {
+        card = card
+            .child(lock_field_label(
+                k,
+                "lock-confirm-label",
+                TextKey::LockConfirmPassword,
+            ))
+            .child(
+                row()
+                    .key("lock-confirm-box")
+                    .w_full()
+                    .h(30.0)
+                    .px(9.0)
+                    .center_y()
+                    .radius(k.radius.md)
+                    .fill(k.c.layer_02)
+                    .border(1.0, k.c.border_muted)
+                    .child(
+                        text_input(&prompt.confirm, k.ty.ui_compact)
+                            .key("lock-confirm")
+                            .label(t(TextKey::LockConfirmPassword))
+                            .single_line()
+                            .w_full()
+                            .color(k.c.text_base)
+                            .caret(k.c.text_accent, k.selection())
+                            .on_edit(|s: &mut State| {
+                                &mut s
+                                    .lock_prompt
+                                    .as_mut()
+                                    .expect("the lock prompt is open")
+                                    .confirm
+                            })
+                            .on_input_key(lock_prompt_key)
+                            .on_submit(|s: &mut State, _| s.submit_lock_prompt()),
+                    ),
+            );
+    }
+    card = card.child(if let Some(error) = prompt.error {
+        text(t(error))
+            .key("lock-prompt-error")
+            .font(k.ty.caption())
+            .color(k.c.danger.fg)
+            .wrap()
+            .w_full()
+    } else {
+        el()
+    });
+    card = card.child(
+        row()
+            .key("lock-prompt-actions")
+            .w_full()
+            .min_w(0.0)
+            .gap(8.0)
+            .justify_end()
+            .child(
+                Button::new(t(TextKey::Cancel))
+                    .variant(ButtonVariant::Ghost)
+                    .on_press(|s: &mut State| s.cancel_lock_prompt())
+                    .build(k)
+                    .key("lock-prompt-cancel"),
+            )
+            .child(
+                Button::new(if lock {
+                    t(TextKey::LockSubmit)
+                } else {
+                    t(TextKey::UnlockSubmit)
+                })
+                .variant(ButtonVariant::Submit)
+                .on_press(|s: &mut State| s.submit_lock_prompt())
+                .build(k)
+                .key("lock-prompt-submit"),
+            ),
+    );
+    el().key("lock-prompt-layer")
+        .absolute(0.0, 0.0)
+        .w_full()
+        .h_full()
+        .fill(k.c.scrim)
+        .center()
+        .child(card)
+}
+
+/// The caption above one prompt field.
+fn lock_field_label(k: &Kit, key: &str, label: TextKey) -> El {
+    text(t(label))
+        .key(key.to_owned())
+        .font(k.ty.caption())
+        .color(k.c.text_muted)
+        .w_full()
+}
+
+/// Keys inside a prompt field.
+///
+/// Escape closes the prompt (the secure field would otherwise blur and swallow
+/// it), and a command chord is swallowed: Help and the palette are modal
+/// layers behind this one, so a chord must not open them over the password
+/// card. Every other key is the field's — typing, arrows, Backspace and Enter.
+fn lock_prompt_key(s: &mut State, e: &KeyEvent, _: &mut Tx) -> bool {
+    if e.key == Key::Escape {
+        s.cancel_lock_prompt();
+        return true;
+    }
+    e.mods.cmd
+}
+
 /// v0.5: the command palette, mounted above the whole window. One input
 /// searches notes (title-first) and the fixed action list; the card animates in
 /// with the same offset + fade pair as the kit-gallery's stagger list.
@@ -3131,6 +3476,7 @@ fn help_panel(s: &State, k: &Kit) -> El {
                         .pb(28.0)
                         .gap(14.0)
                         .child(sections)
+                        .child(help_locked_notes(k))
                         .child(help_about(s, k))
                         .child(help_diagnostics(s, k))
                         .child(help_trash(s, k)),
@@ -3214,6 +3560,36 @@ fn help_section_head(k: &Kit, title: &str) -> El {
                 ),
         )
         .child(el().w_full().h(1.0).fill(k.c.border_muted))
+}
+
+/// #134: what locking does to a note, in its own card so the security rules
+/// are not buried in a chord list. The four rules are rows; the rename/move
+/// limitation is a muted caption because it is a consequence, not a rule.
+fn help_locked_notes(k: &Kit) -> El {
+    let mut card = help_card(k, "help-locked-notes", t(TextKey::HelpGroupLock));
+    for (key, copy) in [
+        ("help-lock-lock", TextKey::HelpLockLock),
+        ("help-lock-unlock", TextKey::HelpLockUnlock),
+        ("help-lock-lost", TextKey::HelpLockLost),
+        ("help-lock-recovery", TextKey::HelpLockRecovery),
+    ] {
+        card = card.child(
+            text(t(copy))
+                .key(key)
+                .font(k.ty.ui_compact.lh(18.0))
+                .color(k.c.text_base)
+                .wrap()
+                .w_full(),
+        );
+    }
+    card.child(
+        text(t(TextKey::HelpLockRename))
+            .key("help-lock-rename")
+            .font(k.ty.ui_compact.lh(18.0))
+            .color(k.c.text_muted)
+            .wrap()
+            .w_full(),
+    )
 }
 
 /// The autosave sentence and the version, in their own card so they are not
@@ -5012,7 +5388,16 @@ fn conflict_bar(s: &State, k: &Kit) -> El {
     let Some(conflict) = &s.conflict else {
         return el();
     };
-    row()
+    // #134: a copy of a locked note cannot be written as plaintext, and a copy
+    // sealed under the old id would not open under its new name. The bar keeps
+    // Keep mine and Load theirs and shows that refusal in place of Save copy
+    // instead of offering a button that can only fail.
+    let locked = s
+        .vault
+        .notes
+        .get(conflict.note_id)
+        .is_some_and(|note| note.is_locked());
+    let mut bar = row()
         .key("conflict-bar")
         .h(36.0)
         .px(20.0)
@@ -5043,13 +5428,24 @@ fn conflict_bar(s: &State, k: &Kit) -> El {
             t(TextKey::ConflictLoadTheirs),
             "conflict-load-theirs",
             State::resolve_conflict_load_theirs,
-        ))
-        .child(status_button(
+        ));
+    if locked {
+        bar = bar.child(
+            text(t(TextKey::LockConflictSaveCopy))
+                .key("conflict-save-copy-locked")
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .truncate(),
+        );
+    } else {
+        bar = bar.child(status_button(
             k,
             t(TextKey::ConflictSaveCopy),
             "conflict-save-copy",
             State::resolve_conflict_save_copy,
-        ))
+        ));
+    }
+    bar
 }
 
 fn status_meta(s: &State, k: &Kit) -> El {

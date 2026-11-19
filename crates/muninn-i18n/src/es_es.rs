@@ -996,5 +996,63 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::CoreBoardNameForbidden => "no puede contener : * ? \" < > | ni caracteres de control",
         Key::CoreBoardNameTrailingDot => "no puede terminar en punto",
         Key::CoreBoardNameReserved => "no puede ser un nombre de dispositivo reservado",
+        Key::MenuLockNote => "Bloquear nota…",
+        Key::MenuUnlockNote => "Desbloquear nota…",
+        Key::LockNoteTitle => "Bloquear nota",
+        Key::UnlockNoteTitle => "Desbloquear nota",
+        Key::LockPassword => "Contraseña",
+        Key::LockConfirmPassword => "Confirmar contraseña",
+        Key::LockLostPasswordWarning => {
+            "No hay restablecimiento de contraseña, clave de recuperación ni cuenta de Muninn. \
+             Si pierdes esta contraseña, la nota se pierde. Las copias de seguridad y el historial \
+             de sincronización anteriores aún pueden contener el texto sin cifrar."
+        }
+        Key::LockSubmit => "Bloquear",
+        Key::UnlockSubmit => "Desbloquear",
+        Key::LockPasswordMismatch => "Las contraseñas no coinciden.",
+        Key::LockPasswordEmpty => "Introduce una contraseña.",
+        Key::LockedNoteHeading => "Esta nota está bloqueada",
+        Key::LockedNoteBody => "Desbloquéala con su contraseña para leerla o editarla.",
+        Key::LockedNoteRecoveryOff => {
+            "La recuperación ante fallos está desactivada para una nota bloqueada; los cambios sin \
+             guardar dependen del guardado automático."
+        }
+        Key::LockedNoteBadge => "Nota bloqueada",
+        Key::UnlockWrongPassword => "Esa contraseña no abrió la nota.",
+        Key::UnlockUnsupportedVersion => {
+            "Esta nota fue bloqueada por una versión más reciente de Muninn."
+        }
+        Key::UnlockMalformed => "Esta nota bloqueada está dañada.",
+        Key::UnlockWrongNote => "Esta nota bloqueada pertenece a otro nombre de archivo.",
+        Key::UnlockRollback => "Esta nota es anterior a la última versión que Muninn vio.",
+        Key::UnlockFailed => "No se pudo desbloquear la nota.",
+        Key::LockRefusedSave => {
+            "Esta nota está bloqueada. Desbloquéala para conservar tus cambios."
+        }
+        Key::LockRefusedRename => "Desbloquea esta nota antes de renombrarla o moverla.",
+        Key::LockRefusedFolderRename => {
+            "Desbloquea o elimina las notas bloqueadas de esta carpeta antes de renombrarla."
+        }
+        Key::LockConflictSaveCopy => {
+            "No se puede guardar una copia de una nota bloqueada. Desbloquéala primero."
+        }
+        Key::HelpGroupLock => "Notas bloqueadas",
+        Key::HelpLockLock => {
+            "Bloquear nota: añade una contraseña; el archivo se convierte en texto cifrado."
+        }
+        Key::HelpLockUnlock => "Desbloquear nota: introduce la contraseña para esta sesión.",
+        Key::HelpLockLost => {
+            "No hay restablecimiento de contraseña ni clave de recuperación. Si pierdes la \
+             contraseña, la nota se pierde."
+        }
+        Key::HelpLockRecovery => {
+            "La recuperación ante fallos está desactivada para notas bloqueadas; el guardado \
+             automático sigue escribiendo el sobre cifrado."
+        }
+        Key::HelpLockRename => "Desbloquea una nota bloqueada antes de renombrarla o moverla.",
+        Key::PaletteActionLockNote => "Bloquear nota",
+        Key::PaletteActionUnlockNote => "Desbloquear nota",
+        Key::PaletteKeywordsLockNote => "cifrar contraseña privado proteger",
+        Key::PaletteKeywordsUnlockNote => "abrir descifrar contraseña",
     }
 }

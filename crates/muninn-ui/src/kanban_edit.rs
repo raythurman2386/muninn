@@ -614,6 +614,13 @@ impl State {
             _ if !inside_vault(&self.vault.root, &path) => {
                 Err((t(TextKey::KanbanStatusNotInsideVault).to_owned(), false))
             }
+            // Per-note encryption (#134, v1): the note's file is an envelope.
+            // `board.source()` is plaintext, so writing it here would replace
+            // the lock; refuse instead (the board should not have opened, this
+            // is the last guard).
+            (Some(id), _) if self.vault.notes[id].is_locked() => {
+                Err((t(TextKey::LockRefusedSave).to_owned(), false))
+            }
             (None, _) => Err((t(TextKey::KanbanStatusNoteGone).to_owned(), true)),
             (Some(_), None) => Err((t(TextKey::KanbanStatusFileUnchecked).to_owned(), true)),
             (Some(id), Some(_)) => match std::fs::read_to_string(&path) {

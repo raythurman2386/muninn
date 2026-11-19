@@ -29,6 +29,7 @@ use muninn_i18n::{
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::{Camera, CameraGlide};
+use crate::lock_session::{LockRevs, NoteSessions, RevStatus, UnlockError};
 use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
 use crate::settings::{
@@ -129,6 +130,32 @@ pub struct FolderRename {
 pub enum DeleteConfirm {
     Note(usize),
     Folder(String),
+}
+
+/// Per-note encryption (#134): which password the open prompt asks for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LockPromptKind {
+    /// Seal the note's editor buffer under a new password.
+    Lock,
+    /// Open the locked note with its existing password.
+    Unlock,
+}
+
+/// The lock/unlock password prompt.
+///
+/// The two fields are [`TextEdit::secure`] (masked, no undo or clipboard), and
+/// the password is dropped with the prompt: [`State::submit_lock_prompt`]
+/// hands it to `muninn_core::lock` / [`State::unlock_note`] and nothing keeps
+/// a copy. Deliberately not `Clone`: duplicating the prompt would duplicate
+/// the password buffers. `error` carries a catalog key, so the view words the
+/// failure without turning a wrong password into a hint.
+pub struct LockPrompt {
+    /// The note being locked or unlocked.
+    pub id: usize,
+    pub kind: LockPromptKind,
+    pub password: TextEdit,
+    pub confirm: TextEdit,
+    pub error: Option<TextKey>,
 }
 
 /// A note file's on-disk identity: `(mtime, length)`.
@@ -688,6 +715,8 @@ pub struct State {
     /// Inline rename field for a note.
     pub rename_prompt: Option<RenamePrompt>,
     pub rename_field: TextEdit,
+    /// Per-note encryption (#134): the open lock/unlock password prompt.
+    pub lock_prompt: Option<LockPrompt>,
     /// #43: a board being renamed, and its inline name field.
     pub board_rename: Option<crate::BoardRename>,
     pub board_rename_field: TextEdit,
@@ -726,6 +755,12 @@ pub struct State {
     pub fx_muted: std::cell::Cell<[f32; 3]>,
     /// SAF-05 recovery files for this vault (XDG state, never the vault).
     pub(crate) recovery: RecoveryStore,
+    /// Per-note encryption (#133): the notes unlocked in this window, each with
+    /// its derived key. Never the password, never serialized.
+    pub(crate) lock_sessions: NoteSessions,
+    /// Per-note encryption (#133): the newest envelope revision seen per note,
+    /// in the XDG state directory, so a rollback is caught after a restart too.
+    pub(crate) lock_revs: LockRevs,
     /// Dirty buffers found at startup; the banner lists and restores these.
     pub recovered: Vec<RecoveryEntry>,
     /// Trailing-debounce clock for the next recovery write.
@@ -935,7 +970,10 @@ impl State {
         // vault id (canonicalization succeeds then). A symlinked path would
         // otherwise write copies under one id and look for them under another.
         let recovery = RecoveryStore::at(&state_home, &root);
-        let recovered = recovery.scan();
+        let mut recovered = recovery.scan();
+        // A locked note never keeps a plaintext recovery copy (#132); the
+        // chunked path sweeps again once the real vault is installed.
+        crate::recovery::clear_locked(&vault, &recovery, &mut recovered);
         let first = vault.notes.first().map(|n| n.id);
         let graph = Graph::new(&vault);
         let mut state = State {
@@ -1061,6 +1099,7 @@ impl State {
             new_note_field: TextEdit::new(""),
             rename_prompt: None,
             rename_field: TextEdit::new(""),
+            lock_prompt: None,
             board_rename: None,
             board_rename_field: TextEdit::new(""),
             new_folder_prompt: None,
@@ -1077,6 +1116,8 @@ impl State {
             fx_accent: std::cell::Cell::new([0.35, 0.55, 0.95]),
             fx_muted: std::cell::Cell::new([0.45, 0.48, 0.55]),
             recovery,
+            lock_sessions: NoteSessions::default(),
+            lock_revs: LockRevs::at(&state_home, &root),
             recovered,
             recovery_at: None,
             recovery_written_at: None,
@@ -1454,6 +1495,9 @@ impl State {
             self.error = Some(t(TextKey::ErrorSaveKanbanBeforeSwitch).to_owned());
             return false;
         }
+        // Per-note encryption (#134): a password prompt belongs to the vault
+        // it was opened over, so it never outlives the switch.
+        self.cancel_lock_prompt();
         let started = Instant::now();
         match Vault::load(&root) {
             Ok(vault) => {
@@ -1490,6 +1534,12 @@ impl State {
                 let recovery = RecoveryStore::at(&self.state_home, &self.vault.root);
                 self.recovered = recovery.scan();
                 self.recovery = recovery;
+                // Per-note encryption (#133): an unlocked note belongs to the
+                // vault it was opened from, and its high-water record is that
+                // vault's too.
+                self.lock_sessions.clear();
+                self.lock_revs = LockRevs::at(&self.state_home, &self.vault.root);
+                self.sweep_locked_recovery();
                 let root = self.vault.root.clone();
                 self.settings.push_recent(&root);
                 self.settings.last_vault = Some(root);
@@ -1583,6 +1633,17 @@ impl State {
         let mut actions = PaletteAction::ALL.to_vec();
         if self.can_convert_to_kanban() {
             actions.push(PaletteAction::ConvertToKanban);
+        }
+        // #134: lock/unlock is note-specific, so it is offered only while the
+        // selected note can take it. A locked note that is unlocked in this
+        // window can be locked again; only a locked note with no session asks
+        // for its password.
+        match self.selected.and_then(|id| self.vault.notes.get(id)) {
+            Some(note) if note.readable_source().is_none() => {
+                actions.push(PaletteAction::UnlockNote);
+            }
+            Some(_) => actions.push(PaletteAction::LockNote),
+            None => {}
         }
         // Kanban slice 3: every kanban note by name (the index caches which
         // notes are kanbans), filtered by the query like the actions.
@@ -1723,6 +1784,16 @@ impl State {
             PaletteAction::ToggleFocusMode => self.toggle_focus_mode(),
             PaletteAction::NewKanban => self.new_kanban(),
             PaletteAction::ConvertToKanban => self.convert_to_kanban(),
+            PaletteAction::LockNote => {
+                if let Some(id) = self.selected {
+                    self.begin_lock_note(id);
+                }
+            }
+            PaletteAction::UnlockNote => {
+                if let Some(id) = self.selected {
+                    self.begin_unlock_note(id);
+                }
+            }
         }
     }
 
@@ -1822,19 +1893,33 @@ impl State {
         self.pending_heading = None;
         self.pending_top = false;
         let note = &self.vault.notes[id];
-        let (source, path) = (note.source.clone(), note.path.clone());
-        // M2 EDT-02: a revisited note comes back with its text, caret and undo
-        // stack. Fresh or externally changed notes start with empty history.
-        if let Some(mut snapshot) = self.take_editor(&path, &source) {
-            snapshot.focused = false;
-            self.editor = snapshot;
+        // Per-note encryption (#134): a locked note's readable text is the
+        // session overlay when it has one. Without it the file on disk is the
+        // envelope, which is not the note's text: the buffer starts empty and
+        // the view shows the locked-note page instead of the editor.
+        let (source, path) = (note.readable_source().map(str::to_owned), note.path.clone());
+        if let Some(source) = source {
+            // M2 EDT-02: a revisited note comes back with its text, caret and
+            // undo stack. Fresh or externally changed notes start with empty
+            // history.
+            if let Some(mut snapshot) = self.take_editor(&path, &source) {
+                snapshot.focused = false;
+                self.editor = snapshot;
+            } else {
+                self.editor.replace_text(source.clone());
+                // Open at the top; a new note moves the caret to its end when it is created.
+                self.editor.anchor = 0;
+                self.editor.focus = 0;
+            }
+            self.saved = source;
         } else {
-            self.editor.replace_text(source.clone());
-            // Open at the top; a new note moves the caret to its end when it is created.
-            self.editor.anchor = 0;
-            self.editor.focus = 0;
+            // No plaintext in this session: the envelope must never reach the
+            // buffer, and a parked snapshot would bring back the plaintext of
+            // a session that already ended.
+            self.forget_editor(&path);
+            self.editor = TextEdit::new("");
+            self.saved.clear();
         }
-        self.saved = source;
         self.selected = Some(id);
         self.selected_path = Some(path);
         self.reveal = Some(id);
@@ -1866,7 +1951,18 @@ impl State {
         // Kanban slice 2: Back/Forward and reloads on the Kanban page show
         // the newly selected kanban, or keep the last one.
         if self.mode == Mode::Kanban {
-            self.refresh_kanban();
+            // Per-note encryption (#134, v1): a locked note has nothing the
+            // page may parse or save, so drop a board it was showing and do
+            // not read this note. The lock page (or the empty state) shows.
+            let rel = self.vault.notes[id].rel.clone();
+            let readable = self.vault.notes[id].readable_source().is_some();
+            if !readable {
+                if self.kanban.as_ref().is_some_and(|shown| shown.rel == rel) {
+                    self.clear_kanban();
+                }
+            } else {
+                self.refresh_kanban();
+            }
         }
         // LIF-01: session restore is path-based, so record the note as soon as
         // it is showing. History navigation and recovery also land here.
@@ -2573,6 +2669,18 @@ impl State {
 
     pub fn focus_editor(&mut self) {
         self.dismiss_palette();
+        // #134: a locked note that is not unlocked has no editor drawn (the
+        // lock page replaces it). Focusing the hidden buffer would leave
+        // `is_typing` true over the page and swallow the shell's chords.
+        if self.selected.is_some_and(|id| {
+            self.vault
+                .notes
+                .get(id)
+                .is_some_and(|note| note.readable_source().is_none())
+        }) {
+            self.set_text_focus(false, false);
+            return;
+        }
         self.set_text_focus(true, false);
     }
 
@@ -3348,8 +3456,34 @@ impl State {
                 }
             },
         };
-        match self.vault.write_note_if_unmodified(id, &text, expected) {
+        // Per-note encryption (#133): a locked note's buffer is plaintext in
+        // memory only, so every save seals it and writes the envelope. The
+        // sealed write also carries the exact plaintext, so the index follows
+        // the new body in the same reindex. With no session (locked again) or
+        // a failed seal nothing is written and the buffer stays dirty; #134
+        // says why in the status bar.
+        let envelope = if self.vault.notes[id].is_locked() {
+            match self.seal_for_write(id, &text) {
+                Some(envelope) => Some(envelope),
+                None => {
+                    self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+                    return false;
+                }
+            }
+        } else {
+            None
+        };
+        let written = match envelope.as_deref() {
+            Some(envelope) => self
+                .vault
+                .write_locked_note_if_unmodified(id, envelope, &text, expected),
+            None => self.vault.write_note_if_unmodified(id, &text, expected),
+        };
+        match written {
             Ok(true) => {
+                // `saved` stays the plaintext buffer, so dirty detection keeps
+                // working: an unlocked note is compared with what was typed,
+                // not with the envelope it was sealed into.
                 self.saved = text;
                 self.last_save = Some(self.now);
                 self.dirty_at = None;
@@ -3407,10 +3541,66 @@ impl State {
         self.recovery.path_for_slot(rel, RecoverySlot::Kanban)
     }
 
+    /// Is `rel` a locked note in the current index? Reads the cached flag, so
+    /// it never decrypts. The lookup is a linear scan, so this is for the
+    /// load/write/kanban paths; the per-frame editor guard uses
+    /// `selected_is_locked`, which indexes the selected note directly.
+    pub(crate) fn rel_is_locked(&self, rel: &str) -> bool {
+        self.note_id(rel)
+            .and_then(|id| self.vault.notes.get(id))
+            .is_some_and(|note| note.is_locked())
+    }
+
+    /// Is the open note a locked envelope? `selected_rel`'s lookup without the
+    /// extra scan: the selected id indexes the note directly.
+    fn selected_is_locked(&self) -> bool {
+        self.selected
+            .and_then(|id| self.vault.notes.get(id))
+            .is_some_and(|note| note.is_locked())
+    }
+
+    /// Per-note encryption (#132): drop every recovery copy (both slots) for a
+    /// note whose source is a locked envelope, and forget the editor-slot
+    /// bookkeeping when that is the copy we were tracking. Called whenever a
+    /// vault becomes live, so a note locked after its copy was written never
+    /// leaves plaintext in the state directory.
+    pub(crate) fn sweep_locked_recovery(&mut self) {
+        crate::recovery::clear_locked(&self.vault, &self.recovery, &mut self.recovered);
+        let rel = self.recovery_rel.clone();
+        if let Some(rel) = rel
+            && self.rel_is_locked(&rel)
+        {
+            self.recovery_rel = None;
+            self.recovery_text = None;
+            self.recovery_pending_text = None;
+            self.recovery_at = None;
+            self.recovery_written_at = None;
+        }
+    }
+
     /// One recovery tick: once the buffer has been idle for
     /// [`RECOVERY_DEBOUNCE`], copy it to the state directory. Clean buffers
     /// only clear their own file; they are never written.
     pub(crate) fn recovery_tick(&mut self, t: f64) {
+        // A locked note's buffer is plaintext in memory only (#132): clear any
+        // copy from before the note was locked and never write one. Its edits
+        // are still autosaved; only the crash sidecar is suppressed.
+        if self.selected_is_locked() {
+            self.recovery_at = None;
+            self.recovery_written_at = None;
+            self.recovery_pending_text = None;
+            if let Some(rel) = self.selected_rel().map(str::to_owned)
+                && (self.recovery_rel.as_deref() == Some(rel.as_str())
+                    || self.recovered.iter().any(|entry| entry.rel == rel))
+            {
+                // Only touch the disk when a copy is known to exist: this runs
+                // on every poll while a locked note is open. An orphan `.txt`
+                // with no sidecar is not in `recovered` and is left to the
+                // load/switch sweep in `sweep_locked_recovery`.
+                self.clear_recovery(&rel);
+            }
+            return;
+        }
         if !self.dirty() {
             self.recovery_at = None;
             self.recovery_written_at = None;
@@ -3465,6 +3655,12 @@ impl State {
         let Some(rel) = self.selected_rel().map(str::to_owned) else {
             return Ok(());
         };
+        // Second guard (#132): the tick refuses a locked note, and so does the
+        // write itself, so no path can leave plaintext in the state directory.
+        if self.selected_is_locked() {
+            self.clear_recovery(&rel);
+            return Ok(());
+        }
         if !self.dirty() {
             return Ok(());
         }
@@ -3490,6 +3686,391 @@ impl State {
             self.recovery_rel = None;
             self.recovery_text = None;
         }
+    }
+
+    // ---- Per-note encryption (#133): unlocked sessions -----------------------
+
+    /// Unlock the note `id` with `password` and keep only the derived key.
+    ///
+    /// The plaintext is returned for the caller to put in the editor buffer;
+    /// nothing is written to disk here, and the password is dropped as soon as
+    /// the key is derived. The envelope's revision is compared with this
+    /// vault's high-water record first, so an envelope rolled back to an older
+    /// revision keeps the note locked instead of decrypting stale content.
+    ///
+    /// # Errors
+    ///
+    /// [`UnlockError::MissingNote`] when `id` is not in the vault,
+    /// [`UnlockError::Lock`] for a note that is not locked
+    /// ([`muninn_core::LockError::NotLocked`]) or an envelope that does not
+    /// open, [`UnlockError::Rollback`] for an older revision, and
+    /// [`UnlockError::Storage`] when the high-water record cannot be written.
+    /// A rollback or a storage failure stores no key, so the note stays locked.
+    pub fn unlock_note(&mut self, id: usize, password: &str) -> Result<String, UnlockError> {
+        let Some(note) = self.vault.notes.get(id) else {
+            return Err(UnlockError::MissingNote);
+        };
+        if !note.is_locked() {
+            return Err(UnlockError::Lock(muninn_core::LockError::NotLocked));
+        }
+        let rel = note.rel.clone();
+        let lock_id = note.lock_id().to_owned();
+        let source = note.source.clone();
+        let (key, text) = muninn_core::unlock_session(&source, password, &lock_id)?;
+        if self.lock_revs.check(&rel, key.rev()) == RevStatus::Older {
+            return Err(UnlockError::Rollback {
+                found: key.rev(),
+                recorded: self.lock_revs.recorded(&rel),
+            });
+        }
+        self.lock_revs
+            .record(&rel, key.rev())
+            .map_err(UnlockError::Storage)?;
+        self.lock_sessions.insert(rel, key, self.now);
+        // Index the plaintext while the session lasts, so search, tags, links
+        // and snippets see the note again without `Note.source` ever holding
+        // it. `forget_unlocked_note` and the idle sweep drop this overlay.
+        self.vault.set_unlocked_source(id, text.clone());
+        Ok(text)
+    }
+
+    /// Seal a note's plaintext as the next envelope revision with the key
+    /// [`State::unlock_note`] kept.
+    ///
+    /// This is the save path's seal, not a write: the caller stores the
+    /// returned envelope (`Vault::write_note`) and this method touches no
+    /// file. Sealing renews the note's session clock, so saving keeps an
+    /// unlocked note open. `None` when the note has no session in this window
+    /// (locked, or from another vault).
+    ///
+    /// # Errors
+    ///
+    /// [`muninn_core::LockError::Crypto`] when the OS random source or the
+    /// cipher cannot run. The session's revision is unchanged then, so the
+    /// next attempt writes the same revision number.
+    pub fn seal_note(
+        &mut self,
+        id: usize,
+        text: &str,
+    ) -> Option<Result<String, muninn_core::LockError>> {
+        let rel = self.vault.notes.get(id)?.rel.clone();
+        let now = self.now;
+        self.lock_sessions
+            .get_mut(&rel, now)
+            .map(|key| key.seal(text))
+    }
+
+    /// [`State::seal_note`] for a write: the envelope, or `None` when the note
+    /// has no session or the seal failed.
+    ///
+    /// The caller must not write `text` in that case: it would replace a locked
+    /// note's envelope with its plaintext. The failure is logged by note key
+    /// only; the user-facing message ships with the lock UI.
+    fn seal_for_write(&mut self, id: usize, text: &str) -> Option<String> {
+        match self.seal_note(id, text) {
+            Some(Ok(envelope)) => Some(envelope),
+            Some(Err(error)) => {
+                self.log_event("seal-failed", &format!("{}: {error}", self.note_key(id)));
+                None
+            }
+            None => {
+                self.log_event(
+                    "seal-failed",
+                    &format!("{}: no unlocked session", self.note_key(id)),
+                );
+                None
+            }
+        }
+    }
+
+    /// The note's `rel` for a log line, never its text.
+    fn note_key(&self, id: usize) -> &str {
+        self.vault
+            .notes
+            .get(id)
+            .map_or("(no note)", |note| note.rel.as_str())
+    }
+
+    // ---- Per-note encryption (#134): the lock / unlock password prompt -----
+
+    /// Ask for the password that seals note `id`, showing it first.
+    pub fn begin_lock_note(&mut self, id: usize) {
+        self.begin_lock_prompt(id, LockPromptKind::Lock);
+    }
+
+    /// Ask for the password that opens note `id`, showing it first.
+    pub fn begin_unlock_note(&mut self, id: usize) {
+        self.begin_lock_prompt(id, LockPromptKind::Unlock);
+    }
+
+    /// Open the prompt over the note it acts on.
+    ///
+    /// The note is loaded first so the buffer behind the modal is the one the
+    /// prompt will seal (Lock) or replace (Unlock). Both fields are secure from
+    /// the start: no undo, clipboard or IME, and the text is zeroized with
+    /// them. The password field takes the keyboard; the editor and search box
+    /// must not keep it behind the modal.
+    fn begin_lock_prompt(&mut self, id: usize, kind: LockPromptKind) {
+        self.menu = None;
+        self.load_note(id, false);
+        self.dismiss_palette();
+        let mut password = TextEdit::new("").secure();
+        password.focused = true;
+        self.editor.focused = false;
+        self.search.focused = false;
+        self.lock_prompt = Some(LockPrompt {
+            id,
+            kind,
+            password,
+            confirm: TextEdit::new("").secure(),
+            error: None,
+        });
+    }
+
+    /// Escape or Cancel: close the prompt and drop both fields (the secure
+    /// `TextEdit` zeroizes them when they are freed).
+    pub fn cancel_lock_prompt(&mut self) {
+        let Some(mut prompt) = self.lock_prompt.take() else {
+            return;
+        };
+        prompt.password.focused = false;
+        prompt.confirm.focused = false;
+    }
+
+    /// Enter in the prompt: validate, then seal the note or open it.
+    ///
+    /// The password is used and then dropped; only the derived key survives
+    /// (in the window's session map) after an unlock. A refusal keeps the
+    /// prompt open with the reason and clears only the field the user has to
+    /// retype: nothing is written until the note is actually sealed.
+    pub fn submit_lock_prompt(&mut self) {
+        let Some(prompt) = self.lock_prompt.as_ref() else {
+            return;
+        };
+        let (id, kind) = (prompt.id, prompt.kind);
+        let password = prompt.password.text.clone();
+        if password.is_empty() {
+            self.set_lock_prompt_error(TextKey::LockPasswordEmpty, false);
+            return;
+        }
+        if kind == LockPromptKind::Lock && prompt.confirm.text != password {
+            self.set_lock_prompt_error(TextKey::LockPasswordMismatch, true);
+            return;
+        }
+        if kind == LockPromptKind::Lock {
+            self.apply_lock_note(id, &password);
+        } else {
+            self.apply_unlock_note(id, &password);
+        }
+    }
+
+    /// Keep the prompt open with `error`, clearing the password field (empty)
+    /// or the confirmation (mismatch).
+    fn set_lock_prompt_error(&mut self, error: TextKey, clear_confirm: bool) {
+        let Some(prompt) = self.lock_prompt.as_mut() else {
+            return;
+        };
+        prompt.error = Some(error);
+        if clear_confirm {
+            prompt.confirm.replace_text("");
+            prompt.confirm.focused = true;
+            prompt.password.focused = false;
+        } else {
+            prompt.password.replace_text("");
+        }
+    }
+
+    /// Seal the editor buffer (never the plaintext on disk) and show the note
+    /// locked again.
+    fn apply_lock_note(&mut self, id: usize, password: &str) {
+        // A save first keeps any ordinary edits; sealing happens on the buffer
+        // the editor holds, which is exactly what `flush` just wrote.
+        self.flush();
+        let Some(note_id) = self
+            .vault
+            .notes
+            .get(id)
+            .map(|note| note.lock_id().to_owned())
+        else {
+            return;
+        };
+        let text = self.editor.text.clone();
+        let envelope = match muninn_core::lock(&text, password, &note_id) {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                self.log_event("lock", &format!("{}: {error}", self.note_key(id)));
+                self.lock_prompt_error(TextKey::LockRefusedSave);
+                return;
+            }
+        };
+        let expected = match self.expected_disk {
+            Some(state) => Some(state),
+            None => self.vault.disk_state(id).ok(),
+        };
+        let Some(expected) = expected else {
+            self.lock_prompt_error(TextKey::LockRefusedSave);
+            return;
+        };
+        match self.vault.write_note_if_unmodified(id, &envelope, expected) {
+            Ok(true) => {
+                // The vault write reindexed from the envelope: the body, tags
+                // and outgoing links are gone from search already. Drop the
+                // session/key/overlay and the buffer, then show the locked page.
+                self.forget_unlocked_note(id);
+                self.load_note_at(id, false);
+                self.graph.sync(&self.vault);
+                self.refresh_watch();
+                self.lock_prompt = None;
+                self.error = None;
+                self.log_event("lock", &format!("{}: locked", self.note_key(id)));
+            }
+            Ok(false) => {
+                // Another writer changed the file first; nothing was written.
+                self.lock_prompt_error(TextKey::LockRefusedSave);
+            }
+            Err(error) => {
+                self.log_event("lock", &format!("{}: {error}", self.note_key(id)));
+                self.lock_prompt_error(TextKey::LockRefusedSave);
+            }
+        }
+    }
+
+    /// Open the note with `password` and put its plaintext in the editor.
+    fn apply_unlock_note(&mut self, id: usize, password: &str) {
+        match self.unlock_note(id, password) {
+            Ok(_) => {
+                self.lock_prompt = None;
+                // Reload even though the note is already selected: the buffer
+                // was empty while it was locked, and `load_note` returns early
+                // for the current selection.
+                self.load_note_at(id, true);
+                self.error = None;
+                self.log_event("lock", &format!("{}: unlocked", self.note_key(id)));
+            }
+            Err(error) => {
+                let key = match error {
+                    UnlockError::Lock(muninn_core::LockError::AuthenticationFailed) => {
+                        TextKey::UnlockWrongPassword
+                    }
+                    UnlockError::Lock(muninn_core::LockError::UnsupportedVersion) => {
+                        TextKey::UnlockUnsupportedVersion
+                    }
+                    UnlockError::Lock(muninn_core::LockError::Malformed)
+                    | UnlockError::Lock(muninn_core::LockError::NotLocked) => {
+                        TextKey::UnlockMalformed
+                    }
+                    UnlockError::Lock(muninn_core::LockError::WrongNote) => {
+                        TextKey::UnlockWrongNote
+                    }
+                    UnlockError::Rollback { .. } => TextKey::UnlockRollback,
+                    // `LockError` is non-exhaustive: anything else (crypto,
+                    // empty input, a future variant) is not something the user
+                    // can act on, so it reads as a plain failure.
+                    UnlockError::MissingNote | UnlockError::Storage(_) | UnlockError::Lock(_) => {
+                        TextKey::UnlockFailed
+                    }
+                };
+                self.log_event(
+                    "unlock",
+                    &format!("{}: refused ({})", self.note_key(id), key.id()),
+                );
+                self.lock_prompt_error(key);
+            }
+        }
+    }
+
+    /// Set the open prompt's error and clear its password field.
+    fn lock_prompt_error(&mut self, error: TextKey) {
+        if let Some(prompt) = self.lock_prompt.as_mut() {
+            prompt.error = Some(error);
+            prompt.password.replace_text("");
+            prompt.password.focused = true;
+            prompt.confirm.focused = false;
+        }
+    }
+
+    /// Is the note at `rel` unlocked in this window? Reads session state only:
+    /// no key derivation and no file access.
+    #[must_use]
+    pub fn is_note_unlocked(&self, rel: &str) -> bool {
+        self.lock_sessions.contains(rel)
+    }
+
+    /// Re-lock one note: drop its session key and every in-memory copy of its
+    /// plaintext, including a recovery copy left from before it was locked and
+    /// the vault's index overlay (the buffer purge does both).
+    pub fn forget_unlocked_note(&mut self, id: usize) {
+        let Some(rel) = self.vault.notes.get(id).map(|note| note.rel.clone()) else {
+            return;
+        };
+        self.lock_sessions.remove(&rel);
+        self.purge_unlocked_buffer(id);
+    }
+
+    /// Drop a note's plaintext buffers now that its session has ended.
+    ///
+    /// The parked [`TextEdit`] is removed, not merely emptied: restoring it on
+    /// the next visit would bring back the plaintext and its undo history. A
+    /// selected note gets a **fresh** `TextEdit` for the same reason —
+    /// `replace_text` would keep the cleared text in the undo stack.
+    fn purge_unlocked_buffer(&mut self, id: usize) {
+        let Some((rel, path)) = self
+            .vault
+            .notes
+            .get(id)
+            .map(|note| (note.rel.clone(), note.path.clone()))
+        else {
+            return;
+        };
+        self.forget_editor(&path);
+        if self.selected == Some(id) {
+            // `expected_disk` is deliberately kept: the purge writes nothing,
+            // so that identity still describes the file, and a later save must
+            // still be able to report an external change instead of adopting
+            // whatever is on disk now.
+            self.editor = TextEdit::new("");
+            self.saved.clear();
+            self.dirty_at = None;
+            self.conflict = None;
+        }
+        // A locked note never writes a recovery copy (#132); a plaintext
+        // version of this note may have left one behind, so clear it.
+        if self.recovery_rel.as_deref() == Some(rel.as_str())
+            || self.recovered.iter().any(|entry| entry.rel == rel)
+        {
+            self.clear_recovery(&rel);
+        }
+        // Drop the index overlay too, so the body, tags and outgoing links are
+        // gone from search and the caches. Guarded inside the vault: the note
+        // may already have been deleted.
+        self.vault.clear_unlocked_source(id);
+    }
+
+    /// End every note session that has been idle for
+    /// [`crate::lock_session::SESSION_IDLE_SECS`]. Returns whether anything
+    /// expired, because the caller has to repaint: the editor buffer is gone.
+    ///
+    /// A dirty buffer counts as use, even when autosave is paused by a
+    /// conflict: typing into an unlocked note must not be interrupted at the
+    /// fifteen-minute mark. The clock is renewed before the expiry sweep, so
+    /// that edit is never immediately expired.
+    pub(crate) fn lock_session_tick(&mut self, now: f64) -> bool {
+        if self.dirty()
+            && let Some(rel) = self.selected_rel().map(str::to_owned)
+        {
+            self.lock_sessions.touch(&rel, now);
+        }
+        let expired = self.lock_sessions.expire(now);
+        if expired.is_empty() {
+            return false;
+        }
+        for rel in &expired {
+            // `expire` already dropped the key; only the buffers are left.
+            if let Some(id) = self.note_id(rel) {
+                self.purge_unlocked_buffer(id);
+            }
+        }
+        true
     }
 
     /// Dismiss the startup banner by discarding every listed copy. This is the
@@ -3548,6 +4129,16 @@ impl State {
                     false
                 }
             };
+        }
+        // Per-note encryption (#133): a banner row can outlive a note that
+        // another writer locked during this session, and its `.txt` is the
+        // plaintext buffer. Never restore it into the vault or the editor;
+        // drop it the way the load/switch sweep would.
+        if self.rel_is_locked(rel) {
+            self.log_event("recovery", &format!("refused locked {rel}"));
+            self.clear_recovery_slot(rel, RecoverySlot::Editor);
+            self.clear_recovery_slot(rel, RecoverySlot::Kanban);
+            return false;
         }
         // #38 review B2: a board's copy opens on Board, never as a note.
         if crate::board_safety::is_board_rel(rel) {
@@ -3760,8 +4351,37 @@ impl State {
             return false;
         };
         let text = self.editor.text.clone();
-        match self.vault.write_note(conflict.note_id, &text) {
+        // Per-note encryption (#133): keeping the buffer of a locked note
+        // means writing a fresh envelope, never the plaintext. Without a
+        // session the conflict stays up and nothing is written.
+        let locked = self
+            .vault
+            .notes
+            .get(conflict.note_id)
+            .is_some_and(|note| note.is_locked());
+        let envelope = if locked {
+            match self.seal_for_write(conflict.note_id, &text) {
+                Some(envelope) => Some(envelope),
+                None => {
+                    self.conflict = Some(conflict);
+                    return false;
+                }
+            }
+        } else {
+            None
+        };
+        let written = match envelope.as_deref() {
+            // The sealed write also installs the exact plaintext as the
+            // session overlay, so the index reflects this conflict resolution.
+            Some(envelope) => self
+                .vault
+                .write_locked_note(conflict.note_id, envelope, &text),
+            None => self.vault.write_note(conflict.note_id, &text),
+        };
+        match written {
             Ok(()) => {
+                // Plaintext, as after a sealed autosave: dirty detection keeps
+                // comparing the buffer with what the user typed.
                 self.saved = text;
                 self.last_save = Some(self.now);
                 self.dirty_at = None;
@@ -3793,6 +4413,20 @@ impl State {
         let Some(conflict) = self.conflict.take() else {
             return false;
         };
+        // Per-note encryption (#133): the disk bytes are an envelope, and the
+        // ordinary reload would put them in the editor buffer. Drop the
+        // session and show the locked-note page instead; the user unlocks it
+        // again to read what is on disk.
+        let locked = self
+            .vault
+            .notes
+            .get(conflict.note_id)
+            .is_some_and(|note| note.is_locked());
+        if locked {
+            self.forget_unlocked_note(conflict.note_id);
+            self.load_note_at(conflict.note_id, false);
+            return true;
+        }
         match self.load_disk_into_editor(conflict.note_id) {
             Ok(()) => true,
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
@@ -3819,7 +4453,17 @@ impl State {
             self.clear_open_note();
             return true;
         };
+        // Per-note encryption (#133): a plaintext sibling would put the body
+        // outside the envelope, and a copy sealed under the original note id
+        // would not open under its new name anyway (v2 binds `note=`). A
+        // same-key copy under a new id (`seal_as`) is a later refinement, so
+        // refuse here and leave the conflict for the other two resolutions.
+        let locked = note.is_locked();
         let mine = self.editor.text.clone();
+        if locked {
+            self.conflict = Some(conflict);
+            return false;
+        }
         let title = format!("{} (conflict {})", note.title, conflict_stamp());
         let folder = note.folder().to_owned();
         let original = note.path.clone();
@@ -4127,6 +4771,9 @@ impl State {
         self.dirty_at = None;
         self.trash_undo = None;
         self.broken_panel = false;
+        // The chunked path had no note bodies at startup, so this is where a
+        // locked note's stale plaintext recovery copy is cleared (#132).
+        self.sweep_locked_recovery();
         if !same_vault {
             self.clear_boards();
             self.clear_kanban();
@@ -4216,12 +4863,20 @@ impl State {
 
     pub fn begin_rename_note(&mut self, id: usize) {
         self.menu = None;
-        let title = self
-            .vault
-            .notes
-            .get(id)
-            .map(|n| n.title.clone())
-            .unwrap_or_default();
+        let Some((title, refused)) = self.vault.notes.get(id).map(|note| {
+            (
+                note.title.clone(),
+                note.is_locked() && note.readable_source().is_none(),
+            )
+        }) else {
+            return;
+        };
+        if refused {
+            // #134: the envelope binds the filename, so a rename has to
+            // re-encrypt, and only an unlocked note has the plaintext to seal.
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        }
         self.rename_field.replace_text(title.as_str());
         self.rename_field.focused = true;
         self.editor.focused = false;
@@ -4279,6 +4934,15 @@ impl State {
     }
 
     fn apply_rename(&mut self, id: usize, name: &str, rewrite: bool) {
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked())
+        {
+            self.apply_rename_locked(id, name, rewrite);
+            return;
+        }
         let was_selected = self.selected == Some(id);
         let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
         let old_rel = self.vault.notes.get(id).map(|note| note.rel.clone());
@@ -4352,6 +5016,170 @@ impl State {
                 }
             }
             Err(e) => self.error = Some(could_not_rename_note(e)),
+        }
+    }
+
+    /// Rename a locked note that is unlocked in this window (#134).
+    ///
+    /// The envelope authenticates the note id, so the file cannot simply be
+    /// renamed: it is sealed again under the target id *before* the file
+    /// moves, then the new envelope is written. Every failure before the
+    /// write puts the key back under the old path and leaves the file where
+    /// it was; a failed write renames the file back, so the old envelope is
+    /// valid again. After the file is correct the local high-water record
+    /// follows it; a failure there is logged, never turned into a failed
+    /// rename.
+    fn apply_rename_locked(&mut self, id: usize, name: &str, rewrite: bool) {
+        let was_selected = self.selected == Some(id);
+        let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
+        let Some(note) = self.vault.notes.get(id) else {
+            return;
+        };
+        let old_rel = note.rel.clone();
+        let old_title = note.title.clone();
+        // A locked note with no session has no plaintext to seal, so the
+        // prompt/picker refuses earlier; this is the same guard for a direct
+        // call through the confirm dialog.
+        let Some(text) = note.readable_source().map(str::to_owned) else {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        };
+        let inbound = if rewrite {
+            self.vault.link_referrers(id)
+        } else {
+            Vec::new()
+        };
+        let skipped = self
+            .unsaved_kanban_id()
+            .filter(|kid| inbound.iter().any(|(from, _)| from == kid));
+        let new_rel = match self.vault.rename_target_rel(id, name) {
+            Some(rel) => rel,
+            None => return,
+        };
+        let new_id = muninn_core::note_id(&new_rel).to_owned();
+
+        let Some(mut key) = self.lock_sessions.take(&old_rel) else {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        };
+        let envelope = match key.seal_as(&new_id, &text) {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                self.log_event("lock-rename-seal-failed", &format!("{old_rel}: {error}"));
+                self.lock_sessions.insert(old_rel, key, self.now);
+                self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+                return;
+            }
+        };
+        let path = match self.vault.rename_note(id, name) {
+            Ok(path) => path,
+            Err(error) => {
+                self.lock_sessions.insert(old_rel, key, self.now);
+                self.error = Some(could_not_rename_note(error));
+                return;
+            }
+        };
+        if let Err(error) = self.vault.write_locked_note(id, &envelope, &text) {
+            self.log_event("lock-rename-write-failed", &format!("{old_rel}: {error}"));
+            if let Err(rollback) = self.vault.rename_note(id, &old_title) {
+                self.log_event(
+                    "lock-rename-rollback-failed",
+                    &format!("{old_rel}: {rollback}"),
+                );
+            }
+            self.lock_sessions.insert(old_rel, key, self.now);
+            self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+            return;
+        }
+        let new_rel = self
+            .vault
+            .notes
+            .get(id)
+            .map(|note| note.rel.clone())
+            .unwrap_or(new_rel);
+        if let Err(error) = key.rebind(&new_id) {
+            self.log_event("lock-rename-rebind-failed", &format!("{new_rel}: {error}"));
+        }
+        let rev = key.rev();
+        self.lock_sessions.insert(new_rel.clone(), key, self.now);
+        if let Err(error) = self.lock_revs.move_rel(&old_rel, &new_rel) {
+            self.log_event(
+                "lock-revs-move-failed",
+                &format!("{old_rel} -> {new_rel}: {error}"),
+            );
+        }
+        if let Err(error) = self.lock_revs.record(&new_rel, rev) {
+            self.log_event("lock-revs-record-failed", &format!("{new_rel}: {error}"));
+        }
+        self.error = None;
+        // The rest is the plain-text rename path: the kanban pages follow the
+        // file, inbound links (in plain notes) are rewritten, and the reload
+        // resyncs ids and graph titles.
+        if was_selected && old_rel != new_rel {
+            self.retarget_open_kanban(&old_rel, &new_rel, id);
+        }
+        let failures = if rewrite {
+            let stem = self
+                .vault
+                .notes
+                .get(id)
+                .map(|note| note.stem().to_owned())
+                .unwrap_or_default();
+            let write: Vec<_> = inbound
+                .iter()
+                .filter(|(from, _)| Some(*from) != skipped)
+                .cloned()
+                .collect();
+            self.vault.rewrite_inbound_links(&write, &stem)
+        } else {
+            Vec::new()
+        };
+        let select = if was_selected {
+            self.rekey_editor(old_path.as_ref(), &path);
+            self.selected_path = Some(path.clone());
+            Some(path)
+        } else {
+            self.selected_path.clone()
+        };
+        let skipped_name = skipped.and_then(|skipped_id| {
+            self.vault
+                .notes
+                .get(skipped_id)
+                .map(|note| note.title.clone())
+                .filter(|title| !title.is_empty())
+        });
+        self.reload(select);
+        self.restore_unlocked_after_reload(&new_rel, &text);
+        if skipped.is_some() {
+            self.notice = Some(links_not_updated(skipped_name.as_deref()));
+        }
+        if !failures.is_empty() {
+            self.error = Some(renamed_links_failed(
+                failures.len(),
+                &self.format_rewrite_failures(&failures),
+            ));
+        }
+    }
+
+    /// Put an unlocked locked note's overlay back after [`State::reload`].
+    ///
+    /// A reload rebuilds every note from disk, and a locked note's file is the
+    /// envelope: the plaintext overlay that makes it readable and searchable
+    /// in this session is session state, not a file, so it has to be
+    /// re-installed under the new path. The key is already under that path.
+    fn restore_unlocked_after_reload(&mut self, rel: &str, text: &str) {
+        let Some(id) = self
+            .vault
+            .notes
+            .iter()
+            .find(|note| note.rel == rel)
+            .map(|note| note.id)
+        else {
+            return;
+        };
+        self.vault.set_unlocked_source(id, text.to_owned());
+        if self.selected == Some(id) {
+            self.load_note_at(id, false);
         }
     }
 
@@ -4534,6 +5362,17 @@ impl State {
 
     pub fn begin_move_note(&mut self, id: usize) {
         self.menu = None;
+        // #134: a locked note's id includes its folder, so moving it means
+        // re-encrypting; an unlocked note has the plaintext to seal.
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked() && note.readable_source().is_none())
+        {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        }
         self.move_picker = Some(id);
     }
 
@@ -4582,6 +5421,15 @@ impl State {
     }
 
     fn apply_move(&mut self, id: usize, folder: &str, rewrite: bool) {
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked())
+        {
+            self.apply_move_locked(id, folder, rewrite);
+            return;
+        }
         let was_selected = self.selected == Some(id);
         let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
         let inbound = if rewrite {
@@ -4616,6 +5464,113 @@ impl State {
                 }
             }
             Err(e) => self.error = Some(could_not_move_note(e)),
+        }
+    }
+
+    /// Move a locked note that is unlocked in this window (#134). The envelope
+    /// binds the note id, folder included, so the file is re-encrypted under
+    /// the target id before it moves. Failures put the key back under the old
+    /// path; a failed write moves the file back to its old folder, which makes
+    /// the old envelope valid again. See [`State::apply_rename_locked`].
+    fn apply_move_locked(&mut self, id: usize, folder: &str, rewrite: bool) {
+        let was_selected = self.selected == Some(id);
+        let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
+        let Some(note) = self.vault.notes.get(id) else {
+            return;
+        };
+        let old_rel = note.rel.clone();
+        let old_folder = note.folder().to_owned();
+        let Some(text) = note.readable_source().map(str::to_owned) else {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        };
+        let new_rel = match self.vault.move_target_rel(id, folder) {
+            Some(rel) => rel,
+            None => return,
+        };
+        let new_id = muninn_core::note_id(&new_rel).to_owned();
+        let inbound = if rewrite {
+            self.vault.link_referrers(id)
+        } else {
+            Vec::new()
+        };
+
+        let Some(mut key) = self.lock_sessions.take(&old_rel) else {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        };
+        let envelope = match key.seal_as(&new_id, &text) {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                self.log_event("lock-move-seal-failed", &format!("{old_rel}: {error}"));
+                self.lock_sessions.insert(old_rel, key, self.now);
+                self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+                return;
+            }
+        };
+        let path = match self.vault.move_note(id, folder) {
+            Ok(path) => path,
+            Err(error) => {
+                self.lock_sessions.insert(old_rel, key, self.now);
+                self.error = Some(could_not_move_note(error));
+                return;
+            }
+        };
+        if let Err(error) = self.vault.write_locked_note(id, &envelope, &text) {
+            self.log_event("lock-move-write-failed", &format!("{old_rel}: {error}"));
+            if let Err(rollback) = self.vault.move_note(id, &old_folder) {
+                self.log_event(
+                    "lock-move-rollback-failed",
+                    &format!("{old_rel}: {rollback}"),
+                );
+            }
+            self.lock_sessions.insert(old_rel, key, self.now);
+            self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+            return;
+        }
+        let new_rel = self
+            .vault
+            .notes
+            .get(id)
+            .map(|note| note.rel.clone())
+            .unwrap_or(new_rel);
+        if let Err(error) = key.rebind(&new_id) {
+            self.log_event("lock-move-rebind-failed", &format!("{new_rel}: {error}"));
+        }
+        let rev = key.rev();
+        self.lock_sessions.insert(new_rel.clone(), key, self.now);
+        if let Err(error) = self.lock_revs.move_rel(&old_rel, &new_rel) {
+            self.log_event(
+                "lock-revs-move-failed",
+                &format!("{old_rel} -> {new_rel}: {error}"),
+            );
+        }
+        if let Err(error) = self.lock_revs.record(&new_rel, rev) {
+            self.log_event("lock-revs-record-failed", &format!("{new_rel}: {error}"));
+        }
+        self.error = None;
+        let failures = if rewrite {
+            let stem = self
+                .vault
+                .notes
+                .get(id)
+                .map(|note| note.stem().to_owned())
+                .unwrap_or_default();
+            self.vault.rewrite_inbound_links(&inbound, &stem)
+        } else {
+            Vec::new()
+        };
+        if was_selected {
+            self.rekey_editor(old_path.as_ref(), &path);
+            self.selected_path = Some(path.clone());
+        }
+        self.reload(Some(path));
+        self.restore_unlocked_after_reload(&new_rel, &text);
+        if !failures.is_empty() {
+            self.error = Some(moved_links_failed(
+                failures.len(),
+                &self.format_rewrite_failures(&failures),
+            ));
         }
     }
 
@@ -4671,6 +5626,14 @@ impl State {
         let Some(prompt) = self.rename_folder_prompt.take() else {
             return;
         };
+        // #134: renaming the folder would change every note's lock id under it
+        // without re-encrypting anything, so a locked note anywhere in the
+        // subtree refuses the whole action.
+        if self.folder_has_locked_note(&prompt.folder) {
+            self.rename_folder_field.focused = false;
+            self.error = Some(t(TextKey::LockRefusedFolderRename).to_owned());
+            return;
+        }
         let Some(name) = finish_name_field(&mut self.rename_folder_field) else {
             return;
         };
@@ -4701,6 +5664,23 @@ impl State {
         self.folder_rename_confirm = None;
     }
 
+    /// Does `folder` (or any folder below it) hold a locked note?
+    ///
+    /// A folder rename moves every file under it, which changes their note ids
+    /// while the envelopes still authenticate the old ones. Re-encrypting is
+    /// not possible for a locked note without a session, so the action is
+    /// refused for the whole subtree.
+    fn folder_has_locked_note(&self, folder: &str) -> bool {
+        let folder = folder.trim_matches('/');
+        self.vault.notes.iter().any(|note| {
+            if !note.is_locked() {
+                return false;
+            }
+            let at = note.folder();
+            folder.is_empty() || at == folder || at.starts_with(&format!("{folder}/"))
+        })
+    }
+
     /// SAF-06: rename the folder now, rewriting (or deliberately leaving)
     /// inbound links. The rename is not rolled back if a link file write
     /// fails; the failure is reported instead.
@@ -4718,6 +5698,12 @@ impl State {
 
     fn apply_rename_folder(&mut self, folder: &str, name: &str, rewrite: bool) {
         let folder = folder.trim_matches('/');
+        // The confirm dialog can outlive the folder's contents (a watch reload
+        // can add a locked note), so the same refusal is repeated here.
+        if self.folder_has_locked_note(folder) {
+            self.error = Some(t(TextKey::LockRefusedFolderRename).to_owned());
+            return;
+        }
         let old_path = self.selected_path.clone();
         // Same rule as a note rename: a kanban with unsaved edits is not
         // rewritten, or the write would replace the file the page is editing.
@@ -4836,6 +5822,8 @@ impl State {
             (MenuTarget::Note(id), "open_external") => {
                 self.open_note_externally(id);
             }
+            (MenuTarget::Note(id), "lock") => self.begin_lock_note(id),
+            (MenuTarget::Note(id), "unlock") => self.begin_unlock_note(id),
             (MenuTarget::Folder(folder), "new_note") => self.begin_new_note(&folder),
             (MenuTarget::Folder(folder), "new_folder") => self.begin_new_folder(&folder),
             (MenuTarget::Folder(folder), "rename") => self.begin_rename_folder(&folder),
@@ -4978,7 +5966,18 @@ impl State {
     }
 
     /// Open a note with its default external application.
+    ///
+    /// A locked note is refused: handing the envelope to an external editor
+    /// would let the user type over ciphertext and destroy the note.
     pub fn open_note_externally(&mut self, id: usize) -> bool {
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked())
+        {
+            return false;
+        }
         self.note_file_action(id, FileAction::Open)
     }
 

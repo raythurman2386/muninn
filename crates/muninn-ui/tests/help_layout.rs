@@ -129,6 +129,9 @@ fn help_keeps_every_shortcut_and_the_footer_actions() {
     assert!(rt.find("help-about").is_some());
     assert!(rt.find("help-diagnostics").is_some());
     assert!(rt.find("help-trash").is_some());
+    assert!(rt.find("help-locked-notes").is_some());
+    assert!(rt.find("help-lock-lost").is_some());
+    assert!(rt.find("help-lock-rename").is_some());
 
     let (x, y) = rt.find("help-close").expect("close");
     let mut rt = rt;
