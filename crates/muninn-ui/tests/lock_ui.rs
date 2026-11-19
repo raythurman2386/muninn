@@ -388,7 +388,8 @@ fn the_locked_note_menu_offers_unlock_and_drops_rename_and_move() {
     assert!(rt.find("menu-open_external").is_some());
 
     // A locked note unlocked in this window offers Lock note (re-lock) and
-    // still hides the envelope-unsafe actions.
+    // the re-encrypting rename/move, but still hides the envelope-unsafe
+    // actions.
     rt.update(move |s, _| {
         s.menu = None;
         s.unlock_note(locked, PW).expect("unlock");
@@ -401,8 +402,14 @@ fn the_locked_note_menu_offers_unlock_and_drops_rename_and_move() {
         "an unlocked locked note offers re-lock"
     );
     assert!(rt.find("menu-unlock").is_none());
-    assert!(rt.find("menu-rename").is_none());
-    assert!(rt.find("menu-move").is_none());
+    assert!(
+        rt.find("menu-rename").is_some(),
+        "rename re-encrypts an unlocked locked note"
+    );
+    assert!(
+        rt.find("menu-move").is_some(),
+        "move re-encrypts an unlocked locked note"
+    );
     assert!(rt.find("menu-open_external").is_none());
     assert!(rt.find("menu-reveal").is_some());
     assert!(rt.find("menu-delete").is_some());

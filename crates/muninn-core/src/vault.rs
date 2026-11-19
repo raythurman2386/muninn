@@ -48,7 +48,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Distinguishes concurrent temp files from the same process.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-use crate::note::Note;
+use crate::note::{Note, sanitise_note_title};
 use crate::preview::excerpt;
 use crate::wikilink::parse_links;
 
@@ -1069,7 +1069,7 @@ impl Vault {
     /// folder, so `folder/Untitled.md` and `folder/Untitled 2.md` are
     /// independent of the root.
     pub fn create_note_in(&self, title: &str, folder: &str) -> io::Result<PathBuf> {
-        let title = sanitise_title(title);
+        let title = sanitise_note_title(title);
         let body = format!("# {title}\n\n");
         self.create_note_file(&title, folder, body.as_bytes())
     }
@@ -1088,7 +1088,7 @@ impl Vault {
         folder: &str,
         body: &str,
     ) -> io::Result<PathBuf> {
-        let title = sanitise_title(title);
+        let title = sanitise_note_title(title);
         self.create_note_file(&title, folder, body.as_bytes())
     }
 
@@ -1119,7 +1119,7 @@ impl Vault {
     /// note's (`..` and hidden parts dropped), and a folder that resolves
     /// outside the vault (a symlink) is refused.
     pub fn create_board_in(&self, title: &str, folder: &str) -> io::Result<PathBuf> {
-        let title = sanitise_title(title);
+        let title = sanitise_note_title(title);
         let dir = self.new_file_dir(folder)?;
         let body = crate::Board::new().to_json();
         let mut n = 1;
@@ -1309,7 +1309,7 @@ impl Vault {
     /// graph node title follows.
     pub fn rename_note(&mut self, id: usize, new_title: &str) -> io::Result<PathBuf> {
         let old = self.notes[id].path.clone();
-        let title = sanitise_title(new_title);
+        let title = sanitise_note_title(new_title);
         let dir = old
             .parent()
             .map(PathBuf::from)
@@ -1327,6 +1327,40 @@ impl Vault {
         fs::rename(&old, &target)?;
         self.apply_path(id, &target);
         Ok(target)
+    }
+
+    /// The vault-relative path [`Vault::rename_note`] will give note `id`.
+    ///
+    /// A locked note has to seal its new envelope *before* the file moves, and
+    /// the envelope binds the note id, so the caller needs the target name up
+    /// front. This uses the same sanitisation and directory as the rename
+    /// itself, so the sealed id and the file that appears cannot disagree.
+    #[must_use]
+    pub fn rename_target_rel(&self, id: usize, new_title: &str) -> Option<String> {
+        let old = self.notes.get(id)?;
+        let dir = old.path.parent().unwrap_or(&self.root);
+        let target = dir.join(format!("{}.md", sanitise_note_title(new_title)));
+        Self::relative_text(&target, &self.root)
+    }
+
+    /// The vault-relative path [`Vault::move_note`] will give note `id`.
+    ///
+    /// The move counterpart of [`Vault::rename_target_rel`], for the same
+    /// seal-before-move reason. `folder_dir` is reused so a caller cannot
+    /// compute an id the file will not have.
+    #[must_use]
+    pub fn move_target_rel(&self, id: usize, folder: &str) -> Option<String> {
+        let name = self.notes.get(id)?.path.file_name()?;
+        let target = folder_dir(&self.root, folder).join(name);
+        Self::relative_text(&target, &self.root)
+    }
+
+    /// `path` relative to `root`, with `/` separators. `None` when it is not
+    /// under the vault at all (the rename/move would be refused).
+    fn relative_text(path: &Path, root: &Path) -> Option<String> {
+        path.strip_prefix(root)
+            .ok()
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
     }
 
     /// Delete a note's file and its index entry.
@@ -2031,28 +2065,6 @@ pub fn board_name(input: &str) -> io::Result<String> {
         return invalid(muninn_i18n::t(muninn_i18n::Key::CoreBoardNameReserved));
     }
     Ok(name.to_owned())
-}
-
-fn sanitise_title(title: &str) -> String {
-    let mut title: String = title
-        .trim()
-        .chars()
-        .map(|c| {
-            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
-                '-'
-            } else {
-                c
-            }
-        })
-        .collect();
-    while title.ends_with('.') || title.ends_with(' ') {
-        title.pop();
-    }
-    if title.is_empty() {
-        "Untitled".to_owned()
-    } else {
-        title
-    }
 }
 
 /// Sanitise a single folder segment: like a title, but an empty result stays

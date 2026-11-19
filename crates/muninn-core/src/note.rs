@@ -137,3 +137,32 @@ impl Note {
         crate::note_lock::note_id(&self.rel)
     }
 }
+
+/// The file stem [`crate::Vault::rename_note`] will use for `title`.
+///
+/// `Vault::rename_note` and `Vault::rename_target_rel` both go through this,
+/// so the id a locked note seals before the move and the name the file really
+/// gets cannot drift: a character the vault replaces (`/`, `*`, a trailing
+/// dot, an empty name) would otherwise produce a mismatched id.
+#[must_use]
+pub(crate) fn sanitise_note_title(title: &str) -> String {
+    let mut title: String = title
+        .trim()
+        .chars()
+        .map(|c| {
+            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+                '-'
+            } else {
+                c
+            }
+        })
+        .collect();
+    while title.ends_with('.') || title.ends_with(' ') {
+        title.pop();
+    }
+    if title.is_empty() {
+        "Untitled".to_owned()
+    } else {
+        title
+    }
+}

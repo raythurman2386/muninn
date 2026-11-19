@@ -1021,6 +1021,24 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::UnlockRollback => "Esta nota é mais antiga que a última versão vista pelo Muninn.",
         Key::UnlockFailed => "Não foi possível desbloquear a nota.",
         Key::LockRefusedSave => "Esta nota está bloqueada. Desbloqueie-a para manter suas edições.",
+        Key::LockRefusedRename => "Desbloqueie esta nota antes de renomeá-la ou movê-la.",
+        Key::LockRefusedFolderRename => {
+            "Desbloqueie ou remova as notas bloqueadas desta pasta antes de renomeá-la."
+        }
+        Key::LockConflictSaveCopy => {
+            "Não é possível salvar uma cópia de uma nota bloqueada. Desbloqueie-a primeiro."
+        }
+        Key::HelpGroupLock => "Notas bloqueadas",
+        Key::HelpLockLock => "Bloquear nota: adicione uma senha; o arquivo se torna texto cifrado.",
+        Key::HelpLockUnlock => "Desbloquear nota: digite a senha para esta sessão.",
+        Key::HelpLockLost => {
+            "Não há redefinição de senha nem chave de recuperação. Uma senha perdida perde a nota."
+        }
+        Key::HelpLockRecovery => {
+            "A recuperação de falhas fica desativada para notas bloqueadas; o salvamento \
+             automático continua gravando o envelope."
+        }
+        Key::HelpLockRename => "Desbloqueie uma nota bloqueada antes de renomeá-la ou movê-la.",
         Key::PaletteActionLockNote => "Bloquear nota",
         Key::PaletteActionUnlockNote => "Desbloquear nota",
         Key::PaletteKeywordsLockNote => "criptografar senha privado proteger",

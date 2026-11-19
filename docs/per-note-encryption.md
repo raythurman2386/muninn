@@ -1,9 +1,10 @@
 # Per-note encryption
 
-**Status:** design + core prototype. This document specifies the on-disk
-format and the integration points for issue #113. The encryption envelope is
-implemented and unit-tested in `crates/muninn-core/src/note_lock.rs`; the
-editor, search, sync and UI are not wired to it yet.
+**Status:** implemented, v1. This document specifies the on-disk format and
+the integration points for issue #113. The envelope, the session key, the
+editor/search/sync gates, the lock UI, and rename/move re-encryption are
+implemented and tested; the limitations of this version are listed at the end
+of the integration map and under “Open questions and deferred work”.
 
 ## Threat model
 
@@ -194,8 +195,10 @@ of the AAD. `unlock` compares it with the id of the file it was read from
 (`Note::lock_id()`) before deriving any key. Moving `Private.md`'s envelope
 over `Public.md` therefore fails with `WrongNote` instead of decrypting under
 the wrong title. Renaming a locked note must re-encrypt it while it is
-unlocked (a later layer's job); that is the accepted cost of binding the
-identity.
+unlocked, so that is exactly what the UI does: it seals the file under the
+target id with `SessionKey::seal_as` before the file moves, writes the new
+envelope, and then `rebind`s the session. That is the accepted cost of binding
+the identity.
 
 **Conflict-copy caveat.** Sync resolves a same-path disagreement by keeping
 both files and renaming one to `<stem> (remote).md` (or `<stem> (conflict
@@ -387,10 +390,13 @@ implemented in this slice except the envelope itself.
   `apply_desired` writes the chosen bytes; `drive.rs` uploads the same bytes
   as a content-addressed blob. GitHub and Tailscale already receive the same
   file bytes.
-- The follow-up integration test should lock a note, run the inventory on a
-  fixture vault, and assert the snapshot hash equals the hash of the envelope
-  and that the blob bytes unlock with the note password. The existing
-  `provider_tests` fixtures can host that.
+- The follow-up integration test has landed as
+  `crates/muninn-ui/tests/lock_sync.rs`: it locks a note into a fixture vault,
+  runs `muninn_sync::inventory_default`, and asserts the snapshot record's hash
+  and size are those of the envelope, that the file bytes contain no body
+  marker, and that those exact bytes unlock with the note password.
+- The same file also carries the Drive/GitHub/Tailscale guarantee: they upload
+  the inventory bytes unchanged, and none of them has a plaintext path.
 
 **Conflicts.** `docs/sync-architecture.md` already resolves a same-path
 disagreement by keeping both copies: this device keeps the path, the other
@@ -400,8 +406,10 @@ never decrypts. The copy is still a valid envelope, but because v2 binds the
 note id it was locked for, it does **not** open under the renamed path
 (`WrongNote`). The UI explains this: rename the copy back to the original
 note id to unlock it, or unlock the original (which holds this device's last
-save). Re-encrypting a conflict copy under the session key is a possible later
-refinement; a forced open that ignores the binding is not.
+save). This is a v1 limitation, not a lost note; the bytes are valid
+ciphertext. Re-encrypting a conflict copy under the session key, and therefore
+under a new id, remains a later refinement; a forced open that ignores the
+binding is not offered.
 
 **Lost password.** The remote copy is no help: there is no server-side key,
 no reset, and Muninn never uploaded the password or key. A user who loses the
@@ -448,25 +456,29 @@ password loses both the local and remote copies.
   which cannot re-seal a locked note. An envelope contains no links, so a
   locked note that is not unlocked is unaffected. Links *inside* an unlocked
   locked note are not rewritten when another note is renamed or moved; they
-  keep pointing at the old target until the note is re-saved (the UI refuses
-  to rename or move a locked note).
+  read the old target until the note is re-saved. The UI refuses to rename or
+  move a locked note that is not unlocked; an unlocked one is re-encrypted and
+  keeps its session, but this link-rewrite limitation still applies while it
+  is unlocked.
 
 ### 6. Locking warns that a lost password is unrecoverable
 
-- A confirm step before the first lock must say: there is no reset, no
+- The password card says it before the first lock: there is no reset, no
   recovery key and no Muninn account; a lost password loses the note; and
-  earlier backups/sync history may still contain the plaintext.
+  earlier backups/sync history may still contain the plaintext. The same
+  rules ship as the “Locked notes” block on the Help page.
 - There is no “forgot password” path anywhere in the UI or sync code.
 
 ### 7. Wrong password fails closed
 
 - `note_lock::unlock` returns `LockError::AuthenticationFailed` for both a
-  wrong password and a tampered envelope. The UI keeps the note locked, shows
-  the error inline, and never displays a partial buffer. The password field is
-  cleared after a failed attempt.
+  wrong password and a tampered envelope. The card keeps the note locked,
+  shows the error inline, clears the password field, and never displays a
+  partial buffer.
 - `LockError::WrongNote` is separate from both: the envelope is valid but was
   locked for a different note id (a moved file, or a renamed sync conflict
-  copy). The UI explains how to recover rather than reporting a bad password.
+  copy). The card explains how to recover rather than reporting a bad
+  password.
 - A malformed envelope and an unsupported future version are distinct errors
   so the UI can say “this note was made by a newer Muninn” instead of
   “wrong password”, but neither exposes plaintext.
@@ -476,18 +488,70 @@ password loses both the local and remote copies.
 The envelope tests live in `note_lock.rs` (round-trip including a Unicode note
 id, wrong password, wrong note and a substituted envelope, tampered
 payload/header/revision, fresh salt/nonce, sealed revisions reusing the salt,
-UTF-8 magic, no plaintext in ciphertext, malformed/non-canonical
-note/revision input, a v1 envelope, empty password and empty note, `note_id`
-stripping). The follow-up
-slice adds vault-level tests (locked note omitted from search, tags and
-links), a sync fixture proving only envelope bytes are uploaded, and updates
-`SECURITY.md` and `PRIVACY.md` for the new threat model. Those docs are not
-changed in this slice because the feature is not user-visible yet.
+`seal_as` under a new id, UTF-8 magic, no plaintext in ciphertext,
+malformed/non-canonical note/revision input, a v1 envelope, empty password and
+empty note, `note_id` stripping). Vault-level tests cover the locked note being
+omitted from search, tags and links; `crates/muninn-ui/tests/lock_ui.rs` drives
+the lock/unlock UI; `lock_rename.rs` covers rename, move, folder refusal and
+conflicts; and `lock_sync.rs` proves only envelope bytes reach the inventory.
+`SECURITY.md` and `PRIVACY.md` state the threat model and the residual
+metadata leak.
 
 ### 9. Help and CHANGELOG
 
-The Help page and the user-facing CHANGELOG entry ship with the UI wiring.
-This slice only records the design + prototype under `[Unreleased]`.
+The Help page has a “Locked notes” block (lock, unlock, no recovery, crash
+recovery, and the rename/move rule), and the user-facing CHANGELOG entry
+records the feature, the rename/move re-encryption and the docs.
+
+### Rename, move and folder rename
+
+The envelope authenticates the note id, so the file cannot be moved or
+renamed with its envelope unchanged. `State::apply_rename` and
+`State::apply_move` branch on `Note::is_locked()`:
+
+1. A locked note with no session is refused at the prompt/picker with
+   `LockRefusedRename`; nothing is opened and nothing is written.
+2. For an unlocked note the flow takes the key
+   (`NoteSessions::take`), computes the target id (the sanitised new title in
+   the same folder, or the old filename in the new folder), and seals the body
+   under that id with `SessionKey::seal_as` — a fresh nonce, the session's
+   salt, the next revision, and the session revision advanced.
+3. The file is renamed/moved, the envelope is written with
+   `Vault::write_locked_note`, and the session is `rebind`ed and re-inserted
+   under the new path. The local high-water mark moves with it
+   (`LockRevs::move_rel` keeps the larger of the two marks and writes once).
+4. Any failure before the write re-inserts the key under the old path. A
+   failed write rolls the file back to its old name/folder, which makes the
+   old envelope valid again, and reports `LockRefusedSave`. A failure writing
+   the local revision record is logged, never turned into a failed rename
+   after the file is already correct.
+5. The reload that resyncs ids and graph titles rebuilds notes from disk, so
+   the session overlay is re-installed for the moved path; the note stays
+   unlocked and searchable.
+
+A folder rename would change every note id under it without re-encrypting, so
+`submit_rename_folder`/`apply_rename_folder` refuse when any note whose folder
+is the target or below it is locked (`LockRefusedFolderRename`).
+
+### v1 limitations
+
+- **Kanban is closed for locked notes.** A locked note is never parsed as a
+  board and never converted to Kanban; a `.excalidraw` board is a separate
+  file and unaffected.
+- **Links inside an unlocked locked note are not rewritten** when another
+  note or folder is renamed. A rewrite replaces a whole plaintext body, which
+  cannot re-seal the note, so those links keep the old target until the note
+  is re-saved.
+- **No recovery key or reset.** A lost password loses the note everywhere.
+- **The rollback record is local and per device.** It is not synced; a fresh
+  device starts with no history.
+- **A conflict copy keeps the original id**, so it must be renamed back to the
+  original note id (or the original unlocked) before it opens; `WrongNote` is
+  the expected report, not corruption.
+- **Save copy is refused** for a locked note: a plaintext sibling would leak
+  the body and a copy sealed under the old id would not open under its new
+  name. Keep mine (with a session) and Load theirs (which re-locks the note)
+  remain.
 
 ### UI entry points
 
@@ -546,8 +610,10 @@ This slice only records the design + prototype under `[Unreleased]`.
   seals it with the session key and writes the envelope; with no session the
   conflict stays up and nothing is written. Saving a copy refuses for a locked
   note: a plaintext sibling would leak the body, and a copy sealed under the
-  original note id would not open under its new name (v2 binds `note=`).
-  Re-encrypting the copy under its own id (`seal_as`) is a later refinement.
+  original note id would not open under its new name (v2 binds `note=`), so
+  the bar shows `LockConflictSaveCopy` in place of the button. `seal_as` now
+  exists for rename and move; re-encrypting a conflict copy under its own id
+  and renaming it to match remains a later refinement.
 - `Vault::write_note_if_unmodified` still compares `disk_state` (mtime and
   length) before writing. A lock or unlock is just a write through the same
   path; the expected state is refreshed after it.
@@ -566,7 +632,9 @@ This slice only records the design + prototype under `[Unreleased]`.
 1. **Session cache shape and lifetime (settled).** `SessionKey` keeps only the
    derived key and seals with a fresh nonce, so the password is not retained.
    One session per unlocked note lives in
-   `crates/muninn-ui/src/lock_session.rs::NoteSessions`, keyed by `Note.rel`.
+   `crates/muninn-ui/src/lock_session.rs::NoteSessions`, keyed by `Note.rel`;
+   a rename or move hands the key over with `NoteSessions::take` and
+   re-inserts it under the new path.
    It ends on an explicit lock, a vault switch, quitting, or after **15 minutes
    without use**; the clock is renewed by use — an unlock, a dirty buffer (an
    edit, even while autosave is paused by a conflict) and every seal on save
@@ -598,7 +666,9 @@ This slice only records the design + prototype under `[Unreleased]`.
    `crates/muninn-ui/src/lock_session.rs::LockRevs`. It is local and per vault,
    not synced — sync’s snapshots are still not ordered by revision, so there is
    no remote ordering to trust — and it only ever raises: recording a revision
-   at or below the current mark writes nothing. Unlocking an envelope older
+   at or below the current mark writes nothing, and `LockRevs::move_rel` moves
+   a mark to a new path (keeping the larger value if the target already has
+   one). Unlocking an envelope older
    than the mark fails closed (`UnlockError::Rollback`) and the note stays
    locked; the user-visible confirmation path ships with the lock UI. A missing
    or corrupt file starts empty rather than blocking the vault.
@@ -630,7 +700,7 @@ This slice only records the design + prototype under `[Unreleased]`.
     on every write; it is simple and cannot drift from `reindex`'s rules. The
     security rule holds: re-locking removes the derived entries again.
 
-## Prototype API and tests
+## API and tests
 
 `crates/muninn-core/src/note_lock.rs` exports:
 
@@ -646,6 +716,8 @@ This slice only records the design + prototype under `[Unreleased]`.
   Result<(SessionKey, String), LockError>` — the same checks plus a session
   key for later saves.
 - `SessionKey` — `seal(&mut self, source: &str) -> Result<String, LockError>`,
+  `seal_as(&mut self, note: &str, source: &str) -> Result<String, LockError>`
+  (encrypt under another note id for a rename or move, then `rebind`),
   `rebind(&mut self, note: &str) -> Result<(), LockError>`, `rev()`, `note()`.
   Keeps the note id, salt, derived key and revision; never the password; not
   `Clone`; the key is zeroized on drop.

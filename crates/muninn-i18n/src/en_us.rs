@@ -940,6 +940,23 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::UnlockRollback => "This note is older than the last version Muninn saw.",
         Key::UnlockFailed => "The note could not be unlocked.",
         Key::LockRefusedSave => "This note is locked. Unlock it to keep your edits.",
+        Key::LockRefusedRename => "Unlock this note before renaming or moving it.",
+        Key::LockRefusedFolderRename => {
+            "Unlock or remove the locked notes in this folder before renaming it."
+        }
+        Key::LockConflictSaveCopy => {
+            "Saving a copy of a locked note is not supported. Unlock it first."
+        }
+        Key::HelpGroupLock => "Locked notes",
+        Key::HelpLockLock => "Lock note: add a password; the file becomes ciphertext.",
+        Key::HelpLockUnlock => "Unlock note: enter the password for this session.",
+        Key::HelpLockLost => {
+            "There is no password reset or recovery key. A lost password loses the note."
+        }
+        Key::HelpLockRecovery => {
+            "Crash recovery is off for locked notes; autosave still writes the envelope."
+        }
+        Key::HelpLockRename => "Unlock a locked note before renaming or moving it.",
         Key::PaletteActionLockNote => "Lock note",
         Key::PaletteActionUnlockNote => "Unlock note",
         Key::PaletteKeywordsLockNote => "encrypt password private protect",

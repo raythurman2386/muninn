@@ -8,6 +8,12 @@ Muninn is a local-first notes app made by Raymond Thurman, doing business as Rav
 
 Muninn stores your notes as Markdown files in a folder you choose on your computer. We do not host your notes on a Muninn server.
 
+If you lock a note with its own password, its file is ciphertext on disk, in backups and in the
+connected sync store: Muninn uploads the envelope bytes and never the body. Muninn keeps only the
+derived key in memory, for 15 idle minutes after the note is last used, and holds no escrow, reset
+or recovery key — losing the password loses the note. Some metadata stays visible by design: the
+filename (title), folder, file size and modification time.
+
 ## Optional sync
 
 You can choose to sync a vault with Google Drive, GitHub, or another device on your Tailscale network. Sync is off until you connect it.

@@ -1052,6 +1052,34 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::LockRefusedSave => {
             "Cette note est verrouillée. Déverrouillez-la pour conserver vos modifications."
         }
+        Key::LockRefusedRename => {
+            "Déverrouillez cette note avant de la renommer ou de la déplacer."
+        }
+        Key::LockRefusedFolderRename => {
+            "Déverrouillez ou supprimez les notes verrouillées de ce dossier avant de le renommer."
+        }
+        Key::LockConflictSaveCopy => {
+            "L’enregistrement d’une copie d’une note verrouillée n’est pas pris en charge. \
+             Déverrouillez-la d’abord."
+        }
+        Key::HelpGroupLock => "Notes verrouillées",
+        Key::HelpLockLock => {
+            "Verrouiller la note : ajoutez un mot de passe ; le fichier devient du texte chiffré."
+        }
+        Key::HelpLockUnlock => {
+            "Déverrouiller la note : saisissez le mot de passe pour cette session."
+        }
+        Key::HelpLockLost => {
+            "Il n’y a ni réinitialisation de mot de passe ni clé de récupération. Un mot de passe \
+             perdu perd la note."
+        }
+        Key::HelpLockRecovery => {
+            "La récupération après plantage est désactivée pour les notes verrouillées ; \
+             l’enregistrement automatique écrit toujours l’enveloppe."
+        }
+        Key::HelpLockRename => {
+            "Déverrouillez une note verrouillée avant de la renommer ou de la déplacer."
+        }
         Key::PaletteActionLockNote => "Verrouiller la note",
         Key::PaletteActionUnlockNote => "Déverrouiller la note",
         Key::PaletteKeywordsLockNote => "chiffrer mot de passe privé protéger",

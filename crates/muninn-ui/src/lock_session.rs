@@ -69,6 +69,14 @@ impl NoteSessions {
         self.entries.remove(rel).is_some()
     }
 
+    /// Take the key for `rel` out of the map, for a rename or a move that has
+    /// to re-label it. The session stops being reachable by the old path; the
+    /// caller re-inserts it under the new one once the file has moved. `None`
+    /// when the note was not unlocked.
+    pub(crate) fn take(&mut self, rel: &str) -> Option<SessionKey> {
+        self.entries.remove(rel).map(|entry| entry.key)
+    }
+
     /// End every session: another vault is opening, or the window is going.
     pub(crate) fn clear(&mut self) {
         self.entries.clear();
@@ -204,6 +212,31 @@ impl LockRevs {
             return Ok(());
         }
         self.revs.insert(rel.to_owned(), rev);
+        self.save()
+    }
+
+    /// Move the high-water mark from `old` to `new` and persist it once.
+    ///
+    /// A rename or a move changes the note's path but not its revision
+    /// history: keeping the mark under the old path would let an old envelope
+    /// of the renamed note open again. If `new` already has a mark (for
+    /// example the target path existed before), the larger of the two wins so
+    /// the record still only ever raises. A no-op when `old` has no record.
+    pub(crate) fn move_rel(&mut self, old: &str, new: &str) -> io::Result<()> {
+        let Some(old_rev) = self.revs.remove(old) else {
+            return Ok(());
+        };
+        let rev = self
+            .revs
+            .get(new)
+            .copied()
+            .map_or(old_rev, |seen| seen.max(old_rev));
+        self.revs.insert(new.to_owned(), rev);
+        self.save()
+    }
+
+    /// Write the whole record. The caller has already updated it.
+    fn save(&self) -> io::Result<()> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -308,6 +341,57 @@ mod tests {
             "the clock restarted at 400 s"
         );
         assert_eq!(sessions.expire(1300.0), ["Secret.md"]);
+    }
+
+    #[test]
+    fn take_hands_the_key_over_and_ends_the_old_session() {
+        let mut sessions = NoteSessions::default();
+        sessions.insert("Secret.md".to_owned(), key_for("Secret"), 0.0);
+        let key = sessions.take("Secret.md").expect("the session was there");
+        assert_eq!(key.note(), "Secret");
+        assert!(!sessions.contains("Secret.md"), "the old path is gone");
+        assert!(sessions.take("Secret.md").is_none());
+    }
+
+    #[test]
+    fn a_moved_high_water_follows_the_note_and_removes_the_old_path() {
+        let (state, vault) = (temp_dir("state"), temp_dir("vault"));
+        let mut revs = LockRevs::at(&state, &vault);
+        revs.record("Old.md", 4).expect("record");
+        revs.move_rel("Old.md", "New.md").expect("move");
+        assert_eq!(revs.recorded("New.md"), 4);
+        assert_eq!(revs.recorded("Old.md"), 0, "the old path is removed");
+        assert_eq!(revs.check("New.md", 3), RevStatus::Older);
+
+        let reloaded = LockRevs::at(&state, &vault);
+        assert_eq!(reloaded.recorded("New.md"), 4, "the move was written once");
+        assert_eq!(reloaded.recorded("Old.md"), 0);
+    }
+
+    #[test]
+    fn a_move_keeps_the_larger_mark_when_the_target_has_one() {
+        let (state, vault) = (temp_dir("state"), temp_dir("vault"));
+        let mut revs = LockRevs::at(&state, &vault);
+        revs.record("Old.md", 2).expect("record old");
+        revs.record("New.md", 7).expect("record new");
+        revs.move_rel("Old.md", "New.md").expect("move");
+        assert_eq!(revs.recorded("New.md"), 7, "the larger mark wins");
+        assert_eq!(revs.recorded("Old.md"), 0);
+
+        revs.record("Old.md", 9).expect("record old again");
+        revs.move_rel("Old.md", "New.md").expect("move");
+        assert_eq!(revs.recorded("New.md"), 9, "and it still only raises");
+    }
+
+    #[test]
+    fn a_move_without_an_old_record_is_a_no_op() {
+        let (state, vault) = (temp_dir("state"), temp_dir("vault"));
+        let mut revs = LockRevs::at(&state, &vault);
+        revs.record("Other.md", 3).expect("record");
+        revs.move_rel("Missing.md", "New.md")
+            .expect("nothing to move");
+        assert_eq!(revs.recorded("New.md"), 0);
+        assert_eq!(revs.recorded("Other.md"), 3, "the rest is untouched");
     }
 
     #[test]

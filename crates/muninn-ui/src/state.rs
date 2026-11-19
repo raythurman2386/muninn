@@ -4413,6 +4413,20 @@ impl State {
         let Some(conflict) = self.conflict.take() else {
             return false;
         };
+        // Per-note encryption (#133): the disk bytes are an envelope, and the
+        // ordinary reload would put them in the editor buffer. Drop the
+        // session and show the locked-note page instead; the user unlocks it
+        // again to read what is on disk.
+        let locked = self
+            .vault
+            .notes
+            .get(conflict.note_id)
+            .is_some_and(|note| note.is_locked());
+        if locked {
+            self.forget_unlocked_note(conflict.note_id);
+            self.load_note_at(conflict.note_id, false);
+            return true;
+        }
         match self.load_disk_into_editor(conflict.note_id) {
             Ok(()) => true,
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
@@ -4849,12 +4863,20 @@ impl State {
 
     pub fn begin_rename_note(&mut self, id: usize) {
         self.menu = None;
-        let title = self
-            .vault
-            .notes
-            .get(id)
-            .map(|n| n.title.clone())
-            .unwrap_or_default();
+        let Some((title, refused)) = self.vault.notes.get(id).map(|note| {
+            (
+                note.title.clone(),
+                note.is_locked() && note.readable_source().is_none(),
+            )
+        }) else {
+            return;
+        };
+        if refused {
+            // #134: the envelope binds the filename, so a rename has to
+            // re-encrypt, and only an unlocked note has the plaintext to seal.
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        }
         self.rename_field.replace_text(title.as_str());
         self.rename_field.focused = true;
         self.editor.focused = false;
@@ -4912,6 +4934,15 @@ impl State {
     }
 
     fn apply_rename(&mut self, id: usize, name: &str, rewrite: bool) {
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked())
+        {
+            self.apply_rename_locked(id, name, rewrite);
+            return;
+        }
         let was_selected = self.selected == Some(id);
         let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
         let old_rel = self.vault.notes.get(id).map(|note| note.rel.clone());
@@ -4985,6 +5016,170 @@ impl State {
                 }
             }
             Err(e) => self.error = Some(could_not_rename_note(e)),
+        }
+    }
+
+    /// Rename a locked note that is unlocked in this window (#134).
+    ///
+    /// The envelope authenticates the note id, so the file cannot simply be
+    /// renamed: it is sealed again under the target id *before* the file
+    /// moves, then the new envelope is written. Every failure before the
+    /// write puts the key back under the old path and leaves the file where
+    /// it was; a failed write renames the file back, so the old envelope is
+    /// valid again. After the file is correct the local high-water record
+    /// follows it; a failure there is logged, never turned into a failed
+    /// rename.
+    fn apply_rename_locked(&mut self, id: usize, name: &str, rewrite: bool) {
+        let was_selected = self.selected == Some(id);
+        let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
+        let Some(note) = self.vault.notes.get(id) else {
+            return;
+        };
+        let old_rel = note.rel.clone();
+        let old_title = note.title.clone();
+        // A locked note with no session has no plaintext to seal, so the
+        // prompt/picker refuses earlier; this is the same guard for a direct
+        // call through the confirm dialog.
+        let Some(text) = note.readable_source().map(str::to_owned) else {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        };
+        let inbound = if rewrite {
+            self.vault.link_referrers(id)
+        } else {
+            Vec::new()
+        };
+        let skipped = self
+            .unsaved_kanban_id()
+            .filter(|kid| inbound.iter().any(|(from, _)| from == kid));
+        let new_rel = match self.vault.rename_target_rel(id, name) {
+            Some(rel) => rel,
+            None => return,
+        };
+        let new_id = muninn_core::note_id(&new_rel).to_owned();
+
+        let Some(mut key) = self.lock_sessions.take(&old_rel) else {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        };
+        let envelope = match key.seal_as(&new_id, &text) {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                self.log_event("lock-rename-seal-failed", &format!("{old_rel}: {error}"));
+                self.lock_sessions.insert(old_rel, key, self.now);
+                self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+                return;
+            }
+        };
+        let path = match self.vault.rename_note(id, name) {
+            Ok(path) => path,
+            Err(error) => {
+                self.lock_sessions.insert(old_rel, key, self.now);
+                self.error = Some(could_not_rename_note(error));
+                return;
+            }
+        };
+        if let Err(error) = self.vault.write_locked_note(id, &envelope, &text) {
+            self.log_event("lock-rename-write-failed", &format!("{old_rel}: {error}"));
+            if let Err(rollback) = self.vault.rename_note(id, &old_title) {
+                self.log_event(
+                    "lock-rename-rollback-failed",
+                    &format!("{old_rel}: {rollback}"),
+                );
+            }
+            self.lock_sessions.insert(old_rel, key, self.now);
+            self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+            return;
+        }
+        let new_rel = self
+            .vault
+            .notes
+            .get(id)
+            .map(|note| note.rel.clone())
+            .unwrap_or(new_rel);
+        if let Err(error) = key.rebind(&new_id) {
+            self.log_event("lock-rename-rebind-failed", &format!("{new_rel}: {error}"));
+        }
+        let rev = key.rev();
+        self.lock_sessions.insert(new_rel.clone(), key, self.now);
+        if let Err(error) = self.lock_revs.move_rel(&old_rel, &new_rel) {
+            self.log_event(
+                "lock-revs-move-failed",
+                &format!("{old_rel} -> {new_rel}: {error}"),
+            );
+        }
+        if let Err(error) = self.lock_revs.record(&new_rel, rev) {
+            self.log_event("lock-revs-record-failed", &format!("{new_rel}: {error}"));
+        }
+        self.error = None;
+        // The rest is the plain-text rename path: the kanban pages follow the
+        // file, inbound links (in plain notes) are rewritten, and the reload
+        // resyncs ids and graph titles.
+        if was_selected && old_rel != new_rel {
+            self.retarget_open_kanban(&old_rel, &new_rel, id);
+        }
+        let failures = if rewrite {
+            let stem = self
+                .vault
+                .notes
+                .get(id)
+                .map(|note| note.stem().to_owned())
+                .unwrap_or_default();
+            let write: Vec<_> = inbound
+                .iter()
+                .filter(|(from, _)| Some(*from) != skipped)
+                .cloned()
+                .collect();
+            self.vault.rewrite_inbound_links(&write, &stem)
+        } else {
+            Vec::new()
+        };
+        let select = if was_selected {
+            self.rekey_editor(old_path.as_ref(), &path);
+            self.selected_path = Some(path.clone());
+            Some(path)
+        } else {
+            self.selected_path.clone()
+        };
+        let skipped_name = skipped.and_then(|skipped_id| {
+            self.vault
+                .notes
+                .get(skipped_id)
+                .map(|note| note.title.clone())
+                .filter(|title| !title.is_empty())
+        });
+        self.reload(select);
+        self.restore_unlocked_after_reload(&new_rel, &text);
+        if skipped.is_some() {
+            self.notice = Some(links_not_updated(skipped_name.as_deref()));
+        }
+        if !failures.is_empty() {
+            self.error = Some(renamed_links_failed(
+                failures.len(),
+                &self.format_rewrite_failures(&failures),
+            ));
+        }
+    }
+
+    /// Put an unlocked locked note's overlay back after [`State::reload`].
+    ///
+    /// A reload rebuilds every note from disk, and a locked note's file is the
+    /// envelope: the plaintext overlay that makes it readable and searchable
+    /// in this session is session state, not a file, so it has to be
+    /// re-installed under the new path. The key is already under that path.
+    fn restore_unlocked_after_reload(&mut self, rel: &str, text: &str) {
+        let Some(id) = self
+            .vault
+            .notes
+            .iter()
+            .find(|note| note.rel == rel)
+            .map(|note| note.id)
+        else {
+            return;
+        };
+        self.vault.set_unlocked_source(id, text.to_owned());
+        if self.selected == Some(id) {
+            self.load_note_at(id, false);
         }
     }
 
@@ -5167,6 +5362,17 @@ impl State {
 
     pub fn begin_move_note(&mut self, id: usize) {
         self.menu = None;
+        // #134: a locked note's id includes its folder, so moving it means
+        // re-encrypting; an unlocked note has the plaintext to seal.
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked() && note.readable_source().is_none())
+        {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        }
         self.move_picker = Some(id);
     }
 
@@ -5215,6 +5421,15 @@ impl State {
     }
 
     fn apply_move(&mut self, id: usize, folder: &str, rewrite: bool) {
+        if self
+            .vault
+            .notes
+            .get(id)
+            .is_some_and(|note| note.is_locked())
+        {
+            self.apply_move_locked(id, folder, rewrite);
+            return;
+        }
         let was_selected = self.selected == Some(id);
         let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
         let inbound = if rewrite {
@@ -5249,6 +5464,113 @@ impl State {
                 }
             }
             Err(e) => self.error = Some(could_not_move_note(e)),
+        }
+    }
+
+    /// Move a locked note that is unlocked in this window (#134). The envelope
+    /// binds the note id, folder included, so the file is re-encrypted under
+    /// the target id before it moves. Failures put the key back under the old
+    /// path; a failed write moves the file back to its old folder, which makes
+    /// the old envelope valid again. See [`State::apply_rename_locked`].
+    fn apply_move_locked(&mut self, id: usize, folder: &str, rewrite: bool) {
+        let was_selected = self.selected == Some(id);
+        let old_path = was_selected.then(|| self.selected_path.clone()).flatten();
+        let Some(note) = self.vault.notes.get(id) else {
+            return;
+        };
+        let old_rel = note.rel.clone();
+        let old_folder = note.folder().to_owned();
+        let Some(text) = note.readable_source().map(str::to_owned) else {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        };
+        let new_rel = match self.vault.move_target_rel(id, folder) {
+            Some(rel) => rel,
+            None => return,
+        };
+        let new_id = muninn_core::note_id(&new_rel).to_owned();
+        let inbound = if rewrite {
+            self.vault.link_referrers(id)
+        } else {
+            Vec::new()
+        };
+
+        let Some(mut key) = self.lock_sessions.take(&old_rel) else {
+            self.error = Some(t(TextKey::LockRefusedRename).to_owned());
+            return;
+        };
+        let envelope = match key.seal_as(&new_id, &text) {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                self.log_event("lock-move-seal-failed", &format!("{old_rel}: {error}"));
+                self.lock_sessions.insert(old_rel, key, self.now);
+                self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+                return;
+            }
+        };
+        let path = match self.vault.move_note(id, folder) {
+            Ok(path) => path,
+            Err(error) => {
+                self.lock_sessions.insert(old_rel, key, self.now);
+                self.error = Some(could_not_move_note(error));
+                return;
+            }
+        };
+        if let Err(error) = self.vault.write_locked_note(id, &envelope, &text) {
+            self.log_event("lock-move-write-failed", &format!("{old_rel}: {error}"));
+            if let Err(rollback) = self.vault.move_note(id, &old_folder) {
+                self.log_event(
+                    "lock-move-rollback-failed",
+                    &format!("{old_rel}: {rollback}"),
+                );
+            }
+            self.lock_sessions.insert(old_rel, key, self.now);
+            self.error = Some(t(TextKey::LockRefusedSave).to_owned());
+            return;
+        }
+        let new_rel = self
+            .vault
+            .notes
+            .get(id)
+            .map(|note| note.rel.clone())
+            .unwrap_or(new_rel);
+        if let Err(error) = key.rebind(&new_id) {
+            self.log_event("lock-move-rebind-failed", &format!("{new_rel}: {error}"));
+        }
+        let rev = key.rev();
+        self.lock_sessions.insert(new_rel.clone(), key, self.now);
+        if let Err(error) = self.lock_revs.move_rel(&old_rel, &new_rel) {
+            self.log_event(
+                "lock-revs-move-failed",
+                &format!("{old_rel} -> {new_rel}: {error}"),
+            );
+        }
+        if let Err(error) = self.lock_revs.record(&new_rel, rev) {
+            self.log_event("lock-revs-record-failed", &format!("{new_rel}: {error}"));
+        }
+        self.error = None;
+        let failures = if rewrite {
+            let stem = self
+                .vault
+                .notes
+                .get(id)
+                .map(|note| note.stem().to_owned())
+                .unwrap_or_default();
+            self.vault.rewrite_inbound_links(&inbound, &stem)
+        } else {
+            Vec::new()
+        };
+        if was_selected {
+            self.rekey_editor(old_path.as_ref(), &path);
+            self.selected_path = Some(path.clone());
+        }
+        self.reload(Some(path));
+        self.restore_unlocked_after_reload(&new_rel, &text);
+        if !failures.is_empty() {
+            self.error = Some(moved_links_failed(
+                failures.len(),
+                &self.format_rewrite_failures(&failures),
+            ));
         }
     }
 
@@ -5304,6 +5626,14 @@ impl State {
         let Some(prompt) = self.rename_folder_prompt.take() else {
             return;
         };
+        // #134: renaming the folder would change every note's lock id under it
+        // without re-encrypting anything, so a locked note anywhere in the
+        // subtree refuses the whole action.
+        if self.folder_has_locked_note(&prompt.folder) {
+            self.rename_folder_field.focused = false;
+            self.error = Some(t(TextKey::LockRefusedFolderRename).to_owned());
+            return;
+        }
         let Some(name) = finish_name_field(&mut self.rename_folder_field) else {
             return;
         };
@@ -5334,6 +5664,23 @@ impl State {
         self.folder_rename_confirm = None;
     }
 
+    /// Does `folder` (or any folder below it) hold a locked note?
+    ///
+    /// A folder rename moves every file under it, which changes their note ids
+    /// while the envelopes still authenticate the old ones. Re-encrypting is
+    /// not possible for a locked note without a session, so the action is
+    /// refused for the whole subtree.
+    fn folder_has_locked_note(&self, folder: &str) -> bool {
+        let folder = folder.trim_matches('/');
+        self.vault.notes.iter().any(|note| {
+            if !note.is_locked() {
+                return false;
+            }
+            let at = note.folder();
+            folder.is_empty() || at == folder || at.starts_with(&format!("{folder}/"))
+        })
+    }
+
     /// SAF-06: rename the folder now, rewriting (or deliberately leaving)
     /// inbound links. The rename is not rolled back if a link file write
     /// fails; the failure is reported instead.
@@ -5351,6 +5698,12 @@ impl State {
 
     fn apply_rename_folder(&mut self, folder: &str, name: &str, rewrite: bool) {
         let folder = folder.trim_matches('/');
+        // The confirm dialog can outlive the folder's contents (a watch reload
+        // can add a locked note), so the same refusal is repeated here.
+        if self.folder_has_locked_note(folder) {
+            self.error = Some(t(TextKey::LockRefusedFolderRename).to_owned());
+            return;
+        }
         let old_path = self.selected_path.clone();
         // Same rule as a note rename: a kanban with unsaved edits is not
         // rewritten, or the write would replace the file the page is editing.

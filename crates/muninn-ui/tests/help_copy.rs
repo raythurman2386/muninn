@@ -60,6 +60,36 @@ fn the_six_group_titles_render_as_before() {
 }
 
 #[test]
+fn the_locked_notes_card_renders_its_catalog_copy() {
+    let (_tmp, rt) = help();
+    let elements = rt.elements();
+    assert!(
+        elements
+            .iter()
+            .any(|element| element.key.as_deref() == Some("help-locked-notes")),
+        "the locked-notes card is drawn"
+    );
+    let texts: Vec<&str> = elements
+        .iter()
+        .filter_map(|element| element.text.as_deref())
+        .collect();
+    for key in [
+        Key::HelpGroupLock,
+        Key::HelpLockLock,
+        Key::HelpLockUnlock,
+        Key::HelpLockLost,
+        Key::HelpLockRecovery,
+        Key::HelpLockRename,
+    ] {
+        let expected = muninn_i18n::t(key);
+        assert!(
+            texts.contains(&expected),
+            "missing locked-notes copy {expected:?}"
+        );
+    }
+}
+
+#[test]
 fn a_shortcut_description_renders_from_the_catalog() {
     let (_tmp, rt) = help();
     let action = muninn_i18n::t(Key::HelpNavFocusMode);

@@ -1927,15 +1927,15 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
         return el();
     };
     let items: Vec<(&str, &str)> = match &menu.target {
-        // #134: a locked note's envelope cannot be opened externally, renamed
-        // or moved (its id binds the filename), so its menu offers only the
-        // actions that still make sense. A locked note that is unlocked in
-        // this window can be locked again; a locked note with no session asks
-        // for its password.
+        // #134: a locked note's envelope cannot be handed to an external app.
+        // Rename and Move are offered only once it is unlocked in this window:
+        // they change the note id and therefore re-encrypt the file, which
+        // needs the session's key and plaintext.
         MenuTarget::Note(id) => {
             let note = s.vault.notes.get(*id);
             let locked = note.is_some_and(|note| note.is_locked());
             let unlock = note.is_some_and(|note| note.readable_source().is_none());
+            let editable = !locked || note.is_some_and(|note| note.is_unlocked());
             let mut items = Vec::with_capacity(6);
             if !locked {
                 items.push((t(TextKey::MenuOpenExternally), "open_external"));
@@ -1946,7 +1946,7 @@ pub(crate) fn context_menu(s: &State, k: &Kit) -> El {
             } else {
                 (t(TextKey::MenuLockNote), "lock")
             });
-            if !locked {
+            if editable {
                 items.push((t(TextKey::CommonRename), "rename"));
                 items.push((t(TextKey::MenuMoveTo), "move"));
             }
@@ -3476,6 +3476,7 @@ fn help_panel(s: &State, k: &Kit) -> El {
                         .pb(28.0)
                         .gap(14.0)
                         .child(sections)
+                        .child(help_locked_notes(k))
                         .child(help_about(s, k))
                         .child(help_diagnostics(s, k))
                         .child(help_trash(s, k)),
@@ -3559,6 +3560,36 @@ fn help_section_head(k: &Kit, title: &str) -> El {
                 ),
         )
         .child(el().w_full().h(1.0).fill(k.c.border_muted))
+}
+
+/// #134: what locking does to a note, in its own card so the security rules
+/// are not buried in a chord list. The four rules are rows; the rename/move
+/// limitation is a muted caption because it is a consequence, not a rule.
+fn help_locked_notes(k: &Kit) -> El {
+    let mut card = help_card(k, "help-locked-notes", t(TextKey::HelpGroupLock));
+    for (key, copy) in [
+        ("help-lock-lock", TextKey::HelpLockLock),
+        ("help-lock-unlock", TextKey::HelpLockUnlock),
+        ("help-lock-lost", TextKey::HelpLockLost),
+        ("help-lock-recovery", TextKey::HelpLockRecovery),
+    ] {
+        card = card.child(
+            text(t(copy))
+                .key(key)
+                .font(k.ty.ui_compact.lh(18.0))
+                .color(k.c.text_base)
+                .wrap()
+                .w_full(),
+        );
+    }
+    card.child(
+        text(t(TextKey::HelpLockRename))
+            .key("help-lock-rename")
+            .font(k.ty.ui_compact.lh(18.0))
+            .color(k.c.text_muted)
+            .wrap()
+            .w_full(),
+    )
 }
 
 /// The autosave sentence and the version, in their own card so they are not
@@ -5357,7 +5388,16 @@ fn conflict_bar(s: &State, k: &Kit) -> El {
     let Some(conflict) = &s.conflict else {
         return el();
     };
-    row()
+    // #134: a copy of a locked note cannot be written as plaintext, and a copy
+    // sealed under the old id would not open under its new name. The bar keeps
+    // Keep mine and Load theirs and shows that refusal in place of Save copy
+    // instead of offering a button that can only fail.
+    let locked = s
+        .vault
+        .notes
+        .get(conflict.note_id)
+        .is_some_and(|note| note.is_locked());
+    let mut bar = row()
         .key("conflict-bar")
         .h(36.0)
         .px(20.0)
@@ -5388,13 +5428,24 @@ fn conflict_bar(s: &State, k: &Kit) -> El {
             t(TextKey::ConflictLoadTheirs),
             "conflict-load-theirs",
             State::resolve_conflict_load_theirs,
-        ))
-        .child(status_button(
+        ));
+    if locked {
+        bar = bar.child(
+            text(t(TextKey::LockConflictSaveCopy))
+                .key("conflict-save-copy-locked")
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .truncate(),
+        );
+    } else {
+        bar = bar.child(status_button(
             k,
             t(TextKey::ConflictSaveCopy),
             "conflict-save-copy",
             State::resolve_conflict_save_copy,
-        ))
+        ));
+    }
+    bar
 }
 
 fn status_meta(s: &State, k: &Kit) -> El {

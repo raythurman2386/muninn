@@ -1029,6 +1029,27 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::LockRefusedSave => {
             "Esta nota está bloqueada. Desbloquéala para conservar tus cambios."
         }
+        Key::LockRefusedRename => "Desbloquea esta nota antes de renombrarla o moverla.",
+        Key::LockRefusedFolderRename => {
+            "Desbloquea o elimina las notas bloqueadas de esta carpeta antes de renombrarla."
+        }
+        Key::LockConflictSaveCopy => {
+            "No se puede guardar una copia de una nota bloqueada. Desbloquéala primero."
+        }
+        Key::HelpGroupLock => "Notas bloqueadas",
+        Key::HelpLockLock => {
+            "Bloquear nota: añade una contraseña; el archivo se convierte en texto cifrado."
+        }
+        Key::HelpLockUnlock => "Desbloquear nota: introduce la contraseña para esta sesión.",
+        Key::HelpLockLost => {
+            "No hay restablecimiento de contraseña ni clave de recuperación. Si pierdes la \
+             contraseña, la nota se pierde."
+        }
+        Key::HelpLockRecovery => {
+            "La recuperación ante fallos está desactivada para notas bloqueadas; el guardado \
+             automático sigue escribiendo el sobre cifrado."
+        }
+        Key::HelpLockRename => "Desbloquea una nota bloqueada antes de renombrarla o moverla.",
         Key::PaletteActionLockNote => "Bloquear nota",
         Key::PaletteActionUnlockNote => "Desbloquear nota",
         Key::PaletteKeywordsLockNote => "cifrar contraseña privado proteger",

@@ -288,6 +288,34 @@ impl SessionKey {
         Ok(envelope)
     }
 
+    /// Encrypt `source` as the next revision under a different note id.
+    ///
+    /// A rename or a move changes the id the envelope authenticates, so the
+    /// next save cannot reuse [`SessionKey::seal`] while the file still has its
+    /// old name. This is that save: it keeps the session's salt and key, draws
+    /// a fresh 12-byte nonce, writes `note` into the header instead of the
+    /// session's own id, and advances the revision exactly like `seal` — only
+    /// after the encryption succeeds. The session's own note id is unchanged;
+    /// the caller follows the file with [`SessionKey::rebind`] once the rename
+    /// has happened.
+    ///
+    /// # Errors
+    ///
+    /// [`LockError::EmptyNote`] when `note` is empty, or [`LockError::Crypto`]
+    /// when the OS random source, the counter, or the AEAD cannot produce an
+    /// envelope. On an error the session's revision is unchanged.
+    pub fn seal_as(&mut self, note: &str, source: &str) -> Result<String, LockError> {
+        if note.is_empty() {
+            return Err(LockError::EmptyNote);
+        }
+        let rev = self.rev.checked_add(1).ok_or(LockError::Crypto)?;
+        let mut nonce = [0u8; NONCE_LEN];
+        getrandom::fill(&mut nonce).map_err(|_| LockError::Crypto)?;
+        let envelope = encrypt(source, note, &self.salt, &nonce, rev, &self.key)?;
+        self.rev = rev;
+        Ok(envelope)
+    }
+
     /// The revision of the last envelope this session read or wrote.
     #[must_use]
     pub fn rev(&self) -> u64 {
@@ -821,6 +849,65 @@ mod tests {
         );
         assert_eq!(session.rebind(""), Err(LockError::EmptyNote));
         assert_eq!(session.note(), "renamed/trip", "a failed rebind keeps it");
+    }
+
+    #[test]
+    fn seal_as_writes_the_new_note_id_and_advances_the_revision() {
+        let first = locked();
+        let (mut session, _) = unlock_session(&first, PASSWORD, NOTE_ID).expect("session");
+        assert_eq!(session.rev(), 1);
+
+        let renamed = session
+            .seal_as("renamed/trip", "renamed body")
+            .expect("seal_as");
+        assert_eq!(
+            session.note(),
+            NOTE_ID,
+            "seal_as does not rebind the session"
+        );
+        assert_eq!(session.rev(), 2, "the revision advanced on success");
+        let parsed = parse(&renamed).expect("parse");
+        assert_eq!(parsed.note, "renamed/trip");
+        assert_eq!(parsed.rev, 2);
+        assert_eq!(
+            unlock(&renamed, PASSWORD, "renamed/trip").expect("new note id"),
+            "renamed body"
+        );
+        assert_eq!(
+            unlock(&renamed, PASSWORD, NOTE_ID),
+            Err(LockError::WrongNote),
+            "the old name no longer opens the envelope"
+        );
+
+        // The next seal continues the revision that seal_as consumed.
+        let next = session.seal("next body").expect("seal");
+        assert_eq!(session.rev(), 3);
+        assert_eq!(parse(&next).expect("parse").rev, 3);
+        assert_eq!(parse(&next).expect("parse").note, NOTE_ID);
+        assert_eq!(
+            unlock(&next, PASSWORD, NOTE_ID).expect("unlock"),
+            "next body"
+        );
+    }
+
+    #[test]
+    fn seal_as_keeps_the_salt_and_draws_a_fresh_nonce() {
+        let first = locked();
+        let (mut session, _) = unlock_session(&first, PASSWORD, NOTE_ID).expect("session");
+        let renamed = session.seal_as("Renamed", NOTE).expect("seal_as");
+        let one = parse(&first).expect("first");
+        let two = parse(&renamed).expect("renamed");
+        assert_eq!(one.salt, two.salt, "a session keeps its salt");
+        assert_ne!(one.nonce, two.nonce, "every seal_as draws a fresh nonce");
+    }
+
+    #[test]
+    fn a_failed_seal_as_does_not_advance_the_revision() {
+        let first = locked();
+        let (mut session, _) = unlock_session(&first, PASSWORD, NOTE_ID).expect("session");
+        assert_eq!(session.seal_as("", NOTE), Err(LockError::EmptyNote));
+        assert_eq!(session.rev(), 1, "an empty id leaves the revision alone");
+        assert_eq!(session.note(), NOTE_ID);
     }
 
     #[test]
