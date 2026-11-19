@@ -29,6 +29,7 @@ use muninn_i18n::{
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::{Camera, CameraGlide};
+use crate::lock_session::{LockRevs, NoteSessions, RevStatus, UnlockError};
 use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
 use crate::settings::{
@@ -726,6 +727,12 @@ pub struct State {
     pub fx_muted: std::cell::Cell<[f32; 3]>,
     /// SAF-05 recovery files for this vault (XDG state, never the vault).
     pub(crate) recovery: RecoveryStore,
+    /// Per-note encryption (#133): the notes unlocked in this window, each with
+    /// its derived key. Never the password, never serialized.
+    pub(crate) lock_sessions: NoteSessions,
+    /// Per-note encryption (#133): the newest envelope revision seen per note,
+    /// in the XDG state directory, so a rollback is caught after a restart too.
+    pub(crate) lock_revs: LockRevs,
     /// Dirty buffers found at startup; the banner lists and restores these.
     pub recovered: Vec<RecoveryEntry>,
     /// Trailing-debounce clock for the next recovery write.
@@ -1080,6 +1087,8 @@ impl State {
             fx_accent: std::cell::Cell::new([0.35, 0.55, 0.95]),
             fx_muted: std::cell::Cell::new([0.45, 0.48, 0.55]),
             recovery,
+            lock_sessions: NoteSessions::default(),
+            lock_revs: LockRevs::at(&state_home, &root),
             recovered,
             recovery_at: None,
             recovery_written_at: None,
@@ -1493,6 +1502,11 @@ impl State {
                 let recovery = RecoveryStore::at(&self.state_home, &self.vault.root);
                 self.recovered = recovery.scan();
                 self.recovery = recovery;
+                // Per-note encryption (#133): an unlocked note belongs to the
+                // vault it was opened from, and its high-water record is that
+                // vault's too.
+                self.lock_sessions.clear();
+                self.lock_revs = LockRevs::at(&self.state_home, &self.vault.root);
                 self.sweep_locked_recovery();
                 let root = self.vault.root.clone();
                 self.settings.push_recent(&root);
@@ -3352,8 +3366,24 @@ impl State {
                 }
             },
         };
-        match self.vault.write_note_if_unmodified(id, &text, expected) {
+        // Per-note encryption (#133): a locked note's buffer is plaintext in
+        // memory only, so every save seals it and writes the envelope. With no
+        // session (locked again) or a failed seal nothing is written and the
+        // buffer stays dirty; the status line for that ships with the lock UI.
+        let envelope = if self.vault.notes[id].is_locked() {
+            match self.seal_for_write(id, &text) {
+                Some(envelope) => Some(envelope),
+                None => return false,
+            }
+        } else {
+            None
+        };
+        let bytes = envelope.as_deref().unwrap_or(text.as_str());
+        match self.vault.write_note_if_unmodified(id, bytes, expected) {
             Ok(true) => {
+                // `saved` stays the plaintext buffer, so dirty detection keeps
+                // working: an unlocked note is compared with what was typed,
+                // not with the envelope it was sealed into.
                 self.saved = text;
                 self.last_save = Some(self.now);
                 self.dirty_at = None;
@@ -3558,6 +3588,184 @@ impl State {
         }
     }
 
+    // ---- Per-note encryption (#133): unlocked sessions -----------------------
+
+    /// Unlock the note `id` with `password` and keep only the derived key.
+    ///
+    /// The plaintext is returned for the caller to put in the editor buffer;
+    /// nothing is written to disk here, and the password is dropped as soon as
+    /// the key is derived. The envelope's revision is compared with this
+    /// vault's high-water record first, so an envelope rolled back to an older
+    /// revision keeps the note locked instead of decrypting stale content.
+    ///
+    /// # Errors
+    ///
+    /// [`UnlockError::MissingNote`] when `id` is not in the vault,
+    /// [`UnlockError::Lock`] for a note that is not locked
+    /// ([`muninn_core::LockError::NotLocked`]) or an envelope that does not
+    /// open, [`UnlockError::Rollback`] for an older revision, and
+    /// [`UnlockError::Storage`] when the high-water record cannot be written.
+    /// A rollback or a storage failure stores no key, so the note stays locked.
+    pub fn unlock_note(&mut self, id: usize, password: &str) -> Result<String, UnlockError> {
+        let Some(note) = self.vault.notes.get(id) else {
+            return Err(UnlockError::MissingNote);
+        };
+        if !note.is_locked() {
+            return Err(UnlockError::Lock(muninn_core::LockError::NotLocked));
+        }
+        let rel = note.rel.clone();
+        let lock_id = note.lock_id().to_owned();
+        let source = note.source.clone();
+        let (key, text) = muninn_core::unlock_session(&source, password, &lock_id)?;
+        if self.lock_revs.check(&rel, key.rev()) == RevStatus::Older {
+            return Err(UnlockError::Rollback {
+                found: key.rev(),
+                recorded: self.lock_revs.recorded(&rel),
+            });
+        }
+        self.lock_revs
+            .record(&rel, key.rev())
+            .map_err(UnlockError::Storage)?;
+        self.lock_sessions.insert(rel, key, self.now);
+        Ok(text)
+    }
+
+    /// Seal a note's plaintext as the next envelope revision with the key
+    /// [`State::unlock_note`] kept.
+    ///
+    /// This is the save path's seal, not a write: the caller stores the
+    /// returned envelope (`Vault::write_note`) and this method touches no
+    /// file. Sealing renews the note's session clock, so saving keeps an
+    /// unlocked note open. `None` when the note has no session in this window
+    /// (locked, or from another vault).
+    ///
+    /// # Errors
+    ///
+    /// [`muninn_core::LockError::Crypto`] when the OS random source or the
+    /// cipher cannot run. The session's revision is unchanged then, so the
+    /// next attempt writes the same revision number.
+    pub fn seal_note(
+        &mut self,
+        id: usize,
+        text: &str,
+    ) -> Option<Result<String, muninn_core::LockError>> {
+        let rel = self.vault.notes.get(id)?.rel.clone();
+        let now = self.now;
+        self.lock_sessions
+            .get_mut(&rel, now)
+            .map(|key| key.seal(text))
+    }
+
+    /// [`State::seal_note`] for a write: the envelope, or `None` when the note
+    /// has no session or the seal failed.
+    ///
+    /// The caller must not write `text` in that case: it would replace a locked
+    /// note's envelope with its plaintext. The failure is logged by note key
+    /// only; the user-facing message ships with the lock UI.
+    fn seal_for_write(&mut self, id: usize, text: &str) -> Option<String> {
+        match self.seal_note(id, text) {
+            Some(Ok(envelope)) => Some(envelope),
+            Some(Err(error)) => {
+                self.log_event("seal-failed", &format!("{}: {error}", self.note_key(id)));
+                None
+            }
+            None => {
+                self.log_event(
+                    "seal-failed",
+                    &format!("{}: no unlocked session", self.note_key(id)),
+                );
+                None
+            }
+        }
+    }
+
+    /// The note's `rel` for a log line, never its text.
+    fn note_key(&self, id: usize) -> &str {
+        self.vault
+            .notes
+            .get(id)
+            .map_or("(no note)", |note| note.rel.as_str())
+    }
+
+    /// Is the note at `rel` unlocked in this window? Reads session state only:
+    /// no key derivation and no file access.
+    #[must_use]
+    pub fn is_note_unlocked(&self, rel: &str) -> bool {
+        self.lock_sessions.contains(rel)
+    }
+
+    /// Re-lock one note: drop its session key and every in-memory copy of its
+    /// plaintext, including a recovery copy left from before it was locked.
+    pub fn forget_unlocked_note(&mut self, id: usize) {
+        let Some(rel) = self.vault.notes.get(id).map(|note| note.rel.clone()) else {
+            return;
+        };
+        self.lock_sessions.remove(&rel);
+        self.purge_unlocked_buffer(id);
+    }
+
+    /// Drop a note's plaintext buffers now that its session has ended.
+    ///
+    /// The parked [`TextEdit`] is removed, not merely emptied: restoring it on
+    /// the next visit would bring back the plaintext and its undo history. A
+    /// selected note gets a **fresh** `TextEdit` for the same reason —
+    /// `replace_text` would keep the cleared text in the undo stack.
+    fn purge_unlocked_buffer(&mut self, id: usize) {
+        let Some((rel, path)) = self
+            .vault
+            .notes
+            .get(id)
+            .map(|note| (note.rel.clone(), note.path.clone()))
+        else {
+            return;
+        };
+        self.forget_editor(&path);
+        if self.selected == Some(id) {
+            // `expected_disk` is deliberately kept: the purge writes nothing,
+            // so that identity still describes the file, and a later save must
+            // still be able to report an external change instead of adopting
+            // whatever is on disk now.
+            self.editor = TextEdit::new("");
+            self.saved.clear();
+            self.dirty_at = None;
+            self.conflict = None;
+        }
+        // A locked note never writes a recovery copy (#132); a plaintext
+        // version of this note may have left one behind, so clear it.
+        if self.recovery_rel.as_deref() == Some(rel.as_str())
+            || self.recovered.iter().any(|entry| entry.rel == rel)
+        {
+            self.clear_recovery(&rel);
+        }
+    }
+
+    /// End every note session that has been idle for
+    /// [`crate::lock_session::SESSION_IDLE_SECS`]. Returns whether anything
+    /// expired, because the caller has to repaint: the editor buffer is gone.
+    ///
+    /// A dirty buffer counts as use, even when autosave is paused by a
+    /// conflict: typing into an unlocked note must not be interrupted at the
+    /// fifteen-minute mark. The clock is renewed before the expiry sweep, so
+    /// that edit is never immediately expired.
+    pub(crate) fn lock_session_tick(&mut self, now: f64) -> bool {
+        if self.dirty()
+            && let Some(rel) = self.selected_rel().map(str::to_owned)
+        {
+            self.lock_sessions.touch(&rel, now);
+        }
+        let expired = self.lock_sessions.expire(now);
+        if expired.is_empty() {
+            return false;
+        }
+        for rel in &expired {
+            // `expire` already dropped the key; only the buffers are left.
+            if let Some(id) = self.note_id(rel) {
+                self.purge_unlocked_buffer(id);
+            }
+        }
+        true
+    }
+
     /// Dismiss the startup banner by discarding every listed copy. This is the
     /// explicit "I do not want these edits" action; it never touches the notes.
     pub fn dismiss_recovery(&mut self) -> bool {
@@ -3614,6 +3822,16 @@ impl State {
                     false
                 }
             };
+        }
+        // Per-note encryption (#133): a banner row can outlive a note that
+        // another writer locked during this session, and its `.txt` is the
+        // plaintext buffer. Never restore it into the vault or the editor;
+        // drop it the way the load/switch sweep would.
+        if self.rel_is_locked(rel) {
+            self.log_event("recovery", &format!("refused locked {rel}"));
+            self.clear_recovery_slot(rel, RecoverySlot::Editor);
+            self.clear_recovery_slot(rel, RecoverySlot::Kanban);
+            return false;
         }
         // #38 review B2: a board's copy opens on Board, never as a note.
         if crate::board_safety::is_board_rel(rel) {
@@ -3826,8 +4044,30 @@ impl State {
             return false;
         };
         let text = self.editor.text.clone();
-        match self.vault.write_note(conflict.note_id, &text) {
+        // Per-note encryption (#133): keeping the buffer of a locked note
+        // means writing a fresh envelope, never the plaintext. Without a
+        // session the conflict stays up and nothing is written.
+        let locked = self
+            .vault
+            .notes
+            .get(conflict.note_id)
+            .is_some_and(|note| note.is_locked());
+        let envelope = if locked {
+            match self.seal_for_write(conflict.note_id, &text) {
+                Some(envelope) => Some(envelope),
+                None => {
+                    self.conflict = Some(conflict);
+                    return false;
+                }
+            }
+        } else {
+            None
+        };
+        let bytes = envelope.as_deref().unwrap_or(text.as_str());
+        match self.vault.write_note(conflict.note_id, bytes) {
             Ok(()) => {
+                // Plaintext, as after a sealed autosave: dirty detection keeps
+                // comparing the buffer with what the user typed.
                 self.saved = text;
                 self.last_save = Some(self.now);
                 self.dirty_at = None;
@@ -3885,7 +4125,17 @@ impl State {
             self.clear_open_note();
             return true;
         };
+        // Per-note encryption (#133): a plaintext sibling would put the body
+        // outside the envelope, and a copy sealed under the original note id
+        // would not open under its new name anyway (v2 binds `note=`). A
+        // same-key copy under a new id (`seal_as`) is a later refinement, so
+        // refuse here and leave the conflict for the other two resolutions.
+        let locked = note.is_locked();
         let mine = self.editor.text.clone();
+        if locked {
+            self.conflict = Some(conflict);
+            return false;
+        }
         let title = format!("{} (conflict {})", note.title, conflict_stamp());
         let folder = note.folder().to_owned();
         let original = note.path.clone();

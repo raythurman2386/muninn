@@ -38,6 +38,7 @@ mod kanban_view;
 mod kanban_views;
 mod kanban_wrap;
 mod keys;
+mod lock_session;
 mod mode;
 mod omarchy;
 mod overlay;
@@ -78,6 +79,7 @@ pub use kanban_search::{
 };
 pub use kanban_view::ShownKanban;
 pub use keys::{on_key, shortcut};
+pub use lock_session::UnlockError;
 pub use mode::{Mode, Scope};
 pub use omarchy::resolve_kit;
 pub use overlay::{Layer, PaletteAction, PaletteItem, PaletteState, SettingsTab};

@@ -213,12 +213,11 @@ with the session key while the original is unlocked.
 The envelope also carries an authenticated monotonic revision, `rev`. Each
 `lock` starts at 1 and each `SessionKey::seal` increments it, so a rollback to
 an earlier envelope of the same note is detectable by comparing its `rev`
-against a higher revision the caller has already seen. This layer provides the
-counter only; the persistent high-water record per note is the next layer and
-is *not* implemented here. Without that record a rollback is visible only
-within one unlocked session (the `SessionKey` remembers its revision), not
-across restarts. A rollback still cannot make an old envelope decrypt to new
-content: the bytes are exactly as old as they are.
+against the newest revision this device has already recorded for that note.
+That record is implemented (see open question 4): it is device-local, per
+vault, only ever raises, and an older `rev` fails closed at unlock. A rollback
+still cannot make an old envelope decrypt to new content: the bytes are exactly
+as old as they are.
 
 Moving files is outside the read-only threat model, but the identity binding
 now makes the substitution attack fail even when the attacker can write.
@@ -465,10 +464,14 @@ This slice only records the design + prototype under `[Unreleased]`.
   (`rename_prompt`, `delete_confirm`) for focus handling.
 - **Session state** lives in `State`, never in `Settings`. `unlock_session`
   already returns a `SessionKey` that keeps only the derived key, so the v1 UI
-  stores one per unlocked note instead of the password. Clear it when the note
-  is re-locked, another vault is opened or the app quits; it is never
+  stores one per unlocked note instead of the password
+  (`State::lock_sessions`). A session ends on an explicit lock, a vault switch,
+  quitting, or after 15 minutes without use (`lock_session_tick` in `poll`);
+  the clock is renewed by an unlock, an edit and every save, and ending the
+  session clears the editor buffer and its parked undo history. It is never
   serialized and never written to the OS keychain. Settings gets no new tab in
-  v1.
+  v1. The rollback high-water mark (`State::lock_revs`) lives under
+  `$XDG_STATE_HOME/muninn/lock-revs/`, never in the vault.
 - **No new Settings tab.** An eventual “remember for this device” would be an
   off-by-default checkbox backed by the `keyring` dependency
   `crates/muninn-sync` already uses, not a `settings.json` field.
@@ -493,7 +496,12 @@ This slice only records the design + prototype under `[Unreleased]`.
 - A sync conflict on a locked note follows the “keep both” rule above. The
   editor may show both files; the original asks for its password, and the
   renamed `(remote)` copy reports `WrongNote` until the user renames it back
-  to the original note id.
+  to the original note id. Keeping the buffer (`resolve_conflict_keep_mine`)
+  seals it with the session key and writes the envelope; with no session the
+  conflict stays up and nothing is written. Saving a copy refuses for a locked
+  note: a plaintext sibling would leak the body, and a copy sealed under the
+  original note id would not open under its new name (v2 binds `note=`).
+  Re-encrypting the copy under its own id (`seal_as`) is a later refinement.
 - `Vault::write_note_if_unmodified` still compares `disk_state` (mtime and
   length) before writing. A lock or unlock is just a write through the same
   path; the expected state is refreshed after it.
@@ -509,10 +517,20 @@ This slice only records the design + prototype under `[Unreleased]`.
 
 ## Open questions and deferred work
 
-1. **Session cache shape and lifetime (API settled).** `SessionKey` now keeps
-   only the derived key and seals with a fresh nonce, so the password is not
-   retained. Lock-on-blur, an idle timeout, and clearing on vault switch are
-   still UX decisions for the follow-up.
+1. **Session cache shape and lifetime (settled).** `SessionKey` keeps only the
+   derived key and seals with a fresh nonce, so the password is not retained.
+   One session per unlocked note lives in
+   `crates/muninn-ui/src/lock_session.rs::NoteSessions`, keyed by `Note.rel`.
+   It ends on an explicit lock, a vault switch, quitting, or after **15 minutes
+   without use**; the clock is renewed by use — an unlock, a dirty buffer (an
+   edit, even while autosave is paused by a conflict) and every seal on save
+   (`State::seal_note`) — so it tracks idleness, not the time since the
+   password was typed. Plaintext lives only in the editor buffer and is
+   cleared, together with its parked undo history, when the session ends.
+   Blur is deliberately not a trigger: copying text out of an unlocked note
+   into another window, or tabbing to a browser, must not lock it. The idle
+   timer is the backstop for a note unlocked by accident, not a per-keystroke
+   deadline; a later layer may expose a shorter choice.
 2. **Recovery copies (settled for v1).** Suppress them for locked notes in
    both slots, and clear a stale copy on load, on a vault switch and as soon as
    a note is seen locked; unsaved edits rely on autosave. Encrypting the copy
@@ -525,13 +543,19 @@ This slice only records the design + prototype under `[Unreleased]`.
    inside, so it will not open under the new name until the user renames it
    back (or unlocks the original). The UI must explain that; see “What v2
    binds”.
-4. **Rollback (format settled, storage deferred).** The envelope now carries
-   an authenticated monotonic `rev`, incremented by every `SessionKey::seal`,
-   so an older envelope is detectable by comparison with a higher revision the
-   caller has seen. Recording that high-water mark per note across restarts is
-   the next layer; this slice only provides and tests the counter. Sync’s
-   snapshots are still not ordered by revision, so the record has to be kept
-   locally (and merged like any other state).
+4. **Rollback (settled).** The envelope carries an authenticated monotonic
+   `rev`, incremented by every `SessionKey::seal`, so an older envelope is
+   detectable by comparison with a higher revision the device has seen. That
+   high-water mark is recorded at
+   `$XDG_STATE_HOME/muninn/lock-revs/<vault-id>.json` (one JSON object of
+   `Note.rel` → newest `rev`) by
+   `crates/muninn-ui/src/lock_session.rs::LockRevs`. It is local and per vault,
+   not synced — sync’s snapshots are still not ordered by revision, so there is
+   no remote ordering to trust — and it only ever raises: recording a revision
+   at or below the current mark writes nothing. Unlocking an envelope older
+   than the mark fails closed (`UnlockError::Rollback`) and the note stays
+   locked; the user-visible confirmation path ships with the lock UI. A missing
+   or corrupt file starts empty rather than blocking the vault.
 5. **Pathname metadata.** Filenames remain visible by design. If a user wants
    the title hidden too, that is a separate feature (rename to an opaque id
    plus an encrypted title field) and would break wikilink targets.

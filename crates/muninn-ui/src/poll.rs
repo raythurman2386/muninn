@@ -30,6 +30,12 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         return changed;
     }
     let mut changed = false;
+    // Per-note encryption (#133): an unlocked note that has been idle for
+    // fifteen minutes is locked again here, before autosave can write its
+    // plaintext buffer anywhere. The cleared editor is a visible change.
+    if s.lock_session_tick(t) {
+        changed = true;
+    }
     // Board slice 6: the text editor commits once it loses the keyboard
     // (a click on the sidebar, a dialog), so it never strands Board keys.
     if s.board_text.is_some() && !s.board_text_field.focused {

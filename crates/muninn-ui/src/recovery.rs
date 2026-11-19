@@ -309,7 +309,7 @@ pub(crate) fn clear_locked(
 }
 
 /// Stable 64-bit FNV-1a of the canonical vault path.
-fn vault_id(root: &Path) -> String {
+pub(crate) fn vault_id(root: &Path) -> String {
     let canonical = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in canonical.to_string_lossy().as_bytes() {
