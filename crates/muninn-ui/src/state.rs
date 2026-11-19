@@ -3367,9 +3367,11 @@ impl State {
             },
         };
         // Per-note encryption (#133): a locked note's buffer is plaintext in
-        // memory only, so every save seals it and writes the envelope. With no
-        // session (locked again) or a failed seal nothing is written and the
-        // buffer stays dirty; the status line for that ships with the lock UI.
+        // memory only, so every save seals it and writes the envelope. The
+        // sealed write also carries the exact plaintext, so the index follows
+        // the new body in the same reindex. With no session (locked again) or
+        // a failed seal nothing is written and the buffer stays dirty; the
+        // status line for that ships with the lock UI.
         let envelope = if self.vault.notes[id].is_locked() {
             match self.seal_for_write(id, &text) {
                 Some(envelope) => Some(envelope),
@@ -3378,8 +3380,13 @@ impl State {
         } else {
             None
         };
-        let bytes = envelope.as_deref().unwrap_or(text.as_str());
-        match self.vault.write_note_if_unmodified(id, bytes, expected) {
+        let written = match envelope.as_deref() {
+            Some(envelope) => self
+                .vault
+                .write_locked_note_if_unmodified(id, envelope, &text, expected),
+            None => self.vault.write_note_if_unmodified(id, &text, expected),
+        };
+        match written {
             Ok(true) => {
                 // `saved` stays the plaintext buffer, so dirty detection keeps
                 // working: an unlocked note is compared with what was typed,
@@ -3627,6 +3634,10 @@ impl State {
             .record(&rel, key.rev())
             .map_err(UnlockError::Storage)?;
         self.lock_sessions.insert(rel, key, self.now);
+        // Index the plaintext while the session lasts, so search, tags, links
+        // and snippets see the note again without `Note.source` ever holding
+        // it. `forget_unlocked_note` and the idle sweep drop this overlay.
+        self.vault.set_unlocked_source(id, text.clone());
         Ok(text)
     }
 
@@ -3695,7 +3706,8 @@ impl State {
     }
 
     /// Re-lock one note: drop its session key and every in-memory copy of its
-    /// plaintext, including a recovery copy left from before it was locked.
+    /// plaintext, including a recovery copy left from before it was locked and
+    /// the vault's index overlay (the buffer purge does both).
     pub fn forget_unlocked_note(&mut self, id: usize) {
         let Some(rel) = self.vault.notes.get(id).map(|note| note.rel.clone()) else {
             return;
@@ -3737,6 +3749,10 @@ impl State {
         {
             self.clear_recovery(&rel);
         }
+        // Drop the index overlay too, so the body, tags and outgoing links are
+        // gone from search and the caches. Guarded inside the vault: the note
+        // may already have been deleted.
+        self.vault.clear_unlocked_source(id);
     }
 
     /// End every note session that has been idle for
@@ -4063,8 +4079,15 @@ impl State {
         } else {
             None
         };
-        let bytes = envelope.as_deref().unwrap_or(text.as_str());
-        match self.vault.write_note(conflict.note_id, bytes) {
+        let written = match envelope.as_deref() {
+            // The sealed write also installs the exact plaintext as the
+            // session overlay, so the index reflects this conflict resolution.
+            Some(envelope) => self
+                .vault
+                .write_locked_note(conflict.note_id, envelope, &text),
+            None => self.vault.write_note(conflict.note_id, &text),
+        };
+        match written {
             Ok(()) => {
                 // Plaintext, as after a sealed autosave: dirty detection keeps
                 // comparing the buffer with what the user typed.

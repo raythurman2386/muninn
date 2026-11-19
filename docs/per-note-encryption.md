@@ -328,17 +328,22 @@ implemented in this slice except the envelope itself.
   `note.source` straight into `editor.replace_text`. It must check
   `note.is_locked()` first: show a locked placeholder page (title, lock
   icon, Unlock button) and leave the editor buffer empty or on a read-only
-  placeholder. Autosave must not run on that placeholder.
+  placeholder. Autosave must not run on that placeholder. The editor/Read gate
+  reads the note's text through `Note::readable_source()`: an ordinary note
+  yields its own source, an unlocked locked note yields the session overlay,
+  and a locked note without an overlay yields `None`.
 - **Read view** shares the editor buffer (`Mode::Editor` / `Mode::Read`), so
   the same gate covers it. `preview.rs::Vault::preview` must never be called
   with an envelope; the gate is before it.
-- **Search** (`crates/muninn-core/src/search.rs::Vault::search`) must match
-  only `Note.title` for a locked note and must not add `note.source` (the
-  envelope) to the haystack either, so a query cannot hit base64 noise.
-- **Snippets** (`Vault::snippet`) and the reader attachment strip read
-  `source`; a locked note has no reader view, so the UI never asks for them,
-  but `snippet` should return an empty/placeholder excerpt for a locked note
-  as a second guard.
+- **Search** (`crates/muninn-core/src/search.rs::Vault::search`) matches
+  `Note.title` always. It matches the body only when
+  `Note::readable_source()` is `Some`, so a locked note without a session
+  overlay is found by title alone and the envelope's base64 is never in the
+  haystack.
+- **Snippets** (`Vault::snippet`) read `readable_source()` too and return an
+  empty string when it is `None`; a locked note has no reader view, so the UI
+  never asks, but this is the second guard. The reader attachment strip gets
+  the same source string from the caller.
 - **Graph text** (`crates/muninn-graph/src/layout.rs::sync`) copies only
   `title`, `rel` and indexed `links`. A locked note still appears as a node
   with its title and no outgoing edges until it is unlocked in the session.
@@ -353,6 +358,23 @@ implemented in this slice except the envelope itself.
   `is_locked(&source)` in `note_from_path`, like the cached `kanban` flag) and
   a `Note::is_locked()` accessor. Keep `Note.source` as the envelope; that
   way a locked note never keeps plaintext in the vault’s memory model.
+- **Session overlay.** `Note` also carries a private
+  `unlocked_source: Option<UnlockedSource>`: a `Zeroizing<String>` wrapper
+  that exists only after `State::unlock_note` calls
+  `Vault::set_unlocked_source(id, text)`. It is never serialized and never
+  written to disk. `Note::readable_source()` is the single reader — the
+  note's own source for an ordinary note, the overlay for an unlocked locked
+  note, `None` for a locked note with no session. `Vault::clear_unlocked_source`
+  drops it when the session ends; `State::forget_unlocked_note`,
+  `State::purge_unlocked_buffer` and the idle sweep go through that.
+  `Note::is_unlocked()` is `locked && overlay.is_some()`. A locked note's
+  overlay is *not* `Note.source`, so the envelope stays what the vault model
+  points at. `Vault::write_locked_note` (and its `_if_unmodified` variant) is
+  the only write that replaces the overlay with newer sealed text;
+  `Vault::write_note` always clears it.
+- **Redacted `Debug`.** `Note` derives `Debug`, so the overlay's `Debug` prints
+  `UnlockedSource(<redacted>)`. Plaintext must not appear in logs, panic
+  messages or failing-test output.
 
 ### 3. Sync uploads the envelope bytes
 
@@ -395,18 +417,39 @@ password loses both the local and remote copies.
 
 ### 5. `reindex` / `search` do not retain the body of a locked note
 
-- `Vault::reindex` (`crates/muninn-core/src/vault.rs`) currently calls
-  `is_kanban(&note.source)`, `note_tags(&note.source)` and
-  `note_outgoing` (which runs `parse_links`) for every note. Add an early
-  `if note.locked` guard: no kanban detection, no tags, no outgoing links.
-  Other notes’ backlinks to it still resolve by title/path, which is the
-  desired “target stays visible” behavior. The tag index therefore omits the
-  note, and `notes_with_tag` does not list it.
-- `Vault::search` matches title only, as in item 1.
-- In-session unlock may populate the index until the note is re-locked or
-  Muninn exits. Re-locking calls `reindex` again and drops those derived
-  entries; the plaintext buffer is cleared from `State`. This is best effort
-  inside a live process, as the threat model says.
+- `Vault::reindex` (`crates/muninn-core/src/vault.rs`) refreshes each note's
+  `locked` flag, then derives `kanban`, `tags` and `note_outgoing` (which runs
+  `parse_links`) from `Note::readable_source()`. For a locked note without an
+  overlay that is `None`: `kanban` is `false`, tags are empty and there are no
+  outgoing links. Other notes’ backlinks to it still resolve by title/path,
+  which is the desired “target stays visible” behavior. The tag index
+  therefore omits the note, and `notes_with_tag` does not list it.
+- **Unlock overlay indexes until cleared.** `set_unlocked_source` stores the
+  plaintext and calls `reindex` in the same step, so the note’s body, tags,
+  links and kanban view reappear immediately while it is unlocked.
+  `clear_unlocked_source` (from `forget_unlocked_note`, the buffer purge and
+  the 15-minute idle sweep) reindexes again and drops them. Re-locking also
+  clears the plaintext buffer from `State`. This is best effort inside a live
+  process, as the threat model says.
+- **Sealed saves replace the overlay.** `Vault::write_locked_note(id, envelope,
+  plaintext)` writes the envelope and installs the exact text that was sealed
+  as the overlay, then reindexes once; `write_locked_note_if_unmodified` is the
+  `disk_state`-checked variant the save path uses. `Vault::write_note` always
+  clears the overlay, even for an envelope: a caller that writes a sealed
+  source without its plaintext cannot keep the index honest, so the note
+  becomes locked but not unlocked until the proper API is used. This keeps
+  search, tags and links on the newest body after every sealed save, not on
+  the text from the last unlock.
+- `Vault::search` matches title only for a locked note without an overlay, as
+  in item 1.
+- **Link rewriting (v1 limitation).** `link_referrers`, `link_referrers_for_folder`,
+  `board_embed_referrers`, `rewrite_inbound_links` and `rewrite_board_embeds`
+  read `Note.source`, not the overlay: a rewrite writes a whole new body,
+  which cannot re-seal a locked note. An envelope contains no links, so a
+  locked note that is not unlocked is unaffected. Links *inside* an unlocked
+  locked note are not rewritten when another note is renamed or moved; they
+  keep pointing at the old target until the note is re-saved (the UI refuses
+  to rename or move a locked note).
 
 ### 6. Locking warns that a lost password is unrecoverable
 
@@ -481,9 +524,12 @@ This slice only records the design + prototype under `[Unreleased]`.
 - `crates/muninn-ui/src/state.rs::save_now` writes `self.editor.text` through
   `Vault::write_note`. For an unlocked note the buffer is plaintext; every
   save seals it with the note's `SessionKey` (`seal(&text)` — same salt, fresh
-  nonce, next revision) and writes the envelope, never the buffer. The
-  in-memory `saved` copy can stay plaintext so dirty detection keeps working,
-  but `Note.source` and the disk file are the envelope.
+  nonce, next revision) and writes the envelope through
+  `Vault::write_locked_note_if_unmodified(id, &envelope, &text, expected)`,
+  never the buffer. The same call installs `text` as the session overlay, so
+  the index follows the saved body in that one reindex. The in-memory `saved`
+  copy stays plaintext so dirty detection keeps working, but `Note.source` and
+  the disk file are the envelope.
 - **Recovery copies are suppressed for locked notes (v1).**
   `crates/muninn-ui/src/recovery.rs` writes dirty editor buffers as `.txt`
   under `$XDG_STATE_HOME/muninn/recovery/`, which for a locked note would leak
@@ -576,10 +622,13 @@ This slice only records the design + prototype under `[Unreleased]`.
 11. **Compression.** Compressing before encryption would reduce the size
     leak for repetitive notes but adds a parser and a side channel of its own.
     Not planned for v1.
-12. **Unlock and index timing.** Whether unlocking immediately reindexes the
-    whole vault or incrementally adds the note’s tags and links is an
-    implementation detail for the follow-up; the security rule is only that
-    re-locking removes them again.
+12. **Unlock and index timing (settled).** `State::unlock_note` installs the
+    plaintext with `Vault::set_unlocked_source`, which stores the session
+    overlay and calls `reindex` in the same step; the note's body, tags, links
+    and kanban view are indexed until `clear_unlocked_source` runs. That is a
+    whole-vault reindex per unlock and per lock, which the vault already does
+    on every write; it is simple and cannot drift from `reindex`'s rules. The
+    security rule holds: re-locking removes the derived entries again.
 
 ## Prototype API and tests
 

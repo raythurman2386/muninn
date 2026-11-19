@@ -396,3 +396,103 @@ fn switching_vaults_ends_the_session_and_keeps_the_record_per_vault() {
         "switching back does not restore the old session"
     );
 }
+
+/// A body with a tag and an outgoing link, so the overlay has more than the
+/// searchable text to index.
+const INDEXED: &str = "# Secret\n\nTOP SECRET BODY #private\n\n[[Other]]\n";
+
+#[test]
+fn unlocking_indexes_the_body_tags_and_links_and_forgetting_drops_them() {
+    let envelope = secret_envelope(INDEXED);
+    let env = TestEnv::new(&[
+        ("Secret.md", envelope.as_str()),
+        ("Other.md", "# Other\n\nplain\n"),
+    ]);
+    let mut s = env.state();
+    let id = s.vault.resolve("Secret").expect("Secret");
+    let other = s.vault.resolve("Other").expect("Other");
+
+    assert!(
+        s.vault.search("TOP SECRET BODY").is_empty(),
+        "a locked note's body is not in the index"
+    );
+    assert!(s.vault.note(id).tags().is_empty());
+
+    assert_eq!(s.unlock_note(id, PW).expect("unlock"), INDEXED);
+    assert!(
+        s.vault.search("TOP SECRET BODY").contains(&id),
+        "the same vault handle now indexes the unlocked body"
+    );
+    assert_eq!(s.vault.note(id).tags().to_vec(), ["private"]);
+    assert_eq!(s.vault.note(id).links, vec![other]);
+    assert!(s.vault.note(id).is_unlocked());
+
+    s.forget_unlocked_note(id);
+    assert!(
+        s.vault.search("TOP SECRET BODY").is_empty(),
+        "re-locking drops the body from search"
+    );
+    assert!(s.vault.note(id).tags().is_empty(), "and the tags");
+    assert!(s.vault.note(id).links.is_empty(), "and the outgoing links");
+    assert!(!s.vault.note(id).is_unlocked());
+}
+
+#[test]
+fn an_idle_expiry_drops_the_index_overlay_too() {
+    let envelope = secret_envelope(INDEXED);
+    let env = TestEnv::new(&[
+        ("Secret.md", envelope.as_str()),
+        ("Other.md", "# Other\n\nplain\n"),
+    ]);
+    let mut s = env.state();
+    let id = s.vault.resolve("Secret").expect("Secret");
+    let mut tx = Tx::default();
+    assert!(!poll(&mut s, 0.0, &mut tx));
+
+    assert_eq!(s.unlock_note(id, PW).expect("unlock"), INDEXED);
+    assert!(s.vault.search("TOP SECRET BODY").contains(&id));
+    assert_eq!(s.vault.note(id).tags().to_vec(), ["private"]);
+
+    assert!(poll(&mut s, 900.0, &mut tx), "the idle session ends");
+    assert!(
+        s.vault.search("TOP SECRET BODY").is_empty(),
+        "the expired session's body is no longer searchable"
+    );
+    assert!(s.vault.note(id).tags().is_empty());
+    assert!(s.vault.note(id).links.is_empty());
+}
+
+#[test]
+fn a_sealed_save_reindexes_the_new_body_tags_and_links() {
+    let old_body = "# Secret\n\nOLD SECRET BODY\n";
+    let envelope = secret_envelope(old_body);
+    let env = TestEnv::new(&[
+        ("Secret.md", envelope.as_str()),
+        ("Other.md", "# Other\n\nplain\n"),
+    ]);
+    let mut s = env.state();
+    let id = s.vault.resolve("Secret").expect("Secret");
+    let other = s.vault.resolve("Other").expect("Other");
+
+    assert_eq!(s.unlock_note(id, PW).expect("unlock"), old_body);
+    assert!(s.vault.search("OLD SECRET BODY").contains(&id));
+
+    let fresh = "# Secret\n\nfresh indexed body #clean\n\n[[Other]]\n";
+    s.load_note(id, false);
+    s.editor.replace_text(fresh);
+    assert!(s.save_now(), "the sealed save reaches disk");
+
+    assert!(
+        s.vault.search("fresh indexed body").contains(&id),
+        "the sealed save reindexes the text it sealed"
+    );
+    assert!(
+        !s.vault.search("OLD SECRET BODY").contains(&id),
+        "the pre-save body is gone from the index"
+    );
+    assert_eq!(s.vault.note(id).tags().to_vec(), ["clean"]);
+    assert_eq!(s.vault.note(id).links, vec![other]);
+    assert!(s.vault.note(id).is_unlocked());
+    let disk = fs::read_to_string(env.vault.path().join("Secret.md")).expect("note");
+    assert!(disk.starts_with("MUNINN-NOTE-LOCK v2\n"), "{disk}");
+}

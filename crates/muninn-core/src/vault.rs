@@ -261,12 +261,22 @@ impl Vault {
     }
 
     /// Rebuild the title index, every note's link lists, and the tag index.
+    ///
+    /// Content is read through [`Note::readable_source`], so a locked note
+    /// contributes kanban detection, tags and outgoing links only while
+    /// [`Vault::set_unlocked_source`] holds its session overlay. Without one it
+    /// contributes none of them, but other notes' backlinks to it still resolve
+    /// by title or path.
     pub fn reindex(&mut self) {
         self.revision = self.revision.wrapping_add(1);
         for note in &mut self.notes {
-            note.kanban = crate::is_kanban(&note.source);
             note.locked = crate::note_lock::is_locked(&note.source);
-            note.tags = crate::note_tags(&note.source);
+            let (kanban, tags) = match note.readable_source() {
+                Some(source) => (crate::is_kanban(source), crate::note_tags(source)),
+                None => (false, Vec::new()),
+            };
+            note.kanban = kanban;
+            note.tags = tags;
         }
         self.by_path.clear();
         self.by_title.clear();
@@ -405,9 +415,15 @@ impl Vault {
         broken: &mut HashMap<String, (String, Vec<usize>)>,
     ) -> Vec<usize> {
         let note = &self.notes[i];
+        // A locked note without a session overlay has no readable body, so it
+        // has no outgoing links. Backlinks *to* it are unaffected: those
+        // resolve by title or path from the referrer's own source.
+        let Some(source) = note.readable_source() else {
+            return Vec::new();
+        };
         let mut seen = HashSet::new();
         let mut links = Vec::new();
-        for link in parse_links(&note.source) {
+        for link in parse_links(source) {
             // Empty target is a self-link (`[[#Heading]]`); it must resolve to
             // this note even when the title is duplicated.
             let resolved = if link.target.is_empty() {
@@ -646,6 +662,13 @@ impl Vault {
     /// resolve there. Computed before a rename or move so the rewrite knows
     /// exactly which links pointed at this note (a bare duplicate title is only
     /// included when it resolved here under the documented rule).
+    ///
+    /// This reads [`Note::source`], not the session overlay: link rewriting
+    /// writes a whole new file body, which cannot re-seal a locked note. Links
+    /// inside an unlocked locked note are therefore not rewritten here (a v1
+    /// limitation — the UI refuses to rename or move a locked note). An
+    /// envelope contains no links, so nothing is missed for a locked note that
+    /// is not unlocked.
     #[must_use]
     pub fn link_referrers(&self, id: usize) -> Vec<(usize, Vec<String>)> {
         let mut out = Vec::new();
@@ -705,6 +728,12 @@ impl Vault {
     /// rewrite is *not* a cross-file transaction: if one file fails, the others
     /// stay rewritten and the failure is returned as `(referrer id, error)`.
     /// Callers surface those errors and must not roll back the rename/move.
+    ///
+    /// Like [`Vault::link_referrers`], this reads [`Note::source`]; a locked
+    /// note's envelope is never rewritten, and links inside an unlocked locked
+    /// note are not rewritten by this path (they would have to be re-sealed).
+    /// That is a documented v1 limitation: the UI refuses to rename or move a
+    /// locked note.
     pub fn rewrite_inbound_links(
         &mut self,
         inbound: &[(usize, Vec<String>)],
@@ -908,11 +937,73 @@ impl Vault {
     /// The in-memory note and the index are updated only after the rename
     /// succeeds, so a failed write leaves both the file and `note.source`
     /// unchanged.
+    ///
+    /// This always clears a locked note's session overlay, even when the new
+    /// source is an envelope: the writer supplied no plaintext, so the index
+    /// cannot stay honest about the body. The note becomes locked but not
+    /// unlocked. The lock save path uses [`Vault::write_locked_note`], which
+    /// writes the envelope and the exact plaintext that was sealed together.
     pub fn write_note(&mut self, id: usize, source: &str) -> io::Result<()> {
         atomic_write(&self.notes[id].path, source.as_bytes())?;
         self.notes[id].source = source.to_owned();
+        self.notes[id].set_unlocked_source(None);
         self.reindex();
         Ok(())
+    }
+
+    /// Write a sealed note: its envelope on disk and `Note.source`, plus the
+    /// exact plaintext that was sealed as the session overlay, then reindex
+    /// once.
+    ///
+    /// `envelope` must be a locked-note envelope (for example from
+    /// `SessionKey::seal`) and `plaintext` the text it was produced from. A
+    /// non-envelope is refused rather than writing plaintext through the lock
+    /// save path. This is the only write that can keep the overlay current:
+    /// the index is rebuilt from the new body in the same step, instead of
+    /// falling back to the text from the last unlock.
+    pub fn write_locked_note(
+        &mut self,
+        id: usize,
+        envelope: &str,
+        plaintext: &str,
+    ) -> io::Result<()> {
+        if !crate::note_lock::is_locked(envelope) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "write_locked_note requires a locked-note envelope",
+            ));
+        }
+        atomic_write(&self.notes[id].path, envelope.as_bytes())?;
+        let note = &mut self.notes[id];
+        note.source = envelope.to_owned();
+        note.set_unlocked_source(Some(plaintext.to_owned()));
+        self.reindex();
+        Ok(())
+    }
+
+    /// Install a locked note's plaintext as a session-only overlay and reindex.
+    ///
+    /// The overlay never reaches disk or [`Note::source`]: it exists so search,
+    /// tags, links, snippets and kanban detection can read an unlocked note
+    /// without the vault model holding its text in an envelope field. It is
+    /// dropped by [`Vault::clear_unlocked_source`], by [`Vault::write_note`]
+    /// and with the vault when the session ends. Only
+    /// [`Vault::write_locked_note`] replaces it with newer sealed text.
+    /// Unknown ids are ignored (the note may have been deleted).
+    pub fn set_unlocked_source(&mut self, id: usize, text: String) {
+        if let Some(note) = self.notes.get_mut(id) {
+            note.set_unlocked_source(Some(text));
+        }
+        self.reindex();
+    }
+
+    /// Drop a locked note's session overlay and reindex, removing its body,
+    /// tags and outgoing links from the index again. Unknown ids are ignored.
+    pub fn clear_unlocked_source(&mut self, id: usize) {
+        if let Some(note) = self.notes.get_mut(id) {
+            note.set_unlocked_source(None);
+        }
+        self.reindex();
     }
 
     /// SAF-02 prerequisite: a note file's on-disk identity `(mtime, length)`.
@@ -944,6 +1035,24 @@ impl Vault {
             return Ok(false);
         }
         self.write_note(id, source)?;
+        Ok(true)
+    }
+
+    /// [`Vault::write_locked_note`] with the [`Vault::write_note_if_unmodified`]
+    /// precondition: write nothing and return `Ok(false)` when the file no
+    /// longer matches `expected`. The disk file, `note.source` and the session
+    /// overlay are all left untouched in that case.
+    pub fn write_locked_note_if_unmodified(
+        &mut self,
+        id: usize,
+        envelope: &str,
+        plaintext: &str,
+        expected: (Option<SystemTime>, u64),
+    ) -> io::Result<bool> {
+        if self.disk_state(id)? != expected {
+            return Ok(false);
+        }
+        self.write_locked_note(id, envelope, plaintext)?;
         Ok(true)
     }
 
@@ -1555,7 +1664,12 @@ impl Vault {
     #[must_use]
     pub fn snippet(&self, from: usize, target: usize) -> String {
         let note = &self.notes[from];
-        for link in parse_links(&note.source) {
+        // A locked note without a session overlay has no readable body. An
+        // envelope's base64 is never shown as an excerpt.
+        let Some(source) = note.readable_source() else {
+            return String::new();
+        };
+        for link in parse_links(source) {
             // Self-links resolve to the containing note even for duplicates.
             let resolved = if link.target.is_empty() {
                 Some(from)
@@ -1565,13 +1679,13 @@ impl Vault {
             if resolved != Some(target) {
                 continue;
             }
-            let start = note.source[..link.start].rfind('\n').map_or(0, |i| i + 1);
-            let end = note.source[link.end..]
+            let start = source[..link.start].rfind('\n').map_or(0, |i| i + 1);
+            let end = source[link.end..]
                 .find('\n')
-                .map_or(note.source.len(), |i| link.end + i);
-            return excerpt(&note.source[start..end]);
+                .map_or(source.len(), |i| link.end + i);
+            return excerpt(&source[start..end]);
         }
-        excerpt(&note.source)
+        excerpt(source)
     }
 }
 
@@ -1771,6 +1885,7 @@ fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
         tags: Vec::new(),
         kanban: false,
         locked,
+        unlocked_source: None,
     })
 }
 
@@ -3131,5 +3246,238 @@ mod locked_note_tests {
             .find(|n| n.rel == "Plain.md")
             .expect("listed");
         assert!(plain.is_locked());
+    }
+
+    #[test]
+    fn a_locked_note_is_found_by_title_only_and_keeps_its_backlinks() {
+        let body = "# Secret\n\nTOP SECRET BODY #private\n\n[[Plain]]\n";
+        let envelope = note_lock::lock(body, "pw", "Secret").expect("lock");
+        let tmp = TempVault::new(&[
+            ("Secret.md", envelope.as_str()),
+            ("Plain.md", "# Plain\n\nsee [[Secret]] for more\n"),
+        ]);
+        let v = vault(&tmp);
+        let secret = v.resolve("Secret").expect("Secret");
+        let plain = v.resolve("Plain").expect("Plain");
+
+        assert_eq!(
+            v.search("secret").first(),
+            Some(&secret),
+            "the title still matches, ahead of the referrer's body"
+        );
+        assert!(
+            v.search("top secret").is_empty(),
+            "the body is ciphertext and is not searched"
+        );
+        assert!(v.note(secret).tags().is_empty(), "no tags from an envelope");
+        assert!(
+            v.note(secret).links.is_empty(),
+            "no outgoing links from an envelope"
+        );
+        assert_eq!(
+            v.note(secret).backlinks,
+            vec![plain],
+            "a plaintext referrer still resolves to the locked title"
+        );
+        assert_eq!(v.note(plain).links, vec![secret]);
+        assert_eq!(
+            v.snippet(secret, plain),
+            "",
+            "a locked note has no excerpt to show"
+        );
+        assert!(
+            v.snippet(plain, secret).contains("see Secret"),
+            "the plaintext referrer's snippet still works"
+        );
+    }
+
+    #[test]
+    fn the_unlock_overlay_indexes_the_body_tags_links_and_kanban() {
+        let body = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] card #plan\n\n[[Plain]]\n";
+        let envelope = note_lock::lock(body, "pw", "Secret").expect("lock");
+        let tmp = TempVault::new(&[
+            ("Secret.md", envelope.as_str()),
+            ("Plain.md", "# Plain\n\nnothing here\n"),
+        ]);
+        let mut v = vault(&tmp);
+        let secret = v.resolve("Secret").expect("Secret");
+        let plain = v.resolve("Plain").expect("Plain");
+
+        assert!(!v.note(secret).is_unlocked());
+        assert!(!v.note(secret).is_kanban());
+
+        v.set_unlocked_source(secret, body.to_owned());
+        assert!(v.note(secret).is_unlocked());
+        assert_eq!(
+            v.note(secret).readable_source(),
+            Some(body),
+            "the overlay is the readable source"
+        );
+        assert!(
+            v.search("card").contains(&secret),
+            "the body is searchable while unlocked"
+        );
+        assert_eq!(
+            v.note(secret).tags().to_vec(),
+            ["plan"],
+            "tags come from the overlay"
+        );
+        assert_eq!(v.note(secret).links, vec![plain], "outgoing links too");
+        assert!(v.note(secret).is_kanban(), "kanban comes from the overlay");
+        assert_eq!(v.notes_with_tag("plan").to_vec(), vec![secret]);
+
+        v.clear_unlocked_source(secret);
+        assert!(!v.note(secret).is_unlocked());
+        assert!(v.note(secret).readable_source().is_none());
+        assert!(
+            !v.search("card").contains(&secret),
+            "the body is gone again"
+        );
+        assert!(v.note(secret).tags().is_empty(), "tags are gone again");
+        assert!(v.note(secret).links.is_empty(), "links are gone again");
+        assert!(
+            !v.note(secret).is_kanban(),
+            "kanban detection is gone again"
+        );
+        assert!(v.notes_with_tag("plan").is_empty());
+    }
+
+    #[test]
+    fn a_sealed_write_keeps_the_overlay_and_a_plaintext_write_clears_it() {
+        let first = "# Secret\n\nfirst body #stale\n";
+        let envelope = note_lock::lock(first, "pw", "Secret").expect("lock");
+        let tmp = TempVault::new(&[
+            ("Secret.md", envelope.as_str()),
+            ("Plain.md", "# Plain\n\nnothing here\n"),
+        ]);
+        let mut v = vault(&tmp);
+        let secret = v.resolve("Secret").expect("Secret");
+        let plain = v.resolve("Plain").expect("Plain");
+        v.set_unlocked_source(secret, first.to_owned());
+        assert!(v.note(secret).is_unlocked());
+
+        // A save of an unlocked note writes a fresh envelope plus the exact
+        // plaintext that was sealed, so the index follows the new body.
+        let second = "# Secret\n\nsecond body #fresh\n\n[[Plain]]\n";
+        let sealed = note_lock::lock(second, "pw", "Secret").expect("lock");
+        v.write_locked_note(secret, &sealed, second)
+            .expect("sealed write");
+        assert!(v.note(secret).is_locked(), "the written source is sealed");
+        assert!(
+            v.note(secret).is_unlocked(),
+            "the session overlay is the sealed text"
+        );
+        assert_eq!(v.notes[secret].source, sealed);
+        assert_eq!(v.note(secret).readable_source(), Some(second));
+        assert!(
+            v.search("second body").contains(&secret),
+            "the index follows the sealed body"
+        );
+        assert!(
+            !v.search("first body").contains(&secret),
+            "the pre-save body is gone"
+        );
+        assert_eq!(v.note(secret).tags().to_vec(), ["fresh"]);
+        assert_eq!(v.note(secret).links, vec![plain]);
+
+        // Writing ordinary text unlocks the note; there is no overlay left to
+        // keep, and the note's own source is readable.
+        v.write_note(secret, "# Secret\n\nplain again\n")
+            .expect("plaintext write");
+        assert!(!v.note(secret).is_locked());
+        assert!(!v.note(secret).is_unlocked());
+        assert_eq!(
+            v.note(secret).readable_source(),
+            Some("# Secret\n\nplain again\n")
+        );
+
+        // An envelope written without its plaintext cannot keep the index
+        // honest, so `write_note` drops the overlay: locked, not unlocked.
+        let again = note_lock::lock("# Secret\n\nsealed blindly\n", "pw", "Secret").expect("lock");
+        v.set_unlocked_source(secret, "# Secret\n\nstale overlay\n".to_owned());
+        v.write_note(secret, &again).expect("envelope only");
+        assert!(v.note(secret).is_locked());
+        assert!(
+            !v.note(secret).is_unlocked(),
+            "no plaintext means no overlay"
+        );
+        assert!(v.note(secret).readable_source().is_none());
+        assert!(!v.search("sealed blindly").contains(&secret));
+    }
+
+    #[test]
+    fn write_locked_note_if_unmodified_refuses_a_stale_state() {
+        let body = "# Secret\n\nheld body #held\n";
+        let envelope = note_lock::lock(body, "pw", "Secret").expect("lock");
+        let tmp = TempVault::new(&[("Secret.md", envelope.as_str())]);
+        let mut v = vault(&tmp);
+        let secret = v.resolve("Secret").expect("Secret");
+        v.set_unlocked_source(secret, body.to_owned());
+        let expected = v.disk_state(secret).expect("state");
+
+        // Another writer replaced the file after the caller captured its state.
+        let theirs = note_lock::lock("# Secret\n\ntheirs, longer than held\n", "pw", "Secret")
+            .expect("lock");
+        fs::write(tmp.path().join("Secret.md"), &theirs).unwrap();
+
+        let sealed = note_lock::lock("# Secret\n\nmine\n", "pw", "Secret").expect("lock");
+        assert!(
+            !v.write_locked_note_if_unmodified(secret, &sealed, "# Secret\n\nmine\n", expected)
+                .expect("no io error")
+        );
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Secret.md")).unwrap(),
+            theirs,
+            "the file is untouched"
+        );
+        assert_eq!(
+            v.note(secret).readable_source(),
+            Some(body),
+            "the overlay still holds the last sealed text"
+        );
+        assert!(v.note(secret).is_unlocked());
+    }
+
+    #[test]
+    fn write_locked_note_refuses_a_plaintext_body() {
+        let envelope = note_lock::lock("# Secret\n\nsealed\n", "pw", "Secret").expect("lock");
+        let tmp = TempVault::new(&[("Secret.md", envelope.as_str())]);
+        let mut v = vault(&tmp);
+        let secret = v.resolve("Secret").expect("Secret");
+
+        let error = v
+            .write_locked_note(
+                secret,
+                "# Secret\n\nplain leak\n",
+                "# Secret\n\nplain leak\n",
+            )
+            .expect_err("a plaintext body is refused");
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Secret.md")).unwrap(),
+            envelope,
+            "nothing was written"
+        );
+        assert!(v.note(secret).readable_source().is_none());
+    }
+
+    #[test]
+    fn the_unlock_overlay_is_redacted_in_debug_output() {
+        let envelope =
+            note_lock::lock("# Secret\n\nTOP SECRET BODY\n", "pw", "Secret").expect("lock");
+        let tmp = TempVault::new(&[("Secret.md", envelope.as_str())]);
+        let mut v = vault(&tmp);
+        let secret = v.resolve("Secret").expect("Secret");
+        v.set_unlocked_source(secret, "# Secret\n\nTOP SECRET BODY\n".to_owned());
+
+        let debug = format!("{:?}", v.note(secret));
+        assert!(
+            !debug.contains("TOP SECRET BODY"),
+            "a Debug print must not leak the plaintext: {debug}"
+        );
+        assert!(
+            debug.contains("redacted"),
+            "the overlay says it is redacted: {debug}"
+        );
     }
 }
