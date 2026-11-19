@@ -73,4 +73,12 @@ impl Note {
         let folder = self.folder();
         folder.rsplit('/').next().unwrap_or(folder)
     }
+
+    /// The note id a locked-note envelope binds: [`self.rel`](Self::rel)
+    /// without one trailing `.md` (e.g. `Projects/Trip`). Pass this to
+    /// [`crate::lock`], [`crate::unlock`] and [`crate::unlock_session`].
+    #[must_use]
+    pub fn lock_id(&self) -> &str {
+        crate::note_lock::note_id(&self.rel)
+    }
 }

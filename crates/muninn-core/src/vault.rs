@@ -3080,7 +3080,7 @@ mod locked_note_tests {
 
     #[test]
     fn the_index_marks_a_locked_note_and_reindex_picks_up_an_external_lock() {
-        let envelope = note_lock::lock("secret body", "pw").expect("lock");
+        let envelope = note_lock::lock("secret body", "pw", "Secret").expect("lock");
         let tmp = TempVault::new(&[
             ("Secret.md", envelope.as_str()),
             ("Plain.md", "# Plain\n\nnot locked\n"),
@@ -3092,6 +3092,7 @@ mod locked_note_tests {
             .find(|n| n.rel == "Secret.md")
             .expect("listed");
         assert!(secret.is_locked(), "the envelope is cached as locked");
+        assert_eq!(secret.lock_id(), "Secret");
         let plain = v
             .notes
             .iter()
@@ -3101,7 +3102,7 @@ mod locked_note_tests {
 
         // Writing the envelope through the vault replaces the file and
         // reindexes; the cached flag follows the new source.
-        let now_locked = note_lock::lock("# Plain\n\nnow locked\n", "pw").expect("lock");
+        let now_locked = note_lock::lock("# Plain\n\nnow locked\n", "pw", "Plain").expect("lock");
         let plain_id = v
             .notes
             .iter()

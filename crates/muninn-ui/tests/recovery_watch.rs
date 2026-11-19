@@ -398,7 +398,8 @@ fn a_single_row_still_truncates_its_long_path_cleanly() {
 const SECRET_MARKER: &str = "TOP SECRET BODY";
 
 fn lock_note(text: &str) -> String {
-    muninn_core::lock(text, "pw").expect("lock")
+    // The fixture locks the vault-root `Secret.md`; its id has no `.md`.
+    muninn_core::lock(text, "pw", "Secret").expect("lock")
 }
 
 /// Any recovery file under `env`'s state home whose bytes contain `needle`.
