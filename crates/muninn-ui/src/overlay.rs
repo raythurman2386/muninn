@@ -71,7 +71,8 @@ pub enum SettingsTab {
     Appearance,
     /// Graph motion (and, with the graph-effects work, the effects picker).
     Graph,
-    /// Vault sync. A placeholder until the sync work lands.
+    /// Vault sync: the provider binding, its credential and the manual
+    /// Sync Now run.
     Sync,
     /// Kanban slice 14: app-wide kanban defaults (`kanban_defaults`).
     Kanban,

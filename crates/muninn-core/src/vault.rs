@@ -1006,19 +1006,22 @@ impl Vault {
         self.reindex();
     }
 
-    /// SAF-02 prerequisite: a note file's on-disk identity `(mtime, length)`.
+    /// A note file's on-disk identity `(mtime, length)`.
     ///
-    /// The conflict flow is not built yet. TODO(SAF-02): a later lane should
-    /// capture this before an edit and call
-    /// `write_note_if_unmodified(id, source, expected)` before overwriting;
-    /// when the current state differs, offer keep-mine/reload instead of
-    /// silently replacing the other writer's change.
+    /// This is the token the guarded writes compare against: capture it before
+    /// an edit and pass it to [`Vault::write_note_if_unmodified`] (or
+    /// [`Vault::write_locked_note_if_unmodified`]) so another writer's change is
+    /// never replaced silently. The conflict flow built on it lives in
+    /// `muninn-ui`: `ConflictState` holds the identity the editor last saw and
+    /// what was observed when a save was refused, and the conflict bar resolves
+    /// it with keep-mine, load-theirs or save-copy.
     pub fn disk_state(&self, id: usize) -> io::Result<(Option<SystemTime>, u64)> {
         let meta = fs::metadata(&self.notes[id].path)?;
         Ok((meta.modified().ok(), meta.len()))
     }
 
-    /// SAF-02 prerequisite: write only when the disk still matches `expected`.
+    /// Guarded write: overwrite only when the disk still matches `expected`,
+    /// the identity from [`Vault::disk_state`].
     ///
     /// Returns `Ok(false)` when another writer changed the file first; the
     /// file, the note and the index are left untouched in that case. The
