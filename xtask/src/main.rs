@@ -57,6 +57,7 @@ fn dispatch(command: &str, args: &[String]) -> Result<()> {
         }
         "layers" | "check-layers" => check_layers(),
         "i18n-lint" => i18n_lint::run(),
+        "wasm-check" => wasm_check(),
         "bundle" => bundle(),
         "snapshots" => snapshots(args),
         "run" => {
@@ -67,7 +68,7 @@ fn dispatch(command: &str, args: &[String]) -> Result<()> {
         }
         "help" | "--help" | "-h" => {
             println!(
-                "xtask: fmt | fmt-check | clippy | test | build | check | layers | i18n-lint | bundle | snapshots | run [args]"
+                "xtask: fmt | fmt-check | clippy | test | build | check | layers | i18n-lint | wasm-check | bundle | snapshots | run [args]"
             );
             Ok(())
         }
@@ -190,6 +191,65 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
     );
     allowed.insert("xtask", BTreeSet::new());
     allowed
+}
+
+/// The one target the portable crates are held to.
+const WASM_TARGET: &str = "wasm32-unknown-unknown";
+
+/// `xtask wasm-check`: keep `muninn-core` and `muninn-graph` building for the browser.
+///
+/// The UI, app and sync crates need a filesystem, a clock, threads and blocking
+/// HTTP, so they stay native. The model and layout crates carry no such
+/// dependency and must keep compiling for `wasm32-unknown-unknown` unchanged, or
+/// a browser front end cannot reuse them later. This is a compile-only guard
+/// (`check` plus `clippy`); it builds no bundle and runs nothing in a browser.
+fn wasm_check() -> Result<()> {
+    check_wasm_target()?;
+    run_cargo(&[
+        "check",
+        "--locked",
+        "-p",
+        "muninn-core",
+        "-p",
+        "muninn-graph",
+        "--target",
+        WASM_TARGET,
+    ])?;
+    run_cargo(&[
+        "clippy",
+        "--locked",
+        "-p",
+        "muninn-core",
+        "-p",
+        "muninn-graph",
+        "--target",
+        WASM_TARGET,
+        "--",
+        "-D",
+        "warnings",
+    ])
+}
+
+/// Name the missing `rustup` step instead of letting cargo report a missing
+/// `core` crate halfway through a dependency build.
+fn check_wasm_target() -> Result<()> {
+    let output = Command::new("rustc")
+        .args(["--print", "target-libdir", "--target", WASM_TARGET])
+        .output()?;
+    let libdir = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let installed = output.status.success()
+        && !libdir.is_empty()
+        && std::fs::read_dir(&libdir).is_ok_and(|entries| {
+            entries
+                .filter_map(std::result::Result::ok)
+                .any(|entry| entry.file_name().to_string_lossy().starts_with("libstd-"))
+        });
+    if installed {
+        return Ok(());
+    }
+    let hint =
+        format!("the {WASM_TARGET} target is not installed; run `rustup target add {WASM_TARGET}`");
+    Err(hint.into())
 }
 
 fn bundle() -> Result<()> {

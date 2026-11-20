@@ -19,6 +19,20 @@ are more valuable than a large refactor.
    cargo run -p xtask -- check
    ```
 
+## WASM (core and graph only)
+
+`muninn-core` and `muninn-graph` are held to `wasm32-unknown-unknown` so a browser front end
+can reuse them later. The UI, app and sync crates are native-only for now (filesystem, clock,
+threads, blocking HTTP), so this guard covers only the portable two:
+
+```sh
+rustup target add wasm32-unknown-unknown --toolchain 1.99.1
+cargo run -p xtask -- wasm-check
+```
+
+That runs `cargo check` and `cargo clippy -- -D warnings` for both crates on the wasm target.
+CI runs the same command in the `wasm32 check (core, graph)` job.
+
 ## Working on Rune itself
 
 Muninn depends on an unpublished Rune revision. To use a local checkout:
