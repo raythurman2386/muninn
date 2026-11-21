@@ -6,6 +6,27 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-21
+
+### Added
+
+- **Linux AppImage (#258).** `muninn_v<version>_linux_x86_64.AppImage` and
+  `muninn_v<version>_linux_aarch64.AppImage` run Muninn from a single file with
+  no install and no receipt: download, `chmod +x`, run. The image carries the
+  binary, desktop entry, 512×512 icon, license and an `AppRun`; it is included
+  in `checksums.txt` and the GitHub attestations like the other assets. Builds
+  use pinned appimagetool 1.9.1 and type-2 runtime 20251108 (both SHA-256
+  verified), and a CI job packages and smokes it without FUSE. If FUSE is
+  unavailable, run it with `--appimage-extract-and-run`.
+- **AppImage release assets** are part of the next release: 11 assets instead
+  of 9.
+
+### Changed
+
+- **Dependency updates:** `wgpu` 30.0.2 (texture-ID leak on surface acquire,
+  mapped-buffer use-after-free on device loss, Metal wide-gamut/sRGB fixes),
+  `zeroize` 1.9.2, and `uuid` 1.29.3.
+
 ## [0.9.1] - 2026-11-20
 
 ### Added
