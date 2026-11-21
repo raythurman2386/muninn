@@ -29,6 +29,12 @@ getrandom = "0.4"
 # Best-effort clearing of derived key material.
 zeroize = "1"
 
+# OS-less wasm has no default `getrandom` backend. The browser/Node crypto
+# source is pulled only for wasm targets; native builds keep the OS source byte
+# for byte. See the wasm32 guard in `xtask wasm-check`.
+[target.'cfg(target_family = "wasm")'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }
+
 [features]
 # Exposes `muninn_core::testing::TempVault` for tests in other workspace crates.
 test-support = []
