@@ -107,3 +107,89 @@ jobs:
 
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
+
+  windows-console:
+    name: Windows console / headless smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --locked --release -p muninn-app
+
+      - name: Headless smoke (GUI-subsystem binary)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path 'target\release\muninn.exe').Path
+          $work = Join-Path $env:TEMP ("muninn-console-smoke-" + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $work | Out-Null
+
+          # Redirecting stdout/stderr gives the child valid standard handles, so
+          # this job proves headless output and exit codes, NOT the AttachConsole
+          # path. That path is checked manually from Explorer (no console flash)
+          # and a terminal.
+          function Invoke-Muninn {
+            param([string[]] $Arguments, [string] $Tag)
+            $out = Join-Path $work "$Tag.out"
+            $err = Join-Path $work "$Tag.err"
+            # Quote whitespace-bearing paths (e.g. a TEMP dir with spaces).
+            $argv = $Arguments | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }
+            # A plain `& $exe` does not wait for a GUI-subsystem process.
+            $proc = Start-Process -FilePath $exe -ArgumentList $argv -Wait -PassThru `
+              -RedirectStandardOutput $out -RedirectStandardError $err
+            $stdout = if (Test-Path $out) { Get-Content -Raw $out } else { '' }
+            $stderr = if (Test-Path $err) { Get-Content -Raw $err } else { '' }
+            return [pscustomobject]@{ Code = $proc.ExitCode; Out = $stdout; Err = $stderr }
+          }
+
+          function Assert-Smoke {
+            param([bool] $Ok, [string] $Message, [object] $Result)
+            if (-not $Ok) {
+              throw "FAIL: $Message`n[stdout]`n$($Result.Out)`n[stderr]`n$($Result.Err)"
+            }
+          }
+
+          $r = Invoke-Muninn -Arguments @('--version') -Tag 'version'
+          Assert-Smoke ($r.Code -eq 0 -and $r.Out -match '^muninn \d+\.\d+\.\d+') `
+            '--version: exit 0 and stdout "muninn <version>"' $r
+
+          $r = Invoke-Muninn -Arguments @('--help') -Tag 'help'
+          Assert-Smoke ($r.Code -eq 0 -and $r.Out -match '--check' -and $r.Out -match '--list-links') `
+            '--help: exit 0 and both headless flags listed' $r
+
+          # A single note with no links is a clean vault.
+          $clean = Join-Path $work 'clean'
+          New-Item -ItemType Directory -Path $clean | Out-Null
+          Set-Content -Path (Join-Path $clean 'A.md') -Value 'A note with no links.'
+          $r = Invoke-Muninn -Arguments @('--check', $clean) -Tag 'check-clean'
+          Assert-Smoke ($r.Code -eq 0) '--check clean vault: exit 0' $r
+
+          # An unresolved wikilink is a broken link.
+          $broken = Join-Path $work 'broken'
+          New-Item -ItemType Directory -Path $broken | Out-Null
+          Set-Content -Path (Join-Path $broken 'A.md') -Value 'See [[Missing]].'
+          $r = Invoke-Muninn -Arguments @('--check', $broken) -Tag 'check-broken'
+          Assert-Smoke ($r.Code -eq 1 -and $r.Out -match 'broken links') `
+            '--check broken vault: exit 1 and "broken links" reported' $r
+
+          # A missing vault folder is exit 2.
+          $r = Invoke-Muninn -Arguments @('--check', (Join-Path $work 'does-not-exist')) -Tag 'check-missing'
+          Assert-Smoke ($r.Code -eq 2) '--check missing vault: exit 2' $r
+
+          # --list-links prints one `referrer -> target` line per wikilink.
+          $links = Join-Path $work 'links'
+          New-Item -ItemType Directory -Path $links | Out-Null
+          Set-Content -Path (Join-Path $links 'A.md') -Value '[[B]]'
+          Set-Content -Path (Join-Path $links 'B.md') -Value 'Target note.'
+          $r = Invoke-Muninn -Arguments @('--list-links', $links) -Tag 'list-links'
+          Assert-Smoke ($r.Code -eq 0 -and $r.Out -match 'A\.md -> B\.md') `
+            '--list-links: exit 0 and "A.md -> B.md" listed' $r
+
+          Write-Host 'Windows console smoke: all checks passed.'

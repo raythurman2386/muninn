@@ -132,6 +132,13 @@ Settings → Privacy & Security → Open Anyway** (or right-click → **Open**);
 info → Run anyway** if SmartScreen blocks the zip. For a manual download, check the SHA-256 in
 `checksums.txt` and the Sigstore bundle in `checksums.txt.sigstore.json` with `cosign verify-blob`.
 
+**Windows console behaviour.** Double-clicking `muninn.exe` from Explorer opens the app with no
+console window. From a terminal, `muninn --version`, `muninn --help`,
+`muninn --check <vault>` and `muninn --list-links <vault>` still print output and
+return the documented exit codes (0 clean, 1 broken links/duplicates, 2 unreadable vault).
+CMD and PowerShell do not wait for GUI-subsystem programs, so a script that needs the exit code
+should launch the binary with `Start-Process -Wait -PassThru` (PowerShell) rather than `& muninn ...`.
+
 ### Build from source
 
 Rust **1.99.1** is required; it is pinned in `rust-toolchain.toml`. On Linux, install the
