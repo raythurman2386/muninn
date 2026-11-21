@@ -19,6 +19,33 @@ are more valuable than a large refactor.
    cargo run -p xtask -- check
    ```
 
+## Dependency policy (cargo-deny)
+
+CI gates the dependency graph with `cargo-deny` (pinned to 0.22.0). Run the same
+command locally before opening a pull request:
+
+```sh
+cargo deny --locked check advisories licenses sources bans
+```
+
+Install it with `cargo install cargo-deny --locked`. The four checks cover:
+
+- **advisories** — RustSec vulnerabilities; a known-vulnerable crate fails CI.
+- **licenses** — only the permissive list in `deny.toml` is allowed (the
+  workspace is MIT; no GPL/AGPL/SSPL dependency is accepted).
+- **sources** — crates.io plus the pinned Rune git repository, nothing else.
+- **bans** — duplicate crate versions are warned and reviewed in the PR that
+  adds them; two documented `windows-sys` generations are skipped.
+
+Rune is unpublished, so the four Rune crates are pinned to one git revision in
+the root `Cargo.toml`; that URL is the only git source in `deny.toml`. There are
+no advisory ignores: when a dependency gains a known vulnerability, upgrade it
+(e.g. `anydoc = "=0.2.5"` moved `zip` from 8.6.0 to 9.8.1) rather than silencing
+the finding. To add or refresh an exception (licence, source or duplicate skip),
+edit `deny.toml` and include a comment naming the owning crate, why the
+exception is needed and the condition for removing it. Never widen a rule to
+silence a new finding without that review.
+
 ## WASM (core and graph only)
 
 `muninn-core` and `muninn-graph` are held to `wasm32-unknown-unknown` so a browser front end

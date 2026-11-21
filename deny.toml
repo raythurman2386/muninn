@@ -1,0 +1,70 @@
+# Dependency policy for Muninn, enforced by cargo-deny (CI pins 0.22.0).
+# Run the exact CI check locally with:
+#   cargo deny --locked check advisories licenses sources bans
+#
+# Muninn is MIT (see LICENSE). Every exception below names the owning crate and
+# the reason it exists; do not widen a rule just to silence a new finding.
+# The graph is checked for all targets so platform-only dependencies (Windows,
+# macOS, UEFI, wasm) cannot hide a licence or source from the gate.
+
+[advisories]
+# RustSec advisory DB at its default URL (https://github.com/rustsec/advisory-db).
+# Vulnerabilities fail the check: there are deliberately no advisory ignores.
+# `yanked` is left at the cargo-deny default; no yanked versions occur in the
+# locked graph, and the default reports them without failing the build.
+
+[licenses]
+# Permissive licences actually present in the locked graph. Nothing here is
+# GPL/AGPL/SSPL. r-efi is "MIT OR Apache-2.0 OR LGPL-2.1-or-later", so its MIT
+# and Apache-2.0 options satisfy it without ever allowing the LGPL option.
+allow = [
+    "MIT",                            # workspace + the majority of crates
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception", # blake3, rustix, rustix's linux-raw-sys, wasi
+    "BSD-2-Clause",                   # arrayref, zerocopy
+    "BSD-3-Clause",                   # brotli-decompressor, encoding_rs, tiny-skia, ...
+    "BSL-1.0",                        # Boost: clipboard-win, error-code, ryu
+    "0BSD",                           # adler2 (also MIT/Apache-2.0)
+    "CC0-1.0",                        # blake3, constant_time_eq (public-domain dedication)
+    "CDLA-Permissive-2.0",            # webpki-roots 1.x root-certificate data
+    "ISC",                            # ring, rustls, libloading, ...
+    "MIT-0",                          # constant_time_eq (also CC0-1.0/Apache-2.0)
+    "MPL-2.0",                        # Rune's symphonia* audio decoders and opuscule; file-level copyleft, required by the pinned Rune revision
+    "Unicode-3.0",                    # icu_* / unicode-* data crates
+    "Unlicense",                      # aho-corasick, memchr, walkdir, jiff, ...
+    "Zlib",                           # miniz_oxide, bytemuck, objc2-*, ...
+]
+# No per-crate licence exceptions are needed: every crate is covered above.
+exceptions = []
+
+[bans]
+# Duplicates are visible but do not fail CI; a new duplicate should be reviewed
+# in the PR that introduces it rather than blocking unrelated work.
+multiple-versions = "warn"
+# The four Rune crates are git dependencies pinned by exact rev, so they have no
+# version requirement at all. cargo-deny's wildcard lint flags those as wildcards
+# (verified: "deny" fails with 6 wildcard entries in muninn-app/muninn-ui), even
+# though the rev makes them fully reproducible. Set explicitly to "allow" so the
+# exception is reviewable; it is not a claim that floating versions are fine.
+wildcards = "allow"
+skip = [
+    # Owner: windows-sys 0.52.0, via ring (the rustls/reqwest stack) and winit
+    # (Rune). Three non-unifiable Windows API generations are locked; 0.61.2 is
+    # the newest and oldest two are still required by upstream constraints.
+    { crate = "windows-sys@0.52.0", reason = "older Windows API generation required by ring and winit" },
+    # Owner: windows-sys 0.59.0, via the pinned Rune crate and rustix 0.38.
+    # Cannot be merged into 0.61.2 without an upstream release.
+    { crate = "windows-sys@0.59.0", reason = "middle Windows API generation required by Rune and rustix 0.38" },
+]
+
+[sources]
+# crates.io and the Rune git pin are the only permitted sources. No org-wide
+# allowance and no wildcards: any new registry/git source fails the check.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+    # Owner: Rune (anomalyco). Unpublished framework pinned to one rev in the
+    # root Cargo.toml; cargo-deny normalises the .git suffix from the lockfile.
+    "https://github.com/anomalyco/rune",
+]

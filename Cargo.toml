@@ -30,7 +30,7 @@ muninn-ui = { path = "crates/muninn-ui", version = "0.9.2" }
 
 # Exact pin while pre-1.0: conversion output and the parser limits are part of
 # the import contract, so a patch release is reviewed rather than floated in.
-anydoc = "=0.2.4"
+anydoc = "=0.2.5"
 
 # Rune is a young framework and is not published to crates.io. Pin the exact revision the app
 # was built and tested against. For local Rune development, run `./scripts/use-local-rune.sh`.
