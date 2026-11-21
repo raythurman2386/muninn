@@ -1,0 +1,4 @@
+MUNINN-NOTE-LOCK v2
+kdf=argon2id;m=19456;t=2;p=1;salt=AAAAAAAAAAAAAAAAAAAAAA
+aead=aes-256-gcm;nonce=AAAAAAAAAAAAAAAA
+note=V2VsY29tZQ

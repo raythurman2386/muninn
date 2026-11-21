@@ -28,6 +28,12 @@ zeroize = "1"
 # SQLite fallback stores.
 keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
 
+[features]
+# Exposes parser seams (`parse_journal_for_fuzzing`,
+# `parse_commit_for_fuzzing`) to `fuzz/`. Off by default; the app never
+# enables it.
+fuzzing = []
+
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", features = ["fs"] }
 

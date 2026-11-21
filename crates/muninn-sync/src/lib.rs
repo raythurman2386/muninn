@@ -86,6 +86,11 @@ pub use http::{
 };
 pub use inventory::{Inventory, exclusion_summary, inventory, inventory_default};
 pub use journal::{Journal, JournalPhase};
+// Fuzz-harness seams; see the `fuzzing` feature in Cargo.toml.
+#[cfg(feature = "fuzzing")]
+pub use drive::parse_commit_for_fuzzing;
+#[cfg(feature = "fuzzing")]
+pub use journal::parse_journal_for_fuzzing;
 pub use lease::VaultLease;
 pub use limits::{DEFAULT_LIMITS, Exclusion, Limits, included_path};
 pub use model::{

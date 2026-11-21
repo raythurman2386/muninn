@@ -71,15 +71,7 @@ impl Journal {
             return Ok(None);
         }
         let text = fs::read_to_string(&path).map_err(SyncError::io)?;
-        let journal: Self = serde_json::from_str(&text).map_err(|_| SyncError::Journal {
-            detail: "journal.json is corrupt; sync is paused until it is repaired".to_owned(),
-        })?;
-        if journal.schema != SCHEMA_VERSION {
-            return Err(SyncError::Journal {
-                detail: format!("journal schema {} is not supported", journal.schema),
-            });
-        }
-        Ok(Some(journal))
+        Ok(Some(parse_journal(&text)?))
     }
 
     pub fn store(&self, state_dir: &Path) -> Result<(), SyncError> {
@@ -110,4 +102,26 @@ impl Journal {
     pub fn needs_apply_resume(&self) -> bool {
         matches!(self.phase, JournalPhase::Published | JournalPhase::Applying)
     }
+}
+
+/// Parse and validate one `journal.json` document, without touching the disk.
+fn parse_journal(text: &str) -> Result<Journal, SyncError> {
+    let journal: Journal = serde_json::from_str(text).map_err(|_| SyncError::Journal {
+        detail: "journal.json is corrupt; sync is paused until it is repaired".to_owned(),
+    })?;
+    if journal.schema != SCHEMA_VERSION {
+        return Err(SyncError::Journal {
+            detail: format!("journal schema {} is not supported", journal.schema),
+        });
+    }
+    Ok(journal)
+}
+
+/// Parse a journal document from arbitrary text.
+///
+/// Fuzz harness only: exposes [`parse_journal`] to `fuzz/` under the
+/// off-by-default `fuzzing` feature. It is not part of the sync API.
+#[cfg(feature = "fuzzing")]
+pub fn parse_journal_for_fuzzing(text: &str) -> Result<(), SyncError> {
+    parse_journal(text).map(|_| ())
 }

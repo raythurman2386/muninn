@@ -545,6 +545,15 @@ fn parse(envelope: &str) -> Result<Parsed, LockError> {
     })
 }
 
+/// Parse an envelope without deriving a key.
+///
+/// Fuzz harness only: this exposes the private structure check to `fuzz/`
+/// under the off-by-default `fuzzing` feature. It is not part of the app's API.
+#[cfg(feature = "fuzzing")]
+pub fn parse_for_fuzzing(envelope: &str) -> Result<(), LockError> {
+    parse(envelope).map(|_| ())
+}
+
 /// Parse the v2 `kdf=` line, returning the base64 salt.
 ///
 /// The fields are fixed and in a fixed order for version 2: a different cost,
