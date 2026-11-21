@@ -90,6 +90,50 @@ If Muninn is useful to you, consider
 
 ## Install
 
+### Prebuilt releases (Linux and macOS)
+
+Download the installer from the latest release and run it with `sh`. It picks the tarball for
+your platform, checks its SHA-256 against the release `checksums.txt`, and verifies the Sigstore
+signature when `cosign` (or a GitHub attestation via `gh`) is available:
+
+```sh
+curl -fsSLO https://github.com/raythurman2386/muninn/releases/latest/download/install.sh && sh install.sh
+```
+
+It installs into `$HOME/.local` by default. Pin a release and a directory with `--version` and
+`--prefix`, and remove exactly what was installed with `--uninstall`:
+
+```sh
+sh install.sh --version v0.9.0 --prefix /tmp/muninn
+/tmp/muninn/bin/muninn --version
+sh install.sh --prefix /tmp/muninn --uninstall
+```
+
+Maintainers repeat that sequence against each real tag as the release smoke test; the fixture
+test in `scripts/tests/install-sh.sh` covers the same flow offline with local assets.
+
+`--require-signature` fails unless a verifier is installed and succeeds; `--no-verify` is an
+explicit opt-out of both checksum and signature checks; `--help` lists every flag. The installer
+never runs `sudo`: if the prefix is not writable it prints the exact command for you to run
+yourself. Uninstall reads an install receipt and removes only those files — it never touches
+`~/.config/muninn`, sync state or a vault.
+
+| Platform | Asset | How to install |
+| --- | --- | --- |
+| Linux x86_64 | `muninn_<TAG>_linux_x86_64.tar.gz` | `sh install.sh` (also installs the desktop file and icons under `$PREFIX/share`), or unpack by hand. |
+| Linux aarch64 | `muninn_<TAG>_linux_aarch64.tar.gz` | Same, on ARM64 Linux. |
+| Linux x86_64 / aarch64 (Debian, Ubuntu) | `muninn_<VERSION>-1_amd64.deb` / `muninn_<VERSION>-1_arm64.deb` | `sudo apt install ./muninn_<VERSION>-1_amd64.deb` (or the arm64 build). |
+| macOS aarch64 (Apple Silicon) | `muninn_<TAG>_macos_aarch64.tar.gz` | `sh install.sh` installs the binary only. |
+| Windows x86_64 | `muninn_<TAG>_windows_x86_64.zip` | Unzip the archive; **this script does not support Windows**. |
+
+Release binaries are unsigned by an Apple Developer ID or a Windows code-signing certificate, so
+Gatekeeper and SmartScreen may warn on first run. On macOS, open the binary from **System
+Settings → Privacy & Security → Open Anyway** (or right-click → **Open**); on Windows, use **More
+info → Run anyway** if SmartScreen blocks the zip. For a manual download, check the SHA-256 in
+`checksums.txt` and the Sigstore bundle in `checksums.txt.sigstore.json` with `cosign verify-blob`.
+
+### Build from source
+
 Rust **1.99.1** is required; it is pinned in `rust-toolchain.toml`. On Linux, install the
 windowing headers first:
 
