@@ -6,6 +6,14 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- **Linux glibc baseline (#263).** Linux release builds on both x86_64 and
+  aarch64 are pinned to glibc 2.39 (Ubuntu 24.04 LTS or newer); x86_64
+  releases no longer need glibc 2.43. A new `scripts/ci/check-glibc.sh` guard
+  measures the binary's maximum `GLIBC_*` need after every release build and
+  fails before publishing when a runner-image upgrade raises the floor.
+
 ## [0.9.2] - 2026-11-21
 
 ### Added
