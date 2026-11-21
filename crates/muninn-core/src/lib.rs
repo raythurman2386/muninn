@@ -59,6 +59,9 @@ pub use note_lock::{
     LOCK_MAGIC, LOCK_VERSION, LockError, SessionKey, is_locked, lock, note_id, unlock,
     unlock_session,
 };
+// Fuzz-harness seam; see the `fuzzing` feature in Cargo.toml.
+#[cfg(feature = "fuzzing")]
+pub use note_lock::parse_for_fuzzing;
 pub use preview::Attachment;
 pub use tags::{note_tags, tag_key, unclosed_tag};
 pub use vault::{BrokenLink, ScanJob, TagEntry, Vault, atomic_copy, atomic_write, board_name};

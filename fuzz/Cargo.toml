@@ -1,0 +1,35 @@
+[package]
+name = "muninn-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+rust-version = "1.99"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+muninn-core = { path = "../crates/muninn-core", features = ["fuzzing"] }
+muninn-sync = { path = "../crates/muninn-sync", features = ["fuzzing"] }
+
+[[bin]]
+name = "wikilink"
+path = "fuzz_targets/wikilink.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "note_lock"
+path = "fuzz_targets/note_lock.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sync_json"
+path = "fuzz_targets/sync_json.rs"
+test = false
+doc = false
+bench = false

@@ -1154,6 +1154,15 @@ pub(crate) fn parse_commit(bytes: &[u8]) -> Result<DriveCommitDoc, SyncError> {
     })
 }
 
+/// Parse a commit document from arbitrary bytes.
+///
+/// Fuzz harness only: exposes the private [`parse_commit`] to `fuzz/` under the
+/// off-by-default `fuzzing` feature. It is not part of the sync API.
+#[cfg(feature = "fuzzing")]
+pub fn parse_commit_for_fuzzing(bytes: &[u8]) -> Result<(), SyncError> {
+    parse_commit(bytes).map(|_| ())
+}
+
 pub fn new_pkce(redirect_uri: &str) -> PkceRequest {
     let verifier = random_token(32);
     let digest = Sha256::digest(verifier.as_bytes());

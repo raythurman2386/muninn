@@ -11,6 +11,9 @@ members = [
     "xtask",
 ]
 default-members = ["crates/muninn-app"]
+# The cargo-fuzz crate is its own workspace: it needs nightly and a separate
+# lockfile, so it must not join the product build.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.9.2"
