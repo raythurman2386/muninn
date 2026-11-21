@@ -18,7 +18,10 @@ nightly and its own lockfile. It is not part of the app build or the PR matrix.
 - a C toolchain with `clang` and `llvm` (libFuzzer).
 
 The repository pins a stable toolchain in `rust-toolchain.toml`; always pass
-`+nightly` so the fuzz build does not fall back to it.
+`+nightly` so the fuzz build does not fall back to it. On Linux hosts where
+cargo-fuzz selects the static musl target, pass
+`--target x86_64-unknown-linux-gnu`: ASAN cannot link against a statically
+linked libc. The scheduled workflow pins that target explicitly.
 
 ## Run
 
