@@ -122,9 +122,35 @@ yourself. Uninstall reads an install receipt and removes only those files — it
 | --- | --- | --- |
 | Linux x86_64 | `muninn_<TAG>_linux_x86_64.tar.gz` | `sh install.sh` (also installs the desktop file and icons under `$PREFIX/share`), or unpack by hand. |
 | Linux aarch64 | `muninn_<TAG>_linux_aarch64.tar.gz` | Same, on ARM64 Linux. |
+| Linux x86_64 / aarch64 (no install) | `muninn_v<VERSION>_linux_x86_64.AppImage` / `muninn_v<VERSION>_linux_aarch64.AppImage` | Download, `chmod +x`, run — see below. |
 | Linux x86_64 / aarch64 (Debian, Ubuntu) | `muninn_<VERSION>-1_amd64.deb` / `muninn_<VERSION>-1_arm64.deb` | `sudo apt install ./muninn_<VERSION>-1_amd64.deb` (or the arm64 build). |
 | macOS aarch64 (Apple Silicon) | `muninn_<TAG>_macos_aarch64.tar.gz` | `sh install.sh` installs the binary only. |
 | Windows x86_64 | `muninn_<TAG>_windows_x86_64.zip` | Unzip the archive; **this script does not support Windows**. |
+
+#### Try it without installing (Linux)
+
+The `.AppImage` is a single file that mounts its own read-only image and runs from anywhere. It
+installs nothing: there is no install receipt, no `$PREFIX` and no uninstall step — delete the file
+to remove it. Download the `.AppImage` for your architecture from the latest release, make it
+executable and run it. Replace `<VERSION>` with the release version **without** the leading `v`
+(for example `0.9.1`, giving `muninn_v0.9.1_linux_x86_64.AppImage`):
+
+```sh
+curl -fsSLO https://github.com/raythurman2386/muninn/releases/latest/download/muninn_v<VERSION>_linux_x86_64.AppImage
+chmod +x muninn_v<VERSION>_linux_x86_64.AppImage
+./muninn_v<VERSION>_linux_x86_64.AppImage
+```
+
+Use the `muninn_v<VERSION>_linux_aarch64.AppImage` asset on ARM64 Linux. If FUSE is unavailable,
+run it with the built-in extractor instead:
+
+```sh
+./muninn_v<VERSION>_linux_x86_64.AppImage --appimage-extract-and-run
+```
+
+The AppImage carries the same SHA-256 entry in `checksums.txt` and the same Sigstore / GitHub
+attestation verification as the other release assets. It is built on Ubuntu 24.04 (so it needs a
+glibc of 2.39 or newer), and it has no built-in auto-update: download the next release to upgrade.
 
 Release binaries are unsigned by an Apple Developer ID or a Windows code-signing certificate, so
 Gatekeeper and SmartScreen may warn on first run. On macOS, open the binary from **System

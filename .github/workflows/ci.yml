@@ -56,6 +56,10 @@ jobs:
         if: runner.os != 'Windows'
         run: sh scripts/tests/apt-retry.sh
 
+      - name: AppImage fixture test (offline, POSIX sh)
+        if: runner.os != 'Windows'
+        run: sh scripts/tests/appimage.sh
+
       - name: Layering
         run: cargo run --locked -p xtask -- layers
 
@@ -193,3 +197,47 @@ jobs:
             '--list-links: exit 0 and "A.md -> B.md" listed' $r
 
           Write-Host 'Windows console smoke: all checks passed.'
+
+  appimage:
+    name: AppImage build / headless smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux window dependencies
+        run: |
+          sudo sh scripts/ci/apt-install.sh \
+            pkg-config libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libwayland-dev libgl1-mesa-dev
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --locked --release -p muninn-app
+
+      - name: Build AppImage
+        env:
+          TAG: v0.0.0-ci
+        run: |
+          sh scripts/build-appimage.sh \
+            --binary target/release/muninn \
+            --tag "$TAG" \
+            --arch x86_64 \
+            --output dist
+
+      - name: Headless smoke (no FUSE)
+        run: |
+          set -eu
+          out=dist/muninn_v0.0.0-ci_linux_x86_64.AppImage
+          [ -f "$out" ] || { printf 'missing AppImage: %s\n' "$out" >&2; exit 1; }
+          version=$(APPIMAGE_EXTRACT_AND_RUN=1 "$out" --version)
+          printf 'version: %s\n' "$version"
+          printf '%s' "$version" | grep -Eq '^muninn [0-9]+\.[0-9]+\.[0-9]+'
+          vault=$(mktemp -d)
+          printf 'A note with no links.\n' > "$vault/A.md"
+          APPIMAGE_EXTRACT_AND_RUN=1 "$out" --check "$vault"
+          printf 'AppImage smoke passed.\n'
