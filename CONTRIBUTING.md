@@ -101,6 +101,12 @@ If you add a workspace crate or dependency edge, update the allowed graph in
   the release job waits for all four builds. Re-running a tag is safe: if `gh release view` finds
   the release, the workflow uploads the same full asset set with `--clobber` instead of trying to
   create it again; a persistent failure exits non-zero after the bounded retries.
+- The released Linux floor is glibc 2.39 for both architectures. `scripts/ci/check-glibc.sh
+  --binary PATH --max GLIBC_2.39` reads the `GLIBC_*` versions the binary needs with `readelf
+  --version-info` and fails when the maximum exceeds the policy, so a runner-image upgrade cannot
+  raise the floor silently; both Linux release builds and the CI AppImage job run it after
+  `cargo build --release`. `scripts/tests/glibc-check.sh` covers the pass, fail, no-symbol and
+  usage paths offline with a fake `readelf` (`MUNINN_READELF`), like the other fixture tests.
 - Snapshot images are proof for a PR, not committed fixtures. Use
   `cargo run -p xtask -- snapshots` and attach what changed.
 

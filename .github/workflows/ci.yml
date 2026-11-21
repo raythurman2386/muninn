@@ -60,6 +60,10 @@ jobs:
         if: runner.os != 'Windows'
         run: sh scripts/tests/appimage.sh
 
+      - name: glibc floor test (offline, POSIX sh)
+        if: runner.os != 'Windows'
+        run: sh scripts/tests/glibc-check.sh
+
       - name: Layering
         run: cargo run --locked -p xtask -- layers
 
@@ -213,7 +217,9 @@ jobs:
 
   appimage:
     name: AppImage build / headless smoke
-    runs-on: ubuntu-latest
+    # Pinned to the glibc 2.39 baseline so packaging and the smoke run prove
+    # the release binary still starts on Ubuntu 24.04.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -231,6 +237,9 @@ jobs:
 
       - name: Build release binary
         run: cargo build --locked --release -p muninn-app
+
+      - name: Check glibc floor
+        run: sh scripts/ci/check-glibc.sh --binary target/release/muninn --max GLIBC_2.39
 
       - name: Build AppImage
         env:

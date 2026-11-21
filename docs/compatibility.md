@@ -170,16 +170,24 @@ The release workflow builds and publishes exactly these targets
 
 | OS | Architecture | Build runner |
 | --- | --- | --- |
-| Linux | x86_64 | `ubuntu-latest` |
+| Linux | x86_64 | `ubuntu-24.04` |
 | Linux | aarch64 | `ubuntu-24.04-arm` |
 | macOS | aarch64 only | `macos-latest` |
 | Windows | x86_64 | `windows-latest` |
 
-There is no Intel macOS or 32-bit Windows build. For Linux, the glibc floor is a property of the
-runner image, **not a separately pinned promise**: the currently shipped binaries need
-`GLIBC_2.43` on x86_64 and `GLIBC_2.39` on aarch64, as measured in `site/src/lib/releases.ts` and
-`site/scripts/capture/README.md` and matched by the README's install notes. It can move when the
-runner images are upgraded; the workflow above is the authoritative proof of what is built.
+There is no Intel macOS or 32-bit Windows build. For Linux the published glibc floor is **2.39 on
+both architectures** (Ubuntu 24.04 LTS ships 2.39), and it is a deliberate policy rather than a
+side effect of whichever runner image happens to be current: the release build runners are pinned
+to `ubuntu-24.04` / `ubuntu-24.04-arm`, not `ubuntu-latest`. Raising the floor is a breaking
+change under §8.
+
+Both Linux release builds, and the CI AppImage job, run
+`scripts/ci/check-glibc.sh --binary target/release/muninn --max GLIBC_2.39` after compiling. The
+check reads the binary's `GLIBC_*` version needs with `readelf --version-info` and fails when the
+maximum exceeds the policy, so a runner-image upgrade that raises the floor fails the release
+instead of shipping silently. The CI `appimage` job also runs on `ubuntu-24.04` and then starts the
+packaged AppImage (`--version`, `--check`), so a binary that needs a newer glibc than 24.04 provides
+fails there as well.
 
 ## 8. Versioning and deprecation policy
 
