@@ -100,7 +100,8 @@ If you add a workspace crate or dependency edge, update the allowed graph in
   paths offline with a fake `apt-get`. The release build matrix runs with `fail-fast: false`, and
   the release job waits for all four builds. Re-running a tag is safe: if `gh release view` finds
   the release, the workflow uploads the same full asset set with `--clobber` instead of trying to
-  create it again; a persistent failure exits non-zero after the bounded retries.
+  create it again; a persistent failure exits non-zero after the bounded retries (see
+  [Release procedure](#release-procedure)).
 - The released Linux floor is glibc 2.39 for both architectures. `scripts/ci/check-glibc.sh
   --binary PATH --max GLIBC_2.39` reads the `GLIBC_*` versions the binary needs with `readelf
   --version-info` and fails when the maximum exceeds the policy, so a runner-image upgrade cannot
@@ -109,6 +110,38 @@ If you add a workspace crate or dependency edge, update the allowed graph in
   usage paths offline with a fake `readelf` (`MUNINN_READELF`), like the other fixture tests.
 - Snapshot images are proof for a PR, not committed fixtures. Use
   `cargo run -p xtask -- snapshots` and attach what changed.
+
+## Release procedure
+
+A release is cut from `main` by pushing an annotated `v*` tag; the `Release` workflow
+(`.github/workflows/release.yml`) builds every target and publishes the GitHub release.
+
+1. **Pre-flight.** `main` is green and every required check passes on the commit to tag;
+   `CHANGELOG.md` has the release section promoted out of `## [Unreleased]`; the workspace version
+   in `Cargo.toml` (and its path-dependency pins) is bumped; the tag is annotated:
+   `git tag -a vX.Y.Z -m "vX.Y.Z"`.
+2. **Tag and push.** `git push origin vX.Y.Z`. A tag containing a hyphen (`v0.9.3-rc.1`) is
+   published as a prerelease.
+3. **What is published.** The workflow attaches 11 assets to the release: the four archives
+   (`linux_x86_64`, `linux_aarch64`, `macos_aarch64`, `windows_x86_64`), the two Linux `.deb`
+   packages, the two Linux AppImages, `install.sh`, `checksums.txt` and
+   `checksums.txt.sigstore.json`.
+4. **Reruns.** Re-running the workflow for an existing tag is safe and deliberate: `gh release view`
+   finds the release and `gh release upload --clobber` replaces the full asset set in place. That
+   recovery path needs **mutable releases**, which is why immutable releases stay off (below).
+5. **Recovery.** Never delete or move a published tag. If a release is wrong or incomplete, publish
+   the next patch tag with the fix; the bad tag stays as published and is superseded. A rerun
+   repairs a failed upload; it does not change what an existing version means.
+
+**Tag protection.** A repository tag ruleset for `refs/tags/v*` blocks deletion and non-fast-forward
+(force) updates, so once it is applied a published tag cannot be deleted or moved. The ruleset is
+configured in the repository settings under **Rules → Rulesets**, not in a file in this repository;
+the owner applies it when this policy lands.
+
+**Immutable releases are off.** GitHub's immutable-releases setting rejects asset uploads to a
+published release, which would break the `--clobber` rerun path above and could leave a release
+published with a partial asset set and no repair path. Tag immutability, not release immutability,
+is the guarantee that matters: a published tag is never rewritten.
 
 ## Pull requests
 
