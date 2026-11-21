@@ -70,6 +70,19 @@ jobs:
         if: runner.os == 'Linux'
         run: python3 -m unittest discover -s scripts/i18n-review -p 'test_*.py'
 
+  deny:
+    name: Dependency policy (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.22.0
+
+      - name: Check advisories, licences, sources and bans
+        run: cargo deny --locked check advisories licenses sources bans
+
   wasm:
     name: wasm32 check (core, graph)
     runs-on: ubuntu-latest
