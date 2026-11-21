@@ -48,6 +48,10 @@ jobs:
       - name: Test
         run: cargo test --locked --workspace --all-targets
 
+      - name: Shell installer test (POSIX sh)
+        if: runner.os != 'Windows'
+        run: sh scripts/tests/install-sh.sh
+
       - name: Layering
         run: cargo run --locked -p xtask -- layers
 
