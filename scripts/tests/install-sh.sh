@@ -13,7 +13,10 @@ cleanup() {
     rm -rf "$TMP"
   fi
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 pass() { printf 'ok - %s\n' "$*"; }
@@ -54,6 +57,17 @@ for tool in sh uname mktemp rm rmdir curl sed head awk grep find tar gzip mkdir 
   ln -s "$location" "$SHIM/$tool"
 done
 
+# A gh that is installed but unusable (not logged in), to exercise the
+# "verifier present but failing" path without touching a real gh config.
+FAKEBIN="$TMP/fakebin"
+mkdir -p "$FAKEBIN"
+cat > "$FAKEBIN/gh" <<'EOF'
+#!/bin/sh
+printf 'gh: not logged in; run gh auth login\n' >&2
+exit 1
+EOF
+chmod 755 "$FAKEBIN/gh"
+
 # --- install ------------------------------------------------------------------
 PREFIX="$TMP/prefix"
 MUNINN_INSTALL_BASE_URL="file://$RELEASES" sh "$INSTALLER" \
@@ -82,6 +96,43 @@ grep -q 'SHA-256 checksum verified' "$TMP/default.out" || fail "checksum was not
 grep -qi 'signature was NOT checked' "$TMP/default.out" || fail "missing unsigned-build warning"
 [ -x "$DEFAULT_PREFIX/bin/muninn" ] || fail "default-mode binary missing"
 pass "default mode verifies checksum and warns about the unchecked signature"
+
+# --- default mode with an unusable gh still installs --------------------------
+GH_PREFIX="$TMP/prefix-gh-fail"
+PATH="$FAKEBIN:$SHIM" MUNINN_INSTALL_BASE_URL="file://$RELEASES" sh "$INSTALLER" \
+  --version "$TAG" --prefix "$GH_PREFIX" > "$TMP/gh-fail.out" 2>&1 ||
+  { cat "$TMP/gh-fail.out" >&2; fail "default mode aborted because gh was unusable"; }
+grep -q 'SHA-256 checksum verified' "$TMP/gh-fail.out" || fail "checksum was not verified in gh-failure case"
+grep -qi 'signature verification failed' "$TMP/gh-fail.out" || fail "missing signature-failure warning"
+grep -qi 'checksum passed' "$TMP/gh-fail.out" || fail "warning did not say the checksum passed"
+grep -q 'gh auth login' "$TMP/gh-fail.out" || fail "verifier stderr was swallowed"
+[ -x "$GH_PREFIX/bin/muninn" ] || fail "gh-failure install did not write a binary"
+pass "unusable gh in default mode warns but installs"
+
+# --- --require-signature with an unusable gh is fatal -------------------------
+if PATH="$FAKEBIN:$SHIM" MUNINN_INSTALL_BASE_URL="file://$RELEASES" sh "$INSTALLER" \
+  --version "$TAG" --prefix "$TMP/prefix-gh-req" --require-signature > "$TMP/gh-req.out" 2>&1; then
+  cat "$TMP/gh-req.out" >&2
+  fail "--require-signature succeeded with an unusable gh"
+fi
+grep -q -- '--require-signature' "$TMP/gh-req.out" || fail "missing --require-signature error"
+grep -qi 'signature verification' "$TMP/gh-req.out" || fail "error did not mention signature verification"
+grep -q 'gh auth login' "$TMP/gh-req.out" || fail "verifier stderr was swallowed in fatal case"
+pass "--require-signature fails with an unusable gh"
+
+# --- --no-verify does not fetch checksums.txt ---------------------------------
+NOCHECKSUMS="$TMP/nochecksums/$TAG"
+mkdir -p "$NOCHECKSUMS"
+for platform in $PLATFORMS; do
+  cp "$GOOD/muninn_${TAG}_${platform}.tar.gz" "$NOCHECKSUMS/"
+done
+[ ! -e "$NOCHECKSUMS/checksums.txt" ] || fail "fixture accidentally has checksums.txt"
+NOCHECKS_PREFIX="$TMP/prefix-nochecksums"
+MUNINN_INSTALL_BASE_URL="file://$TMP/nochecksums" sh "$INSTALLER" \
+  --version "$TAG" --prefix "$NOCHECKS_PREFIX" --no-verify > "$TMP/nochecksums.out" 2>&1 ||
+  { cat "$TMP/nochecksums.out" >&2; fail "--no-verify required checksums.txt"; }
+[ -x "$NOCHECKS_PREFIX/bin/muninn" ] || fail "no-checksums install did not write a binary"
+pass "--no-verify installs without checksums.txt"
 
 # --- tampered checksums are rejected -----------------------------------------
 BAD="$TMP/bad/$TAG"

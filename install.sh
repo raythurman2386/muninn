@@ -126,7 +126,10 @@ cleanup() {
     rm -rf "$TMP"
   fi
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Print a shell-quoted argument (POSIX sh has no arrays, so build commands as strings).
 shquote() {
@@ -156,6 +159,16 @@ sudo_command() {
     cmd="$cmd --no-verify"
   fi
   printf '%s' "$cmd"
+}
+
+# With `curl ... | sh`, $0 is just "sh": never suggest a sudo command that
+# names a nonexistent script file in that case.
+die_unwritable() {
+  action=$1
+  if [ -f "$SCRIPT_PATH" ] && [ -r "$SCRIPT_PATH" ]; then
+    die "prefix $PREFIX is not writable; re-run the $action with elevated privileges if appropriate: $(sudo_command)"
+  fi
+  die "prefix $PREFIX is not writable; choose a writable --prefix or re-run the $action as root"
 }
 
 add_parent_dirs() {
@@ -272,6 +285,25 @@ verify_checksum() {
   return 1
 }
 
+# A verifier that is present but unusable must not block a checksum-verified
+# install unless --require-signature was explicitly requested.
+report_verifier_failure() {
+  verifier_name=$1
+  log=$2
+  if [ "$REQUIRE_SIGNATURE" = true ]; then
+    if [ -s "$log" ]; then
+      printf '%s\n' "${verifier_name} output:" >&2
+      sed 's/^/    /' "$log" >&2
+    fi
+    die "signature verification with ${verifier_name} failed; the SHA-256 checksum passed, but --require-signature makes signature failures fatal"
+  fi
+  warn "signature verification failed with ${verifier_name}: the SHA-256 checksum passed, but the signature was NOT checked. Use --require-signature to make a failed or missing verifier fatal."
+  if [ -s "$log" ]; then
+    printf '%s\n' "${verifier_name} output:" >&2
+    sed 's/^/    /' "$log" >&2
+  fi
+}
+
 verify_signature() {
   verifier=""
   if command -v cosign >/dev/null 2>&1; then
@@ -287,18 +319,28 @@ verify_signature() {
   case "$verifier" in
     cosign)
       bundle="$TMP/checksums.txt.sigstore.json"
-      curl -fsSL -o "$bundle" "$DOWNLOAD_BASE/$TAG/checksums.txt.sigstore.json" ||
-        die "failed to download checksums.txt.sigstore.json from $DOWNLOAD_BASE/$TAG/"
-      cosign verify-blob \
+      verifier_log="$TMP/cosign.log"
+      identity="^https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/"
+      if ! curl -fsSL -o "$bundle" "$DOWNLOAD_BASE/$TAG/checksums.txt.sigstore.json" 2> "$verifier_log"; then
+        report_verifier_failure "cosign" "$verifier_log"
+        return 0
+      fi
+      if ! cosign verify-blob \
         --bundle "$bundle" \
-        --certificate-identity-regexp '^https://github.com/raythurman2386/muninn/.github/workflows/release.yml@refs/tags/' \
+        --certificate-identity-regexp "$identity" \
         --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-        "$CHECKSUMS" || die "cosign could not verify checksums.txt"
+        "$CHECKSUMS" 2> "$verifier_log"; then
+        report_verifier_failure "cosign" "$verifier_log"
+        return 0
+      fi
       printf 'Sigstore signature verified with cosign.\n'
       ;;
     gh)
-      gh attestation verify "$ARCHIVE" --repo "$REPO" ||
-        die "gh attestation verify failed for $ARCHIVE_NAME"
+      verifier_log="$TMP/gh.log"
+      if ! gh attestation verify "$ARCHIVE" --repo "$REPO" 2> "$verifier_log"; then
+        report_verifier_failure "gh attestation" "$verifier_log"
+        return 0
+      fi
       printf 'GitHub attestation verified with gh.\n'
       ;;
     *)
@@ -310,7 +352,7 @@ verify_signature() {
 # --- uninstall ---------------------------------------------------------------
 if [ "$UNINSTALL" = true ]; then
   if ! check_prefix_writable; then
-    die "prefix $PREFIX is not writable; re-run the uninstall yourself: $(sudo_command)"
+    die_unwritable "uninstall"
   fi
   do_uninstall
   exit 0
@@ -324,7 +366,7 @@ detect_platform
 resolve_tag
 
 if ! check_prefix_writable; then
-  die "prefix $PREFIX is not writable; re-run with elevated privileges if appropriate: $(sudo_command)"
+  die_unwritable "install"
 fi
 
 ARCHIVE_NAME="muninn_${TAG}_${PLATFORM}.tar.gz"
@@ -332,14 +374,14 @@ ARCHIVE="$TMP/$ARCHIVE_NAME"
 CHECKSUMS="$TMP/checksums.txt"
 
 printf 'Downloading %s ...\n' "$ARCHIVE_NAME"
-curl -fsSL -o "$CHECKSUMS" "$DOWNLOAD_BASE/$TAG/checksums.txt" ||
-  die "failed to download checksums.txt from $DOWNLOAD_BASE/$TAG/"
 curl -fsSL -o "$ARCHIVE" "$DOWNLOAD_BASE/$TAG/$ARCHIVE_NAME" ||
   die "failed to download $ARCHIVE_NAME from $DOWNLOAD_BASE/$TAG/"
 
 if [ "$NO_VERIFY" = true ]; then
   warn "verification skipped (--no-verify): neither the checksum nor the signature was checked"
 else
+  curl -fsSL -o "$CHECKSUMS" "$DOWNLOAD_BASE/$TAG/checksums.txt" ||
+    die "failed to download checksums.txt from $DOWNLOAD_BASE/$TAG/"
   verify_checksum "$ARCHIVE" ||
     die "SHA-256 mismatch for $ARCHIVE_NAME; refusing to install (see $DOWNLOAD_BASE/$TAG/checksums.txt)"
   printf 'SHA-256 checksum verified.\n'

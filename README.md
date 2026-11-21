@@ -122,7 +122,7 @@ yourself. Uninstall reads an install receipt and removes only those files — it
 | --- | --- | --- |
 | Linux x86_64 | `muninn_<TAG>_linux_x86_64.tar.gz` | `sh install.sh` (also installs the desktop file and icons under `$PREFIX/share`), or unpack by hand. |
 | Linux aarch64 | `muninn_<TAG>_linux_aarch64.tar.gz` | Same, on ARM64 Linux. |
-| Linux x86_64 / aarch64 (Debian, Ubuntu) | `muninn_<VERSION>_amd64.deb` / `muninn_<VERSION>_arm64.deb` | `sudo apt install ./muninn_<VERSION>_amd64.deb` (or the arm64 build). |
+| Linux x86_64 / aarch64 (Debian, Ubuntu) | `muninn_<VERSION>-1_amd64.deb` / `muninn_<VERSION>-1_arm64.deb` | `sudo apt install ./muninn_<VERSION>-1_amd64.deb` (or the arm64 build). |
 | macOS aarch64 (Apple Silicon) | `muninn_<TAG>_macos_aarch64.tar.gz` | `sh install.sh` installs the binary only. |
 | Windows x86_64 | `muninn_<TAG>_windows_x86_64.zip` | Unzip the archive; **this script does not support Windows**. |
 
