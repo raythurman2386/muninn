@@ -24,7 +24,7 @@ jobs:
       artifact-metadata: write
       contents: read
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-latest, os: linux, arch: x86_64, archive: tar.gz }
@@ -42,9 +42,10 @@ jobs:
 
       - name: Install Linux system libraries
         if: matrix.os == 'linux'
+        # The helper retries boundedly and never calls sudo itself; runners
+        # need root for apt, so wrap the whole helper invocation.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sudo sh scripts/ci/apt-install.sh \
             pkg-config libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libxkbcommon-dev libwayland-dev libgl1-mesa-dev \
             dpkg-dev liblzma-dev
@@ -141,12 +142,57 @@ jobs:
       - name: Sign checksums
         run: cosign sign-blob --yes dist/checksums.txt --bundle dist/checksums.txt.sigstore.json
 
-      - name: Create release
+      - name: Create or refresh release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          set -eu
+          # Unquoted on purpose: the shell must expand these globs to the full
+          # asset set on every attempt, including reruns of an existing tag.
+          assets='dist/*.tar.gz dist/*.zip dist/*.deb dist/install.sh dist/checksums.txt dist/checksums.txt.sigstore.json'
           prerelease=""
           case "$TAG" in *-*) prerelease="--prerelease" ;; esac  # v0.2.0-rc.1
-          gh release create "$TAG" dist/*.tar.gz dist/*.zip dist/*.deb dist/install.sh dist/checksums.txt dist/checksums.txt.sigstore.json \
-            --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag $prerelease
+          attempts=${MUNINN_RELEASE_ATTEMPTS:-3}
+          backoff=${MUNINN_RELEASE_BACKOFF:-5}
+
+          case "$attempts" in
+            '' | *[!0-9]*) printf 'release: MUNINN_RELEASE_ATTEMPTS must be a positive integer\n' >&2; exit 2 ;;
+          esac
+          [ "$attempts" -ge 1 ] || { printf 'release: MUNINN_RELEASE_ATTEMPTS must be a positive integer\n' >&2; exit 2; }
+          case "$backoff" in
+            '' | *[!0-9]*) printf 'release: MUNINN_RELEASE_BACKOFF must be a non-negative integer\n' >&2; exit 2 ;;
+          esac
+
+          attempt=1
+          while [ "$attempt" -le "$attempts" ]; do
+            printf 'release: attempt %s/%s: checking for release %s\n' "$attempt" "$attempts" "$TAG"
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              printf 'release: %s exists; uploading the full asset set with --clobber\n' "$TAG"
+              if gh release upload "$TAG" $assets --repo "$GITHUB_REPOSITORY" --clobber; then
+                printf 'release: assets published\n'
+                exit 0
+              else
+                status=$?
+                printf 'release: upload failed (exit %s)\n' "$status" >&2
+              fi
+            else
+              printf 'release: %s does not exist; creating it\n' "$TAG"
+              if gh release create "$TAG" $assets --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag $prerelease; then
+                printf 'release: created and assets published\n'
+                exit 0
+              else
+                status=$?
+                printf 'release: create failed (exit %s)\n' "$status" >&2
+              fi
+            fi
+
+            if [ "$attempt" -lt "$attempts" ] && [ "$backoff" -gt 0 ]; then
+              printf 'release: retrying in %ss\n' "$backoff"
+              sleep "$backoff"
+            fi
+            attempt=$((attempt + 1))
+          done
+
+          printf 'release: giving up after %s attempt(s)\n' "$attempts" >&2
+          exit 1

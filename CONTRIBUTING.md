@@ -66,6 +66,14 @@ If you add a workspace crate or dependency edge, update the allowed graph in
 - `scripts/ui-smoke.sh` launches the real app headless (Rune offscreen tooling, then a windowed
   run on a private Xvfb display), switches modes, screenshots each step and checks vault files
   afterwards. Usage and requirements are in its header; output lands in `target/ui-smoke`.
+- `scripts/ci/apt-install.sh PACKAGE...` installs Linux build dependencies with a bounded retry
+  (three attempts and a short backoff by default) around both `apt-get update` and
+  `apt-get install --fix-missing`, so one flaky mirror request cannot fail a build. It never calls
+  `sudo`; the release workflow wraps it. `scripts/tests/apt-retry.sh` checks the retry and failure
+  paths offline with a fake `apt-get`. The release build matrix runs with `fail-fast: false`, and
+  the release job waits for all four builds. Re-running a tag is safe: if `gh release view` finds
+  the release, the workflow uploads the same full asset set with `--clobber` instead of trying to
+  create it again; a persistent failure exits non-zero after the bounded retries.
 - Snapshot images are proof for a PR, not committed fixtures. Use
   `cargo run -p xtask -- snapshots` and attach what changed.
 
