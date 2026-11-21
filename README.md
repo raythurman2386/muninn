@@ -149,8 +149,9 @@ run it with the built-in extractor instead:
 ```
 
 The AppImage carries the same SHA-256 entry in `checksums.txt` and the same Sigstore / GitHub
-attestation verification as the other release assets. It is built on Ubuntu 24.04 (so it needs a
-glibc of 2.39 or newer), and it has no built-in auto-update: download the next release to upgrade.
+attestation verification as the other release assets. Its glibc floor follows the release build:
+**x86_64 needs glibc 2.43** (Ubuntu 24.04 is too old) and **aarch64 needs glibc 2.39**. It has no
+built-in auto-update: download the next release to upgrade.
 
 Release binaries are unsigned by an Apple Developer ID or a Windows code-signing certificate, so
 Gatekeeper and SmartScreen may warn on first run. On macOS, open the binary from **System
@@ -297,6 +298,8 @@ original name binding until it is renamed back. The
 
 ## Docs
 
+- [Compatibility contract](docs/compatibility.md) — what is stable at 1.0, the deprecation policy
+  and the platform floor.
 - [Sync setup](docs/sync-setup.md) — the OAuth clients, credential store and Tailscale host.
 - [Sync safety](docs/sync-safety.md) — what sync will and will not do with a note.
 - [Kanban format](docs/kanban-format.md) — the frontmatter, lanes, cards, dates and settings

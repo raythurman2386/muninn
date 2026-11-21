@@ -3,7 +3,8 @@
 Muninn is a small desktop app with a deliberately boring data model: **the file is the source of
 truth**. There is no database, migration step or background index writer. The vault is scanned
 when it is opened or reloaded, links are re-indexed after a save, and everything the UI shows is
-derived from that scan.
+derived from that scan. The on-disk and interface contracts this implies are listed in
+[docs/compatibility.md](docs/compatibility.md).
 
 ## Crate graph
 
