@@ -2312,7 +2312,7 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
 name = "muninn-app"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "muninn-core",
  "muninn-ui",
@@ -2326,7 +2326,7 @@ dependencies = [
 
 [[package]]
 name = "muninn-core"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -2339,25 +2339,25 @@ dependencies = [
 
 [[package]]
 name = "muninn-graph"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "muninn-core",
 ]
 
 [[package]]
 name = "muninn-i18n"
-version = "0.9.2"
+version = "0.9.3"
 
 [[package]]
 name = "muninn-import"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "anydoc",
 ]
 
 [[package]]
 name = "muninn-sync"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "base64 0.23.1",
  "form_urlencoded",
@@ -2378,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "muninn-ui"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "muninn-core",
  "muninn-graph",
@@ -5675,7 +5675,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "serde_json",
 ]
