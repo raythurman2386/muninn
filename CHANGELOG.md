@@ -6,6 +6,41 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-20
+
+### Added
+
+- **Install script (#231).** `install.sh` is now a release asset for Linux
+  x86_64/aarch64 and macOS aarch64. It picks the tarball for the platform,
+  verifies its SHA-256 against the release `checksums.txt`, and verifies the
+  Sigstore signature with `cosign` or a GitHub attestation when either is
+  installed (`--require-signature` makes that mandatory). It installs into
+  `$HOME/.local` by default, adds the desktop file and icons on Linux, writes
+  an install receipt, and `--uninstall` removes exactly those files while
+  leaving `~/.config/muninn`, sync state and the vault untouched. It never
+  runs `sudo`; an unwritable prefix prints the command to run instead.
+- **Arch package (#233).** A `muninn-bin` PKGBUILD and generated `.SRCINFO`
+  live under `packaging/aur/` for the Linux x86_64 tarball, with the license,
+  desktop file and icons. Publishing to the AUR remains a manual owner step.
+
+### Changed
+
+- **Release workflow (#235).** The build matrix runs with `fail-fast: false`,
+  and apt package installs retry with bounded backoff, so one flaky mirror
+  cannot cancel the other platform builds or skip publication. Re-running a
+  tag is safe: an existing release is refreshed with the full asset set via
+  `gh release upload --clobber` instead of failing on an existing release.
+- `install.sh` is included in `checksums.txt` and the published assets.
+
+### Fixed
+
+- **Windows console (#232).** Release Windows builds are GUI-subsystem, so
+  double-clicking `muninn.exe` from Explorer opens only the app window. From
+  a terminal, `--version`, `--help`, `--check` and `--list-links` still print
+  and return their documented exit codes (0 clean, 1 broken links/duplicates,
+  2 unreadable vault); the binary attaches to the parent console only when
+  stdout/stderr are not already redirected. Debug builds keep the console.
+
 ## [0.9.0] - 2026-11-19
 
 ### Added
