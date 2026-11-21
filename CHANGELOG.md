@@ -6,13 +6,24 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
-### Changed
+## [0.9.3] - 2026-11-21
 
-- **Linux glibc baseline (#263).** Linux release builds on both x86_64 and
-  aarch64 are pinned to glibc 2.39 (Ubuntu 24.04 LTS or newer); x86_64
-  releases no longer need glibc 2.43. A new `scripts/ci/check-glibc.sh` guard
-  measures the binary's maximum `GLIBC_*` need after every release build and
-  fails before publishing when a runner-image upgrade raises the floor.
+### Fixed
+
+- **Linux x86_64 runs on Ubuntu 24.04 again.** Release builds are pinned to
+  Ubuntu 24.04 / glibc 2.39 instead of the drifting `ubuntu-latest` image,
+  which had raised the x86_64 floor to glibc 2.43. The x86_64 tarball, `.deb`
+  and AppImage now run on Ubuntu 24.04 LTS and any distribution with glibc
+  2.39 or newer; aarch64 was already at 2.39. CI measures the binary's maximum
+  `GLIBC_*` requirement and fails on runner-image drift.
+
+### Security
+
+- CI now gates RustSec advisories, licences and dependency sources with
+  `cargo-deny`, with no advisory ignores. `anydoc` 0.2.5 moves `zip` to 9.8.1,
+  clearing eight zip advisories inherited by the import path.
+- A scheduled fuzz harness covers the note-lock envelope, sync journal/commit
+  JSON and wikilink parsers.
 
 ## [0.9.2] - 2026-11-21
 
