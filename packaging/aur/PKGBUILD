@@ -1,0 +1,25 @@
+# Maintainer: Raymond Thurman <raythurman2386@users.noreply.github.com>
+
+pkgname=muninn-bin
+pkgver=0.9.0
+pkgrel=1
+pkgdesc='Local-first Markdown vault with a wikilink graph'
+arch=('x86_64')
+url='https://github.com/raythurman2386/muninn'
+license=('MIT')
+depends=('libxcb' 'libxkbcommon' 'wayland' 'libglvnd')
+provides=('muninn')
+conflicts=('muninn')
+options=('!strip')
+source=("muninn_v${pkgver}_linux_x86_64.tar.gz::https://github.com/raythurman2386/muninn/releases/download/v${pkgver}/muninn_v${pkgver}_linux_x86_64.tar.gz")
+sha256sums=('81eaacba6e558c38343edbfe1afc36ca5ece3fa203e08cb3c0b35423ca15c00b')
+
+package() {
+  local src="${srcdir}/muninn_v${pkgver}_linux_x86_64"
+
+  install -Dm755 "${src}/muninn" "${pkgdir}/usr/bin/muninn"
+  install -Dm644 "${src}/assets/muninn.desktop" "${pkgdir}/usr/share/applications/muninn.desktop"
+  install -Dm644 "${src}/assets/logo.png" "${pkgdir}/usr/share/icons/hicolor/512x512/apps/muninn.png"
+  install -Dm644 "${src}/assets/logo.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/muninn.svg"
+  install -Dm644 "${src}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}
