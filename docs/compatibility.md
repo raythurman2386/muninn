@@ -152,6 +152,10 @@ Release artifacts are named by `.github/workflows/release.yml` as
 (`muninn_<VERSION>-1_amd64.deb` / `_arm64.deb`). `scripts/build-appimage.sh` normalises its output
 to `muninn_v<VERSION>_linux_<arch>.AppImage` with a single `v` prefix.
 
+Published release tags are immutable (a `v*` tag is never deleted or moved, so `--version TAG`
+always names the same version), while release assets may be refreshed in place by a rerun: the
+asset set and names above are the contract, not the publish timestamp.
+
 `install.sh` accepts `--version TAG`, `--prefix DIR`, `--uninstall`, `--require-signature`,
 `--no-verify` and `-h|--help` (its `usage()` is the list). On install it writes a receipt at
 `$PREFIX/share/muninn/install-receipt`; `--uninstall` removes **only** receipt-listed files and
