@@ -24,8 +24,22 @@ wgpu.workspace = true
 [dev-dependencies]
 muninn-core = { workspace = true, features = ["test-support"] }
 
-[lints]
-workspace = true
+# The Windows console helper (src/win_console.rs) calls Win32 FFI, which needs
+# `unsafe`. The workspace uses `forbid`, which cannot be relaxed per module, so
+# mirror the workspace lints here with `unsafe_code = "deny"`; that still fails
+# any unsafe code in this crate except in win_console.rs, the only module that
+# opts out locally. All other lints are unchanged.
+[lints.rust]
+unsafe_code = "deny"
+unused_must_use = "deny"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Console"] }
 
 [package.metadata.deb]
 name = "muninn"

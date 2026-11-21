@@ -23,6 +23,11 @@
 //! shows its window (switching vaults when one was named), and exits 0.
 //! `--new-instance` starts a separate app anyway.
 
+// Release Windows builds are GUI-subsystem so an Explorer double-click shows
+// only the app window. Debug builds keep the console for diagnostics; other
+// platforms are unaffected.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -38,6 +43,8 @@ use rune_theme_opencode as theme;
 
 mod fx;
 mod instance;
+#[cfg(all(windows, not(debug_assertions)))]
+mod win_console;
 
 /// `--trace` is parsed before Rune starts, but `init` is a plain function
 /// pointer; this carries the flag between them.
@@ -48,6 +55,12 @@ static TRACE: AtomicBool = AtomicBool::new(false);
 static THEME: std::sync::Mutex<Option<ThemeMode>> = std::sync::Mutex::new(None);
 
 fn main() {
+    // In a GUI-subsystem release build, headless flags would print into the
+    // void. Reattach to the parent console first so `--version`, `--help`,
+    // `--check` and `--list-links` still write to the caller's terminal.
+    #[cfg(all(windows, not(debug_assertions)))]
+    win_console::attach_parent_console();
+
     // `--version` / `-V` print the version and exit, before Rune or a window
     // is touched (GK MF-C, #43).
     if std::env::args_os()
