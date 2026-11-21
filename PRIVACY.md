@@ -38,6 +38,14 @@ Sign-in tokens and the Tailscale key are stored in your operating system's crede
 
 Muninn does not create a Muninn account, and the app does not send your notes or usage data to us. Google, GitHub, and Tailscale may keep their own records of sign-in and API use under their policies.
 
+## Update check
+
+Muninn can check whether a newer release exists. This check is on by default and can be turned off in Settings; turning it off makes no request at all.
+
+When it runs, at most once a day (with a small random delay and a longer wait after a failure), the app asks GitHub's public releases API for the latest release of `raythurman2386/muninn`. The request carries `User-Agent: muninn/<version>`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, and an ETag so an unchanged release is answered with a 304. It does not send a token, an account, a vault path, note text, settings, or any usage data, and it has no request body. Only the release's tag, draft/prerelease flags, and page URL are read; the release notes are not stored or logged. Muninn never downloads or installs anything from this check.
+
+GitHub sees the request's IP address and user agent and handles the request under its own privacy policy. The check is skipped in tests and headless runs unless a test explicitly enables it.
+
 ## Website
 
 The Muninn website at https://muninn.ravenwoodsoftware.dev is served through Cloudflare, which proxies the site and caches it on a CDN. Cloudflare sees visitor IP addresses and request metadata such as the requested URL and user agent. Cloudflare's email address obfuscation is on, so email addresses in the pages Cloudflare serves are rewritten to make them harder for scrapers to harvest.
