@@ -2675,6 +2675,35 @@ pub fn update_available(version: &str) -> String {
     phrase_current(MsgKey::UpdateAvailable, &[version])
 }
 
+/// `"Muninn 0.11.0 is installed. Restart Muninn to use it."`, the self-update
+/// success notice.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::update_installed("0.11.0"),
+///     "Muninn 0.11.0 is installed. Restart Muninn to use it."
+/// );
+/// ```
+pub fn update_installed(version: &str) -> String {
+    phrase_current(MsgKey::UpdateInstalled, &[version])
+}
+
+/// `"Update failed: <detail>"`, the self-update failure notice.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::update_failed("SHA-256 mismatch"),
+///     "Update failed: SHA-256 mismatch"
+/// );
+/// ```
+pub fn update_failed(detail: &str) -> String {
+    phrase_current(MsgKey::UpdateFailed, &[detail])
+}
+
 /// `"New vault created at <path> — make your first note"`.
 ///
 /// # Examples

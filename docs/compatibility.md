@@ -167,7 +167,10 @@ then prunes empty directories, and never touches `~/.config/muninn`, sync state 
 "tampered checksums rejected" and "uninstall removes only receipt-listed files"). The installer
 never runs `sudo`. An AppImage is a single self-mounting file: it installs nothing, writes no
 receipt and has no uninstall step (`scripts/build-appimage.sh` produces the single file, and
-`install.sh` only ever downloads the tarballs). Installation instructions and verification
+`install.sh` only ever downloads the tarballs). Tarball and AppImage installs can update in place
+after the explicit **Update** action, with the checksum verified and a signature check when a
+verifier is installed; `.deb` and AUR installs cannot and stay with their package manager, and
+the installed asset names are unchanged. Installation instructions and verification
 commands remain in the [README](../README.md#install).
 
 ## 7. Platform floor

@@ -1120,6 +1120,20 @@ fn read_entry<R: io::Read>(
     Ok(bytes)
 }
 
+/// One message from the self-update worker to the UI thread.
+///
+/// A worker reports each [`Phase`] before starting it and then exactly one
+/// [`Finished`](SelfUpdateMessage::Finished). The UI applies these on its own
+/// thread ([`crate::State::apply_self_update_message`]); the worker never
+/// touches `State`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SelfUpdateMessage {
+    /// The worker is entering this phase.
+    Phase(Phase),
+    /// The update finished, with the new version or a readable failure.
+    Finished(Result<Applied, String>),
+}
+
 /// What one successful install did.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Applied {

@@ -161,6 +161,8 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         }
         MsgKey::Version => "Versión {0}.",
         MsgKey::UpdateAvailable => "Muninn {0} está disponible",
+        MsgKey::UpdateInstalled => "Muninn {0} está instalado. Reinicia Muninn para usarlo.",
+        MsgKey::UpdateFailed => "Error al actualizar: {0}",
         MsgKey::ShowWithChord => "Mostrar Muninn con {0}",
         MsgKey::ShortcutFailed => "No se pudo registrar {0}: {1}",
         MsgKey::ShortcutOn => "Activado. {0} muestra Muninn desde cualquier aplicación.",

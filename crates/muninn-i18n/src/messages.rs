@@ -154,6 +154,8 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::AutosaveHelp => "Autosave writes {0} s after you stop typing.",
         MsgKey::Version => "Version {0}.",
         MsgKey::UpdateAvailable => "Muninn {0} is available",
+        MsgKey::UpdateInstalled => "Muninn {0} is installed. Restart Muninn to use it.",
+        MsgKey::UpdateFailed => "Update failed: {0}",
         MsgKey::ShowWithChord => "Show Muninn with {0}",
         MsgKey::ShortcutFailed => "{0} could not be registered: {1}",
         MsgKey::ShortcutOn => "On. {0} shows Muninn from any app.",

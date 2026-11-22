@@ -7,7 +7,7 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use muninn_sync::BrowserOpener as _;
 
@@ -35,6 +35,7 @@ use crate::camera::{Camera, CameraGlide};
 use crate::lock_session::{LockRevs, NoteSessions, RevStatus, UnlockError};
 use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
+use crate::self_update::{Downloader, SelfUpdateMessage, detect_verifiers, perform};
 use crate::settings::{
     GraphEffectIntensity, GraphEffects, LanguageChoice, ReduceMotion, Settings, ThemeMode,
     clamp_note_template, config_home,
@@ -853,6 +854,14 @@ pub struct State {
     pub update_rx: Option<mpsc::Receiver<crate::update::CheckOutcome>>,
     /// #234: a release check is in flight. Guards against a second worker.
     pub update_checking: bool,
+    /// #254: the worker channel for an in-flight self-update. The worker
+    /// sends [`SelfUpdateMessage`]s; `poll` drains them on the UI thread.
+    /// `None` when no update is in flight.
+    pub self_update_rx: Option<mpsc::Receiver<crate::self_update::SelfUpdateMessage>>,
+    /// #254: the phase the running self-update reported last.
+    pub self_update_phase: Option<crate::self_update::Phase>,
+    /// #254: a self-update is in flight. Guards against a second worker.
+    pub self_update_running: bool,
     /// #189: finished document conversions, drained in [`crate::poll`].
     pub(crate) import_inbox:
         Option<std::sync::mpsc::Receiver<crate::import_document::ImportMessage>>,
@@ -1170,6 +1179,9 @@ impl State {
             update_available: None,
             update_rx: None,
             update_checking: false,
+            self_update_rx: None,
+            self_update_phase: None,
+            self_update_running: false,
             import_inbox: None,
             import_queue: Vec::new(),
             tray: crate::tray::TrayLink::default(),
@@ -1460,6 +1472,183 @@ impl State {
         let jitter = now % crate::update::JITTER_MAX_SECS;
         for outcome in outcomes {
             self.apply_update_outcome(outcome, now, jitter);
+        }
+        true
+    }
+
+    // ---- #254: verified self-update --------------------------------------
+
+    /// Whether the offered release can update this installation in place.
+    ///
+    /// Only tarball (`install.sh`) and AppImage installs qualify, and only on
+    /// Unix. `.deb`, AUR and unknown installs keep their package manager.
+    #[must_use]
+    pub fn self_update_supported(&self) -> bool {
+        cfg!(unix)
+            && self.update_available.as_ref().is_some_and(|update| {
+                matches!(
+                    update.method,
+                    crate::InstallMethod::Tarball | crate::InstallMethod::AppImage
+                )
+            })
+    }
+
+    /// The phase the running self-update reported last.
+    #[must_use]
+    pub fn self_update_phase(&self) -> Option<crate::self_update::Phase> {
+        self.self_update_phase
+    }
+
+    /// Whether a self-update worker is in flight.
+    #[must_use]
+    pub fn self_update_running(&self) -> bool {
+        self.self_update_running
+    }
+
+    /// Start the explicit **Update** action on a worker thread.
+    ///
+    /// This is only reachable from the banner, and only for a supported
+    /// install: nothing starts an update automatically. The worker parses the
+    /// running version, captures the executable and `$APPIMAGE`, and calls
+    /// [`perform`] with the app state root (`<state_home>/muninn`) so the
+    /// engine keeps its one rollback copy under `update/muninn.previous`.
+    /// Every phase and the single result arrive as [`SelfUpdateMessage`]s;
+    /// the UI thread never blocks. A panic becomes one failure message.
+    pub fn start_self_update(&mut self) {
+        if !self.self_update_supported() || self.self_update_running {
+            return;
+        }
+        let Some(update) = self.update_available.clone() else {
+            return;
+        };
+        let current = match semver::Version::parse(env!("CARGO_PKG_VERSION")) {
+            Ok(current) => current,
+            Err(error) => {
+                self.notice = Some(muninn_i18n::update_failed(&error.to_string()));
+                return;
+            }
+        };
+        let exe = match std::env::current_exe() {
+            Ok(exe) => exe,
+            Err(error) => {
+                self.notice = Some(muninn_i18n::update_failed(&error.to_string()));
+                return;
+            }
+        };
+        let appimage = std::env::var_os("APPIMAGE")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
+        let app_state_root = self.state_home.join("muninn");
+
+        self.self_update_running = true;
+        self.self_update_phase = Some(crate::self_update::Phase::Downloading);
+        let (sender, receiver) = mpsc::channel();
+        self.self_update_rx = Some(receiver);
+        std::thread::spawn(move || {
+            let progress_sender = sender.clone();
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let downloader = Downloader::new(Duration::from_secs(300));
+                let verifiers = detect_verifiers();
+                let mut progress = |phase: crate::self_update::Phase| {
+                    let _ = progress_sender.send(SelfUpdateMessage::Phase(phase));
+                };
+                perform(
+                    &update,
+                    &current,
+                    &exe,
+                    appimage.as_deref(),
+                    &app_state_root,
+                    &downloader,
+                    &verifiers,
+                    &mut progress,
+                )
+                .map_err(|error| error.to_string())
+            }));
+            let message = match outcome {
+                Ok(result) => SelfUpdateMessage::Finished(result),
+                Err(_) => {
+                    SelfUpdateMessage::Finished(Err(t(TextKey::UpdateInterrupted).to_owned()))
+                }
+            };
+            // The window may have gone away; a dropped receiver is fine.
+            let _ = sender.send(message);
+        });
+    }
+
+    /// Apply one worker message on the UI thread.
+    ///
+    /// A phase is visible in the banner. A successful install clears the
+    /// banner and reports the restart in the status bar; the engine has
+    /// already written the binary and rollback copy, so nothing else is
+    /// persisted here. A failure keeps the banner so **Update** can be tried
+    /// again, and shortens the engine detail for the status bar.
+    pub fn apply_self_update_message(&mut self, message: SelfUpdateMessage) {
+        match message {
+            SelfUpdateMessage::Phase(phase) => {
+                self.self_update_phase = Some(phase);
+                self.self_update_running = true;
+            }
+            SelfUpdateMessage::Finished(Ok(applied)) => {
+                self.self_update_running = false;
+                self.self_update_phase = None;
+                self.self_update_rx = None;
+                self.update_available = None;
+                let mut notice = muninn_i18n::update_installed(&applied.version);
+                if let Some(warning) = applied.warning {
+                    let warning = truncate_update_detail(&warning);
+                    if !warning.is_empty() {
+                        notice.push(' ');
+                        notice.push_str(&warning);
+                    }
+                }
+                self.notice = Some(notice);
+            }
+            SelfUpdateMessage::Finished(Err(error)) => {
+                self.self_update_running = false;
+                self.self_update_phase = None;
+                self.self_update_rx = None;
+                self.notice = Some(muninn_i18n::update_failed(&truncate_update_detail(&error)));
+            }
+        }
+    }
+
+    /// Drain finished self-update messages, once per frame from
+    /// [`crate::poll`]. At most four messages are read per frame. Returns true
+    /// when the phase, the banner or the status notice changed.
+    pub fn poll_self_update(&mut self) -> bool {
+        let mut messages = Vec::new();
+        let mut disconnected = false;
+        if let Some(receiver) = self.self_update_rx.as_ref() {
+            loop {
+                match receiver.try_recv() {
+                    Ok(message) => {
+                        messages.push(message);
+                        if messages.len() >= 4 {
+                            break;
+                        }
+                    }
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        disconnected = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if messages.is_empty() {
+            if disconnected && (self.self_update_running || self.self_update_phase.is_some()) {
+                // The worker vanished without its one result message. Do not
+                // leave the banner looking busy forever.
+                self.self_update_rx = None;
+                self.self_update_running = false;
+                self.self_update_phase = None;
+                self.notice = Some(muninn_i18n::update_failed(t(TextKey::UpdateInterrupted)));
+                return true;
+            }
+            return false;
+        }
+        for message in messages {
+            self.apply_self_update_message(message);
         }
         true
     }
@@ -6806,6 +6995,18 @@ pub(crate) fn conflict_stamp() -> String {
         year += 1;
     }
     format!("{year:04}{month:02}{day:02}-{hour:02}{minute:02}{second:02}")
+}
+
+/// Keep an engine detail short enough for the status bar, on a character
+/// boundary so multi-byte text cannot be cut mid-scalar.
+fn truncate_update_detail(detail: &str) -> String {
+    const MAX_CHARS: usize = 200;
+    let mut text = detail.trim().to_owned();
+    if text.chars().count() > MAX_CHARS {
+        text = text.chars().take(MAX_CHARS).collect();
+        text.push('…');
+    }
+    text
 }
 
 /// Unix seconds, saturating to zero before the epoch or on a broken clock.

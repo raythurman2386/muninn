@@ -179,6 +179,8 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::AutosaveHelp => "La sauvegarde automatique écrit {0} s après l’arrêt de la saisie.",
         MsgKey::Version => "Version {0}.",
         MsgKey::UpdateAvailable => "Muninn {0} est disponible",
+        MsgKey::UpdateInstalled => "Muninn {0} est installé. Redémarrez Muninn pour l’utiliser.",
+        MsgKey::UpdateFailed => "Échec de la mise à jour : {0}",
         MsgKey::ShowWithChord => "Afficher Muninn avec {0}",
         MsgKey::ShortcutFailed => "Impossible d’enregistrer {0}\u{a0}: {1}",
         MsgKey::ShortcutOn => "Activé. {0} affiche Muninn depuis n’importe quelle application.",

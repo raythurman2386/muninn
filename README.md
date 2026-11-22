@@ -74,9 +74,12 @@ If Muninn is useful to you, consider
 - **Focus.** One chord hides everything but the note, dims the other paragraphs and keeps the
   caret's line centred.
 - **Tells you about new releases.** A once-a-day check (on by default, off in
-  **Settings › Appearance › Updates**) names a newer stable version and the
-  manual upgrade path for your install. It sends no notes or vault data and
-  never downloads anything itself; see [the privacy policy](PRIVACY.md).
+  **Settings › Appearance › Updates**) names a newer stable version. Tarball
+  and AppImage installs can then update in place after the explicit **Update**
+  action, with the download's SHA-256 checked (and its signature when a
+  verifier is installed); `.deb` and AUR installs stay with their package
+  manager. The check sends no notes or vault data and never downloads
+  anything by itself; see [the privacy policy](PRIVACY.md).
 - **Small comforts.** An opt-in tray icon, start at login and a global shortcut that summons the
   window.
 

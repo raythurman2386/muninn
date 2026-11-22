@@ -81,6 +81,11 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.poll_update() {
         changed = true;
     }
+    // #254: the explicit Update action downloads and installs on a worker;
+    // land each phase and the one result here, on the UI thread.
+    if s.poll_self_update() {
+        changed = true;
+    }
     // #189: a document converts on a worker; land the note here and keep the
     // window polling while a conversion or a queued document waits.
     if s.poll_import() {
