@@ -6,6 +6,17 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-22
+
+### Fixed
+
+- **AppImage self-update used the wrong asset name.** The architecture was
+  derived by splitting the release platform at the last underscore, so
+  `linux_x86_64` became `64` and the update requested
+  `muninn_v<version>_linux_64.AppImage` (404). It now strips the `linux_`
+  prefix, so the AppImage update downloads the real asset. Found by a live
+  update from an installed 0.10.0; tarball updates were unaffected.
+
 ## [0.11.0] - 2026-11-22
 
 ### Added
