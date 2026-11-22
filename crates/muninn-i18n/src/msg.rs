@@ -220,6 +220,8 @@ messages! {
     AutosaveHelp => "msg.settings.autosave_help", 1;
     Version => "msg.settings.version", 1;
     UpdateAvailable => "msg.settings.update_available", 1;
+    UpdateInstalled => "msg.settings.update_installed", 1;
+    UpdateFailed => "msg.settings.update_failed", 1;
     ShowWithChord => "msg.settings.show_with_chord", 1;
     ShortcutFailed => "msg.settings.shortcut_failed", 2;
     ShortcutOn => "msg.settings.shortcut_on", 1;

@@ -6,6 +6,18 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Verified self-update for tarball and AppImage installs (#254).** The
+  release banner now offers an explicit **Update** action that downloads the
+  matching release asset from GitHub, verifies its SHA-256 against
+  `checksums.txt` (and its signature with `cosign` or `gh` when installed),
+  and atomically replaces the installed binary while keeping one previous copy
+  for rollback. Phases are shown in the banner and the installed version is
+  reported with a restart notice; failures keep the banner. `.deb` and AUR
+  installs are not updated by Muninn and stay with their package manager, and
+  nothing installs automatically or restarts the process.
+
 ## [0.10.0] - 2026-11-21
 
 ### Added

@@ -4344,15 +4344,27 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
         ))
 }
 
-/// #234: one passive row announcing a newer stable release, with the matching
-/// manual upgrade hint and no download. It takes no focus and never blocks the
-/// page; Release notes opens the browser and Dismiss remembers the version.
+/// #234/#254: one passive row announcing a newer stable release.
+///
+/// A tarball or AppImage install gets an explicit **Update** action before
+/// Release notes; `.deb`, AUR and unknown installs keep their manual hint and
+/// no action. While an update runs, the hint becomes the current phase and the
+/// actions are hidden. The row takes no focus and never blocks the page;
+/// Release notes opens the browser and Dismiss remembers the version.
 fn update_banner(s: &State, k: &Kit) -> El {
     let Some(update) = s.update_available() else {
         return el();
     };
-    let hint = update_hint(update.method);
-    row()
+    let running = s.self_update_running();
+    let hint = if running {
+        t(update_phase_text(
+            s.self_update_phase()
+                .unwrap_or(crate::self_update::Phase::Downloading),
+        ))
+    } else {
+        t(update_hint(update.method))
+    };
+    let mut banner = row()
         .key("update-banner")
         .w_full()
         .px(20.0)
@@ -4369,36 +4381,63 @@ fn update_banner(s: &State, k: &Kit) -> El {
                 .truncate(),
         )
         .child(
-            text(t(hint))
+            text(hint)
                 .font(k.ty.caption())
                 .color(k.c.text_muted)
                 .grow(1.0)
                 .min_w(0.0)
                 .truncate(),
         )
-        .child(spacer())
-        .child(
-            pressable(k, "update-release-notes".to_owned())
-                .px(6.0)
-                .py(3.0)
-                .child(
-                    text(t(TextKey::UpdateReleaseNotes))
-                        .font(k.ty.caption())
-                        .color(k.c.text_base),
-                )
-                .on_press(|s: &mut State| s.open_update_page()),
-        )
-        .child(
-            pressable(k, "update-dismiss".to_owned())
-                .px(6.0)
-                .py(3.0)
-                .child(
-                    text(t(TextKey::UpdateDismiss))
-                        .font(k.ty.caption())
-                        .color(k.c.text_base),
-                )
-                .on_press(|s: &mut State| s.dismiss_update()),
-        )
+        .child(spacer());
+    if !running {
+        if s.self_update_supported() {
+            banner = banner.child(
+                pressable(k, "update-now".to_owned())
+                    .px(6.0)
+                    .py(3.0)
+                    .child(
+                        text(t(TextKey::UpdateNow))
+                            .font(k.ty.caption())
+                            .color(k.c.text_base),
+                    )
+                    .on_press(|s: &mut State| s.start_self_update()),
+            );
+        }
+        banner = banner
+            .child(
+                pressable(k, "update-release-notes".to_owned())
+                    .px(6.0)
+                    .py(3.0)
+                    .child(
+                        text(t(TextKey::UpdateReleaseNotes))
+                            .font(k.ty.caption())
+                            .color(k.c.text_base),
+                    )
+                    .on_press(|s: &mut State| s.open_update_page()),
+            )
+            .child(
+                pressable(k, "update-dismiss".to_owned())
+                    .px(6.0)
+                    .py(3.0)
+                    .child(
+                        text(t(TextKey::UpdateDismiss))
+                            .font(k.ty.caption())
+                            .color(k.c.text_base),
+                    )
+                    .on_press(|s: &mut State| s.dismiss_update()),
+            );
+    }
+    banner
+}
+
+/// The catalog line for the phase a running self-update is in.
+fn update_phase_text(phase: crate::self_update::Phase) -> TextKey {
+    match phase {
+        crate::self_update::Phase::Downloading => TextKey::UpdateDownloading,
+        crate::self_update::Phase::Verifying => TextKey::UpdateVerifying,
+        crate::self_update::Phase::Extracting => TextKey::UpdateExtracting,
+        crate::self_update::Phase::Installing => TextKey::UpdateInstalling,
+    }
 }
 
 /// The install-method hint shown beside the release banner: how to upgrade
