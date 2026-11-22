@@ -6,7 +6,10 @@ use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::mpsc;
 use std::time::{Instant, SystemTime};
+
+use muninn_sync::BrowserOpener as _;
 
 use muninn_core::{
     KanbanView, ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag,
@@ -841,6 +844,15 @@ pub struct State {
     /// [`State::graph_step`] can reheat once when it turns off.
     graph_was_reduced: bool,
     pub sync_ui: crate::sync_ui::SyncUi,
+    /// #234: the newer stable release offered by the last completed check.
+    /// `None` when no banner should draw (current, skipped, failed or off).
+    pub update_available: Option<crate::update::AvailableUpdate>,
+    /// #234: the worker channel for an in-flight release check. The worker
+    /// sends exactly one [`CheckOutcome`](crate::update::CheckOutcome); `poll`
+    /// drains it on the UI thread. `None` when no check is in flight.
+    pub update_rx: Option<mpsc::Receiver<crate::update::CheckOutcome>>,
+    /// #234: a release check is in flight. Guards against a second worker.
+    pub update_checking: bool,
     /// #189: finished document conversions, drained in [`crate::poll`].
     pub(crate) import_inbox:
         Option<std::sync::mpsc::Receiver<crate::import_document::ImportMessage>>,
@@ -1155,6 +1167,9 @@ impl State {
             system_reduced_motion: std::cell::Cell::new(false),
             graph_was_reduced: false,
             sync_ui: crate::sync_ui::SyncUi::memory(),
+            update_available: None,
+            update_rx: None,
+            update_checking: false,
             import_inbox: None,
             import_queue: Vec::new(),
             tray: crate::tray::TrayLink::default(),
@@ -1281,6 +1296,213 @@ impl State {
                 false
             }
         }
+    }
+
+    // ---- #234: notify-only release check ----------------------------------
+
+    /// The newer stable release the last completed check offered, if the
+    /// banner should be drawn.
+    #[must_use]
+    pub fn update_available(&self) -> Option<&crate::update::AvailableUpdate> {
+        self.update_available.as_ref()
+    }
+
+    /// Settings › Updates › Check for updates (the saved choice).
+    #[must_use]
+    pub fn check_for_updates(&self) -> bool {
+        self.settings.check_for_updates
+    }
+
+    /// Start one release check on a worker thread when the persisted schedule
+    /// says one is due. Called from `init`, never from `view` or `poll`.
+    ///
+    /// `now` is Unix seconds and the jitter is `now % JITTER_MAX_SECS`, so a
+    /// fleet of installs does not all ask GitHub at the same moment; both are
+    /// passed to [`crate::update::should_check`]. A disabled setting or an
+    /// already-running check makes this a no-op. The worker catches a panic
+    /// and a failed send is ignored: the UI only ever sees a `CheckOutcome`.
+    pub fn start_update_check(&mut self) {
+        if !self.settings.check_for_updates || self.update_checking {
+            return;
+        }
+        let now = unix_now();
+        let jitter = now % crate::update::JITTER_MAX_SECS;
+        if !crate::update::should_check(
+            now,
+            self.settings.last_update_check,
+            self.settings.update_next_check,
+            true,
+            jitter,
+        ) {
+            return;
+        }
+        self.update_checking = true;
+        let (sender, receiver) = mpsc::channel();
+        self.update_rx = Some(receiver);
+        let etag = self.settings.update_etag.clone();
+        std::thread::spawn(move || {
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let client = crate::update::ReleasesClient::github(crate::update::DEFAULT_TIMEOUT);
+                match semver::Version::parse(env!("CARGO_PKG_VERSION")) {
+                    Ok(current) => client.check(&current, etag.as_deref()),
+                    Err(_) => crate::update::CheckOutcome::Failed,
+                }
+            }))
+            .unwrap_or(crate::update::CheckOutcome::Failed);
+            // The UI may have gone away (a test, a closed window): drop it.
+            let _ = sender.send(outcome);
+        });
+    }
+
+    /// Apply one completed check on the UI thread. `now` and `jitter` are the
+    /// values a startup check would have used, so tests drive the same
+    /// schedule without touching the clock or the network.
+    ///
+    /// Every branch stays silent: a failure only increments the backoff, it
+    /// never becomes a status-bar error. A check that completes after the user
+    /// turned checks off is discarded without showing or scheduling anything.
+    /// An offered release is hidden when its version equals `skip_version` or
+    /// the previously seen `last_seen_version`, while `last_seen_version` is
+    /// still advanced in either case.
+    pub fn apply_update_outcome(
+        &mut self,
+        outcome: crate::update::CheckOutcome,
+        now: u64,
+        jitter: u64,
+    ) {
+        self.update_checking = false;
+        self.update_rx = None;
+        if !self.settings.check_for_updates {
+            self.update_available = None;
+            return;
+        }
+        match outcome {
+            crate::update::CheckOutcome::Available(update) => {
+                self.settings.update_etag = update.etag.clone();
+                self.settings.last_update_check = Some(now);
+                let (failures, next) = crate::update::success_resets(now, jitter);
+                self.settings.update_failures = failures;
+                self.settings.update_next_check = next;
+                // The core's dedupe: a release already seen or explicitly
+                // skipped stays hidden, but last_seen_version still advances so
+                // it is not offered again after a reload either.
+                let seen =
+                    self.settings.last_seen_version.as_deref() == Some(update.version.as_str());
+                let skipped =
+                    self.settings.skip_version.as_deref() == Some(update.version.as_str());
+                self.settings.last_seen_version = Some(update.version.clone());
+                self.update_available = if seen || skipped { None } else { Some(update) };
+            }
+            crate::update::CheckOutcome::UpToDate { etag } => {
+                self.settings.update_etag = etag;
+                self.settings.last_update_check = Some(now);
+                let (failures, next) = crate::update::success_resets(now, jitter);
+                self.settings.update_failures = failures;
+                self.settings.update_next_check = next;
+                self.update_available = None;
+            }
+            crate::update::CheckOutcome::NotModified => {
+                self.settings.last_update_check = Some(now);
+                let (failures, next) = crate::update::success_resets(now, jitter);
+                self.settings.update_failures = failures;
+                self.settings.update_next_check = next;
+                self.update_available = None;
+            }
+            crate::update::CheckOutcome::Failed => {
+                self.settings.update_failures = self.settings.update_failures.saturating_add(1);
+                self.settings.update_next_check = Some(crate::update::backoff_until(
+                    now,
+                    self.settings.update_failures,
+                ));
+                self.update_available = None;
+            }
+        }
+        self.save_settings_soon();
+    }
+
+    /// Drain a finished check, once per frame from [`crate::poll`]. At most
+    /// four messages are read per frame so a stuck worker cannot block a
+    /// frame. Returns true when the banner, checking state or persisted
+    /// schedule changed.
+    pub(crate) fn poll_update(&mut self) -> bool {
+        let mut outcomes = Vec::new();
+        let mut disconnected = false;
+        if let Some(receiver) = self.update_rx.as_ref() {
+            loop {
+                match receiver.try_recv() {
+                    Ok(outcome) => {
+                        outcomes.push(outcome);
+                        if outcomes.len() >= 4 {
+                            break;
+                        }
+                    }
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        disconnected = true;
+                        break;
+                    }
+                }
+            }
+        } else {
+            return false;
+        }
+        if outcomes.is_empty() {
+            if disconnected {
+                // A worker vanished without a message: free the slot rather
+                // than looking busy forever.
+                self.update_rx = None;
+                self.update_checking = false;
+                return true;
+            }
+            return false;
+        }
+        let now = unix_now();
+        let jitter = now % crate::update::JITTER_MAX_SECS;
+        for outcome in outcomes {
+            self.apply_update_outcome(outcome, now, jitter);
+        }
+        true
+    }
+
+    /// Hide the banner and remember the release as skipped, so it never
+    /// returns until a newer version appears.
+    pub fn dismiss_update(&mut self) {
+        let Some(update) = self.update_available.take() else {
+            return;
+        };
+        self.settings.skip_version = Some(update.version);
+        self.save_settings();
+    }
+
+    /// Open the offered release page in the system browser. A failure becomes
+    /// the ordinary status notice; nothing is opened or logged without an
+    /// offered update.
+    pub fn open_update_page(&mut self) {
+        let Some(update) = self.update_available.as_ref() else {
+            return;
+        };
+        let url = update.url.clone();
+        if muninn_sync::SystemBrowser.open(&url).is_err() {
+            self.notice = Some(t(TextKey::UpdateOpenFailed).to_owned());
+        }
+    }
+
+    /// Settings › Updates › Check for updates. Saving the choice is immediate;
+    /// turning it off clears the banner, while a request already in flight is
+    /// allowed to finish and is ignored by [`State::apply_update_outcome`].
+    ///
+    /// Turning it on resets the schedule and the failure count, so the next
+    /// launch checks immediately; the toggle itself makes no request.
+    pub fn set_check_for_updates(&mut self, on: bool) {
+        self.settings.check_for_updates = on;
+        if on {
+            self.settings.last_update_check = None;
+            self.settings.update_next_check = None;
+            self.settings.update_failures = 0;
+        } else {
+            self.update_available = None;
+        }
+        self.save_settings();
     }
 
     // ---- X-01: session log and diagnostics --------------------------------
@@ -6584,6 +6806,14 @@ pub(crate) fn conflict_stamp() -> String {
         year += 1;
     }
     format!("{year:04}{month:02}{day:02}-{hour:02}{minute:02}{second:02}")
+}
+
+/// Unix seconds, saturating to zero before the epoch or on a broken clock.
+/// The update schedule only needs a monotone-enough wall clock.
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs())
 }
 
 #[cfg(test)]

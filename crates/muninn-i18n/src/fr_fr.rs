@@ -198,6 +198,16 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SettingsAppearanceLoginTitle => "Lancer Muninn à l’ouverture de session",
         Key::SettingsAppearanceLoginOn => "Activé. Muninn s’ouvre à l’ouverture de votre session.",
         Key::SettingsAppearanceShortcutRegistering => "Enregistrement…",
+        Key::SettingsAppearanceUpdateTitle => "Mises à jour",
+        Key::SettingsAppearanceUpdateCaption => {
+            "Muninn interroge GitHub pour savoir si une version stable plus récente existe. Aucune note ni donnée du coffre n’est envoyée."
+        }
+        Key::SettingsAppearanceUpdateOff => {
+            "Désactivé. Muninn n’effectue aucune requête de mise à jour."
+        }
+        Key::SettingsAppearanceUpdateOn => {
+            "Activé. Muninn interroge GitHub une fois par jour pour les versions stables."
+        }
         Key::SettingsGraphReduceMotionTitle => "Réduire les animations",
         Key::SettingsGraphReduceMotionCaption => {
             "Fige la disposition du graphique, supprime les mouvements de caméra et rend statiques les effets de survol, de sélection et du graphique. Système suit le réglage de votre système d’exploitation."
@@ -725,6 +735,15 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::RecoveryDismiss => "Ignorer",
         Key::RecoveryWriteEdits => "— Modifications en mode Écriture",
         Key::RecoveryKanbanEdits => "— Modifications du Kanban",
+        Key::UpdateAvailableTitle => "Mise à jour disponible",
+        Key::UpdateReleaseNotes => "Notes de version",
+        Key::UpdateDismiss => "Ignorer",
+        Key::UpdateHintAppImage => "Téléchargez la nouvelle AppImage depuis la page de la version.",
+        Key::UpdateHintAur => "Mettez à jour avec votre assistant AUR.",
+        Key::UpdateHintDeb => "Téléchargez et installez le nouveau .deb.",
+        Key::UpdateHintTarball => "Relancez install.sh ou téléchargez la nouvelle archive tar.",
+        Key::UpdateHintUnknown => "Consultez la page de la version.",
+        Key::UpdateOpenFailed => "Impossible d’ouvrir la page de la version dans le navigateur.",
         Key::BrokenAllResolve => "Tous les liens sont valides",
         Key::BrokenTitle => "Liens rompus",
         Key::TopbarNoNoteSelected => "Aucune note sélectionnée",

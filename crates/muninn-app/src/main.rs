@@ -169,6 +169,9 @@ fn main() {
             state.install_tray(tray_factory(handle.clone()));
             state.install_autostart(Box::new(NativeAutostart::new()));
             state.install_shortcut(Box::new(RuneShortcut::new(handle)));
+            // #234: one notify-only release check on a worker thread. Headless
+            // runs (`--snap`, `--check`, scripts) never reach this block.
+            state.start_update_check();
         }
         state
     })

@@ -2661,6 +2661,20 @@ pub fn version(version: &str) -> String {
     phrase_current(MsgKey::Version, &[version])
 }
 
+/// `"Muninn 0.10.0 is available"`, the release banner's line.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(
+///     muninn_i18n::update_available("0.10.0"),
+///     "Muninn 0.10.0 is available"
+/// );
+/// ```
+pub fn update_available(version: &str) -> String {
+    phrase_current(MsgKey::UpdateAvailable, &[version])
+}
+
 /// `"New vault created at <path> — make your first note"`.
 ///
 /// # Examples

@@ -159,6 +159,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::ThemeLabel => "Design: {0} — klicken zum Wechseln (System, Dunkel, Hell)",
         MsgKey::AutosaveHelp => "Automatisches Speichern schreibt {0} s nach dem Ende der Eingabe.",
         MsgKey::Version => "Version {0}.",
+        MsgKey::UpdateAvailable => "Muninn {0} ist verfügbar",
         MsgKey::ShowWithChord => "Muninn mit {0} anzeigen",
         MsgKey::ShortcutFailed => "{0} konnte nicht registriert werden: {1}",
         MsgKey::ShortcutOn => "Ein. {0} zeigt Muninn aus jeder App.",

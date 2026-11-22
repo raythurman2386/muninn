@@ -171,6 +171,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
             "O salvamento automático grava {0} s depois que você para de digitar."
         }
         MsgKey::Version => "Versão {0}.",
+        MsgKey::UpdateAvailable => "O Muninn {0} está disponível",
         MsgKey::ShowWithChord => "Mostrar o Muninn com {0}",
         MsgKey::ShortcutFailed => "Não foi possível registrar {0}: {1}",
         MsgKey::ShortcutOn => "Ativado. {0} mostra o Muninn a partir de qualquer aplicativo.",

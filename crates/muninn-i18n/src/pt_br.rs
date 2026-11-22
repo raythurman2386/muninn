@@ -191,6 +191,16 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SettingsAppearanceLoginTitle => "Iniciar o Muninn ao entrar",
         Key::SettingsAppearanceLoginOn => "Ativado. O Muninn abre quando você entra no sistema.",
         Key::SettingsAppearanceShortcutRegistering => "Registrando…",
+        Key::SettingsAppearanceUpdateTitle => "Atualizações",
+        Key::SettingsAppearanceUpdateCaption => {
+            "O Muninn consulta o GitHub para saber se há uma versão estável mais recente. Nenhuma nota ou dado do cofre é enviado."
+        }
+        Key::SettingsAppearanceUpdateOff => {
+            "Desativado. O Muninn não faz solicitações de atualização."
+        }
+        Key::SettingsAppearanceUpdateOn => {
+            "Ativado. O Muninn consulta o GitHub uma vez por dia em busca de versões estáveis."
+        }
         Key::SettingsGraphReduceMotionTitle => "Reduzir movimento",
         Key::SettingsGraphReduceMotionCaption => {
             "Congela o layout do gráfico, pula os deslocamentos de câmera e deixa estáticos os efeitos de ponteiro, seleção e gráfico. A opção Sistema segue a configuração do seu sistema operacional."
@@ -708,6 +718,15 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::RecoveryDismiss => "Descartar",
         Key::RecoveryWriteEdits => "— Edições de escrita",
         Key::RecoveryKanbanEdits => "— Edições do Kanban",
+        Key::UpdateAvailableTitle => "Atualização disponível",
+        Key::UpdateReleaseNotes => "Notas da versão",
+        Key::UpdateDismiss => "Descartar",
+        Key::UpdateHintAppImage => "Baixe o novo AppImage na página da versão.",
+        Key::UpdateHintAur => "Atualize com o seu assistente de AUR.",
+        Key::UpdateHintDeb => "Baixe e instale o novo .deb.",
+        Key::UpdateHintTarball => "Execute install.sh novamente ou baixe o novo arquivo tar.",
+        Key::UpdateHintUnknown => "Veja a página da versão.",
+        Key::UpdateOpenFailed => "Não foi possível abrir a página da versão no navegador.",
         Key::BrokenAllResolve => "Todos os links foram resolvidos",
         Key::BrokenTitle => "Links não resolvidos",
         Key::TopbarNoNoteSelected => "Nenhuma nota selecionada",

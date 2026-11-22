@@ -163,6 +163,14 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SettingsAppearanceLoginTitle => "Start Muninn at login",
         Key::SettingsAppearanceLoginOn => "On. Muninn opens when you log in.",
         Key::SettingsAppearanceShortcutRegistering => "Registering…",
+        Key::SettingsAppearanceUpdateTitle => "Updates",
+        Key::SettingsAppearanceUpdateCaption => {
+            "Muninn checks GitHub for a newer stable release. It sends no note or vault data."
+        }
+        Key::SettingsAppearanceUpdateOff => "Off. Muninn makes no update requests.",
+        Key::SettingsAppearanceUpdateOn => {
+            "On. Muninn checks GitHub once a day for stable releases."
+        }
         Key::SettingsGraphReduceMotionTitle => "Reduce motion",
         Key::SettingsGraphReduceMotionCaption => {
             "Freezes the graph layout, skips camera glides and makes hover, selection and graph effects static. System follows your OS setting."
@@ -640,6 +648,15 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::RecoveryDismiss => "Dismiss",
         Key::RecoveryWriteEdits => "— Write edits",
         Key::RecoveryKanbanEdits => "— Kanban edits",
+        Key::UpdateAvailableTitle => "Update available",
+        Key::UpdateReleaseNotes => "Release notes",
+        Key::UpdateDismiss => "Dismiss",
+        Key::UpdateHintAppImage => "Download the new AppImage from the release page.",
+        Key::UpdateHintAur => "Update with your AUR helper.",
+        Key::UpdateHintDeb => "Download and install the new .deb.",
+        Key::UpdateHintTarball => "Rerun install.sh or download the new tarball.",
+        Key::UpdateHintUnknown => "See the release page.",
+        Key::UpdateOpenFailed => "Could not open the release page in your browser.",
         Key::BrokenAllResolve => "All links resolve",
         Key::BrokenTitle => "Broken links",
         Key::TopbarNoNoteSelected => "No note selected",

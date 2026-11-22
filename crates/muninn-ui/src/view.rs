@@ -16,7 +16,7 @@ use muninn_i18n::{
     note_links_in_folder, palette_kanban_folder, recovered_copies, recovered_for, referrers,
     results, scan_ms, scan_progress, shortcut_failed, shortcut_on, show_with_chord,
     sidebar_summary, status_counts, t, targets, theme_label, trash_empty, trash_summary,
-    tray_error, version, welcome_vault_created,
+    tray_error, update_available, version, welcome_vault_created,
 };
 
 use crate::{
@@ -1380,6 +1380,7 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
         ))
         .child(settings_tray_section(s, k))
         .child(settings_startup_section(s, k))
+        .child(settings_updates_section(s, k))
 }
 
 /// Appearance › Language: System plus every shipped language, named by its
@@ -1530,6 +1531,35 @@ fn settings_startup_section(s: &State, k: &Kit) -> El {
                 "settings-show-shortcut-status",
                 &shortcut_status,
             )),
+    )
+}
+
+/// Appearance › Updates: the notify-only release check, on by default, with
+/// the status line saying exactly what leaves the machine.
+fn settings_updates_section(s: &State, k: &Kit) -> El {
+    let enabled = s.check_for_updates();
+    let switch = Switch::new(enabled)
+        .label(t(TextKey::SettingsAppearanceUpdateTitle))
+        .on_toggle(|s: &mut State| {
+            let on = !s.check_for_updates();
+            s.set_check_for_updates(on);
+        })
+        .build(k)
+        .key("settings-check-updates");
+    let status = if enabled {
+        t(TextKey::SettingsAppearanceUpdateOn)
+    } else {
+        t(TextKey::SettingsAppearanceUpdateOff)
+    };
+    settings_section(
+        k,
+        t(TextKey::SettingsAppearanceUpdateTitle),
+        Some(t(TextKey::SettingsAppearanceUpdateCaption)),
+        col()
+            .w_full()
+            .gap(8.0)
+            .child(switch)
+            .child(settings_caption(k, "settings-check-updates-status", status)),
     )
 }
 
@@ -2507,6 +2537,9 @@ fn main(s: &State, k: &Kit) -> El {
     }
     if !s.recovered.is_empty() {
         page = page.child(recovery_banner(s, k));
+    }
+    if s.update_available().is_some() {
+        page = page.child(update_banner(s, k));
     }
     let mut page = page.child(main_body(s, k));
     if focus {
@@ -4309,6 +4342,75 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
             "recovery-dismiss",
             State::dismiss_recovery,
         ))
+}
+
+/// #234: one passive row announcing a newer stable release, with the matching
+/// manual upgrade hint and no download. It takes no focus and never blocks the
+/// page; Release notes opens the browser and Dismiss remembers the version.
+fn update_banner(s: &State, k: &Kit) -> El {
+    let Some(update) = s.update_available() else {
+        return el();
+    };
+    let hint = update_hint(update.method);
+    row()
+        .key("update-banner")
+        .w_full()
+        .px(20.0)
+        .py(7.0)
+        .gap(8.0)
+        .center_y()
+        .fill(k.alpha(k.c.success.fg, 0.08))
+        .label(t(TextKey::UpdateAvailableTitle))
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.success.fg))
+        .child(
+            text(update_available(&update.version))
+                .font(k.ty.caption())
+                .color(k.c.success.fg)
+                .truncate(),
+        )
+        .child(
+            text(t(hint))
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .grow(1.0)
+                .min_w(0.0)
+                .truncate(),
+        )
+        .child(spacer())
+        .child(
+            pressable(k, "update-release-notes".to_owned())
+                .px(6.0)
+                .py(3.0)
+                .child(
+                    text(t(TextKey::UpdateReleaseNotes))
+                        .font(k.ty.caption())
+                        .color(k.c.text_base),
+                )
+                .on_press(|s: &mut State| s.open_update_page()),
+        )
+        .child(
+            pressable(k, "update-dismiss".to_owned())
+                .px(6.0)
+                .py(3.0)
+                .child(
+                    text(t(TextKey::UpdateDismiss))
+                        .font(k.ty.caption())
+                        .color(k.c.text_base),
+                )
+                .on_press(|s: &mut State| s.dismiss_update()),
+        )
+}
+
+/// The install-method hint shown beside the release banner: how to upgrade
+/// this copy by hand, never an automatic download.
+fn update_hint(method: crate::InstallMethod) -> TextKey {
+    match method {
+        crate::InstallMethod::AppImage => TextKey::UpdateHintAppImage,
+        crate::InstallMethod::Aur => TextKey::UpdateHintAur,
+        crate::InstallMethod::Deb => TextKey::UpdateHintDeb,
+        crate::InstallMethod::Tarball => TextKey::UpdateHintTarball,
+        crate::InstallMethod::Unknown => TextKey::UpdateHintUnknown,
+    }
 }
 
 fn topbar(s: &State, k: &Kit) -> El {
