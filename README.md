@@ -73,6 +73,10 @@ If Muninn is useful to you, consider
   and its edges as one style — and burn a deleted note out of the graph or the sidebar.
 - **Focus.** One chord hides everything but the note, dims the other paragraphs and keeps the
   caret's line centred.
+- **Tells you about new releases.** A once-a-day check (on by default, off in
+  **Settings › Appearance › Updates**) names a newer stable version and the
+  manual upgrade path for your install. It sends no notes or vault data and
+  never downloads anything itself; see [the privacy policy](PRIVACY.md).
 - **Small comforts.** An opt-in tray icon, start at login and a global shortcut that summons the
   window.
 
