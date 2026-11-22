@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-22
+
 ### Added
 
 - **Verified self-update for tarball and AppImage installs (#254).** The
@@ -17,6 +19,11 @@ All notable changes to Muninn are documented here. The format is based on
   reported with a restart notice; failures keep the banner. `.deb` and AUR
   installs are not updated by Muninn and stay with their package manager, and
   nothing installs automatically or restarts the process.
+
+### Security
+
+- `url` 2.5.9 clears RUSTSEC-2026-0592 (a stack overflow in `Url::origin` on
+  nested `blob:` URLs); `form_urlencoded` moves to 1.2.3 with it.
 
 ## [0.10.0] - 2026-11-21
 
