@@ -99,10 +99,13 @@ deliberate exception: the `kanban_defaults` sub-object keeps unknown/mistyped ke
 
 The keys that carry the user-facing contract are `theme` (`omarchy|system|dark|light`, with old
 booleans still read), `ui_language`, `last_vault`, `autosave_delay`, `sync`, `reduce_motion`,
-`graph_effects`, `graph_effect_intensity`, `board_autosave` and `kanban_autosave`. The remaining
-fields (`collapsed`, `selected_rel`, `mode`, `scope`, `recent_vaults`, `note_template`, `board`,
-`kanban`, `kanban_defaults`) are session/UI state with the same forgiving read. Malformed `sync`
-prefs disable sync and tokens are never written here (`malformed_sync_disables_sync_and_settings_never_store_tokens`).
+`graph_effects`, `graph_effect_intensity`, `board_autosave`, `kanban_autosave` and
+`check_for_updates`. The remaining fields (`collapsed`, `selected_rel`, `mode`, `scope`,
+`recent_vaults`, `note_template`, `board`, `kanban`, `kanban_defaults`) are session/UI state with
+the same forgiving read. The update check's schedule and response cache (`last_update_check`,
+`update_next_check`, `update_failures`, `update_etag`) are bookkeeping, not named contract keys.
+Malformed `sync` prefs disable sync and tokens are never written here
+(`malformed_sync_disables_sync_and_settings_never_store_tokens`).
 
 ## 4. Sync
 

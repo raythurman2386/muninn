@@ -160,6 +160,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
             "El guardado automático escribe {0} s después de que dejes de teclear."
         }
         MsgKey::Version => "Versión {0}.",
+        MsgKey::UpdateAvailable => "Muninn {0} está disponible",
         MsgKey::ShowWithChord => "Mostrar Muninn con {0}",
         MsgKey::ShortcutFailed => "No se pudo registrar {0}: {1}",
         MsgKey::ShortcutOn => "Activado. {0} muestra Muninn desde cualquier aplicación.",

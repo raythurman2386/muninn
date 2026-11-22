@@ -192,6 +192,14 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SettingsAppearanceLoginTitle => "Muninn bei der Anmeldung starten",
         Key::SettingsAppearanceLoginOn => "Ein. Muninn öffnet sich bei der Anmeldung.",
         Key::SettingsAppearanceShortcutRegistering => "Wird registriert…",
+        Key::SettingsAppearanceUpdateTitle => "Aktualisierungen",
+        Key::SettingsAppearanceUpdateCaption => {
+            "Muninn prüft auf GitHub, ob eine neuere stabile Version vorliegt. Dabei werden keine Notizen oder Tresordaten gesendet."
+        }
+        Key::SettingsAppearanceUpdateOff => "Aus. Muninn stellt keine Update-Anfragen.",
+        Key::SettingsAppearanceUpdateOn => {
+            "Ein. Muninn prüft einmal täglich auf stabile Versionen auf GitHub."
+        }
         Key::SettingsGraphReduceMotionTitle => "Bewegung reduzieren",
         Key::SettingsGraphReduceMotionCaption => {
             "Friert das Graph-Layout ein, überspringt Kamerafahrten und macht Hover-, Auswahl- und Graph-Effekte statisch. System folgt Ihrer Betriebssystem-Einstellung."
@@ -715,6 +723,17 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::RecoveryDismiss => "Verwerfen",
         Key::RecoveryWriteEdits => "— Textänderungen",
         Key::RecoveryKanbanEdits => "— Kanban-Änderungen",
+        Key::UpdateAvailableTitle => "Update verfügbar",
+        Key::UpdateReleaseNotes => "Versionshinweise",
+        Key::UpdateDismiss => "Verwerfen",
+        Key::UpdateHintAppImage => "Laden Sie das neue AppImage von der Release-Seite herunter.",
+        Key::UpdateHintAur => "Aktualisieren Sie mit Ihrem AUR-Helfer.",
+        Key::UpdateHintDeb => "Laden Sie das neue .deb herunter und installieren Sie es.",
+        Key::UpdateHintTarball => {
+            "Führen Sie install.sh erneut aus oder laden Sie das neue Tarball herunter."
+        }
+        Key::UpdateHintUnknown => "Sehen Sie sich die Release-Seite an.",
+        Key::UpdateOpenFailed => "Die Release-Seite konnte nicht im Browser geöffnet werden.",
         Key::BrokenAllResolve => "Alle Links funktionieren",
         Key::BrokenTitle => "Fehlerhafte Links",
         Key::TopbarNoNoteSelected => "Keine Notiz ausgewählt",

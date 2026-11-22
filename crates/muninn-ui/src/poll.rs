@@ -75,6 +75,12 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.poll_sync() {
         changed = true;
     }
+    // #234: a release check runs on a worker; apply its one outcome here so
+    // the banner and settings change on the UI thread. It stays silent on
+    // failure, so only a banner/state change wakes the window.
+    if s.poll_update() {
+        changed = true;
+    }
     // #189: a document converts on a worker; land the note here and keep the
     // window polling while a conversion or a queued document waits.
     if s.poll_import() {
