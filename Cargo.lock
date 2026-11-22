@@ -2385,9 +2385,11 @@ dependencies = [
  "muninn-i18n",
  "muninn-import",
  "muninn-sync",
+ "reqwest",
  "rune",
  "rune-kit",
  "rune-theme-opencode",
+ "semver",
  "serde_json",
 ]
 

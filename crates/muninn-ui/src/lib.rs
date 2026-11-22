@@ -49,6 +49,7 @@ mod settings;
 mod state;
 mod sync_ui;
 mod tray;
+pub mod update;
 mod view;
 mod watch;
 
@@ -100,6 +101,7 @@ pub use tray::{
     TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,
     TrayPort, tray_action, tray_icon, tray_menu, tray_spec, tray_status_label, tray_supported,
 };
+pub use update::{AvailableUpdate, CheckOutcome, InstallMethod, InstallProbe, ReleasesClient};
 pub use view::view;
 
 /// Effect-slot marks the graph view mints and the `muninn-app` compositor paints.

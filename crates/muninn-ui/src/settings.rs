@@ -11,7 +11,8 @@
 //! It stores the theme choice, the interface language, collapsed sidebar
 //! folders, the last vault, the last note and mode/scope, the recent-vault MRU
 //! list, the autosave delay, the default body inserted into new notes, the
-//! Reduce motion choice, and the graph effect preset with its intensity.
+//! Reduce motion choice, and the graph effect preset with its intensity, plus
+//! the notify-only update check's schedule and ETag.
 //! Decoding is intentionally forgiving:
 //! a corrupt or partially-written file falls back to defaults instead of
 //! failing startup. Writes use the same temp-file-then-rename pattern as note
@@ -733,6 +734,29 @@ pub struct Settings {
     /// [`LanguageChoice::System`], so a fresh install follows the OS locale;
     /// only an explicit pick is persisted as a tag.
     pub ui_language: LanguageChoice,
+    /// Settings › Updates › Check for updates. On by default (the notify-only
+    /// release check); `false` makes no network request at all. The settings
+    /// toggle that flips it arrives with the banner.
+    pub check_for_updates: bool,
+    /// Unix seconds of the last completed update check, or `None` before the
+    /// first one. Written by the check's caller, never by this module.
+    pub last_update_check: Option<u64>,
+    /// The version named by the last banner the user saw, so the same release
+    /// does not notify twice. The UI writes it.
+    pub last_seen_version: Option<String>,
+    /// A version the user chose to skip; the UI suppresses that banner until a
+    /// newer release appears.
+    pub skip_version: Option<String>,
+    /// The releases API's ETag from the last check, sent back as
+    /// `If-None-Match` so an unchanged release costs a 304.
+    pub update_etag: Option<String>,
+    /// Consecutive failed update checks. Reset on success; drives the bounded
+    /// backoff (one hour doubling to one day).
+    pub update_failures: u32,
+    /// Unix seconds when the next check is due. Set by
+    /// [`next_due`](crate::update::next_due) after success or
+    /// [`backoff_until`](crate::update::backoff_until) after a failure.
+    pub update_next_check: Option<u64>,
 }
 
 impl Default for Settings {
@@ -761,6 +785,13 @@ impl Default for Settings {
             graph_effects: GraphEffects::Classic,
             graph_effect_intensity: GraphEffectIntensity::Balanced,
             ui_language: LanguageChoice::System,
+            check_for_updates: true,
+            last_update_check: None,
+            last_seen_version: None,
+            skip_version: None,
+            update_etag: None,
+            update_failures: 0,
+            update_next_check: None,
         }
     }
 }
@@ -826,6 +857,13 @@ impl Settings {
             "graph_effects": self.graph_effects.as_key(),
             "graph_effect_intensity": self.graph_effect_intensity.as_key(),
             "ui_language": self.ui_language.as_key(),
+            "check_for_updates": self.check_for_updates,
+            "last_update_check": self.last_update_check,
+            "last_seen_version": self.last_seen_version,
+            "skip_version": self.skip_version,
+            "update_etag": self.update_etag,
+            "update_failures": self.update_failures,
+            "update_next_check": self.update_next_check,
             "board": self.board.as_ref().map(|b| {
                 let mut value = json!({ "rel": b.rel });
                 if let Some(view) = b.view {
@@ -937,6 +975,26 @@ impl Settings {
         );
         settings.ui_language =
             LanguageChoice::from_key(value.get("ui_language").and_then(Value::as_str));
+        settings.check_for_updates = value
+            .get("check_for_updates")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        settings.last_update_check = value.get("last_update_check").and_then(Value::as_u64);
+        let optional_text = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .filter(|text| !text.is_empty())
+                .map(str::to_owned)
+        };
+        settings.last_seen_version = optional_text("last_seen_version");
+        settings.skip_version = optional_text("skip_version");
+        settings.update_etag = optional_text("update_etag");
+        settings.update_failures = value
+            .get("update_failures")
+            .and_then(Value::as_u64)
+            .map_or(0, |count| u32::try_from(count).unwrap_or(u32::MAX));
+        settings.update_next_check = value.get("update_next_check").and_then(Value::as_u64);
         settings
     }
 }
@@ -1069,10 +1127,94 @@ mod tests {
             graph_effects: GraphEffects::Electric,
             graph_effect_intensity: GraphEffectIntensity::Intense,
             ui_language: LanguageChoice::Language(Lang::EnUs),
+            check_for_updates: false,
+            last_update_check: Some(1_700_000_000),
+            last_seen_version: Some("0.9.2".to_owned()),
+            skip_version: Some("0.9.3".to_owned()),
+            update_etag: Some("W/\"abc\"".to_owned()),
+            update_failures: 3,
+            update_next_check: Some(1_700_086_400),
         };
         settings.save_to(&home).expect("save");
         assert_eq!(Settings::load_from(&home), settings);
         let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn update_checks_are_on_by_default_and_old_files_get_that_default() {
+        let defaults = Settings::default();
+        assert!(defaults.check_for_updates);
+        assert_eq!(defaults.update_failures, 0);
+        assert_eq!(defaults.last_update_check, None);
+        assert_eq!(defaults.last_seen_version, None);
+        assert_eq!(defaults.skip_version, None);
+        assert_eq!(defaults.update_etag, None);
+        assert_eq!(defaults.update_next_check, None);
+
+        // A file written before the feature existed has no keys at all.
+        let old = Settings::from_value(&serde_json::json!({ "theme": "dark" }));
+        assert!(old.check_for_updates);
+        assert_eq!(old.update_failures, 0);
+        assert_eq!(old.update_next_check, None);
+    }
+
+    #[test]
+    fn update_check_fields_round_trip_and_an_opt_out_survives_a_reload() {
+        let home = temp_config("updates");
+        let settings = Settings {
+            check_for_updates: false,
+            last_update_check: Some(1_700_000_000),
+            last_seen_version: Some("0.9.2".to_owned()),
+            skip_version: Some("0.9.3".to_owned()),
+            update_etag: Some("W/\"release-1\"".to_owned()),
+            update_failures: 2,
+            update_next_check: Some(1_700_003_600),
+            ..Settings::default()
+        };
+        settings.save_to(&home).expect("save");
+        let text = fs::read_to_string(settings_path(&home)).expect("read");
+        assert!(text.contains("\"check_for_updates\": false"), "{text}");
+        assert!(
+            text.contains("\"update_etag\": \"W/\\\"release-1\\\"\""),
+            "{text}"
+        );
+        let loaded = Settings::load_from(&home);
+        assert_eq!(loaded, settings);
+        assert!(!loaded.check_for_updates, "the opt-out survived a reload");
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn malformed_update_fields_fall_back_safely() {
+        let bad = Settings::from_value(&serde_json::json!({
+            "check_for_updates": "off",
+            "last_update_check": "yesterday",
+            "last_seen_version": 3,
+            "skip_version": { "version": "0.9.3" },
+            "update_etag": [],
+            "update_failures": "many",
+            "update_next_check": -1,
+        }));
+        assert!(bad.check_for_updates, "a wrong type leaves checks on");
+        assert_eq!(bad.last_update_check, None);
+        assert_eq!(bad.last_seen_version, None);
+        assert_eq!(bad.skip_version, None);
+        assert_eq!(bad.update_etag, None);
+        assert_eq!(bad.update_failures, 0);
+        assert_eq!(bad.update_next_check, None);
+
+        // An empty string is the same as an absent value, and an overflowing
+        // count saturates instead of wrapping.
+        let empty = Settings::from_value(&serde_json::json!({
+            "last_seen_version": "",
+            "skip_version": "",
+            "update_etag": "",
+            "update_failures": 10_000_000_000_u64,
+        }));
+        assert_eq!(empty.last_seen_version, None);
+        assert_eq!(empty.skip_version, None);
+        assert_eq!(empty.update_etag, None);
+        assert_eq!(empty.update_failures, u32::MAX);
     }
 
     #[test]

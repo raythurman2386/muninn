@@ -17,7 +17,9 @@ muninn-sync.workspace = true
 rune.workspace = true
 rune-kit.workspace = true
 rune-theme-opencode.workspace = true
+semver = "1"
 serde_json.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 
 [dev-dependencies]
 muninn-core = { workspace = true, features = ["test-support"] }
