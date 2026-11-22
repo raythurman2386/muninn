@@ -337,7 +337,7 @@ pub fn plan(update: &AvailableUpdate, current: &Version) -> Result<UpdatePlan, U
 
 /// The architecture part of a release platform tag (`linux_x86_64` → `x86_64`).
 fn arch_of(platform: &str) -> &str {
-    platform.rsplit('_').next().unwrap_or(platform)
+    platform.strip_prefix("linux_").unwrap_or(platform)
 }
 
 /// Where this installation keeps its files.
@@ -1652,6 +1652,12 @@ mod tests {
     }
 
     #[test]
+    fn the_appimage_arch_is_the_release_arch_not_the_last_underscore_field() {
+        assert_eq!(arch_of("linux_x86_64"), "x86_64");
+        assert_eq!(arch_of("linux_aarch64"), "aarch64");
+    }
+
+    #[test]
     fn platform_mapping_accepts_only_the_shipped_targets() {
         assert_eq!(platform_for("linux", "x86_64"), Some("linux_x86_64"));
         assert_eq!(platform_for("linux", "aarch64"), Some("linux_aarch64"));
@@ -1743,6 +1749,14 @@ mod tests {
         )
         .expect("plan");
         assert_eq!(plan.asset, format!("muninn_v0.11.0_linux_{arch}.AppImage"));
+        assert_eq!(
+            plan.asset,
+            if host == "linux_x86_64" {
+                "muninn_v0.11.0_linux_x86_64.AppImage"
+            } else {
+                "muninn_v0.11.0_linux_aarch64.AppImage"
+            }
+        );
         assert_eq!(plan.platform, host);
     }
 
