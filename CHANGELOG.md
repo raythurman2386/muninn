@@ -6,6 +6,21 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-21
+
+### Added
+
+- **Notify-only update check.** Once a day (plus a small jitter, with a bounded
+  backoff after a failure) Muninn asks GitHub's public releases API whether a
+  newer stable release exists. When there is one, a passive banner names the
+  version and the matching manual upgrade path (AppImage, AUR, `.deb`, tarball
+  or release page), with **Release notes** and **Dismiss**; it never downloads
+  or installs anything. The check sends only `User-Agent: muninn/<version>`,
+  `Accept`, `X-GitHub-Api-Version` and an ETag — no token, vault path, note
+  text, settings or usage data — and failures stay silent. It is on by default
+  and can be turned off under **Settings › Appearance › Updates**; turning it
+  off makes no request. Privacy details are in `PRIVACY.md`.
+
 ## [0.9.3] - 2026-11-21
 
 ### Fixed
