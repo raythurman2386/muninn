@@ -45,6 +45,7 @@ mod overlay;
 mod paste;
 mod poll;
 mod recovery;
+pub mod self_update;
 mod settings;
 mod state;
 mod sync_ui;

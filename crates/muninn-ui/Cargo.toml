@@ -9,6 +9,8 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+flate2 = "1"
+hex = "0.4"
 muninn-core.workspace = true
 muninn-graph.workspace = true
 muninn-i18n.workspace = true
@@ -20,6 +22,8 @@ rune-theme-opencode.workspace = true
 semver = "1"
 serde_json.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+sha2 = "0.11"
+tar = "0.4"
 
 [dev-dependencies]
 muninn-core = { workspace = true, features = ["test-support"] }
