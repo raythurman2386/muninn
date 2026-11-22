@@ -1,6 +1,6 @@
 # AUR package: `muninn-bin`
 
-Binary package recipe for the Linux **x86_64** v0.9.3 release of
+Binary package recipe for the Linux **x86_64** v0.10.0 release of
 [Muninn](https://github.com/raythurman2386/muninn).
 
 - `arch=('x86_64')` only. Arch Linux ARM / aarch64 is **unofficial** and is not
@@ -17,9 +17,9 @@ Binary package recipe for the Linux **x86_64** v0.9.3 release of
   it whenever the `PKGBUILD` changes.
 
 The `sha256sums` value is taken verbatim from the
-`muninn_v0.9.3_linux_x86_64.tar.gz` line of the v0.9.3 release `checksums.txt`:
+`muninn_v0.10.0_linux_x86_64.tar.gz` line of the v0.10.0 release `checksums.txt`:
 
-<https://github.com/raythurman2386/muninn/releases/download/v0.9.3/checksums.txt>
+<https://github.com/raythurman2386/muninn/releases/download/v0.10.0/checksums.txt>
 
 ## Test in a clean Arch container
 
@@ -47,7 +47,7 @@ sudo docker exec -u builder muninn-aur-test bash -lc \
   'cd /home/builder/aur && makepkg -si --noconfirm'
 
 # The installed binary must report the packaged version.
-sudo docker exec muninn-aur-test bash -lc 'muninn --version'   # => muninn 0.9.3
+sudo docker exec muninn-aur-test bash -lc 'muninn --version'   # => muninn 0.10.0
 
 # Removal must leave a user config/vault untouched.
 sudo docker exec muninn-aur-test bash -lc 'pacman -R --noconfirm muninn-bin'

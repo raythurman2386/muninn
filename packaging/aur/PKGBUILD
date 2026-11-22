@@ -1,7 +1,7 @@
 # Maintainer: Raymond Thurman <raythurman2386@users.noreply.github.com>
 
 pkgname=muninn-bin
-pkgver=0.9.3
+pkgver=0.10.0
 pkgrel=1
 pkgdesc='Local-first Markdown vault with a wikilink graph'
 arch=('x86_64')
@@ -12,7 +12,7 @@ provides=('muninn')
 conflicts=('muninn')
 options=('!strip')
 source=("muninn_v${pkgver}_linux_x86_64.tar.gz::https://github.com/raythurman2386/muninn/releases/download/v${pkgver}/muninn_v${pkgver}_linux_x86_64.tar.gz")
-sha256sums=('c3e35a68da65556041b5afec029de6709760780d06ecd427cf8416da12d7d9cd')
+sha256sums=('b72a51562f7fa4c6c331deee8d57cef685cbaedaa2c2e222cc90dbeb9b7b562e')
 
 package() {
   local src="${srcdir}/muninn_v${pkgver}_linux_x86_64"
