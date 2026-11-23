@@ -145,8 +145,9 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
     temp-file + rename pattern as note saves; a corrupt file falls back to defaults. A
     missing `graph_effects` key (every file written before the setting existed) loads as
     `Classic`, so an upgrade never changes the picture by itself. The
-    startup vault scan is synchronous up to 100 files and chunked (see step 1) above that;
-    `load_ms` covers the whole load in either case. Rune's `AppSpec` window size
+    startup vault scan is synchronous up to 100 files and chunked (see step 1) above that,
+    reading for about 8 ms per frame; `load_ms` measures the scan work — walk, reads and
+    reindex — in either case, never app boot. Rune's `AppSpec` window size
     remains fixed at 1180×780. Window geometry persistence is **BLOCKED**, not
     merely deferred: Rune (rev `b39c24f`) exposes the setters — `AppSpec::size`
     (`crates/rune/src/tooling.rs:19`, applied as the inner size at
