@@ -530,6 +530,10 @@ pub struct State {
     pub history_index: usize,
     pub mode: Mode,
     pub last_note_mode: Mode,
+    /// #282: a mode switch unmounted a focused text field. The next poll
+    /// releases Rune's focus before the rescue can move it to a sidebar
+    /// control; see `mode::State::set_mode`.
+    pub(crate) mode_blur_pending: bool,
     /// Board mode: the vault's boards as last read from disk
     /// ([`State::refresh_boards`]), and the one picked in the list.
     pub boards: Vec<crate::BoardSummary>,
@@ -1023,6 +1027,7 @@ impl State {
             history_index: 0,
             mode: Mode::Editor,
             last_note_mode: Mode::Editor,
+            mode_blur_pending: false,
             boards: Vec::new(),
             board_selected: None,
             board_open: None,
