@@ -6,14 +6,23 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-11-23
+
 ### Changed
 
-- **Rune pin moved to `1ab171df`** (from `b39c24f7`), bringing Rune's
-  Wayland IME fix: an empty preedit no longer snaps wheel scrolling back to
-  the caret (#281). The six Rune vendor patches are applied from `vendor/`
-  (refresh with `scripts/vendor-rune.sh`), and mode switches now release
-  Rune focus explicitly so the new focus rescue cannot hand Enter/Space to a
-  sidebar control. No Muninn API changes.
+- **Rune pin moved to `1ab171df`** (from `b39c24f7`). The six Rune vendor
+  patches it needs are applied from `vendor/` (refresh with
+  `scripts/vendor-rune.sh`), and mode switches now release Rune focus
+  explicitly so Rune's new focus rescue cannot hand Enter/Space to a sidebar
+  control. No Muninn API changes.
+
+### Fixed
+
+- **Wayland wheel scrolling snapped back to the caret (#281).** On Wayland,
+  an empty IME preedit after clicking into a note set the caret-follow flag,
+  so the next frame pulled the viewport back to the caret. Rune `1ab171df`
+  (Rune #1503) no longer treats an empty preedit as a caret reveal, so
+  scrolling away from the caret stays put while typing still reveals it.
 
 ## [0.11.1] - 2026-11-22
 
