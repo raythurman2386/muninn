@@ -14,6 +14,7 @@ rune_dir="$(cd "$rune_dir" && pwd)"
 for path in \
   "$rune_dir/crates/rune" \
   "$rune_dir/crates/rune-kit" \
+  "$rune_dir/crates/rune-fx" \
   "$rune_dir/themes/opencode"
 do
   if [[ ! -d "$path" ]]; then
@@ -28,6 +29,7 @@ cat > "$root/.cargo/config.toml" <<EOF
 [patch."https://github.com/anomalyco/rune.git"]
 rune = { path = "$rune_dir/crates/rune" }
 rune-kit = { path = "$rune_dir/crates/rune-kit" }
+rune-fx = { path = "$rune_dir/crates/rune-fx" }
 rune-theme-opencode = { path = "$rune_dir/themes/opencode" }
 EOF
 

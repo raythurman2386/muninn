@@ -38,7 +38,11 @@ Install it with `cargo install cargo-deny --locked`. The four checks cover:
   adds them; two documented `windows-sys` generations are skipped.
 
 Rune is unpublished, so the four Rune crates are pinned to one git revision in
-the root `Cargo.toml`; that URL is the only git source in `deny.toml`. There are
+the root `Cargo.toml`; that URL is the only git source in `deny.toml`. Rune's
+own `[patch.crates-io]` does not apply to consumers, so the six patched crates
+it needs live under `vendor/` and are listed in the root `Cargo.toml`.
+`scripts/vendor-rune.sh /path/to/rune-checkout` refreshes them when the pin
+moves; keep the copies at the pinned revision. There are
 no advisory ignores: when a dependency gains a known vulnerability, upgrade it
 (e.g. `anydoc = "=0.2.5"` moved `zip` from 8.6.0 to 9.8.1) rather than silencing
 the finding. To add or refresh an exception (licence, source or duplicate skip),

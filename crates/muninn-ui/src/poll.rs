@@ -30,6 +30,15 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         return changed;
     }
     let mut changed = false;
+    // #282: release a focused field before a mode switch's focus rescue can
+    // hand the keyboard to a sidebar control. `blur_text` clears the app flags
+    // too, so `is_typing` and F2/Delete cannot keep seeing the old field.
+    if s.mode_blur_pending {
+        s.mode_blur_pending = false;
+        s.blur_text();
+        tx.blur();
+        changed = true;
+    }
     // Per-note encryption (#133): an unlocked note that has been idle for
     // fifteen minutes is locked again here, before autosave can write its
     // plaintext buffer anywhere. The cleared editor is a visible change.

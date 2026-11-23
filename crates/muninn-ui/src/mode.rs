@@ -139,6 +139,16 @@ impl State {
         if !self.sidebar_shown() {
             self.release_sidebar_fields();
         }
+        // #282: newer Rune rescues focus to the next tab stop when the
+        // focused field unmounts. A switch away from Write/Read would leave a
+        // sidebar button owning Enter/Space; clear focus on the next poll.
+        if mode == Mode::Editor {
+            // A switch back within the same frame must not blur the editor
+            // `focus_editor` is about to hand the keyboard to.
+            self.mode_blur_pending = false;
+        } else {
+            self.mode_blur_pending = true;
+        }
         // LIF-01: the last mode is part of the restored session.
         self.save_settings();
     }

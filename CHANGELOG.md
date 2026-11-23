@@ -6,6 +6,15 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- **Rune pin moved to `1ab171df`** (from `b39c24f7`), bringing Rune's
+  Wayland IME fix: an empty preedit no longer snaps wheel scrolling back to
+  the caret (#281). The six Rune vendor patches are applied from `vendor/`
+  (refresh with `scripts/vendor-rune.sh`), and mode switches now release
+  Rune focus explicitly so the new focus rescue cannot hand Enter/Space to a
+  sidebar control. No Muninn API changes.
+
 ## [0.11.1] - 2026-11-22
 
 ### Fixed
