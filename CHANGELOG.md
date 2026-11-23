@@ -6,6 +6,22 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **Startup scan time measured app boot, not scanning (#286).** On the chunked
+  path `load_ms` ran from the scan's first line to the last chunk's poll, so a
+  201-note vault's status bar and `session.log` reported 1.3–2.7 s of
+  window/GPU/font boot and frame pacing for about 8 ms of scanning (opening the
+  same vault later logged 9 ms). `load_ms` now sums the walk, reads and reindex;
+  the log keeps the old span beside it as `wall_ms`.
+- **Large-vault startup scanned one 50-note chunk per frame.** A 10,000-note
+  vault took 200 polls and about 4.9 s of wall time to read 137 ms of notes.
+  Each poll now reads to an ~8 ms budget: seven polls and about 1.0 s, with a
+  frame bounded by the budget plus one granule.
+- **Diagnostics reported the wrong Rune revision.** `RUNE_REV` said `b39c24f`
+  while 0.11.2 shipped the `1ab171df` pin; the Help diagnostics line and the
+  startup log now name the revision actually built.
+
 ## [0.11.2] - 2026-11-23
 
 ### Changed

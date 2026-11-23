@@ -423,10 +423,20 @@ const NOTE_EDITOR_CAP: usize = 24;
 /// bounded chunks from [`crate::poll`], one frame at a time.
 pub(crate) const SCAN_SYNC_LIMIT: usize = 100;
 
-/// Note bodies read per poll tick. Reading is the expensive part (the walk is
-/// metadata only); 50 keeps a tick far below one frame on a cold cache while a
-/// 2,000-note vault finishes in about forty ticks.
+/// Note bodies read per granule inside one poll tick's [`SCAN_BUDGET`]. The
+/// budget, not this count, bounds a frame: 50 notes read in 0.25–0.5 ms warm
+/// (about 6 ms page-cache-cold), so a tick reads several granules before it
+/// yields.
 pub(crate) const SCAN_CHUNK: usize = 50;
+
+/// Wall-clock budget for reading note bodies in one poll tick while a large
+/// vault's startup scan runs. Measured warm reads cost 0.25–0.5 ms per
+/// 50-note granule (about 6 ms page-cache-cold), so a count-only chunk either
+/// stalls a cold frame or takes hundreds of frames on a big vault: at 10,000
+/// notes, 50 per tick meant 200 polls. Reading to a deadline cut that to seven
+/// polls and startup wall time from about 4.9 s to about 1.0 s, while a frame
+/// still spends at most this budget plus one granule reading.
+pub(crate) const SCAN_BUDGET: Duration = Duration::from_millis(8);
 
 /// File types drag-and-drop imports: Markdown becomes a note, document and
 /// office formats convert into one, and images stay attachments. Only `.md`
@@ -475,7 +485,7 @@ impl ImportReport {
 
 /// X-01: the Rune revision pinned in the workspace `Cargo.toml`. Logged at
 /// startup and shown in diagnostics; update it with the pin together.
-pub(crate) const RUNE_REV: &str = "b39c24f";
+pub(crate) const RUNE_REV: &str = "1ab171df";
 
 pub struct State {
     pub vault: Vault,
@@ -793,14 +803,24 @@ pub struct State {
     /// save, so this stays the source for values the UI does not own (recent
     /// vaults, autosave delay).
     pub(crate) settings: Settings,
-    /// Wall-clock cost of the startup scan, shown in the status bar. The fast
+    /// Cost of the scan work at startup, shown in the status bar. The fast
     /// path is synchronous; a large vault is scanned in chunks (see
-    /// [`State::scan`]) and records the whole load when the last chunk lands.
+    /// [`State::scan`]) and this accumulates only the measured walk, read and
+    /// reindex time, never the app boot and frame pacing between chunks.
     load_ms: f64,
     /// Chunked startup scan still reading note bodies. While this is `Some`,
     /// `vault` is an empty placeholder — a partial index is never exposed.
     scan: Option<ScanJob>,
-    /// Start of the chunked scan, so `load_ms` covers the whole load.
+    /// Scan work accumulated so far on the chunked path: the walk, every read
+    /// and the final reindex. [`State::load_ms`] takes this when the last chunk
+    /// lands, so a slow first frame is not reported as scanning.
+    scan_work_ms: f64,
+    /// Per-poll read budget for the chunked scan. Production always runs with
+    /// [`SCAN_BUDGET`]; only [`State::set_scan_budget`] changes it, for tests
+    /// that need a loading-page state to outlive one frame.
+    scan_budget: Duration,
+    /// Wall-clock start of the chunked scan, logged as `wall_ms` beside the
+    /// work-based `load_ms`.
     scan_started: Option<Instant>,
     /// Note to reopen when the chunked scan completes (session restore).
     restore_after_scan: Option<String>,
@@ -968,7 +988,11 @@ impl State {
         }
         let started = Instant::now();
         let mut scan = None;
-        let (vault, startup_error) = match Vault::scan_start(&root) {
+        let scan_result = Vault::scan_start(&root);
+        // The walk is scan work too; the chunked path seeds its accumulator
+        // with it so both paths report the same thing.
+        let walk_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        let (vault, startup_error) = match scan_result {
             Ok(mut job) if job.total() <= SCAN_SYNC_LIMIT => {
                 job.read_chunk(usize::MAX);
                 (job.finish(), None)
@@ -984,6 +1008,7 @@ impl State {
             }
         };
         let loading = scan.is_some();
+        let scan_work_ms = if loading { walk_ms } else { 0.0 };
         let load_ms = if loading {
             0.0
         } else {
@@ -1157,6 +1182,8 @@ impl State {
             settings,
             load_ms,
             scan,
+            scan_work_ms,
+            scan_budget: SCAN_BUDGET,
             scan_started: loading.then_some(started),
             restore_after_scan,
             scan_field: {
@@ -5060,19 +5087,26 @@ impl State {
             self.error = Some(t(TextKey::ErrorSaveBoardBeforeRescan).to_owned());
             return false;
         }
+        let started = Instant::now();
         match Vault::scan_start(&self.vault.root) {
             Ok(mut job) => {
                 let total = job.total();
+                let walk_ms = started.elapsed().as_secs_f64() * 1_000.0;
                 if total <= SCAN_SYNC_LIMIT {
                     job.read_chunk(usize::MAX);
-                    return self.install_scanned_vault(job.finish());
+                    let vault = job.finish();
+                    // Same semantics as the synchronous startup scan: walk,
+                    // reads and reindex, but not the install.
+                    self.load_ms = started.elapsed().as_secs_f64() * 1_000.0;
+                    return self.install_scanned_vault(vault);
                 } else {
                     self.startup_error = None;
                     self.error = None;
                     self.restore_after_scan = None;
                     self.scan_field.focused = true;
                     self.scan = Some(job);
-                    self.scan_started = Some(Instant::now());
+                    self.scan_work_ms = walk_ms;
+                    self.scan_started = Some(started);
                     self.log_event("scan-start", &format!("total={total}"));
                 }
                 true
@@ -5098,14 +5132,36 @@ impl State {
         self.scan.as_ref().map(|job| (job.done(), job.total()))
     }
 
-    /// Read the next chunk of a large startup scan, installing the vault when
-    /// the last file lands. Returns true when something visible changed
-    /// (progress or the finished vault), so `poll` can wake the window.
+    /// Test-only: set how much reading one poll tick may do before yielding.
+    ///
+    /// Production always runs with [`SCAN_BUDGET`] and never calls this. A test
+    /// may pass [`Duration::ZERO`] to restore the one-[`SCAN_CHUNK`]-granule
+    /// cadence, so loading-page states (cancel, quit or write settings while
+    /// scanning) stay reachable with a small fixture. This is a test hook, not
+    /// configuration.
+    #[doc(hidden)]
+    pub fn set_scan_budget(&mut self, budget: Duration) {
+        self.scan_budget = budget;
+    }
+
+    /// Read note bodies for up to [`SCAN_BUDGET`] — several [`SCAN_CHUNK`]
+    /// granules — and install the vault when the last file lands. Returns true
+    /// when something visible changed (progress or the finished vault), so
+    /// `poll` can wake the window.
     pub(crate) fn scan_tick(&mut self) -> bool {
         let Some(job) = self.scan.as_mut() else {
             return false;
         };
-        job.read_chunk(SCAN_CHUNK);
+        let read_started = Instant::now();
+        let deadline = read_started + self.scan_budget;
+        loop {
+            job.read_chunk(SCAN_CHUNK);
+            if job.is_done() || Instant::now() >= deadline {
+                break;
+            }
+        }
+        // One measurement per tick: the whole read loop, counted once.
+        self.scan_work_ms += read_started.elapsed().as_secs_f64() * 1_000.0;
         if !job.is_done() {
             return true;
         }
@@ -5113,8 +5169,13 @@ impl State {
             return false;
         };
         let total = job.total();
+        let finish_started = Instant::now();
         let vault = job.finish();
-        self.load_ms = self
+        // The reindex runs once, after the last read. It is scan work; the
+        // install below is not, matching the synchronous path and a vault open.
+        self.scan_work_ms += finish_started.elapsed().as_secs_f64() * 1_000.0;
+        self.load_ms = self.scan_work_ms;
+        let wall_ms = self
             .scan_started
             .take()
             .map_or(0.0, |started| started.elapsed().as_secs_f64() * 1_000.0);
@@ -5125,10 +5186,11 @@ impl State {
         self.log_event(
             "scan-complete",
             &format!(
-                "notes={} total={} load_ms={:.1}",
+                "notes={} total={} load_ms={:.1} wall_ms={:.1}",
                 self.vault.notes.len(),
                 total,
-                self.load_ms
+                self.load_ms,
+                wall_ms
             ),
         );
         true

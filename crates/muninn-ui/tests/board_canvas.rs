@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 use muninn_core::testing::TempVault;
 use muninn_ui::{BoardView, Mode, Settings, State, on_key, poll, view};
@@ -55,6 +56,25 @@ fn launch_at(root: &Path, config: &Path, state_home: &Path, size: (f32, f32)) ->
         config.to_path_buf(),
         Settings::load_from(config),
     );
+    runtime(state, size)
+}
+
+/// A launch whose scan yields one granule per tick, so the loading page is
+/// still up after the first frame. Only the mid-scan board tests need it.
+fn launch_chunked(root: &Path, config: &Path, state_home: &Path) -> Runtime<State> {
+    let mut state = State::with_settings(
+        root.to_path_buf(),
+        state_home.to_path_buf(),
+        config.to_path_buf(),
+        Settings::load_from(config),
+    );
+    // Mid-scan state must be reachable: the read budget finishes this fixture
+    // in the first frame's poll.
+    state.set_scan_budget(Duration::ZERO);
+    runtime(state, (1180.0, 780.0))
+}
+
+fn runtime(state: State, size: (f32, f32)) -> Runtime<State> {
     let mut rt = Runtime::new(state, view, size, Env::new(true, 2.0));
     rt.poll = Some(poll);
     rt.on_key = Some(on_key);
@@ -65,6 +85,16 @@ fn launch_at(root: &Path, config: &Path, state_home: &Path, size: (f32, f32)) ->
 fn fresh(tmp: &TempVault) -> Session {
     let (config, state_home) = (unique_dir("config"), unique_dir("state"));
     let rt = launch(tmp.path(), &config, &state_home);
+    Session {
+        rt,
+        config,
+        state_home,
+    }
+}
+
+fn fresh_chunked(tmp: &TempVault) -> Session {
+    let (config, state_home) = (unique_dir("config"), unique_dir("state"));
+    let rt = launch_chunked(tmp.path(), &config, &state_home);
     Session {
         rt,
         config,
@@ -518,7 +548,7 @@ fn a_big_vault_reopens_the_last_board_and_its_view_after_the_scan() {
         .map(|(a, b)| (a.as_str(), b.as_str()))
         .collect();
     let tmp = TempVault::new(&refs);
-    let mut s = fresh(&tmp);
+    let mut s = fresh_chunked(&tmp);
     for _ in 0..200 {
         if !s.rt.state.loading() {
             break;
@@ -533,7 +563,8 @@ fn a_big_vault_reopens_the_last_board_and_its_view_after_the_scan() {
     s.rt.state.flush_before_quit();
     drop(s.rt);
 
-    let mut rt = launch(tmp.path(), &s.config, &s.state_home);
+    // The granule cadence keeps this fixture mid-scan after the first frame.
+    let mut rt = launch_chunked(tmp.path(), &s.config, &s.state_home);
     assert!(rt.state.loading(), "a vault this big scans in chunks");
     // Quitting while it scans keeps the board to restore.
     assert_eq!(
@@ -577,7 +608,7 @@ fn a_big_vault_relaunched_in_write_keeps_the_board_it_would_restore() {
         .map(|(a, b)| (a.as_str(), b.as_str()))
         .collect();
     let tmp = TempVault::new(&refs);
-    let mut s = fresh(&tmp);
+    let mut s = fresh_chunked(&tmp);
     for _ in 0..200 {
         if !s.rt.state.loading() {
             break;
@@ -594,7 +625,8 @@ fn a_big_vault_relaunched_in_write_keeps_the_board_it_would_restore() {
     s.rt.state.flush_before_quit();
     drop(s.rt);
 
-    let mut rt = launch(tmp.path(), &s.config, &s.state_home);
+    // The granule cadence keeps this fixture mid-scan after the first frame.
+    let mut rt = launch_chunked(tmp.path(), &s.config, &s.state_home);
     assert!(rt.state.loading(), "a vault this big scans in chunks");
     for _ in 0..200 {
         if !rt.state.loading() {
