@@ -1172,9 +1172,13 @@ impl Vault {
     /// folder, returning the new path. The name is checked by [`board_name`]
     /// (refused, never rewritten) and `.excalidraw` stays implicit. The board
     /// must be a plain file inside the vault (no symlink, no folder that
-    /// resolves outside it), an existing file is never overwritten, and the
-    /// rename itself is one `fs::rename`, so the file is never half-moved.
-    /// Renaming to the same name returns the path unchanged.
+    /// resolves outside it), and a different existing file is never
+    /// overwritten. A target that is the same file (#292, a case-only rename
+    /// on a case-insensitive disk) goes through a dot-prefixed temp name in
+    /// two `fs::rename` hops: the temp is invisible to the vault scan and the
+    /// hop is rolled back if the second rename fails. Every other rename is
+    /// one `fs::rename`, so the file is never half-moved. Renaming to the same
+    /// name returns the path unchanged.
     pub fn rename_board(&self, path: &Path, new_name: &str) -> io::Result<PathBuf> {
         let name = board_name(new_name)?;
         let outside = || {
@@ -1203,17 +1207,21 @@ impl Vault {
         if target == path {
             return Ok(target);
         }
-        // A case-only rename on a case-insensitive disk "exists" as the same
-        // file; anything else there is someone else's and is kept.
-        if fs::symlink_metadata(&target).is_ok()
-            && fs::canonicalize(&target).ok() != fs::canonicalize(path).ok()
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                muninn_i18n::already_exists(format!("{name}.{}", crate::BOARD_EXTENSION)),
-            ));
+        if fs::symlink_metadata(&target).is_ok() {
+            // #292: a case-only rename on a case-insensitive disk "exists"
+            // as the same file. Metadata identity tells it apart from
+            // someone else's file, which is still kept.
+            if same_file_as(path, &target) {
+                rename_through_temp(path, &target)?;
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    muninn_i18n::already_exists(format!("{name}.{}", crate::BOARD_EXTENSION)),
+                ));
+            }
+        } else {
+            fs::rename(path, &target)?;
         }
-        fs::rename(path, &target)?;
         Ok(target)
     }
 
@@ -1308,8 +1316,11 @@ impl Vault {
 
     /// Rename a note's stem (file name) in place, keeping its folder. The
     /// new title is sanitised like a create name; an existing target file is
-    /// an error (never overwrite). Updates the note and the index, so the
-    /// graph node title follows.
+    /// an error (never overwrite), except when it is the same file (#292, a
+    /// case-only rename on a case-insensitive disk): that rename goes through
+    /// a dot-prefixed temp name in two `fs::rename` hops, rolled back if the
+    /// second hop fails. Updates the note and the index, so the graph node
+    /// title follows.
     pub fn rename_note(&mut self, id: usize, new_title: &str) -> io::Result<PathBuf> {
         let old = self.notes[id].path.clone();
         let title = sanitise_note_title(new_title);
@@ -1322,12 +1333,20 @@ impl Vault {
             return Ok(target);
         }
         if target.exists() {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                muninn_i18n::already_exists(target.display()),
-            ));
+            // #292: on a case-insensitive disk `leaves.md` and `Leaves.md`
+            // are one file; a plain rename would be a no-op, so hop through
+            // a hidden temp name. A different file is still a collision.
+            if same_file_as(&old, &target) {
+                rename_through_temp(&old, &target)?;
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    muninn_i18n::already_exists(target.display()),
+                ));
+            }
+        } else {
+            fs::rename(&old, &target)?;
         }
-        fs::rename(&old, &target)?;
         self.apply_path(id, &target);
         Ok(target)
     }
@@ -1628,8 +1647,11 @@ impl Vault {
     }
 
     /// Rename one folder's last segment. `folder` is the vault-relative path
-    /// of the folder to rename; `new_name` is its new last segment.
-    /// Notes under the renamed folder keep resolving.
+    /// of the folder to rename; `new_name` is its new last segment. A
+    /// different existing target is refused; a same-file target (#292, a
+    /// case-only rename on a case-insensitive disk) goes through a
+    /// dot-prefixed temp name in two `fs::rename` hops, rolled back if the
+    /// second hop fails. Notes under the renamed folder keep resolving.
     pub fn rename_folder(&mut self, folder: &str, new_name: &str) -> io::Result<PathBuf> {
         let folder = folder.trim_matches('/');
         if folder.is_empty() {
@@ -1653,12 +1675,20 @@ impl Vault {
             return Ok(target);
         }
         if target.exists() {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                muninn_i18n::already_exists(target.display()),
-            ));
+            // #292: `notes` and `Notes` are one folder on a case-insensitive
+            // disk, so flip the case through a hidden temp name instead of
+            // treating the folder as its own collision.
+            if same_file_as(&source, &target) {
+                rename_through_temp(&source, &target)?;
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    muninn_i18n::already_exists(target.display()),
+                ));
+            }
+        } else {
+            fs::rename(&source, &target)?;
         }
-        fs::rename(&source, &target)?;
         let target_rel = target
             .strip_prefix(&self.root)
             .map(|p| p.to_string_lossy().replace('\\', "/"))
@@ -1743,6 +1773,110 @@ fn group_broken(broken: HashMap<String, (String, Vec<usize>)>) -> Vec<BrokenLink
             .then_with(|| a.target.cmp(&b.target))
     });
     rows
+}
+
+/// #292: whether `target` names the same file or folder as `source` with a
+/// name that differs only by case — how a case-only rename looks on a
+/// case-insensitive disk. Existence is probed first with `symlink_metadata`
+/// so two missing paths never compare equal, and a symlink at the target is
+/// someone else's, never the same file; the parents must match, and so must
+/// the names ignoring case, so a hard link under a different name is still a
+/// collision. `std::fs::Metadata` has no `PartialEq`, so identity is compared
+/// by field (`same_file_meta`).
+fn same_file_as(source: &Path, target: &Path) -> bool {
+    let Ok(entry) = fs::symlink_metadata(target) else {
+        return false;
+    };
+    if entry.file_type().is_symlink()
+        || source.parent() != target.parent()
+        || !names_differ_only_by_case(source, target)
+    {
+        return false;
+    }
+    let (Ok(target_meta), Ok(source_meta)) = (fs::metadata(target), fs::metadata(source)) else {
+        return false;
+    };
+    same_file_meta(source, target, &source_meta, &target_meta)
+}
+
+/// #292: whether the two paths' last segments differ only by case, and so
+/// can name one file on a case-insensitive disk. Byte-equal names are the
+/// callers' own no-op early return and never reach this helper.
+fn names_differ_only_by_case(source: &Path, target: &Path) -> bool {
+    source
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_lowercase()
+        == target
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase()
+}
+
+#[cfg(unix)]
+fn same_file_meta(
+    _source: &Path,
+    _target: &Path,
+    source: &fs::Metadata,
+    target: &fs::Metadata,
+) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    source.dev() == target.dev() && source.ino() == target.ino()
+}
+
+#[cfg(windows)]
+fn same_file_meta(
+    source: &Path,
+    target: &Path,
+    _source_meta: &fs::Metadata,
+    _target_meta: &fs::Metadata,
+) -> bool {
+    // Stable std has no file index on Windows. `canonicalize` there uses
+    // `GetFinalPathNameByHandleW`, which resolves the on-disk case, so two
+    // spellings of one file give the same path (unlike on Unix mounts).
+    match (fs::canonicalize(source), fs::canonicalize(target)) {
+        (Ok(source), Ok(target)) => source == target,
+        _ => false,
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn same_file_meta(
+    _source: &Path,
+    _target: &Path,
+    _source_meta: &fs::Metadata,
+    _target_meta: &fs::Metadata,
+) -> bool {
+    // No portable file identity in std: refuse rather than risk a rename.
+    false
+}
+
+/// #292: rename `source` to `target` through a hidden, unique name in the
+/// same directory. POSIX `rename(2)` is a no-op when both spellings resolve
+/// to the same file, so a case-only rename needs two hops to flip the case.
+/// The dot prefix keeps the intermediate invisible to `walk`; if the second
+/// hop fails, a best-effort rollback restores the original path and the
+/// original error is returned.
+fn rename_through_temp(source: &Path, target: &Path) -> io::Result<()> {
+    let dir = source.parent().unwrap_or_else(|| Path::new("."));
+    let mut n = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let temp = loop {
+        let candidate = dir.join(format!(".muninn-tmp-{}-{n}", std::process::id()));
+        if fs::symlink_metadata(&candidate).is_err() {
+            break candidate;
+        }
+        n += 1;
+    };
+    fs::rename(source, &temp)?;
+    if let Err(error) = fs::rename(&temp, target) {
+        // The rollback is best effort: even if it fails, the temp name is
+        // dot-prefixed and stays out of the vault scan.
+        let _ = fs::rename(&temp, source);
+        return Err(error);
+    }
+    Ok(())
 }
 
 /// Write `data` to `path` atomically: a hidden, uniquely named temp file in
@@ -2558,6 +2692,189 @@ mod tests {
         assert!(v.delete_folder("projects/alpha").is_err());
         assert!(v.delete_folder("").is_err());
         assert!(v.rename_folder("", "x").is_err());
+    }
+}
+
+#[cfg(test)]
+mod rename_case_tests {
+    use super::*;
+    use crate::testing::TempVault;
+
+    // #292: read_dir names keep their case even on a case-insensitive disk,
+    // where `Path::exists()` would still see the old spelling.
+    fn disk_names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    // #292: a case-only note rename flips the case on disk and in the index.
+    #[test]
+    fn case_only_note_rename_flips_the_file_and_updates_the_index() {
+        let tmp = TempVault::new(&[("leaves.md", "leaves body")]);
+        let mut v = tmp.load();
+        let id = v.resolve("leaves").expect("leaves");
+        let renamed = v.rename_note(id, "Leaves").expect("case-only note rename");
+        assert_eq!(renamed, tmp.path().join("Leaves.md"));
+        assert_eq!(disk_names(tmp.path()), vec!["Leaves.md"]);
+        assert_eq!(fs::read_to_string(&renamed).unwrap(), "leaves body");
+        // Resolve by title still finds it; the index carries the new case.
+        assert_eq!(v.resolve("Leaves"), Some(id));
+        assert_eq!(v.note(id).rel, "Leaves.md");
+        assert_eq!(v.note(id).title, "Leaves");
+        // A reload sees only the renamed note, never a temp left over.
+        let reloaded = Vault::load(tmp.path()).expect("reload");
+        assert_eq!(reloaded.notes.len(), 1);
+        assert_eq!(reloaded.notes[0].rel, "Leaves.md");
+        assert_eq!(reloaded.resolve("Leaves"), Some(0));
+    }
+
+    // #292: a case-only folder rename moves its notes to the new spelling.
+    #[test]
+    fn case_only_folder_rename_moves_notes_under_the_new_case() {
+        let tmp = TempVault::new(&[("journal/Day 1.md", "day")]);
+        let mut v = tmp.load();
+        let id = v.resolve("journal/Day 1").expect("Day 1");
+        let renamed = v
+            .rename_folder("journal", "Journal")
+            .expect("case-only folder rename");
+        assert_eq!(renamed, tmp.path().join("Journal"));
+        assert_eq!(disk_names(tmp.path()), vec!["Journal"]);
+        assert!(tmp.path().join("Journal/Day 1.md").is_file());
+        assert_eq!(v.note(id).rel, "Journal/Day 1.md");
+        assert_eq!(v.resolve("Journal/Day 1"), Some(id));
+        assert!(v.dirs.iter().any(|d| d == "Journal"));
+        let reloaded = Vault::load(tmp.path()).expect("reload");
+        assert_eq!(reloaded.notes.len(), 1);
+        assert_eq!(reloaded.notes[0].rel, "Journal/Day 1.md");
+        assert!(reloaded.dirs.iter().any(|d| d == "Journal"));
+        assert!(!reloaded.dirs.iter().any(|d| d == "journal"));
+    }
+
+    // #292: boards get the same identity check and hidden temp hop.
+    #[test]
+    fn case_only_board_rename_flips_the_file_name() {
+        const BOARD: &str =
+            r#"{"type":"excalidraw","version":2,"elements":[],"appState":{},"files":{}}"#;
+        let tmp = TempVault::new(&[("plans.excalidraw", BOARD)]);
+        let v = tmp.load();
+        let old = tmp.path().join("plans.excalidraw");
+        let new = v
+            .rename_board(&old, "Plans")
+            .expect("case-only board rename");
+        assert_eq!(new, tmp.path().join("Plans.excalidraw"));
+        assert_eq!(disk_names(tmp.path()), vec!["Plans.excalidraw"]);
+        assert_eq!(fs::read_to_string(&new).unwrap(), BOARD);
+        let reloaded = Vault::load(tmp.path()).expect("reload");
+        assert!(reloaded.notes.is_empty(), "no temp board is indexed");
+    }
+
+    // #292: a genuine clash must still be refused. Two case-variant files
+    // cannot coexist on a case-insensitive disk, so skip the assertion there.
+    #[test]
+    fn a_separate_file_at_the_case_variant_target_is_still_refused() {
+        let probe = TempVault::new(&[("probe-a", "first")]);
+        let upper = probe.path().join("probe-A");
+        if !upper.exists() {
+            fs::write(&upper, "second").expect("probe");
+        }
+        let case_insensitive = fs::read_to_string(&upper).unwrap() == "first";
+        drop(probe);
+        if case_insensitive {
+            return;
+        }
+        let tmp = TempVault::new(&[("leaves.md", "leaves"), ("Leaves.md", "other")]);
+        let mut v = tmp.load();
+        // Both titles are `leaves`; resolve picks the smaller rel ("Leaves"),
+        // so pick the source note by its path instead.
+        let id = v
+            .notes
+            .iter()
+            .find(|note| note.rel == "leaves.md")
+            .expect("leaves")
+            .id;
+        assert_eq!(
+            v.rename_note(id, "Leaves").unwrap_err().kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("leaves.md")).unwrap(),
+            "leaves"
+        );
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("Leaves.md")).unwrap(),
+            "other"
+        );
+    }
+
+    // #292: the temp hop itself runs on every platform. On a case-sensitive
+    // disk the plain rename already flips the case, so this covers the
+    // hop's temp choice and cleanup for CI hosts that never see the bug.
+    #[test]
+    fn rename_through_temp_moves_the_file_and_leaves_no_temp() {
+        let tmp = TempVault::new(&[("leaves.md", "body")]);
+        let source = tmp.path().join("leaves.md");
+        let target = tmp.path().join("Leaves.md");
+        rename_through_temp(&source, &target).expect("temp hop");
+        assert_eq!(disk_names(tmp.path()), vec!["Leaves.md"]);
+        assert_eq!(fs::read_to_string(&target).unwrap(), "body");
+    }
+
+    // #292: a symlink at the target is someone else's and stays refused,
+    // even though following it would land on the source's own inode.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_at_the_case_variant_target_is_refused() {
+        // #292: a case-variant symlink cannot even be created on a
+        // case-insensitive disk (the name collides with the source), so the
+        // refusal is covered only where the scenario exists.
+        let probe = TempVault::new(&[("probe-a", "first")]);
+        let upper = probe.path().join("probe-A");
+        if !upper.exists() {
+            fs::write(&upper, "second").expect("probe");
+        }
+        let case_insensitive = fs::read_to_string(&upper).unwrap() == "first";
+        drop(probe);
+        if case_insensitive {
+            return;
+        }
+        let tmp = TempVault::new(&[("leaves.md", "leaves")]);
+        std::os::unix::fs::symlink("leaves.md", tmp.path().join("Leaves.md")).unwrap();
+        let mut v = tmp.load();
+        let id = v.resolve("leaves").expect("leaves");
+        assert_eq!(
+            v.rename_note(id, "Leaves").unwrap_err().kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert!(
+            fs::symlink_metadata(tmp.path().join("Leaves.md"))
+                .expect("symlink kept")
+                .file_type()
+                .is_symlink()
+        );
+    }
+
+    // #292: a hard link under a different name is a real target, not a
+    // case-only rename of the same file, so it is refused like any other.
+    #[cfg(unix)]
+    #[test]
+    fn a_hard_link_with_a_different_name_is_still_refused() {
+        let tmp = TempVault::new(&[("leaves.md", "leaves")]);
+        let hard = tmp.path().join("other.md");
+        fs::hard_link(tmp.path().join("leaves.md"), &hard).unwrap();
+        let mut v = tmp.load();
+        let id = v.resolve("leaves").expect("leaves");
+        assert_eq!(
+            v.rename_note(id, "other").unwrap_err().kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        // The link is untouched: both names still see one body.
+        assert_eq!(fs::read_to_string(&hard).unwrap(), "leaves");
+        assert_eq!(disk_names(tmp.path()), vec!["leaves.md", "other.md"]);
     }
 }
 
