@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-11-24
+
 ### Added
 
 - **Drag a note row onto a folder to move it (#293).** Pressing a row in the
