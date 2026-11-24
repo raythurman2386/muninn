@@ -6,6 +6,10 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **A case-only rename (`leaves` → `Leaves`) was refused on case-insensitive disks (#292).** Notes, folders and boards all read the target's existence as a collision when only its case differed, and even a plain `rename(2)` is a no-op when both spellings resolve to the same file, so the case never flipped. All three surfaces now compare file identity and rename through a hidden temporary name in two hops, rolling back if the second hop fails, while a genuinely different file is still refused. Windows (NTFS) and macOS (APFS) defaults are affected too, not just unusual Linux mounts.
+
 ## [0.11.3] - 2026-11-23
 
 ### Fixed
