@@ -403,7 +403,11 @@ const CASES: &[(MsgKey, &[&str], &str)] = &[
         &["Plan", "Projects"],
         "Plan (Projects)",
     ),
-    (MsgKey::GraphStats, &["12", "30"], "12 notes · 30 edges"),
+    (
+        MsgKey::GraphStatsWithTags,
+        &["12", "3", "30"],
+        "12 notes · 3 tags · 30 edges",
+    ),
     (MsgKey::KanbanFilterFrom, &["2026-11-01"], "from 2026-11-01"),
     (MsgKey::KanbanFilterTo, &["2026-11-30"], "to 2026-11-30"),
     (

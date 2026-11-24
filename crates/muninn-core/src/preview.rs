@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::frontmatter::Frontmatter;
 use crate::vault::Vault;
 use crate::wikilink::{WikiLink, parse_links};
 
@@ -80,14 +81,7 @@ impl Vault {
             out.push('[');
             escape_label(&label, &mut out);
             out.push_str("](<");
-            for c in dest.chars() {
-                match c {
-                    '<' => out.push_str("%3C"),
-                    '>' => out.push_str("%3E"),
-                    '\n' | '\r' => out.push(' '),
-                    c => out.push(c),
-                }
-            }
+            escape_dest(&dest, &mut out);
             out.push_str(">)");
             last = link.end;
         }
@@ -103,6 +97,46 @@ impl Vault {
     pub fn preview_with_attachments(&self, source: &str, current: usize) -> String {
         let source = self.rewrite_attachments(source, current);
         self.preview(&source, current)
+    }
+
+    /// #294: the note reader's source. Attachments become placeholders and
+    /// wikilinks become note links first; body `#tags` then become ordinary
+    /// Markdown links with a `tag:` destination. Frontmatter is deliberately
+    /// never scanned: its `tags:`/`tag:` values are metadata, not body links.
+    /// The rewrite runs on the exact source the reader draws, so heading block
+    /// keys computed from it stay in step with `State::goto_heading` (EDT-04).
+    #[must_use]
+    pub fn preview_note(&self, source: &str, current: usize) -> String {
+        let source = self.preview_with_attachments(source, current);
+        let front = Frontmatter::parse(&source);
+        let body_start = front.body_start();
+        let body = source.get(body_start..).unwrap_or_default();
+        // A byte-order mark is a boundary, not part of the first word (the
+        // scanner mirrors `note_tags`); shift token offsets past it.
+        let (body, base) = match body.strip_prefix('\u{feff}') {
+            Some(body) => (body, body_start + '\u{feff}'.len_utf8()),
+            None => (body, body_start),
+        };
+        let tags = crate::kanban::scan_tags(body);
+        if tags.is_empty() {
+            return source;
+        }
+        let mut out = String::with_capacity(source.len() + tags.len() * 24);
+        let mut last = 0;
+        for token in tags {
+            let start = base + token.start;
+            let end = base + token.end;
+            out.push_str(&source[last..start]);
+            out.push('[');
+            // The visible label keeps the `#` as the author wrote it.
+            escape_label(&source[start..end], &mut out);
+            out.push_str("](<tag:");
+            escape_dest(&token.tag, &mut out);
+            out.push_str(">)");
+            last = end;
+        }
+        out.push_str(&source[last..]);
+        out
     }
 
     /// Every distinct attachment embed in `source`, in reading order, with its
@@ -308,6 +342,19 @@ fn attachment_placeholder(link: &WikiLink, size: Option<u64>, out: &mut String) 
     }
 }
 
+/// A Markdown link destination escapes the characters that would end the
+/// angle-bracketed target; newlines would split the link across lines.
+fn escape_dest(dest: &str, out: &mut String) {
+    for c in dest.chars() {
+        match c {
+            '<' => out.push_str("%3C"),
+            '>' => out.push_str("%3E"),
+            '\n' | '\r' => out.push(' '),
+            c => out.push(c),
+        }
+    }
+}
+
 pub(crate) fn escape_label(label: &str, out: &mut String) {
     for c in label.chars() {
         match c {
@@ -441,5 +488,54 @@ mod tests {
         // to the deterministic smallest-rel note but still renders its stem.
         assert!(out.contains("note:b/note"), "{out}");
         assert!(out.contains("note:a/note"), "{out}");
+    }
+}
+
+#[cfg(test)]
+mod preview_note_tests {
+    use crate::testing::TempVault;
+
+    #[test]
+    fn preview_note_links_body_tags_but_not_code_frontmatter_or_headings() {
+        let source = "---\ntags: secret\n---\n\n#Work and #work/menu, `inline #code`\n\n```\n#fenced\n```\n\n# Heading\n";
+        let tmp = TempVault::new(&[("Home.md", source)]);
+        let v = tmp.load();
+        let home = v.resolve("Home").unwrap();
+        let out = v.preview_note(&v.note(home).source, home);
+        assert!(out.contains("[#Work](<tag:Work>)"), "{out}");
+        assert!(out.contains("[#work/menu](<tag:work/menu>)"), "{out}");
+        assert!(
+            out.contains("tags: secret"),
+            "frontmatter is metadata: {out}"
+        );
+        assert!(!out.contains("[secret](<tag:"), "{out}");
+        assert!(out.contains("`inline #code`"), "{out}");
+        assert!(out.contains("#fenced"), "{out}");
+        assert!(!out.contains("[code](<tag:"), "{out}");
+        assert!(!out.contains("[fenced](<tag:"), "{out}");
+        assert!(out.contains("# Heading"), "a heading is not a tag: {out}");
+        assert!(!out.contains("[Heading](<tag:"), "{out}");
+    }
+
+    #[test]
+    fn preview_note_keeps_wikilink_headings_and_all_previous_rewrites() {
+        let tmp = TempVault::new(&[
+            ("Home.md", "[[Target#Part]] #alpha ![[pic.png]]\n"),
+            ("Target.md", "# Part\n"),
+            ("pic.png", ""),
+        ]);
+        let v = tmp.load();
+        let home = v.resolve("Home").unwrap();
+        let out = v.preview_note(&v.note(home).source, home);
+        assert!(out.contains("[Target](<note:Target#Part>)"), "{out}");
+        assert!(!out.contains("tag:Part"), "{out}");
+        assert!(out.contains("[#alpha](<tag:alpha>)"), "{out}");
+        assert!(out.contains("`pic.png` (attachment)"), "{out}");
+
+        // The Kanban card path keeps its own tag chips: no double link.
+        let card = "---\nkanban-plugin: board\n---\n\n## To do\n\n- [ ] Ship #release\n";
+        let out = v.preview_with_attachments(card, home);
+        assert!(out.contains("#release"), "{out}");
+        assert!(!out.contains("tag:release"), "{out}");
     }
 }

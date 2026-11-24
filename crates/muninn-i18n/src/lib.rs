@@ -628,6 +628,20 @@ pub fn filter_by_tag(tag: &str) -> String {
     phrase_current(MsgKey::FilterByTag, &[tag])
 }
 
+/// `#294: "Notes tagged #<tag>"`: the sidebar's active tag-filter summary.
+///
+/// The tag is file data, so it is a typed helper rather than a [`Key`]. The
+/// sentence keeps the `#` in every locale.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(muninn_i18n::note_tag_filter_summary("work"), "Notes tagged #work");
+/// ```
+pub fn note_tag_filter_summary(tag: &str) -> String {
+    phrase_current(MsgKey::NoteTagFilterSummary, &[tag])
+}
+
 /// `"The tray icon could not be added: <error>"`.
 ///
 /// The Appearance tab's tray status line: the sentence is fixed and the OS
@@ -2901,19 +2915,22 @@ pub fn graph_node_parent(title: &str, parent: &str) -> String {
     phrase_current(MsgKey::GraphNodeParent, &[title, parent])
 }
 
-/// `"12 notes · 30 edges"`. The readout keeps the plural words at any count,
-/// as the graph's overlay always has.
+/// `#294: "<n> notes · <n> tags · <n> edges"`: the graph readout once the
+/// layout holds tag nodes as well as note nodes. The readout keeps the
+/// plural words at any count, as the graph's overlay always has.
 ///
 /// # Examples
 ///
 /// ```
-/// assert_eq!(muninn_i18n::graph_stats(12, 30), "12 notes · 30 edges");
-/// assert_eq!(muninn_i18n::graph_stats(1, 1), "1 notes · 1 edges");
+/// assert_eq!(
+///     muninn_i18n::graph_stats_with_tags(12, 3, 30),
+///     "12 notes · 3 tags · 30 edges"
+/// );
 /// ```
-pub fn graph_stats(nodes: usize, edges: usize) -> String {
+pub fn graph_stats_with_tags(notes: usize, tags: usize, edges: usize) -> String {
     phrase_current(
-        MsgKey::GraphStats,
-        &[&nodes.to_string(), &edges.to_string()],
+        MsgKey::GraphStatsWithTags,
+        &[&notes.to_string(), &tags.to_string(), &edges.to_string()],
     )
 }
 

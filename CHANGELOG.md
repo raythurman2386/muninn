@@ -16,6 +16,14 @@ All notable changes to Muninn are documented here. The format is based on
   followed by its file across mid-drag vault reloads, so the drop always
   moves the pressed note. Releasing anywhere else cancels; Move remains the
   keyboard path.
+- **`#tags` became clickable and linkable across the app (#294).** Body
+  tags are now `tag:` links in Read (code and frontmatter stay untouched)
+  that filter the sidebar to exactly the notes carrying the tag; the summary
+  row's Clear restores the full list, and a tag click clears a typed search.
+  Write completes `#tags` from the vault index, and the knowledge graph draws
+  one node per tag with edges to its notes — a tag node obeys the same zoom
+  and isolate rules as a note, its click filters instead of opening, and the
+  readout counts notes, tags and edges.
 
 ### Fixed
 

@@ -58,6 +58,54 @@ fn step_p95_fits_the_2000_note_budget() {
     );
 }
 
+/// #294: tag nodes are ordinary physics nodes, so the 2000-note step budget
+/// still holds once every note also carries tags and the graph has tag edges.
+#[test]
+fn tag_nodes_keep_the_2000_note_step_budget() {
+    let tmp = big_vault(2000);
+    for i in 0..10 {
+        let path = tmp.path().join(format!("Note {i:04}.md"));
+        let mut body = std::fs::read_to_string(&path).expect("fixture read");
+        body.push_str("\n#shared #group/alpha\n");
+        std::fs::write(&path, body).expect("fixture write");
+    }
+    let v = tmp.load();
+    let mut g = Graph::new(&v);
+    assert_eq!(g.nodes.len(), 2002, "two tag nodes after 2000 notes");
+    assert_eq!(g.nodes[2000].rel, "#group/alpha");
+    assert_eq!(g.nodes[2001].rel, "#shared");
+    assert!(g.edges.iter().any(|&(a, b)| a == 2000 || b == 2000));
+    assert!(g.edges.iter().any(|&(a, b)| a == 2001 || b == 2001));
+    assert!(
+        g.nodes
+            .iter()
+            .enumerate()
+            .all(|(i, n)| i >= 2000 || n.note == Some(i)),
+        "note indices still equal note ids"
+    );
+    for _ in 0..30 {
+        g.step();
+    }
+    let mut samples = Vec::with_capacity(60);
+    for _ in 0..60 {
+        let start = Instant::now();
+        g.step();
+        samples.push(start.elapsed());
+    }
+    samples.sort_unstable();
+    let p95 = samples[samples.len() * 95 / 100];
+    #[cfg(debug_assertions)]
+    let budget = Duration::from_millis(500);
+    #[cfg(not(debug_assertions))]
+    let budget = Duration::from_millis(50);
+    assert!(
+        p95 < budget,
+        "2000 notes + tags step p95 {:.2} ms exceeds the {:?} hard gate",
+        p95.as_secs_f64() * 1000.0,
+        budget
+    );
+}
+
 /// The outcome of driving a layout until it has been quiet for 30 frames.
 struct Settle {
     dormant: Option<usize>,

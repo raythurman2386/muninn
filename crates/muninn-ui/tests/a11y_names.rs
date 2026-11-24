@@ -106,6 +106,46 @@ fn text_fields_the_at_pass_found_unnamed_are_named() {
     let _ = fs::remove_dir_all(&config);
 }
 
+/// #294: the new tag surfaces keep accessible names — a graph tag node names
+/// the action its click performs, and the sidebar's Clear names the filter it
+/// drops.
+#[test]
+fn tag_nodes_and_the_sidebar_clear_are_named() {
+    let vault = TempVault::new(&[("Alpha.md", "#work\n"), ("Beta.md", "#work\n")]);
+    let (config, state_home) = (unique_dir("tag-config"), unique_dir("tag-state"));
+    let mut settings = Settings::load_from(&config);
+    settings.last_vault = Some(vault.path().to_path_buf());
+    let state = State::with_settings(
+        vault.path().to_path_buf(),
+        state_home.clone(),
+        config.clone(),
+        settings,
+    );
+    let mut rt = Runtime::new(state, view, (1180.0, 780.0), Env::new(true, 2.0));
+    rt.poll = Some(poll);
+    rt.frame(0.0);
+    rt.update(|s, _| s.set_mode(Mode::Graph));
+    rt.frame(0.0);
+
+    let tag_index = rt.state.vault.notes.len();
+    let node = element(&rt, &format!("graph-node-{tag_index}"));
+    assert_eq!(node.role, "button");
+    assert_eq!(
+        node.label.as_deref(),
+        Some("Filter by #work"),
+        "the tag node names its action"
+    );
+
+    rt.update(|s, _| s.set_note_tag_filter("work"));
+    rt.frame(0.0);
+    assert_eq!(label(&rt, "note-tag-filter-clear"), "Clear filters");
+    let clear = element(&rt, "note-tag-filter-clear");
+    assert_eq!(clear.role, "button");
+
+    let _ = fs::remove_dir_all(&state_home);
+    let _ = fs::remove_dir_all(&config);
+}
+
 /// #185: every page/panel close is the same text button, named exactly
 /// "Close" — never an icon-only ✕ or a longer "Close settings (Esc)" name —
 /// and reachable from the keyboard with a focus ring.

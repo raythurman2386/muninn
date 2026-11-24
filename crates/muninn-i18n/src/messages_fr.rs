@@ -68,6 +68,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::ScanMs => "analyse {0} ms",
         MsgKey::RestoreTo => "Restaurer dans {0}",
         MsgKey::FilterByTag => "Filtrer par #{0}",
+        MsgKey::NoteTagFilterSummary => "Notes étiquetées #{0}",
         MsgKey::LinkImpactOne => "{0} note renvoie à {1}",
         MsgKey::LinkImpactOther => "{0} notes renvoient à {1}",
 
@@ -252,7 +253,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::LinkDescription => "Ouvrir {0}",
         MsgKey::NoteLabelRoot => "{0} (racine)",
         MsgKey::GraphNodeParent => "{0} ({1})",
-        MsgKey::GraphStats => "{0} notes · {1} arêtes",
+        MsgKey::GraphStatsWithTags => "{0} notes · {1} étiquettes · {2} arêtes",
 
         MsgKey::KanbanFilterFrom => "depuis {0}",
         MsgKey::KanbanFilterTo => "jusqu’au {0}",
