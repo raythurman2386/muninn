@@ -2829,6 +2829,19 @@ mod rename_case_tests {
     #[cfg(unix)]
     #[test]
     fn a_symlink_at_the_case_variant_target_is_refused() {
+        // #292: a case-variant symlink cannot even be created on a
+        // case-insensitive disk (the name collides with the source), so the
+        // refusal is covered only where the scenario exists.
+        let probe = TempVault::new(&[("probe-a", "first")]);
+        let upper = probe.path().join("probe-A");
+        if !upper.exists() {
+            fs::write(&upper, "second").expect("probe");
+        }
+        let case_insensitive = fs::read_to_string(&upper).unwrap() == "first";
+        drop(probe);
+        if case_insensitive {
+            return;
+        }
         let tmp = TempVault::new(&[("leaves.md", "leaves")]);
         std::os::unix::fs::symlink("leaves.md", tmp.path().join("Leaves.md")).unwrap();
         let mut v = tmp.load();
