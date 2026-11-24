@@ -7,4 +7,6 @@ mod camera;
 mod layout;
 
 pub use camera::{Camera, world_centre};
-pub use layout::{GNode, Graph, NODE_H, NODE_W, WORLD, cards_fit, link_len, marker_extent};
+pub use layout::{
+    GNode, Graph, NODE_H, NODE_W, NodeKind, WORLD, cards_fit, link_len, marker_extent,
+};

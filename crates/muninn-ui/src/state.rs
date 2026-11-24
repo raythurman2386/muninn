@@ -366,7 +366,8 @@ pub struct TagComplete {
     /// Candidate tags as stored in the vault, best first, capped at eight.
     pub items: Vec<String>,
     pub index: usize,
-    /// The list belongs to the kanban card editor (tags are offered there only).
+    /// Where the list opened: the kanban card editor or the Write editor.
+    /// The accept path inserts into that same field.
     pub card: bool,
 }
 
@@ -502,6 +503,10 @@ pub struct State {
     /// The text last read from or written to disk.
     pub saved: String,
     pub search: TextEdit,
+    /// #294: the tag (without `#`) filtering the sidebar's note list. One
+    /// active filter, like the board's tag filter; a typed search wins when
+    /// the field is not empty.
+    pub note_tag_filter: Option<String>,
     /// M2 NAV-01: highlighted row in the search results, an index into
     /// [`State::search_results`]. `None` means Enter opens the first result.
     pub search_selected: Option<usize>,
@@ -669,6 +674,9 @@ pub struct State {
     /// Keyboard focus in the graph, deliberately separate from `selected`:
     /// arrows move the focus ring, Enter opens the focused note.
     pub graph_focus: Option<usize>,
+    /// #294: the tag whose node the pointer is over, shown in the graph info
+    /// card instead of a note's link count. Tag nodes take no keyboard focus.
+    pub graph_tag_hover: Option<String>,
     /// Search-to-node field in the graph controls.
     pub graph_query: TextEdit,
     /// Isolate mode: non-neighbours stay as faint dots.
@@ -1045,6 +1053,7 @@ impl State {
             note_editors_order: Vec::new(),
             saved: String::new(),
             search: TextEdit::new(""),
+            note_tag_filter: None,
             search_selected: None,
             search_query: String::new(),
             find: None,
@@ -1127,6 +1136,7 @@ impl State {
             camera_glide: None,
             smooth_fit: false,
             graph_focus: None,
+            graph_tag_hover: None,
             graph_query: TextEdit::new(""),
             graph_isolate: false,
             canvas: [900.0, 620.0],
@@ -1976,6 +1986,7 @@ impl State {
                 self.graph = Graph::new(&self.vault);
                 self.cam = Camera::new();
                 self.graph_focus = None;
+                self.graph_tag_hover = None;
                 self.needs_fit = true;
                 self.auto_fit = true;
                 self.dragging = None;
@@ -2601,6 +2612,39 @@ impl State {
         self.search_results_for(&self.search.text)
     }
 
+    /// #294: filter the sidebar's note list by a tag (without `#`). The
+    /// summary row above the list names it and offers Clear; clicking a tag
+    /// link in Read or a tag node in the graph calls this.
+    ///
+    /// Only one filter is active at a time: setting a tag clears the search
+    /// field's text, just as a board tag chip closes Board Find.
+    pub fn set_note_tag_filter(&mut self, tag: &str) {
+        // #294: a tag click and a typed query never filter at once.
+        self.search.replace_text("");
+        self.search_query.clear();
+        self.search_selected = None;
+        self.note_tag_filter = Some(tag.trim().trim_start_matches('#').to_owned());
+    }
+
+    /// #294: drop the sidebar's tag filter and show the full folder list
+    /// again. The Clear control calls this; Esc in the sidebar does not, just
+    /// as Esc on the board leaves its filter alone.
+    pub fn clear_note_tag_filter(&mut self) {
+        self.note_tag_filter = None;
+    }
+
+    /// #294: the notes the sidebar lists. A tag filter supplies its cached
+    /// note ids while the search field is empty; typed search still wins.
+    #[must_use]
+    pub fn sidebar_notes(&self) -> Vec<usize> {
+        if let Some(tag) = &self.note_tag_filter
+            && self.search.text.trim().is_empty()
+        {
+            return self.vault.notes_with_tag(tag).to_vec();
+        }
+        self.search_results()
+    }
+
     /// Rank notes for an arbitrary query. The sidebar passes its field and the
     /// command palette passes its own, so both share one title-first order
     /// without either field borrowing the other's text.
@@ -2781,8 +2825,9 @@ impl State {
     /// Runs from `poll` once a frame, like the find bar's match list, because
     /// the view only borrows `State`. The explicit Cmd+P picker is not
     /// detected here: its query is typed into the picker, not the note.
-    /// A focused kanban card editor is completed the same way as Write; the
-    /// `#` tag list is offered there only.
+    /// A focused kanban card editor and the Write editor offer the same lists:
+    /// `[[` notes and `#` tags. EDT-03's link list and #294's tag list are
+    /// different unclosed marks, so they never open for one another.
     /// Returns true when something the user can see changed.
     pub fn complete_tick(&mut self) -> bool {
         if let Some(c) = &self.tag_complete {
@@ -2792,7 +2837,9 @@ impl State {
                 self.tag_complete = None;
                 return true;
             };
-            if !is_card {
+            // #294: the tag list follows its own editor, Write or a card,
+            // exactly as EDT-03's link list does.
+            if is_card != c.card {
                 self.tag_complete = None;
                 return true;
             }
@@ -2880,9 +2927,7 @@ impl State {
             });
             return true;
         }
-        if !card {
-            return false;
-        }
+        // #294: Write completes tags too — only the insertion target differs.
         let Some((open, query)) = unclosed_tag(&text, caret) else {
             return false;
         };
@@ -2900,7 +2945,7 @@ impl State {
             query,
             items,
             index: 0,
-            card: true,
+            card,
         });
         true
     }
@@ -3072,14 +3117,20 @@ impl State {
         true
     }
 
-    /// Insert `#tag`, replacing the typed `#query` in the card editor. The
-    /// pointer uses this too. Escape leaves the typed `#` alone.
+    /// Insert `#tag`, replacing the typed `#query` in the editor that opened
+    /// the list: the kanban card editor or Write (#294). The pointer uses this
+    /// too. Escape leaves the typed `#` alone.
     pub fn tag_complete_choose(&mut self, tag: &str) -> bool {
         let Some(c) = self.tag_complete.take() else {
             return false;
         };
         let text = format!("#{}", tag.strip_prefix('#').unwrap_or(tag));
-        let field = &mut self.kanban_card_field;
+        let card = c.card;
+        let field = if card {
+            &mut self.kanban_card_field
+        } else {
+            &mut self.editor
+        };
         let caret = field.focus.min(field.text.len());
         // The list opens wherever the caret is, which can be mid-token
         // (`#work` with the caret after `#wo`). Replace the token's whole
@@ -3091,6 +3142,9 @@ impl State {
         field.set_selection(c.open.min(caret), tail);
         field.insert(&text);
         self.tag_complete_dismissed = None;
+        if !card {
+            self.dirty_at.get_or_insert(self.now);
+        }
         true
     }
 
@@ -3535,7 +3589,7 @@ impl State {
 
     fn refit_with(&mut self, smooth: bool) -> bool {
         let before = (self.cam.pan(), self.cam.zoom());
-        let visible = self.visible_notes();
+        let visible = self.visible_nodes();
         if let Some(bounds) = self.graph.bounds(&visible)
             && let Some(target) = GraphCamera::fitted_to(bounds, self.canvas)
         {
@@ -3680,7 +3734,7 @@ impl State {
     /// Ease the camera toward a fit of the visible notes, used when the scope
     /// or the visible set changes without a layout reset.
     pub(crate) fn glide_graph_fit(&mut self) {
-        let visible = self.visible_notes();
+        let visible = self.visible_nodes();
         let Some(bounds) = self.graph.bounds(&visible) else {
             return;
         };
@@ -3854,9 +3908,34 @@ impl State {
         self.local_notes()
     }
 
+    /// #294: note ids plus the tag-node indices those notes carry. Tags obey
+    /// the scope: a local graph shows only the neighbourhood's tags, so
+    /// [`Graph::visible_edges`] also drops a tag edge whose note end is out
+    /// of scope. Keyboard navigation keeps using [`State::visible_notes`]
+    /// (notes only).
+    #[must_use]
+    pub fn visible_nodes(&self) -> Vec<usize> {
+        let mut nodes = self.visible_notes();
+        let in_scope: HashSet<usize> = nodes.iter().copied().collect();
+        let base = self.vault.notes.len();
+        for (ordinal, entry) in self.vault.tag_index().values().enumerate() {
+            if entry.notes.iter().any(|id| in_scope.contains(id)) {
+                nodes.push(base + ordinal);
+            }
+        }
+        nodes
+    }
+
+    /// #294: whether the selected note carries `tag`. Isolate mode dots a tag
+    /// the selection does not carry, exactly as it dots a non-neighbour note.
+    pub(crate) fn selected_note_carries(&self, tag: &str) -> bool {
+        self.selected
+            .is_some_and(|id| self.vault.notes_with_tag(tag).contains(&id))
+    }
+
     #[must_use]
     pub fn visible_edge_count(&self) -> usize {
-        self.graph.visible_edges(&self.visible_notes()).len()
+        self.graph.visible_edges(&self.visible_nodes()).len()
     }
 
     #[must_use]
@@ -5258,6 +5337,7 @@ impl State {
         self.graph = Graph::new(&self.vault);
         self.cam = Camera::new();
         self.graph_focus = None;
+        self.graph_tag_hover = None;
         self.needs_fit = true;
         self.auto_fit = true;
         self.dragging = None;
@@ -6445,6 +6525,10 @@ impl State {
             }
         } else if let Some(raw) = url.strip_prefix("missing:") {
             self.create_missing_link(raw);
+        } else if let Some(tag) = url.strip_prefix("tag:") {
+            // #294: a tag link only filters the sidebar; it never resolves or
+            // creates a note, and it does not leave the reader.
+            self.set_note_tag_filter(tag);
         } else if tx.open_url(url).is_err() {
             // External links are best-effort: the platform may have no opener.
         }
@@ -6710,7 +6794,9 @@ impl State {
                 // offsets differ from the note's, so resolve the key against
                 // that source. Block keys are `heading-<preview offset>`.
                 let key = self.selected.and_then(|id| {
-                    let source = self.vault.preview_with_attachments(&self.editor.text, id);
+                    // #294: the reader draws `preview_note` (wikilinks *and*
+                    // tags), so heading keys must come from that same source.
+                    let source = self.vault.preview_note(&self.editor.text, id);
                     jump_offset(&source, heading).map(|offset| format!("heading-{offset}"))
                 });
                 match key {
@@ -6762,23 +6848,39 @@ impl State {
         self.open_from_list(id);
     }
 
+    /// Drag a note node by note id. #294: tag nodes are dragged by their node
+    /// index through [`State::drag_node_at`] instead.
     pub fn drag_node(&mut self, id: usize, drag: &Drag) {
+        let Some(index) = self
+            .graph
+            .nodes
+            .iter()
+            .position(|node| node.note == Some(id))
+        else {
+            return;
+        };
+        self.drag_node_at(index, drag);
+    }
+
+    /// Drag any node — note or tag — by node index. The physics and the
+    /// drag bookkeeping are identical for both kinds (#294).
+    pub fn drag_node_at(&mut self, index: usize, drag: &Drag) {
         let zoom = self.cam.zoom().max(0.01);
         let start = self
             .dragging
-            .and_then(|(held, start)| (held == id).then_some(start));
+            .and_then(|(held, start)| (held == index).then_some(start));
         match drag.phase {
             Phase::Down => {
                 self.auto_fit = false;
-                if let Some(node) = self.graph.node_mut(id) {
+                if let Some(node) = self.graph.node_mut_at(index) {
                     node.fixed = true;
                     node.vel = [0.0; 2];
-                    self.dragging = Some((id, node.pos));
+                    self.dragging = Some((index, node.pos));
                 }
             }
             Phase::Move => {
-                if let Some((_, start)) = self.dragging.filter(|(held, _)| *held == id)
-                    && let Some(node) = self.graph.node_mut(id)
+                if let Some((_, start)) = self.dragging.filter(|(held, _)| *held == index)
+                    && let Some(node) = self.graph.node_mut_at(index)
                 {
                     node.pos = [
                         (start[0] + drag.dx / zoom).clamp(70.0, WORLD[0] - 70.0),
@@ -6787,13 +6889,13 @@ impl State {
                 }
             }
             Phase::Up => {
-                if let Some(node) = self.graph.node_mut(id) {
+                if let Some(node) = self.graph.node_mut_at(index) {
                     node.fixed = false;
                 }
                 self.dragging = None;
                 if drag.cancelled()
                     && let Some(start) = start
-                    && let Some(node) = self.graph.node_mut(id)
+                    && let Some(node) = self.graph.node_mut_at(index)
                 {
                     node.pos = start;
                 }

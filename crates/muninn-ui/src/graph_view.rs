@@ -7,9 +7,10 @@ use rune::{
 use rune_kit::Kit;
 use rune_theme_opencode::icons as ic;
 
-use muninn_graph::{NODE_H, NODE_W, WORLD, cards_fit, marker_extent};
+use muninn_graph::{GNode, NODE_H, NODE_W, WORLD, cards_fit, marker_extent};
 use muninn_i18n::{
-    Key as TextKey, graph_links, graph_node_parent, graph_stats, note_label_root, t,
+    Key as TextKey, filter_by_tag, graph_links, graph_node_parent, graph_stats_with_tags,
+    note_label_root, notes, t,
 };
 
 use crate::settings::GraphEffects;
@@ -68,9 +69,11 @@ fn graph_dots_only(scope: Scope, zoom: f32, visible: usize) -> bool {
 
 pub fn graph(s: &State, k: &Kit) -> El {
     let visible = s.visible_notes();
-    let edges = s.graph.visible_edges(&visible);
+    // #294: edges index nodes, so tag-node indices follow the visible notes.
+    let visible_nodes = s.visible_nodes();
+    let edges = s.graph.visible_edges(&visible_nodes);
     let viewport = viewport_rect(s);
-    let dots_only = graph_dots_only(s.scope, s.cam.zoom(), visible.len());
+    let dots_only = graph_dots_only(s.scope, s.cam.zoom(), visible_nodes.len());
     let mut world = el()
         .key("graph-world")
         .size(WORLD[0], WORLD[1])
@@ -89,7 +92,7 @@ pub fn graph(s: &State, k: &Kit) -> El {
         world = world.child(burn_ghost(s, k, burn));
         world = world.child(burn_effect(s, burn));
     }
-    world = nodes_world(world, s, k, &visible, dots_only, viewport);
+    world = nodes_world(world, s, k, &visible, &visible_nodes, dots_only, viewport);
 
     let mut canvas_el = el()
         .key("graph-canvas")
@@ -161,7 +164,13 @@ pub fn graph(s: &State, k: &Kit) -> El {
 
     canvas_el
         .child(controls(s, k))
-        .child(stats(s, k, visible.len(), edges.len()))
+        .child(stats(
+            s,
+            k,
+            visible.len(),
+            visible_nodes.len() - visible.len(),
+            edges.len(),
+        ))
         .child(info(s, k))
         .child(hint(k))
 }
@@ -172,6 +181,7 @@ fn nodes_world(
     s: &State,
     k: &Kit,
     visible: &[usize],
+    visible_nodes: &[usize],
     dots_only: bool,
     viewport: [f32; 4],
 ) -> El {
@@ -204,6 +214,43 @@ fn nodes_world(
         } else {
             node_button(s, k, id, node.pos)
         });
+    }
+    // #294: tag nodes follow the notes, under the same declutter rules.
+    world = tags_world(world, s, k, visible, visible_nodes, dots_only, viewport);
+    world
+}
+
+/// #294: draw the tag nodes — the node indices in `visible_nodes` past the
+/// note ids — as cards, or as dots where the same rules would dot a note
+/// down. A tag the selected note carries keeps its card; every tag still
+/// filters on a click and drags by index.
+fn tags_world(
+    mut world: El,
+    s: &State,
+    k: &Kit,
+    visible: &[usize],
+    visible_nodes: &[usize],
+    dots_only: bool,
+    viewport: [f32; 4],
+) -> El {
+    for &index in visible_nodes.iter().skip(visible.len()) {
+        let Some(node) = s.graph.node_at(index) else {
+            continue;
+        };
+        let Some(tag) = node.kind.tag() else {
+            continue;
+        };
+        if is_culled(node.pos, NODE_W, NODE_H, viewport) {
+            continue;
+        }
+        // #294: the declutter that dots a note dots a tag too — a zoomed-out
+        // graph, or an isolated one whose selection does not carry the tag.
+        let carried = s.selected_note_carries(tag);
+        if (dots_only || (s.graph_isolate && s.selected.is_some())) && !carried {
+            world = world.child(tag_dot(s, k, index, node));
+        } else {
+            world = world.child(tag_node(k, index, node));
+        }
     }
     world
 }
@@ -249,7 +296,9 @@ fn edge_canvas(s: &State, k: &Kit, edges: &[(usize, usize)], viewport: [f32; 4])
 
     let mut fx_used = 0usize;
     for (touches, a, b) in ranked {
-        let (Some(from), Some(to)) = (s.graph.node(a), s.graph.node(b)) else {
+        // #294: edges hold node indices, including tag-node indices, so their
+        // endpoints are read by index rather than by note id.
+        let (Some(from), Some(to)) = (s.graph.node_at(a), s.graph.node_at(b)) else {
             continue;
         };
         // Skip segments with both ends off-screen; Rune clips the rest.
@@ -611,6 +660,106 @@ fn node_dot(s: &State, k: &Kit, id: usize, pos: [f32; 2]) -> El {
         .on_drag(move |s: &mut State, d: &mut Drag, _: &mut Tx| s.drag_node(id, d))
 }
 
+/// #294: a tag node. Same card footprint and gestures as a note node, but its
+/// label is `#tag`, a click filters the sidebar instead of loading a note, and
+/// hovering it puts the tag and its note count in the info card. There is no
+/// double-press (nothing to open) and it takes no keyboard focus.
+fn tag_node(k: &Kit, index: usize, node: &GNode) -> El {
+    let tag = node
+        .kind
+        .tag()
+        .expect("a tag node carries its tag in its kind");
+    let filter = tag.to_owned();
+    let hover = filter.clone();
+    row()
+        .key(format!("graph-node-{index}"))
+        .pin(
+            Some(node.pos[0] - NODE_W / 2.0),
+            Some(node.pos[1] - NODE_H / 2.0),
+            None,
+            None,
+        )
+        .size(NODE_W, NODE_H)
+        .px(9.0)
+        .gap(7.0)
+        .radius(9.0)
+        .center_y()
+        .fill(k.alpha(k.c.text_accent, 0.12))
+        .border(1.0, k.alpha(k.c.text_accent, 0.5))
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .role("button")
+        .label(filter_by_tag(tag))
+        .on_hover_change(move |s: &mut State, on: bool, _: &mut Tx| {
+            if on {
+                s.graph_tag_hover = Some(hover.clone());
+            } else if s.graph_tag_hover.as_deref() == Some(hover.as_str()) {
+                s.graph_tag_hover = None;
+            }
+        })
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            s.set_note_tag_filter(&filter);
+            graph_press_motion(s, tx);
+        })
+        .on_drag(move |s: &mut State, d: &mut Drag, _: &mut Tx| s.drag_node_at(index, d))
+        .child(el().size(6.0, 6.0).radius(3.0).fill(k.c.text_accent))
+        .child(
+            text(format!("#{tag}"))
+                .font(rune::TextStyle::new(12.0, 500.0))
+                .color(k.c.text_accent)
+                .truncate()
+                .grow(1.0),
+        )
+}
+
+/// #294: a tag node drawn as a dot, the same treatment a note gets when the
+/// graph is zoomed out or isolated. It still filters on a click and still
+/// drags by index; it takes no keyboard focus and shows no hover card.
+fn tag_dot(s: &State, k: &Kit, index: usize, node: &GNode) -> El {
+    let tag = node
+        .kind
+        .tag()
+        .expect("a tag node carries its tag in its kind")
+        .to_owned();
+    // Like `node_dot`: a tag the selection does not carry dims down.
+    let dim = s.selected.is_some() && !s.selected_note_carries(&tag);
+    let accent = k.c.text_accent;
+    let degree = s.vault.notes_with_tag(&tag).len();
+    let side = dot_size(s.graph.nodes.len(), degree);
+    let filter = tag;
+    el().key(format!("graph-node-{index}"))
+        .pin(
+            Some(node.pos[0] - side / 2.0),
+            Some(node.pos[1] - side / 2.0),
+            None,
+            None,
+        )
+        .size(side, side)
+        .radius(side / 2.0)
+        .fill(if dim {
+            k.alpha(accent, 0.25)
+        } else {
+            k.alpha(accent, 0.7)
+        })
+        .border(
+            1.0,
+            if dim {
+                k.c.border_muted
+            } else {
+                k.c.border_base
+            },
+        )
+        .hover(k.c.hover)
+        .press(k.c.pressed)
+        .cursor(Cursor::Pointer)
+        .on_press_tx(move |s: &mut State, tx: &mut Tx| {
+            s.set_note_tag_filter(&filter);
+            graph_press_motion(s, tx);
+        })
+        .on_drag(move |s: &mut State, d: &mut Drag, _: &mut Tx| s.drag_node_at(index, d))
+}
+
 /// Colour spring for a graph press. Reduced motion lands the dim/selection
 /// change in the same frame, matching the camera's snap.
 fn graph_press_motion(s: &State, tx: &mut Tx) {
@@ -777,7 +926,7 @@ fn chip(
         }))
 }
 
-fn stats(_s: &State, k: &Kit, nodes: usize, edges: usize) -> El {
+fn stats(_s: &State, k: &Kit, notes: usize, tags: usize, edges: usize) -> El {
     row()
         .pin(None, Some(14.0), Some(14.0), None)
         .h(30.0)
@@ -789,13 +938,48 @@ fn stats(_s: &State, k: &Kit, nodes: usize, edges: usize) -> El {
         .border(1.0, k.c.border_base)
         .child(icon(&ic::SHARE, 12.0).color(k.c.icon_faint))
         .child(
-            text(graph_stats(nodes, edges))
+            text(graph_stats_with_tags(notes, tags, edges))
                 .font(k.ty.caption())
                 .color(k.c.text_muted),
         )
 }
 
+/// #294: hovering a tag node replaces the note info card's links count with
+/// the tag and the number of notes carrying it.
+fn tag_info(k: &Kit, tag: &str, count: usize) -> El {
+    col()
+        .key("graph-info")
+        .pin(Some(14.0), None, None, Some(14.0))
+        .w(248.0)
+        .px(13.0)
+        .py(11.0)
+        .gap(5.0)
+        .radius(10.0)
+        .fill(k.alpha(k.c.layer_02, 0.97))
+        .border(1.0, k.c.border_base)
+        .shadow(10.0, 26.0, k.alpha(k.c.black, 0.34))
+        .child(
+            text(format!("#{tag}"))
+                .font(k.ty.ui_medium)
+                .color(k.c.text_base)
+                .truncate(),
+        )
+        .child(
+            text(notes(count))
+                .font(k.ty.caption())
+                .color(k.c.text_muted),
+        )
+        .child(
+            text(filter_by_tag(tag))
+                .font(k.ty.caption())
+                .color(k.c.text_faint),
+        )
+}
+
 fn info(s: &State, k: &Kit) -> El {
+    if let Some(tag) = &s.graph_tag_hover {
+        return tag_info(k, tag, s.vault.notes_with_tag(tag).len());
+    }
     let Some(id) = s.selected else { return el() };
     let note = &s.vault.notes[id];
     let stats = graph_links(note.links.len(), note.backlinks.len());

@@ -52,8 +52,11 @@ The `muninn` binary's headless `--check` and `--list-links` paths read `muninn-c
    unique and sorted. It also caches unresolved targets with their referrers
    (`Vault::broken_links`) so the dashboard never scans notes per frame. The sidebar
    groups notes by folder; duplicate titles are identified by their vault-relative path.
-3. **Layout.** `muninn_graph::Graph::sync` mirrors the vault as nodes and undirected,
-   deduplicated edges, keyed by `rel` so duplicates keep distinct nodes. `Graph::step`
+3. **Layout.** `muninn_graph::Graph::sync` mirrors the vault's notes **and tags** as
+   nodes and undirected, deduplicated edges. Note nodes occupy indices `[0, notes.len())`
+   in vault order; #294 tag nodes follow them with `rel = "#<tag>"` and an edge to every
+   note carrying the tag. Positions are keyed by `rel` so duplicates keep distinct nodes.
+   `Graph::step`
    runs one deterministic force step and reports true only when a node actually moved;
    above 200 notes repulsion and separation use a uniform spatial grid with a
    density-tapered cutoff, while smaller vaults keep the exhaustive pass unchanged.

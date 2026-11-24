@@ -3,8 +3,10 @@
 //! Nodes start on a golden-angle spiral seeded by their vault-relative path,
 //! so the same vault lays out the same way every launch (duplicate titles in
 //! different folders seed to different angles). Repulsion, link springs,
-//! gravity and damping then settle it. Node ids are note ids; positions
-//! survive a save or a new note because [`Graph::sync`] keeps them by `rel`,
+//! gravity and damping then settle it. Note nodes occupy indices
+//! `[0, notes.len())` so their index is their note id; #294 tag nodes follow
+//! them and join notes with edges. Positions survive a save or a new node
+//! because [`Graph::sync`] keeps them by `rel` (a note's path or `#<tag>`),
 //! not by title.
 //!
 //! Vaults up to [`EXHAUSTIVE_LIMIT`] notes use the original all-pairs passes,
@@ -190,21 +192,48 @@ const SETTLE_PROBE_STEP: f32 = 2.0;
 const SETTLE_MAX_DENSE_FRAMES: u32 = 3600;
 const EDGE: f32 = 78.0;
 
+/// #294: what a graph node stands for. Note nodes come first, in vault order,
+/// so their node index equals their note id; tag nodes follow, one per entry in
+/// [`Vault::tag_index`]. Both kinds take part in the same physics unchanged.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NodeKind {
+    /// A vault note. [`GNode::note`] is the note id.
+    Note,
+    /// A tag from the vault index, without its `#`.
+    Tag(String),
+}
+
+impl NodeKind {
+    /// The tag text when this is a tag node.
+    #[must_use]
+    pub fn tag(&self) -> Option<&str> {
+        match self {
+            Self::Note => None,
+            Self::Tag(tag) => Some(tag),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct GNode {
-    pub note: usize,
+    /// The note id for a note node; `None` for a tag node.
+    pub note: Option<usize>,
+    /// The drawn label: a note title or `#<tag>`.
     pub title: String,
-    /// Vault-relative path, the stable identity for a node across syncs.
+    /// Vault-relative path for a note, `#<tag>` for a tag: the stable identity
+    /// that keeps positions across a sync.
     pub rel: String,
     pub pos: [f32; 2],
     pub vel: [f32; 2],
     /// Held still while the pointer drags it.
     pub fixed: bool,
+    pub kind: NodeKind,
 }
 
 pub struct Graph {
     pub nodes: Vec<GNode>,
-    /// Undirected, deduplicated links, as pairs of note ids.
+    /// Undirected, deduplicated links, as pairs of **node indices**. Note
+    /// indices are note ids; tag indices are `notes.len() + ordinal`.
     pub edges: Vec<(usize, usize)>,
     /// Extra energy while the layout settles.
     pub heat: f32,
@@ -234,6 +263,42 @@ struct StepParams {
     /// Dense vaults zero a velocity component that would leave the world; the
     /// small-vault path keeps the original clamp-only behaviour.
     wall: bool,
+}
+
+/// #294: tag nodes in index order, one per vault tag, with their edges.
+///
+/// Kept apart from [`Graph::sync`] so the note-node pass stays the original
+/// loop: tags never change a note's index, seed or position. `old` carries the
+/// positions of nodes from the previous sync, keyed by `rel`.
+fn tag_nodes(
+    vault: &Vault,
+    old: &HashMap<String, ([f32; 2], [f32; 2])>,
+    note_count: usize,
+    count: usize,
+) -> (Vec<GNode>, Vec<(usize, usize)>) {
+    let mut nodes = Vec::new();
+    let mut edges = Vec::new();
+    for (ordinal, entry) in vault.tag_index().values().enumerate() {
+        let index = note_count + ordinal;
+        let rel = format!("#{}", entry.tag);
+        let (pos, vel) = old
+            .get(&rel)
+            .copied()
+            .unwrap_or_else(|| (seed(index, &rel, count), [0.0; 2]));
+        nodes.push(GNode {
+            note: None,
+            title: rel.clone(),
+            rel,
+            pos,
+            vel,
+            fixed: false,
+            kind: NodeKind::Tag(entry.tag.clone()),
+        });
+        for &id in &entry.notes {
+            edges.push((id.min(index), id.max(index)));
+        }
+    }
+    (nodes, edges)
 }
 
 /// Add link-spring forces to `force` (one pass over the deduplicated edges).
@@ -320,8 +385,10 @@ impl Graph {
         graph
     }
 
-    /// Rebuild nodes and links from the vault, keeping the positions of notes that remain.
-    /// Positions are keyed by `rel` so duplicate titles keep distinct nodes.
+    /// Rebuild nodes and links from the vault, keeping the positions of notes
+    /// and tags that remain. Positions are keyed by `rel` (`#<tag>` for a tag)
+    /// so duplicate titles keep distinct nodes and a tag keeps its place when
+    /// another tag sorts ahead of it.
     pub fn sync(&mut self, vault: &Vault) {
         let old: HashMap<String, ([f32; 2], [f32; 2])> = self
             .nodes
@@ -331,18 +398,21 @@ impl Graph {
         let old_edges = self.edges.clone();
         let old_len = self.nodes.len();
         self.nodes.clear();
+        let note_count = vault.notes.len();
+        let count = note_count + vault.tag_index().len();
         for note in &vault.notes {
             let (pos, vel) = old
                 .get(&note.rel)
                 .copied()
-                .unwrap_or_else(|| (seed(note.id, &note.rel, vault.notes.len()), [0.0; 2]));
+                .unwrap_or_else(|| (seed(note.id, &note.rel, note_count), [0.0; 2]));
             self.nodes.push(GNode {
-                note: note.id,
+                note: Some(note.id),
                 title: note.title.clone(),
                 rel: note.rel.clone(),
                 pos,
                 vel,
                 fixed: false,
+                kind: NodeKind::Note,
             });
         }
         let mut seen = HashSet::new();
@@ -355,6 +425,12 @@ impl Graph {
                 }
             }
         }
+        // #294: one tag node per index entry, appended after every note, with
+        // an edge to each note carrying it. A note id is already a node index,
+        // so the physics needs no special case for the new endpoints.
+        let (tags, tag_edges) = tag_nodes(vault, &old, note_count, count);
+        self.nodes.extend(tags);
+        self.edges.extend(tag_edges);
         if old_len != self.nodes.len() || old_edges != self.edges {
             self.heat = 1.0;
             self.packed = false;
@@ -366,23 +442,28 @@ impl Graph {
         }
     }
 
+    /// A note node by note id. Tag nodes have no note id.
     #[must_use]
     pub fn node(&self, note: usize) -> Option<&GNode> {
-        // Nodes are built in Vault order, so `nodes[note].note == note`
+        // Note nodes are built in Vault order, so `nodes[note]` is the note
         // almost always; fall back to a scan if that ever breaks.
         if let Some(found) = self.nodes.get(note)
-            && found.note == note
+            && found.note == Some(note)
         {
             return Some(found);
         }
-        self.nodes.iter().find(|n| n.note == note)
+        self.nodes.iter().find(|n| n.note == Some(note))
     }
 
-    pub fn node_mut(&mut self, note: usize) -> Option<&mut GNode> {
-        if self.nodes.get(note).is_some_and(|n| n.note == note) {
-            return Some(&mut self.nodes[note]);
-        }
-        self.nodes.iter_mut().find(|n| n.note == note)
+    /// Any node by node index, including tag nodes.
+    #[must_use]
+    pub fn node_at(&self, index: usize) -> Option<&GNode> {
+        self.nodes.get(index)
+    }
+
+    /// Mutable form of [`Graph::node_at`]; used by tag-node dragging.
+    pub fn node_mut_at(&mut self, index: usize) -> Option<&mut GNode> {
+        self.nodes.get_mut(index)
     }
 
     /// Push the layout one fixed step; true only when a node (or separation)
@@ -592,11 +673,14 @@ impl Graph {
         self.packed && !self.nodes.iter().any(|node| node.fixed)
     }
 
+    /// Bounds of the given **node indices** (notes and tags), for the camera.
     #[must_use]
     pub fn bounds(&self, visible: &[usize]) -> Option<[f32; 4]> {
         let mut b: Option<[f32; 4]> = None;
         for &id in visible {
-            let Some(node) = self.node(id) else { continue };
+            let Some(node) = self.nodes.get(id) else {
+                continue;
+            };
             let (x, y) = (node.pos[0], node.pos[1]);
             b = Some(match b {
                 None => [
@@ -616,15 +700,14 @@ impl Graph {
         b
     }
 
-    /// Links with both ends visible, in a stable order.
+    /// Links with both ends visible, in a stable order. `visible` holds node
+    /// indices: note ids for notes, `notes.len() + ordinal` for tags.
     #[must_use]
     pub fn visible_edges(&self, visible: &[usize]) -> Vec<(usize, usize)> {
-        // Global scope passes every note: every edge is visible, so skip the
-        // set allocation that per-frame view building would otherwise pay.
+        // Global scope passes every node in index order: every edge is
+        // visible, so skip the set allocation a per-frame rebuild would pay.
         if visible.len() == self.nodes.len()
-            && visible
-                .iter()
-                .all(|&id| self.nodes.get(id).is_some_and(|n| n.note == id))
+            && visible.iter().enumerate().all(|(index, &id)| index == id)
         {
             return self.edges.clone();
         }
@@ -2111,5 +2194,62 @@ mod grid {
             assert!((a[0] - b[0]).abs() < 1e-3, "node {i}: {a:?} vs {b:?}");
             assert!((a[1] - b[1]).abs() < 1e-3, "node {i}: {a:?} vs {b:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tag_node_tests {
+    use super::*;
+    use muninn_core::testing::TempVault;
+
+    #[test]
+    fn tag_nodes_follow_notes_with_edges_and_keep_rel_positions() {
+        let tmp = TempVault::new(&[
+            ("A.md", "#Beta\n\n[[B]]\n"),
+            ("B.md", "#Beta\n"),
+            ("C.md", "plain\n"),
+        ]);
+        let v = tmp.load();
+        let mut g = Graph::new(&v);
+        let a = v.resolve("A").unwrap();
+        let b = v.resolve("B").unwrap();
+        let beta = v.notes.len();
+        assert_eq!(g.nodes.len(), beta + 1);
+        assert!(
+            g.nodes[..beta]
+                .iter()
+                .all(|n| n.kind == NodeKind::Note && n.note.is_some()),
+            "note nodes keep indices [0, notes.len())"
+        );
+        assert_eq!(g.nodes[beta].rel, "#Beta");
+        assert_eq!(g.nodes[beta].title, "#Beta");
+        assert_eq!(g.nodes[beta].kind, NodeKind::Tag("Beta".to_owned()));
+        assert_eq!(g.nodes[beta].note, None);
+        assert_eq!(
+            g.edges,
+            vec![
+                (a.min(b), a.max(b)),
+                (a.min(beta), a.max(beta)),
+                (b.min(beta), b.max(beta)),
+            ],
+            "edges are node indices, note links first then tag links"
+        );
+        for _ in 0..30 {
+            g.step();
+        }
+        let kept = g.nodes[beta].pos;
+
+        // An alphabetically earlier tag shifts #Beta to a different index;
+        // the position still follows its `#Beta` rel, not its index or title.
+        std::fs::write(tmp.path().join("C.md"), "#Alpha\n").expect("fixture write");
+        let v2 = tmp.load();
+        g.sync(&v2);
+        let alpha = v2.notes.len();
+        let beta2 = alpha + 1;
+        assert_eq!(g.nodes[alpha].rel, "#Alpha");
+        assert_eq!(g.nodes[beta2].rel, "#Beta");
+        assert_eq!(g.nodes[beta2].kind.tag(), Some("Beta"));
+        assert_eq!(g.nodes[beta2].pos, kept, "the tag kept its position");
+        assert!(g.edges.contains(&(b.min(beta2), b.max(beta2))));
     }
 }

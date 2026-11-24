@@ -142,6 +142,7 @@ messages! {
     ScanMs => "msg.scan_ms", 1;
     RestoreTo => "msg.restore_to", 1;
     FilterByTag => "msg.filter_by_tag", 1;
+    NoteTagFilterSummary => "msg.note.tag_filter_summary", 1;
     LinkImpactOne => "msg.link_impact.one", 2;
     LinkImpactOther => "msg.link_impact.other", 2;
 
@@ -289,7 +290,7 @@ messages! {
     LinkDescription => "msg.board.link_description", 1;
     NoteLabelRoot => "msg.graph.note_label_root", 1;
     GraphNodeParent => "msg.graph.node_parent", 2;
-    GraphStats => "msg.graph.stats", 2;
+    GraphStatsWithTags => "msg.graph.stats_with_tags", 3;
 
     // ---- Kanban chrome -----------------------------------------------------
     KanbanFilterFrom => "msg.kanban.filter_from", 1;

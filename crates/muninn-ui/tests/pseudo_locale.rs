@@ -23,7 +23,7 @@ use muninn_i18n::{
     could_not_convert_kanban, could_not_create_board, could_not_create_kanban, could_not_do,
     could_not_open_vault, could_not_restore, could_not_save, day_label, delete_lane,
     delete_lane_text, deleted, device_code, expand_lane, files_skipped, filter_by_tag,
-    focus_exit_help, focus_help, graph_node_parent, graph_stats, import_document_notice,
+    focus_exit_help, focus_help, graph_node_parent, graph_stats_with_tags, import_document_notice,
     import_notice, import_progress, import_unsupported, kanban_could_not_save_copy,
     kanban_filter_from, kanban_filter_range, kanban_filter_to, kanban_quit_refused, lane_actions,
     lane_cards, lane_controls, lane_label, lane_region_label, lines, link_description, link_impact,
@@ -455,7 +455,7 @@ fn remaining_helpers_render_bracketed() {
         ("link_description", link_description("Plan")),
         ("note_label_root", note_label_root("Plan")),
         ("graph_node_parent", graph_node_parent("Plan", "Projects")),
-        ("graph_stats", graph_stats(12, 30)),
+        ("graph_stats", graph_stats_with_tags(12, 3, 30)),
         // Kanban chrome.
         ("kanban_filter_from", kanban_filter_from("2026-11-01")),
         ("kanban_filter_to", kanban_filter_to("2026-11-30")),

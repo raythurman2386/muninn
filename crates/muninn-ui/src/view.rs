@@ -14,10 +14,10 @@ use muninn_core::{KanbanView, Vault, block_anchors, headings};
 use muninn_i18n::{
     Key as TextKey, Lang, autosave_help, broken_links, deleted, files_skipped, focus_exit_help,
     focus_help, link_impact, login_item_error, more_edits, new_folder_in, new_note_in, note_links,
-    note_links_in_folder, palette_kanban_folder, recovered_copies, recovered_for, referrers,
-    results, scan_ms, scan_progress, shortcut_failed, shortcut_on, show_with_chord,
-    sidebar_summary, status_counts, t, targets, theme_label, trash_empty, trash_summary,
-    tray_error, update_available, version, welcome_vault_created,
+    note_links_in_folder, note_tag_filter_summary, palette_kanban_folder, recovered_copies,
+    recovered_for, referrers, results, scan_ms, scan_progress, shortcut_failed, shortcut_on,
+    show_with_chord, sidebar_summary, status_counts, t, targets, theme_label, trash_empty,
+    trash_summary, tray_error, update_available, version, welcome_vault_created,
 };
 
 use crate::{
@@ -121,13 +121,15 @@ fn sidebar(s: &State, k: &Kit) -> El {
     // No debounce: the filter is an in-memory linear scan (~1–3 ms at 2,000
     // notes), so a per-keystroke rebuild stays cheap; revisit if a much larger
     // vault ever makes typing lag.
-    let results = s.search_results();
+    let results = s.sidebar_notes();
     // NAV-01: highlight the row the search field's Up/Down selection points at.
     let picked = s
         .search_selected
         .and_then(|index| results.get(index).copied());
     let empty = results.is_empty();
-    let filtering = !s.search.text.trim().is_empty();
+    // #294: a tag filter groups like a query — only folders holding matches,
+    // never collapsed — while an empty tag list shows the "no match" hint.
+    let filtering = !s.search.text.trim().is_empty() || s.note_tag_filter.is_some();
     // Without a query, show every folder (including empty ones so they can
     // be targeted); with a query, only folders holding a match.
     let groups: Vec<(String, Vec<usize>)> = if filtering {
@@ -365,6 +367,7 @@ fn sidebar(s: &State, k: &Kit) -> El {
         .child(search)
         .child(new_note)
         .child(divider_h(k).mt(8.0))
+        .child(note_tag_summary(s, k))
         .child({
             let mut scroller = col()
                 .key("note-scroll")
@@ -408,6 +411,50 @@ fn sidebar(s: &State, k: &Kit) -> El {
                 .child(spacer())
                 .child(broken_chip(s, k))
                 .child(text("⌘K").font(k.ty.caption()).color(k.c.text_faint)),
+        )
+}
+
+/// #294: the sidebar's active tag filter, drawn like the board's filter
+/// summary: muted caption naming the tag, then an accent Clear control with a
+/// focus ring and a keyboard Enter path.
+fn note_tag_summary(s: &State, k: &Kit) -> El {
+    let Some(tag) = &s.note_tag_filter else {
+        return el();
+    };
+    row()
+        .key("note-tag-filter-summary")
+        .h(28.0)
+        .px(16.0)
+        .gap(6.0)
+        .center_y()
+        .child(
+            text(note_tag_filter_summary(tag))
+                .key("note-tag-filter-summary-text")
+                .font(k.ty.caption())
+                .color(k.c.text_muted)
+                .shrink()
+                .truncate(),
+        )
+        .child(
+            text(t(TextKey::Clear))
+                .key("note-tag-filter-clear")
+                .font(k.ty.caption())
+                .color(k.c.text_accent)
+                .cursor(Cursor::Pointer)
+                .role("button")
+                .label(t(TextKey::KanbanPageClearFilters))
+                .help(t(TextKey::KanbanPageClearFilters))
+                .focusable(true)
+                .focus_ring(2.0, 1.0, k.c.text_accent)
+                .on_key(|s: &mut State, e: &KeyEvent, _: &mut Tx| {
+                    if e.key == Key::Enter {
+                        s.clear_note_tag_filter();
+                        true
+                    } else {
+                        false
+                    }
+                })
+                .on_press(|s: &mut State| s.clear_note_tag_filter()),
         )
 }
 
@@ -4926,6 +4973,25 @@ fn editor(s: &State, k: &Kit) -> El {
             .collect();
         body = body.child(complete_list(k, "link-complete", rows, complete.index));
     }
+    // #294: Write completes `#tag` from the vault's index with the same list
+    // rows as the card editor, including the pointer-accept keys.
+    if let Some(complete) = &s.tag_complete
+        && !complete.items.is_empty()
+    {
+        let rows = complete
+            .items
+            .iter()
+            .enumerate()
+            .map(|(index, tag)| {
+                (
+                    format!("complete-tag-{index}"),
+                    format!("#{tag}"),
+                    CompletePick::Tag(tag.clone()),
+                )
+            })
+            .collect();
+        body = body.child(complete_list(k, "tag-complete", rows, complete.index));
+    }
     col()
         .key("editor-pane")
         .w_full()
@@ -4946,7 +5012,7 @@ fn editor(s: &State, k: &Kit) -> El {
 }
 
 /// EDT-03: one row of a completion list. Accepting a note inserts a
-/// wikilink; accepting a tag (kanban slice 10) inserts `#tag`.
+/// wikilink; accepting a tag (#294) inserts `#tag` into Write or the card.
 #[derive(Clone, Debug)]
 pub(crate) enum CompletePick {
     Note(usize),
@@ -5023,7 +5089,9 @@ fn preview(s: &State, k: &Kit) -> El {
     if s.editor.text.trim().is_empty() {
         return empty_page(k, t(TextKey::PreviewEmptyNote));
     }
-    let source = s.vault.preview_with_attachments(&s.editor.text, id);
+    // #294: tags become `tag:` links in Read; `goto_heading` computes its
+    // block keys from this same rewritten source (EDT-04).
+    let source = s.vault.preview_note(&s.editor.text, id);
     // EDT-04: top-level heading blocks get stable keys so a deep link can
     // scroll one into view. Offsets are computed against the preview source
     // (link rewriting changes byte lengths), matching `Markdown::block_keys`.
