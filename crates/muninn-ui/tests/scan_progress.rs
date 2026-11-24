@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use muninn_core::Vault;
 use muninn_core::testing::{TempVault, big_vault};
-use muninn_ui::{State, on_key, poll, view};
+use muninn_ui::{Mode, Settings, State, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, Runtime, Tx};
 
 /// A runtime whose scan yields one granule per tick, so the loading page is
@@ -70,7 +70,78 @@ fn chunked_startup_reads_the_same_vault_as_a_full_load() {
     // The first note opens once the index exists, and the editor matches it.
     assert_eq!(state.selected, Some(0));
     assert!(state.editor.text.starts_with("# Note 0000"));
+    // #287: the chunked path leaves the editor focused, as the synchronous
+    // launch does.
+    assert!(state.editor.focused, "the editor has the keyboard");
     assert!(!poll(&mut state, t + 1.0, &mut tx), "loaded state is quiet");
+}
+
+/// #287: a vault over the synchronous limit must be typeable straight away,
+/// with no click. There is no budget seam here: the real per-tick read budget
+/// finishes this fixture in the first frame's poll, as an ordinary launch does.
+#[test]
+fn typing_lands_in_the_note_right_after_a_chunked_startup() {
+    let tmp = big_vault(120);
+    let state =
+        State::with_state_home(tmp.path().to_path_buf(), tmp.path().with_extension("state"));
+    assert!(state.loading(), "120 notes must take the chunked path");
+    let mut rt = Runtime::new(state, view, (1180.0, 780.0), Env::new(true, 2.0));
+    rt.poll = Some(poll);
+    rt.on_key = Some(on_key);
+    rt.frame(0.0);
+    assert!(!rt.state.loading(), "the scan must finish");
+    assert_eq!(rt.state.selected, Some(0));
+    assert!(rt.state.editor.focused, "the editor has the keyboard");
+
+    // Type without clicking: the character reaches the open note's buffer.
+    rt.key(KeyEvent {
+        key: Key::Text("z".to_owned()),
+        mods: Mods::default(),
+    });
+    rt.frame(1.0 / 60.0);
+    assert!(
+        rt.state.editor.text.starts_with('z'),
+        "typing landed in the note: {:?}",
+        rt.state.editor.text
+    );
+}
+
+/// #287: only Write takes the keyboard at the end of a chunked startup. A
+/// restored Graph session keeps its own focus handling.
+#[test]
+fn a_chunked_startup_restored_in_graph_leaves_the_editor_blurred() {
+    let tmp = big_vault(120);
+    let config = tmp.path().with_extension("config");
+    let dir = config.join("muninn");
+    std::fs::create_dir_all(&dir).expect("config dir");
+    std::fs::write(
+        dir.join("settings.json"),
+        r#"{"theme":"dark","mode":"graph","scope":"global"}"#,
+    )
+    .expect("settings");
+    let settings = Settings::load_from(&config);
+    let mut state = State::with_settings(
+        tmp.path().to_path_buf(),
+        tmp.path().with_extension("state"),
+        config,
+        settings,
+    );
+    assert!(state.loading(), "120 notes must take the chunked path");
+    assert_eq!(state.mode, Mode::Graph);
+
+    let mut tx = Tx::default();
+    let mut t = 0.0;
+    while state.loading() {
+        t += 1.0 / 60.0;
+        poll(&mut state, t, &mut tx);
+    }
+    assert_eq!(state.vault.notes.len(), 120);
+    assert_eq!(state.selected, Some(0));
+    assert_eq!(state.mode, Mode::Graph);
+    assert!(
+        !state.editor.focused,
+        "only Write takes the keyboard after a chunked startup"
+    );
 }
 
 #[test]
@@ -123,4 +194,6 @@ fn a_small_vault_still_loads_synchronously() {
     );
     assert_eq!(state.vault.notes.len(), 2);
     assert_eq!(state.selected, Some(0));
+    // #287 parity lock: the quick path is what the chunked path mirrors.
+    assert!(state.editor.focused, "the editor has the keyboard");
 }
