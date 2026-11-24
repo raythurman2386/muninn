@@ -6,6 +6,17 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Drag a note row onto a folder to move it (#293).** Pressing a row in the
+  vault sidebar and releasing it over a folder header — vault root included —
+  moves the note through the same path as the Move menu, so the locked-note
+  refusal, the link-impact confirm and the "already exists" clash refusal are
+  identical and the hovered header is the only new feedback. The note is
+  followed by its file across mid-drag vault reloads, so the drop always
+  moves the pressed note. Releasing anywhere else cancels; Move remains the
+  keyboard path.
+
 ### Fixed
 
 - **A case-only rename (`leaves` → `Leaves`) was refused on case-insensitive disks (#292).** Notes, folders and boards all read the target's existence as a collision when only its case differed, and even a plain `rename(2)` is a no-op when both spellings resolve to the same file, so the case never flipped. All three surfaces now compare file identity and rename through a hidden temporary name in two hops, rolling back if the second hop fails, while a genuinely different file is still refused. Windows (NTFS) and macOS (APFS) defaults are affected too, not just unusual Linux mounts.
