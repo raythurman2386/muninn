@@ -8,6 +8,11 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Fixed
 
+- **A large vault launched with nobody holding the keyboard (#287).** The
+  synchronous path focused the editor once its first note opened, but a vault
+  over the 100-note limit installed its chunked scan without focusing, so
+  typing went nowhere until a click. The chunked path now hands the editor the
+  keyboard in Write, leaving the other modes' focus alone.
 - **Startup scan time measured app boot, not scanning (#286).** On the chunked
   path `load_ms` ran from the scan's first line to the last chunk's poll, so a
   201-note vault's status bar and `session.log` reported 1.3–2.7 s of

@@ -5276,6 +5276,13 @@ impl State {
         } else {
             self.clear_open_note();
         }
+        // #287: mirror the synchronous startup path, which focuses the
+        // editor for the restored session (State::build calls
+        // focus_editor when the mode is Editor). Without this a vault
+        // over SCAN_SYNC_LIMIT notes launched into an unfocused editor.
+        if self.mode == Mode::Editor {
+            self.focus_editor();
+        }
         let root = self.vault.root.clone();
         self.settings.push_recent(&root);
         self.settings.last_vault = Some(root);
