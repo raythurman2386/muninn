@@ -1,98 +1,98 @@
 {
-  "tag": "v0.11.3",
-  "name": "v0.11.3",
-  "htmlUrl": "https://github.com/raythurman2386/muninn/releases/tag/v0.11.3",
-  "publishedAt": "2026-11-24T03:21:16Z",
-  "body": "## What's Changed\n* chore: refresh AUR and site snapshot for 0.11.2 by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/285\n* fix(scan): measure scan work and budget large-vault reads by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/288\n* fix(startup): focus the editor after a chunked scan by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/289\n* Release 0.11.3 by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/290\n\n\n**Full Changelog**: https://github.com/raythurman2386/muninn/compare/v0.11.2...v0.11.3",
+  "tag": "v0.11.4",
+  "name": "v0.11.4",
+  "htmlUrl": "https://github.com/raythurman2386/muninn/releases/tag/v0.11.4",
+  "publishedAt": "2026-11-24T20:31:19Z",
+  "body": "## What's Changed\n* chore: refresh AUR and site snapshot for 0.11.3 by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/291\n* fix(vault): allow case-only renames on case-insensitive disks (#292) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/295\n* feat(sidebar): drag a note row onto a folder header to move it (#293) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/296\n* feat(tags): clickable #tags in Read, sidebar filter, Write completion and graph tag nodes (#294) by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/297\n* Release 0.11.4 by @raythurman2386 in https://github.com/raythurman2386/muninn/pull/298\n\n\n**Full Changelog**: https://github.com/raythurman2386/muninn/compare/v0.11.3...v0.11.4",
   "assets": [
     {
       "name": "checksums.txt",
       "size": 873,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/checksums.txt",
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/checksums.txt",
       "contentType": "text/plain; charset=utf-8",
-      "digest": "sha256:75fc51c9ab990081bc3093f421038388c50024d2502be1c89503a81adbd3e55d",
-      "sha256": "75fc51c9ab990081bc3093f421038388c50024d2502be1c89503a81adbd3e55d"
+      "digest": "sha256:824a43f0ef6864d5a1ca3b8f0b5f050031b796723a38edbd7bf0b88e96b77842",
+      "sha256": "824a43f0ef6864d5a1ca3b8f0b5f050031b796723a38edbd7bf0b88e96b77842"
     },
     {
       "name": "checksums.txt.sigstore.json",
-      "size": 10411,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/checksums.txt.sigstore.json",
+      "size": 10083,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/checksums.txt.sigstore.json",
       "contentType": "application/json",
-      "digest": "sha256:412a00419d4068ddf2d3eb46792e8ab810443e741469be1930eff4a8f4a3921b",
-      "sha256": "412a00419d4068ddf2d3eb46792e8ab810443e741469be1930eff4a8f4a3921b"
+      "digest": "sha256:e853e6548a045e2d2bb60c48185840cb751cda5dc0aef4eb7793dd1b0b31612b",
+      "sha256": "e853e6548a045e2d2bb60c48185840cb751cda5dc0aef4eb7793dd1b0b31612b"
     },
     {
       "name": "install.sh",
       "size": 13164,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/install.sh",
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/install.sh",
       "contentType": "application/x-shellscript",
       "digest": "sha256:5834475d07f2420fbf64eedd68b1d696897d7765fd74263bc6bc2486bee055c0",
       "sha256": "5834475d07f2420fbf64eedd68b1d696897d7765fd74263bc6bc2486bee055c0"
     },
     {
-      "name": "muninn_0.11.3-1_amd64.deb",
-      "size": 16862644,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_0.11.3-1_amd64.deb",
+      "name": "muninn_0.11.4-1_amd64.deb",
+      "size": 16880480,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/muninn_0.11.4-1_amd64.deb",
       "contentType": "application/x-debian-package",
-      "digest": "sha256:99feb8850fdfe72374cd0e300031a4b835e7c56778f789838458e928292663a5",
-      "sha256": "99feb8850fdfe72374cd0e300031a4b835e7c56778f789838458e928292663a5"
+      "digest": "sha256:244f1a5002cce3d413b43342e66e35b0c362b9ddfa4ee2e761995f4918dfe37f",
+      "sha256": "244f1a5002cce3d413b43342e66e35b0c362b9ddfa4ee2e761995f4918dfe37f"
     },
     {
-      "name": "muninn_0.11.3-1_arm64.deb",
-      "size": 15088488,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_0.11.3-1_arm64.deb",
+      "name": "muninn_0.11.4-1_arm64.deb",
+      "size": 15101168,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/muninn_0.11.4-1_arm64.deb",
       "contentType": "application/x-debian-package",
-      "digest": "sha256:b5b147994b0ead6fef6aab55f981f0a7c41ec0e9ab7a0e8a208cfbbe32dce196",
-      "sha256": "b5b147994b0ead6fef6aab55f981f0a7c41ec0e9ab7a0e8a208cfbbe32dce196"
+      "digest": "sha256:27afb690e4c13e644044fb21533f246d34e12b5d8afc47f40fb2d185f6d0308d",
+      "sha256": "27afb690e4c13e644044fb21533f246d34e12b5d8afc47f40fb2d185f6d0308d"
     },
     {
-      "name": "muninn_v0.11.3_linux_aarch64.AppImage",
-      "size": 21793288,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_v0.11.3_linux_aarch64.AppImage",
+      "name": "muninn_v0.11.4_linux_aarch64.AppImage",
+      "size": 21785096,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/muninn_v0.11.4_linux_aarch64.AppImage",
       "contentType": "application/vnd.appimage",
-      "digest": "sha256:a8b28fd969108fd3d9c2fe4bc5e37103752acf5e841a10f64cbdb3ddc980a910",
-      "sha256": "a8b28fd969108fd3d9c2fe4bc5e37103752acf5e841a10f64cbdb3ddc980a910"
+      "digest": "sha256:23de6fada9a8ed9a722678c176f86fe1b0eca1d660ef4beaeca65279daca4af2",
+      "sha256": "23de6fada9a8ed9a722678c176f86fe1b0eca1d660ef4beaeca65279daca4af2"
     },
     {
-      "name": "muninn_v0.11.3_linux_aarch64.tar.gz",
-      "size": 23028170,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_v0.11.3_linux_aarch64.tar.gz",
+      "name": "muninn_v0.11.4_linux_aarch64.tar.gz",
+      "size": 23043649,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/muninn_v0.11.4_linux_aarch64.tar.gz",
       "contentType": "application/x-gtar",
-      "digest": "sha256:d54d82387fc7f0e4d0746c636eb67b274c03445e33b662cb1c69d5adaabb7c9d",
-      "sha256": "d54d82387fc7f0e4d0746c636eb67b274c03445e33b662cb1c69d5adaabb7c9d"
+      "digest": "sha256:db8f71d51e09be8e6171dcc80d9189693e6ad1665c460b26b6498d05eaa14dff",
+      "sha256": "db8f71d51e09be8e6171dcc80d9189693e6ad1665c460b26b6498d05eaa14dff"
     },
     {
-      "name": "muninn_v0.11.3_linux_x86_64.AppImage",
-      "size": 22989304,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_v0.11.3_linux_x86_64.AppImage",
+      "name": "muninn_v0.11.4_linux_x86_64.AppImage",
+      "size": 22977016,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/muninn_v0.11.4_linux_x86_64.AppImage",
       "contentType": "application/vnd.appimage",
-      "digest": "sha256:2e248d5be7de1f0436d1bd160cedfc5cd3ae8d877040988be3e6781fb19471fb",
-      "sha256": "2e248d5be7de1f0436d1bd160cedfc5cd3ae8d877040988be3e6781fb19471fb"
+      "digest": "sha256:986c621bf15558991b397cc824862a477c4c2741ab289e702cf0661860651d3d",
+      "sha256": "986c621bf15558991b397cc824862a477c4c2741ab289e702cf0661860651d3d"
     },
     {
-      "name": "muninn_v0.11.3_linux_x86_64.tar.gz",
-      "size": 24274126,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_v0.11.3_linux_x86_64.tar.gz",
+      "name": "muninn_v0.11.4_linux_x86_64.tar.gz",
+      "size": 24289595,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/muninn_v0.11.4_linux_x86_64.tar.gz",
       "contentType": "application/x-gtar",
-      "digest": "sha256:f03413e20bf28e678e4617e0c8acdabb01b8507ad4c877f259077b73cd407017",
-      "sha256": "f03413e20bf28e678e4617e0c8acdabb01b8507ad4c877f259077b73cd407017"
+      "digest": "sha256:2b2ff822c62a6dca306387d79ab8f22c71cca401f41e0134946ca8a16712b7dc",
+      "sha256": "2b2ff822c62a6dca306387d79ab8f22c71cca401f41e0134946ca8a16712b7dc"
     },
     {
-      "name": "muninn_v0.11.3_macos_aarch64.tar.gz",
-      "size": 20527488,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_v0.11.3_macos_aarch64.tar.gz",
+      "name": "muninn_v0.11.4_macos_aarch64.tar.gz",
+      "size": 20549094,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/muninn_v0.11.4_macos_aarch64.tar.gz",
       "contentType": "application/x-gtar",
-      "digest": "sha256:4b2a33a69faab851e9125df9c18ef94580c529e6494c6aa072eca05f94945b39",
-      "sha256": "4b2a33a69faab851e9125df9c18ef94580c529e6494c6aa072eca05f94945b39"
+      "digest": "sha256:a4ae78beeacd119e230592c40197e0add6d93626ca83a2225391e77e93e27f3f",
+      "sha256": "a4ae78beeacd119e230592c40197e0add6d93626ca83a2225391e77e93e27f3f"
     },
     {
-      "name": "muninn_v0.11.3_windows_x86_64.zip",
-      "size": 18873365,
-      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_v0.11.3_windows_x86_64.zip",
+      "name": "muninn_v0.11.4_windows_x86_64.zip",
+      "size": 18893488,
+      "url": "https://github.com/raythurman2386/muninn/releases/download/v0.11.4/muninn_v0.11.4_windows_x86_64.zip",
       "contentType": "application/zip",
-      "digest": "sha256:4641b9cc63b8dab45a9a7d8439c9b57c01e4790f557a4a235bd5e8bc79f5f9e9",
-      "sha256": "4641b9cc63b8dab45a9a7d8439c9b57c01e4790f557a4a235bd5e8bc79f5f9e9"
+      "digest": "sha256:19d191ab59f2d35127b447424f67013625650fc43d89d70c155ebba4b32ae611",
+      "sha256": "19d191ab59f2d35127b447424f67013625650fc43d89d70c155ebba4b32ae611"
     }
   ],
-  "checksumsTxt": "d54d82387fc7f0e4d0746c636eb67b274c03445e33b662cb1c69d5adaabb7c9d  muninn_v0.11.3_linux_aarch64.tar.gz\nf03413e20bf28e678e4617e0c8acdabb01b8507ad4c877f259077b73cd407017  muninn_v0.11.3_linux_x86_64.tar.gz\n4b2a33a69faab851e9125df9c18ef94580c529e6494c6aa072eca05f94945b39  muninn_v0.11.3_macos_aarch64.tar.gz\n4641b9cc63b8dab45a9a7d8439c9b57c01e4790f557a4a235bd5e8bc79f5f9e9  muninn_v0.11.3_windows_x86_64.zip\n99feb8850fdfe72374cd0e300031a4b835e7c56778f789838458e928292663a5  muninn_0.11.3-1_amd64.deb\nb5b147994b0ead6fef6aab55f981f0a7c41ec0e9ab7a0e8a208cfbbe32dce196  muninn_0.11.3-1_arm64.deb\na8b28fd969108fd3d9c2fe4bc5e37103752acf5e841a10f64cbdb3ddc980a910  muninn_v0.11.3_linux_aarch64.AppImage\n2e248d5be7de1f0436d1bd160cedfc5cd3ae8d877040988be3e6781fb19471fb  muninn_v0.11.3_linux_x86_64.AppImage\n5834475d07f2420fbf64eedd68b1d696897d7765fd74263bc6bc2486bee055c0  install.sh\n"
+  "checksumsTxt": "db8f71d51e09be8e6171dcc80d9189693e6ad1665c460b26b6498d05eaa14dff  muninn_v0.11.4_linux_aarch64.tar.gz\n2b2ff822c62a6dca306387d79ab8f22c71cca401f41e0134946ca8a16712b7dc  muninn_v0.11.4_linux_x86_64.tar.gz\na4ae78beeacd119e230592c40197e0add6d93626ca83a2225391e77e93e27f3f  muninn_v0.11.4_macos_aarch64.tar.gz\n19d191ab59f2d35127b447424f67013625650fc43d89d70c155ebba4b32ae611  muninn_v0.11.4_windows_x86_64.zip\n244f1a5002cce3d413b43342e66e35b0c362b9ddfa4ee2e761995f4918dfe37f  muninn_0.11.4-1_amd64.deb\n27afb690e4c13e644044fb21533f246d34e12b5d8afc47f40fb2d185f6d0308d  muninn_0.11.4-1_arm64.deb\n23de6fada9a8ed9a722678c176f86fe1b0eca1d660ef4beaeca65279daca4af2  muninn_v0.11.4_linux_aarch64.AppImage\n986c621bf15558991b397cc824862a477c4c2741ab289e702cf0661860651d3d  muninn_v0.11.4_linux_x86_64.AppImage\n5834475d07f2420fbf64eedd68b1d696897d7765fd74263bc6bc2486bee055c0  install.sh\n"
 }
