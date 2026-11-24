@@ -1,6 +1,6 @@
 pkgbase = muninn-bin
 	pkgdesc = Local-first Markdown vault with a wikilink graph
-	pkgver = 0.11.2
+	pkgver = 0.11.3
 	pkgrel = 1
 	url = https://github.com/raythurman2386/muninn
 	arch = x86_64
@@ -12,7 +12,7 @@ pkgbase = muninn-bin
 	provides = muninn
 	conflicts = muninn
 	options = !strip
-	source = muninn_v0.11.2_linux_x86_64.tar.gz::https://github.com/raythurman2386/muninn/releases/download/v0.11.2/muninn_v0.11.2_linux_x86_64.tar.gz
-	sha256sums = 09f53d18d095075f72b408588d3ac702477b15acfabbf02414345d63d5554eaa
+	source = muninn_v0.11.3_linux_x86_64.tar.gz::https://github.com/raythurman2386/muninn/releases/download/v0.11.3/muninn_v0.11.3_linux_x86_64.tar.gz
+	sha256sums = f03413e20bf28e678e4617e0c8acdabb01b8507ad4c877f259077b73cd407017
 
 pkgname = muninn-bin
