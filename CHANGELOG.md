@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-11-23
+
 ### Fixed
 
 - **A large vault launched with nobody holding the keyboard (#287).** The
