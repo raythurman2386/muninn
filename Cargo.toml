@@ -24,7 +24,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.11.3"
+version = "0.11.4"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
@@ -32,12 +32,12 @@ repository = "https://github.com/raythurman2386/muninn"
 authors = ["Muninn contributors"]
 
 [workspace.dependencies]
-muninn-core = { path = "crates/muninn-core", version = "0.11.3" }
-muninn-graph = { path = "crates/muninn-graph", version = "0.11.3" }
-muninn-i18n = { path = "crates/muninn-i18n", version = "0.11.3" }
-muninn-import = { path = "crates/muninn-import", version = "0.11.3" }
-muninn-sync = { path = "crates/muninn-sync", version = "0.11.3" }
-muninn-ui = { path = "crates/muninn-ui", version = "0.11.3" }
+muninn-core = { path = "crates/muninn-core", version = "0.11.4" }
+muninn-graph = { path = "crates/muninn-graph", version = "0.11.4" }
+muninn-i18n = { path = "crates/muninn-i18n", version = "0.11.4" }
+muninn-import = { path = "crates/muninn-import", version = "0.11.4" }
+muninn-sync = { path = "crates/muninn-sync", version = "0.11.4" }
+muninn-ui = { path = "crates/muninn-ui", version = "0.11.4" }
 
 # Exact pin while pre-1.0: conversion output and the parser limits are part of
 # the import contract, so a patch release is reviewed rather than floated in.
