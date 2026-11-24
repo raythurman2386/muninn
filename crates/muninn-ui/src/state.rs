@@ -762,6 +762,16 @@ pub struct State {
     /// the row's rect to burn. Keyed by note id, which is a scan position: an
     /// entry only matters for the frame before its note is deleted.
     pub(crate) note_row_rects: std::cell::RefCell<HashMap<usize, rune::Live<[f32; 4]>>>,
+    /// #293: the note row held in a sidebar drag, and the folder header under
+    /// the pointer. Only the drag module writes it; the view reads it to
+    /// highlight the header that would receive the drop.
+    pub(crate) sidebar_drag: Option<crate::sidebar_drag::SidebarDrag>,
+    /// #293: each folder header's drawn rect, bound by the header itself with
+    /// `El::drawn_rect_into`, so a drag can hit-test without new geometry.
+    pub(crate) folder_header_rects: std::cell::RefCell<HashMap<String, rune::Live<[f32; 4]>>>,
+    /// #293: the headers drawn in the current view. A folder the search filter
+    /// hid keeps its rect, but must not become a drop target through it.
+    pub(crate) drawn_folder_headers: std::cell::RefCell<HashSet<String>>,
     /// #135: the notes list viewport (`note-scroll`) as drawn last, so a row
     /// scrolled out of it does not pin its burn over the rest of the window.
     pub(crate) note_list_rect: rune::Live<[f32; 4]>,
@@ -1163,6 +1173,9 @@ impl State {
             trash_undo: None,
             burn: None,
             note_row_rects: std::cell::RefCell::new(HashMap::new()),
+            sidebar_drag: None,
+            folder_header_rects: std::cell::RefCell::new(HashMap::new()),
+            drawn_folder_headers: std::cell::RefCell::new(HashSet::new()),
             note_list_rect: rune::Live::new([0.0; 4]),
             fx_accent: std::cell::Cell::new([0.35, 0.55, 0.95]),
             fx_muted: std::cell::Cell::new([0.45, 0.48, 0.55]),

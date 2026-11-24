@@ -47,6 +47,7 @@ mod poll;
 mod recovery;
 pub mod self_update;
 mod settings;
+mod sidebar_drag;
 mod state;
 mod sync_ui;
 mod tray;

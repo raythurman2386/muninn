@@ -1,8 +1,9 @@
 //! The window's chrome: vault sidebar, note title bar, editor, Markdown preview and links rail.
 
 use rune::{
-    Align, Color, Cursor, Cx, El, Icon, Key, KeyEvent, LineCap, LinkPaint, LiveRegion, ScrollSpec,
-    Shape, Span, TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text, text_input,
+    Align, Color, Cursor, Cx, Drag, El, Icon, Key, KeyEvent, LineCap, LinkPaint, LiveRegion,
+    ScrollSpec, Shape, Span, TextStyle, Transition, Tx, canvas, col, el, icon, row, spacer, text,
+    text_input,
 };
 use rune_kit::{
     Button, ButtonVariant, Kit, Markdown, MarkdownStyle, SegmentedControl, Switch, TextArea,
@@ -113,6 +114,10 @@ pub fn view(s: &State, cx: &mut Cx<State>) -> El {
 }
 
 fn sidebar(s: &State, k: &Kit) -> El {
+    // #293: the folder headers drawn this frame are the drop targets for a
+    // held note drag. Rebuilt with the list below, before any header binds its
+    // rect, so a rect left by a folder the filter hid is never hit-tested.
+    s.clear_drawn_folder_headers();
     // No debounce: the filter is an in-memory linear scan (~1–3 ms at 2,000
     // notes), so a per-keystroke rebuild stays cheap; revisit if a much larger
     // vault ever makes typing lag.
@@ -438,7 +443,10 @@ fn broken_chip(s: &State, k: &Kit) -> El {
 /// Sidebar folder header: chevron + name + count toggles the group, `+`
 /// creates a note in that folder, the folder icon starts a new subfolder.
 /// Right-click offers the folder menu. Root shows as “Vault root”.
-fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: bool) -> El {
+fn folder_header(s: &State, k: &Kit, folder: &str, count: usize, collapsed: bool) -> El {
+    // #293: this header is a drop target for a note drag while it is drawn.
+    s.mark_folder_header(folder);
+    let drop_target = s.sidebar_drop_target(folder);
     let slug = folder_slug(folder);
     let name = if folder.is_empty() {
         t(TextKey::CommonVaultRoot).to_owned()
@@ -456,6 +464,13 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
         .gap(6.0)
         .radius(6.0)
         .center_y()
+        // #293: the hover colour is the whole highlight: no new animation and
+        // no new element, so the header's name and click behaviour stay put.
+        .fill(if drop_target {
+            k.c.hover
+        } else {
+            Color::TRANSPARENT
+        })
         .hover(k.c.hover)
         .cursor(Cursor::Pointer)
         .on_press(move |s: &mut State| s.toggle_folder(&toggle))
@@ -481,6 +496,8 @@ fn folder_header(_s: &State, k: &Kit, folder: &str, count: usize, collapsed: boo
         )
         .child(folder_new_button(k, &slug, folder))
         .child(folder_new_folder_button(k, &slug, folder))
+        // #293: publish the header's window rect for drag hit-testing.
+        .drawn_rect_into(&s.folder_header_rect(folder))
 }
 
 fn folder_new_button(k: &Kit, slug: &str, folder: &str) -> El {
@@ -619,6 +636,11 @@ fn note_row(s: &State, k: &Kit, id: usize, picked: bool) -> El {
         })
         .on_secondary_press(move |s: &mut State, press, _| {
             s.open_note_menu(id, press.x, press.y);
+        })
+        // #293: a press that travels is a drag onto a folder header; a short
+        // press stays the click above, and the row keeps its keyboard focus.
+        .on_drag(move |s: &mut State, d: &mut Drag, tx: &mut Tx| {
+            s.drag_sidebar_note(id, d, tx);
         })
         .child(el().size(6.0, 6.0).radius(3.0).fill(dot))
         .child(
