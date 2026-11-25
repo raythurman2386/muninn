@@ -50,8 +50,12 @@ impl Drop for TestEnv {
 /// time**, not by the simulated poll clock: each iteration advances `t` past
 /// the watch interval and then sleeps briefly. A healthy filesystem exits on
 /// the first iteration; a stuck watcher still fails, just after the deadline.
+/// The deadline outlasts a fully parallel CI runner: 15 s was missed once on a
+/// windows-latest run whose watcher thread was starved by the rest of the
+/// suite (the same tree passed the same job minutes earlier), and doubling a
+/// stuck watcher's failure time costs nothing the assertion cares about.
 fn wait_for_new_note(s: &mut State, tx: &mut Tx) {
-    let deadline = Instant::now() + Duration::from_secs(15);
+    let deadline = Instant::now() + Duration::from_secs(45);
     let mut t = 2.7;
     // Poll for the side effects (the watcher may autosave a dirty buffer), but
     // only the note being indexed ends the wait: `poll` returning true means
