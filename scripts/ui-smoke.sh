@@ -827,7 +827,9 @@ fetch_lavapipe() { # user-level copy of vulkan-swrast matching the installed mes
   local version file mirror tools="$out/tools" want got
   version="$(pacman -Q mesa | awk '{print $2}')" || return 1
   file="vulkan-swrast-$version-x86_64.pkg.tar.zst"
-  want="$(tar -xOf /var/lib/pacman/sync/extra.db "vulkan-swrast-$version/desc" | awk '/%SHA256SUM%/{getline; print}')"
+  # `--force-local`: mesa's version now carries an epoch (`1:26.x`), and without
+  # this tar reads the colon in the archive name as a remote host.
+  want="$(tar --force-local -xOf /var/lib/pacman/sync/extra.db "vulkan-swrast-$version/desc" | awk '/%SHA256SUM%/{getline; print}')"
   [ -n "$want" ] || { echo "vulkan-swrast $version is not in the extra sync db" >&2; return 1; }
   mkdir -p "$tools/root"
   if [ ! -f "$tools/$file" ]; then
@@ -836,7 +838,7 @@ fetch_lavapipe() { # user-level copy of vulkan-swrast matching the installed mes
   fi
   got="$(sha256sum "$tools/$file" | awk '{print $1}')"
   [ "$got" = "$want" ] || { echo "sha256 mismatch for $file" >&2; rm -f "$tools/$file"; return 1; }
-  tar -C "$tools/root" -xf "$tools/$file" usr/lib/libvulkan_lvp.so usr/share/vulkan/icd.d/lvp_icd.json
+  tar --force-local -C "$tools/root" -xf "$tools/$file" usr/lib/libvulkan_lvp.so usr/share/vulkan/icd.d/lvp_icd.json
   python3 - "$tools" <<'PY'
 import json, sys
 tools = sys.argv[1]
