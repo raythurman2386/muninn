@@ -277,3 +277,172 @@ fn tags_follow_scope_and_isolate_like_notes() {
     assert!(text_is(&rt, "#work"));
     assert!(rt.find(&format!("graph-node-{work}")).is_some());
 }
+
+// ---- #303: drawn cards are packed at card spacing -------------------------
+
+/// A vault past the card/dot boundary (111 nodes) shaped like the one in
+/// #303's report: one wide hub whose Local neighbourhood is dozens of cards,
+/// plus tags so the drawn set includes tag nodes (and one tag outside it).
+fn hub_vault() -> TempVault {
+    let notes = 160;
+    let hub_links = 55;
+    let mut files = Vec::new();
+    for i in 0..notes {
+        let mut body = format!("# Note {i:03}\n\n");
+        if i == 0 {
+            for to in 1..=hub_links {
+                body.push_str(&format!("[[Note {to:03}]] "));
+            }
+        } else if i > 1 {
+            body.push_str(&format!("[[Note {:03}]] ", i - 1));
+        }
+        let tag = match i {
+            0..=19 => Some("#alpha"),
+            20..=39 => Some("#beta"),
+            40..=54 => Some("#gamma"),
+            100 => Some("#delta"),
+            _ => None,
+        };
+        if let Some(tag) = tag {
+            body.push_str(tag);
+        }
+        body.push('\n');
+        files.push((format!("Note {i:03}.md"), body));
+    }
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(name, body)| (name.as_str(), body.as_str()))
+        .collect();
+    TempVault::new(&refs)
+}
+
+/// Open `hub_vault` in Global scope, settled, with `selected` open.
+fn hub_graph(tmp: &TempVault, selected: usize) -> Runtime<State> {
+    let mut rt = runtime(tmp);
+    for _ in 0..400 {
+        if !rt.state.loading() {
+            break;
+        }
+        frame(&mut rt);
+    }
+    assert!(!rt.state.loading(), "the big vault finished scanning");
+    rt.state.load_note(selected, false);
+    rt.state.scope = Scope::Global;
+    rt.state.set_mode(Mode::Graph);
+    settle_graph(&mut rt);
+    rt.state.auto_fit = false;
+    rt.state.needs_fit = false;
+    rt
+}
+
+/// Run frames until thirty in a row move nothing (the definition the app's
+/// poll loop and `crates/muninn-ui/src/graph_view.rs` tests use). The card pack
+/// lands on the first still frame and changes positions, so it is inside the
+/// window this waits for.
+fn settle_graph(rt: &mut Runtime<State>) {
+    let mut quiet = 0;
+    let mut last: Vec<[f32; 2]> = rt.state.graph.nodes.iter().map(|n| n.pos).collect();
+    for _ in 0..6000 {
+        frame(rt);
+        let now: Vec<[f32; 2]> = rt.state.graph.nodes.iter().map(|n| n.pos).collect();
+        if now == last {
+            quiet += 1;
+            if quiet == 30 {
+                return;
+            }
+        } else {
+            quiet = 0;
+        }
+        last = now;
+    }
+    panic!("the layout must settle within 6,000 frames");
+}
+
+/// The drawn footprints of `ids` that are cards (dots never reach 100 pt).
+fn card_footprints(s: &State, ids: &[usize]) -> Vec<(usize, [f32; 2], [f32; 2])> {
+    ids.iter()
+        .filter_map(|&id| {
+            let (pos, size) = muninn_ui::node_footprint(s, id)?;
+            (size[0] >= 100.0).then_some((id, pos, size))
+        })
+        .collect()
+}
+
+/// Every pair of drawn cards whose rectangles overlap.
+fn overlapping_cards(cards: &[(usize, [f32; 2], [f32; 2])]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    for (a, &(id_a, pos_a, size_a)) in cards.iter().enumerate() {
+        for &(id_b, pos_b, size_b) in &cards[a + 1..] {
+            let overlap_x = (pos_a[0] - pos_b[0]).abs() < (size_a[0] + size_b[0]) / 2.0;
+            let overlap_y = (pos_a[1] - pos_b[1]).abs() < (size_a[1] + size_b[1]) / 2.0;
+            if overlap_x && overlap_y {
+                out.push((id_a, id_b));
+            }
+        }
+    }
+    out
+}
+
+/// #303: above the card/dot boundary the layout only guarantees marker
+/// spacing, so the view's cards overlapped — 90 pairs on the reported vault's
+/// hub. Selecting the hub in Global and entering Local must both leave every
+/// drawn card pair apart.
+#[test]
+fn drawn_cards_are_packed_at_card_spacing_above_the_card_boundary() {
+    let tmp = hub_vault();
+    // Settle with a quiet note selected, then click the hub: the click changes
+    // Global's drawn card set and must pack it on the next frames.
+    let mut rt = hub_graph(&tmp, 100);
+    assert!(
+        !muninn_graph::cards_fit(rt.state.graph.nodes.len()),
+        "the fixture must be past the card/dot boundary"
+    );
+    click(&mut rt, "graph-node-0");
+    settle_graph(&mut rt);
+    assert_eq!(rt.state.selected, Some(0), "the hub click selects it");
+
+    let visible = rt.state.visible_notes();
+    let cards = card_footprints(&rt.state, &visible);
+    assert!(
+        cards.len() >= 50,
+        "Global draws the hub's neighbourhood as cards, got {}",
+        cards.len()
+    );
+    let bad = overlapping_cards(&cards);
+    assert!(
+        bad.is_empty(),
+        "{} Global card pairs overlap after the hub selection: {:?}",
+        bad.len(),
+        &bad[..bad.len().min(4)]
+    );
+
+    // Local draws the whole neighbourhood as cards; entering it reheats and
+    // settles, and the pack lands when the layout stops.
+    rt.state.set_scope(Scope::Local);
+    settle_graph(&mut rt);
+    rt.state.auto_fit = false;
+    rt.state.needs_fit = false;
+    // Pin a card-country zoom: Local's LOD is zoom-only.
+    rt.state.cam.set([0.0, 0.0], 1.0);
+    frame(&mut rt);
+
+    let visible = rt.state.visible_notes();
+    let cards = card_footprints(&rt.state, &visible);
+    assert_eq!(
+        cards.len(),
+        visible.len(),
+        "Local at zoom 1.0 draws every visible note as a card"
+    );
+    assert!(
+        cards.len() >= 50,
+        "the hub's Local set is dozens of cards, got {}",
+        cards.len()
+    );
+    let bad = overlapping_cards(&cards);
+    assert!(
+        bad.is_empty(),
+        "{} Local card pairs overlap: {:?}",
+        bad.len(),
+        &bad[..bad.len().min(4)]
+    );
+}

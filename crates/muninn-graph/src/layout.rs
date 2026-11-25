@@ -140,6 +140,14 @@ const PACK_SWEEPS_PER_PASS: usize = 4;
 /// [`SETTLE_GROW_EVERY`] passes it is either compacted (wall-bound) or given
 /// more room (free), so the local pair pushes cannot stall at a wall.
 const SETTLE_GROW_EVERY: usize = 64;
+/// How many wall-row lifts [`Graph::pack_cards`] may try when the radial pack
+/// leaves a row of cards pressed flat against a wall (see `lift_wall_rows`).
+/// Each round lifts every still-collinear pinned pair one card off the wall and
+/// repacks, so a few rounds clear a jam that needs several rows.
+const CARD_UNJAM_ROUNDS: usize = 8;
+/// Two cards within this much of the same row/column count as collinear; the
+/// radial pack can only push such a pair along the shared axis.
+const CARD_COLLINEAR_EPS: f32 = 0.5;
 /// A free blob is given more room this often by scaling the whole layout about
 /// the world centre by this much. A wall-bound blob is instead compacted
 /// toward [`PACK_TARGET_FILL`].
@@ -730,6 +738,80 @@ impl Graph {
         self.frozen_overlapping = false;
     }
 
+    /// Pack just `ids` (node indices — notes and tags) to [`card_extent`].
+    ///
+    /// The view draws 160×45 pt cards for a Local neighbourhood, and for the
+    /// selection and its neighbours in Global, even where the settled layout
+    /// only guarantees marker spacing (#303). A 256-node vault therefore
+    /// settles clean at the marker envelope while its drawn set shows ~90
+    /// overlapping card pairs. This is the one-shot projection of that set back
+    /// onto card spacing: the subset is packed with the same deterministic
+    /// overlap schedule the settle pack uses, seeded from the
+    /// positions it already has, and only changed nodes are written back.
+    ///
+    /// The radial pack can only push a pair along its own centre line, so a
+    /// subset with more cards along a wall than fit there would stay jammed; a
+    /// bounded `lift_wall_rows` fallback lifts such a row one card into the
+    /// world and repacks it. It only runs while overlapping pairs remain, so
+    /// an ordinary set keeps the minimal radial move.
+    ///
+    /// Nothing else moves: no force pass, no heat change, no reheat. The moved
+    /// nodes' velocities are zeroed so the correction cannot ring, and the
+    /// layout's own settle state (`packed`/`frozen`) is left alone — at card
+    /// spacing every pair is further apart than its marker envelope required,
+    /// so the dormancy and overlap gates still read clean. A held node (a drag)
+    /// is outside the guarantee, as it is for the settle pack: nothing is
+    /// packed while any listed node is held.
+    ///
+    /// Deterministic: the subset is sorted and deduplicated by node index and
+    /// the pack is the fixed sweep/growth schedule, so the same graph and the
+    /// same ids always land on the same positions.
+    ///
+    /// Returns whether any node moved.
+    pub fn pack_cards(&mut self, ids: &[usize]) -> bool {
+        let mut picked: Vec<usize> = ids
+            .iter()
+            .copied()
+            .filter(|&index| index < self.nodes.len())
+            .collect();
+        picked.sort_unstable();
+        picked.dedup();
+        if picked.len() < 2 || picked.iter().any(|&index| self.nodes[index].fixed) {
+            return false;
+        }
+        let mut subset: Vec<GNode> = picked
+            .iter()
+            .map(|&index| self.nodes[index].clone())
+            .collect();
+        let env = card_extent();
+        let mut touched = pack_overlaps(&mut subset, env);
+        // The radial pack pushes a pair along its own centre line, so a row of
+        // cards pressed flat against a wall can never leave that line: more
+        // cards than fit along the wall stay overlapping forever. Lift a
+        // collinear, wall-pinned pair off the wall (one card height, toward the
+        // roomier side), repack, and repeat a bounded number of times.
+        for _ in 0..CARD_UNJAM_ROUNDS {
+            if !envelope_violated(&subset, env) || !lift_wall_rows(&mut subset, env) {
+                break;
+            }
+            touched = true;
+            pack_overlaps(&mut subset, env);
+        }
+        if !touched {
+            return false;
+        }
+        let mut moved = false;
+        for (node, &index) in subset.iter().zip(&picked) {
+            let target = &mut self.nodes[index];
+            if target.pos != node.pos {
+                target.pos = node.pos;
+                target.vel = [0.0; 2];
+                moved = true;
+            }
+        }
+        moved
+    }
+
     /// Largest per-node speed, squared. Used by the dense-vault dormancy gate.
     fn max_speed_sq(&self) -> f32 {
         self.nodes
@@ -1108,6 +1190,15 @@ fn separation_extent(n: usize) -> [f32; 2] {
     [marker, marker]
 }
 
+/// The footprint a drawn card is packed to: the largest card the view draws
+/// plus the settle pad. The view's cards scale from 136×38 to 160.5×44.8 by
+/// degree (see `graph_view.rs`), so spacing at this envelope keeps even two hub
+/// cards apart.
+#[must_use]
+pub fn card_extent() -> [f32; 2] {
+    [CARD_W + SETTLE_PAD, CARD_H + SETTLE_PAD]
+}
+
 /// The envelope a settled layout must respect, or `None` only for a lone node.
 /// Full cards while they fit, [`marker_extent`] above that: the view draws those
 /// densities as dots (see `LOD_ZOOM`), and demanding card spacing would only
@@ -1117,7 +1208,7 @@ fn settle_extent(n: usize) -> Option<[f32; 2]> {
         return None;
     }
     if cards_fit(n) {
-        return Some([CARD_W + SETTLE_PAD, CARD_H + SETTLE_PAD]);
+        return Some(card_extent());
     }
     let marker = marker_extent(n);
     Some([marker, marker])
@@ -1210,6 +1301,68 @@ fn pack_sweep(
         }
     }
     moved
+}
+
+/// Lift collinear cards off a wall the radial pack cannot push them away from.
+///
+/// [`separate_pair_radial`] pushes a pair along its centre-to-centre line, so
+/// two cards on the same row at a wall get a purely horizontal push. Once more
+/// cards sit on that row than fit along the wall, those pushes cancel out and
+/// the pair stays overlapped. Moving the later card one card-height into the
+/// world (the roomier direction) gives the next pack pass room to separate the
+/// row. The same applies to a column against a side wall. Deterministic: pairs
+/// are visited in a fixed order and ties choose the side with more room.
+///
+/// Returns whether any card moved.
+fn lift_wall_rows(nodes: &mut [GNode], extent: [f32; 2]) -> bool {
+    let mut lifted = false;
+    let mut candidates = Vec::new();
+    let grid = Grid::build(nodes, extent);
+    for i in 0..nodes.len() {
+        candidates.clear();
+        collect_overlaps(nodes, i, &grid, extent, TOUCH_EPS, &mut candidates);
+        candidates.sort_unstable();
+        for &j in &candidates {
+            let (dx, dy) = (
+                nodes[j].pos[0] - nodes[i].pos[0],
+                nodes[j].pos[1] - nodes[i].pos[1],
+            );
+            // Bottom or top wall, same row: lift vertically into the world.
+            let (wall_y_lo, wall_y_hi) = (EDGE + PACK_WALL_EPS, WORLD[1] - EDGE - PACK_WALL_EPS);
+            if dy.abs() <= CARD_COLLINEAR_EPS
+                && ((nodes[i].pos[1] <= wall_y_lo && nodes[j].pos[1] <= wall_y_lo)
+                    || (nodes[i].pos[1] >= wall_y_hi && nodes[j].pos[1] >= wall_y_hi))
+            {
+                let room_up = nodes[j].pos[1] - EDGE;
+                let room_down = WORLD[1] - EDGE - nodes[j].pos[1];
+                if room_up.max(room_down) >= extent[1] - dy.abs() {
+                    let step = extent[1] - dy.abs() + PACK_MOVE_EPS;
+                    nodes[j].pos[1] = (nodes[j].pos[1]
+                        + if room_up >= room_down { -step } else { step })
+                    .clamp(EDGE, WORLD[1] - EDGE);
+                    lifted = true;
+                }
+                continue;
+            }
+            // Left or right wall, same column: lift horizontally.
+            let (wall_x_lo, wall_x_hi) = (EDGE + PACK_WALL_EPS, WORLD[0] - EDGE - PACK_WALL_EPS);
+            if dx.abs() <= CARD_COLLINEAR_EPS
+                && ((nodes[i].pos[0] <= wall_x_lo && nodes[j].pos[0] <= wall_x_lo)
+                    || (nodes[i].pos[0] >= wall_x_hi && nodes[j].pos[0] >= wall_x_hi))
+            {
+                let room_left = nodes[j].pos[0] - EDGE;
+                let room_right = WORLD[0] - EDGE - nodes[j].pos[0];
+                if room_left.max(room_right) >= extent[0] - dx.abs() {
+                    let step = extent[0] - dx.abs() + PACK_MOVE_EPS;
+                    nodes[j].pos[0] = (nodes[j].pos[0]
+                        + if room_left >= room_right { -step } else { step })
+                    .clamp(EDGE, WORLD[0] - EDGE);
+                    lifted = true;
+                }
+            }
+        }
+    }
+    lifted
 }
 
 /// Re-space a stalled pack: compact a wall-bound blob toward a target bbox,
@@ -1595,7 +1748,148 @@ mod dense {
 #[cfg(test)]
 mod settle {
     use super::*;
-    use muninn_core::testing::{big_vault, linked_vault};
+    use muninn_core::testing::{TempVault, big_vault, linked_vault};
+
+    /// A small deterministic generator for the vault shape #303 measured: 201
+    /// notes in the nine directories the user's vault has, one ~50-link hub, a
+    /// p50 degree of 0, and 55 tags over ~180 incidences. Counts come from the
+    /// report at `/home/ret/Development/muninn-graph-debug`; only the shape is
+    /// reproduced, no vault content.
+    struct Lcg(u64);
+
+    impl Lcg {
+        fn next(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            self.0 >> 33
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+        fn chance(&mut self, p: f64) -> bool {
+            (self.next() as f64 / (1u64 << 31) as f64) < p
+        }
+    }
+
+    fn shaped_vault(tags: usize, incidences: usize) -> TempVault {
+        const DIRS: [usize; 9] = [92, 37, 35, 25, 4, 4, 2, 1, 1];
+        let mut rng = Lcg(0x5eed_1234);
+        let mut dir_of = Vec::new();
+        for (dir, &size) in DIRS.iter().enumerate() {
+            for _ in 0..size {
+                dir_of.push(dir);
+            }
+        }
+        let n = dir_of.len();
+        let mut links: Vec<Vec<usize>> = vec![Vec::new(); n];
+        let add = |links: &mut [Vec<usize>], a: usize, b: usize| {
+            if a != b {
+                links[a].push(b);
+                links[b].push(a);
+            }
+        };
+        // The dominant hub (the real vault has one note of degree ~95).
+        for _ in 0..50 {
+            let to = rng.below(n);
+            add(&mut links, 0, to);
+        }
+        // Two medium hubs, ~18 links each.
+        for hub in [93usize, 130] {
+            for _ in 0..18 {
+                add(&mut links, hub, rng.below(n));
+            }
+        }
+        // Local structure: same-directory neighbours, sometimes.
+        for i in 1..n {
+            if dir_of[i] == dir_of[i - 1] && rng.chance(0.45) {
+                add(&mut links, i, i - 1);
+            }
+            if dir_of[i] == dir_of[i - 1] && i + 1 < n && rng.chance(0.2) {
+                add(&mut links, i, i + 1);
+            }
+            if rng.chance(0.12) {
+                add(&mut links, i, rng.below(n));
+            }
+        }
+        // Tags: Zipf-ish incidences, deduplicated per note, no empty tag.
+        let mut tag_notes: Vec<Vec<usize>> = vec![Vec::new(); tags];
+        let mut total = 0;
+        for notes in &mut tag_notes {
+            notes.push(rng.below(n));
+            total += 1;
+        }
+        let mut guard = 0;
+        while total < incidences && guard < 100_000 {
+            guard += 1;
+            let rank = ((rng.next() as f64 / (1u64 << 31) as f64).powi(2) * tags as f64) as usize;
+            let tag = rank.min(tags - 1);
+            let note = rng.below(n);
+            if !tag_notes[tag].contains(&note) {
+                tag_notes[tag].push(note);
+                total += 1;
+            }
+        }
+        let files: Vec<(String, String)> = (0..n)
+            .map(|i| {
+                let mut body = format!("# Note {i:03}\n\n");
+                for &to in &links[i] {
+                    body.push_str(&format!("[[Note {to:03}]] "));
+                }
+                body.push('\n');
+                for (tag, notes) in tag_notes.iter().enumerate() {
+                    if notes.contains(&i) {
+                        body.push_str(&format!("#t{tag:02} "));
+                    }
+                }
+                body.push('\n');
+                (format!("d{:02}/Note {i:03}.md", dir_of[i]), body)
+            })
+            .collect();
+        let refs: Vec<(&str, &str)> = files
+            .iter()
+            .map(|(name, body)| (name.as_str(), body.as_str()))
+            .collect();
+        TempVault::new(&refs)
+    }
+
+    /// The nodes the Local scope draws for a selection, in node-index order:
+    /// the note, its links and backlinks, and every tag one of those notes
+    /// carries (tag nodes follow the notes, as in `State::visible_nodes`).
+    fn local_card_set(g: &Graph, v: &muninn_core::Vault, selected: usize) -> Vec<usize> {
+        let mut notes = vec![selected];
+        notes.extend(v.notes[selected].links.iter().copied());
+        notes.extend(v.notes[selected].backlinks.iter().copied());
+        notes.sort_unstable();
+        notes.dedup();
+        let mut ids = notes.clone();
+        let base = v.notes.len();
+        for (ordinal, entry) in v.tag_index().values().enumerate() {
+            if entry.notes.iter().any(|id| notes.contains(id)) {
+                ids.push(base + ordinal);
+            }
+        }
+        ids.retain(|&index| index < g.nodes.len());
+        ids
+    }
+
+    /// Overlapping pairs among `ids` at the card envelope, as the view draws
+    /// them (the largest card is 1.18×, so the envelope is the safe comparand).
+    fn card_overlaps(g: &Graph, ids: &[usize]) -> Vec<(usize, usize, f32, f32)> {
+        let [w, h] = card_extent();
+        let mut out = Vec::new();
+        for (a, &i) in ids.iter().enumerate() {
+            for &j in &ids[a + 1..] {
+                let ox = w - (g.nodes[j].pos[0] - g.nodes[i].pos[0]).abs();
+                let oy = h - (g.nodes[j].pos[1] - g.nodes[i].pos[1]).abs();
+                if ox > TOUCH_EPS && oy > TOUCH_EPS {
+                    out.push((i, j, ox, oy));
+                }
+            }
+        }
+        out
+    }
 
     /// The N list the #190 footprint is measured over. 405 is the old
     /// arithmetic cutoff (404 fit, 405 did not); 600/1000 are the densities
@@ -2169,6 +2463,76 @@ mod settle {
         );
         assert_inside_world(&g);
         assert_packed(&g, 2000);
+    }
+
+    /// #303: the drawn Local set of a user-shaped vault (201 notes + 55 tags,
+    /// one ~50-link hub) settles at the marker envelope with ~90 overlapping
+    /// cards in view; `pack_cards` must clear every card pair in that set,
+    /// leave every node outside it alone, and land on the same positions on a
+    /// second run.
+    #[test]
+    fn the_drawn_local_set_packs_to_card_spacing_above_the_card_boundary() {
+        let tmp = shaped_vault(55, 182);
+        let v = tmp.load();
+        assert_eq!(v.notes.len(), 201, "the reported vault's note count");
+        assert_eq!(v.tag_index().len(), 55, "its tag count");
+        let mut g = Graph::new(&v);
+        assert_eq!(g.nodes.len(), 256, "201 notes + 55 tag nodes");
+        settle(&mut g);
+        assert!(
+            !cards_fit(g.nodes.len()),
+            "256 nodes are past the card/dot boundary"
+        );
+        // The engine keeps its own contract: marker spacing, not card spacing.
+        assert_packed(&g, g.nodes.len());
+
+        let ids = local_card_set(&g, &v, 0);
+        assert!(
+            ids.len() > 60,
+            "the hub's drawn set is dozens of cards, got {}",
+            ids.len()
+        );
+        let before = card_overlaps(&g, &ids);
+        assert!(
+            !before.is_empty(),
+            "the fixture must reproduce the drawn-card overlap ({})",
+            before.len()
+        );
+
+        let settled: Vec<[f32; 2]> = g.nodes.iter().map(|node| node.pos).collect();
+        assert!(g.pack_cards(&ids), "the snapshot's set needs a pack");
+        let after = card_overlaps(&g, &ids);
+        assert!(
+            after.is_empty(),
+            "{} drawn card pairs still overlap after the pack: {:?}",
+            after.len(),
+            &after[..after.len().min(4)]
+        );
+        for &index in &ids {
+            if g.nodes[index].pos != settled[index] {
+                assert_eq!(
+                    g.nodes[index].vel, [0.0; 2],
+                    "a moved card must not carry a velocity into the next step"
+                );
+            }
+        }
+        for (index, (old, node)) in settled.iter().zip(&g.nodes).enumerate() {
+            if !ids.contains(&index) {
+                assert_eq!(node.pos, *old, "node {index} outside the set moved");
+            }
+        }
+
+        // Deterministic: the same vault settles to the same state, and the same
+        // ids pack to the same positions.
+        let mut twin = Graph::new(&v);
+        settle(&mut twin);
+        for (a, (old, node)) in settled.iter().zip(&twin.nodes).enumerate() {
+            assert_eq!(node.pos, *old, "node {a} settled off its twin");
+        }
+        assert!(twin.pack_cards(&ids));
+        for (a, b) in g.nodes.iter().zip(&twin.nodes) {
+            assert_eq!(a.pos, b.pos, "{} packed off its twin", a.rel);
+        }
     }
 }
 
