@@ -6,6 +6,8 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.11.5] - 2026-11-25
+
 ### Changed
 
 - **The graph keeps settling while it is still improving instead of stopping at
