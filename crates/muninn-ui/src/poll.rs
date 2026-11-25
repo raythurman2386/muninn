@@ -235,14 +235,18 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
         // DES-03: `graph_step` honours `State::reduced_motion` (heat pinned to
         // zero, no movement); pan, zoom and the initial fit still work.
         let moved = s.graph_step();
-        if moved {
+        // #303: once the layout is cool and still, project the drawn card set
+        // onto card spacing. It is an instant one-shot adjustment (not motion),
+        // so it lands under reduced motion too, and it reports its own frame.
+        let packed = s.graph_cards_tick(moved);
+        if moved || packed {
             changed = true;
         }
-        // Refit only when the layout moved or a fit is pending. Heat alone
-        // (positions static) must not recompute bounds or wake the view. A
-        // scope switch eases; entering the graph still fits at once so the
-        // first frame (and snapshots) lands on the settled framing.
-        if s.auto_fit && (moved || s.needs_fit) {
+        // Refit only when the layout moved, a card pack landed, or a fit is
+        // pending. Heat alone (positions static) must not recompute bounds or
+        // wake the view. A scope switch eases; entering the graph still fits at
+        // once so the first frame (and snapshots) lands on the settled framing.
+        if s.auto_fit && (moved || packed || s.needs_fit) {
             let fit_changed = if s.smooth_fit {
                 s.refit_glide()
             } else {

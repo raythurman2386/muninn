@@ -443,8 +443,10 @@ fn node_size(s: &State, id: usize, as_dot: bool) -> (f32, f32) {
 ///
 /// The delete burn needs this before [`State::confirm_delete`] reloads the
 /// vault (which drops the node and rebuilds every id), so it lives here rather
-/// than in the delete path: the same LOD and card-size rules decide both.
-pub(crate) fn node_footprint(s: &State, id: usize) -> Option<([f32; 2], [f32; 2])> {
+/// than in the delete path: the same LOD and card-size rules decide both. The
+/// #303 regression test reads it the same way, so a footprint assertion can
+/// never drift from what the frame draws.
+pub fn node_footprint(s: &State, id: usize) -> Option<([f32; 2], [f32; 2])> {
     let node = s.graph.node(id)?;
     let dots_only = graph_dots_only(s.scope, s.cam.zoom(), s.visible_notes().len());
     let focused = s.graph_focus == Some(id);

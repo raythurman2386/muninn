@@ -14,7 +14,7 @@ use muninn_sync::BrowserOpener as _;
 use muninn_core::{
     KanbanView, ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag,
 };
-use muninn_graph::{Camera as GraphCamera, Graph, WORLD};
+use muninn_graph::{Camera as GraphCamera, Graph, WORLD, cards_fit};
 use muninn_i18n::{
     Key as TextKey, LocaleTag, attachment_not_in_vault, cannot_import, cannot_open_without_note,
     could_not_add_note_template, could_not_create_folder, could_not_create_note,
@@ -681,6 +681,9 @@ pub struct State {
     pub graph_query: TextEdit,
     /// Isolate mode: non-neighbours stay as faint dots.
     pub graph_isolate: bool,
+    /// #303: the derived drawn set, or the settled layout under it, still owes
+    /// a card pack; `poll` applies it once the layout is cool and still.
+    graph_cards_dirty: bool,
     /// The graph canvas's measured size, in points.
     pub canvas: [f32; 2],
     /// The last measured window width, so narrow layouts can drop the links rail.
@@ -1139,6 +1142,7 @@ impl State {
             graph_tag_hover: None,
             graph_query: TextEdit::new(""),
             graph_isolate: false,
+            graph_cards_dirty: false,
             canvas: [900.0, 620.0],
             window_width: 1180.0,
             window_height: 780.0,
@@ -1984,6 +1988,7 @@ impl State {
                 self.note_editors.clear();
                 self.note_editors_order.clear();
                 self.graph = Graph::new(&self.vault);
+                self.graph_cards_changed();
                 self.cam = Camera::new();
                 self.graph_focus = None;
                 self.graph_tag_hover = None;
@@ -2394,6 +2399,9 @@ impl State {
         self.selected = Some(id);
         self.selected_path = Some(path);
         self.reveal = Some(id);
+        // #303: Local draws the new note's neighbourhood as cards; Global's
+        // labelled cards follow the new selection.
+        self.graph_cards_changed();
         self.dirty_at = None;
         self.error = None;
         self.conflict = None;
@@ -3304,6 +3312,7 @@ impl State {
         } else {
             if resumed {
                 self.graph.reheat();
+                self.graph_cards_changed();
             }
             self.graph.step()
         }
@@ -3613,6 +3622,8 @@ impl State {
 
     pub fn reset_graph(&mut self) {
         self.graph.reset();
+        // #303: new positions settle under the same drawn set.
+        self.graph_cards_changed();
         self.needs_fit = true;
         self.auto_fit = true;
         self.smooth_fit = false;
@@ -3674,10 +3685,12 @@ impl State {
             .or_else(|| self.selected.filter(|id| visible.contains(id)));
         let Some(current) = current else {
             self.graph_focus = Some(visible[0]);
+            self.graph_cards_changed();
             return;
         };
         let Some(origin) = self.graph.node(current).map(|node| node.pos) else {
             self.graph_focus = Some(visible[0]);
+            self.graph_cards_changed();
             return;
         };
         let mut best: Option<(f32, usize)> = None;
@@ -3718,6 +3731,7 @@ impl State {
             sorted[(index + step) % sorted.len()]
         };
         self.graph_focus = Some(next);
+        self.graph_cards_changed();
         self.keep_graph_focus_visible();
     }
 
@@ -3838,6 +3852,8 @@ impl State {
 
     pub fn toggle_graph_isolate(&mut self) {
         self.graph_isolate = !self.graph_isolate;
+        // #303: isolate changes which of the drawn cards stay labelled.
+        self.graph_cards_changed();
     }
 
     /// The note the graph search field points at: title-exact, then title
@@ -3931,6 +3947,90 @@ impl State {
     pub(crate) fn selected_note_carries(&self, tag: &str) -> bool {
         self.selected
             .is_some_and(|id| self.vault.notes_with_tag(tag).contains(&id))
+    }
+
+    /// #303: the node indices the graph draws as cards, ascending, or empty
+    /// when the layout already guarantees card spacing for them.
+    ///
+    /// Below the card/dot boundary the settle pack spaced *every* node at the
+    /// card envelope, in both scopes, so the view has nothing to project.
+    /// Above it the settled layout only guarantees marker spacing and the view
+    /// still labels:
+    ///
+    /// - **Local:** every visible note and the tags those notes carry — the
+    ///   whole neighbourhood, since Local draws it as cards from its LOD zoom
+    ///   and that is where the refit lands once the set is card-spaced;
+    /// - **Global:** the selection, its note neighbours and the tags the
+    ///   selection carries (the cards Global keeps while everything else is a
+    ///   dot), plus the keyboard focus while Isolate mode is on.
+    ///
+    /// The set depends on the scope, selection, isolate/focus and the vault —
+    /// never on the zoom, so a wheel or pinch can never trigger a pack.
+    #[must_use]
+    pub(crate) fn drawn_cards(&self) -> Vec<usize> {
+        if cards_fit(self.graph.nodes.len()) {
+            return Vec::new();
+        }
+        let mut cards = match self.scope {
+            Scope::Local => self.visible_nodes(),
+            Scope::Global => {
+                let mut cards = Vec::new();
+                if let Some(id) = self.selected
+                    && let Some(note) = self.vault.notes.get(id)
+                {
+                    cards.push(id);
+                    cards.extend(note.links.iter().copied());
+                    cards.extend(note.backlinks.iter().copied());
+                    let base = self.vault.notes.len();
+                    for (ordinal, entry) in self.vault.tag_index().values().enumerate() {
+                        if entry.notes.contains(&id) {
+                            cards.push(base + ordinal);
+                        }
+                    }
+                }
+                if self.graph_isolate
+                    && let Some(focus) = self.graph_focus
+                {
+                    cards.push(focus);
+                }
+                cards
+            }
+        };
+        cards.retain(|&index| index < self.graph.nodes.len());
+        cards.sort_unstable();
+        cards.dedup();
+        cards
+    }
+
+    /// #303: mark the drawn card set, or the settled layout under it, as owing
+    /// a pack. Cheap (a flag); the pack itself runs from [`State::graph_cards_tick`]
+    /// once the layout is cool and still.
+    pub(crate) fn graph_cards_changed(&mut self) {
+        self.graph_cards_dirty = true;
+    }
+
+    /// #303: pack the drawn card set to card spacing, once the layout has
+    /// stopped for it.
+    ///
+    /// The pack is a projection of the positions the layout settled on, so
+    /// running it while the forces are hot (a scope switch reheats) would only
+    /// give them something new to pull back into overlap. The flag therefore
+    /// survives until a cool, quiet frame: `moved` is this frame's
+    /// [`State::graph_step`] result, so a frame that moved anything is still
+    /// settling. Reduced motion pins heat to zero and never steps, so the pack
+    /// lands immediately — it is an instant adjustment, not an animation.
+    /// Returns whether a node moved, so `poll` redraws the one frame it lands
+    /// on.
+    pub(crate) fn graph_cards_tick(&mut self, moved: bool) -> bool {
+        if !self.graph_cards_dirty || self.mode != Mode::Graph {
+            return false;
+        }
+        if self.graph.heat != 0.0 || moved {
+            return false;
+        }
+        self.graph_cards_dirty = false;
+        let cards = self.drawn_cards();
+        self.graph.pack_cards(&cards)
     }
 
     #[must_use]
@@ -4029,6 +4129,7 @@ impl State {
                 self.error = None;
                 self.expected_disk = self.vault.disk_state(id).ok();
                 self.graph.sync(&self.vault);
+                self.graph_cards_changed();
                 if let Some(rel) = self.selected_rel().map(str::to_owned) {
                     self.after_save(&rel);
                 }
@@ -4458,6 +4559,7 @@ impl State {
                 self.forget_unlocked_note(id);
                 self.load_note_at(id, false);
                 self.graph.sync(&self.vault);
+                self.graph_cards_changed();
                 self.refresh_watch();
                 self.lock_prompt = None;
                 self.error = None;
@@ -4717,6 +4819,7 @@ impl State {
             fs::read_to_string(&path).unwrap_or_else(|_| self.vault.notes[id].source.clone());
         self.selected = Some(id);
         self.selected_path = Some(path);
+        self.graph_cards_changed();
         self.editor.replace_text(text.clone());
         self.editor.anchor = 0;
         self.editor.focus = 0;
@@ -4927,6 +5030,7 @@ impl State {
                 self.error = None;
                 self.expected_disk = self.vault.disk_state(conflict.note_id).ok();
                 self.graph.sync(&self.vault);
+                self.graph_cards_changed();
                 if let Some(rel) = self
                     .vault
                     .notes
@@ -5065,6 +5169,7 @@ impl State {
         }
         self.vault.reindex();
         self.graph.sync(&self.vault);
+        self.graph_cards_changed();
         self.dirty_at = None;
         self.error = None;
         if let Some(rel) = self.vault.notes.get(note_id).map(|n| n.rel.clone()) {
@@ -5106,6 +5211,7 @@ impl State {
             self.forget_editor(&path);
         }
         self.selected = None;
+        self.graph_cards_changed();
         self.selected_path = None;
         self.editor.replace_text("");
         self.saved.clear();
@@ -5120,6 +5226,7 @@ impl State {
             self.vault = vault;
             self.list_sidebar_boards();
             self.graph.sync(&self.vault);
+            self.graph_cards_changed();
             self.refresh_watch();
         }
     }
@@ -5139,6 +5246,7 @@ impl State {
                 self.vault = v;
                 self.list_sidebar_boards();
                 self.graph.sync(&self.vault);
+                self.graph_cards_changed();
                 if self.mode == Mode::Board {
                     self.refresh_boards();
                 }
@@ -5335,6 +5443,7 @@ impl State {
         self.note_editors.clear();
         self.note_editors_order.clear();
         self.graph = Graph::new(&self.vault);
+        self.graph_cards_changed();
         self.cam = Camera::new();
         self.graph_focus = None;
         self.graph_tag_hover = None;
@@ -6892,6 +7001,15 @@ impl State {
                 if let Some(node) = self.graph.node_mut_at(index) {
                     node.fixed = false;
                 }
+                // A press that never moved the node — an ordinary click on a
+                // card or dot — is not a drag: the layout is already settled, so
+                // reheating it there re-arranged the graph on every selection
+                // and made the view's final card pack wait out a whole settle
+                // (#303). Only a drag that left the node somewhere new needs
+                // the forces to resume; a cancel restores it, so it does not.
+                let moved = start
+                    .zip(self.graph.node_at(index).map(|node| node.pos))
+                    .is_some_and(|(start, now)| now != start);
                 self.dragging = None;
                 if drag.cancelled()
                     && let Some(start) = start
@@ -6899,7 +7017,10 @@ impl State {
                 {
                     node.pos = start;
                 }
-                self.graph.reheat();
+                if moved && !drag.cancelled() {
+                    self.graph_cards_changed();
+                    self.graph.reheat();
+                }
             }
         }
     }

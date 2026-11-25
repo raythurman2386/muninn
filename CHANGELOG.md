@@ -17,6 +17,20 @@ All notable changes to Muninn are documented here. The format is based on
   `accesskit_atspi_common` are new). No Muninn API changes; nothing in the app
   uses the new surface yet.
 
+### Fixed
+
+- **Drawn graph cards no longer overlap above the card/dot boundary (#303).**
+  Past 111 nodes the settled layout only guarantees the 45 pt marker spacing,
+  while Local drew 160 pt cards for the whole visible set and Global kept the
+  selection and its neighbours as cards even in dots mode. On the reported
+  256-node vault a hub's drawn set had 90 overlapping card pairs. The view now
+  packs the drawn card set to card spacing once per change, from the positions
+  the layout already settled on and moving only the drawn nodes: on entering
+  Local, when a selection, focus or Isolate change rewrites the set, and after
+  a sync or a drag release. The pack is deterministic and instant, so Reduce
+  motion applies it too, and a click on a node no longer reheats the settled
+  layout (which used to delay the pack behind a full re-settle).
+
 ## [0.11.4] - 2026-11-24
 
 ### Added

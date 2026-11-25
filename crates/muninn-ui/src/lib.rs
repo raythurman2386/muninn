@@ -73,6 +73,7 @@ pub use board_view::{
 pub use contrast::{TEXT, UI, at_least, board_stroke, meets, over, ratio as contrast_ratio};
 pub use doc_sync::DocConflict;
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
+pub use graph_view::node_footprint;
 pub use import_document::DOCUMENT_EXTENSIONS;
 pub use kanban_dates::{KanbanPicker, PickerInsert, PickerKind};
 pub use kanban_edit::{CardSlot, KanbanHistory};

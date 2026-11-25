@@ -93,6 +93,9 @@ impl State {
             self.auto_fit = true;
             self.smooth_fit = false;
             self.graph.reheat();
+            // #303: entering the graph repacks its drawn card set once the
+            // reheat settles.
+            self.graph_cards_changed();
             if self
                 .graph_focus
                 .is_none_or(|id| id >= self.vault.notes.len())
@@ -203,6 +206,8 @@ impl State {
         let was_graph = self.mode == Mode::Graph;
         self.scope = scope;
         self.graph.reheat();
+        // #303: the new scope draws a different card set.
+        self.graph_cards_changed();
         if was_graph {
             // Ease to the new scope's fit instead of swapping the whole
             // canvas in one frame, and keep following the settling layout so

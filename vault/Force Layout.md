@@ -12,6 +12,16 @@ Then each step:
 
 Dragging a node pins it, so the simulation settles around your hand instead of fighting it.
 
+## Cards
+
+Past about a hundred nodes the settled layout only keeps the small dot markers apart, while
+the graph still draws full cards for a Local neighbourhood and for the selection's neighbours
+in Global. Once the layout has stopped, those drawn cards are packed apart to the largest card's
+footprint in one pass: only the drawn nodes move, they keep their velocities at zero so nothing
+rings, and the same vault with the same selection always lands on the same positions. The pack
+runs when the drawn set changes — entering Local, choosing another note — not while you zoom or
+pan, and it is an adjustment rather than an animation, so Reduce motion applies it too.
+
 ## Why deterministic
 
 A layout that jumps on every launch is hard to trust. A layout that starts in the same place
