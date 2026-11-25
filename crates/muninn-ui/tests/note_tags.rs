@@ -338,7 +338,9 @@ fn hub_graph(tmp: &TempVault, selected: usize) -> Runtime<State> {
 /// Run frames until thirty in a row move nothing (the definition the app's
 /// poll loop and `crates/muninn-ui/src/graph_view.rs` tests use). The card pack
 /// lands on the first still frame and changes positions, so it is inside the
-/// window this waits for.
+/// window this waits for. Since #303 the settle is progress-aware: measured 280
+/// frames on the shaped fixtures, and the 6,000-frame bound is the failure
+/// budget, not an expectation.
 fn settle_graph(rt: &mut Runtime<State>) {
     let mut quiet = 0;
     let mut last: Vec<[f32; 2]> = rt.state.graph.nodes.iter().map(|n| n.pos).collect();

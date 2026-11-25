@@ -211,6 +211,8 @@ fn graph_poll_settles_and_stays_quiet() {
     let mut tx = Tx::default();
     let mut t = 0.0;
     let mut moved_frames = 0;
+    // 600 polling frames cover the 250-step settle cap (#303), its pack and
+    // the 30 quiet frames the next loop expects.
     for _ in 0..600 {
         t += 1.0 / 60.0;
         if poll(&mut s, t, &mut tx) {

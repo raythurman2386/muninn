@@ -40,7 +40,9 @@ fn graph_runtime(tmp: &TempVault) -> Runtime<State> {
     rt.state.scope = Scope::Global;
     rt.state.set_mode(Mode::Graph);
     // Let the deterministic layout settle and the initial fit land before the
-    // test takes over the camera.
+    // test takes over the camera. The progress-aware settle (#303) runs at
+    // most 250 steps, then the card pack and the quiet window follow; 600
+    // frames leave margin for platform float paths.
     for _ in 0..600 {
         rt.frame(1.0 / 60.0);
     }
