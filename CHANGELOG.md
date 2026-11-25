@@ -8,6 +8,20 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Changed
 
+- **The graph keeps settling while it is still improving instead of stopping at
+  a fixed 1.4 seconds (#303).** `heat` used to be a plain timer (84 steps,
+  about 1.4 s at 60 fps) that scaled no force, so a 256-node vault stopped
+  while nodes still moved about 5 pt per step and its natural stall was roughly
+  1,500 steps away. Heat now cools slowly while the mean node motion is at
+  least 0.25 pt/step and at the old rate once it is not, capped at 250 steps —
+  about four seconds at 60 fps, and a frame budget so a 120 Hz display gets the
+  same trajectory sooner rather than a longer one. On the shaped 256-node
+  fixture that is 251 steps to dormant instead of 85, with edge p90 428 pt (was
+  479) and 2,298 edge crossings (was 3,646). A soft world envelope holds the
+  longer-running blob inside the same 0.55–0.75 fill band and off the hard wall
+  clamp, and the 3,600-step stall guard stays as the backstop. Vaults below the
+  density-scaled link regime keep the original 84-step timer exactly, and
+  reduced motion and reheat-on-scope keep their behaviour.
 - **Rune pin moved to `68d1f4dc`** (from `1ab171df`), the first revision with
   the full upstream RTL set: `El::dir`, logical `Align::{Start,End}`,
   mirrored containers and AccessKit text direction (Rune #1059), plus

@@ -19,8 +19,16 @@
 //! wider than the world against the walls, and they settle under a heat-aware
 //! dormancy rule: once heat has decayed to zero and no node still moves faster
 //! than `0.4 pt/step`, the simulation stops (`Graph::step` returns false) with a
-//! bounded, sub-pixel residual. [`Graph::reheat`] wakes it again. Small vaults
-//! never take these branches, so their settled positions stay bit-identical.
+//! bounded, sub-pixel residual. Heat is a progress-aware schedule, not a fixed
+//! timer: it cools slowly while the layout still moves at least `0.25 pt/step`
+//! per node on average (capped at 250 steps — about four seconds at 60 fps) and
+//! at the original rate once it does not, so a large vault keeps arranging
+//! itself while it measurably improves but always stops. A dense blob is eased
+//! back inside `0.84` of each half-extent, so the longer settle uses the world's
+//! usable area instead of piling nodes on the hard edge clamp.
+//! [`Graph::reheat`] wakes it again. Vaults below the density-scaled link
+//! regime (about 60 notes) keep the original fixed timer and never take these
+//! branches, so the 15-note sample's settled positions stay bit-identical.
 //!
 //! A vault dense enough that its drawn footprint cannot all fit at the force
 //! equilibrium is packed when its heat runs out: the last overlaps are pushed
@@ -186,6 +194,27 @@ const MAX_SPEED_DENSE: f32 = 18.0;
 /// remaining creep is sub-pixel and invisible, so the simulation stops instead
 /// of waking the window forever. `0.4 pt/step` is bounded residual motion.
 const DORMANT_SPEED_SQ: f32 = 0.16;
+/// Mean per-node movement (points per step) above which the settle is still
+/// visibly arranging the graph, so the heat schedule keeps it running. Below
+/// this the layout has stopped improving enough to see and cools at the
+/// original rate. A quarter point per step is 15 pt/s at 60 fps — the point at
+/// which a card moves by its own line height in about three seconds.
+const SETTLE_PROGRESS_SPEED: f32 = 0.25;
+/// Heat lost per step while the layout is still making visible progress.
+/// `0.004` is the schedule's cap: a layout that never stops improving runs
+/// `1 / 0.004 = 250` steps — about four seconds at 60 fps — before the heat
+/// timer reaches zero and the existing pack and stall guard take over. The
+/// unit is frames, not seconds: `Graph::step` is driven once per poll frame
+/// (see `muninn-ui`'s `graph_step`), and the forces it integrates are
+/// per-step, so a 120 Hz display gets the same 250-step budget and the same
+/// trajectory as a 60 Hz one, just faster.
+const HEAT_DECAY_PROGRESS: f32 = 0.004;
+/// Heat lost per step once motion has fallen below [`SETTLE_PROGRESS_SPEED`]:
+/// the original fixed timer, so a vault that genuinely settles quickly still
+/// cools and packs in about the same 84 steps as before. The timer always
+/// decays — progress only chooses the rate — so the settle terminates
+/// deterministically even when a fixture limit-cycles instead of improving.
+const HEAT_DECAY_IDLE: f32 = 0.012;
 /// Dense steps per stall probe. A layout that ends a window where it began is
 /// cycling, not settling, even if its instantaneous speed never drops below
 /// [`DORMANT_SPEED_SQ`] (reported on macOS arm64 above the marker-pack limit,
@@ -196,9 +225,20 @@ const SETTLE_PROBE_FRAMES: u16 = 300;
 const SETTLE_PROBE_STEP: f32 = 2.0;
 /// Hard bound on dense settling once the heat timer runs out; the backstop for
 /// a cycle whose amplitude is too large for the probe window to read as still.
-/// The slowest observed real fixture (2,000 notes) quiets around frame 2,600.
+/// The progress-aware schedule reaches zero by 250 steps, and the slowest
+/// observed fixture (2,000 notes) is quiet at 251; the bound still catches a
+/// pathological cycle that survives the timer.
 const SETTLE_MAX_DENSE_FRAMES: u32 = 3600;
 const EDGE: f32 = 78.0;
+/// Fraction of a world half-extent past which a dense node's centre is eased
+/// back toward the centre. A blob whose bbox reaches `0.84` of each
+/// half-extent fills `0.84² ≈ 0.71` of the world, safely inside the spread
+/// band's 0.75 ceiling: a settle that keeps improving (see
+/// [`HEAT_DECAY_PROGRESS`]) would otherwise grow until the node centres hit the
+/// hard `EDGE` clamp, leaving 6–9 % of nodes wall-clamped at 300–600 notes. The
+/// exhaustively laid-out small vaults never take this branch, so their layouts
+/// stay bit-identical.
+const WALL_PRESSURE_INNER: f32 = 0.84;
 
 /// #294: what a graph node stands for. Note nodes come first, in vault order,
 /// so their node index equals their note id; tag nodes follow, one per entry in
@@ -334,6 +374,29 @@ fn spring_stiffness(n: usize) -> f32 {
     }
 }
 
+/// Ease a dense blob's node centres back inside the soft world envelope.
+///
+/// The hard clamp at [`EDGE`] stops a node but does not push the graph back:
+/// a long-running settle keeps expanding until node centres pile up on the
+/// clamp, so 6–9 % of a 300–600-note vault ends up wall-clamped. A force-only
+/// pressure cannot hold that line because the separation pass moves positions
+/// directly (by up to a marker radius per overlapping pair), so this eases the
+/// position itself, like the separation pass does. The envelope is a fraction
+/// of each half-extent ([`WALL_PRESSURE_INNER`]), so a blob whose bbox reaches
+/// it fills that fraction squared of the world — inside the spread band the
+/// tests gate. It is one-way: nodes inside the envelope are untouched, so the
+/// layout can still shift, rotate and contract freely.
+fn ease_off_the_walls(nodes: &mut [GNode]) {
+    let c = crate::camera::world_centre();
+    for node in nodes {
+        for axis in 0..2 {
+            let half = WORLD[axis] * 0.5 * WALL_PRESSURE_INNER;
+            let offset = node.pos[axis] - c[axis];
+            node.pos[axis] = c[axis] + offset.clamp(-half, half);
+        }
+    }
+}
+
 /// Integrate one node: gravity, damping, speed cap, wall absorption (dense
 /// only) and the world clamp.
 fn integrate(node: &mut GNode, force: [f32; 2], p: StepParams) {
@@ -372,6 +435,27 @@ fn moved_since(nodes: &[GNode], before: &[[f32; 2]]) -> bool {
     nodes.iter().zip(before).any(|(node, old)| {
         (node.pos[0] - old[0]).abs() > 0.04 || (node.pos[1] - old[1]).abs() > 0.04
     })
+}
+
+/// Mean per-node displacement since `before`, in points per step: the settle
+/// schedule's progress signal. It reads positions, not velocities, so the
+/// separation pass and the dense position damping are included — what the
+/// schedule asks is whether the *layout* is still visibly moving, not whether
+/// the force integrator wrote a velocity.
+fn mean_motion(nodes: &[GNode], before: &[[f32; 2]]) -> f32 {
+    if nodes.is_empty() {
+        return 0.0;
+    }
+    let total: f32 = nodes
+        .iter()
+        .zip(before)
+        .map(|(node, old)| {
+            let dx = node.pos[0] - old[0];
+            let dy = node.pos[1] - old[1];
+            (dx * dx + dy * dy).sqrt()
+        })
+        .sum();
+    total / nodes.len() as f32
 }
 
 impl Graph {
@@ -477,10 +561,12 @@ impl Graph {
     /// Push the layout one fixed step; true only when a node (or separation)
     /// actually moved this step.
     ///
-    /// `heat` decays by a fixed amount each call as a “how long since it was
-    /// reheated” timer, but heat alone is **not** visible state: pollers must
-    /// not report “changed” just because heat has not reached zero yet.
-    /// Callers that need the cooling timer read [`Graph::heat`] directly.
+    /// `heat` is a “how long since it was reheated” timer whose decay is
+    /// progress-aware (#303): it cools slowly while the mean node motion is
+    /// above the progress threshold and at the original fixed rate once it is
+    /// not. Heat alone is **not** visible state: pollers must not report
+    /// “changed” just because heat has not reached zero yet. Callers that need
+    /// the cooling timer read [`Graph::heat`] directly.
     ///
     /// Above the exhaustive-layout limit nodes a cooled layout goes dormant
     /// when the fastest node is below `0.4 pt/step`; from then on this
@@ -513,6 +599,9 @@ impl Graph {
         }
         separate(&mut self.nodes);
         if dense {
+            ease_off_the_walls(&mut self.nodes);
+        }
+        if dense {
             // Position-based damping for dense vaults: separation moves positions
             // after the force pass, so a node at a wall otherwise re-applies its
             // pre-separation outward velocity every step while separation pushes
@@ -526,7 +615,7 @@ impl Graph {
                 }
             }
         }
-        self.heat = (self.heat - 0.012).max(0.0);
+        self.heat = (self.heat - self.heat_decay(&before)).max(0.0);
         // Only visible motion counts: sub-pixel creep from the spring vs.
         // separation tug-of-war or damped velocity tails is invisible and
         // must not keep waking the window (Rune: "returned true but nothing
@@ -549,6 +638,27 @@ impl Graph {
         moved
     }
 
+    /// Heat lost this step. While the layout still moves at least
+    /// [`SETTLE_PROGRESS_SPEED`] per node on average it cools at
+    /// [`HEAT_DECAY_PROGRESS`] (250 steps to zero, the schedule's cap); once
+    /// the motion is below that it cools at the original
+    /// [`HEAT_DECAY_IDLE`] rate. The timer always runs down, so a layout that
+    /// keeps limit-cycling is stopped by the same cap as one that improves.
+    ///
+    /// Only the density-scaled link regime (the same `link_len < LINK_LEN`
+    /// condition the stall guard uses, about 60 notes and up) reads progress:
+    /// a small vault keeps the original fixed timer and the explicit
+    /// bit-identical layout (#190), because it genuinely settles within it.
+    fn heat_decay(&self, before: &[[f32; 2]]) -> f32 {
+        if link_len(self.nodes.len()) < LINK_LEN
+            && mean_motion(&self.nodes, before) >= SETTLE_PROGRESS_SPEED
+        {
+            HEAT_DECAY_PROGRESS
+        } else {
+            HEAT_DECAY_IDLE
+        }
+    }
+
     /// Once the cooling timer has run out a near-full layout still overlaps a
     /// little: the force equilibrium is tighter than the separation envelope,
     /// and the two-pass projection cannot win against it every step. Pack the
@@ -569,7 +679,18 @@ impl Graph {
         };
         let moved = pack_overlaps(&mut self.nodes, extent);
         let dense = self.nodes.len() > EXHAUSTIVE_LIMIT;
-        if moved || (dense && envelope_violated(&self.nodes, extent)) {
+        let scaled = link_len(self.nodes.len()) < LINK_LEN;
+        // `packed` means "this heat cycle's final pack has run", not "it moved
+        // something": a cooled layout already inside its envelope has nothing
+        // to pack, and leaving the flag false would keep a scaled-link vault
+        // integrating until the 300-step stall probe — long enough for the
+        // forces to undo a card pack that landed in between. A dense pack that
+        // moved nothing but still leaves overlaps is marked packed too, so a
+        // jammed wall cannot re-run the whole schedule every cooled step until
+        // the hard bound. Vaults below the scaled-link regime keep the old
+        // meaning (set only when the pack moved something) so their settling
+        // stays bit-identical.
+        if moved || dense || (scaled && !envelope_violated(&self.nodes, extent)) {
             self.packed = true;
         }
         if moved {
@@ -2060,7 +2181,11 @@ mod settle {
     #[test]
     fn a_dense_vault_settles_without_overlapping_cards() {
         // 90 notes: dense (above SEP_FULL_FILL, so the separation envelope
-        // shrinks) yet still card country. This is the reported fixture.
+        // shrinks) yet still card country. This is the reported fixture. Since
+        // #303 the settle is progress-aware: this fixture limit-cycles above
+        // the progress threshold, so it runs the full 250-step schedule and
+        // goes quiet 30 frames later — measured 280, hence the 320 bound (the
+        // old fixed timer stopped at 114).
         let tmp = linked_vault(90);
         let v = tmp.load();
         let fill = v.notes.len() as f32 * SEP_AREA / (WORLD[0] * WORLD[1]);
@@ -2068,7 +2193,7 @@ mod settle {
         let mut g = Graph::new(&v);
         let frames = settle(&mut g);
         assert!(
-            frames < 400,
+            frames < 320,
             "a dense vault settles in a few seconds: {frames}"
         );
         assert_inside_world(&g);
@@ -2086,6 +2211,79 @@ mod settle {
         }
         let after: Vec<[f32; 2]> = g.nodes.iter().map(|node| node.pos).collect();
         assert_eq!(after, frozen, "a settled layout must keep its positions");
+    }
+
+    /// #303: the settle keeps going while the shaped fixture is still
+    /// visibly arranging, and stops at the schedule's cap.
+    ///
+    /// The old heat timer stopped this fixture at 84 frames, while its forces
+    /// were still moving about 5 pt per node per step. The progress-aware
+    /// schedule holds the slow decay as long as the mean motion stays above
+    /// [`SETTLE_PROGRESS_SPEED`], so it runs all 250 steps, packs, and is
+    /// dormant at frame 251; the 300-frame loop bounds "by the cap". The
+    /// motion floor (>150) would fail for the old fixed 84-step timer and for
+    /// any regression that lets a large vault stop before it has arranged
+    /// itself. Two identical runs must agree exactly, including the dormant
+    /// frame — the layout promises identical trajectories for identical input.
+    #[test]
+    fn a_shaped_vault_keeps_settling_until_progress_stops() {
+        let tmp = shaped_vault(55, 182);
+        let v = tmp.load();
+        let mut runs = Vec::new();
+        for run in 0..2 {
+            let mut g = Graph::new(&v);
+            assert_eq!(g.nodes.len(), 256, "201 notes + 55 tags");
+            let mut motion = 0u32;
+            let mut dormant_at = None;
+            for frame in 1..=300 {
+                if g.step() {
+                    motion += 1;
+                } else {
+                    dormant_at = Some(frame);
+                    break;
+                }
+            }
+            let frame = dormant_at.unwrap_or_else(|| {
+                panic!("run {run}: the 256-node fixture must be dormant by the 250-step cap")
+            });
+            assert!(
+                motion > 150,
+                "run {run}: stopped after only {motion} moving frames; the old fixed \
+                 timer stopped at 84 while the layout was still arranging itself"
+            );
+            assert_eq!(
+                frame,
+                motion + 1,
+                "run {run}: dormancy must be the step after the last moving one"
+            );
+            assert_eq!(g.heat, 0.0, "run {run}: the schedule must be spent");
+            assert_inside_world(&g);
+            let fill = bbox_fill(&g);
+            assert!(
+                (0.55..=0.75).contains(&fill),
+                "run {run}: the settled blob fills {fill:.3} of the world, outside the \
+                 0.55–0.75 band (the soft wall should hold it)"
+            );
+            assert_eq!(
+                wall_clamped(&g),
+                0,
+                "run {run}: a longer settle must not press nodes into the hard wall clamp"
+            );
+            runs.push((
+                motion,
+                frame,
+                g.nodes.iter().map(|node| node.pos).collect::<Vec<_>>(),
+            ));
+        }
+        assert_eq!(
+            runs[0].0, runs[1].0,
+            "the settle length must be deterministic"
+        );
+        assert_eq!(
+            runs[0].1, runs[1].1,
+            "the dormant frame must be deterministic"
+        );
+        assert_eq!(runs[0].2, runs[1].2, "the trajectory must be deterministic");
     }
 
     #[test]
@@ -2267,18 +2465,28 @@ mod settle {
     /// 0.55–0.75 of the world, at most 2% of nodes are wall-clamped, and
     /// settled links are short enough not to draw across the canvas.
     ///
-    /// Measured on this fixture (fill / walls / edge p50 / p90 / p99 /
-    /// crossings per edge): 150 0.576 / 3 / 252 / 429 / 491 / 10.2; 300 0.557 /
-    /// 1 / 243 / 445 / 615 / 28.2; 405 0.695 / 1 / 371 / 711 / 1013 / 81.5;
-    /// 600 0.715 / 0 / 260 / 517 / 723 / —; 1000 0.700 / 0 / 172 / 334 / 474.
+    /// Measured on this fixture after #303's progress-aware settle (fill /
+    /// walls / edge p50 / p90 / p99 / crossings per edge): 150 0.569 / 3 / 241
+    /// / 418 / 473 / 9.9; 300 0.710 / 0 / 170 / 349 / 436 / 7.8; 405 0.721 / 0
+    /// / 158 / 295 / 372 / 8.5; 600 0.734 / 0 / 133 / 245 / 328 / —; 1000
+    /// 0.744 / 3 / 104 / 232 / 338 / —.
     ///
-    /// 405 is the one density that cannot meet the 525 pt p90 gate. The stride
-    /// fixture is a 4-generator circulant (+1/+7/+13/+29): its +29 links are
-    /// chords between regions that a planar embedding cannot bring together
-    /// (a 2D layout of a 4D torus must stretch some generators), so its p90
-    /// stays around 711 pt however the forces are tuned. That is edge routing,
-    /// an explicit design follow-up (#190 non-goal), so this test gates 405 at
-    /// a no-worse-than bound and records the 525 miss rather than hiding it.
+    /// The longer settle expands the blob, and `WALL_PRESSURE_INNER`'s soft
+    /// envelope is what holds its bbox inside this band and its centres off the
+    /// hard `EDGE` clamp (without it the same settle left 6–9 % of 300–600
+    /// notes wall-clamped and fill at 0.80). The previous table, measured at
+    /// the old 84-step timer, was: 150 0.576 / 3 / 252 / 429 / 491 / 10.2; 300
+    /// 0.557 / 1 / 243 / 445 / 615 / 28.2; 405 0.695 / 1 / 371 / 711 / 1013 /
+    /// 81.5; 600 0.715 / 0 / 260 / 517 / 723 / —; 1000 0.700 / 0 / 172 / 334
+    /// / 474.
+    ///
+    /// The stride fixture is a 4-generator circulant (+1/+7/+13/+29): its +29
+    /// links are chords between regions that a planar embedding cannot bring
+    /// together, so at 84 steps 405 sat at p90 711 pt however the forces were
+    /// tuned and this test gated it at a no-worse-than bound. The longer settle
+    /// now lays those chords out with the rest (measured 295), so 405 passes
+    /// 525 like the other densities; its 800 gate is kept only as the old
+    /// platform-noise margin.
     #[test]
     fn dense_vaults_spread_without_pressing_the_walls() {
         for n in DENSITIES {
@@ -2313,10 +2521,10 @@ mod settle {
                 // edge distribution with them. Each gate keeps a margin over
                 // the measured value while still rejecting the pre-slice-2
                 // layout (932/989/993/1005 pt at 300/405/600/1000):
-                //   300  445 Linux          → 525
-                //   405  711 (structural miss, see above) → 800
-                //   600  517 Linux / 536 macOS → 560
-                //  1000  334 Linux          → 420
+                //   300  445 Linux (349 now)        → 525
+                //   405  711 structural miss (295)   → 800
+                //   600  517 Linux / 536 macOS (245) → 560
+                //  1000  334 Linux (232)            → 420
                 let gate = match n {
                     405 => 800.0,
                     600 => 560.0,
@@ -2441,6 +2649,12 @@ mod settle {
 
     /// The 2,000-note case, perf-gated: the grid pack must clear its 20.2 pt
     /// envelope within the settling bound, not freeze overlapping.
+    ///
+    /// Measured on this fixture (`--release`): 251 moving steps (the progress
+    /// schedule's full 250-step cap plus the pack), quiet at 251, `settle()`'s
+    /// 30-frame window reports 280; 0 overlaps at 20.24 pt, fill 0.703, 0
+    /// wall-clamped. Before #303 the fixed timer stopped it at 84 steps with
+    /// the forces still hot, and its natural quiet took ~2,600 steps.
     #[test]
     #[ignore = "perf: 2000-note settle; run with --release -- --include-ignored"]
     fn a_2000_note_vault_packs_to_its_envelope() {
