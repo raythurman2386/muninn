@@ -15,8 +15,10 @@ default-members = ["crates/muninn-app"]
 # lockfile, so it must not join the product build.
 exclude = [
     "fuzz",
+    "vendor/accesskit_atspi_common",
     "vendor/accesskit_macos",
     "vendor/accesskit_windows",
+    "vendor/naga",
     "vendor/parley_engine",
     "vendor/sctk-adwaita",
     "vendor/wgpu-hal",
@@ -45,13 +47,15 @@ anydoc = "=0.2.5"
 
 # Rune is a young framework and is not published to crates.io. Pin the exact revision the app
 # was built and tested against. For local Rune development, run `./scripts/use-local-rune.sh`.
-# 1ab171df carries the #281 fix (IME empty preedit / Wayland wheel scroll, Rune #1503).
-rune = { git = "https://github.com/anomalyco/rune.git", rev = "1ab171df98cca8b2a9949a15e54e3f387fab57e6" }
-rune-kit = { git = "https://github.com/anomalyco/rune.git", rev = "1ab171df98cca8b2a9949a15e54e3f387fab57e6", features = ["markdown"] }
-rune-theme-opencode = { git = "https://github.com/anomalyco/rune.git", rev = "1ab171df98cca8b2a9949a15e54e3f387fab57e6" }
+# 68d1f4dc is the first rev with the full upstream RTL set (Rune #1059: `El::dir`, logical
+# `Align::{Start,End}`, mirrored containers, AccessKit direction) plus `Cx::locale` /
+# `Cx::system_languages` / `Runtime::set_languages` and the web `dir`/`lang` mirror (Rune #2053).
+rune = { git = "https://github.com/anomalyco/rune.git", rev = "68d1f4dc45d3d5f08612e2a463a43c9e9b76432e" }
+rune-kit = { git = "https://github.com/anomalyco/rune.git", rev = "68d1f4dc45d3d5f08612e2a463a43c9e9b76432e", features = ["markdown"] }
+rune-theme-opencode = { git = "https://github.com/anomalyco/rune.git", rev = "68d1f4dc45d3d5f08612e2a463a43c9e9b76432e" }
 # Effect layers painted into `El::effect` slots (graph presets, the delete burn).
 # Same pinned revision as `rune`; the compositor in `muninn-app` owns the renderer.
-rune-fx = { git = "https://github.com/anomalyco/rune.git", rev = "1ab171df98cca8b2a9949a15e54e3f387fab57e6" }
+rune-fx = { git = "https://github.com/anomalyco/rune.git", rev = "68d1f4dc45d3d5f08612e2a463a43c9e9b76432e" }
 
 serde_json = { version = "1", features = ["float_roundtrip"] }
 # The compositor in `muninn-app` talks to the device and pass types Rune hands it.
@@ -73,8 +77,14 @@ winit = { path = "vendor/winit" }
 sctk-adwaita = { path = "vendor/sctk-adwaita" }
 # DX12 `Surface::set_present_rects` and `Instance::expose_adapter` (Windows).
 wgpu-hal = { path = "vendor/wgpu-hal" }
+# `Statement::Emit` range remapping when constant-folding moves an expression to an earlier
+# handle: without it the emit neither stretches backwards (`ExpressionAlreadyInScope`) nor
+# inverts (`NotInScope`).
+naga = { path = "vendor/naga" }
 # Heading/landmark UIA and >64 KiB text-run support (Windows accessibility).
 accesskit_windows = { path = "vendor/accesskit_windows" }
+# Levelled items report their own `size_of_set` to AT-SPI instead of the container's.
+accesskit_atspi_common = { path = "vendor/accesskit_atspi_common" }
 # `AXHeading` levels and off-main-thread safety (macOS accessibility).
 accesskit_macos = { path = "vendor/accesskit_macos" }
 

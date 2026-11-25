@@ -433,9 +433,23 @@ pub trait EventLoopBuilderExtMacOS {
     ///
     /// The default behavior is to ignore other applications and activate when launched.
     fn with_activate_ignoring_other_apps(&mut self, ignore: bool) -> &mut Self;
+
+    /// Whether a bundled app with no activation policy of its own gets `NewEvents(Init)` and
+    /// `Resumed` in `applicationWillFinishLaunching:` instead of `applicationDidFinishLaunching:`,
+    /// so its first window is made and drawn before AppKit's own launch work, not after it.
+    /// Activation still waits for `applicationDidFinishLaunching:`.
+    ///
+    /// Off by default.
+    fn with_init_before_finish_launching(&mut self, early: bool) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
+    #[inline]
+    fn with_init_before_finish_launching(&mut self, early: bool) -> &mut Self {
+        self.platform_specific.init_before_finish_launching = early;
+        self
+    }
+
     #[inline]
     fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
         self.platform_specific.activation_policy = Some(activation_policy);
@@ -528,6 +542,15 @@ pub enum OptionAsAlt {
     /// No special handling is applied for `Option` key.
     #[default]
     None,
+}
+
+/// Rune: the default menu `with_default_menu` installs before the init events, for an app that
+/// turned it off there to install it later in the same launch (after its first window's first
+/// frame). On the main thread; elsewhere it does nothing.
+pub fn install_default_menu() {
+    if let Some(mtm) = objc2_foundation::MainThreadMarker::new() {
+        crate::platform_impl::menu::initialize(&objc2_app_kit::NSApplication::sharedApplication(mtm));
+    }
 }
 
 /// Rune: the focused field's text around its selection (the selection a byte range of it), which

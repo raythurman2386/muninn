@@ -6,6 +6,17 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- **Rune pin moved to `68d1f4dc`** (from `1ab171df`), the first revision with
+  the full upstream RTL set: `El::dir`, logical `Align::{Start,End}`,
+  mirrored containers and AccessKit text direction (Rune #1059), plus
+  `Cx::locale`/`Cx::system_languages`/`Runtime::set_languages` and the web
+  `dir`/`lang` mirror (Rune #2053). Eight Rune vendor patches are applied from
+  `vendor/` (refreshed with `scripts/vendor-rune.sh`; `naga` and
+  `accesskit_atspi_common` are new). No Muninn API changes; nothing in the app
+  uses the new surface yet.
+
 ## [0.11.4] - 2026-11-24
 
 ### Added

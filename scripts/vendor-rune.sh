@@ -6,8 +6,10 @@
 #
 # Rune's own `[patch.crates-io]` only applies inside Rune's workspace; a git
 # dependency does not carry it. The app keeps copies under `vendor/` and lists
-# them in the root `Cargo.toml`, so this script copies the six directories from
+# them in the root `Cargo.toml`, so this script copies the eight directories from
 # a Rune checkout at the pinned revision. Run it whenever the Rune pin moves.
+# (`vendor/tiny-skia-path` is not here: Rune reaches it as a renamed path
+# dependency inside its own tree, which resolves through the git checkout.)
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,8 +21,10 @@ fi
 rune_dir="$(cd "$rune_dir" && pwd)"
 
 crates=(
+  accesskit_atspi_common
   accesskit_macos
   accesskit_windows
+  naga
   parley_engine
   sctk-adwaita
   wgpu-hal
