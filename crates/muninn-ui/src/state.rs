@@ -486,7 +486,7 @@ impl ImportReport {
 
 /// X-01: the Rune revision pinned in the workspace `Cargo.toml`. Logged at
 /// startup and shown in diagnostics; update it with the pin together.
-pub(crate) const RUNE_REV: &str = "1ab171df";
+pub(crate) const RUNE_REV: &str = "68d1f4dc";
 
 pub struct State {
     pub vault: Vault,
