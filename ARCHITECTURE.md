@@ -339,7 +339,11 @@ note before the change, so a bare duplicate title that resolved elsewhere is unt
 
 - New non-UI behaviour belongs in `muninn-core` or `muninn-graph` with unit tests.
 - New screens belong in `muninn-ui`; keep `muninn-app` to wiring.
-- If a second front end appears (CLI, web, mobile), it should consume `muninn-core` and
+- The web front end (#240, decision in `docs/web.md`) reuses `muninn-ui` behind a
+  default `native` cargo feature with a thin `muninn-web` crate, rather than a
+  separate UI on `muninn-core` + `muninn-graph`; native-only surfaces (sync
+  transports, keyring, tray, self-update) stay behind the feature. A CLI or
+  mobile front end, if one ever appears, still consumes `muninn-core` and
   `muninn-graph` directly rather than growing `muninn-ui`.
 - Add a crate only when it has a clear owner and dependency direction; update `allowed_edges`
   in `xtask/src/main.rs` at the same time.
