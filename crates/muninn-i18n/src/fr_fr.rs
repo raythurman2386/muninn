@@ -1109,5 +1109,11 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionUnlockNote => "Déverrouiller la note",
         Key::PaletteKeywordsLockNote => "chiffrer mot de passe privé protéger",
         Key::PaletteKeywordsUnlockNote => "ouvrir déchiffrer mot de passe",
+        Key::WebPersistDenied => {
+            "Ce navigateur n’a pas accordé de stockage persistant : le coffre fonctionne, mais le navigateur peut l’évincer sous pression de stockage."
+        }
+        Key::WebReadOnlySample => {
+            "Cet onglet en lecture seule affiche l’exemple intégré jusqu’à ce que l’onglet en écriture l’enregistre."
+        }
     }
 }

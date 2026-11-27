@@ -193,7 +193,10 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
     // The browser demo: the shared UI (no native features) over the sample
     // vault's bytes. Like the app it sits at the top; it adds no edge any
     // other front end could not have.
-    allowed.insert("muninn-web", BTreeSet::from(["muninn-core", "muninn-ui"]));
+    allowed.insert(
+        "muninn-web",
+        BTreeSet::from(["muninn-core", "muninn-i18n", "muninn-ui"]),
+    );
     allowed.insert("xtask", BTreeSet::new());
     allowed
 }

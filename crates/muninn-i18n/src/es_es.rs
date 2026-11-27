@@ -1079,5 +1079,11 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionUnlockNote => "Desbloquear nota",
         Key::PaletteKeywordsLockNote => "cifrar contraseña privado proteger",
         Key::PaletteKeywordsUnlockNote => "abrir descifrar contraseña",
+        Key::WebPersistDenied => {
+            "Este navegador no concedió almacenamiento persistente: el depósito funciona, pero el navegador puede desalojarlo si falta espacio."
+        }
+        Key::WebReadOnlySample => {
+            "Esta pestaña de solo lectura muestra el ejemplo incluido hasta que la pestaña con permiso de escritura lo guarde."
+        }
     }
 }
