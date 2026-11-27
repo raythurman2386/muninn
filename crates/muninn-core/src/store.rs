@@ -373,7 +373,7 @@ impl MemoryStore {
 
     /// Seed or replace `rel` with `bytes`, creating its parent folders.
     ///
-    /// This is the store-level writer used by [`Vault::from_sources`]
+    /// This is the store-level writer used by `Vault::from_sources`
     /// (crate::Vault::from_sources) and by tests standing in for an external
     /// writer. A relative path is normalised like a vault folder: `.` and empty
     /// segments are dropped. An existing file keeps the spelling it was
