@@ -287,7 +287,16 @@ impl State {
             return None;
         }
         let id = note.id;
-        let source = crate::doc_sync::read_text(&note.path).ok()?;
+        // #240 (slice 5): a browser build has no file to read — the indexed
+        // source is the bytes the source seam supplied — so an Unsupported
+        // read falls back to it instead of hiding the board behind the empty
+        // state. Any other error (a genuinely unreadable file on the desktop)
+        // keeps the old no-board answer.
+        let source = match crate::doc_sync::read_text(&note.path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::Unsupported => note.source.clone(),
+            Err(_) => return None,
+        };
         let disk = self.vault.disk_state(id).ok();
         let typed = (self.selected == Some(id) && self.editor.text != self.saved)
             .then(|| Kanban::parse(&self.editor.text).ok())

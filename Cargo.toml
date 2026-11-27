@@ -8,6 +8,7 @@ members = [
     "crates/muninn-sync",
     "crates/muninn-ui",
     "crates/muninn-app",
+    "crates/muninn-web",
     "xtask",
 ]
 default-members = ["crates/muninn-app"]

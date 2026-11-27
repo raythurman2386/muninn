@@ -22,7 +22,7 @@ use std::time::{Duration, SystemTime};
 use muninn_sync::BrowserOpener as _;
 
 use muninn_core::{
-    KanbanView, ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag,
+    KanbanView, NoteSource, ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag,
 };
 use muninn_graph::{Camera as GraphCamera, Graph, WORLD, cards_fit};
 use muninn_i18n::{
@@ -5667,6 +5667,22 @@ impl State {
             self.resume_tailnet_host();
         }
         true
+    }
+
+    /// Install a vault built from caller-supplied bytes instead of a folder
+    /// scan — the read seam a browser host uses (#240 slices 5–6).
+    ///
+    /// [`Vault::from_sources`] builds the index; the rest is the tail of a
+    /// finished startup scan, so the graph, the first note and the placeholder's
+    /// startup error are exactly what a scanned vault would produce. Nothing is
+    /// written: `self.vault.root` stays the path note saves target, where a host
+    /// with no write sink (the demo) gets the ordinary honest save errors.
+    ///
+    /// Returns `false` only when an unsaved board refuses to be replaced, as a
+    /// rescan does.
+    pub fn install_sources(&mut self, sources: &[NoteSource<'_>]) -> bool {
+        let vault = Vault::from_sources(self.vault.root.clone(), sources);
+        self.install_scanned_vault(vault)
     }
 
     /// Begin naming a note in the current folder. Nothing is created until

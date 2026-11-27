@@ -1,0 +1,38 @@
+[package]
+name = "muninn-web"
+description = "Muninn in the browser: the read-only sample-vault demo."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+# `cdylib` for the wasm bundle, `rlib` so the workspace checks and the
+# source-index test link it as a normal crate.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The sample vault's bytes and the pure read seam. Shared by the wasm entry and
+# the native test.
+muninn-core.workspace = true
+
+# Everything below is the browser build: the UI, Rune and the wasm entry. A
+# native `cargo test -p muninn-web` builds neither, so the demo cannot pull a
+# desktop dependency into its test path.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# `default-features = false` is the browser configuration from slice 4: no
+# tray, autostart, sync transports, native dialogs, fs watcher or self-update.
+muninn-ui = { workspace = true, default-features = false }
+# `webgl` is Rune's WebGL2 fallback for browsers without WebGPU, the coverage
+# the slice-5 gate measures. `hot` and `native-file-dialog` stay off (off by
+# default) so no devtools or native dialog code reaches the bundle.
+rune = { workspace = true, features = ["webgl"] }
+rune-theme-opencode.workspace = true
+# The spec Rune's own wasm crates resolve (Cargo.lock: 0.2.130); the build
+# script reads the exact version from the lock and checks the CLI matches.
+wasm-bindgen = "0.2"
+
+[lints]
+workspace = true
