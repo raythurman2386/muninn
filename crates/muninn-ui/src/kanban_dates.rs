@@ -16,7 +16,6 @@
 //!   then the built-in defaults ([`DateSettings::resolve`]).
 
 use std::cmp::Reverse;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use muninn_core::{
     CardText, CivilDate, CivilTime, DateSettings, DateToken, Kanban, format_date_for_display,
@@ -516,11 +515,7 @@ pub(crate) fn local_now() -> (CivilDate, CivilTime) {
     // A clock before 1970 (or an `as_millis` overflow) maps to 1970-01-01
     // 00:00, the same harmless fallback `LocalTime` uses when the OS has no
     // time-zone answer. Normal clocks never reach it.
-    let epoch_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| {
-            i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
-        });
+    let epoch_ms = crate::state::wall_ms();
     date_time_from_local(rune::LocalTime::at(epoch_ms))
 }
 

@@ -1,14 +1,21 @@
 //! Application state: the open vault, note, editor, graph and camera.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
+#[cfg(feature = "native")]
+use std::ffi::OsString;
 use std::fs;
-use std::io::{self, Write as _};
+use std::io;
+#[cfg(feature = "native")]
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
+#[cfg(feature = "native")]
 use std::process::{Command, Stdio};
 #[cfg(feature = "native")]
 use std::sync::mpsc;
-use std::time::{Duration, Instant, SystemTime};
+#[cfg(feature = "native")]
+use std::time::Instant;
+use std::time::{Duration, SystemTime};
 
 // Native-only: `SystemBrowser`, used by the release banner's Release notes.
 #[cfg(feature = "native")]
@@ -28,10 +35,13 @@ use muninn_i18n::{
     could_not_recreate_note_folder, could_not_reload_note, could_not_rename_folder,
     could_not_rename_note, could_not_restore, could_not_reveal_file, could_not_save,
     could_not_save_copy, import_partly_refused, import_refused, links_not_updated,
-    moved_links_failed, not_a_file, note_not_in_vault, path_gone, refused_already_exists,
-    refused_not_a_file, refused_unsupported_type, refusing_unsafe_recovery_path,
-    renamed_links_failed, scan_cancelled, t,
+    moved_links_failed, note_not_in_vault, refused_already_exists, refused_not_a_file,
+    refused_unsupported_type, refusing_unsafe_recovery_path, renamed_links_failed, scan_cancelled,
+    t,
 };
+// Native-only: the desktop opener's failure wording.
+#[cfg(feature = "native")]
+use muninn_i18n::{not_a_file, path_gone};
 use rune::{Drag, Key, KeyEvent, Phase, TextEdit};
 
 use crate::camera::{Camera, CameraGlide};
@@ -168,6 +178,35 @@ pub struct LockPrompt {
 
 /// A note file's on-disk identity: `(mtime, length)`.
 pub type DiskState = (Option<SystemTime>, u64);
+
+/// Wall-clock stopwatch for scan work. A browser build has no monotone clock
+/// in std worth trusting and never shows the timing, so it measures nothing
+/// rather than paying for a stub.
+#[derive(Clone, Copy)]
+struct ScanTimer {
+    #[cfg(feature = "native")]
+    started: Instant,
+}
+
+impl ScanTimer {
+    fn now() -> Self {
+        Self {
+            #[cfg(feature = "native")]
+            started: Instant::now(),
+        }
+    }
+
+    fn elapsed_ms(self) -> f64 {
+        #[cfg(feature = "native")]
+        {
+            self.started.elapsed().as_secs_f64() * 1_000.0
+        }
+        #[cfg(not(feature = "native"))]
+        {
+            0.0
+        }
+    }
+}
 
 /// Autosave backoff sentinel used while a conflict is pending. It is larger
 /// than any runtime timestamp, so `poll` never treats it as a due save.
@@ -846,7 +885,7 @@ pub struct State {
     scan_budget: Duration,
     /// Wall-clock start of the chunked scan, logged as `wall_ms` beside the
     /// work-based `load_ms`.
-    scan_started: Option<Instant>,
+    scan_started: Option<ScanTimer>,
     /// Note to reopen when the chunked scan completes (session restore).
     restore_after_scan: Option<String>,
     /// Invisible, focused key catcher for the loading screen: a focused text
@@ -1038,12 +1077,12 @@ impl State {
             kanban_app_text.insert(entry.key, TextEdit::new(&text));
             kanban_board_text.insert(entry.key, TextEdit::new(&text));
         }
-        let started = Instant::now();
+        let started = ScanTimer::now();
         let mut scan = None;
         let scan_result = Vault::scan_start(&root);
         // The walk is scan work too; the chunked path seeds its accumulator
         // with it so both paths report the same thing.
-        let walk_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        let walk_ms = started.elapsed_ms();
         let (vault, startup_error) = match scan_result {
             Ok(mut job) if job.total() <= SCAN_SYNC_LIMIT => {
                 job.read_chunk(usize::MAX);
@@ -1061,11 +1100,7 @@ impl State {
         };
         let loading = scan.is_some();
         let scan_work_ms = if loading { walk_ms } else { 0.0 };
-        let load_ms = if loading {
-            0.0
-        } else {
-            started.elapsed().as_secs_f64() * 1_000.0
-        };
+        let load_ms = if loading { 0.0 } else { started.elapsed_ms() };
         let welcome = !existed && startup_error.is_none() && !loading && vault.notes.is_empty();
         // Key recovery by the canonical root *after* the load above: a missing
         // root is created by the load, and the next launch must derive the same
@@ -1842,6 +1877,9 @@ impl State {
     ///
     /// Callers pass keys (vault-relative names, counts, results), never note
     /// bodies, so the log is safe to attach to a bug report.
+    ///
+    /// native: a browser build has no session-log file yet.
+    #[cfg(feature = "native")]
     pub(crate) fn log_event(&self, event: &str, detail: &str) {
         let line = if detail.is_empty() {
             format!("{} {event}", conflict_stamp())
@@ -1862,6 +1900,9 @@ impl State {
         }
     }
 
+    #[cfg(not(feature = "native"))]
+    pub(crate) fn log_event(&self, _event: &str, _detail: &str) {}
+
     /// Log a verbose event only with `--trace`.
     pub fn trace_log(&self, event: &str, detail: &str) {
         if self.trace {
@@ -1870,7 +1911,7 @@ impl State {
     }
 
     /// Log a successful vault open with counts and the synchronous scan time.
-    fn log_open(&self, started: Instant) {
+    fn log_open(&self, started: ScanTimer) {
         self.log_event(
             "open",
             &format!(
@@ -1879,7 +1920,7 @@ impl State {
                 self.vault.notes.len(),
                 self.vault.dirs.len(),
                 self.vault.skipped_count(),
-                started.elapsed().as_secs_f64() * 1_000.0,
+                started.elapsed_ms(),
             ),
         );
     }
@@ -1908,6 +1949,9 @@ impl State {
     }
 
     /// The newest `count` complete log lines (oldest first).
+    ///
+    /// native: no session-log file in a browser build.
+    #[cfg(feature = "native")]
     #[must_use]
     pub fn log_tail(&self, count: usize) -> Vec<String> {
         let Ok(text) = fs::read_to_string(&self.log_path) else {
@@ -1918,6 +1962,12 @@ impl State {
             .iter()
             .map(|line| (*line).to_owned())
             .collect()
+    }
+
+    #[cfg(not(feature = "native"))]
+    #[must_use]
+    pub fn log_tail(&self, _count: usize) -> Vec<String> {
+        Vec::new()
     }
 
     /// X-01 diagnostics shown in the Help overlay (and copied to the
@@ -2044,7 +2094,7 @@ impl State {
         // Per-note encryption (#134): a password prompt belongs to the vault
         // it was opened over, so it never outlives the switch.
         self.cancel_lock_prompt();
-        let started = Instant::now();
+        let started = ScanTimer::now();
         match Vault::load(&root) {
             Ok(vault) => {
                 // A successful explicit switch abandons any chunked startup scan
@@ -5399,17 +5449,17 @@ impl State {
             self.error = Some(t(TextKey::ErrorSaveBoardBeforeRescan).to_owned());
             return false;
         }
-        let started = Instant::now();
+        let started = ScanTimer::now();
         match Vault::scan_start(&self.vault.root) {
             Ok(mut job) => {
                 let total = job.total();
-                let walk_ms = started.elapsed().as_secs_f64() * 1_000.0;
+                let walk_ms = started.elapsed_ms();
                 if total <= SCAN_SYNC_LIMIT {
                     job.read_chunk(usize::MAX);
                     let vault = job.finish();
                     // Same semantics as the synchronous startup scan: walk,
                     // reads and reindex, but not the install.
-                    self.load_ms = started.elapsed().as_secs_f64() * 1_000.0;
+                    self.load_ms = started.elapsed_ms();
                     return self.install_scanned_vault(vault);
                 } else {
                     self.startup_error = None;
@@ -5464,16 +5514,23 @@ impl State {
         let Some(job) = self.scan.as_mut() else {
             return false;
         };
-        let read_started = Instant::now();
-        let deadline = read_started + self.scan_budget;
+        let read_started = ScanTimer::now();
+        #[cfg(feature = "native")]
+        let deadline = Instant::now() + self.scan_budget;
         loop {
             job.read_chunk(SCAN_CHUNK);
+            #[cfg(feature = "native")]
             if job.is_done() || Instant::now() >= deadline {
+                break;
+            }
+            // Without a monotone clock, one chunk per tick is the budget.
+            #[cfg(not(feature = "native"))]
+            if job.is_done() {
                 break;
             }
         }
         // One measurement per tick: the whole read loop, counted once.
-        self.scan_work_ms += read_started.elapsed().as_secs_f64() * 1_000.0;
+        self.scan_work_ms += read_started.elapsed_ms();
         if !job.is_done() {
             return true;
         }
@@ -5481,16 +5538,16 @@ impl State {
             return false;
         };
         let total = job.total();
-        let finish_started = Instant::now();
+        let finish_started = ScanTimer::now();
         let vault = job.finish();
         // The reindex runs once, after the last read. It is scan work; the
         // install below is not, matching the synchronous path and a vault open.
-        self.scan_work_ms += finish_started.elapsed().as_secs_f64() * 1_000.0;
+        self.scan_work_ms += finish_started.elapsed_ms();
         self.load_ms = self.scan_work_ms;
         let wall_ms = self
             .scan_started
             .take()
-            .map_or(0.0, |started| started.elapsed().as_secs_f64() * 1_000.0);
+            .map_or(0.0, |started| started.elapsed_ms());
         if !self.install_scanned_vault(vault) {
             self.log_event("scan-aborted", "the open board could not be saved");
             return true;
@@ -6821,6 +6878,9 @@ impl State {
         self.open_externally(&path)
     }
 
+    /// native: a browser cannot spawn a desktop opener; the caller gets the
+    /// same status error a missing program would produce.
+    #[cfg(feature = "native")]
     fn run_file_action(&mut self, action: FileAction, path: &Path) -> bool {
         let absolute = match fs::canonicalize(path) {
             Ok(path) if path.is_file() => path,
@@ -6869,6 +6929,19 @@ impl State {
                 false
             }
         }
+    }
+
+    #[cfg(not(feature = "native"))]
+    fn run_file_action(&mut self, action: FileAction, path: &Path) -> bool {
+        let error = io::Error::new(
+            io::ErrorKind::Unsupported,
+            "a browser build cannot open files with a desktop application",
+        );
+        self.error = Some(match action {
+            FileAction::Open => could_not_open_file(path.display(), error, opener_hint()),
+            FileAction::Reveal => could_not_reveal_file(path.display(), error, opener_hint()),
+        });
+        false
     }
 
     /// native: a document format is queued for conversion on a worker. The
@@ -7184,6 +7257,9 @@ fn same_path(a: &Path, b: &Path) -> bool {
 /// Expand a user-typed vault path: `~` and `~/…` use `$HOME` (or
 /// `%USERPROFILE%`); everything else is left as typed, so relative paths stay
 /// relative to the process directory.
+///
+/// native: a browser has no home directory to expand into.
+#[cfg(feature = "native")]
 fn expand_path(raw: &str) -> PathBuf {
     let raw = raw.trim();
     let home = || {
@@ -7202,6 +7278,11 @@ fn expand_path(raw: &str) -> PathBuf {
         return home.join(rest);
     }
     PathBuf::from(raw)
+}
+
+#[cfg(not(feature = "native"))]
+fn expand_path(raw: &str) -> PathBuf {
+    PathBuf::from(raw.trim())
 }
 
 /// Case-insensitive, non-overlapping match starts and ends, in bytes of
@@ -7241,6 +7322,9 @@ pub(crate) fn find_matches(text: &str, query: &str) -> (Vec<usize>, Vec<usize>) 
 
 /// The platform command that opens or reveals `path`.
 ///
+/// native: a browser build has no desktop opener (`run_file_action` owns the
+/// unsupported error there).
+#[cfg(feature = "native")]
 /// Kept separate from the runner so the command shape is
 /// testable without launching anything. Linux/BSD: `xdg-open` (the file for
 /// Open, its parent folder for Reveal). macOS: `open` / `open -R`. Windows:
@@ -7399,12 +7483,21 @@ fn same_camera(a: GraphCamera, b: GraphCamera) -> bool {
 }
 
 /// DES-03: whether `MUNINN_REDUCED_MOTION` asks for the reduced-motion mode.
+///
+/// native: the browser reads Rune's reported preference, not an env var.
+#[cfg(feature = "native")]
 fn reduced_motion_from_env() -> bool {
     flag_on(std::env::var_os("MUNINN_REDUCED_MOTION").as_deref())
 }
 
+#[cfg(not(feature = "native"))]
+fn reduced_motion_from_env() -> bool {
+    false
+}
+
 /// A documented boolean environment flag: `1`, `true`, `yes` or `on`
 /// (case-insensitive) is on; anything else, including unset, is off.
+#[cfg(feature = "native")]
 fn flag_on(value: Option<&OsStr>) -> bool {
     value.is_some_and(|value| {
         matches!(
@@ -7416,9 +7509,7 @@ fn flag_on(value: Option<&OsStr>) -> bool {
 
 /// UTC `YYYYMMDD-HHMMSS`, used to give a conflict copy a unique, sortable name.
 pub(crate) fn conflict_stamp() -> String {
-    let secs = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs());
+    let secs = wall_secs();
     let days = i64::try_from(secs / 86_400).unwrap_or(0);
     let rem = secs % 86_400;
     let (hour, minute, second) = (rem / 3_600, (rem % 3_600) / 60, rem % 60);
@@ -7455,9 +7546,41 @@ fn truncate_update_detail(detail: &str) -> String {
 /// Unix seconds, saturating to zero before the epoch or on a broken clock.
 /// The update schedule only needs a monotone-enough wall clock.
 fn unix_now() -> u64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_secs())
+    wall_secs()
+}
+
+/// Unix seconds from the wall clock.
+///
+/// The browser build mints no native timestamps yet (the demo is read-only),
+/// and a wasm clock would only ever be a zero-based stub; zero is the
+/// documented pre-epoch fallback until a web store needs real stamps.
+fn wall_secs() -> u64 {
+    #[cfg(feature = "native")]
+    {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |duration| duration.as_secs())
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        0
+    }
+}
+
+/// Unix milliseconds from the wall clock (the same browser fallback).
+pub(crate) fn wall_ms() -> i64 {
+    #[cfg(feature = "native")]
+    {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |duration| {
+                i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
+            })
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        0
+    }
 }
 
 #[cfg(test)]

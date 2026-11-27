@@ -197,14 +197,14 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
 /// The one target the portable crates are held to.
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
-/// `xtask wasm-check`: keep `muninn-core`, `muninn-graph` and gated
-/// `muninn-sync` building for the browser.
+/// `xtask wasm-check`: keep the portable crates and the gated UI building for
+/// the browser.
 ///
-/// The UI and app crates need a filesystem, a clock, threads and windowing, so
-/// they stay native. The model and layout crates carry no such dependency and
-/// must keep compiling for `wasm32-unknown-unknown` unchanged, or a browser
-/// front end cannot reuse them later. `muninn-sync` is native today, so it is
-/// checked with its `native` feature off: the configuration a web build uses.
+/// `muninn-core`, `muninn-graph`, `muninn-i18n` and a no-native `muninn-ui`
+/// all compile for `wasm32-unknown-unknown`; `muninn-sync` is checked with its
+/// `native` feature off, the configuration a web build uses. The UI's
+/// `native` feature is the desktop-only boundary (filesystem, clock, threads,
+/// tray, sync transports), so `--no-default-features` is the browser crate.
 /// This is a compile-only guard (`check` plus `clippy`); it builds no bundle
 /// and runs nothing in a browser.
 fn wasm_check() -> Result<()> {
@@ -216,6 +216,8 @@ fn wasm_check() -> Result<()> {
         "muninn-core",
         "-p",
         "muninn-graph",
+        "-p",
+        "muninn-i18n",
         "--target",
         WASM_TARGET,
     ])?;
@@ -226,6 +228,8 @@ fn wasm_check() -> Result<()> {
         "muninn-core",
         "-p",
         "muninn-graph",
+        "-p",
+        "muninn-i18n",
         "--target",
         WASM_TARGET,
         "--",
@@ -246,6 +250,27 @@ fn wasm_check() -> Result<()> {
         "--locked",
         "-p",
         "muninn-sync",
+        "--no-default-features",
+        "--target",
+        WASM_TARGET,
+        "--",
+        "-D",
+        "warnings",
+    ])?;
+    run_cargo(&[
+        "check",
+        "--locked",
+        "-p",
+        "muninn-ui",
+        "--no-default-features",
+        "--target",
+        WASM_TARGET,
+    ])?;
+    run_cargo(&[
+        "clippy",
+        "--locked",
+        "-p",
+        "muninn-ui",
         "--no-default-features",
         "--target",
         WASM_TARGET,

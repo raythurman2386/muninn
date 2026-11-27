@@ -18,18 +18,26 @@
 //! failing startup. Writes use the same temp-file-then-rename pattern as note
 //! saves, so a crash leaves either the old complete file or the new one.
 
+#[cfg(feature = "native")]
 use std::env;
+#[cfg(feature = "native")]
 use std::fs::{self, File};
-use std::io::{self, Write as _};
+use std::io;
+#[cfg(feature = "native")]
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
+#[cfg(feature = "native")]
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[cfg(feature = "native")]
 use serde_json::{Value, json};
 
 use muninn_core::KanbanDefaults;
 use muninn_i18n::{Key as TextKey, Lang, LocaleTag, t};
 
-use crate::{BoardSession, BoardView};
+use crate::BoardSession;
+#[cfg(feature = "native")]
+use crate::BoardView;
 
 use crate::{Mode, Scope};
 
@@ -62,6 +70,7 @@ pub(crate) fn clamp_note_template(template: &str) -> String {
 }
 
 /// Distinguishes temp files written by the same process.
+#[cfg(feature = "native")]
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Which palette the window follows. `Omarchy` (the default) tracks the
@@ -136,6 +145,7 @@ impl ThemeMode {
 
 /// The stored spelling for a persisted `theme` value. A bare boolean is
 /// accepted for forward/backward compatibility.
+#[cfg(feature = "native")]
 fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
     match value {
         Some("dark") => ThemeMode::Dark,
@@ -284,6 +294,7 @@ pub struct VaultSyncBinding {
 }
 
 impl SyncPrefs {
+    #[cfg(feature = "native")]
     fn to_json(&self) -> Value {
         json!({
             "version": 1,
@@ -294,6 +305,7 @@ impl SyncPrefs {
         })
     }
 
+    #[cfg(feature = "native")]
     fn from_value(value: Option<&Value>) -> Self {
         let Some(value) = value else {
             return Self::default();
@@ -339,6 +351,7 @@ impl SyncPrefs {
         prefs
     }
 
+    #[cfg(feature = "native")]
     fn invalid(reason: &str) -> Self {
         Self {
             disabled_reason: Some(reason.to_owned()),
@@ -348,6 +361,7 @@ impl SyncPrefs {
 }
 
 impl VaultSyncBinding {
+    #[cfg(feature = "native")]
     fn to_json(&self) -> Value {
         json!({
             "identity": self.identity,
@@ -368,6 +382,7 @@ impl VaultSyncBinding {
         })
     }
 
+    #[cfg(feature = "native")]
     fn from_value(value: &Value) -> Option<Self> {
         let provider = value.get("provider").and_then(Value::as_str)?;
         if provider != "github" && provider != "google_drive" && provider != "tailscale" {
@@ -808,6 +823,9 @@ impl Settings {
     ///
     /// A missing, unreadable or corrupt file is not an error: defaults are the
     /// safe startup state.
+    ///
+    /// native: a browser build has no settings file to read yet.
+    #[cfg(feature = "native")]
     #[must_use]
     pub fn load_from(config_home: &Path) -> Settings {
         let Ok(text) = fs::read_to_string(settings_path(config_home)) else {
@@ -819,7 +837,19 @@ impl Settings {
         Self::from_value(&value)
     }
 
+    /// The browser has no settings file yet: the in-memory defaults are the
+    /// whole model until a web store arrives (slice 6).
+    #[cfg(not(feature = "native"))]
+    #[must_use]
+    pub fn load_from(_config_home: &Path) -> Settings {
+        Self::default()
+    }
+
     /// Persist below an explicit config root.
+    ///
+    /// native: the browser keeps settings in memory for now (slice 6 gives it
+    /// a store); the call still succeeds so a shared caller need not branch.
+    #[cfg(feature = "native")]
     pub fn save_to(&self, config_home: &Path) -> io::Result<()> {
         let path = settings_path(config_home);
         let delay = if self.autosave_delay.is_finite() {
@@ -882,6 +912,13 @@ impl Settings {
         atomic_write(&path, &bytes)
     }
 
+    /// The browser keeps settings in memory; the model and its callers stay
+    /// shared (slice 6 gives this a web store).
+    #[cfg(not(feature = "native"))]
+    pub fn save_to(&self, _config_home: &Path) -> io::Result<()> {
+        Ok(())
+    }
+
     /// Promote `path` to the front of the recent-vault list, de-duplicating and
     /// capping the list. Comparison is lexical: the app always records the path
     /// it just opened, so a vault cannot appear twice under two spellings that
@@ -893,6 +930,7 @@ impl Settings {
         self.recent_vaults.truncate(RECENT_VAULTS_MAX);
     }
 
+    #[cfg(feature = "native")]
     fn from_value(value: &Value) -> Settings {
         let mut settings = Settings {
             theme: parse_theme_mode(value.get("theme").and_then(Value::as_str)),
@@ -1001,6 +1039,7 @@ impl Settings {
 
 /// The saved board: a non-empty `rel`, and a view only when `eye` and `zoom`
 /// are both present and usable.
+#[cfg(feature = "native")]
 fn parse_board_session(value: &Value) -> Option<BoardSession> {
     let rel = value.get("rel")?.as_str().filter(|rel| !rel.is_empty())?;
     let eye = value.get("eye").and_then(Value::as_array).and_then(|eye| {
@@ -1021,12 +1060,24 @@ fn parse_board_session(value: &Value) -> Option<BoardSession> {
 
 /// The XDG config root: `$XDG_CONFIG_HOME`, else `$HOME/.config`
 /// (`%USERPROFILE%` on Windows), else a temp fallback.
+///
+/// native: the browser has no XDG root; an empty base keeps shared callers
+/// compiling until a web store names one.
+#[cfg(feature = "native")]
 #[must_use]
 pub fn config_home() -> PathBuf {
     xdg_dir("XDG_CONFIG_HOME", &[".config"], "muninn-config")
 }
 
+/// native: see [`config_home`]'s native note.
+#[cfg(not(feature = "native"))]
+#[must_use]
+pub fn config_home() -> PathBuf {
+    PathBuf::new()
+}
+
 /// Shared XDG-root resolution for config and state directories.
+#[cfg(feature = "native")]
 pub(crate) fn xdg_dir(variable: &str, home_suffix: &[&str], fallback: &str) -> PathBuf {
     if let Some(value) = env::var_os(variable)
         && !value.is_empty()
@@ -1046,6 +1097,7 @@ pub(crate) fn xdg_dir(variable: &str, home_suffix: &[&str], fallback: &str) -> P
     env::temp_dir().join(fallback)
 }
 
+#[cfg(feature = "native")]
 fn settings_path(config_home: &Path) -> PathBuf {
     config_home.join("muninn").join("settings.json")
 }
@@ -1053,6 +1105,7 @@ fn settings_path(config_home: &Path) -> PathBuf {
 /// Write `data` beside `path` and rename it into place. The settings file is
 /// tiny, but a power loss during a plain write could still leave half a JSON
 /// object; the rename keeps every observed version complete.
+#[cfg(feature = "native")]
 fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;

@@ -20,11 +20,17 @@
 //!   changed board has its list entry re-read. New and removed boards come
 //!   from the vault watcher, whose folder times change then.
 
+#[cfg(feature = "native")]
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(feature = "native")]
+use std::path::PathBuf;
 
 use crate::board_view::BoardStatus;
-use crate::doc_sync::{AUTOSAVE_MAX_AGE, AUTOSAVE_MIN, DiskRule, Rest, file_state};
+#[cfg(feature = "native")]
+use crate::doc_sync::file_state;
+use crate::doc_sync::{AUTOSAVE_MAX_AGE, AUTOSAVE_MIN, DiskRule, Rest};
+#[cfg(feature = "native")]
 use crate::watch::FileState;
 use crate::{Mode, State};
 
@@ -90,6 +96,10 @@ impl State {
 
     /// Per frame, every `WATCH_INTERVAL` on Board: notice boards another app
     /// changed. `true` when something on screen changed.
+    ///
+    /// native: there is no file watcher in a browser build; slice 5's source
+    /// seam is where a web change signal will arrive.
+    #[cfg(feature = "native")]
     pub(crate) fn board_watch_tick(&mut self, t: f64) -> bool {
         if self.mode != Mode::Board {
             return false;
@@ -163,6 +173,11 @@ impl State {
         visible
     }
 
+    #[cfg(not(feature = "native"))]
+    pub(crate) fn board_watch_tick(&mut self, _t: f64) -> bool {
+        false
+    }
+
     /// When the next poll is needed for slice 7's timed work, so a resting
     /// window (which polls only at a wake it asked for) still runs it: soon
     /// while an autosave, a recovery copy or a settings write is pending,
@@ -195,6 +210,7 @@ impl State {
     /// After Muninn itself wrote `path`: the board watcher and the vault
     /// watcher's folder time take the new state as theirs, so Muninn's own
     /// save is not mistaken for another app's (and does not rescan the vault).
+    #[cfg(feature = "native")]
     pub(crate) fn board_written(&mut self, path: &Path) {
         // Taken even when the list did not hold the entry yet (a board the
         // walk skips, one added since the last look): the next look must
@@ -221,4 +237,7 @@ impl State {
             watched.dirs.insert(rel, mtime);
         }
     }
+
+    #[cfg(not(feature = "native"))]
+    pub(crate) fn board_written(&mut self, _path: &Path) {}
 }

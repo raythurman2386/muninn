@@ -17,6 +17,7 @@
 //! rather than spamming the status bar.
 
 use std::collections::BTreeMap;
+#[cfg(feature = "native")]
 use std::fs;
 use std::time::SystemTime;
 
@@ -43,6 +44,10 @@ impl VaultSnapshot {
 
 /// Read the vault's metadata picture. Never fails: an unreadable or missing
 /// entry becomes `None`, so callers can compare and decide quietly.
+///
+/// native: a browser vault has no filesystem entries to stat yet (slice 5
+/// supplies bytes through the source seam).
+#[cfg(feature = "native")]
 #[must_use]
 pub fn snapshot(vault: &Vault) -> VaultSnapshot {
     let mut notes = BTreeMap::new();
@@ -65,6 +70,14 @@ pub fn snapshot(vault: &Vault) -> VaultSnapshot {
         );
     }
     VaultSnapshot { notes, dirs }
+}
+
+/// The browser snapshot: no entries, so the watcher's diff is always empty
+/// and its poll stays quiet.
+#[cfg(not(feature = "native"))]
+#[must_use]
+pub fn snapshot(_vault: &Vault) -> VaultSnapshot {
+    VaultSnapshot::default()
 }
 
 #[cfg(test)]

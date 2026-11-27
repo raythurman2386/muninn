@@ -39,13 +39,19 @@
 //! plaintext must never reach this directory, so its copies are cleared
 //! whenever a vault becomes live and never written.
 
+#[cfg(feature = "native")]
 use std::fs::{self, File};
-use std::io::{self, Write as _};
+use std::io;
+#[cfg(feature = "native")]
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
+#[cfg(feature = "native")]
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(feature = "native")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Distinguishes temp files written by the same process.
+#[cfg(feature = "native")]
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Longest sanitized stem before a hash is appended to keep names portable.
@@ -90,6 +96,7 @@ impl RecoveryStore {
             dir: state_home.join("muninn").join("recovery"),
             vault: vault_id(vault_root),
         };
+        #[cfg(feature = "native")]
         store.adopt_legacy();
         store
     }
@@ -97,6 +104,7 @@ impl RecoveryStore {
     /// Move this vault's records from the older shared layout to its own
     /// names. Other vaults' old records are left for them; best effort (a
     /// record that cannot be moved stays where it is and is not listed).
+    #[cfg(feature = "native")]
     fn adopt_legacy(&self) {
         let Ok(entries) = fs::read_dir(&self.dir) else {
             return;
@@ -153,6 +161,7 @@ impl RecoveryStore {
         self.key_for(rel, slot, "txt")
     }
 
+    #[cfg(feature = "native")]
     fn meta_for(&self, rel: &str, slot: RecoverySlot) -> PathBuf {
         self.key_for(rel, slot, "json")
     }
@@ -175,6 +184,7 @@ impl RecoveryStore {
 
     /// Persist one slot. The kanban slot is a different file from the
     /// editor's, so writing one leaves the other in place.
+    #[cfg(feature = "native")]
     pub(crate) fn save_slot(&self, rel: &str, slot: RecoverySlot, text: &str) -> io::Result<()> {
         fs::create_dir_all(&self.dir)?;
         // The buffer is committed before the sidecar so a crash between the
@@ -195,6 +205,13 @@ impl RecoveryStore {
         atomic_write(&self.meta_for(rel, slot), meta.as_bytes())
     }
 
+    /// The browser has no recovery store until slice 6 gives it one; refusing
+    /// here keeps a quit from claiming unsaved edits are recoverable.
+    #[cfg(not(feature = "native"))]
+    pub(crate) fn save_slot(&self, _rel: &str, _slot: RecoverySlot, _text: &str) -> io::Result<()> {
+        Err(unavailable())
+    }
+
     /// Forget the editor's recovery copy. Missing files are not an error.
     pub(crate) fn clear(&self, rel: &str) {
         self.clear_slot(rel, RecoverySlot::Editor);
@@ -202,8 +219,13 @@ impl RecoveryStore {
 
     /// Forget one slot. The other slot for `rel` is left alone.
     pub(crate) fn clear_slot(&self, rel: &str, slot: RecoverySlot) {
-        let _ = fs::remove_file(self.path_for_slot(rel, slot));
-        let _ = fs::remove_file(self.meta_for(rel, slot));
+        #[cfg(feature = "native")]
+        {
+            let _ = fs::remove_file(self.path_for_slot(rel, slot));
+            let _ = fs::remove_file(self.meta_for(rel, slot));
+        }
+        #[cfg(not(feature = "native"))]
+        let _ = (rel, slot);
     }
 
     /// Read the editor's persisted buffer back.
@@ -212,12 +234,19 @@ impl RecoveryStore {
     }
 
     /// Read one slot's persisted buffer back.
+    #[cfg(feature = "native")]
     pub(crate) fn load_slot(&self, rel: &str, slot: RecoverySlot) -> io::Result<String> {
         fs::read_to_string(self.path_for_slot(rel, slot))
     }
 
+    #[cfg(not(feature = "native"))]
+    pub(crate) fn load_slot(&self, _rel: &str, _slot: RecoverySlot) -> io::Result<String> {
+        Err(unavailable())
+    }
+
     /// List the recoverable buffers, newest last. Orphaned `.txt` files (no
     /// sidecar, for example from an interrupted first-ever write) are ignored.
+    #[cfg(feature = "native")]
     pub(crate) fn scan(&self) -> Vec<RecoveryEntry> {
         let Ok(entries) = fs::read_dir(&self.dir) else {
             return Vec::new();
@@ -261,12 +290,36 @@ impl RecoveryStore {
         found.dedup_by(|a, b| a.rel == b.rel && a.slot == b.slot);
         found
     }
+
+    /// The browser has no recovery store yet: nothing to list.
+    #[cfg(not(feature = "native"))]
+    pub(crate) fn scan(&self) -> Vec<RecoveryEntry> {
+        Vec::new()
+    }
+}
+
+/// The browser build's store refusal. `Unsupported` is not a clock or path
+/// failure, so callers report it as an unavailable sidecar, never as "gone".
+#[cfg(not(feature = "native"))]
+fn unavailable() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::Unsupported,
+        "crash recovery needs a web store (slice 6)",
+    )
 }
 
 /// The XDG state root: `$XDG_STATE_HOME`, else `$HOME/.local/state`, else a
 /// temp fallback for platforms without either variable.
+///
+/// native: the browser has no XDG state root.
+#[cfg(feature = "native")]
 pub(crate) fn state_home() -> PathBuf {
     crate::settings::xdg_dir("XDG_STATE_HOME", &[".local", "state"], "muninn-state")
+}
+
+#[cfg(not(feature = "native"))]
+pub(crate) fn state_home() -> PathBuf {
+    PathBuf::new()
 }
 
 /// Delete every recovery copy that belongs to a locked note and drop its banner
@@ -298,19 +351,26 @@ pub(crate) fn clear_locked(
         return;
     }
     for rel in &locked {
+        #[cfg(feature = "native")]
         for slot in [RecoverySlot::Editor, RecoverySlot::Kanban] {
             // The text file is the plaintext; the sidecar is only an index.
             if store.path_for_slot(rel, slot).is_file() {
                 store.clear_slot(rel, slot);
             }
         }
+        #[cfg(not(feature = "native"))]
+        let _ = (rel, store);
     }
     recovered.retain(|entry| !locked.contains(&entry.rel.as_str()));
 }
 
 /// Stable 64-bit FNV-1a of the canonical vault path.
 pub(crate) fn vault_id(root: &Path) -> String {
+    #[cfg(feature = "native")]
     let canonical = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    // No symlinks in a browser: the path is already its own canonical form.
+    #[cfg(not(feature = "native"))]
+    let canonical = root.to_path_buf();
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in canonical.to_string_lossy().as_bytes() {
         hash ^= u64::from(*byte);
@@ -343,6 +403,7 @@ fn sanitize(rel: &str) -> String {
     out
 }
 
+#[cfg(feature = "native")]
 fn escape(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for c in value.chars() {
@@ -361,10 +422,12 @@ fn escape(value: &str) -> String {
 
 /// Extract `rel` from the sidecar the writer above produced. Kept deliberately
 /// small: this is not a general JSON parser, only the one-object format here.
+#[cfg(feature = "native")]
 fn parse_rel(meta: &str) -> Option<String> {
     parse_string(meta, "rel")
 }
 
+#[cfg(feature = "native")]
 fn parse_string(meta: &str, key: &str) -> Option<String> {
     let needle = format!("\"{key}\":\"");
     let start = meta.find(&needle)? + needle.len();
@@ -394,6 +457,7 @@ fn parse_string(meta: &str, key: &str) -> Option<String> {
 
 /// The kanban slot is named `~kanban` before the extension. A sidecar
 /// `"slot":"kanban"` says the same thing when the name was kept.
+#[cfg(feature = "native")]
 fn slot_of(path: &Path, meta: &str) -> RecoverySlot {
     let named = path
         .file_stem()
@@ -406,6 +470,7 @@ fn slot_of(path: &Path, meta: &str) -> RecoverySlot {
     }
 }
 
+#[cfg(feature = "native")]
 fn parse_ts(meta: &str) -> Option<u64> {
     let start = meta.find("\"ts\":")? + "\"ts\":".len();
     let digits: String = meta[start..]
@@ -417,6 +482,7 @@ fn parse_ts(meta: &str) -> Option<u64> {
 
 /// Write `data` beside `path` and rename it into place. `sync_all` makes a
 /// `kill -9` safe even when the file system is replaying a journal.
+#[cfg(feature = "native")]
 fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;

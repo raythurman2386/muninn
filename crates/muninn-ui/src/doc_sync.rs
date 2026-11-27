@@ -47,9 +47,33 @@ pub(crate) const RECOVERY_IDLE: f64 = 0.5;
 pub(crate) const RECOVERY_MAX_AGE: f64 = 2.0;
 
 /// A file's `(modified, length)`, or `None` when it cannot be read.
+///
+/// native: no filesystem entries in a browser build yet.
+#[cfg(feature = "native")]
 pub(crate) fn file_state(path: &Path) -> Option<FileState> {
     let meta = std::fs::metadata(path).ok()?;
     Some((meta.modified().ok(), meta.len()))
+}
+
+#[cfg(not(feature = "native"))]
+pub(crate) fn file_state(_path: &Path) -> Option<FileState> {
+    None
+}
+
+/// Read a document file's text. Shared flows (a board's reload, a kanban's
+/// follow, a write's compare) go through here so a browser build has one
+/// honest "no bytes yet" answer instead of a native read per caller.
+#[cfg(feature = "native")]
+pub(crate) fn read_text(path: &Path) -> io::Result<String> {
+    std::fs::read_to_string(path)
+}
+
+#[cfg(not(feature = "native"))]
+pub(crate) fn read_text(_path: &Path) -> io::Result<String> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "a browser build reads vault bytes through the source seam (slice 5)",
+    ))
 }
 
 /// #38 review M2: `path` lies inside the vault `root`: below it through
@@ -63,18 +87,25 @@ pub(crate) fn inside_vault(root: &Path, path: &Path) -> bool {
     if rel.as_os_str().is_empty() || !rel.components().all(|c| matches!(c, Component::Normal(_))) {
         return false;
     }
-    let Ok(base) = std::fs::canonicalize(root) else {
-        return false;
-    };
-    let mut probe = path.to_path_buf();
-    loop {
-        if let Ok(real) = std::fs::canonicalize(&probe) {
-            return real.starts_with(&base);
-        }
-        if !probe.pop() {
+    // A browser has no symlinks to follow, so the lexical check above is the
+    // whole containment rule there.
+    #[cfg(feature = "native")]
+    {
+        let Ok(base) = std::fs::canonicalize(root) else {
             return false;
+        };
+        let mut probe = path.to_path_buf();
+        loop {
+            if let Ok(real) = std::fs::canonicalize(&probe) {
+                return real.starts_with(&base);
+            }
+            if !probe.pop() {
+                return false;
+            }
         }
     }
+    #[cfg(not(feature = "native"))]
+    true
 }
 
 /// Why a document's file no longer matches its unsaved edits (#38 review
@@ -102,6 +133,7 @@ impl DocConflict {
 /// Compare the file at `path` with what the page last read or wrote
 /// (`same`): `None` when it still holds that, else why not. An unreadable
 /// file keeps the flag it had (`was`).
+#[cfg(feature = "native")]
 pub(crate) fn disk_conflict(
     path: &Path,
     same: impl FnOnce(&str) -> bool,
@@ -113,6 +145,17 @@ pub(crate) fn disk_conflict(
         Err(e) if e.kind() == io::ErrorKind::NotFound => Some(DocConflict::Missing),
         Err(_) => was,
     }
+}
+
+/// A browser build has no file to compare, so the flag a page already had is
+/// the honest answer; it is only ever set by a native watcher.
+#[cfg(not(feature = "native"))]
+pub(crate) fn disk_conflict(
+    _path: &Path,
+    _same: impl FnOnce(&str) -> bool,
+    was: Option<DocConflict>,
+) -> Option<DocConflict> {
+    was
 }
 
 /// What a watcher may do with the shown document when its file changed on
@@ -196,10 +239,15 @@ pub(crate) fn copy_path(root: &Path, path: &Path, stamp: &str) -> PathBuf {
         .extension()
         .map(|e| format!(".{}", e.to_string_lossy()))
         .unwrap_or_default();
+    #[cfg(feature = "native")]
     let folder = path
         .parent()
         .filter(|p| p.is_dir() && inside_vault(root, p))
         .map_or_else(|| root.to_path_buf(), PathBuf::from);
+    // No directory metadata in a browser: a conflict copy belongs at the
+    // vault root until the web sink learns to place siblings (slice 5).
+    #[cfg(not(feature = "native"))]
+    let folder = root.to_path_buf();
     let mut copy = folder.join(format!("{stem} (conflict {stamp}){ext}"));
     let mut n = 2;
     while copy.exists() {

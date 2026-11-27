@@ -164,6 +164,7 @@ impl State {
             open.status = BoardStatus::Failed(t(TextKey::BoardStatusInsideVault).to_owned());
             return false;
         }
+        #[cfg(feature = "native")]
         if let Some(parent) = open.path.parent()
             && let Err(e) = std::fs::create_dir_all(parent)
         {
