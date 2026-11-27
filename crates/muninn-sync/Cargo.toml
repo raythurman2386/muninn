@@ -11,24 +11,35 @@ authors.workspace = true
 [dependencies]
 base64 = "0.23"
 form_urlencoded = "1"
-getrandom = "0.4"
 hex = "0.4"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha1 = "0.11"
 sha2 = "0.11"
 unicode-normalization = "0.1"
 url = "2"
-uuid = { version = "1", features = ["v4"] }
 zeroize = "1"
+
+# Native-only: blocking HTTP, the OS keyring, and the `getrandom`-backed UUIDs.
+# They do not compile for `wasm32-unknown-unknown` as-is, and no module that uses
+# them is web-relevant today, so they arrive only with `native`.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
+getrandom = { version = "0.4", optional = true }
+uuid = { version = "1", features = ["v4"], optional = true }
 
 # `v1` selects the OS store: macOS Keychain, Windows Credential Manager,
 # Linux Secret Service via zbus. It does not enable the sample, CLI, or
 # SQLite fallback stores.
-keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
+keyring = { version = "4.2.0", default-features = false, features = ["v1"], optional = true }
 
 [features]
+# The transports, credential stores, filesystem lease and build-time Google
+# Desktop secret. Every module is native today; slices 8-9 carve out the
+# web-relevant pieces. `--no-default-features` leaves a near-empty crate that
+# compiles for `wasm32-unknown-unknown` and cannot reference the secret.
+default = ["native"]
+native = ["dep:reqwest", "dep:keyring", "dep:getrandom", "dep:uuid"]
+
 # Exposes parser seams (`parse_journal_for_fuzzing`,
 # `parse_commit_for_fuzzing`) to `fuzz/`. Off by default; the app never
 # enables it.

@@ -104,6 +104,22 @@ jobs:
       - name: Check core and graph on wasm32
         run: cargo run --locked -p xtask -- wasm-check
 
+  secret-canary:
+    name: secret canary (#238)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Prove the Google Desktop secret stays out of wasm artifacts
+        run: cargo run --locked -p xtask -- secret-canary
+
   docs:
     name: rustdoc
     runs-on: ubuntu-latest

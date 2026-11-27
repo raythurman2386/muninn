@@ -43,6 +43,22 @@ leaves memory.
   renamed (a link rewrite writes a whole plaintext body), and a locked note cannot be a Kanban
   board. Both are documented in `docs/per-note-encryption.md`.
 
+## Google Desktop secret and web builds
+
+Muninn's Google integration uses a Desktop OAuth client. Its client secret is
+private to the build, never in this repository: it arrives only at build time
+from `MUNINN_GOOGLE_CLIENT_SECRET` and is compiled into native builds through
+the `native` feature of `muninn-sync`. Web (wasm) builds do not compile that
+module at all, and CI's `secret-canary` job builds a wasm target with a sentinel
+secret and fails if the sentinel appears in any artifact, while also asserting
+the native build still carries it.
+
+A web build, when it exists, must use a separate public **Web application**
+OAuth client id with PKCE and Google Identity Services. It must never reference
+`MUNINN_GOOGLE_CLIENT_SECRET` or the Desktop client id: a public browser bundle
+cannot hold a secret, and the Desktop client's credentials belong to the native
+app only.
+
 ## Scope
 
 Relevant areas include path handling for `--vault` and `MUNINN_VAULT`, note creation names,
