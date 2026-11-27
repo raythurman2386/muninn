@@ -29,14 +29,12 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "native")]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(feature = "native")]
+use muninn_core::{KanbanDefaults, StateHome};
 use serde_json::{Value, json};
 
-use muninn_core::KanbanDefaults;
 use muninn_i18n::{Key as TextKey, Lang, LocaleTag, t};
 
 use crate::BoardSession;
-#[cfg(feature = "native")]
 use crate::BoardView;
 
 use crate::{Mode, Scope};
@@ -145,7 +143,6 @@ impl ThemeMode {
 
 /// The stored spelling for a persisted `theme` value. A bare boolean is
 /// accepted for forward/backward compatibility.
-#[cfg(feature = "native")]
 fn parse_theme_mode(value: Option<&str>) -> ThemeMode {
     match value {
         Some("dark") => ThemeMode::Dark,
@@ -294,7 +291,6 @@ pub struct VaultSyncBinding {
 }
 
 impl SyncPrefs {
-    #[cfg(feature = "native")]
     fn to_json(&self) -> Value {
         json!({
             "version": 1,
@@ -305,7 +301,6 @@ impl SyncPrefs {
         })
     }
 
-    #[cfg(feature = "native")]
     fn from_value(value: Option<&Value>) -> Self {
         let Some(value) = value else {
             return Self::default();
@@ -351,7 +346,6 @@ impl SyncPrefs {
         prefs
     }
 
-    #[cfg(feature = "native")]
     fn invalid(reason: &str) -> Self {
         Self {
             disabled_reason: Some(reason.to_owned()),
@@ -361,7 +355,6 @@ impl SyncPrefs {
 }
 
 impl VaultSyncBinding {
-    #[cfg(feature = "native")]
     fn to_json(&self) -> Value {
         json!({
             "identity": self.identity,
@@ -382,7 +375,6 @@ impl VaultSyncBinding {
         })
     }
 
-    #[cfg(feature = "native")]
     fn from_value(value: &Value) -> Option<Self> {
         let provider = value.get("provider").and_then(Value::as_str)?;
         if provider != "github" && provider != "google_drive" && provider != "tailscale" {
@@ -824,7 +816,9 @@ impl Settings {
     /// A missing, unreadable or corrupt file is not an error: defaults are the
     /// safe startup state.
     ///
-    /// native: a browser build has no settings file to read yet.
+    /// native: the desktop reads `$XDG_CONFIG_HOME/muninn/settings.json`. The
+    /// browser twin reads the same JSON from the registered state home (#240
+    /// slice 6d).
     #[cfg(feature = "native")]
     #[must_use]
     pub fn load_from(config_home: &Path) -> Settings {
@@ -837,21 +831,38 @@ impl Settings {
         Self::from_value(&value)
     }
 
-    /// The browser has no settings file yet: the in-memory defaults are the
-    /// whole model until a web store arrives (slice 6).
+    /// The browser reads its settings from the registered state home (#240
+    /// slice 6d). A first run — no key yet, or no state home at all — is the
+    /// documented default model, exactly as a missing file is on the desktop.
     #[cfg(not(feature = "native"))]
     #[must_use]
     pub fn load_from(_config_home: &Path) -> Settings {
-        Self::default()
+        web_load(crate::state_home::registered().as_deref())
     }
 
     /// Persist below an explicit config root.
     ///
-    /// native: the browser keeps settings in memory for now (slice 6 gives it
-    /// a store); the call still succeeds so a shared caller need not branch.
+    /// native: the XDG config directory, byte for byte as before. The browser
+    /// twin writes the same JSON to the registered state home (#240 slice 6d).
     #[cfg(feature = "native")]
     pub fn save_to(&self, config_home: &Path) -> io::Result<()> {
-        let path = settings_path(config_home);
+        let bytes = serde_json::to_vec_pretty(&self.to_value())?;
+        atomic_write(&settings_path(config_home), &bytes)
+    }
+
+    /// The browser writes `settings.json` into the registered state home
+    /// (#240 slice 6d) and leaves the mirror to the poll loop's drain. The
+    /// in-memory [`Settings`] stays the model between drains; a browser with no
+    /// state home (OPFS could not be mounted) keeps it in memory and reports
+    /// success, because a settings write must never interrupt editing.
+    #[cfg(not(feature = "native"))]
+    pub fn save_to(&self, _config_home: &Path) -> io::Result<()> {
+        web_save(crate::state_home::registered().as_deref(), self)
+    }
+
+    /// The settings file's JSON, shared by both hosts so the browser cannot
+    /// drift from the desktop's format.
+    fn to_value(&self) -> Value {
         let delay = if self.autosave_delay.is_finite() {
             self.autosave_delay
                 .clamp(AUTOSAVE_MIN_DELAY, AUTOSAVE_MAX_DELAY)
@@ -908,15 +919,7 @@ impl Settings {
         if !self.kanban_defaults.is_empty() {
             value["kanban_defaults"] = self.kanban_defaults.to_json();
         }
-        let bytes = serde_json::to_vec_pretty(&value)?;
-        atomic_write(&path, &bytes)
-    }
-
-    /// The browser keeps settings in memory; the model and its callers stay
-    /// shared (slice 6 gives this a web store).
-    #[cfg(not(feature = "native"))]
-    pub fn save_to(&self, _config_home: &Path) -> io::Result<()> {
-        Ok(())
+        value
     }
 
     /// Promote `path` to the front of the recent-vault list, de-duplicating and
@@ -930,7 +933,6 @@ impl Settings {
         self.recent_vaults.truncate(RECENT_VAULTS_MAX);
     }
 
-    #[cfg(feature = "native")]
     fn from_value(value: &Value) -> Settings {
         let mut settings = Settings {
             theme: parse_theme_mode(value.get("theme").and_then(Value::as_str)),
@@ -1039,7 +1041,6 @@ impl Settings {
 
 /// The saved board: a non-empty `rel`, and a view only when `eye` and `zoom`
 /// are both present and usable.
-#[cfg(feature = "native")]
 fn parse_board_session(value: &Value) -> Option<BoardSession> {
     let rel = value.get("rel")?.as_str().filter(|rel| !rel.is_empty())?;
     let eye = value.get("eye").and_then(Value::as_array).and_then(|eye| {
@@ -1056,6 +1057,40 @@ fn parse_board_session(value: &Value) -> Option<BoardSession> {
         rel: rel.to_owned(),
         view,
     })
+}
+
+/// The state-home key the browser settings file lives under (#240 slice 6d):
+/// the same `muninn/settings.json` the desktop joins onto its config home.
+const SETTINGS_KEY: &str = "muninn/settings.json";
+
+/// Read `settings.json` from the browser's registered state home. No store, no
+/// key, or corrupt bytes all mean the default model — the same forgiving
+/// startup state a missing native file gives.
+#[cfg_attr(feature = "native", allow(dead_code))]
+fn web_load(home: Option<&dyn StateHome>) -> Settings {
+    let Some(home) = home else {
+        return Settings::default();
+    };
+    let Some(bytes) = home.get(SETTINGS_KEY) else {
+        return Settings::default();
+    };
+    let Ok(value) = serde_json::from_slice::<Value>(&bytes) else {
+        return Settings::default();
+    };
+    Settings::from_value(&value)
+}
+
+/// Write `settings.json` into the browser's registered state home. A store
+/// that is not there keeps the model in memory: settings are a convenience,
+/// and a failed write must never interrupt editing (the same posture as the
+/// desktop's best-effort save).
+#[cfg_attr(feature = "native", allow(dead_code))]
+fn web_save(home: Option<&dyn StateHome>, settings: &Settings) -> io::Result<()> {
+    let Some(home) = home else {
+        return Ok(());
+    };
+    let bytes = serde_json::to_vec_pretty(&settings.to_value())?;
+    home.put(SETTINGS_KEY, &bytes)
 }
 
 /// The XDG config root: `$XDG_CONFIG_HOME`, else `$HOME/.config`
@@ -1808,5 +1843,65 @@ mod tests {
             let _ = fs::remove_dir_all(&home);
         }
         assert_eq!(GraphEffectIntensity::from_key(None).scale(), 1.0);
+    }
+
+    // ---- #240 slice 6d: the browser twin over the state-home seam -----------
+
+    #[test]
+    fn the_browser_twin_round_trips_the_shared_model_through_the_state_home() {
+        let home = muninn_core::MemoryStateHome::new();
+        assert_eq!(
+            web_load(None),
+            Settings::default(),
+            "no store is a first run"
+        );
+        assert_eq!(
+            web_load(Some(&home)),
+            Settings::default(),
+            "no key yet is a first run"
+        );
+
+        let settings = Settings {
+            theme: ThemeMode::Light,
+            autosave_delay: 1.4,
+            ui_language: LanguageChoice::Language(Lang::De),
+            note_template: "---\ntags: []\n---".to_owned(),
+            ..Settings::default()
+        };
+        web_save(Some(&home), &settings).expect("save");
+        assert_eq!(web_load(Some(&home)), settings);
+
+        // The stored bytes are the desktop's JSON, not a second format.
+        let text = String::from_utf8(
+            home.get(SETTINGS_KEY)
+                .expect("the settings key is in the state home"),
+        )
+        .expect("utf-8");
+        assert!(text.contains("\"theme\": \"light\""), "{text}");
+        assert!(text.contains("\"autosave_delay\": 1.4"), "{text}");
+        assert!(text.contains("\"ui_language\": \"de-DE\""), "{text}");
+
+        // A corrupt value is the safe defaults, exactly like a corrupt file.
+        home.put(SETTINGS_KEY, b"{ not json").expect("corrupt");
+        assert_eq!(web_load(Some(&home)), Settings::default());
+
+        // Without a store the model stays in memory and the save succeeds: a
+        // settings write must never interrupt editing.
+        assert!(web_save(None, &settings).is_ok());
+    }
+
+    #[test]
+    fn a_theme_and_autosave_saved_in_the_browser_reload_from_the_state_home() {
+        let home = muninn_core::MemoryStateHome::new();
+        let settings = Settings {
+            theme: ThemeMode::Dark,
+            autosave_delay: 2.75,
+            ..Settings::default()
+        };
+        // The Settings page's write, then a reload: the boot's `load_from`.
+        web_save(Some(&home), &settings).unwrap();
+        let reloaded = web_load(Some(&home));
+        assert_eq!(reloaded.theme, ThemeMode::Dark);
+        assert_eq!(reloaded.autosave_delay, 2.75);
     }
 }

@@ -9,6 +9,9 @@
 //!   to seed OPFS on the first run,
 //! - [`store::OpfsStore`]: the synchronous [`muninn_core::VaultStore`] over an
 //!   in-memory mirror, with a dirty journal the async side drains to OPFS,
+//! - [`state_home::OpfsStateHome`]: the same mirror-and-journal pattern for the
+//!   small host state beside the vault — crash recovery, settings and the lock
+//!   high-water record (#240 slice 6d),
 //! - the OPFS boot in `opfs`: mount, snapshot-load, Web Lock, `persist()`,
 //!   and the first-run seed,
 //! - the `#[wasm_bindgen(start)]` entry that boots asynchronously, then runs
@@ -16,16 +19,19 @@
 //!
 //! Edits, renames, moves and deletes now land in the store and survive a
 //! reload. Between flushes OPFS lags the mirror: that window is the crash
-//! window, and slice 6c's recovery store is where it gets a safety net.
+//! window, and the state home's recovery copies are its safety net — they are
+//! drained by the same poll loop as the vault.
 //!
 //! Build the static folder with `scripts/web-build.sh muninn-web`.
 
 #![forbid(unsafe_code)]
 
 mod sample;
+mod state_home;
 mod store;
 
 pub use sample::{SAMPLE_ROOT, SAMPLE_SOURCES};
+pub use state_home::{OpfsStateHome, StateFlushPlan};
 pub use store::{FlushPlan, OpfsStore};
 
 #[cfg(target_arch = "wasm32")]
@@ -34,12 +40,19 @@ mod opfs;
 #[cfg(target_arch = "wasm32")]
 mod web {
     use std::cell::RefCell;
+    use std::path::PathBuf;
+    use std::sync::Arc;
 
-    use muninn_ui::{State, poll, view};
+    use muninn_ui::{Settings, State, config_home, poll, view};
     use rune::AppSpec;
     use rune_theme_opencode as theme;
 
     use crate::{SAMPLE_ROOT, SAMPLE_SOURCES};
+
+    /// The virtual XDG state root the browser's stores name: there is no
+    /// filesystem, so the path only labels recovery copies in diagnostics and
+    /// status copy. The durable bytes live in the state home's OPFS directory.
+    const WEB_STATE_HOME: &str = "/Muninn sample/.state";
 
     thread_local! {
         /// The state the async boot finished preparing. `init` takes it when
@@ -55,10 +68,8 @@ mod web {
     /// bar. In-memory settings (`State::with_state_home` persists nothing)
     /// keep the browser from touching a native config path.
     fn fallback_state() -> State {
-        let mut state = State::with_state_home(
-            std::path::PathBuf::from(SAMPLE_ROOT),
-            std::path::PathBuf::from("/Muninn sample/.state"),
-        );
+        let mut state =
+            State::with_state_home(PathBuf::from(SAMPLE_ROOT), PathBuf::from(WEB_STATE_HOME));
         state.install_sources(SAMPLE_SOURCES);
         state.apply_saved_language();
         state
@@ -89,9 +100,21 @@ mod web {
     pub fn start() {
         wasm_bindgen_futures::spawn_local(async {
             let opened = crate::opfs::open().await;
-            let mut state = State::with_state_home(
-                std::path::PathBuf::from(SAMPLE_ROOT),
-                std::path::PathBuf::from("/Muninn sample/.state"),
+            // Register the state home before the `State` is built: recovery,
+            // settings and the lock high-water record read it from their first
+            // call (the boot's own `Settings::load_from` included). This is the
+            // same order the vault store is installed in below.
+            if let Some(home) = &opened.home {
+                let home: Arc<dyn muninn_core::StateHome> = home.clone();
+                muninn_ui::state_home::install(home);
+            }
+            let config = config_home();
+            let settings = Settings::load_from(&config);
+            let mut state = State::with_settings(
+                PathBuf::from(SAMPLE_ROOT),
+                PathBuf::from(WEB_STATE_HOME),
+                config,
+                settings,
             );
             let mut installed = false;
             let mut install_error = None;

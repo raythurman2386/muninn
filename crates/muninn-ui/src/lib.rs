@@ -52,6 +52,8 @@ pub mod self_update;
 mod settings;
 mod sidebar_drag;
 mod state;
+#[cfg(not(feature = "native"))]
+pub mod state_home;
 #[cfg(feature = "native")]
 mod sync_ui;
 #[cfg(feature = "native")]

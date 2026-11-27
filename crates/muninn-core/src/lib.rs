@@ -21,6 +21,7 @@ mod note;
 mod note_lock;
 mod preview;
 mod search;
+mod state_home;
 mod store;
 mod tags;
 mod vault;
@@ -64,6 +65,7 @@ pub use note_lock::{
 #[cfg(feature = "fuzzing")]
 pub use note_lock::parse_for_fuzzing;
 pub use preview::Attachment;
+pub use state_home::{MemoryStateHome, StateHome};
 pub use store::{
     EntryKind, FsStore, MemoryStore, StoreEntry, StoreMeta, VaultStore, atomic_copy, atomic_write,
 };

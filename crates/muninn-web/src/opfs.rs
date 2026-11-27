@@ -7,12 +7,14 @@
 //!    (or seed the embedded sample on the first run and write it immediately);
 //! 2. take the single-writer Web Lock, or report the vault read-only;
 //! 3. request persistent storage before the first write;
-//! 4. drain the store's dirty set back to OPFS from the app's poll loop.
+//! 4. drain the store's and the state home's dirty sets back to OPFS from the
+//!    app's poll loop.
 //!
 //! There is no worker and no `SharedArrayBuffer`, so the page needs no
 //! COOP/CORP headers. The price is the flush window: OPFS lags the mirror
 //! between drains, and a crash in that window loses the edits since the last
-//! one. Slice 6c's recovery store is where that window gets closed.
+//! one. The state home's recovery copies (#240 slice 6d) are written into that
+//! same mirror, so they narrow the window rather than widen it.
 
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
@@ -29,6 +31,7 @@ use web_sys::{
     FileSystemWritableFileStream, StorageManager, WritableStream,
 };
 
+use crate::state_home::{OpfsStateHome, StateFlushPlan};
 use crate::store::OpfsStore;
 use crate::{SAMPLE_ROOT, SAMPLE_SOURCES};
 
@@ -43,6 +46,11 @@ pub const NO_LOCK_MESSAGE: &str =
 /// The directory inside OPFS. It is one vault: the demo has one root.
 const OPFS_VAULT_DIR: &str = "muninn-vault";
 
+/// The state home's directory beside the vault: recovery copies, settings and
+/// the lock high-water record (#240 slice 6d). Its keys spell the app's folder
+/// inside the XDG-style root (`muninn/settings.json`, ...).
+const OPFS_STATE_DIR: &str = "muninn-state";
+
 /// First-run marker. Written after the sample seed reaches OPFS so a vault the
 /// user has emptied is loaded empty instead of re-seeded. Hidden from the
 /// vault's own walk, which skips dot files.
@@ -56,7 +64,10 @@ const FLUSH_RETRY_MS: f64 = 5_000.0;
 
 struct Session {
     store: Arc<OpfsStore>,
+    home: Arc<OpfsStateHome>,
     root: FileSystemDirectoryHandle,
+    /// The state home's own OPFS directory, beside the vault's.
+    state_root: FileSystemDirectoryHandle,
 }
 
 thread_local! {
@@ -67,9 +78,12 @@ thread_local! {
 }
 
 /// What [`open`] found. `store` is `None` only when OPFS itself could not be
-/// mounted; the demo then falls back to the embedded sample in memory.
+/// mounted; the demo then falls back to the embedded sample in memory. `home`
+/// is `None` when the state home could not be mounted; the three stores then
+/// keep their honest refusal instead of pretending a copy is gone.
 pub struct Opened {
     pub store: Option<Arc<OpfsStore>>,
+    pub home: Option<Arc<OpfsStateHome>>,
     pub read_only: bool,
     pub notice: Option<String>,
     pub error: Option<String>,
@@ -83,6 +97,7 @@ pub async fn open() -> Opened {
         Ok(opened) => opened,
         Err(error) => Opened {
             store: None,
+            home: None,
             read_only: true,
             notice: None,
             error: Some(error),
@@ -97,17 +112,24 @@ pub fn deactivate() {
             // An in-flight flush holds its own clone; stop it from writing to a
             // vault this tab does not serve.
             session.store.set_writable(false);
+            session.home.set_writable(false);
         }
     });
+    // The state home is registered with the shared UI, not only parked here:
+    // drop it so a recovery or settings write fails honestly instead of
+    // filling a mirror nobody drains.
+    muninn_ui::state_home::clear();
 }
 
-/// Called once per poll frame by the app wrapper: start a flush when the
+/// Called once per poll frame by the app wrapper: start a flush when either
 /// journal is dirty and the last one is old enough.
 pub fn schedule_flush() {
-    let Some((store, root)) = session() else {
+    let Some((store, home, root, state_root)) = session() else {
         return;
     };
-    if !store.is_writable() || !store.has_dirty() || FLUSHING.with(Cell::get) {
+    let vault_dirty = store.is_writable() && store.has_dirty();
+    let state_dirty = home.is_writable() && home.has_dirty();
+    if (!vault_dirty && !state_dirty) || FLUSHING.with(Cell::get) {
         return;
     }
     let now = js_sys::Date::now();
@@ -116,16 +138,22 @@ pub fn schedule_flush() {
     }
     FLUSHING.with(|flag| flag.set(true));
     spawn_local(async move {
-        match flush_store(&store, &root).await {
-            Ok(()) => {
+        // Drain both journals independently: a failing vault write must not
+        // starve the recovery copies, which exist for exactly that window.
+        let mut failure = flush_store(&store, &root).await.err();
+        if let Err(error) = flush_home(&home, &state_root).await {
+            failure.get_or_insert(error);
+        }
+        match failure {
+            None => {
                 NEXT_FLUSH.with(|next| next.set(js_sys::Date::now() + FLUSH_INTERVAL_MS));
                 FLUSH_ERROR.with(|slot| *slot.borrow_mut() = None);
             }
-            Err(error) => {
-                // `flush_store` put the plan back; try again later and keep the
-                // message for the status bar.
+            Some(error) => {
+                // The failed half put its plan back; try again later and keep
+                // the message for the status bar.
                 NEXT_FLUSH.with(|next| next.set(js_sys::Date::now() + FLUSH_RETRY_MS));
-                web_sys::console::error_1(&format!("muninn: vault flush failed: {error}").into());
+                web_sys::console::error_1(&format!("muninn: flush failed: {error}").into());
                 FLUSH_ERROR.with(|slot| *slot.borrow_mut() = Some(error));
             }
         }
@@ -161,6 +189,22 @@ async fn open_inner() -> Result<Opened, String> {
     // that cannot write must not even create the folder.
     let lock = acquire_write_lock(&format!("muninn-vault-{SAMPLE_ROOT}")).await;
     let writable = lock.granted;
+
+    // The state home mounts beside the vault and follows the same lock: a
+    // read-only tab reads it, never creates or writes it. A state home that
+    // cannot mount leaves the three stores on their honest refusal; it does
+    // not stop the vault from opening.
+    let (home, state_root, home_error) = match open_state_home(&storage, writable).await {
+        Ok((home, root)) => (Some(Arc::new(home)), root, None),
+        Err(error) => {
+            web_sys::console::error_1(
+                &format!("muninn: the state home could not be opened: {error}").into(),
+            );
+            (None, None, Some(error))
+        }
+    };
+
+    let mut notice = None;
     let options = FileSystemGetDirectoryOptions::new();
     options.set_create(writable);
     let vault_dir = JsFuture::from(
@@ -182,18 +226,18 @@ async fn open_inner() -> Result<Opened, String> {
             }
             return Ok(Opened {
                 store: Some(store),
+                home,
                 read_only: true,
                 notice: Some(
                     "This read-only tab shows the embedded sample until the writing tab saves it."
                         .to_owned(),
                 ),
-                error: lock.error,
+                error: lock.error.or(home_error),
             });
         }
         Err(error) => return Err(js_message(error)),
     };
 
-    let mut notice = None;
     if writable {
         let persisted = request_persist(&storage).await;
         if !persisted {
@@ -257,27 +301,75 @@ async fn open_inner() -> Result<Opened, String> {
 
     if let Some(lost) = lock.lost {
         let store = Arc::clone(&store);
+        let home_lost = home.clone();
         spawn_local(async move {
             // The page gave the lock up (unload is the ordinary case). Stop
             // accepting and flushing writes; the tab is read-only from here.
             let _ = JsFuture::from(lost).await;
             store.set_writable(false);
+            if let Some(home) = home_lost {
+                home.set_writable(false);
+            }
         });
     }
 
-    SESSION.with(|slot| {
-        *slot.borrow_mut() = Some(Session {
-            store: Arc::clone(&store),
-            root,
+    // Park the session only when both halves are there. A state home that
+    // mounted alone writes nothing (the vault is the thing being served); the
+    // boot registers the home separately with the shared UI.
+    if let (Some(home), Some(state_root)) = (&home, state_root) {
+        SESSION.with(|slot| {
+            *slot.borrow_mut() = Some(Session {
+                store: Arc::clone(&store),
+                home: Arc::clone(home),
+                root,
+                state_root,
+            });
         });
-    });
+    }
 
     Ok(Opened {
         store: Some(store),
+        home,
         read_only: !writable,
         notice,
-        error: lock.error,
+        error: lock.error.or(home_error),
     })
+}
+
+/// Mount the state home's directory and walk it into its mirror. A read-only
+/// first run (no directory yet) is an empty home, not an error.
+async fn open_state_home(
+    storage: &StorageManager,
+    writable: bool,
+) -> Result<(OpfsStateHome, Option<FileSystemDirectoryHandle>), String> {
+    let options = FileSystemGetDirectoryOptions::new();
+    options.set_create(writable);
+    let state_dir = JsFuture::from(
+        storage_parent(storage)
+            .await?
+            .get_directory_handle_with_options(OPFS_STATE_DIR, &options),
+    )
+    .await;
+    let root: FileSystemDirectoryHandle = match state_dir {
+        Ok(directory) => directory
+            .dyn_into()
+            .map_err(|_| "OPFS did not return the state directory".to_owned())?,
+        // A read-only tab on a first run has no state to read yet.
+        Err(error) if !writable && error_name(&error).as_deref() == Some("NotFoundError") => {
+            return Ok((OpfsStateHome::new(false), None));
+        }
+        Err(error) => return Err(js_message(error)),
+    };
+    let home = OpfsStateHome::new(writable);
+    let mut entries = Vec::new();
+    let mut dirs = Vec::new();
+    walk(&root, "", &mut entries, &mut dirs)
+        .await
+        .map_err(js_message)?;
+    for entry in &entries {
+        home.load(&entry.rel, &entry.bytes);
+    }
+    Ok((home, Some(root)))
 }
 
 struct Lock {
@@ -454,6 +546,40 @@ async fn apply_plan(
     Ok(())
 }
 
+/// The state home's drain: the same shape as the vault's, over keys instead of
+/// vault-relative paths.
+async fn flush_home(home: &OpfsStateHome, root: &FileSystemDirectoryHandle) -> Result<(), String> {
+    if !home.is_writable() {
+        return Ok(());
+    }
+    let plan = home.take_flush_plan();
+    if plan.is_empty() {
+        return Ok(());
+    }
+    if let Err(error) = apply_home_plan(home, root, &plan).await {
+        home.requeue(&plan);
+        return Err(error);
+    }
+    Ok(())
+}
+
+async fn apply_home_plan(
+    home: &OpfsStateHome,
+    root: &FileSystemDirectoryHandle,
+    plan: &StateFlushPlan,
+) -> Result<(), String> {
+    for key in &plan.removals {
+        remove_entry(root, key).await.map_err(js_message)?;
+    }
+    for key in &plan.writes {
+        let bytes = home
+            .read_bytes(key)
+            .ok_or_else(|| format!("the state mirror lost {key} before the flush"))?;
+        write_file(root, key, &bytes).await.map_err(js_message)?;
+    }
+    Ok(())
+}
+
 async fn ensure_dir(
     root: &FileSystemDirectoryHandle,
     rel: &str,
@@ -523,11 +649,21 @@ async fn remove_entry(root: &FileSystemDirectoryHandle, rel: &str) -> Result<(),
     }
 }
 
-fn session() -> Option<(Arc<OpfsStore>, FileSystemDirectoryHandle)> {
+fn session() -> Option<(
+    Arc<OpfsStore>,
+    Arc<OpfsStateHome>,
+    FileSystemDirectoryHandle,
+    FileSystemDirectoryHandle,
+)> {
     SESSION.with(|slot| {
-        slot.borrow()
-            .as_ref()
-            .map(|session| (Arc::clone(&session.store), session.root.clone()))
+        slot.borrow().as_ref().map(|session| {
+            (
+                Arc::clone(&session.store),
+                Arc::clone(&session.home),
+                session.root.clone(),
+                session.state_root.clone(),
+            )
+        })
     })
 }
 
