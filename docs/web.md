@@ -74,6 +74,29 @@ What stays **native-only, permanently** (the boundary, mostly from #238):
 - On web these are replaced by new, web-only code (OPFS, Web Locks, GIS) —
   never by sharing the native implementation.
 
+## Target: feature parity (recorded 27 Nov 2026)
+
+The web build is a peer of the desktop app, not a viewer. By the end of the
+stage it carries the same note functionality — Write, Read, Graph, Board and
+Kanban over the same shared UI, a durable local vault, sync, attachments,
+encryption — nothing that touches notes is desktop-only. What stays
+desktop-only is OS integration that has no browser meaning (tray, autostart,
+the global shortcut, self-update); that is the "complements" in the target:
+the same vault, two doors.
+
+The parity bar reshapes the late slices:
+
+- Slice 6 owns **attachments and boards**, not just notes: the source seam
+  today reports `![[pic.png]]` broken and lists no boards (per the slice-2
+  handoff), so the OPFS source must expose non-note files and board files.
+- Slice 6 also owns the **web store** behind the honest refusals of 4b:
+  crash recovery, settings persistence, and the `LockRevs` high-water mark.
+- **Tailscale is the one open parity question.** The commit-store host it
+  needs is unreachable from a browser without a relay, so full parity needs
+  either a self-hosted relay (slice 10) or an explicit "Tailscale is a
+  desktop door" decision from Raymond. Slices 5-9 are required under any
+  answer and proceed first.
+
 ## Slices
 
 Slice 1 is merged (#237/#242: `xtask wasm-check`, the `wasm32 check (core,
@@ -140,14 +163,21 @@ stay shared.
   storage or sync work begins. **Go/no-go review here**: this is where the
   Option A/B decision is re-confirmed against measured numbers.
 
-### 6. OPFS vault
+### 6. OPFS vault — the parity slice
 
 - An OPFS-backed source/sink implementing the slice-2 seams;
   `navigator.storage.persist()` on first write; **Web Locks API** for the
   single-writer guarantee (the native fs lease does not exist in a browser);
   export/import (download a zip; File System Access where available).
+- **Attachments and boards** (parity bar): the source seam exposes non-note
+  files (embeds resolve, sizes read) and `.excalidraw` board files, so the
+  web vault renders boards and embeds exactly like the desktop one.
+- **The web store** (parity bar): crash recovery, settings persistence and
+  the `LockRevs` high-water mark move from the 4b honest refusals onto the
+  OPFS store.
 - Acceptance: create/rename/move/delete round-trip in OPFS survives reload;
-  two tabs cannot hold the write lock; export/import is lossless.
+  two tabs cannot hold the write lock; export/import is lossless; an
+  attachment embed and a board render identically to desktop.
 
 ### 7. Static serving image
 
@@ -163,7 +193,22 @@ stay shared.
   and PKCE — never `MUNINN_GOOGLE_CLIENT_SECRET`, never the Desktop client id
   (slice 9, after the #238 canary exists).
 
-### 10. Optional self-host / Tailscale — parked, separate decision.
+### 10. Tailscale parity — the open decision.
+
+The desktop's third sync provider hosts a commit store on a Muninn device
+reached over the tailnet; a browser cannot reach it directly. Full parity
+(recorded target above) needs one of:
+
+- a **self-hosted relay** (the parked server idea): a small Muninn-hosted
+  relay service that proxies the browser to a tailnet device's commit store —
+  a new hosted surface, so it needs Raymond's explicit OK and a security
+  review; or
+- an explicit **"Tailscale is a desktop door"** decision, recorded here the
+  way tray/autostart are: the web build ships GitHub and Google Drive sync,
+  and Tailscale sync stays a reason to also run the desktop app.
+
+Either way the decision lands before the first web release, so the release
+notes can say exactly what syncs where.
 
 ## Risks (revisited)
 
