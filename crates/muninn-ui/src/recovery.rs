@@ -45,10 +45,14 @@ use std::io;
 #[cfg(feature = "native")]
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
+#[cfg(not(feature = "native"))]
+use std::sync::Arc;
 #[cfg(feature = "native")]
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(feature = "native")]
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use muninn_core::StateHome;
 
 /// Distinguishes temp files written by the same process.
 #[cfg(feature = "native")]
@@ -81,11 +85,25 @@ pub struct RecoveryEntry {
 }
 
 /// The shared recovery directory, scoped to one vault by `vault`.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct RecoveryStore {
     dir: PathBuf,
     /// Stable id of the vault this store may list.
     vault: String,
+    /// The browser's durable store (#240 slice 6d). `None` when OPFS could not
+    /// be mounted, which keeps the honest refusal: an unavailable store is
+    /// never reported as "gone".
+    #[cfg(not(feature = "native"))]
+    home: Option<Arc<dyn StateHome>>,
+}
+
+impl std::fmt::Debug for RecoveryStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RecoveryStore")
+            .field("dir", &self.dir)
+            .field("vault", &self.vault)
+            .finish_non_exhaustive()
+    }
 }
 
 impl RecoveryStore {
@@ -95,6 +113,8 @@ impl RecoveryStore {
         let store = Self {
             dir: state_home.join("muninn").join("recovery"),
             vault: vault_id(vault_root),
+            #[cfg(not(feature = "native"))]
+            home: crate::state_home::registered(),
         };
         #[cfg(feature = "native")]
         store.adopt_legacy();
@@ -167,13 +187,8 @@ impl RecoveryStore {
     }
 
     fn key_for(&self, rel: &str, slot: RecoverySlot, extension: &str) -> PathBuf {
-        let stem = match slot {
-            // The editor name is the original one, so copies written before
-            // the kanban slot existed still load.
-            RecoverySlot::Editor => format!("{}~{}", self.vault, sanitize(rel)),
-            RecoverySlot::Kanban => format!("{}~{}~kanban", self.vault, sanitize(rel)),
-        };
-        self.dir.join(format!("{stem}.{extension}"))
+        self.dir
+            .join(format!("{}.{extension}", key_name(&self.vault, rel, slot)))
     }
 
     /// Persist the editor's dirty buffer. Only called for text that differs
@@ -193,23 +208,17 @@ impl RecoveryStore {
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        let slot_field = match slot {
-            RecoverySlot::Editor => String::new(),
-            RecoverySlot::Kanban => ",\"slot\":\"kanban\"".to_owned(),
-        };
-        let meta = format!(
-            "{{\"rel\":\"{}\",\"vault\":\"{}\"{slot_field},\"ts\":{ts}}}\n",
-            escape(rel),
-            self.vault
-        );
+        let meta = meta_json(&self.vault, rel, slot, ts);
         atomic_write(&self.meta_for(rel, slot), meta.as_bytes())
     }
 
-    /// The browser has no recovery store until slice 6 gives it one; refusing
-    /// here keeps a quit from claiming unsaved edits are recoverable.
+    /// The browser has no filesystem, so the copy goes into the registered
+    /// state home under the same layout the native directory uses (#240 slice
+    /// 6d). An unavailable state home refuses — `Unsupported` keeps a quit from
+    /// claiming unsaved edits are recoverable.
     #[cfg(not(feature = "native"))]
-    pub(crate) fn save_slot(&self, _rel: &str, _slot: RecoverySlot, _text: &str) -> io::Result<()> {
-        Err(unavailable())
+    pub(crate) fn save_slot(&self, rel: &str, slot: RecoverySlot, text: &str) -> io::Result<()> {
+        web_save_slot(self.home.as_deref(), &self.vault, rel, slot, text)
     }
 
     /// Forget the editor's recovery copy. Missing files are not an error.
@@ -225,7 +234,7 @@ impl RecoveryStore {
             let _ = fs::remove_file(self.meta_for(rel, slot));
         }
         #[cfg(not(feature = "native"))]
-        let _ = (rel, slot);
+        web_clear_slot(self.home.as_deref(), &self.vault, rel, slot);
     }
 
     /// Read the editor's persisted buffer back.
@@ -240,8 +249,8 @@ impl RecoveryStore {
     }
 
     #[cfg(not(feature = "native"))]
-    pub(crate) fn load_slot(&self, _rel: &str, _slot: RecoverySlot) -> io::Result<String> {
-        Err(unavailable())
+    pub(crate) fn load_slot(&self, rel: &str, slot: RecoverySlot) -> io::Result<String> {
+        web_load_slot(self.home.as_deref(), &self.vault, rel, slot)
     }
 
     /// List the recoverable buffers, newest last. Orphaned `.txt` files (no
@@ -275,7 +284,10 @@ impl RecoveryStore {
             let (Some(rel), Some(ts)) = (parse_rel(&meta), parse_ts(&meta)) else {
                 continue;
             };
-            let slot = slot_of(&path, &meta);
+            let slot = slot_of(
+                path.file_name().and_then(|n| n.to_str()).unwrap_or(""),
+                &meta,
+            );
             let text = self.path_for_slot(&rel, slot);
             if !text.is_file() {
                 continue;
@@ -291,21 +303,146 @@ impl RecoveryStore {
         found
     }
 
-    /// The browser has no recovery store yet: nothing to list.
+    /// The browser lists the registered state home's recovery keys for this
+    /// vault (#240 slice 6d). Without a store there is nothing to list.
     #[cfg(not(feature = "native"))]
     pub(crate) fn scan(&self) -> Vec<RecoveryEntry> {
-        Vec::new()
+        web_scan(self.home.as_deref(), &self.vault)
     }
+}
+
+/// The shared part of a recovery key: the vault id, `~`, the sanitized
+/// relative path, and `~kanban` for the card slot. The file extension is the
+/// caller's.
+fn key_name(vault: &str, rel: &str, slot: RecoverySlot) -> String {
+    match slot {
+        // The editor name is the original one, so copies written before the
+        // kanban slot existed still load.
+        RecoverySlot::Editor => format!("{vault}~{}", sanitize(rel)),
+        RecoverySlot::Kanban => format!("{vault}~{}~kanban", sanitize(rel)),
+    }
+}
+
+/// The state-home key below the virtual XDG root. Native joins the same name
+/// onto `<state home>/muninn/recovery`.
+fn key_rel(vault: &str, rel: &str, slot: RecoverySlot, extension: &str) -> String {
+    format!("muninn/recovery/{}.{extension}", key_name(vault, rel, slot))
 }
 
 /// The browser build's store refusal. `Unsupported` is not a clock or path
 /// failure, so callers report it as an unavailable sidecar, never as "gone".
-#[cfg(not(feature = "native"))]
 fn unavailable() -> io::Error {
     io::Error::new(
         io::ErrorKind::Unsupported,
-        "crash recovery needs a web store (slice 6)",
+        "crash recovery needs the browser's state home",
     )
+}
+
+/// Persist one slot into the registered browser state home (#240 slice 6d).
+///
+/// The order is the native one: the buffer first, then the sidecar that
+/// advertises it, so a crash between the two can never list a copy with no
+/// text. `None` is an unavailable store and refuses; a copy that is genuinely
+/// missing is [`io::ErrorKind::NotFound`] from the read side.
+#[cfg_attr(feature = "native", allow(dead_code))]
+fn web_save_slot(
+    home: Option<&dyn StateHome>,
+    vault: &str,
+    rel: &str,
+    slot: RecoverySlot,
+    text: &str,
+) -> io::Result<()> {
+    let Some(home) = home else {
+        return Err(unavailable());
+    };
+    home.put(&key_rel(vault, rel, slot, "txt"), text.as_bytes())?;
+    let meta = meta_json(vault, rel, slot, home.now_secs());
+    home.put(&key_rel(vault, rel, slot, "json"), meta.as_bytes())
+}
+
+/// Read one slot back from the registered browser state home. A key the store
+/// does not hold is `NotFound`; an unavailable store is `Unsupported`.
+#[cfg_attr(feature = "native", allow(dead_code))]
+fn web_load_slot(
+    home: Option<&dyn StateHome>,
+    vault: &str,
+    rel: &str,
+    slot: RecoverySlot,
+) -> io::Result<String> {
+    let Some(home) = home else {
+        return Err(unavailable());
+    };
+    let bytes = home.get(&key_rel(vault, rel, slot, "txt")).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "the browser state home has no recovery copy for this note",
+        )
+    })?;
+    String::from_utf8(bytes).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the recovery copy is not valid UTF-8",
+        )
+    })
+}
+
+/// Forget one slot in the browser state home. An unavailable store and a
+/// missing key are both no-ops, like the native `remove_file` ignores.
+#[cfg_attr(feature = "native", allow(dead_code))]
+fn web_clear_slot(home: Option<&dyn StateHome>, vault: &str, rel: &str, slot: RecoverySlot) {
+    let Some(home) = home else {
+        return;
+    };
+    let _ = home.remove(&key_rel(vault, rel, slot, "txt"));
+    let _ = home.remove(&key_rel(vault, rel, slot, "json"));
+}
+
+/// List the browser state home's recovery keys for one vault, newest last.
+///
+/// The checks are the native `scan`'s: only this vault's names, a sidecar that
+/// parses and names the same vault, and a text key that exists. Orphaned text
+/// (no sidecar) and shadowed sidecars (no text) are not offered.
+#[cfg_attr(feature = "native", allow(dead_code))]
+fn web_scan(home: Option<&dyn StateHome>, vault: &str) -> Vec<RecoveryEntry> {
+    let Some(home) = home else {
+        return Vec::new();
+    };
+    let prefix = "muninn/recovery/";
+    let keys = home.list(prefix);
+    let own = format!("{vault}~");
+    let mut found = Vec::new();
+    for key in &keys {
+        let Some(name) = key.strip_prefix(prefix) else {
+            continue;
+        };
+        if !name.ends_with(".json") || !name.starts_with(&own) {
+            continue;
+        }
+        let Some(bytes) = home.get(key) else {
+            continue;
+        };
+        let Ok(meta) = String::from_utf8(bytes) else {
+            continue;
+        };
+        if parse_string(&meta, "vault").as_deref() != Some(vault) {
+            continue;
+        }
+        let (Some(rel), Some(ts)) = (parse_rel(&meta), parse_ts(&meta)) else {
+            continue;
+        };
+        let slot = slot_of(name, &meta);
+        if home.get(&key_rel(vault, &rel, slot, "txt")).is_none() {
+            continue;
+        }
+        found.push(RecoveryEntry { rel, ts, slot });
+    }
+    found.sort_by(|a, b| {
+        a.ts.cmp(&b.ts)
+            .then_with(|| a.rel.cmp(&b.rel))
+            .then_with(|| a.slot.cmp(&b.slot))
+    });
+    found.dedup_by(|a, b| a.rel == b.rel && a.slot == b.slot);
+    found
 }
 
 /// The XDG state root: `$XDG_STATE_HOME`, else `$HOME/.local/state`, else a
@@ -319,7 +456,10 @@ pub(crate) fn state_home() -> PathBuf {
 
 #[cfg(not(feature = "native"))]
 pub(crate) fn state_home() -> PathBuf {
-    PathBuf::new()
+    // A virtual root: the browser has no filesystem, and the registered state
+    // home's keys (`muninn/...`) are the durable spelling. The path only labels
+    // the store in diagnostics and the recovery-path accessors.
+    PathBuf::from("/Muninn state")
 }
 
 /// Delete every recovery copy that belongs to a locked note and drop its banner
@@ -359,7 +499,11 @@ pub(crate) fn clear_locked(
             }
         }
         #[cfg(not(feature = "native"))]
-        let _ = (rel, store);
+        for slot in [RecoverySlot::Editor, RecoverySlot::Kanban] {
+            // The state home's remove is idempotent; a locked note must not
+            // keep a plaintext copy in either slot (#240 slice 6d).
+            store.clear_slot(rel, slot);
+        }
     }
     recovered.retain(|entry| !locked.contains(&entry.rel.as_str()));
 }
@@ -403,7 +547,6 @@ fn sanitize(rel: &str) -> String {
     out
 }
 
-#[cfg(feature = "native")]
 fn escape(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for c in value.chars() {
@@ -420,14 +563,28 @@ fn escape(value: &str) -> String {
     out
 }
 
+/// The sidecar that advertises one recovery copy: the exact vault-relative
+/// path, the vault id, the slot when it is the kanban page's, and Unix
+/// seconds. Native writes it beside the `.txt`; the browser writes the same
+/// bytes to the state home, so a record can move between the two hosts.
+fn meta_json(vault: &str, rel: &str, slot: RecoverySlot, ts: u64) -> String {
+    let slot_field = match slot {
+        RecoverySlot::Editor => String::new(),
+        RecoverySlot::Kanban => ",\"slot\":\"kanban\"".to_owned(),
+    };
+    format!(
+        "{{\"rel\":\"{}\",\"vault\":\"{}\"{slot_field},\"ts\":{ts}}}\n",
+        escape(rel),
+        vault
+    )
+}
+
 /// Extract `rel` from the sidecar the writer above produced. Kept deliberately
 /// small: this is not a general JSON parser, only the one-object format here.
-#[cfg(feature = "native")]
 fn parse_rel(meta: &str) -> Option<String> {
     parse_string(meta, "rel")
 }
 
-#[cfg(feature = "native")]
 fn parse_string(meta: &str, key: &str) -> Option<String> {
     let needle = format!("\"{key}\":\"");
     let start = meta.find(&needle)? + needle.len();
@@ -457,20 +614,15 @@ fn parse_string(meta: &str, key: &str) -> Option<String> {
 
 /// The kanban slot is named `~kanban` before the extension. A sidecar
 /// `"slot":"kanban"` says the same thing when the name was kept.
-#[cfg(feature = "native")]
-fn slot_of(path: &Path, meta: &str) -> RecoverySlot {
-    let named = path
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .is_some_and(|stem| stem.ends_with("~kanban"));
-    if named || parse_string(meta, "slot").as_deref() == Some("kanban") {
+fn slot_of(name: &str, meta: &str) -> RecoverySlot {
+    let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+    if stem.ends_with("~kanban") || parse_string(meta, "slot").as_deref() == Some("kanban") {
         RecoverySlot::Kanban
     } else {
         RecoverySlot::Editor
     }
 }
 
-#[cfg(feature = "native")]
 fn parse_ts(meta: &str) -> Option<u64> {
     let start = meta.find("\"ts\":")? + "\"ts\":".len();
     let digits: String = meta[start..]
@@ -507,6 +659,8 @@ fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use muninn_core::MemoryStateHome;
+
     use super::*;
 
     #[test]
@@ -665,6 +819,187 @@ mod tests {
             fs::read_dir(&dir).unwrap().count(),
             0,
             "the shadowed old record is gone"
+        );
+    }
+
+    // ---- #240 slice 6d: the browser twin over the state-home seam -----------
+
+    #[test]
+    fn the_browser_twin_saves_lists_loads_and_clears_a_copy() {
+        let home = MemoryStateHome::new();
+        let vault = "a1b2c3";
+        web_save_slot(
+            Some(&home),
+            vault,
+            "Notes/One.md",
+            RecoverySlot::Editor,
+            "typed once",
+        )
+        .unwrap();
+        web_save_slot(
+            Some(&home),
+            vault,
+            "Board.md",
+            RecoverySlot::Kanban,
+            "card edit",
+        )
+        .unwrap();
+
+        assert_eq!(
+            web_load_slot(Some(&home), vault, "Notes/One.md", RecoverySlot::Editor).unwrap(),
+            "typed once"
+        );
+        assert_eq!(
+            web_load_slot(Some(&home), vault, "Board.md", RecoverySlot::Kanban).unwrap(),
+            "card edit"
+        );
+        // A newer copy replaces the old one; the other slot keeps its text.
+        web_save_slot(
+            Some(&home),
+            vault,
+            "Notes/One.md",
+            RecoverySlot::Editor,
+            "typed twice",
+        )
+        .unwrap();
+        assert_eq!(
+            web_load_slot(Some(&home), vault, "Notes/One.md", RecoverySlot::Editor).unwrap(),
+            "typed twice"
+        );
+        assert_eq!(
+            web_load_slot(Some(&home), vault, "Board.md", RecoverySlot::Kanban).unwrap(),
+            "card edit"
+        );
+
+        let listed = web_scan(Some(&home), vault);
+        assert_eq!(listed.len(), 2, "{listed:?}");
+        assert!(listed.iter().any(|entry| {
+            entry.rel == "Notes/One.md" && entry.slot == RecoverySlot::Editor && entry.ts > 0
+        }));
+        assert!(
+            listed
+                .iter()
+                .any(|entry| entry.rel == "Board.md" && entry.slot == RecoverySlot::Kanban)
+        );
+        // The sidecar carries the kanban slot the way the native one does.
+        let meta = home
+            .get(&key_rel(vault, "Board.md", RecoverySlot::Kanban, "json"))
+            .expect("the sidecar");
+        assert!(
+            String::from_utf8(meta)
+                .unwrap()
+                .contains("\"slot\":\"kanban\"")
+        );
+
+        web_clear_slot(Some(&home), vault, "Notes/One.md", RecoverySlot::Editor);
+        assert_eq!(
+            web_load_slot(Some(&home), vault, "Notes/One.md", RecoverySlot::Editor)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::NotFound,
+            "a cleared copy is genuinely gone"
+        );
+        assert_eq!(
+            web_load_slot(Some(&home), vault, "Board.md", RecoverySlot::Kanban).unwrap(),
+            "card edit",
+            "clearing Write's copy leaves the kanban copy"
+        );
+        assert_eq!(web_scan(Some(&home), vault).len(), 1);
+        web_clear_slot(Some(&home), vault, "Board.md", RecoverySlot::Kanban);
+        assert!(web_scan(Some(&home), vault).is_empty());
+    }
+
+    #[test]
+    fn a_browser_copy_belongs_to_its_own_vault() {
+        let home = MemoryStateHome::new();
+        web_save_slot(
+            Some(&home),
+            "vault-a",
+            "Alpha.md",
+            RecoverySlot::Editor,
+            "A",
+        )
+        .unwrap();
+        web_save_slot(
+            Some(&home),
+            "vault-b",
+            "Alpha.md",
+            RecoverySlot::Editor,
+            "B",
+        )
+        .unwrap();
+        assert_eq!(
+            web_load_slot(Some(&home), "vault-a", "Alpha.md", RecoverySlot::Editor).unwrap(),
+            "A"
+        );
+        let listed: Vec<String> = web_scan(Some(&home), "vault-b")
+            .into_iter()
+            .map(|entry| entry.rel)
+            .collect();
+        assert_eq!(listed, ["Alpha.md"]);
+        web_clear_slot(Some(&home), "vault-a", "Alpha.md", RecoverySlot::Editor);
+        assert_eq!(
+            web_load_slot(Some(&home), "vault-b", "Alpha.md", RecoverySlot::Editor).unwrap(),
+            "B",
+            "clearing one vault's copy leaves the other's"
+        );
+    }
+
+    #[test]
+    fn a_browser_orphan_text_or_sidecar_is_not_offered() {
+        let home = MemoryStateHome::new();
+        let vault = "vault-a";
+        web_save_slot(Some(&home), vault, "One.md", RecoverySlot::Editor, "text").unwrap();
+        // A sidecar with no text (an interrupted first write) is not listed.
+        home.remove(&key_rel(vault, "One.md", RecoverySlot::Editor, "txt"))
+            .unwrap();
+        assert!(web_scan(Some(&home), vault).is_empty());
+        assert_eq!(
+            web_load_slot(Some(&home), vault, "One.md", RecoverySlot::Editor)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::NotFound
+        );
+        // Text with no sidecar (a crash between the two writes) is not listed.
+        home.put(
+            &key_rel(vault, "Two.md", RecoverySlot::Editor, "txt"),
+            b"orphan",
+        )
+        .unwrap();
+        assert!(web_scan(Some(&home), vault).is_empty());
+    }
+
+    #[test]
+    fn a_missing_state_home_is_unavailable_not_empty() {
+        let home = MemoryStateHome::new();
+        // A store that is there but has no copy: genuinely gone.
+        assert_eq!(
+            web_load_slot(Some(&home), "vault-a", "Missing.md", RecoverySlot::Editor)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::NotFound
+        );
+        assert!(web_scan(Some(&home), "vault-a").is_empty());
+        // No store at all: unavailable, so a quit never claims the text is lost.
+        assert_eq!(
+            web_save_slot(None, "vault-a", "Missing.md", RecoverySlot::Editor, "x")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert_eq!(
+            web_load_slot(None, "vault-a", "Missing.md", RecoverySlot::Editor)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert!(web_scan(None, "vault-a").is_empty());
+        web_clear_slot(None, "vault-a", "Missing.md", RecoverySlot::Editor);
+        assert_eq!(
+            web_load_slot(Some(&home), "vault-a", "Missing.md", RecoverySlot::Editor)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::NotFound
         );
     }
 }

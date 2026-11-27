@@ -26,7 +26,6 @@ impl Mode {
     /// Stable settings-file spelling. Array-indexed so serialising the
     /// variants does not repeat the same match shape used elsewhere. Older
     /// settings files only ever contain the first three keys.
-    #[cfg(feature = "native")]
     pub(crate) fn as_key(self) -> &'static str {
         const KEYS: [&str; 5] = ["editor", "preview", "graph", "board", "kanban"];
         KEYS[self as usize]
@@ -46,7 +45,6 @@ pub enum Scope {
 }
 
 impl Scope {
-    #[cfg(feature = "native")]
     pub(crate) fn as_key(self) -> &'static str {
         const KEYS: [&str; 2] = ["global", "local"];
         KEYS[self as usize]

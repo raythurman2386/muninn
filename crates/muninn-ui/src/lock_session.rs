@@ -26,8 +26,10 @@ use std::io;
 use std::path::Path;
 #[cfg(feature = "native")]
 use std::path::PathBuf;
+#[cfg(not(feature = "native"))]
+use std::sync::Arc;
 
-use muninn_core::{LockError, SessionKey};
+use muninn_core::{LockError, SessionKey, StateHome};
 
 /// Idle seconds after which an unlocked note is locked again.
 ///
@@ -172,47 +174,64 @@ pub(crate) enum RevStatus {
 /// order their snapshots by revision, so there is nothing remote to trust.
 /// The record only ever raises, and a lower `rev` than the record fails closed
 /// (the caller keeps the note locked and reports [`UnlockError::Rollback`]).
-#[derive(Debug)]
 pub(crate) struct LockRevs {
     #[cfg(feature = "native")]
     path: PathBuf,
+    /// The browser's durable store (#240 slice 6d); `None` keeps the record in
+    /// memory for the session.
+    #[cfg(not(feature = "native"))]
+    home: Option<Arc<dyn StateHome>>,
+    /// The vault this record belongs to, for the browser key.
+    #[cfg(not(feature = "native"))]
+    vault: String,
     revs: BTreeMap<String, u64>,
+}
+
+/// The store handle is not `Debug`, so print the record itself. A revision map
+/// is safe to show: it holds note paths and revision numbers, never a key,
+/// password or body.
+impl std::fmt::Debug for LockRevs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LockRevs")
+            .field("revs", &self.revs)
+            .finish_non_exhaustive()
+    }
 }
 
 impl LockRevs {
     /// Load the record for `vault_root` below `state_home`. A missing or
     /// corrupt file starts empty: the record is a safety net, and refusing to
     /// open the vault over it would be worse than losing it.
+    ///
+    /// native: `$XDG_STATE_HOME/muninn/lock-revs/<vault-id>.json`. The browser
+    /// twin reads the same JSON from the registered state home (#240 slice 6d),
+    /// so a reload keeps the high-water mark.
     pub(crate) fn at(state_home: &Path, vault_root: &Path) -> Self {
-        let path = state_home
-            .join("muninn")
-            .join("lock-revs")
-            .join(format!("{}.json", crate::recovery::vault_id(vault_root)));
-        // native: the browser keeps the high-water mark in memory only until a
-        // web store exists (slice 6), so a reload starts from zero.
+        let vault = crate::recovery::vault_id(vault_root);
         #[cfg(feature = "native")]
-        let revs = fs::read_to_string(&path)
-            .ok()
-            .and_then(|text| serde_json::from_str::<BTreeMap<String, u64>>(&text).ok())
-            .unwrap_or_default();
+        {
+            let path = state_home
+                .join("muninn")
+                .join("lock-revs")
+                .join(format!("{vault}.json"));
+            let revs = fs::read_to_string(&path)
+                .ok()
+                .and_then(|text| serde_json::from_str::<BTreeMap<String, u64>>(&text).ok())
+                .unwrap_or_default();
+            Self { path, revs }
+        }
         #[cfg(not(feature = "native"))]
-        let revs = BTreeMap::new();
-        #[cfg(not(feature = "native"))]
-        let _ = path;
-        Self {
-            #[cfg(feature = "native")]
-            path,
-            revs,
+        {
+            let _ = state_home;
+            let home = crate::state_home::registered();
+            let revs = web_load(home.as_deref(), &vault);
+            Self { home, vault, revs }
         }
     }
 
     /// Compare `rev` with the recorded revision for `rel`.
     pub(crate) fn check(&self, rel: &str, rev: u64) -> RevStatus {
-        match self.revs.get(rel) {
-            Some(&recorded) if rev < recorded => RevStatus::Older,
-            Some(&recorded) if rev == recorded => RevStatus::Same,
-            _ => RevStatus::Newer,
-        }
+        compare(&self.revs, rel, rev)
     }
 
     /// The newest revision recorded for `rel` (0 when none).
@@ -260,13 +279,58 @@ impl LockRevs {
         muninn_core::atomic_write(&self.path, json.as_bytes())
     }
 
-    /// The in-memory record is the whole record in a browser build: the
-    /// envelope revision still rises within the session, and a reload starts
-    /// the high-water mark over until slice 6 gives it a durable store.
+    /// The browser writes the whole record into the registered state home
+    /// (#240 slice 6d), so the high-water mark survives a reload. Without a
+    /// store the in-memory record is still whole for the session: the mark
+    /// only ever rises within it, and a reload starts over, exactly the
+    /// posture of a corrupt native file.
     #[cfg(not(feature = "native"))]
     fn save(&self) -> io::Result<()> {
-        Ok(())
+        web_save(self.home.as_deref(), &self.vault, &self.revs)
     }
+}
+
+/// How `rev` compares with `revs[rel]`: the one rule [`LockRevs::check`] and
+/// its browser twin share.
+fn compare(revs: &BTreeMap<String, u64>, rel: &str, rev: u64) -> RevStatus {
+    match revs.get(rel) {
+        Some(&recorded) if rev < recorded => RevStatus::Older,
+        Some(&recorded) if rev == recorded => RevStatus::Same,
+        _ => RevStatus::Newer,
+    }
+}
+
+/// The state-home key below the virtual XDG root: the same
+/// `muninn/lock-revs/<vault-id>.json` native joins onto its state home.
+fn key_rel(vault: &str) -> String {
+    format!("muninn/lock-revs/{vault}.json")
+}
+
+/// Read one vault's high-water record from the browser state home. No store,
+/// no key or corrupt bytes all start empty.
+#[cfg_attr(feature = "native", allow(dead_code))]
+fn web_load(home: Option<&dyn StateHome>, vault: &str) -> BTreeMap<String, u64> {
+    let Some(home) = home else {
+        return BTreeMap::new();
+    };
+    home.get(&key_rel(vault))
+        .and_then(|bytes| serde_json::from_slice::<BTreeMap<String, u64>>(&bytes).ok())
+        .unwrap_or_default()
+}
+
+/// Write one vault's high-water record into the browser state home. Without a
+/// store the record stays in memory and the call succeeds.
+#[cfg_attr(feature = "native", allow(dead_code))]
+fn web_save(
+    home: Option<&dyn StateHome>,
+    vault: &str,
+    revs: &BTreeMap<String, u64>,
+) -> io::Result<()> {
+    let Some(home) = home else {
+        return Ok(());
+    };
+    let json = serde_json::to_string(revs).map_err(io::Error::other)?;
+    home.put(&key_rel(vault), json.as_bytes())
 }
 
 #[cfg(test)]
@@ -463,5 +527,55 @@ mod tests {
         revs.record("A.md", 2).expect("a corrupt file is replaced");
         let revs = LockRevs::at(&state, &vault);
         assert_eq!(revs.recorded("A.md"), 2);
+    }
+
+    // ---- #240 slice 6d: the browser twin over the state-home seam -----------
+
+    #[test]
+    fn the_browser_twin_persists_the_high_water_mark_across_a_reload() {
+        use muninn_core::MemoryStateHome;
+
+        let home = MemoryStateHome::new();
+        let vault = "a1b2c3d4";
+        // `record` inserts and calls `save`, which is `web_save`.
+        let mut revs = BTreeMap::new();
+        revs.insert("Secret.md".to_owned(), 4);
+        web_save(Some(&home), vault, &revs).expect("save");
+
+        // A reload is a fresh `at`: `web_load` over the same store.
+        let reloaded = web_load(Some(&home), vault);
+        assert_eq!(reloaded.get("Secret.md"), Some(&4));
+        // `check` is `compare`: a rollback still fails closed after the reload.
+        assert_eq!(compare(&reloaded, "Secret.md", 3), RevStatus::Older);
+        assert_eq!(compare(&reloaded, "Secret.md", 4), RevStatus::Same);
+        assert_eq!(compare(&reloaded, "Secret.md", 5), RevStatus::Newer);
+        assert_eq!(compare(&reloaded, "Other.md", 1), RevStatus::Newer);
+    }
+
+    #[test]
+    fn a_missing_or_corrupt_browser_record_starts_empty_and_keeps_working() {
+        use muninn_core::MemoryStateHome;
+
+        let home = MemoryStateHome::new();
+        let vault = "a1b2c3d4";
+        assert!(web_load(Some(&home), vault).is_empty(), "first run");
+        // Without a store the record is memory-only: save succeeds, nothing
+        // persists, and the next session starts over.
+        assert!(web_save(None, vault, &BTreeMap::new()).is_ok());
+        assert!(web_load(None, vault).is_empty());
+
+        home.put(&key_rel(vault), b"{ not json").unwrap();
+        assert!(
+            web_load(Some(&home), vault).is_empty(),
+            "a corrupt record is the safe empty one"
+        );
+        let mut revs = BTreeMap::new();
+        revs.insert("A.md".to_owned(), 2);
+        web_save(Some(&home), vault, &revs).unwrap();
+        assert_eq!(
+            compare(&web_load(Some(&home), vault), "A.md", 1),
+            RevStatus::Older,
+            "the corrupt record was replaced"
+        );
     }
 }

@@ -20,7 +20,7 @@ All notable changes to Muninn are documented here. The format is based on
   vault's store, so boards, kanban reloads and attachment text read on web
   (native still resolves to the same `fs::read_to_string`). Between flushes
   OPFS lags the mirror; crash recovery, settings persistence and `LockRevs`
-  stay slice 6c's work.
+  land in slice 6d, below.
 - **Muninn runs in the browser: a read-only sample-vault demo (#240 slice 5).**
   `muninn-web` is a thin wasm entry over the shared `muninn-ui` built with
   `default-features = false`: it embeds the committed `vault/` sample with
@@ -36,6 +36,16 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Fixed
 
+- **Crash recovery, settings and the lock high-water mark persist in the
+  browser (#240 slice 6d).** A new OPFS-backed state home (`muninn-state/`,
+  beside the vault) loads at boot through the same mirror-and-dirty-journal
+  pattern as the vault, and the poll loop drains it. A recovery copy saved in a
+  tab is offered again after a reload, settings — theme, language, autosave
+  delay — are read back before the first frame, and `LockRevs`
+  keeps its recorded envelope revisions, so a rolled-back note still refuses to
+  unlock. A browser where OPFS cannot be mounted keeps the honest refusals:
+  recovery reports the store as unavailable instead of claiming the copy is
+  gone. Native keeps its XDG paths byte for byte.
 - **Board edits now persist in the browser (#240 slice 6c).** Saving a board
   writes through the vault's store instead of the native filesystem, so the
   drawing on the seeded `Muninn board.excalidraw` — and on every other board —
