@@ -190,6 +190,10 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
             "muninn-i18n",
         ]),
     );
+    // The browser demo: the shared UI (no native features) over the sample
+    // vault's bytes. Like the app it sits at the top; it adds no edge any
+    // other front end could not have.
+    allowed.insert("muninn-web", BTreeSet::from(["muninn-core", "muninn-ui"]));
     allowed.insert("xtask", BTreeSet::new());
     allowed
 }
@@ -197,16 +201,17 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
 /// The one target the portable crates are held to.
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
-/// `xtask wasm-check`: keep the portable crates and the gated UI building for
-/// the browser.
+/// `xtask wasm-check`: keep the portable crates, the gated UI and the web
+/// crate building for the browser.
 ///
 /// `muninn-core`, `muninn-graph`, `muninn-i18n` and a no-native `muninn-ui`
 /// all compile for `wasm32-unknown-unknown`; `muninn-sync` is checked with its
 /// `native` feature off, the configuration a web build uses. The UI's
 /// `native` feature is the desktop-only boundary (filesystem, clock, threads,
 /// tray, sync transports), so `--no-default-features` is the browser crate.
-/// This is a compile-only guard (`check` plus `clippy`); it builds no bundle
-/// and runs nothing in a browser.
+/// `muninn-web` is the demo entry point: all of it is wasm-only, so its
+/// `check`/`clippy` need no feature juggling. This is a compile-only guard;
+/// it builds no bundle and runs nothing in a browser.
 fn wasm_check() -> Result<()> {
     check_wasm_target()?;
     run_cargo(&[
@@ -272,6 +277,27 @@ fn wasm_check() -> Result<()> {
         "-p",
         "muninn-ui",
         "--no-default-features",
+        "--target",
+        WASM_TARGET,
+        "--",
+        "-D",
+        "warnings",
+    ])?;
+    // The demo crate is the browser binary: muninn-ui with no native features,
+    // the sample vault and the wasm entry. Nothing in it is native-only.
+    run_cargo(&[
+        "check",
+        "--locked",
+        "-p",
+        "muninn-web",
+        "--target",
+        WASM_TARGET,
+    ])?;
+    run_cargo(&[
+        "clippy",
+        "--locked",
+        "-p",
+        "muninn-web",
         "--target",
         WASM_TARGET,
         "--",

@@ -6,6 +6,21 @@ All notable changes to Muninn are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Muninn runs in the browser: a read-only sample-vault demo (#240 slice 5).**
+  `muninn-web` is a thin wasm entry over the shared `muninn-ui` built with
+  `default-features = false`: it embeds the committed `vault/` sample with
+  `include_bytes!`, indexes it through `Vault::from_sources` under a virtual
+  root, and boots the same `AppSpec` + `rune::run` shape as the desktop binary
+  onto a full-viewport canvas. WebGPU is used where available and WebGL2 where
+  not. There is no storage yet, so edits stay in the tab and every save fails
+  through the existing honest error paths. `scripts/web-build.sh` (adapted
+  from Rune's own) packages the crate into a static folder with
+  `wasm-bindgen`, copies the full Inter faces, and reports the bundle size
+  (15.1 MB raw, 5.6 MB gzip at slice 5). `xtask wasm-check` now also
+  `check`/`clippy`-checks `muninn-web` for `wasm32-unknown-unknown`.
+
 ## [0.11.5] - 2026-11-25
 
 ### Changed
