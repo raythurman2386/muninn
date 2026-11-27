@@ -9,21 +9,48 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-flate2 = "1"
-hex = "0.4"
 muninn-core.workspace = true
 muninn-graph.workspace = true
 muninn-i18n.workspace = true
-muninn-import.workspace = true
-muninn-sync.workspace = true
 rune.workspace = true
 rune-kit.workspace = true
 rune-theme-opencode.workspace = true
-semver = "1"
 serde_json.workspace = true
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
-sha2 = "0.11"
-tar = "0.4"
+
+# Native-only: self-update (blocking HTTP, tarball decompression, checksums)
+# and the two crates whose modules are gated with `native` (sync transports,
+# document conversion). A browser build (`--no-default-features`) links none
+# of them.
+flate2 = { version = "1", optional = true }
+hex = { version = "0.4", optional = true }
+muninn-import = { workspace = true, optional = true, default-features = false }
+# Its own `native` feature follows ours below; a no-default-features build
+# never enables the dependency at all, so no transport can be linked.
+muninn-sync = { workspace = true, optional = true, default-features = false }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
+semver = { version = "1", optional = true }
+sha2 = { version = "0.11", optional = true }
+tar = { version = "0.4", optional = true }
+
+[features]
+# The desktop application: tray, autostart, native dialogs, sync transports,
+# crash recovery and self-update. `--no-default-features` is the browser
+# configuration; every native module is behind this feature.
+default = ["native"]
+native = [
+    "dep:flate2",
+    "dep:hex",
+    "dep:muninn-import",
+    "dep:muninn-sync",
+    "dep:reqwest",
+    "dep:semver",
+    "dep:sha2",
+    "dep:tar",
+    # The UI's sync surface only exists natively, so this crate's own
+    # `native` feature (transports, keyring, secret) follows ours. A
+    # no-default-features build never enables the dependency at all.
+    "muninn-sync/native",
+]
 
 [dev-dependencies]
 muninn-core = { workspace = true, features = ["test-support"] }

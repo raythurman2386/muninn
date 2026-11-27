@@ -163,10 +163,8 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         s.forward();
     } else if e.is_command('n') {
         s.new_note();
-    } else if e.is_command('i') {
-        // #189: import a document as a new note (also the sidebar icon and the
-        // palette's Import document action).
-        s.open_import_document(tx);
+    } else if import_document_chord(s, e, tx) {
+        // Handled by the native helper (⌘I / Ctrl+I).
     } else if e.is_command('s') {
         s.save_now();
         // Board slice 4: on Board the chord also saves the open board;
@@ -201,4 +199,21 @@ pub fn shortcut(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
         return false;
     }
     true
+}
+
+/// #189: ⌘I / Ctrl+I imports a document through the desktop file dialog.
+/// native: document import.
+#[cfg(feature = "native")]
+fn import_document_chord(s: &mut State, e: &KeyEvent, tx: &mut Tx) -> bool {
+    if e.is_command('i') {
+        s.open_import_document(tx);
+        true
+    } else {
+        false
+    }
+}
+
+#[cfg(not(feature = "native"))]
+fn import_document_chord(_s: &mut State, _e: &KeyEvent, _tx: &mut Tx) -> bool {
+    false
 }

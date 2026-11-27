@@ -148,6 +148,8 @@ pub enum PaletteAction {
     NewKanban,
     /// #189: open Rune's file dialog and convert the chosen document into a
     /// new note in the current folder. Its hint is ⌘I.
+    /// native: document import.
+    #[cfg(feature = "native")]
     ImportDocument,
     /// Write the New Kanban layout into the selected note. Offered only
     /// while that note is empty, so it is not in [`PaletteAction::ALL`].
@@ -164,12 +166,28 @@ pub enum PaletteAction {
 impl PaletteAction {
     /// Every action always offered, in the order shown before a query is
     /// typed. [`PaletteAction::ConvertToKanban`] follows them when offered.
+    #[cfg(feature = "native")]
     pub const ALL: [PaletteAction; 11] = [
         PaletteAction::OpenLocalGraph,
         PaletteAction::SwitchVault,
         PaletteAction::OpenSettings,
         PaletteAction::NewNote,
         PaletteAction::ImportDocument,
+        PaletteAction::TogglePreview,
+        PaletteAction::ToggleGraph,
+        PaletteAction::ToggleBoard,
+        PaletteAction::ToggleKanban,
+        PaletteAction::ToggleFocusMode,
+        PaletteAction::NewKanban,
+    ];
+
+    /// The same list without native document import.
+    #[cfg(not(feature = "native"))]
+    pub const ALL: [PaletteAction; 10] = [
+        PaletteAction::OpenLocalGraph,
+        PaletteAction::SwitchVault,
+        PaletteAction::OpenSettings,
+        PaletteAction::NewNote,
         PaletteAction::TogglePreview,
         PaletteAction::ToggleGraph,
         PaletteAction::ToggleBoard,
@@ -186,6 +204,7 @@ impl PaletteAction {
             PaletteAction::SwitchVault => TextKey::PaletteActionSwitchVault,
             PaletteAction::OpenSettings => TextKey::PaletteActionOpenSettings,
             PaletteAction::NewNote => TextKey::PaletteActionNewNote,
+            #[cfg(feature = "native")]
             PaletteAction::ImportDocument => TextKey::PaletteActionImportDocument,
             PaletteAction::TogglePreview => TextKey::PaletteActionTogglePreview,
             PaletteAction::ToggleGraph => TextKey::PaletteActionToggleGraph,
@@ -210,6 +229,7 @@ impl PaletteAction {
             PaletteAction::SwitchVault => t(TextKey::PaletteHintVaults),
             PaletteAction::OpenSettings => t(TextKey::PaletteHintHelp),
             PaletteAction::NewNote => "⌘N",
+            #[cfg(feature = "native")]
             PaletteAction::ImportDocument => crate::import_document::IMPORT_CHORD,
             PaletteAction::TogglePreview => "⌘E",
             PaletteAction::ToggleGraph => "⌘G",
@@ -236,6 +256,7 @@ impl PaletteAction {
             PaletteAction::SwitchVault => TextKey::PaletteKeywordsSwitchVault,
             PaletteAction::OpenSettings => TextKey::PaletteKeywordsOpenSettings,
             PaletteAction::NewNote => TextKey::PaletteKeywordsNewNote,
+            #[cfg(feature = "native")]
             PaletteAction::ImportDocument => TextKey::PaletteKeywordsImportDocument,
             PaletteAction::TogglePreview => TextKey::PaletteKeywordsTogglePreview,
             PaletteAction::ToggleGraph => TextKey::PaletteKeywordsToggleGraph,
@@ -398,6 +419,8 @@ impl State {
         }
         self.settings_open = false;
         self.vault_field.focused = false;
+        // native: hide a revealed sync key and drop field focus.
+        #[cfg(feature = "native")]
         self.sync_ui.blur();
         // Slice 14: a Kanban text default is written once typing rests; do it
         // now rather than leave it for the next idle frame.
@@ -426,9 +449,10 @@ impl State {
     pub fn set_settings_tab(&mut self, tab: SettingsTab) {
         if self.settings_tab != tab {
             self.vault_field.focused = false;
+            // native: same rule for the Sync tab: no hidden field keeps focus,
+            // and a revealed host key is hidden again.
+            #[cfg(feature = "native")]
             if self.settings_tab == SettingsTab::Sync {
-                // Same rule for the Sync tab: no hidden field keeps focus,
-                // and a revealed host key is hidden again.
                 self.sync_ui.blur();
             }
         }

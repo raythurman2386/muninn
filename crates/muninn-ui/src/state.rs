@@ -6,9 +6,12 @@ use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+#[cfg(feature = "native")]
 use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime};
 
+// Native-only: `SystemBrowser`, used by the release banner's Release notes.
+#[cfg(feature = "native")]
 use muninn_sync::BrowserOpener as _;
 
 use muninn_core::{
@@ -35,6 +38,7 @@ use crate::camera::{Camera, CameraGlide};
 use crate::lock_session::{LockRevs, NoteSessions, RevStatus, UnlockError};
 use crate::mode::{Mode, Scope};
 use crate::recovery::{RecoveryEntry, RecoverySlot, RecoveryStore, state_home};
+#[cfg(feature = "native")]
 use crate::self_update::{Downloader, SelfUpdateMessage, detect_verifiers, perform};
 use crate::settings::{
     GraphEffectIntensity, GraphEffects, LanguageChoice, ReduceMotion, Settings, ThemeMode,
@@ -889,32 +893,54 @@ pub struct State {
     /// Whether the last layout tick ran with reduced motion, so
     /// [`State::graph_step`] can reheat once when it turns off.
     graph_was_reduced: bool,
+    /// native: sync session (worker, credentials, transports).
+    #[cfg(feature = "native")]
     pub sync_ui: crate::sync_ui::SyncUi,
     /// #234: the newer stable release offered by the last completed check.
     /// `None` when no banner should draw (current, skipped, failed or off).
+    /// native: release check.
+    #[cfg(feature = "native")]
     pub update_available: Option<crate::update::AvailableUpdate>,
     /// #234: the worker channel for an in-flight release check. The worker
     /// sends exactly one [`CheckOutcome`](crate::update::CheckOutcome); `poll`
     /// drains it on the UI thread. `None` when no check is in flight.
+    /// native: release check.
+    #[cfg(feature = "native")]
     pub update_rx: Option<mpsc::Receiver<crate::update::CheckOutcome>>,
     /// #234: a release check is in flight. Guards against a second worker.
+    /// native: release check.
+    #[cfg(feature = "native")]
     pub update_checking: bool,
     /// #254: the worker channel for an in-flight self-update. The worker
     /// sends [`SelfUpdateMessage`]s; `poll` drains them on the UI thread.
     /// `None` when no update is in flight.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     pub self_update_rx: Option<mpsc::Receiver<crate::self_update::SelfUpdateMessage>>,
     /// #254: the phase the running self-update reported last.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     pub self_update_phase: Option<crate::self_update::Phase>,
     /// #254: a self-update is in flight. Guards against a second worker.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     pub self_update_running: bool,
     /// #189: finished document conversions, drained in [`crate::poll`].
+    /// native: document import.
+    #[cfg(feature = "native")]
     pub(crate) import_inbox:
         Option<std::sync::mpsc::Receiver<crate::import_document::ImportMessage>>,
     /// Documents waiting behind the one converting, in drop order.
+    /// native: document import.
+    #[cfg(feature = "native")]
     pub(crate) import_queue: Vec<crate::import_document::ImportQueueItem>,
     /// The optional tray icon ([`crate::tray`]).
+    /// native: tray.
+    #[cfg(feature = "native")]
     pub(crate) tray: crate::tray::TrayLink,
     /// Start Muninn at login ([`crate::autostart`]).
+    /// native: autostart.
+    #[cfg(feature = "native")]
     pub(crate) autostart: crate::autostart::AutostartLink,
     /// The global show-Muninn shortcut ([`crate::global_shortcut`]).
     pub(crate) shortcut: crate::global_shortcut::ShortcutLink,
@@ -923,16 +949,21 @@ pub struct State {
 impl State {
     pub fn new(root: PathBuf) -> State {
         let settings = Settings::load();
+        #[cfg_attr(not(feature = "native"), allow(unused_mut))]
         let mut state = Self::with_settings(root, state_home(), config_home(), settings);
-        let github = state.settings.sync.github_client_id.clone();
-        let google = state.settings.sync.google_client_id.clone();
-        state.sync_ui = crate::sync_ui::SyncUi::native();
-        state.sync_ui.github_client_id.replace_text(&github);
-        state.sync_ui.google_client_id.replace_text(&google);
-        // `build` rehydrated the memory-store SyncUi; the native one needs the
-        // same treatment before the host starts and writes its status.
-        state.reflect_sync_binding();
-        state.resume_tailnet_host();
+        // native: the desktop sync session (worker, credentials, transports).
+        #[cfg(feature = "native")]
+        {
+            let github = state.settings.sync.github_client_id.clone();
+            let google = state.settings.sync.google_client_id.clone();
+            state.sync_ui = crate::sync_ui::SyncUi::native();
+            state.sync_ui.github_client_id.replace_text(&github);
+            state.sync_ui.google_client_id.replace_text(&google);
+            // `build` rehydrated the memory-store SyncUi; the native one needs
+            // the same treatment before the host starts and writes its status.
+            state.reflect_sync_binding();
+            state.resume_tailnet_host();
+        }
         state
     }
 
@@ -1234,16 +1265,32 @@ impl State {
             reduced_motion_env,
             system_reduced_motion: std::cell::Cell::new(false),
             graph_was_reduced: false,
+            // native: sync session.
+            #[cfg(feature = "native")]
             sync_ui: crate::sync_ui::SyncUi::memory(),
+            // native: release check.
+            #[cfg(feature = "native")]
             update_available: None,
+            #[cfg(feature = "native")]
             update_rx: None,
+            #[cfg(feature = "native")]
             update_checking: false,
+            // native: self-update.
+            #[cfg(feature = "native")]
             self_update_rx: None,
+            #[cfg(feature = "native")]
             self_update_phase: None,
+            #[cfg(feature = "native")]
             self_update_running: false,
+            // native: document import.
+            #[cfg(feature = "native")]
             import_inbox: None,
+            #[cfg(feature = "native")]
             import_queue: Vec::new(),
+            // native: tray and autostart.
+            #[cfg(feature = "native")]
             tray: crate::tray::TrayLink::default(),
+            #[cfg(feature = "native")]
             autostart: crate::autostart::AutostartLink::default(),
             shortcut: crate::global_shortcut::ShortcutLink::default(),
         };
@@ -1306,8 +1353,9 @@ impl State {
         if !state.loading() {
             state.refresh_watch();
         }
-        // The Sync tab starts on its defaults; show what this vault is
+        // native: the Sync tab starts on its defaults; show what this vault is
         // actually bound to instead of "Not connected".
+        #[cfg(feature = "native")]
         state.reflect_sync_binding();
         // Apply the saved language before the first frame, so a non-app host
         // (a test, an embedding) draws the persisted choice too. The app also
@@ -1373,6 +1421,8 @@ impl State {
 
     /// The newer stable release the last completed check offered, if the
     /// banner should be drawn.
+    /// native: release check.
+    #[cfg(feature = "native")]
     #[must_use]
     pub fn update_available(&self) -> Option<&crate::update::AvailableUpdate> {
         self.update_available.as_ref()
@@ -1392,6 +1442,8 @@ impl State {
     /// passed to [`crate::update::should_check`]. A disabled setting or an
     /// already-running check makes this a no-op. The worker catches a panic
     /// and a failed send is ignored: the UI only ever sees a `CheckOutcome`.
+    /// native: release check.
+    #[cfg(feature = "native")]
     pub fn start_update_check(&mut self) {
         if !self.settings.check_for_updates || self.update_checking {
             return;
@@ -1435,6 +1487,8 @@ impl State {
     /// An offered release is hidden when its version equals `skip_version` or
     /// the previously seen `last_seen_version`, while `last_seen_version` is
     /// still advanced in either case.
+    /// native: release check.
+    #[cfg(feature = "native")]
     pub fn apply_update_outcome(
         &mut self,
         outcome: crate::update::CheckOutcome,
@@ -1495,6 +1549,8 @@ impl State {
     /// four messages are read per frame so a stuck worker cannot block a
     /// frame. Returns true when the banner, checking state or persisted
     /// schedule changed.
+    /// native: release check.
+    #[cfg(feature = "native")]
     pub(crate) fn poll_update(&mut self) -> bool {
         let mut outcomes = Vec::new();
         let mut disconnected = false;
@@ -1541,6 +1597,8 @@ impl State {
     ///
     /// Only tarball (`install.sh`) and AppImage installs qualify, and only on
     /// Unix. `.deb`, AUR and unknown installs keep their package manager.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     #[must_use]
     pub fn self_update_supported(&self) -> bool {
         cfg!(unix)
@@ -1553,12 +1611,16 @@ impl State {
     }
 
     /// The phase the running self-update reported last.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     #[must_use]
     pub fn self_update_phase(&self) -> Option<crate::self_update::Phase> {
         self.self_update_phase
     }
 
     /// Whether a self-update worker is in flight.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     #[must_use]
     pub fn self_update_running(&self) -> bool {
         self.self_update_running
@@ -1573,6 +1635,8 @@ impl State {
     /// engine keeps its one rollback copy under `update/muninn.previous`.
     /// Every phase and the single result arrive as [`SelfUpdateMessage`]s;
     /// the UI thread never blocks. A panic becomes one failure message.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     pub fn start_self_update(&mut self) {
         if !self.self_update_supported() || self.self_update_running {
             return;
@@ -1641,6 +1705,8 @@ impl State {
     /// already written the binary and rollback copy, so nothing else is
     /// persisted here. A failure keeps the banner so **Update** can be tried
     /// again, and shortens the engine detail for the status bar.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     pub fn apply_self_update_message(&mut self, message: SelfUpdateMessage) {
         match message {
             SelfUpdateMessage::Phase(phase) => {
@@ -1674,6 +1740,8 @@ impl State {
     /// Drain finished self-update messages, once per frame from
     /// [`crate::poll`]. At most four messages are read per frame. Returns true
     /// when the phase, the banner or the status notice changed.
+    /// native: self-update.
+    #[cfg(feature = "native")]
     pub fn poll_self_update(&mut self) -> bool {
         let mut messages = Vec::new();
         let mut disconnected = false;
@@ -1714,6 +1782,8 @@ impl State {
 
     /// Hide the banner and remember the release as skipped, so it never
     /// returns until a newer version appears.
+    /// native: release check.
+    #[cfg(feature = "native")]
     pub fn dismiss_update(&mut self) {
         let Some(update) = self.update_available.take() else {
             return;
@@ -1725,6 +1795,8 @@ impl State {
     /// Open the offered release page in the system browser. A failure becomes
     /// the ordinary status notice; nothing is opened or logged without an
     /// offered update.
+    /// native: release check (system browser).
+    #[cfg(feature = "native")]
     pub fn open_update_page(&mut self) {
         let Some(update) = self.update_available.as_ref() else {
             return;
@@ -1748,7 +1820,11 @@ impl State {
             self.settings.update_next_check = None;
             self.settings.update_failures = 0;
         } else {
-            self.update_available = None;
+            // native: clearing the banner only exists with the checker.
+            #[cfg(feature = "native")]
+            {
+                self.update_available = None;
+            }
         }
         self.save_settings();
     }
@@ -2029,8 +2105,10 @@ impl State {
                 }
                 self.save_settings();
                 self.refresh_watch();
-                // Settings › Sync belongs to the vault, not the window.
+                // native: Settings › Sync belongs to the vault, not the window.
+                #[cfg(feature = "native")]
                 self.reflect_sync_binding();
+                #[cfg(feature = "native")]
                 self.resume_tailnet_host();
                 true
             }
@@ -2244,6 +2322,9 @@ impl State {
     }
 
     fn palette_run_action(&mut self, action: PaletteAction, tx: &mut rune::Tx) {
+        // native: only the import arm uses the frame's Tx.
+        #[cfg(not(feature = "native"))]
+        let _ = tx;
         match action {
             PaletteAction::OpenLocalGraph => self.open_local_graph(),
             PaletteAction::SwitchVault => {
@@ -2252,6 +2333,8 @@ impl State {
             }
             PaletteAction::OpenSettings => self.open_settings(),
             PaletteAction::NewNote => self.new_note(),
+            // native: document import opens a desktop file dialog.
+            #[cfg(feature = "native")]
             PaletteAction::ImportDocument => self.open_import_document(tx),
             PaletteAction::TogglePreview => self.toggle_preview(),
             PaletteAction::ToggleGraph => self.toggle_graph(),
@@ -3356,8 +3439,9 @@ impl State {
         self.settings.ui_language = choice;
         self.apply_language(muninn_i18n::system_locale());
         self.save_settings();
-        // Rebuild the tray menu now: its labels are catalog copy, and the
-        // menu only changes when `sync_tray` sees different text.
+        // native: rebuild the tray menu now: its labels are catalog copy, and
+        // the menu only changes when `sync_tray` sees different text.
+        #[cfg(feature = "native")]
         self.sync_tray();
     }
 
@@ -4060,6 +4144,8 @@ impl State {
     /// nothing is overwritten: autosave pauses and [`State::conflict`] holds a
     /// typed, user-resolvable conflict instead of a generic error.
     pub fn save_now(&mut self) -> bool {
+        // native: never write across a sync batch.
+        #[cfg(feature = "native")]
         if self.sync_ui.phase.is_running() {
             return false;
         }
@@ -4163,6 +4249,30 @@ impl State {
     pub fn retry_save(&mut self) -> bool {
         self.dirty_at = None;
         self.save_now()
+    }
+
+    /// The close and quit flush (the open note, boards and settings), which
+    /// Rune's quit skips. Shared by the window close path, the tray's Quit and
+    /// the last window closing.
+    ///
+    /// Board slice 4: unsaved drawing is saved on the close path too. When it
+    /// cannot be saved (the file changed or vanished), its recovery copy is
+    /// brought up to date instead, as a note's is. Returns `false` only when
+    /// neither worked: the caller must not quit then (see
+    /// `board_safety.rs`), and [`State::error`] says why.
+    ///
+    /// Kanban slice 7: unsaved kanban edits follow the board's rule
+    /// (`kanban_sync.rs`): saved, else kept in their recovery copy; only
+    /// when neither works, or the open card's text is refused, is the quit
+    /// refused, with the reason on the Kanban page.
+    pub fn flush_before_quit(&mut self) -> bool {
+        self.save_now();
+        let board = self.flush_board_before_quit();
+        let kanban = self.flush_kanban_before_quit();
+        // A board camera glide is a session thing, not a saved pose.
+        self.land_board_camera();
+        self.save_settings();
+        board && kanban
     }
 
     // ---- SAF-05: dirty-buffer crash recovery ---------------------------------
@@ -4928,6 +5038,8 @@ impl State {
             return false;
         }
         self.last_watch = t;
+        // native: never reload across a sync batch.
+        #[cfg(feature = "native")]
         if self.sync_ui.phase.is_running() {
             return false;
         }
@@ -5490,10 +5602,13 @@ impl State {
         self.settings.last_vault = Some(root);
         self.save_settings();
         self.refresh_watch();
-        // A finished (or retried) startup scan replaces the vault: rehydrate
-        // the Sync form from the binding saved for this canonical root.
-        self.reflect_sync_binding();
-        self.resume_tailnet_host();
+        // native: a finished (or retried) startup scan replaces the vault:
+        // rehydrate the Sync form from the binding saved for this canonical root.
+        #[cfg(feature = "native")]
+        {
+            self.reflect_sync_binding();
+            self.resume_tailnet_host();
+        }
         true
     }
 
@@ -6756,6 +6871,23 @@ impl State {
         }
     }
 
+    /// native: a document format is queued for conversion on a worker. The
+    /// no-native UI copies only what the Markdown/attachment path understands.
+    #[cfg(feature = "native")]
+    fn queue_document_import(&mut self, source: &Path, folder: &str, extension: &str) -> bool {
+        if crate::import_document::DOCUMENT_EXTENSIONS.contains(&extension) {
+            self.queue_import(source.to_path_buf(), folder.to_owned());
+            true
+        } else {
+            false
+        }
+    }
+
+    #[cfg(not(feature = "native"))]
+    fn queue_document_import(&mut self, _source: &Path, _folder: &str, _extension: &str) -> bool {
+        false
+    }
+
     /// Import dropped files into the current folder, then reload the vault.
     ///
     /// Markdown becomes a note, document formats (including PDF) convert into
@@ -6802,8 +6934,7 @@ impl State {
             };
             // #189: a document becomes a note. The conversion is local, so the
             // original is copied beside the note and the body embeds it.
-            if crate::import_document::DOCUMENT_EXTENSIONS.contains(&extension.as_str()) {
-                self.queue_import(source.clone(), folder.clone());
+            if self.queue_document_import(source, &folder, &extension) {
                 report.queued += 1;
                 continue;
             }
@@ -7309,6 +7440,8 @@ pub(crate) fn conflict_stamp() -> String {
 
 /// Keep an engine detail short enough for the status bar, on a character
 /// boundary so multi-byte text cannot be cut mid-scalar.
+/// native: self-update status detail.
+#[cfg(feature = "native")]
 fn truncate_update_detail(detail: &str) -> String {
     const MAX_CHARS: usize = 200;
     let mut text = detail.trim().to_owned();
