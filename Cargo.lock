@@ -2502,6 +2502,7 @@ version = "0.11.5"
 dependencies = [
  "js-sys",
  "muninn-core",
+ "muninn-i18n",
  "muninn-ui",
  "rune",
  "rune-theme-opencode",

@@ -984,5 +984,11 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionUnlockNote => "Unlock note",
         Key::PaletteKeywordsLockNote => "encrypt password private protect",
         Key::PaletteKeywordsUnlockNote => "open decrypt password",
+        Key::WebPersistDenied => {
+            "This browser did not grant persistent storage: the vault works, but it can be evicted under storage pressure."
+        }
+        Key::WebReadOnlySample => {
+            "This read-only tab shows the embedded sample until the writing tab saves it."
+        }
     }
 }

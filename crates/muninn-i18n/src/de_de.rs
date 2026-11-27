@@ -1098,5 +1098,11 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionUnlockNote => "Notiz entsperren",
         Key::PaletteKeywordsLockNote => "verschlüsseln passwort privat schützen",
         Key::PaletteKeywordsUnlockNote => "öffnen entschlüsseln passwort",
+        Key::WebPersistDenied => {
+            "Dieser Browser hat keinen dauerhaften Speicher gewährt: Der Tresor funktioniert, kann aber bei Speicherdruck entfernt werden."
+        }
+        Key::WebReadOnlySample => {
+            "Dieser schreibgeschützte Tab zeigt das mitgelieferte Beispiel, bis der schreibende Tab es speichert."
+        }
     }
 }

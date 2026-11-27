@@ -18,6 +18,7 @@ use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 use js_sys::{Array, Promise, Reflect};
+use muninn_i18n::{Key, t};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -196,11 +197,7 @@ async fn open_inner() -> Result<Opened, String> {
     if writable {
         let persisted = request_persist(&storage).await;
         if !persisted {
-            notice = Some(
-                "This browser did not grant persistent storage: the vault works, but it can be \
-                 evicted under storage pressure."
-                    .to_owned(),
-            );
+            notice = Some(t(Key::WebPersistDenied).to_owned());
         }
     }
 
@@ -255,10 +252,7 @@ async fn open_inner() -> Result<Opened, String> {
         for source in SAMPLE_SOURCES {
             store.load(source.rel, source.bytes);
         }
-        notice = Some(
-            "This read-only tab shows the embedded sample until the writing tab saves it."
-                .to_owned(),
-        );
+        notice = Some(t(Key::WebReadOnlySample).to_owned());
     }
 
     if let Some(lost) = lock.lost {

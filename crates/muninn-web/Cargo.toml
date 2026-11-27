@@ -17,6 +17,9 @@ crate-type = ["cdylib", "rlib"]
 # The sample vault's bytes and the pure read seam. Shared by the wasm entry and
 # the native test.
 muninn-core.workspace = true
+# The typed message catalog: the two web notices (persist denial, read-only
+# sample) resolve through it like every other user-visible string.
+muninn-i18n.workspace = true
 
 # Everything below is the browser build: the UI, Rune and the wasm entry. A
 # native `cargo test -p muninn-web` builds neither, so the demo cannot pull a

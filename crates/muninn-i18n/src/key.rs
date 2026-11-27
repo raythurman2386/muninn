@@ -855,4 +855,6 @@ keys! {
     PaletteActionUnlockNote => "palette.action.unlock_note",
     PaletteKeywordsLockNote => "palette.keywords.lock_note",
     PaletteKeywordsUnlockNote => "palette.keywords.unlock_note",
+    WebPersistDenied => "web.persist_denied",
+    WebReadOnlySample => "web.read_only_sample",
 }
