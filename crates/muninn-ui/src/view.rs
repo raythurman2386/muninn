@@ -1876,14 +1876,17 @@ fn vault_prompt_row(s: &State, k: &Kit) -> El {
 
 /// `~/sub/path` when below the home directory, otherwise the full path.
 fn display_path(path: &std::path::Path) -> String {
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
-    if let Some(home) = home.map(std::path::PathBuf::from)
-        && let Ok(rest) = path.strip_prefix(&home)
+    #[cfg(feature = "native")]
     {
-        if rest.as_os_str().is_empty() {
-            return "~".to_owned();
+        let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+        if let Some(home) = home.map(std::path::PathBuf::from)
+            && let Ok(rest) = path.strip_prefix(&home)
+        {
+            if rest.as_os_str().is_empty() {
+                return "~".to_owned();
+            }
+            return format!("~/{}", rest.to_string_lossy());
         }
-        return format!("~/{}", rest.to_string_lossy());
     }
     path.to_string_lossy().into_owned()
 }

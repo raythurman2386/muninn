@@ -26,9 +26,14 @@ use crate::contrast::mix_oklab;
 use crate::settings::ThemeMode;
 
 /// Environment override for the palette file path (`""` disables the lookup).
+#[cfg(feature = "native")]
 const COLORS_ENV: &str = "MUNINN_OMARCHY_COLORS";
 
 /// The canonical Omarchy palette file, or empty when disabled by the override.
+///
+/// native: the browser does not follow a desktop theme file; the empty path
+/// and the missing file below resolve to the OpenCode palette.
+#[cfg(feature = "native")]
 #[must_use]
 pub fn colors_path() -> PathBuf {
     if let Some(path) = std::env::var_os(COLORS_ENV) {
@@ -36,6 +41,12 @@ pub fn colors_path() -> PathBuf {
     }
     crate::settings::xdg_dir("XDG_STATE_HOME", &[".local", "state"], "muninn-state")
         .join("omarchy/current/theme/colors.toml")
+}
+
+#[cfg(not(feature = "native"))]
+#[must_use]
+pub fn colors_path() -> PathBuf {
+    PathBuf::new()
 }
 
 /// Resolved palette from an Omarchy `colors.toml`.
@@ -48,6 +59,10 @@ pub struct OmarchyColors {
 impl OmarchyColors {
     /// Parse a flat Omarchy palette. Unknown lines and non-hex values are
     /// ignored; a palette with no colours at all returns `None`.
+    ///
+    /// native: the browser does not read a desktop palette file; the
+    /// derivation below stays shared for tests and a future web theme source.
+    #[cfg(feature = "native")]
     #[must_use]
     pub fn parse(text: &str) -> Option<OmarchyColors> {
         let mut map = HashMap::new();
@@ -195,15 +210,28 @@ fn contrast(a: Color, b: Color) -> f32 {
 
 /// Load and parse the palette at `path`; `None` when missing or unreadable.
 /// A `None` result is the normal non-Omarchy case, not an error.
+///
+/// native: there is no desktop palette file in a browser.
+#[cfg(feature = "native")]
 #[must_use]
 pub fn load(path: &std::path::Path) -> Option<OmarchyColors> {
     let text = std::fs::read_to_string(path).ok()?;
     OmarchyColors::parse(&text)
 }
 
+#[cfg(not(feature = "native"))]
+#[must_use]
+pub fn load(_path: &std::path::Path) -> Option<OmarchyColors> {
+    None
+}
+
 /// `(mtime, length, content-hash)` for the palette file: the cheap trigger
 /// (`mtime`/`length`) plus the content signature `poll` compares, so a theme
 /// switch is visible without re-reading the file every frame.
+///
+/// native: no palette file is watched in a browser, so the signature never
+/// moves and `omarchy_tick` stays quiet.
+#[cfg(feature = "native")]
 #[must_use]
 pub fn signature(path: &std::path::Path) -> (Option<SystemTime>, u64, u64) {
     let Ok(meta) = std::fs::metadata(path) else {
@@ -221,6 +249,12 @@ pub fn signature(path: &std::path::Path) -> (Option<SystemTime>, u64, u64) {
         Err(_) => 0,
     };
     (mtime, len, hash)
+}
+
+#[cfg(not(feature = "native"))]
+#[must_use]
+pub fn signature(_path: &std::path::Path) -> (Option<SystemTime>, u64, u64) {
+    (None, 0, 0)
 }
 
 /// Whether the window is currently following the shared Omarchy palette:

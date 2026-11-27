@@ -20,9 +20,12 @@
 //! lock it.
 
 use std::collections::{BTreeMap, HashMap};
+#[cfg(feature = "native")]
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(feature = "native")]
+use std::path::PathBuf;
 
 use muninn_core::{LockError, SessionKey};
 
@@ -171,6 +174,7 @@ pub(crate) enum RevStatus {
 /// (the caller keeps the note locked and reports [`UnlockError::Rollback`]).
 #[derive(Debug)]
 pub(crate) struct LockRevs {
+    #[cfg(feature = "native")]
     path: PathBuf,
     revs: BTreeMap<String, u64>,
 }
@@ -184,11 +188,22 @@ impl LockRevs {
             .join("muninn")
             .join("lock-revs")
             .join(format!("{}.json", crate::recovery::vault_id(vault_root)));
+        // native: the browser keeps the high-water mark in memory only until a
+        // web store exists (slice 6), so a reload starts from zero.
+        #[cfg(feature = "native")]
         let revs = fs::read_to_string(&path)
             .ok()
             .and_then(|text| serde_json::from_str::<BTreeMap<String, u64>>(&text).ok())
             .unwrap_or_default();
-        Self { path, revs }
+        #[cfg(not(feature = "native"))]
+        let revs = BTreeMap::new();
+        #[cfg(not(feature = "native"))]
+        let _ = path;
+        Self {
+            #[cfg(feature = "native")]
+            path,
+            revs,
+        }
     }
 
     /// Compare `rev` with the recorded revision for `rel`.
@@ -236,12 +251,21 @@ impl LockRevs {
     }
 
     /// Write the whole record. The caller has already updated it.
+    #[cfg(feature = "native")]
     fn save(&self) -> io::Result<()> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_string(&self.revs).map_err(io::Error::other)?;
         muninn_core::atomic_write(&self.path, json.as_bytes())
+    }
+
+    /// The in-memory record is the whole record in a browser build: the
+    /// envelope revision still rises within the session, and a reload starts
+    /// the high-water mark over until slice 6 gives it a durable store.
+    #[cfg(not(feature = "native"))]
+    fn save(&self) -> io::Result<()> {
+        Ok(())
     }
 }
 

@@ -44,9 +44,11 @@ use muninn_i18n::{
 };
 
 use crate::board_view::BoardStatus;
+#[cfg(feature = "native")]
+use crate::doc_sync::DiskRule;
 use crate::doc_sync::{
-    AUTOSAVE_MAX_AGE, AUTOSAVE_MIN, DiskRule, RECOVERY_IDLE, RECOVERY_MAX_AGE, Rest, copy_path,
-    file_state, inside_vault, quit_rule,
+    AUTOSAVE_MAX_AGE, AUTOSAVE_MIN, RECOVERY_IDLE, RECOVERY_MAX_AGE, Rest, copy_path, file_state,
+    inside_vault, quit_rule,
 };
 use crate::kanban_edit::apply_card_field;
 use crate::kanban_lanes::{LaneField, apply_lane_field};
@@ -84,6 +86,7 @@ impl State {
 
     /// What a watcher may do with the shown kanban when its file changed on
     /// disk; the rule Board's watchers follow ([`DiskRule`]).
+    #[cfg(feature = "native")]
     pub(crate) fn kanban_disk_rule(&self) -> Option<DiskRule> {
         let shown = self.kanban.as_ref()?;
         let busy = self.kanban_card.is_some()
@@ -98,6 +101,10 @@ impl State {
     /// Both watchers (the kanban watcher, and the vault watcher's reload
     /// through `refresh_kanban`) apply the disk rule to the shown kanban
     /// here. `true` when something on the page changed.
+    ///
+    /// native: no file watcher in a browser build; slice 5's source seam is
+    /// where a web change signal will arrive.
+    #[cfg(feature = "native")]
     pub(crate) fn kanban_follow_disk(&mut self) -> bool {
         let Some(rule) = self.kanban_disk_rule() else {
             return false;
@@ -157,11 +164,17 @@ impl State {
         }
     }
 
+    #[cfg(not(feature = "native"))]
+    pub(crate) fn kanban_follow_disk(&mut self) -> bool {
+        false
+    }
+
     /// Follow the shown kanban to `rel`, the name the vault found it under
     /// after it was renamed outside Muninn. The recovery copy is moved to the
     /// new key before the old one is forgotten: a crash in between leaves the
     /// edits under one of the two names, never under neither. A failed move
     /// keeps the old copy and the next recovery tick writes the new one.
+    #[cfg(feature = "native")]
     fn follow_kanban_rename(&mut self, rel: String) -> bool {
         let root = self.vault.root.clone();
         let Some(shown) = &mut self.kanban else {
@@ -231,12 +244,18 @@ impl State {
 
     /// Per frame, every `WATCH_INTERVAL` on the Kanban page: notice another
     /// app's change to the shown kanban. `true` when the page changed.
+    #[cfg(feature = "native")]
     pub(crate) fn kanban_watch_tick(&mut self, t: f64) -> bool {
         if self.mode != Mode::Kanban || t - self.last_kanban_watch < WATCH_INTERVAL {
             return false;
         }
         self.last_kanban_watch = t;
         self.kanban_follow_disk()
+    }
+
+    #[cfg(not(feature = "native"))]
+    pub(crate) fn kanban_watch_tick(&mut self, _t: f64) -> bool {
+        false
     }
 
     /// Per frame: autosave the shown kanban once its edits have rested.
@@ -489,11 +508,18 @@ impl State {
         }
         let written = match self.vault.notes.iter().position(|note| note.rel == rel) {
             Some(id) if path.exists() => self.vault.write_note(id, &source).map(|()| Some(id)),
-            _ => path
-                .parent()
-                .map_or(Ok(()), std::fs::create_dir_all)
-                .and_then(|()| board.save(&path))
-                .map(|()| None),
+            _ => {
+                #[cfg(feature = "native")]
+                let created = path
+                    .parent()
+                    .map_or(Ok(()), std::fs::create_dir_all)
+                    .and_then(|()| board.save(&path));
+                // A browser has no folders to recreate; the sink decides where
+                // the bytes go (slice 5).
+                #[cfg(not(feature = "native"))]
+                let created = board.save(&path);
+                created.map(|()| None)
+            }
         };
         let id = match written {
             Ok(Some(id)) => id,
@@ -621,7 +647,10 @@ impl State {
             return false;
         }
         self.set_mode(Mode::Kanban);
-        let on_disk = std::fs::read_to_string(&path).ok();
+        // A browser build's read is `Unsupported`, so the restored copy is
+        // flagged as if the file were missing: a plain save cannot write over
+        // what the page cannot see.
+        let on_disk = crate::doc_sync::read_text(&path).ok();
         let same = on_disk.as_deref() == Some(text);
         let conflict = match &on_disk {
             None => Some(crate::DocConflict::Missing),

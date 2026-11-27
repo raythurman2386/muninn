@@ -623,7 +623,7 @@ impl State {
             }
             (None, _) => Err((t(TextKey::KanbanStatusNoteGone).to_owned(), true)),
             (Some(_), None) => Err((t(TextKey::KanbanStatusFileUnchecked).to_owned(), true)),
-            (Some(id), Some(_)) => match std::fs::read_to_string(&path) {
+            (Some(id), Some(_)) => match crate::doc_sync::read_text(&path) {
                 Ok(text) if text == saved => match self.vault.write_note(id, &source) {
                     Ok(()) => Ok(id),
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {

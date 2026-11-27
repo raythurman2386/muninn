@@ -101,12 +101,13 @@ pub use settings::{
     DEFAULT_AUTOSAVE_DELAY, GraphEffectIntensity, GraphEffects, LanguageChoice, RECENT_VAULTS_MAX,
     ReduceMotion, Settings, ThemeMode, config_home,
 };
+#[cfg(feature = "native")]
+pub use state::file_action_command;
 pub use state::{
     BurnMark, BurnSpace, ConflictReason, ConflictState, ContextMenu, DeleteConfirm, DiskState,
     FileAction, FindState, FolderPrompt, FolderRename, FolderRenameConfirm, HistoryEntry,
     IMPORT_EXTENSIONS, ImportReport, LinkComplete, LockPrompt, LockPromptKind, MenuTarget,
     MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TagComplete, TrashUndo,
-    file_action_command,
 };
 #[cfg(feature = "native")]
 pub use tray::{

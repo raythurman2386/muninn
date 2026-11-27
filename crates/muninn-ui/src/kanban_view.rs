@@ -68,7 +68,6 @@
 //! picked from the sidebar search (⌘K) opens here from any mode
 //! ([`State::open_from_search`]).
 
-use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
@@ -288,7 +287,7 @@ impl State {
             return None;
         }
         let id = note.id;
-        let source = fs::read_to_string(&note.path).ok()?;
+        let source = crate::doc_sync::read_text(&note.path).ok()?;
         let disk = self.vault.disk_state(id).ok();
         let typed = (self.selected == Some(id) && self.editor.text != self.saved)
             .then(|| Kanban::parse(&self.editor.text).ok())

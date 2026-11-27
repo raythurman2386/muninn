@@ -160,7 +160,7 @@ impl OpenBoard {
             return false;
         }
         let disk = self.disk;
-        let text = std::fs::read_to_string(&self.path).ok();
+        let text = crate::doc_sync::read_text(&self.path).ok();
         // The file still holds the bytes Muninn loaded or last wrote (the
         // watcher saw Muninn's own save): nothing to re-read, and no refit or
         // history reset under the user's feet.
@@ -200,6 +200,7 @@ impl OpenBoard {
     /// [`OpenBoard::reload`] does, unless it has unsaved drawing. `true` when
     /// the board on screen changed (a rewrite that kept the drawing is not a
     /// reload and does not wake the window).
+    #[cfg(feature = "native")]
     pub(crate) fn reload_from_watcher(&mut self) -> bool {
         self.reload()
     }
@@ -260,7 +261,7 @@ impl OpenBoard {
     /// review B2): unsaved, and flagged when the file is gone or holds
     /// something else, so writing over it is always an explicit Keep mine.
     pub(crate) fn recovered(path: PathBuf, model: Board, vault_root: PathBuf) -> OpenBoard {
-        let on_disk = std::fs::read_to_string(&path).ok();
+        let on_disk = crate::doc_sync::read_text(&path).ok();
         let same = on_disk.as_deref() == Some(model.to_json().as_str());
         let disk = on_disk.as_deref().filter(|_| same).map(fingerprint);
         let conflict = match on_disk {
@@ -314,7 +315,7 @@ impl OpenBoard {
 
 /// Read a board file once: the model, the bytes' fingerprint and the scene.
 fn read_board(path: &Path) -> (Option<Board>, Option<u64>, Result<BoardScene, String>) {
-    let text = match std::fs::read_to_string(path) {
+    let text = match crate::doc_sync::read_text(path) {
         Ok(text) => text,
         Err(e) => return (None, None, Err(e.to_string())),
     };

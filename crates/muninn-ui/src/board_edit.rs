@@ -100,9 +100,7 @@ pub struct BoardEdit {
 }
 
 fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+    crate::state::wall_ms()
 }
 
 fn scene_at(view: BoardView, x: f32, y: f32) -> [f64; 2] {

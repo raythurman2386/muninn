@@ -38,7 +38,6 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use muninn_core::{Board, IdSource, Ink, ShapeKind};
 use muninn_i18n::{Key as TextKey, t};
@@ -244,19 +243,27 @@ pub fn fingerprint(bytes: &str) -> u64 {
 }
 
 pub(crate) fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+    crate::state::wall_ms()
 }
 
 /// A seed for new ids: the clock and the process, so two Muninns drawing on
 /// one board do not draw the same ids.
+///
+/// A browser tab has no separate process and a monotone-within-session id is
+/// enough, so the seed is constant there.
 #[must_use]
 pub fn id_seed() -> u64 {
-    let t = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos() as u64);
-    t ^ (u64::from(std::process::id()) << 32)
+    #[cfg(feature = "native")]
+    {
+        let t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos() as u64);
+        t ^ (u64::from(std::process::id()) << 32)
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        1
+    }
 }
 
 impl State {
@@ -458,7 +465,7 @@ fn write_board(open: &mut OpenBoard, root: &Path) -> Result<(), String> {
     if !crate::doc_sync::inside_vault(root, &open.path) {
         return Err(t(TextKey::BoardStatusInsideVault).to_owned());
     }
-    let on_disk = std::fs::read_to_string(&open.path).map_err(|e| match e.kind() {
+    let on_disk = crate::doc_sync::read_text(&open.path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => t(TextKey::KanbanStatusFileRemoved).to_owned(),
         _ => e.to_string(),
     })?;
