@@ -8,11 +8,12 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use muninn_core::Board;
 use muninn_core::testing::TempVault;
-use muninn_ui::{BoardStatus, Mode, Settings, State, on_key, poll, view};
+use muninn_core::{Board, MemoryStore, Vault, VaultStore};
+use muninn_ui::{BoardStatus, DocConflict, Mode, Settings, State, on_key, poll, view};
 use rune::{Env, Key, KeyEvent, Mods, Runtime};
 
 const DRAW: &str = include_str!("../../muninn-core/tests/fixtures/board/draw.excalidraw");
@@ -535,4 +536,164 @@ fn a_tampered_recovery_record_never_writes_outside_the_vault() {
             "{rel}: nothing appears outside"
         );
     }
+}
+
+/// #240 slice 6c: the board page over a caller-supplied store, the shape the
+/// browser boots (OPFS is a store the same contract pins). `root` exists on
+/// the native filesystem only so `inside_vault` can canonicalize it; the
+/// board's bytes live in the memory store, as they do in OPFS.
+fn store_backed_state(
+    root: &Path,
+    state_home: &Path,
+    board: &str,
+) -> (Arc<MemoryStore>, Arc<dyn VaultStore>, State) {
+    fs::create_dir_all(root).expect("root folder");
+    let store = Arc::new(MemoryStore::new(root));
+    store.put_file("Draw.excalidraw", board.as_bytes());
+    let handle: Arc<dyn VaultStore> = store.clone();
+    let mut state = State::with_state_home(root.to_path_buf(), state_home.to_path_buf());
+    state
+        .install_store(Arc::clone(&handle))
+        .expect("store installs");
+    state.refresh_boards();
+    (store, handle, state)
+}
+
+fn select_draw(state: &mut State) -> PathBuf {
+    let path = state
+        .boards
+        .iter()
+        .find(|b| b.file.title == "Draw")
+        .expect("Draw is listed")
+        .file
+        .path
+        .clone();
+    state.select_board(path.clone());
+    assert!(
+        state
+            .board_open
+            .as_ref()
+            .is_some_and(|open| open.model.is_some()),
+        "Draw opened and parsed through the store"
+    );
+    path
+}
+
+#[test]
+fn a_store_backed_board_save_lands_in_the_store_and_a_reload_reads_it() {
+    let home = TempVault::new(&[]);
+    let root = home.path().join("browser-vault");
+    let (store, handle, mut state) = store_backed_state(&root, &unique_dir("state"), DRAW);
+    let path = select_draw(&mut state);
+    let before = n_draw();
+
+    // A drawing edit: one element removed, the page marked unsaved.
+    {
+        let open = state.board_open.as_mut().expect("open");
+        open.model
+            .as_mut()
+            .expect("readable")
+            .elements
+            .pop()
+            .expect("an element");
+        open.status = BoardStatus::Unsaved;
+    }
+    assert!(state.save_board(), "the store save succeeds");
+
+    let text = store
+        .read_to_string(&path)
+        .expect("the store has the board");
+    let saved = Board::from_json(&text).expect("the saved board parses");
+    assert_eq!(saved.elements.len(), before - 1);
+
+    // A reload is another `Vault` over the same store, what the browser boot
+    // does after walking OPFS back into its mirror.
+    let reloaded = Vault::open(handle).expect("reopen the store");
+    assert_eq!(reloaded.boards().len(), 1);
+    let bytes = reloaded
+        .store()
+        .read_to_string(&path)
+        .expect("the reloaded store has the board");
+    assert_eq!(Board::from_json(&bytes).unwrap().elements.len(), before - 1);
+}
+
+#[test]
+fn a_store_board_refuses_an_external_change_and_keep_mine_and_copy_write_through_it() {
+    let home = TempVault::new(&[]);
+    let root = home.path().join("browser-vault");
+    let (store, _handle, mut state) = store_backed_state(&root, &unique_dir("state"), DRAW);
+    let path = select_draw(&mut state);
+    let before = n_draw();
+
+    // Another writer replaces the board in the store after the page read it.
+    let mut external = Board::from_json(DRAW).expect("the fixture parses");
+    external.elements.truncate(1);
+    let external_json = external.to_json();
+    store.put_file("Draw.excalidraw", external_json.as_bytes());
+
+    {
+        let open = state.board_open.as_mut().expect("open");
+        open.model
+            .as_mut()
+            .expect("readable")
+            .elements
+            .pop()
+            .expect("an element");
+        open.status = BoardStatus::Unsaved;
+    }
+    assert!(!state.save_board(), "a changed board is never overwritten");
+    let open = state.board_open.as_ref().expect("stays open");
+    assert!(matches!(&open.status, BoardStatus::Failed(e) if e.contains("changed on disk")));
+    assert_eq!(open.conflict, Some(DocConflict::Changed));
+    assert_eq!(
+        store.read_to_string(&path).unwrap(),
+        external_json,
+        "the refused save wrote nothing"
+    );
+
+    // Keep mine writes the drawing over the external board, through the store.
+    let kept = state
+        .board_open
+        .as_ref()
+        .unwrap()
+        .model
+        .as_ref()
+        .unwrap()
+        .to_json();
+    assert!(state.board_keep_mine());
+    assert_eq!(store.read_to_string(&path).unwrap(), kept);
+    assert_eq!(
+        Board::from_json(&store.read_to_string(&path).unwrap())
+            .unwrap()
+            .elements
+            .len(),
+        before - 1
+    );
+
+    // Save copy writes a sibling through the same store and leaves the
+    // original alone.
+    {
+        let open = state.board_open.as_mut().expect("open");
+        open.model.as_mut().unwrap().elements.pop();
+    }
+    assert!(state.board_save_copy());
+    let copy = state.board_open.as_ref().expect("open").path.clone();
+    assert_ne!(copy, path);
+    assert!(store.is_file(&copy), "the copy is in the store");
+    assert_eq!(
+        store.read_to_string(&copy).unwrap(),
+        state
+            .board_open
+            .as_ref()
+            .unwrap()
+            .model
+            .as_ref()
+            .unwrap()
+            .to_json()
+    );
+    assert_eq!(
+        store.read_to_string(&path).unwrap(),
+        kept,
+        "Save copy leaves the original untouched"
+    );
 }

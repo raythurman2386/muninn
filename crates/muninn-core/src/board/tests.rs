@@ -366,6 +366,82 @@ fn saving_is_atomic_and_leaves_no_temp_files() {
     assert_eq!(fs::read_dir(tmp.path()).expect("read dir").count(), 2);
 }
 
+/// #240 slice 6c: the store form every app save uses. A memory store is the
+/// contract the browser (OPFS) store reproduces, with no filesystem at all.
+#[test]
+fn a_board_saved_through_a_memory_store_round_trips() {
+    use crate::store::{MemoryStore, VaultStore};
+
+    let store = MemoryStore::new("/mem-board");
+    let path = store.root().join("Plan.excalidraw");
+    let mut board = Board::from_json(SCENE).expect("scene");
+    board
+        .save_to(&store, &path)
+        .expect("save through the store");
+
+    let text = store
+        .read_to_string(&path)
+        .expect("the store has the bytes");
+    assert_eq!(text, board.to_json());
+    let reloaded = Board::from_json(&text).expect("reload");
+    assert_eq!(reloaded, board, "the elements survive the round trip");
+    assert_eq!(reloaded.elements.len(), board.elements.len());
+
+    // A second save replaces the file in place; a memory store has no temp
+    // file to leave behind, and nothing else appears.
+    board.elements.truncate(1);
+    board.save_to(&store, &path).expect("overwrite");
+    let names: Vec<_> = store
+        .read_dir(store.root())
+        .expect("read dir")
+        .into_iter()
+        .map(|entry| entry.name.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names, ["Plan.excalidraw"]);
+    assert_eq!(
+        Board::from_json(&store.read_to_string(&path).unwrap()).unwrap(),
+        board
+    );
+}
+
+/// The native store is the old write by the same calls: the file's bytes are
+/// identical to [`Board::save`], and the hidden temp file is cleaned up.
+#[test]
+fn an_fs_store_board_save_is_byte_identical_to_the_atomic_write() {
+    let tmp = TempVault::new(&[]);
+    let board = Board::from_json(SCENE).expect("scene");
+    let store = FsStore::new(tmp.path());
+
+    let via_store = tmp.path().join("Via store.excalidraw");
+    board.save_to(&store, &via_store).expect("store save");
+    let via_atomic = tmp.path().join("Via atomic.excalidraw");
+    board.save(&via_atomic).expect("atomic save");
+
+    let store_bytes = fs::read(&via_store).expect("store-written bytes");
+    assert_eq!(store_bytes, fs::read(&via_atomic).expect("atomic bytes"));
+    assert_eq!(store_bytes, board.to_json().as_bytes());
+
+    let mut names: Vec<_> = fs::read_dir(tmp.path())
+        .expect("read dir")
+        .map(|e| e.expect("entry").file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        ["Via atomic.excalidraw", "Via store.excalidraw"],
+        "no hidden temp file is left behind"
+    );
+
+    // The store replaces a file's bytes and refuses a missing folder, exactly
+    // as `Board::save` does.
+    board
+        .save_to(&store, &via_store)
+        .expect("overwrite in place");
+    let missing = tmp.path().join("no-such-folder").join("X.excalidraw");
+    assert!(board.save_to(&store, &missing).is_err());
+    assert!(!missing.exists());
+}
+
 #[test]
 fn a_board_that_fails_to_parse_is_never_overwritten_by_load() {
     let tmp = TempVault::new(&[("Broken.excalidraw", "{ truncated")]);

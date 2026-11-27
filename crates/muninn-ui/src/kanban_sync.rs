@@ -494,6 +494,7 @@ impl State {
             return false;
         }
         let root = self.vault.root.clone();
+        let store = self.vault.store();
         let Some(shown) = &mut self.kanban else {
             return false;
         };
@@ -509,15 +510,12 @@ impl State {
         let written = match self.vault.notes.iter().position(|note| note.rel == rel) {
             Some(id) if path.exists() => self.vault.write_note(id, &source).map(|()| Some(id)),
             _ => {
-                #[cfg(feature = "native")]
+                // The folder comes from the vault's store too, so a kanban
+                // whose folder vanished is recreated where its bytes live.
                 let created = path
                     .parent()
-                    .map_or(Ok(()), std::fs::create_dir_all)
-                    .and_then(|()| board.save(&path));
-                // A browser has no folders to recreate; the sink decides where
-                // the bytes go (slice 5).
-                #[cfg(not(feature = "native"))]
-                let created = board.save(&path);
+                    .map_or(Ok(()), |parent| store.create_dir_all(parent))
+                    .and_then(|()| board.save_to(&*store, &path));
                 created.map(|()| None)
             }
         };
@@ -556,6 +554,7 @@ impl State {
             return false;
         }
         let root = self.vault.root.clone();
+        let store = self.vault.store();
         let Some(shown) = &mut self.kanban else {
             return false;
         };
@@ -567,7 +566,7 @@ impl State {
             return false;
         }
         let copy = copy_path(&root, &path, &conflict_stamp());
-        if let Err(e) = board.save(&copy) {
+        if let Err(e) = board.save_to(&*store, &copy) {
             shown.status = BoardStatus::Failed(kanban_could_not_save_copy(e));
             return false;
         }

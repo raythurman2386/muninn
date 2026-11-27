@@ -185,29 +185,21 @@ impl DocConflict {
 /// Compare the file at `path` with what the page last read or wrote
 /// (`same`): `None` when it still holds that, else why not. An unreadable
 /// file keeps the flag it had (`was`).
-#[cfg(feature = "native")]
+///
+/// The bytes come from [`read_text`], the same store-routed seam the save's
+/// own compare uses, so a board or kanban changed in a browser store is
+/// flagged exactly as one changed on the native filesystem.
 pub(crate) fn disk_conflict(
     path: &Path,
     same: impl FnOnce(&str) -> bool,
     was: Option<DocConflict>,
 ) -> Option<DocConflict> {
-    match std::fs::read_to_string(path) {
+    match read_text(path) {
         Ok(text) if same(&text) => None,
         Ok(_) => Some(DocConflict::Changed),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Some(DocConflict::Missing),
         Err(_) => was,
     }
-}
-
-/// A browser build has no file to compare, so the flag a page already had is
-/// the honest answer; it is only ever set by a native watcher.
-#[cfg(not(feature = "native"))]
-pub(crate) fn disk_conflict(
-    _path: &Path,
-    _same: impl FnOnce(&str) -> bool,
-    was: Option<DocConflict>,
-) -> Option<DocConflict> {
-    was
 }
 
 /// What a watcher may do with the shown document when its file changed on

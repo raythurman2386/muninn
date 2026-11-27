@@ -6,10 +6,10 @@
 //!   ([`crate::BoardConflict`]) and offers the note conflict bar's choices:
 //!   **Keep mine** writes the drawing to the board's own path (recreating it
 //!   if it was removed; still only inside the vault it was opened from and
-//!   that is open now, through s1's atomic save), **Save copy** writes it to
-//!   a new sibling `Title (conflict YYYYMMDD-HHMMSS).excalidraw` and makes
-//!   that the open board, and **Load theirs** (**Discard** when the file is
-//!   gone) drops the drawing for what is on disk.
+//!   that is open now, through the vault store's atomic save), **Save copy**
+//!   writes it to a new sibling `Title (conflict YYYYMMDD-HHMMSS).excalidraw`
+//!   and makes that the open board, and **Load theirs** (**Discard** when the
+//!   file is gone) drops the drawing for what is on disk.
 //! - **Recovery copy.** While a board is dirty its drawing is copied, after
 //!   each change, to the same SAF-05 store notes use
 //!   (`$XDG_STATE_HOME/muninn/recovery/<vault-id>~<sanitized-rel>.txt` plus
@@ -150,6 +150,7 @@ impl State {
     /// file changed or was removed. Still refused outside the open vault.
     pub fn board_keep_mine(&mut self) -> bool {
         let root = self.vault.root.clone();
+        let store = self.vault.store();
         let Some(open) = &mut self.board_open else {
             return false;
         };
@@ -164,15 +165,14 @@ impl State {
             open.status = BoardStatus::Failed(t(TextKey::BoardStatusInsideVault).to_owned());
             return false;
         }
-        #[cfg(feature = "native")]
         if let Some(parent) = open.path.parent()
-            && let Err(e) = std::fs::create_dir_all(parent)
+            && let Err(e) = store.create_dir_all(parent)
         {
             open.status = BoardStatus::Failed(e.to_string());
             return false;
         }
         let json = model.to_json();
-        if let Err(e) = model.save(&open.path) {
+        if let Err(e) = model.save_to(&*store, &open.path) {
             open.status = BoardStatus::Failed(e.to_string());
             return false;
         }
@@ -190,6 +190,7 @@ impl State {
     /// file, whatever it holds now, is left alone.
     pub fn board_save_copy(&mut self) -> bool {
         let root = self.vault.root.clone();
+        let store = self.vault.store();
         let Some(open) = &mut self.board_open else {
             return false;
         };
@@ -200,12 +201,13 @@ impl State {
         let copy = copy_path(&root, &open.path, &conflict_stamp());
         let saved = std::mem::replace(&mut open.path, copy.clone());
         // `write_board` checks the fingerprint of the target: a new file has
-        // none, so write directly through s1's atomic save.
+        // none, so write directly through the vault's store, which is the
+        // native atomic save and OPFS in a browser.
         let Some(model) = &open.model else {
             return false;
         };
         let json = model.to_json();
-        if let Err(e) = model.save(&copy) {
+        if let Err(e) = model.save_to(&*store, &copy) {
             open.path = saved;
             open.status = BoardStatus::Failed(kanban_could_not_save_copy(e));
             return false;

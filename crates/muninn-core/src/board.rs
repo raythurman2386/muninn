@@ -2,9 +2,11 @@
 //!
 //! A board is a vault file, not a note: only `.md` files are notes, so boards
 //! never enter the note index, the link graph or search. The file is the
-//! source of truth. [`Board::load`] parses it and [`Board::save`] writes it
-//! back through the same hidden temp + fsync + rename path as note saves, so a
-//! crash leaves either the old board or the new one, never a torn file.
+//! source of truth. [`Board::save`] writes it back through the same hidden
+//! temp + fsync + rename path as note saves, and [`Board::save_to`] does the
+//! same through a vault's [`VaultStore`] (the write every app site uses, so a
+//! browser board lands in OPFS), so a crash leaves either the old board or the
+//! new one, never a torn file.
 //!
 //! # Format
 //!
@@ -533,8 +535,25 @@ impl Board {
 
     /// Write the board atomically (hidden temp file, fsync, rename), replacing
     /// any existing file at `path`.
+    ///
+    /// This is the no-store form, kept for callers that are not served by a
+    /// vault: the core tests, the format examples, and the `board_resave`
+    /// command-line example. Every app save goes through [`Board::save_to`]
+    /// instead, so the bytes land wherever the vault's store lives.
     pub fn save(&self, path: impl AsRef<Path>) -> io::Result<()> {
         atomic_write(path.as_ref(), self.to_json().as_bytes())
+    }
+
+    /// Write the board through `store`, replacing any existing file at `path`.
+    ///
+    /// [`VaultStore::write_atomic`] is the store's hidden-temp + rename
+    /// replace, so a native [`FsStore`] resolves this to the exact
+    /// [`atomic_write`] call [`Board::save`] makes, while a browser store
+    /// writes the same bytes into OPFS. A missing parent folder is an error,
+    /// exactly as it is for [`Board::save`]; the caller creates the folder
+    /// through the same store when recreating a removed board.
+    pub fn save_to(&self, store: &dyn VaultStore, path: impl AsRef<Path>) -> io::Result<()> {
+        store.write_atomic(path.as_ref(), self.to_json().as_bytes())
     }
 
     /// Elements that are drawn: everything except tombstones.

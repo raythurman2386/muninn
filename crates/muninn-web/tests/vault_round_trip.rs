@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use muninn_core::{Vault, VaultStore};
+use muninn_core::{Board, Vault, VaultStore};
 use muninn_web::{OpfsStore, SAMPLE_ROOT, SAMPLE_SOURCES};
 
 fn sample_store() -> Arc<OpfsStore> {
@@ -121,4 +121,54 @@ fn the_seeded_board_is_listed_and_its_bytes_are_readable() {
         .read_to_string(&boards[0].path)
         .expect("the board's bytes come from the store");
     assert!(text.contains("\"type\": \"excalidraw\""));
+}
+
+/// A drawing edit on the seeded board saves through the store and survives a
+/// reload (#240 slice 6c), the board twin of the note round-trip above.
+#[test]
+fn a_drawing_saved_on_the_seeded_board_survives_a_reload() {
+    let store = sample_store();
+    let handle: Arc<dyn VaultStore> = store.clone();
+    let vault = Vault::open(Arc::clone(&handle)).expect("the sample opens");
+    let board = vault
+        .boards()
+        .into_iter()
+        .next()
+        .expect("the sample has its board");
+    assert_eq!(board.rel, "Muninn board.excalidraw");
+
+    let mut scene = Board::from_json(
+        &store
+            .read_to_string(&board.path)
+            .expect("the board reads from the store"),
+    )
+    .expect("the scene parses");
+    let before = scene.elements.len();
+    assert!(before > 0, "the sample board is drawn on");
+    // A drawing edit: what any element edit does, one element fewer.
+    scene.elements.pop();
+
+    scene
+        .save_to(&*handle, &board.path)
+        .expect("the board saves through its store");
+    let plan = store.take_flush_plan();
+    assert!(
+        plan.files.contains(&"Muninn board.excalidraw".to_owned()),
+        "the board edit is dirty for the next OPFS flush: {plan:?}"
+    );
+
+    // A reload is another `Vault::open` over the same store, the shape the
+    // boot has after walking OPFS back into the mirror.
+    let reloaded = Vault::open(handle).expect("reload");
+    let board = reloaded
+        .boards()
+        .into_iter()
+        .next()
+        .expect("the board is still listed");
+    let bytes = reloaded
+        .store()
+        .read_to_string(&board.path)
+        .expect("the reloaded store has the board");
+    let scene = Board::from_json(&bytes).expect("the reloaded scene parses");
+    assert_eq!(scene.elements.len(), before - 1, "the drawing persisted");
 }

@@ -34,6 +34,17 @@ All notable changes to Muninn are documented here. The format is based on
   (15.1 MB raw, 5.6 MB gzip at slice 5). `xtask wasm-check` now also
   `check`/`clippy`-checks `muninn-web` for `wasm32-unknown-unknown`.
 
+### Fixed
+
+- **Board edits now persist in the browser (#240 slice 6c).** Saving a board
+  writes through the vault's store instead of the native filesystem, so the
+  drawing on the seeded `Muninn board.excalidraw` — and on every other board —
+  survives a reload of the OPFS-backed web vault. Native saves are the same
+  atomic temp-file write as before. The conflict bar's Keep mine and Save copy
+  writes, and the Kanban page's, take the same store path; the read a save
+  compares against and the read that flags an external change both come from
+  the store too.
+
 ## [0.11.5] - 2026-11-25
 
 ### Changed

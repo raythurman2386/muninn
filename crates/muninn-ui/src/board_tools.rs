@@ -22,10 +22,11 @@
 //!   when the save fails) and closing the app. Leaving Board for a note mode
 //!   keeps the drawing in memory, unsaved, and coming back does not re-read
 //!   the file over it.
-//! - A save writes only through [`muninn_core::Board::save`] (hidden temp
-//!   file, fsync, rename), only to the path the board was opened from, and
-//!   only while that path is inside the vault that is open now, so a board
-//!   is never written into another vault.
+//! - A save writes only through [`muninn_core::Board::save_to`] with the
+//!   vault's store (hidden temp file, fsync, rename; the native `FsStore` is
+//!   the same filesystem write, a browser store is OPFS), only to the path the
+//!   board was opened from, and only while that path is inside the vault that
+//!   is open now, so a board is never written into another vault.
 //! - Before writing, the file is read again; if its bytes are not the ones
 //!   Muninn loaded or last wrote (another app changed or removed it), the
 //!   save is refused and the drawing stays in memory, marked not saved, and
@@ -39,7 +40,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
-use muninn_core::{Board, IdSource, Ink, ShapeKind};
+use muninn_core::{Board, IdSource, Ink, ShapeKind, VaultStore};
 use muninn_i18n::{Key as TextKey, t};
 use rune::{Color, Cursor, Drag, El, Icon, Phase, Shape, Tx, canvas, icon, row};
 use rune_kit::Kit;
@@ -416,13 +417,14 @@ impl State {
         // Slice 6: text being typed is part of what is saved (quit, switch).
         self.commit_board_text();
         let root = self.vault.root.clone();
+        let store = self.vault.store();
         let Some(open) = &mut self.board_open else {
             return true;
         };
         if open.status != BoardStatus::Unsaved && !matches!(open.status, BoardStatus::Failed(_)) {
             return true;
         }
-        let result = write_board(open, &root);
+        let result = write_board(open, &root, &*store);
         let saved = result.is_ok();
         open.status = match result {
             Ok(()) => BoardStatus::Saved,
@@ -454,8 +456,10 @@ impl State {
 }
 
 /// Write `open`'s board to its own file, refusing a path outside `root`, a
-/// board opened from another vault, and a file someone else changed.
-fn write_board(open: &mut OpenBoard, root: &Path) -> Result<(), String> {
+/// board opened from another vault, and a file someone else changed. The write
+/// goes through the open vault's store, so native resolves to the same atomic
+/// filesystem save and a browser board lands in OPFS.
+fn write_board(open: &mut OpenBoard, root: &Path, store: &dyn VaultStore) -> Result<(), String> {
     let Some(model) = &open.model else {
         return Err(t(TextKey::BoardStatusUnreadable).to_owned());
     };
@@ -473,7 +477,9 @@ fn write_board(open: &mut OpenBoard, root: &Path) -> Result<(), String> {
         return Err(t(TextKey::KanbanStatusFileChanged).to_owned());
     }
     let json = model.to_json();
-    model.save(&open.path).map_err(|e| e.to_string())?;
+    model
+        .save_to(store, &open.path)
+        .map_err(|e| e.to_string())?;
     open.disk = Some(fingerprint(&json));
     Ok(())
 }
