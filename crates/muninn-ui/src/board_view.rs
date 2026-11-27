@@ -373,9 +373,14 @@ impl BoardCounts {
 
 impl BoardSummary {
     fn read(file: BoardFile) -> BoardSummary {
-        let counts = Board::load(&file.path)
-            .map(|board| BoardCounts::of(&board))
-            .map_err(|e| e.to_string());
+        // #240 (slice 6b): read through the vault store (`doc_sync::read_text`),
+        // like `read_board` — a browser build reads the board's bytes from its
+        // OPFS mirror, and a native vault's registered store is the same
+        // `fs::read_to_string` `Board::load` used.
+        let counts = crate::doc_sync::read_text(&file.path)
+            .map_err(|e| e.to_string())
+            .and_then(|text| Board::from_json(&text).map_err(|e| e.to_string()))
+            .map(|board| BoardCounts::of(&board));
         BoardSummary { file, counts }
     }
 

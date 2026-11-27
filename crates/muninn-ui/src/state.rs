@@ -11,6 +11,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "native")]
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 #[cfg(feature = "native")]
 use std::sync::mpsc;
 #[cfg(feature = "native")]
@@ -22,7 +23,8 @@ use std::time::{Duration, SystemTime};
 use muninn_sync::BrowserOpener as _;
 
 use muninn_core::{
-    KanbanView, NoteSource, ScanJob, Vault, atomic_copy, jump_offset, unclosed_link, unclosed_tag,
+    KanbanView, NoteSource, ScanJob, Vault, VaultStore, atomic_copy, jump_offset, unclosed_link,
+    unclosed_tag,
 };
 use muninn_graph::{Camera as GraphCamera, Graph, WORLD, cards_fit};
 use muninn_i18n::{
@@ -1329,6 +1331,10 @@ impl State {
             autostart: crate::autostart::AutostartLink::default(),
             shortcut: crate::global_shortcut::ShortcutLink::default(),
         };
+        // The document-read seam (`doc_sync::read_text`) resolves a path by its
+        // vault's store. Register before the startup note load: a kanban note or
+        // a board opened here reads through the same store the vault does.
+        crate::doc_sync::register_store(&state.vault.store());
         // X-01: one startup line with the build, the vault path and counts.
         // Keys only: note bodies and titles never reach the log.
         state.log_event(
@@ -5384,8 +5390,12 @@ impl State {
 
     /// Re-scan the vault without changing what the editor shows or selects.
     pub(crate) fn refresh_index_only(&mut self) {
-        if let Ok(vault) = Vault::load(&self.vault.root) {
+        // Re-read through the vault's own store: an `FsStore` is the same
+        // filesystem walk as before, while a browser vault keeps its OPFS
+        // mirror instead of falling back to a native root.
+        if let Ok(vault) = Vault::open(self.vault.store()) {
             self.vault = vault;
+            crate::doc_sync::register_store(&self.vault.store());
             self.list_sidebar_boards();
             self.graph.sync(&self.vault);
             self.graph_cards_changed();
@@ -5398,14 +5408,16 @@ impl State {
     }
 
     pub(crate) fn reload(&mut self, select: Option<PathBuf>) {
-        let root = self.vault.root.clone();
         let path = select.or_else(|| self.selected_path.clone());
         // EDT-02: park the editor before the selection resets below; a same-note
         // reload replaces it only if the reloaded text still matches.
         self.stash_editor();
-        match Vault::load(&root) {
+        // The vault's store, not a fresh filesystem load: a browser build
+        // re-reads its OPFS mirror, and the native `FsStore` walk is unchanged.
+        match Vault::open(self.vault.store()) {
             Ok(v) => {
                 self.vault = v;
+                crate::doc_sync::register_store(&self.vault.store());
                 self.list_sidebar_boards();
                 self.graph.sync(&self.vault);
                 self.graph_cards_changed();
@@ -5450,7 +5462,7 @@ impl State {
             return false;
         }
         let started = ScanTimer::now();
-        match Vault::scan_start(&self.vault.root) {
+        match Vault::scan_start_with(self.vault.store()) {
             Ok(mut job) => {
                 let total = job.total();
                 let walk_ms = started.elapsed_ms();
@@ -5601,6 +5613,10 @@ impl State {
             return false;
         }
         self.vault = vault;
+        // A rescan or a browser store install replaces the bytes behind the
+        // read seam too. The newest store for a root wins, and the old entry is
+        // a weak handle that drops with the vault it belonged to.
+        crate::doc_sync::register_store(&self.vault.store());
         self.list_sidebar_boards();
         self.scan_field.focused = false;
         self.startup_error = None;
@@ -5683,6 +5699,24 @@ impl State {
     pub fn install_sources(&mut self, sources: &[NoteSource<'_>]) -> bool {
         let vault = Vault::from_sources(self.vault.root.clone(), sources);
         self.install_scanned_vault(vault)
+    }
+
+    /// Install a vault read through a caller-supplied store, the write-capable
+    /// sibling of [`State::install_sources`] (#240 slice 6b).
+    ///
+    /// [`Vault::open`] indexes the bytes the store holds; the store stays the
+    /// vault's read *and* write sink, so note saves, renames, moves and trash
+    /// land where the host put them (OPFS in the browser). The rest is the tail
+    /// of a finished startup scan, exactly as [`State::install_sources`] runs
+    /// it. Errors are the store's own: a missing or unreadable root, or a
+    /// read-only store that refuses to create a root it did not find.
+    pub fn install_store(&mut self, store: Arc<dyn VaultStore>) -> Result<(), String> {
+        let vault = Vault::open(store).map_err(could_not_open_vault)?;
+        if self.install_scanned_vault(vault) {
+            Ok(())
+        } else {
+            Err(t(TextKey::ErrorSaveBoardBeforeRescan).to_owned())
+        }
     }
 
     /// Begin naming a note in the current folder. Nothing is created until

@@ -5,7 +5,9 @@
 //! honest on the native suite, where a folder is available but deliberately
 //! not used for the vault.
 
-use muninn_core::{NoteSource, testing::TempVault};
+use std::sync::Arc;
+
+use muninn_core::{MemoryStore, NoteSource, VaultStore, testing::TempVault};
 use muninn_ui::State;
 
 #[test]
@@ -49,4 +51,40 @@ fn a_state_installs_a_vault_built_from_sources() {
     let selected = state.selected.expect("a note is open after install");
     assert_eq!(state.vault.notes[selected].rel, "Graph.md");
     assert_eq!(state.editor.text, state.vault.notes[selected].source);
+}
+
+#[test]
+fn a_store_backed_state_creates_and_reloads_through_its_own_store() {
+    // A different root from the placeholder scan above, so the store's root is
+    // the only owner of these paths.
+    let home = TempVault::new(&[]);
+    let root = home.path().join("browser-vault");
+    let store = Arc::new(MemoryStore::new(&root));
+    store.put_file("Welcome.md", b"# Welcome\n\nA [store](Note.md).\n");
+    let store: Arc<dyn VaultStore> = store.clone();
+    let mut state = State::with_state_home(root.clone(), home.path().with_extension("state"));
+    state
+        .install_store(Arc::clone(&store))
+        .expect("store installs");
+
+    // Creating a note writes through the vault, then `reload` re-reads through
+    // the same store. Before 6b it called `Vault::load`, which on web would
+    // have replaced the browser vault with an empty native one.
+    state.create_note_named_in("Fresh", "");
+    assert!(
+        state.vault.notes.iter().any(|note| note.title == "Fresh"),
+        "the new note is in the reloaded index"
+    );
+    assert!(
+        store.is_file(&root.join("Fresh.md")),
+        "the new note is in the same store"
+    );
+
+    // A second install sees the same bytes: the reload round-trip.
+    let mut again = State::with_state_home(root.clone(), home.path().with_extension("state-2"));
+    again
+        .install_store(Arc::clone(&store))
+        .expect("reinstall the same store");
+    assert!(again.vault.notes.iter().any(|note| note.title == "Fresh"));
+    assert!(again.vault.notes.iter().any(|note| note.title == "Welcome"));
 }

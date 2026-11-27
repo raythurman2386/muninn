@@ -410,6 +410,18 @@ impl MemoryStore {
         }
     }
 
+    /// The raw bytes stored for `rel`, for a caller that keeps binary files in
+    /// the same store (the browser vault's OPFS flush writes attachments back
+    /// unchanged). The path is normalised like [`MemoryStore::put_file`].
+    #[must_use]
+    pub fn read_bytes(&self, rel: &str) -> Option<Vec<u8>> {
+        let rel = normalise_rel(rel);
+        self.entries()
+            .files
+            .get(&rel.to_lowercase())
+            .map(|file| file.bytes.clone())
+    }
+
     fn entries(&self) -> std::sync::MutexGuard<'_, Entries> {
         self.entries.lock().unwrap_or_else(PoisonError::into_inner)
     }

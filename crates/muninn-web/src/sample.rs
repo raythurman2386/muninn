@@ -1,20 +1,19 @@
 //! The committed sample vault, embedded as bytes.
 //!
-//! The demo reads its vault through [`Vault::from_sources`], the same pure
-//! seam a browser store will use in slice 6, instead of a folder scan. Every
-//! file is compiled into the wasm binary with [`include_bytes!`], so the bundle
-//! is self-contained: no fetch, no manifest, no build script.
+//! First run seeds OPFS with exactly these bytes (slice 6b); every later boot
+//! reads the browser vault from OPFS. The list is also the fallback when OPFS
+//! cannot be mounted at all, so the demo still renders read-only.
 //!
 //! The sample is the repository's `vault/` folder verbatim (17 Markdown notes
 //! plus one `.excalidraw`). `Vault::from_sources` indexes `.md` notes and
 //! seeds every non-note source into its memory store (slice 6a), so Board
-//! mode lists the embedded board on web; opening it still needs the store's
-//! read path, which the OPFS slice (6b) supplies.
+//! mode lists the embedded board. In slice 6b the board is read through the
+//! vault's store (`doc_sync::read_text`), so it opens and renders too.
 
 use muninn_core::NoteSource;
 
-/// The label stored on [`muninn_core::Vault::root`]. It is a path, not a folder
-/// on disk: nothing in the demo writes to it.
+/// The label stored on [`muninn_core::Vault::root`]. It is the vault path the
+/// notes carry; OPFS is mounted behind it, not at it.
 pub const SAMPLE_ROOT: &str = "/Muninn sample";
 
 /// The whole sample vault: vault-relative path and committed bytes.
