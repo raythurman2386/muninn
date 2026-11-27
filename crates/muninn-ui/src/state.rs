@@ -5970,7 +5970,7 @@ impl State {
                 } else {
                     self.note_row_burn(id, &label)
                 };
-                match self.vault.delete_note_to_trash(id) {
+                match self.vault.delete_note_to_trash(id, unix_now()) {
                     Ok(trash_rel) => {
                         self.error = None;
                         self.log_event("trash", &trash_rel);

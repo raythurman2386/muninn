@@ -43,7 +43,7 @@ use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 /// Distinguishes concurrent temp files from the same process.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -101,6 +101,21 @@ pub struct TagEntry {
     pub tag: String,
     /// Notes that carry it, in note order.
     pub notes: Vec<usize>,
+}
+
+/// One note a caller supplies to [`Vault::from_sources`]: its vault-relative
+/// path and its bytes.
+///
+/// This is the read seam for sources that are not files on this machine's
+/// disk (a browser front end feeding OPFS bytes, a test fixture in memory).
+/// `rel` uses `/` separators and is relative to the vault root (e.g.
+/// `projects/alpha/note.md`). `bytes` are decoded as UTF-8; a source that is
+/// not valid UTF-8 is counted by [`Vault::skipped_count`], exactly as an
+/// unreadable file would be in [`Vault::load`].
+#[derive(Clone, Copy, Debug)]
+pub struct NoteSource<'a> {
+    pub rel: &'a str,
+    pub bytes: &'a [u8],
 }
 
 /// An in-progress chunked scan started by [`Vault::scan_start`].
@@ -258,6 +273,84 @@ impl Vault {
             notes: Vec::new(),
             skipped: 0,
         })
+    }
+
+    /// Build the same indexed vault [`Vault::load`] would build, from note
+    /// sources supplied by the caller instead of a folder on disk.
+    ///
+    /// Each [`NoteSource`] is one note's vault-relative path and bytes. Nothing
+    /// on this path touches the filesystem, so a browser front end can feed it
+    /// bytes read from OPFS and a test can build a vault from a `Vec` with no
+    /// temp folder. `root` is only the label stored on [`Vault::root`] (and
+    /// prefixed to each [`Note::path`]); it need not exist.
+    ///
+    /// Sources are ordered exactly as a filesystem scan orders note paths, then
+    /// passed through the same [`ScanJob::finish`] index step [`Vault::load`]
+    /// ends with, so titles, folders, links, backlinks, broken links and tags
+    /// resolve identically for the same files. A source the filesystem walk
+    /// would not see (not `.md`, a dot-prefixed segment, deeper than 12 folders)
+    /// is ignored; one that cannot be indexed (invalid UTF-8, no title) counts
+    /// toward [`Vault::skipped_count`]. A repeated `rel` is indexed once, the
+    /// first in the slice. Folders that would be empty on disk cannot be
+    /// represented: [`Vault::dirs`] holds the root and every folder a source
+    /// lives under.
+    #[must_use]
+    pub fn from_sources(root: impl AsRef<Path>, sources: &[NoteSource<'_>]) -> Vault {
+        let root = root.as_ref().to_path_buf();
+        let mut indexable: Vec<&NoteSource<'_>> = sources
+            .iter()
+            .filter(|source| walkable_source_rel(source.rel))
+            .collect();
+        // The same order `sort_paths` gives the walked paths: the root prefix
+        // is common, so comparing the relative paths is equivalent.
+        indexable.sort_by(|a, b| {
+            a.rel
+                .to_lowercase()
+                .cmp(&b.rel.to_lowercase())
+                .then_with(|| a.rel.cmp(b.rel))
+        });
+        let mut notes = Vec::new();
+        let mut dirs = vec![String::new()];
+        let mut skipped = 0;
+        let mut previous: Option<&str> = None;
+        for source in indexable {
+            if previous == Some(source.rel) {
+                continue;
+            }
+            previous = Some(source.rel);
+            let Ok(source_text) = std::str::from_utf8(source.bytes) else {
+                skipped += 1;
+                continue;
+            };
+            let rel = source.rel.to_owned();
+            let note = note_from_parts(root.join(&rel), rel, source_text.to_owned(), notes.len());
+            match note {
+                Some(note) => {
+                    for (at, _) in note.rel.match_indices('/') {
+                        dirs.push(note.rel[..at].to_owned());
+                    }
+                    notes.push(note);
+                }
+                None => skipped += 1,
+            }
+        }
+        dirs.sort_by(|a, b| {
+            a.to_lowercase()
+                .cmp(&b.to_lowercase())
+                .then_with(|| a.cmp(b))
+        });
+        dirs.dedup();
+        // `finish` is the shared build-and-reindex step: this is the same tail
+        // a chunked scan runs, not a second indexer.
+        ScanJob {
+            root,
+            paths: Vec::new(),
+            dirs,
+            next: 0,
+            notes,
+            skipped,
+        }
+        .finish()
     }
 
     /// Rebuild the title index, every note's link lists, and the tag index.
@@ -1409,20 +1502,22 @@ impl Vault {
     /// same-volume `fs::rename`, so it is atomic with no copy and no new
     /// dependency. On failure the note and its index entry stay untouched.
     ///
+    /// `now_secs` is the Unix-seconds stamp for the slot, passed in rather than
+    /// read from the wall clock so a front end without a system clock (or a
+    /// test) owns the choice. The UI passes the same `unix_now()` value it uses
+    /// for its other timestamps.
+    ///
     /// Only note deletes are trashed; [`Vault::delete_folder`] stays a
     /// permanent empty-folder `remove_dir`.
-    pub fn delete_note_to_trash(&mut self, id: usize) -> io::Result<String> {
+    pub fn delete_note_to_trash(&mut self, id: usize, now_secs: u64) -> io::Result<String> {
         let source = self.notes[id].path.clone();
         let rel = self.notes[id].rel.clone();
         let trash = self.root.join(Self::TRASH_DIR);
         fs::create_dir_all(&trash)?;
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_secs());
-        let mut slot = trash.join(stamp.to_string());
+        let mut slot = trash.join(now_secs.to_string());
         let mut suffix = 2;
         while slot.exists() {
-            slot = trash.join(format!("{stamp}-{suffix}"));
+            slot = trash.join(format!("{now_secs}-{suffix}"));
             suffix += 1;
         }
         let target = slot.join(&rel);
@@ -2033,21 +2128,28 @@ fn prepare_root(root: &Path) -> io::Result<()> {
 /// those as skipped instead of failing the whole vault.
 fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
     let source = fs::read_to_string(path).ok()?;
-    let title = path
+    let rel = path
+        .strip_prefix(root)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    note_from_parts(path.to_path_buf(), rel, source, id)
+}
+
+/// The shared note construction behind [`note_from_path`] and
+/// [`Vault::from_sources`]: title from the path's file stem, locked state from
+/// the source, and no index fields yet (the vault's reindex fills those).
+fn note_from_parts(path: PathBuf, rel: String, source: String, id: usize) -> Option<Note> {
+    let title = Path::new(&rel)
         .file_stem()
         .and_then(|s| s.to_str())
         .map(str::to_owned)?;
     if title.is_empty() {
         return None;
     }
-    let rel = path
-        .strip_prefix(root)
-        .map(|p| p.to_string_lossy().replace('\\', "/"))
-        .unwrap_or_default();
     let locked = crate::note_lock::is_locked(&source);
     Some(Note {
         id,
-        path: path.to_path_buf(),
+        path,
         rel,
         title,
         source,
@@ -2058,6 +2160,27 @@ fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
         locked,
         unlocked_source: None,
     })
+}
+
+/// Whether a caller-supplied [`NoteSource::rel`] names a file the vault walk
+/// would find: a relative `.md` path, every segment visible, at most 12 folders
+/// deep. Anything else is ignored rather than indexed, matching a scan.
+fn walkable_source_rel(rel: &str) -> bool {
+    if rel.is_empty() || rel.starts_with('/') || rel.contains('\\') {
+        return false;
+    }
+    let parts: Vec<&str> = rel.split('/').collect();
+    let Some((name, folders)) = parts.split_last() else {
+        return false;
+    };
+    folders.len() <= 12
+        && folders
+            .iter()
+            .all(|part| !part.is_empty() && !part.starts_with('.'))
+        && !name.starts_with('.')
+        && Path::new(name)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
 }
 
 /// Case-insensitive path order, then exact, so scans are deterministic.
@@ -2270,6 +2393,133 @@ mod tests {
             assert_eq!(a.backlinks, b.backlinks);
         }
         assert_eq!(chunked.display_label(0), full.display_label(0));
+    }
+
+    #[test]
+    fn from_sources_builds_links_tags_and_folders_without_a_filesystem() {
+        let sources = [
+            NoteSource {
+                rel: "Home.md",
+                bytes: b"to [[projects/Alpha]] and [[Gone]] #Start",
+            },
+            NoteSource {
+                rel: "projects/Alpha.md",
+                bytes: b"back to [[Home]] #deep",
+            },
+        ];
+        let v = Vault::from_sources("virtual-vault", &sources);
+
+        assert_eq!(v.notes.len(), 2);
+        let home = v.resolve("home").expect("Home resolves case-insensitively");
+        let alpha = v
+            .resolve("projects/alpha")
+            .expect("path-qualified link resolves");
+        assert_eq!(v.note(home).links, vec![alpha]);
+        assert_eq!(v.note(alpha).backlinks, vec![home]);
+        assert_eq!(v.broken_links().len(), 1);
+        assert_eq!(v.broken_links()[0].target, "Gone");
+        assert_eq!(v.broken_links()[0].referrers, vec![home]);
+        assert_eq!(v.notes_with_tag("start"), &[home]);
+        assert_eq!(v.notes_with_tag("#deep"), &[alpha]);
+        assert_eq!(v.dirs, vec![String::new(), "projects".to_owned()]);
+        assert_eq!(v.folders(), vec![String::new(), "projects".to_owned()]);
+        assert_eq!(v.root, PathBuf::from("virtual-vault"));
+        assert_eq!(
+            v.note(alpha).path,
+            PathBuf::from("virtual-vault/projects/Alpha.md")
+        );
+    }
+
+    #[test]
+    fn from_sources_indexes_like_a_filesystem_load() {
+        let files = [
+            (
+                "Alpha.md",
+                "# Alpha\n\nSee [[Beta]] and [[missing note]]. #root\n",
+            ),
+            (
+                "projects/Beta.md",
+                "# Beta\n\n[[projects/alpha/note]] and [[Delta]]\n",
+            ),
+            ("projects/alpha/note.md", "# Note\n\n[[Alpha]] #nested\n"),
+            ("Delta.md", "# Delta\n\n[[Alpha|the start]]\n"),
+        ];
+        let sources: Vec<NoteSource<'_>> = files
+            .iter()
+            .map(|(rel, body)| NoteSource {
+                rel,
+                bytes: body.as_bytes(),
+            })
+            .collect();
+        let memory = Vault::from_sources("virtual-vault", &sources);
+
+        let tmp = TempVault::new(&files);
+        let disk = tmp.load();
+
+        let rels = |vault: &Vault, ids: &[usize]| -> Vec<String> {
+            ids.iter().map(|&id| vault.note(id).rel.clone()).collect()
+        };
+        assert_eq!(memory.notes.len(), disk.notes.len());
+        assert_eq!(memory.dirs, disk.dirs);
+        assert_eq!(memory.folders(), disk.folders());
+        assert_eq!(memory.skipped_count(), disk.skipped_count());
+        assert_eq!(memory.broken_links(), disk.broken_links());
+        for (a, b) in memory.notes.iter().zip(&disk.notes) {
+            assert_eq!(a.rel, b.rel);
+            assert_eq!(a.title, b.title);
+            assert_eq!(a.source, b.source);
+            assert_eq!(a.tags, b.tags);
+            assert_eq!(rels(&memory, &a.links), rels(&disk, &b.links));
+            assert_eq!(rels(&memory, &a.backlinks), rels(&disk, &b.backlinks));
+        }
+        for target in ["Alpha", "beta", "projects/alpha/note", "missing note"] {
+            assert_eq!(
+                memory.resolve(target).map(|id| memory.note(id).rel.clone()),
+                disk.resolve(target).map(|id| disk.note(id).rel.clone()),
+                "resolve({target})"
+            );
+        }
+        assert_eq!(memory.tag_index().len(), disk.tag_index().len());
+        for (key, entry) in memory.tag_index() {
+            let other = disk.tag_index().get(key).expect("same tag key");
+            assert_eq!(entry.tag, other.tag);
+            assert_eq!(rels(&memory, &entry.notes), rels(&disk, &other.notes));
+        }
+    }
+
+    #[test]
+    fn from_sources_ignores_what_a_walk_would_hide_and_counts_unreadable_notes() {
+        let sources = [
+            NoteSource {
+                rel: "bad.md",
+                bytes: &[0xff, 0xfe, 0xfd],
+            },
+            NoteSource {
+                rel: ".hidden.md",
+                bytes: b"hidden file",
+            },
+            NoteSource {
+                rel: "notes/.trash/x.md",
+                bytes: b"hidden folder",
+            },
+            NoteSource {
+                rel: "drawing.png",
+                bytes: b"not a note",
+            },
+            NoteSource {
+                rel: "Kept.md",
+                bytes: b"kept",
+            },
+        ];
+        let v = Vault::from_sources("virtual-vault", &sources);
+
+        assert_eq!(v.notes.len(), 1);
+        assert_eq!(v.notes[0].rel, "Kept.md");
+        assert_eq!(v.skipped_count(), 1, "invalid UTF-8 is a skipped note");
+        assert!(
+            v.dirs.iter().all(|dir| dir.is_empty()),
+            "hidden folders stay out"
+        );
     }
 
     #[test]
@@ -2892,7 +3142,9 @@ mod trash_tests {
         let mut v = tmp.load();
         let alpha = v.resolve("Alpha").expect("Alpha");
 
-        let rel = v.delete_note_to_trash(alpha).expect("trash Alpha");
+        let rel = v
+            .delete_note_to_trash(alpha, 1_700_000_000)
+            .expect("trash Alpha");
         assert!(rel.starts_with(".muninn-trash/"), "{rel}");
         assert!(rel.ends_with("/Alpha.md"), "{rel}");
         assert!(!tmp.path().join("Alpha.md").exists(), "move, not delete");
@@ -2926,20 +3178,48 @@ mod trash_tests {
         let tmp = TempVault::new(&[("projects/alpha/note.md", "alpha")]);
         let mut v = tmp.load();
         let id = v.resolve("projects/alpha/note").expect("nested note");
-        let first = v.delete_note_to_trash(id).expect("first delete");
-        assert!(
-            first.ends_with("/projects/alpha/note.md"),
-            "nested path kept: {first}"
+        let stamp = 1_700_000_000;
+        let first = v.delete_note_to_trash(id, stamp).expect("first delete");
+        assert_eq!(
+            first, ".muninn-trash/1700000000/projects/alpha/note.md",
+            "nested path kept under the passed stamp"
         );
 
         let path = tmp.path().join("projects/alpha/note.md");
         fs::write(&path, "alpha again").unwrap();
         let mut v = tmp.load();
         let id = v.resolve("projects/alpha/note").expect("recreated note");
-        let second = v.delete_note_to_trash(id).expect("second delete");
-        assert_ne!(first, second, "same-second deletes get distinct slots");
+        let second = v.delete_note_to_trash(id, stamp).expect("second delete");
+        assert_eq!(
+            second, ".muninn-trash/1700000000-2/projects/alpha/note.md",
+            "same-stamp deletes get distinct slots"
+        );
         assert!(tmp.path().join(&first).is_file());
         assert!(tmp.path().join(&second).is_file());
+    }
+
+    #[test]
+    fn trash_slots_use_the_passed_clock_not_the_wall_clock() {
+        let tmp = TempVault::new(&[("One.md", "one"), ("Two.md", "two")]);
+        let mut v = tmp.load();
+        let one = v.resolve("One").expect("One");
+
+        let first = v
+            .delete_note_to_trash(one, 1_600_000_000)
+            .expect("first delete");
+        // Ids shift after a delete, so look Two up again.
+        let two = v.resolve("Two").expect("Two");
+        // A second stamp a minute later must land in its own slot rather than
+        // wherever the machine clock happens to be.
+        let second = v
+            .delete_note_to_trash(two, 1_600_000_060)
+            .expect("second delete");
+
+        assert_eq!(first, ".muninn-trash/1600000000/One.md");
+        assert_eq!(second, ".muninn-trash/1600000060/Two.md");
+        assert!(tmp.path().join(&first).is_file());
+        assert!(tmp.path().join(&second).is_file());
+        assert_eq!(v.notes.len(), 0);
     }
 
     #[test]
@@ -2947,7 +3227,7 @@ mod trash_tests {
         let tmp = TempVault::new(&[("Alpha.md", "original")]);
         let mut v = tmp.load();
         let alpha = v.resolve("Alpha").expect("Alpha");
-        let rel = v.delete_note_to_trash(alpha).expect("trash");
+        let rel = v.delete_note_to_trash(alpha, 1_700_000_000).expect("trash");
         fs::write(tmp.path().join("Alpha.md"), "recreated").unwrap();
 
         let error = v.restore_note(&rel).expect_err("existing target");
@@ -3069,7 +3349,7 @@ mod trash_budget_tests {
         let id = vault.resolve("gone").expect("gone");
 
         let rel = vault
-            .delete_note_to_trash(id)
+            .delete_note_to_trash(id, 1_700_000_000)
             .expect("a full trash never fails the delete");
 
         assert!(!tmp.path().join("gone.md").exists());

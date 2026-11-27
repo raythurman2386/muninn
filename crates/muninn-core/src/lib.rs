@@ -64,7 +64,9 @@ pub use note_lock::{
 pub use note_lock::parse_for_fuzzing;
 pub use preview::Attachment;
 pub use tags::{note_tags, tag_key, unclosed_tag};
-pub use vault::{BrokenLink, ScanJob, TagEntry, Vault, atomic_copy, atomic_write, board_name};
+pub use vault::{
+    BrokenLink, NoteSource, ScanJob, TagEntry, Vault, atomic_copy, atomic_write, board_name,
+};
 pub use wikilink::{
     WikiLink, block_anchors, block_offset, heading_offset, headings, jump_offset, parse_links,
     unclosed_link,
