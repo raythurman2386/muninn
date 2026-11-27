@@ -58,6 +58,7 @@ fn dispatch(command: &str, args: &[String]) -> Result<()> {
         "layers" | "check-layers" => check_layers(),
         "i18n-lint" => i18n_lint::run(),
         "wasm-check" => wasm_check(),
+        "secret-canary" => secret_canary(),
         "bundle" => bundle(),
         "snapshots" => snapshots(args),
         "run" => {
@@ -68,7 +69,7 @@ fn dispatch(command: &str, args: &[String]) -> Result<()> {
         }
         "help" | "--help" | "-h" => {
             println!(
-                "xtask: fmt | fmt-check | clippy | test | build | check | layers | i18n-lint | wasm-check | bundle | snapshots | run [args]"
+                "xtask: fmt | fmt-check | clippy | test | build | check | layers | i18n-lint | wasm-check | secret-canary | bundle | snapshots | run [args]"
             );
             Ok(())
         }
@@ -196,13 +197,16 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
 /// The one target the portable crates are held to.
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
-/// `xtask wasm-check`: keep `muninn-core` and `muninn-graph` building for the browser.
+/// `xtask wasm-check`: keep `muninn-core`, `muninn-graph` and gated
+/// `muninn-sync` building for the browser.
 ///
-/// The UI, app and sync crates need a filesystem, a clock, threads and blocking
-/// HTTP, so they stay native. The model and layout crates carry no such
-/// dependency and must keep compiling for `wasm32-unknown-unknown` unchanged, or
-/// a browser front end cannot reuse them later. This is a compile-only guard
-/// (`check` plus `clippy`); it builds no bundle and runs nothing in a browser.
+/// The UI and app crates need a filesystem, a clock, threads and windowing, so
+/// they stay native. The model and layout crates carry no such dependency and
+/// must keep compiling for `wasm32-unknown-unknown` unchanged, or a browser
+/// front end cannot reuse them later. `muninn-sync` is native today, so it is
+/// checked with its `native` feature off: the configuration a web build uses.
+/// This is a compile-only guard (`check` plus `clippy`); it builds no bundle
+/// and runs nothing in a browser.
 fn wasm_check() -> Result<()> {
     check_wasm_target()?;
     run_cargo(&[
@@ -222,6 +226,27 @@ fn wasm_check() -> Result<()> {
         "muninn-core",
         "-p",
         "muninn-graph",
+        "--target",
+        WASM_TARGET,
+        "--",
+        "-D",
+        "warnings",
+    ])?;
+    run_cargo(&[
+        "check",
+        "--locked",
+        "-p",
+        "muninn-sync",
+        "--no-default-features",
+        "--target",
+        WASM_TARGET,
+    ])?;
+    run_cargo(&[
+        "clippy",
+        "--locked",
+        "-p",
+        "muninn-sync",
+        "--no-default-features",
         "--target",
         WASM_TARGET,
         "--",
@@ -250,6 +275,180 @@ fn check_wasm_target() -> Result<()> {
     let hint =
         format!("the {WASM_TARGET} target is not installed; run `rustup target add {WASM_TARGET}`");
     Err(hint.into())
+}
+
+/// The build-time env var and the sentinel the canary plants in it.
+const SECRET_ENV: &str = "MUNINN_GOOGLE_CLIENT_SECRET";
+const CANARY: &str = "wasm-canary";
+
+/// `xtask secret-canary`: prove the Google Desktop secret cannot reach a wasm
+/// artifact, and that native builds still bake it in.
+///
+/// The wasm half builds the browser crates with `MUNINN_GOOGLE_CLIENT_SECRET`
+/// set to a sentinel, then scans every file cargo produced under the wasm
+/// target directory. A hit names the offending file and fails. The native half
+/// builds with the same sentinel and asserts it survives into the crate's
+/// `rlib`, so a change that drops the secret from native builds fails here too
+/// rather than only at runtime.
+fn secret_canary() -> Result<()> {
+    check_wasm_target()?;
+    let target_dir = target_dir()?;
+
+    run_cargo_env(
+        &[
+            "build",
+            "--locked",
+            "--target",
+            WASM_TARGET,
+            "-p",
+            "muninn-core",
+            "-p",
+            "muninn-graph",
+            "-p",
+            "muninn-sync",
+            "--no-default-features",
+        ],
+        SECRET_ENV,
+        CANARY,
+    )?;
+
+    let wasm_dir = target_dir.join(WASM_TARGET);
+    let scanned = scan_for_bytes(&wasm_dir, CANARY.as_bytes())?;
+    if !scanned.hits.is_empty() {
+        for hit in &scanned.hits {
+            eprintln!("secret-canary: `{CANARY}` found in {}", hit.display());
+        }
+        return Err(format!(
+            "{} of {} wasm artifact file(s) contain the sentinel",
+            scanned.hits.len(),
+            scanned.files
+        )
+        .into());
+    }
+    println!(
+        "secret-canary: wasm ok ({} file(s) under {} contain no `{CANARY}`)",
+        scanned.files,
+        wasm_dir.display()
+    );
+
+    run_cargo_env(
+        &["build", "--locked", "-p", "muninn-sync"],
+        SECRET_ENV,
+        CANARY,
+    )?;
+
+    let deps = target_dir.join("debug").join("deps");
+    let mut rlibs = Vec::new();
+    for entry in std::fs::read_dir(&deps)? {
+        let path = entry?.path();
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if name.starts_with("libmuninn_sync") && name.ends_with(".rlib") {
+            rlibs.push(path);
+        }
+    }
+    if rlibs.is_empty() {
+        return Err(format!(
+            "no libmuninn_sync*.rlib under {}; the native build produced no artifact to check",
+            deps.display()
+        )
+        .into());
+    }
+    let mut bundled = 0;
+    for rlib in &rlibs {
+        if contains_bytes(rlib, CANARY.as_bytes())? {
+            bundled += 1;
+        }
+    }
+    if bundled == 0 {
+        return Err(format!(
+            "none of the {} libmuninn_sync*.rlib file(s) under {} contain `{CANARY}`; the native build no longer bundles the secret",
+            rlibs.len(),
+            deps.display()
+        )
+        .into());
+    }
+    println!(
+        "secret-canary: native ok ({bundled} of {} libmuninn_sync*.rlib file(s) contain `{CANARY}`)",
+        rlibs.len()
+    );
+    Ok(())
+}
+
+/// Cargo's real target directory, so `CARGO_TARGET_DIR` and config overrides
+/// point the canary at the artifacts that were just written.
+fn target_dir() -> Result<PathBuf> {
+    let metadata = metadata()?;
+    let dir = metadata
+        .get("target_directory")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("metadata target_directory missing")?;
+    Ok(PathBuf::from(dir))
+}
+
+fn run_cargo_env(args: &[&str], key: &str, value: &str) -> Result<()> {
+    let mut command = Command::new("cargo");
+    command
+        .args(args)
+        .current_dir(workspace_root()?)
+        .env(key, value);
+    status(command)
+}
+
+/// Every regular file under `root`, and which of them contain `needle`.
+struct Scan {
+    files: usize,
+    hits: Vec<PathBuf>,
+}
+
+fn scan_for_bytes(root: &Path, needle: &[u8]) -> Result<Scan> {
+    let mut scan = Scan {
+        files: 0,
+        hits: Vec::new(),
+    };
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        for entry in std::fs::read_dir(&dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let file_type = entry.file_type()?;
+            if file_type.is_dir() {
+                pending.push(path);
+            } else if file_type.is_file() {
+                scan.files += 1;
+                if contains_bytes(&path, needle)? {
+                    scan.hits.push(path);
+                }
+            }
+        }
+    }
+    Ok(scan)
+}
+
+/// Whether a file contains `needle`, read in chunks so a large `.rlib` never
+/// has to fit in memory at once.
+fn contains_bytes(path: &Path, needle: &[u8]) -> Result<bool> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)?;
+    let mut chunk = vec![0u8; 64 * 1024];
+    let mut carry = Vec::new();
+    loop {
+        let read = file.read(&mut chunk)?;
+        if read == 0 {
+            return Ok(false);
+        }
+        let mut window = Vec::with_capacity(carry.len() + read);
+        window.extend_from_slice(&carry);
+        window.extend_from_slice(&chunk[..read]);
+        if window.windows(needle.len()).any(|slice| slice == needle) {
+            return Ok(true);
+        }
+        let keep = needle.len().saturating_sub(1).min(window.len());
+        carry = window[window.len() - keep..].to_vec();
+    }
 }
 
 fn bundle() -> Result<()> {

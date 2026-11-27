@@ -67,7 +67,20 @@ pub const BUNDLED_GOOGLE_CLIENT_ID: Option<&str> = match option_env!("MUNINN_GOO
 /// Private on purpose: callers get it through
 /// [`bundled_google_client_secret`] as a [`Secret`], whose `Debug` and
 /// `Display` never show the value.
+///
+/// Double-gated: this module only exists under the `native` feature, and the
+/// const itself additionally requires a non-wasm target. A misconfigured
+/// `--features native --target wasm32-unknown-unknown` build hits the
+/// `compile_error!` below instead of bundling the secret into a public
+/// artifact.
+#[cfg(not(target_arch = "wasm32"))]
 const BUNDLED_GOOGLE_CLIENT_SECRET: Option<&str> = option_env!("MUNINN_GOOGLE_CLIENT_SECRET");
+
+#[cfg(target_arch = "wasm32")]
+compile_error!(
+    "muninn-sync's `native` feature (and its Google Desktop secret) must not be enabled for \
+     wasm32-unknown-unknown; build web targets with --no-default-features and a public web client id"
+);
 
 /// The Google client secret compiled into this build, if any.
 #[must_use]
