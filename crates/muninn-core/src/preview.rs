@@ -1,6 +1,6 @@
 //! Rewrite wikilinks into ordinary Markdown links for the reader view.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::frontmatter::Frontmatter;
 use crate::vault::Vault;
@@ -160,8 +160,11 @@ impl Vault {
             }
             let path = self
                 .attachment_path(&link.target, current)
-                .and_then(|path| fs_canonical(&path));
-            let size = path.as_deref().and_then(file_size);
+                .and_then(|path| self.store.canonicalize(&path).ok());
+            let size = path
+                .as_deref()
+                .and_then(|path| self.store.metadata(path).ok())
+                .map(|meta| meta.len);
             out.push(Attachment {
                 target: link.target,
                 name,
@@ -213,7 +216,7 @@ impl Vault {
                 candidates.push(base.join(name));
             }
         }
-        candidates.into_iter().find(|path| path.is_file())
+        candidates.into_iter().find(|path| self.store.is_file(path))
     }
 
     /// Replace every `![[attachment]]` span with a visible placeholder, leaving
@@ -230,7 +233,8 @@ impl Vault {
             let size = self
                 .attachment_path(&link.target, current)
                 .as_deref()
-                .and_then(file_size);
+                .and_then(|path| self.store.metadata(path).ok())
+                .map(|meta| meta.len);
             attachment_placeholder(&link, size, &mut out);
             last = link.end;
         }
@@ -246,14 +250,6 @@ fn attachment_links(source: &str) -> Vec<WikiLink> {
         .into_iter()
         .filter(|link| is_attachment_embed(source, link.start, &link.target))
         .collect()
-}
-
-fn fs_canonical(path: &Path) -> Option<PathBuf> {
-    std::fs::canonicalize(path).ok()
-}
-
-fn file_size(path: &Path) -> Option<u64> {
-    std::fs::metadata(path).ok().map(|meta| meta.len())
 }
 
 /// `999 B`, `12.4 KB`, `3.1 MB`; binary units keep the number short.

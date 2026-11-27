@@ -54,6 +54,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Number, Value};
 
+use crate::store::{FsStore, VaultStore};
 use crate::vault::{Vault, atomic_write, sort_paths, walk};
 
 mod create;
@@ -564,25 +565,34 @@ impl BoardFile {
 }
 
 impl Vault {
-    /// Every `.excalidraw` board under the vault, read fresh from disk.
+    /// Every `.excalidraw` board under the vault, read fresh from the vault's
+    /// store.
     ///
     /// The walk is the note scan's own walk: the same 12-level depth limit,
     /// dot-directories and dot-files (including in-flight atomic-write temp
     /// files and `.muninn-trash`) skipped, symlinks not followed, and the same
     /// case-insensitive path order. Boards are never notes, so they are not
-    /// cached on the vault or added to the link index.
+    /// cached on the vault or added to the link index. A vault built by
+    /// [`Vault::from_sources`](crate::Vault::from_sources) lists the
+    /// `.excalidraw` sources it was given.
     #[must_use]
     pub fn boards(&self) -> Vec<BoardFile> {
-        list_boards(&self.root)
+        list_boards_in(&*self.store, &self.root)
     }
 }
 
 /// [`Vault::boards`] for a folder that has not been loaded as a vault.
 #[must_use]
 pub fn list_boards(root: &Path) -> Vec<BoardFile> {
+    list_boards_in(&FsStore::new(root), root)
+}
+
+/// [`Vault::boards`] through a store: the vault's own for a loaded vault, or
+/// an [`FsStore`] for a bare folder.
+pub(crate) fn list_boards_in(store: &dyn VaultStore, root: &Path) -> Vec<BoardFile> {
     let mut paths = Vec::new();
     let mut dirs = Vec::new();
-    walk(root, &mut paths, &mut dirs, root, 0, BOARD_EXTENSION);
+    walk(store, root, &mut paths, &mut dirs, root, 0, BOARD_EXTENSION);
     sort_paths(&mut paths);
     paths
         .into_iter()
