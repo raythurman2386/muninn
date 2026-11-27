@@ -21,6 +21,7 @@ mod note;
 mod note_lock;
 mod preview;
 mod search;
+mod store;
 mod tags;
 mod vault;
 mod wikilink;
@@ -63,10 +64,11 @@ pub use note_lock::{
 #[cfg(feature = "fuzzing")]
 pub use note_lock::parse_for_fuzzing;
 pub use preview::Attachment;
-pub use tags::{note_tags, tag_key, unclosed_tag};
-pub use vault::{
-    BrokenLink, NoteSource, ScanJob, TagEntry, Vault, atomic_copy, atomic_write, board_name,
+pub use store::{
+    EntryKind, FsStore, MemoryStore, StoreEntry, StoreMeta, VaultStore, atomic_copy, atomic_write,
 };
+pub use tags::{note_tags, tag_key, unclosed_tag};
+pub use vault::{BrokenLink, NoteSource, ScanJob, TagEntry, Vault, board_name};
 pub use wikilink::{
     WikiLink, block_anchors, block_offset, heading_offset, headings, jump_offset, parse_links,
     unclosed_link,

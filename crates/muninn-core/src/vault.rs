@@ -39,11 +39,16 @@
 //! [`Vault::suggest_tags`] read that cache, so a frame never scans notes.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+#[cfg(test)]
 use std::fs;
-use std::io::{self, Write as _};
+use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
+
+pub use crate::store::atomic_write;
+use crate::store::{FsStore, MemoryStore, VaultStore};
 
 /// Distinguishes concurrent temp files from the same process.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -67,6 +72,10 @@ pub struct BrokenLink {
 /// A folder of notes plus the index its links resolve through.
 pub struct Vault {
     pub root: PathBuf,
+    /// The storage seam every read, write and probe goes through. A vault from
+    /// [`Vault::load`] serves the native filesystem; one from
+    /// [`Vault::from_sources`] is pure memory.
+    pub(crate) store: Arc<dyn VaultStore>,
     pub notes: Vec<Note>,
     /// Every non-dot directory under the root (vault-relative, `""` for the
     /// root), including empty folders. Folders themselves are part of the
@@ -103,7 +112,7 @@ pub struct TagEntry {
     pub notes: Vec<usize>,
 }
 
-/// One note a caller supplies to [`Vault::from_sources`]: its vault-relative
+/// One file a caller supplies to [`Vault::from_sources`]: its vault-relative
 /// path and its bytes.
 ///
 /// This is the read seam for sources that are not files on this machine's
@@ -112,6 +121,10 @@ pub struct TagEntry {
 /// `projects/alpha/note.md`). `bytes` are decoded as UTF-8; a source that is
 /// not valid UTF-8 is counted by [`Vault::skipped_count`], exactly as an
 /// unreadable file would be in [`Vault::load`].
+///
+/// A source need not be a note: a `.excalidraw`, image or PDF source is not
+/// indexed, but it is stored, so [`Vault::boards`] and
+/// [`Vault::attachment_path`] answer for it.
 #[derive(Clone, Copy, Debug)]
 pub struct NoteSource<'a> {
     pub rel: &'a str,
@@ -126,6 +139,7 @@ pub struct NoteSource<'a> {
 /// title/path map. The result is identical to [`Vault::load`].
 pub struct ScanJob {
     root: PathBuf,
+    store: Arc<dyn VaultStore>,
     paths: Vec<PathBuf>,
     dirs: Vec<String>,
     /// Index of the next path to read; also the number of files processed.
@@ -167,7 +181,7 @@ impl ScanJob {
         let mut read = 0;
         while self.next < end {
             let path = self.paths[self.next].clone();
-            match note_from_path(&self.root, &path, self.notes.len()) {
+            match note_from_path(&*self.store, &self.root, &path, self.notes.len()) {
                 Some(note) => self.notes.push(note),
                 None => self.skipped += 1,
             }
@@ -186,6 +200,7 @@ impl ScanJob {
         }
         let mut vault = Vault {
             root: self.root,
+            store: self.store,
             notes: self.notes,
             dirs: self.dirs,
             by_path: HashMap::new(),
@@ -217,8 +232,10 @@ impl Vault {
     /// A vault with no notes, for a folder that couldn't be read.
     #[must_use]
     pub fn empty(root: impl AsRef<Path>) -> Vault {
+        let root = root.as_ref().to_path_buf();
         Vault {
-            root: root.as_ref().to_path_buf(),
+            store: Arc::new(FsStore::new(root.clone())),
+            root,
             notes: Vec::new(),
             dirs: vec![String::new()],
             by_path: HashMap::new(),
@@ -244,6 +261,26 @@ impl Vault {
         Ok(job.finish())
     }
 
+    /// Build the vault a [`Vault::load`] would build, reading through `store`
+    /// instead of the native filesystem.
+    ///
+    /// The root comes from [`VaultStore::root`]. This is the seam a browser
+    /// front end uses for a store that already holds the vault's files (an
+    /// in-memory source set, and later OPFS); [`Vault::from_sources`] is the
+    /// equivalent entry point that also seeds the bytes.
+    pub fn open(store: Arc<dyn VaultStore>) -> io::Result<Vault> {
+        let mut job = Self::scan_start_with(store)?;
+        job.read_chunk(usize::MAX);
+        Ok(job.finish())
+    }
+
+    /// The store this vault reads and writes through. Cloning the handle is
+    /// cheap; a caller can keep it to seed or inspect the same bytes.
+    #[must_use]
+    pub fn store(&self) -> Arc<dyn VaultStore> {
+        Arc::clone(&self.store)
+    }
+
     /// Begin a chunked scan: resolve the root, walk it once, and collect the
     /// note paths and folders. Reading the note bodies — the expensive part —
     /// is deferred to [`ScanJob::read_chunk`], so a UI can show progress without
@@ -254,10 +291,17 @@ impl Vault {
     /// unreadable root is still an error (see [`Vault::load`]).
     pub fn scan_start(root: impl AsRef<Path>) -> io::Result<ScanJob> {
         let root = root.as_ref().to_path_buf();
-        prepare_root(&root)?;
+        Self::scan_start_with(Arc::new(FsStore::new(root)))
+    }
+
+    /// [`Vault::scan_start`] over a caller-supplied store. The root is the
+    /// store's [`VaultStore::root`].
+    pub fn scan_start_with(store: Arc<dyn VaultStore>) -> io::Result<ScanJob> {
+        let root = store.root().to_path_buf();
+        prepare_root(&*store, &root)?;
         let mut paths = Vec::new();
         let mut dirs = Vec::new();
-        walk(&root, &mut paths, &mut dirs, &root, 0, "md");
+        walk(&*store, &root, &mut paths, &mut dirs, &root, 0, "md");
         dirs.sort_by(|a, b| {
             a.to_lowercase()
                 .cmp(&b.to_lowercase())
@@ -267,6 +311,7 @@ impl Vault {
         sort_paths(&mut paths);
         Ok(ScanJob {
             root,
+            store,
             paths,
             dirs,
             next: 0,
@@ -278,29 +323,53 @@ impl Vault {
     /// Build the same indexed vault [`Vault::load`] would build, from note
     /// sources supplied by the caller instead of a folder on disk.
     ///
-    /// Each [`NoteSource`] is one note's vault-relative path and bytes. Nothing
+    /// Each [`NoteSource`] is one file's vault-relative path and bytes. Nothing
     /// on this path touches the filesystem, so a browser front end can feed it
     /// bytes read from OPFS and a test can build a vault from a `Vec` with no
-    /// temp folder. `root` is only the label stored on [`Vault::root`] (and
-    /// prefixed to each [`Note::path`]); it need not exist.
+    /// temp folder. `root` is the label stored on [`Vault::root`] and the root
+    /// of the [`MemoryStore`] the vault is built over; it need not exist.
     ///
-    /// Sources are ordered exactly as a filesystem scan orders note paths, then
-    /// passed through the same [`ScanJob::finish`] index step [`Vault::load`]
-    /// ends with, so titles, folders, links, backlinks, broken links and tags
-    /// resolve identically for the same files. A source the filesystem walk
-    /// would not see (not `.md`, a dot-prefixed segment, deeper than 12 folders)
-    /// is ignored; one that cannot be indexed (invalid UTF-8, no title) counts
-    /// toward [`Vault::skipped_count`]. A repeated `rel` is indexed once, the
-    /// first in the slice. Folders that would be empty on disk cannot be
-    /// represented: [`Vault::dirs`] holds the root and every folder a source
-    /// lives under.
+    /// **Every** visible source is seeded into that store, not just the `.md`
+    /// ones. Only notes are indexed, but a `.excalidraw` source makes
+    /// [`Vault::boards`] list the board, and an image or PDF source makes
+    /// [`Vault::attachment_path`] resolve `![[pic.png]]` and report its size —
+    /// the two filesystem gaps slice 2 recorded. A source the filesystem walk
+    /// would not see (a dot-prefixed segment, deeper than 12 folders) is
+    /// ignored for the index *and* the store. A source that cannot be indexed
+    /// (invalid UTF-8, no title) still exists in the store and counts toward
+    /// [`Vault::skipped_count`], exactly like a file the scan could not read.
+    ///
+    /// A repeated path — compared case-insensitively, because the store models
+    /// a case-insensitive volume — is kept once, the first in the slice.
+    /// Folders that would be empty on disk cannot be represented: [`Vault::dirs`]
+    /// holds the root and every folder a visible source lives under.
     #[must_use]
     pub fn from_sources(root: impl AsRef<Path>, sources: &[NoteSource<'_>]) -> Vault {
         let root = root.as_ref().to_path_buf();
-        let mut indexable: Vec<&NoteSource<'_>> = sources
-            .iter()
-            .filter(|source| walkable_source_rel(source.rel))
-            .collect();
+        let store = MemoryStore::new(root.clone());
+        // Seed the store with every visible source, first spelling wins. The
+        // index below uses the same winner so a case-variant duplicate cannot
+        // be indexed at a path whose bytes belong to the other spelling.
+        let mut winners: HashMap<String, usize> = HashMap::new();
+        for (index, source) in sources.iter().enumerate() {
+            if !visible_source_rel(source.rel) {
+                continue;
+            }
+            let key = source.rel.to_lowercase();
+            if let std::collections::hash_map::Entry::Vacant(entry) = winners.entry(key) {
+                entry.insert(index);
+                store.put_file(source.rel, source.bytes);
+            }
+        }
+
+        let mut indexable: Vec<&NoteSource<'_>> = Vec::new();
+        for (index, source) in sources.iter().enumerate() {
+            if walkable_source_rel(source.rel)
+                && winners.get(&source.rel.to_lowercase()) == Some(&index)
+            {
+                indexable.push(source);
+            }
+        }
         // The same order `sort_paths` gives the walked paths: the root prefix
         // is common, so comparing the relative paths is equivalent.
         indexable.sort_by(|a, b| {
@@ -310,7 +379,15 @@ impl Vault {
                 .then_with(|| a.rel.cmp(b.rel))
         });
         let mut notes = Vec::new();
+        // A source exists in the store, so its folder exists too — even when
+        // the source is not a note or cannot be read as UTF-8.
         let mut dirs = vec![String::new()];
+        for &index in winners.values() {
+            let source = &sources[index];
+            for (at, _) in source.rel.match_indices('/') {
+                dirs.push(source.rel[..at].to_owned());
+            }
+        }
         let mut skipped = 0;
         let mut previous: Option<&str> = None;
         for source in indexable {
@@ -325,12 +402,7 @@ impl Vault {
             let rel = source.rel.to_owned();
             let note = note_from_parts(root.join(&rel), rel, source_text.to_owned(), notes.len());
             match note {
-                Some(note) => {
-                    for (at, _) in note.rel.match_indices('/') {
-                        dirs.push(note.rel[..at].to_owned());
-                    }
-                    notes.push(note);
-                }
+                Some(note) => notes.push(note),
                 None => skipped += 1,
             }
         }
@@ -344,6 +416,7 @@ impl Vault {
         // a chunked scan runs, not a second indexer.
         ScanJob {
             root,
+            store: Arc::new(store),
             paths: Vec::new(),
             dirs,
             next: 0,
@@ -1037,7 +1110,8 @@ impl Vault {
     /// unlocked. The lock save path uses [`Vault::write_locked_note`], which
     /// writes the envelope and the exact plaintext that was sealed together.
     pub fn write_note(&mut self, id: usize, source: &str) -> io::Result<()> {
-        atomic_write(&self.notes[id].path, source.as_bytes())?;
+        self.store
+            .write_atomic(&self.notes[id].path, source.as_bytes())?;
         self.notes[id].source = source.to_owned();
         self.notes[id].set_unlocked_source(None);
         self.reindex();
@@ -1066,7 +1140,8 @@ impl Vault {
                 "write_locked_note requires a locked-note envelope",
             ));
         }
-        atomic_write(&self.notes[id].path, envelope.as_bytes())?;
+        self.store
+            .write_atomic(&self.notes[id].path, envelope.as_bytes())?;
         let note = &mut self.notes[id];
         note.source = envelope.to_owned();
         note.set_unlocked_source(Some(plaintext.to_owned()));
@@ -1099,18 +1174,20 @@ impl Vault {
         self.reindex();
     }
 
-    /// A note file's on-disk identity `(mtime, length)`.
+    /// A note file's write identity `(mtime, length)`.
     ///
     /// This is the token the guarded writes compare against: capture it before
     /// an edit and pass it to [`Vault::write_note_if_unmodified`] (or
     /// [`Vault::write_locked_note_if_unmodified`]) so another writer's change is
-    /// never replaced silently. The conflict flow built on it lives in
-    /// `muninn-ui`: `ConflictState` holds the identity the editor last saw and
-    /// what was observed when a save was refused, and the conflict bar resolves
-    /// it with keep-mine, load-theirs or save-copy.
+    /// never replaced silently. On the filesystem the first part is the file's
+    /// modification time; [`MemoryStore`] supplies a logical write stamp, so a
+    /// same-length rewrite still changes the identity. The conflict flow built
+    /// on it lives in `muninn-ui`: `ConflictState` holds the identity the editor
+    /// last saw and what was observed when a save was refused, and the conflict
+    /// bar resolves it with keep-mine, load-theirs or save-copy.
     pub fn disk_state(&self, id: usize) -> io::Result<(Option<SystemTime>, u64)> {
-        let meta = fs::metadata(&self.notes[id].path)?;
-        Ok((meta.modified().ok(), meta.len()))
+        let meta = self.store.metadata(&self.notes[id].path)?;
+        Ok((meta.modified, meta.len))
     }
 
     /// Guarded write: overwrite only when the disk still matches `expected`,
@@ -1192,7 +1269,7 @@ impl Vault {
     /// [`Vault::create_note_in`] and [`Vault::create_note_with_body_in`].
     fn create_note_file(&self, title: &str, folder: &str, body: &[u8]) -> io::Result<PathBuf> {
         let dir = folder_dir(&self.root, folder);
-        fs::create_dir_all(&dir)?;
+        self.store.create_dir_all(&dir)?;
         let mut n = 1;
         loop {
             let name = if n == 1 {
@@ -1201,8 +1278,8 @@ impl Vault {
                 format!("{title} {n}.md")
             };
             let path = dir.join(name);
-            if !path.exists() {
-                atomic_write(&path, body)?;
+            if !self.store.exists(&path) {
+                self.store.write_atomic(&path, body)?;
                 return Ok(path);
             }
             n += 1;
@@ -1226,8 +1303,8 @@ impl Vault {
                 format!("{title} {n}.excalidraw")
             };
             let path = dir.join(name);
-            if !path.exists() {
-                atomic_write(&path, body.as_bytes())?;
+            if !self.store.exists(&path) {
+                self.store.write_atomic(&path, body.as_bytes())?;
                 return Ok(path);
             }
             n += 1;
@@ -1239,7 +1316,7 @@ impl Vault {
     /// folder that resolves outside the vault (a symlink) is refused.
     pub(crate) fn new_file_dir(&self, folder: &str) -> io::Result<PathBuf> {
         let dir = folder_dir(&self.root, folder);
-        let root = fs::canonicalize(&self.root)?;
+        let root = self.store.canonicalize(&self.root)?;
         let outside = || {
             io::Error::new(
                 io::ErrorKind::PermissionDenied,
@@ -1249,13 +1326,16 @@ impl Vault {
         // Check containment before making any folder: the deepest part of
         // `dir` that exists must resolve inside the vault, or a link out of
         // it would get new folders created on the far side.
-        let existing = dir.ancestors().find(|a| a.exists()).unwrap_or(&self.root);
-        if !fs::canonicalize(existing)?.starts_with(&root) {
+        let existing = dir
+            .ancestors()
+            .find(|ancestor| self.store.exists(ancestor))
+            .unwrap_or(&self.root);
+        if !self.store.canonicalize(existing)?.starts_with(&root) {
             return Err(outside());
         }
-        fs::create_dir_all(&dir)?;
+        self.store.create_dir_all(&dir)?;
         // And again once it exists, in case a part changed in between.
-        if !fs::canonicalize(&dir)?.starts_with(&root) {
+        if !self.store.canonicalize(&dir)?.starts_with(&root) {
             return Err(outside());
         }
         Ok(dir)
@@ -1268,9 +1348,9 @@ impl Vault {
     /// resolves outside it), and a different existing file is never
     /// overwritten. A target that is the same file (#292, a case-only rename
     /// on a case-insensitive disk) goes through a dot-prefixed temp name in
-    /// two `fs::rename` hops: the temp is invisible to the vault scan and the
+    /// two store-rename hops: the temp is invisible to the vault scan and the
     /// hop is rolled back if the second rename fails. Every other rename is
-    /// one `fs::rename`, so the file is never half-moved. Renaming to the same
+    /// one store rename, so the file is never half-moved. Renaming to the same
     /// name returns the path unchanged.
     pub fn rename_board(&self, path: &Path, new_name: &str) -> io::Result<PathBuf> {
         let name = board_name(new_name)?;
@@ -1280,7 +1360,7 @@ impl Vault {
                 muninn_i18n::not_a_board_in_vault(path.display()),
             )
         };
-        let root = fs::canonicalize(&self.root)?;
+        let root = self.store.canonicalize(&self.root)?;
         let rel = path.strip_prefix(&self.root).map_err(|_| outside())?;
         if !rel
             .components()
@@ -1289,23 +1369,23 @@ impl Vault {
             return Err(outside());
         }
         let dir = path.parent().ok_or_else(outside)?;
-        if !fs::canonicalize(dir)?.starts_with(&root) {
+        if !self.store.canonicalize(dir)?.starts_with(&root) {
             return Err(outside());
         }
-        let meta = fs::symlink_metadata(path)?;
-        if meta.file_type().is_symlink() || !meta.is_file() {
+        let meta = self.store.symlink_metadata(path)?;
+        if meta.symlink || !meta.is_file() {
             return Err(outside());
         }
         let target = dir.join(format!("{name}.{}", crate::BOARD_EXTENSION));
         if target == path {
             return Ok(target);
         }
-        if fs::symlink_metadata(&target).is_ok() {
+        if self.store.symlink_metadata(&target).is_ok() {
             // #292: a case-only rename on a case-insensitive disk "exists"
-            // as the same file. Metadata identity tells it apart from
+            // as the same file. Store identity tells it apart from
             // someone else's file, which is still kept.
-            if same_file_as(path, &target) {
-                rename_through_temp(path, &target)?;
+            if same_file_as(&*self.store, path, &target) {
+                rename_through_temp(&*self.store, path, &target)?;
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,
@@ -1313,7 +1393,7 @@ impl Vault {
                 ));
             }
         } else {
-            fs::rename(path, &target)?;
+            self.store.rename(path, &target)?;
         }
         Ok(target)
     }
@@ -1325,7 +1405,7 @@ impl Vault {
     /// path still resolves, and handed to [`Vault::rewrite_board_embeds`].
     #[must_use]
     pub fn board_embed_referrers(&self, board: &Path) -> Vec<(usize, Vec<String>)> {
-        let Ok(want) = fs::canonicalize(board) else {
+        let Ok(want) = self.store.canonicalize(board) else {
             return Vec::new();
         };
         let mut out = Vec::new();
@@ -1338,7 +1418,7 @@ impl Vault {
                 }
                 let here = self
                     .attachment_path(&link.target, note.id)
-                    .and_then(|p| fs::canonicalize(p).ok());
+                    .and_then(|p| self.store.canonicalize(&p).ok());
                 if here.as_ref() == Some(&want) {
                     targets.push(link.target.clone());
                 }
@@ -1411,7 +1491,7 @@ impl Vault {
     /// new title is sanitised like a create name; an existing target file is
     /// an error (never overwrite), except when it is the same file (#292, a
     /// case-only rename on a case-insensitive disk): that rename goes through
-    /// a dot-prefixed temp name in two `fs::rename` hops, rolled back if the
+    /// a dot-prefixed temp name in two store-rename hops, rolled back if the
     /// second hop fails. Updates the note and the index, so the graph node
     /// title follows.
     pub fn rename_note(&mut self, id: usize, new_title: &str) -> io::Result<PathBuf> {
@@ -1425,12 +1505,12 @@ impl Vault {
         if target == old {
             return Ok(target);
         }
-        if target.exists() {
+        if self.store.exists(&target) {
             // #292: on a case-insensitive disk `leaves.md` and `Leaves.md`
             // are one file; a plain rename would be a no-op, so hop through
             // a hidden temp name. A different file is still a collision.
-            if same_file_as(&old, &target) {
-                rename_through_temp(&old, &target)?;
+            if same_file_as(&*self.store, &old, &target) {
+                rename_through_temp(&*self.store, &old, &target)?;
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,
@@ -1438,7 +1518,7 @@ impl Vault {
                 ));
             }
         } else {
-            fs::rename(&old, &target)?;
+            self.store.rename(&old, &target)?;
         }
         self.apply_path(id, &target);
         Ok(target)
@@ -1483,7 +1563,7 @@ impl Vault {
     /// This is the permanent variant; the UI deletes through
     /// [`Vault::delete_note_to_trash`] so the action can be undone.
     pub fn delete_note(&mut self, id: usize) -> io::Result<()> {
-        fs::remove_file(&self.notes[id].path)?;
+        self.store.remove_file(&self.notes[id].path)?;
         self.notes.remove(id);
         for (i, note) in self.notes.iter_mut().enumerate() {
             note.id = i;
@@ -1499,7 +1579,7 @@ impl Vault {
     /// path>`. The nested path is preserved so restoring is a plain rename
     /// back to where the note came from; the timestamp folder is unique even
     /// for repeated deletes in the same second (`-2`, `-3`, …). The move is a
-    /// same-volume `fs::rename`, so it is atomic with no copy and no new
+    /// same-store `rename`, so it is atomic with no copy and no new
     /// dependency. On failure the note and its index entry stay untouched.
     ///
     /// `now_secs` is the Unix-seconds stamp for the slot, passed in rather than
@@ -1513,24 +1593,24 @@ impl Vault {
         let source = self.notes[id].path.clone();
         let rel = self.notes[id].rel.clone();
         let trash = self.root.join(Self::TRASH_DIR);
-        fs::create_dir_all(&trash)?;
+        self.store.create_dir_all(&trash)?;
         let mut slot = trash.join(now_secs.to_string());
         let mut suffix = 2;
-        while slot.exists() {
+        while self.store.exists(&slot) {
             slot = trash.join(format!("{now_secs}-{suffix}"));
             suffix += 1;
         }
         let target = slot.join(&rel);
-        if target.exists() {
+        if self.store.exists(&target) {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 muninn_i18n::already_exists(target.display()),
             ));
         }
         if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent)?;
+            self.store.create_dir_all(parent)?;
         }
-        fs::rename(&source, &target)?;
+        self.store.rename(&source, &target)?;
         self.notes.remove(id);
         for (i, note) in self.notes.iter_mut().enumerate() {
             note.id = i;
@@ -1550,7 +1630,7 @@ impl Vault {
     /// input, never an error path.
     #[must_use]
     pub fn trash_size(&self) -> (usize, u64) {
-        trash_usage(&self.root.join(Self::TRASH_DIR))
+        trash_usage(&*self.store, &self.root.join(Self::TRASH_DIR))
     }
 
     /// Delete everything under [`Vault::TRASH_DIR`], leaving live notes alone.
@@ -1560,7 +1640,7 @@ impl Vault {
     /// part-way. A missing trash folder is success.
     pub fn empty_trash(&self) -> io::Result<()> {
         let trash = self.root.join(Self::TRASH_DIR);
-        if !trash.exists() {
+        if !self.store.exists(&trash) {
             return Ok(());
         }
         let temp = self.root.join(format!(
@@ -1569,8 +1649,8 @@ impl Vault {
             std::process::id(),
             TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
-        fs::rename(&trash, &temp)?;
-        fs::remove_dir_all(&temp)
+        self.store.rename(&trash, &temp)?;
+        self.store.remove_dir_all(&temp)
     }
 
     /// Enforce [`Vault::TRASH_MAX_ENTRIES`] and [`Vault::TRASH_MAX_BYTES`] by
@@ -1579,19 +1659,17 @@ impl Vault {
     /// must not make that fail.
     fn prune_trash(&self) {
         let trash = self.root.join(Self::TRASH_DIR);
-        let Ok(entries) = fs::read_dir(&trash) else {
+        let Ok(entries) = self.store.read_dir(&trash) else {
             return;
         };
         let mut slots: Vec<(u64, u64, PathBuf)> = entries
-            .flatten()
+            .into_iter()
             .filter_map(|entry| {
-                let kind = entry.file_type().ok()?;
-                if !kind.is_dir() {
+                if entry.kind != crate::store::EntryKind::Dir {
                     return None;
                 }
-                let name = entry.file_name();
-                let (stamp, suffix) = parse_trash_slot(&name.to_string_lossy())?;
-                Some((stamp, suffix, entry.path()))
+                let (stamp, suffix) = parse_trash_slot(&entry.name.to_string_lossy())?;
+                Some((stamp, suffix, entry.path))
             })
             .collect();
         slots.sort_by_key(|(stamp, suffix, _)| (*stamp, *suffix));
@@ -1600,10 +1678,10 @@ impl Vault {
             if files <= Self::TRASH_MAX_ENTRIES && bytes <= Self::TRASH_MAX_BYTES {
                 break;
             }
-            let (slot_files, slot_bytes) = trash_usage(&path);
+            let (slot_files, slot_bytes) = trash_usage(&*self.store, &path);
             // A failed removal stays for the next prune; this loop still moves
             // on instead of retrying the same folder.
-            if fs::remove_dir_all(&path).is_ok() {
+            if self.store.remove_dir_all(&path).is_ok() {
                 files = files.saturating_sub(slot_files);
                 bytes = bytes.saturating_sub(slot_bytes);
             }
@@ -1642,24 +1720,24 @@ impl Vault {
             return Err(invalid());
         }
         let source = self.root.join(&trash_rel);
-        if !source.is_file() {
+        if !self.store.is_file(&source) {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 muninn_i18n::no_longer_in_trash(&trash_rel),
             ));
         }
         let target = self.root.join(original);
-        if target.exists() {
+        if self.store.exists(&target) {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 muninn_i18n::already_exists(target.display()),
             ));
         }
         if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent)?;
+            self.store.create_dir_all(parent)?;
         }
-        fs::rename(&source, &target)?;
-        *self = Vault::load(&self.root)?;
+        self.store.rename(&source, &target)?;
+        *self = Vault::open(self.store.clone())?;
         Ok(target)
     }
 
@@ -1668,7 +1746,7 @@ impl Vault {
     pub fn move_note(&mut self, id: usize, folder: &str) -> io::Result<PathBuf> {
         let old = self.notes[id].path.clone();
         let dir = folder_dir(&self.root, folder);
-        if !dir.is_dir() {
+        if !self.store.is_dir(&dir) {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 muninn_i18n::not_a_folder(dir.display()),
@@ -1682,13 +1760,13 @@ impl Vault {
         if target == old {
             return Ok(target);
         }
-        if target.exists() {
+        if self.store.exists(&target) {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 muninn_i18n::already_exists(target.display()),
             ));
         }
-        fs::rename(&old, &target)?;
+        self.store.rename(&old, &target)?;
         self.apply_path(id, &target);
         Ok(target)
     }
@@ -1721,15 +1799,15 @@ impl Vault {
             ));
         }
         let parent_dir = folder_dir(&self.root, parent);
-        fs::create_dir_all(&parent_dir)?;
+        self.store.create_dir_all(&parent_dir)?;
         let dir = parent_dir.join(name.clone());
-        if dir.exists() {
+        if self.store.exists(&dir) {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 muninn_i18n::already_exists(dir.display()),
             ));
         }
-        fs::create_dir(&dir)?;
+        self.store.create_dir(&dir)?;
         let rel = if parent.is_empty() {
             name
         } else {
@@ -1745,7 +1823,7 @@ impl Vault {
     /// of the folder to rename; `new_name` is its new last segment. A
     /// different existing target is refused; a same-file target (#292, a
     /// case-only rename on a case-insensitive disk) goes through a
-    /// dot-prefixed temp name in two `fs::rename` hops, rolled back if the
+    /// dot-prefixed temp name in two store-rename hops, rolled back if the
     /// second hop fails. Notes under the renamed folder keep resolving.
     pub fn rename_folder(&mut self, folder: &str, new_name: &str) -> io::Result<PathBuf> {
         let folder = folder.trim_matches('/');
@@ -1769,12 +1847,12 @@ impl Vault {
         if target == source {
             return Ok(target);
         }
-        if target.exists() {
+        if self.store.exists(&target) {
             // #292: `notes` and `Notes` are one folder on a case-insensitive
             // disk, so flip the case through a hidden temp name instead of
             // treating the folder as its own collision.
-            if same_file_as(&source, &target) {
-                rename_through_temp(&source, &target)?;
+            if same_file_as(&*self.store, &source, &target) {
+                rename_through_temp(&*self.store, &source, &target)?;
             } else {
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,
@@ -1782,7 +1860,7 @@ impl Vault {
                 ));
             }
         } else {
-            fs::rename(&source, &target)?;
+            self.store.rename(&source, &target)?;
         }
         let target_rel = target
             .strip_prefix(&self.root)
@@ -1817,7 +1895,7 @@ impl Vault {
                 muninn_i18n::t(muninn_i18n::Key::VaultCannotDeleteRoot),
             ));
         }
-        fs::remove_dir(folder_dir(&self.root, folder))?;
+        self.store.remove_dir(&folder_dir(&self.root, folder))?;
         self.dirs.retain(|d| d != folder);
         Ok(())
     }
@@ -1872,26 +1950,23 @@ fn group_broken(broken: HashMap<String, (String, Vec<usize>)>) -> Vec<BrokenLink
 
 /// #292: whether `target` names the same file or folder as `source` with a
 /// name that differs only by case — how a case-only rename looks on a
-/// case-insensitive disk. Existence is probed first with `symlink_metadata`
+/// case-insensitive store. Existence is probed first with `symlink_metadata`
 /// so two missing paths never compare equal, and a symlink at the target is
 /// someone else's, never the same file; the parents must match, and so must
 /// the names ignoring case, so a hard link under a different name is still a
-/// collision. `std::fs::Metadata` has no `PartialEq`, so identity is compared
-/// by field (`same_file_meta`).
-fn same_file_as(source: &Path, target: &Path) -> bool {
-    let Ok(entry) = fs::symlink_metadata(target) else {
+/// collision. The store supplies the final identity: an inode on Unix, the
+/// case-folded key in memory.
+fn same_file_as(store: &dyn VaultStore, source: &Path, target: &Path) -> bool {
+    let Ok(entry) = store.symlink_metadata(target) else {
         return false;
     };
-    if entry.file_type().is_symlink()
+    if entry.symlink
         || source.parent() != target.parent()
         || !names_differ_only_by_case(source, target)
     {
         return false;
     }
-    let (Ok(target_meta), Ok(source_meta)) = (fs::metadata(target), fs::metadata(source)) else {
-        return false;
-    };
-    same_file_meta(source, target, &source_meta, &target_meta)
+    store.same_file(source, target)
 }
 
 /// #292: whether the two paths' last segments differ only by case, and so
@@ -1910,150 +1985,31 @@ fn names_differ_only_by_case(source: &Path, target: &Path) -> bool {
             .to_lowercase()
 }
 
-#[cfg(unix)]
-fn same_file_meta(
-    _source: &Path,
-    _target: &Path,
-    source: &fs::Metadata,
-    target: &fs::Metadata,
-) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    source.dev() == target.dev() && source.ino() == target.ino()
-}
-
-#[cfg(windows)]
-fn same_file_meta(
-    source: &Path,
-    target: &Path,
-    _source_meta: &fs::Metadata,
-    _target_meta: &fs::Metadata,
-) -> bool {
-    // Stable std has no file index on Windows. `canonicalize` there uses
-    // `GetFinalPathNameByHandleW`, which resolves the on-disk case, so two
-    // spellings of one file give the same path (unlike on Unix mounts).
-    match (fs::canonicalize(source), fs::canonicalize(target)) {
-        (Ok(source), Ok(target)) => source == target,
-        _ => false,
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-fn same_file_meta(
-    _source: &Path,
-    _target: &Path,
-    _source_meta: &fs::Metadata,
-    _target_meta: &fs::Metadata,
-) -> bool {
-    // No portable file identity in std: refuse rather than risk a rename.
-    false
-}
-
 /// #292: rename `source` to `target` through a hidden, unique name in the
 /// same directory. POSIX `rename(2)` is a no-op when both spellings resolve
 /// to the same file, so a case-only rename needs two hops to flip the case.
 /// The dot prefix keeps the intermediate invisible to `walk`; if the second
 /// hop fails, a best-effort rollback restores the original path and the
-/// original error is returned.
-fn rename_through_temp(source: &Path, target: &Path) -> io::Result<()> {
+/// original error is returned. Both hops go through the store, so a memory
+/// store flips its key the same way a disk flips the name.
+fn rename_through_temp(store: &dyn VaultStore, source: &Path, target: &Path) -> io::Result<()> {
     let dir = source.parent().unwrap_or_else(|| Path::new("."));
     let mut n = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let temp = loop {
         let candidate = dir.join(format!(".muninn-tmp-{}-{n}", std::process::id()));
-        if fs::symlink_metadata(&candidate).is_err() {
+        if store.symlink_metadata(&candidate).is_err() {
             break candidate;
         }
         n += 1;
     };
-    fs::rename(source, &temp)?;
-    if let Err(error) = fs::rename(&temp, target) {
+    store.rename(source, &temp)?;
+    if let Err(error) = store.rename(&temp, target) {
         // The rollback is best effort: even if it fails, the temp name is
         // dot-prefixed and stays out of the vault scan.
-        let _ = fs::rename(&temp, source);
+        let _ = store.rename(&temp, source);
         return Err(error);
     }
     Ok(())
-}
-
-/// Write `data` to `path` atomically: a hidden, uniquely named temp file in
-/// the same directory is flushed and fsynced, then renamed over `path`.
-///
-/// A crash at any point leaves either the old bytes or the new bytes at
-/// `path`, never a truncated file. A failed write removes the temp file. The
-/// temp name starts with `.` so the vault walk ignores it even if a killed
-/// process leaves one behind.
-pub fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
-    atomic_replace(path, true, |file| file.write_all(data))
-}
-
-/// Copy `source` into `dest` through the same hidden temp + fsync + rename path
-/// as note saves. An existing `dest` is never replaced.
-///
-/// Drag-drop imports use this so a half-copied attachment can never appear in
-/// the vault and a same-named file keeps its bytes.
-pub fn atomic_copy(source: &Path, dest: &Path) -> io::Result<()> {
-    atomic_replace(dest, false, |file| {
-        let mut reader = fs::File::open(source)?;
-        io::copy(&mut reader, file).map(|_| ())
-    })
-}
-
-/// The one temp-file + rename implementation behind note saves and attachment
-/// imports. `replace` is false for imports: the destination is re-checked just
-/// before the rename so a racing copy cannot overwrite a file that appeared.
-fn atomic_replace(
-    path: &Path,
-    replace: bool,
-    write: impl FnOnce(&mut fs::File) -> io::Result<()>,
-) -> io::Result<()> {
-    let dir = path.parent().unwrap_or_else(|| Path::new("."));
-    let name = path
-        .file_name()
-        .map_or_else(|| "note".into(), |n| n.to_string_lossy().into_owned());
-    let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-    // pid + counter keeps concurrent writers (and repeated saves) apart.
-    let temp = dir.join(format!(".{name}.{}.{counter}.tmp", std::process::id()));
-
-    let write = (|| -> io::Result<()> {
-        {
-            let mut file = fs::File::create(&temp)?;
-            write(&mut file)?;
-            file.flush()?;
-            // fsync before rename: otherwise the rename can reach disk first
-            // and a crash could expose an empty or partial file.
-            file.sync_all()?;
-            // Close before rename; Windows cannot rename an open file.
-        }
-        if !replace && path.exists() {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                muninn_i18n::t(muninn_i18n::Key::VaultDestinationExists),
-            ));
-        }
-        fs::rename(&temp, path)
-    })();
-
-    if write.is_err() {
-        // Best-effort cleanup: report the original error, not the removal's.
-        let _ = fs::remove_file(&temp);
-        return write;
-    }
-    sync_parent(dir);
-    Ok(())
-}
-
-/// fsync the directory a rename landed in, best-effort.
-///
-/// Some filesystems and platforms reject fsync on a directory. The rename is
-/// already atomic; skipping (or failing) this sync only weakens durability
-/// across a power loss, so the error is deliberately ignored — there is no
-/// logger yet. Windows has no portable directory fsync, so it is a no-op.
-fn sync_parent(dir: &Path) {
-    #[cfg(unix)]
-    if let Ok(handle) = fs::File::open(dir) {
-        let _ = handle.sync_all();
-    }
-    #[cfg(not(unix))]
-    let _ = dir;
 }
 
 /// Normalise a resolve/search target the same way `parse_links` does before
@@ -2101,8 +2057,8 @@ fn folder_dir(root: &Path, folder: &str) -> PathBuf {
 /// A missing root is created empty. An existing non-directory is
 /// `NotADirectory`, and any other metadata/read_dir failure is the root's own
 /// error: the scan must not turn a permission problem into "no notes".
-fn prepare_root(root: &Path) -> io::Result<()> {
-    match fs::metadata(root) {
+fn prepare_root(store: &dyn VaultStore, root: &Path) -> io::Result<()> {
+    match store.metadata(root) {
         Ok(meta) if !meta.is_dir() => {
             return Err(io::Error::new(
                 io::ErrorKind::NotADirectory,
@@ -2113,21 +2069,21 @@ fn prepare_root(root: &Path) -> io::Result<()> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             // A missing vault is created empty; anything else (permission,
             // loop, …) is the root's own failure and must be reported.
-            fs::create_dir_all(root)?;
+            store.create_dir_all(root)?;
         }
         Err(e) => return Err(e),
     }
     // The root is the vault itself: unlike a nested folder, a read_dir
     // failure here cannot be treated as "no notes".
-    fs::read_dir(root)?;
+    store.read_dir(root)?;
     Ok(())
 }
 
 /// Read one scanned path into a note, returning `None` when it cannot be
 /// indexed (invalid UTF-8, permissions, unusable file name). The caller counts
 /// those as skipped instead of failing the whole vault.
-fn note_from_path(root: &Path, path: &Path, id: usize) -> Option<Note> {
-    let source = fs::read_to_string(path).ok()?;
+fn note_from_path(store: &dyn VaultStore, root: &Path, path: &Path, id: usize) -> Option<Note> {
+    let source = store.read_to_string(path).ok()?;
     let rel = path
         .strip_prefix(root)
         .map(|p| p.to_string_lossy().replace('\\', "/"))
@@ -2163,9 +2119,9 @@ fn note_from_parts(path: PathBuf, rel: String, source: String, id: usize) -> Opt
 }
 
 /// Whether a caller-supplied [`NoteSource::rel`] names a file the vault walk
-/// would find: a relative `.md` path, every segment visible, at most 12 folders
-/// deep. Anything else is ignored rather than indexed, matching a scan.
-fn walkable_source_rel(rel: &str) -> bool {
+/// would find: a relative path with every segment visible and at most 12
+/// folders deep. Anything else is ignored rather than indexed, matching a scan.
+fn visible_source_rel(rel: &str) -> bool {
     if rel.is_empty() || rel.starts_with('/') || rel.contains('\\') {
         return false;
     }
@@ -2177,8 +2133,14 @@ fn walkable_source_rel(rel: &str) -> bool {
         && folders
             .iter()
             .all(|part| !part.is_empty() && !part.starts_with('.'))
+        && !name.is_empty()
         && !name.starts_with('.')
-        && Path::new(name)
+}
+
+/// [`visible_source_rel`] and additionally a `.md` note.
+fn walkable_source_rel(rel: &str) -> bool {
+    visible_source_rel(rel)
+        && Path::new(rel)
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
 }
@@ -2198,6 +2160,7 @@ pub(crate) fn sort_paths(paths: &mut [PathBuf]) {
 /// [`BOARD_EXTENSION`](crate::BOARD_EXTENSION). Both share these rules: at most
 /// 12 levels, dot-entries skipped, symlinks not followed.
 pub(crate) fn walk(
+    store: &dyn VaultStore,
     dir: &Path,
     out: &mut Vec<PathBuf>,
     dirs: &mut Vec<String>,
@@ -2208,56 +2171,48 @@ pub(crate) fn walk(
     if depth > 12 {
         return;
     }
-    let Ok(entries) = fs::read_dir(dir) else {
+    let Ok(entries) = store.read_dir(dir) else {
         return;
     };
     // Seed the root itself so folders() always includes "".
     if depth == 0 {
         dirs.push(String::new());
     }
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let name = entry.file_name();
-        if name.to_string_lossy().starts_with('.') {
+    for entry in entries {
+        if entry.name.to_string_lossy().starts_with('.') {
             continue;
         }
-        let Ok(kind) = entry.file_type() else {
-            continue;
-        };
-        if kind.is_dir() {
-            if let Ok(rel) = path.strip_prefix(root) {
+        if entry.kind == crate::store::EntryKind::Dir {
+            if let Ok(rel) = entry.path.strip_prefix(root) {
                 dirs.push(rel.to_string_lossy().replace('\\', "/"));
             }
-            walk(&path, out, dirs, root, depth + 1, ext);
-        } else if kind.is_file()
-            && path
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case(ext))
+            walk(store, &entry.path, out, dirs, root, depth + 1, ext);
+        } else if entry
+            .path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case(ext))
         {
-            out.push(path);
+            out.push(entry.path);
         }
     }
 }
 
 /// Files and bytes below `dir`, recursively. Unreadable entries are skipped:
 /// the same best-effort posture as the trash budget that reads it.
-fn trash_usage(dir: &Path) -> (usize, u64) {
-    let Ok(entries) = fs::read_dir(dir) else {
+fn trash_usage(store: &dyn VaultStore, dir: &Path) -> (usize, u64) {
+    let Ok(entries) = store.read_dir(dir) else {
         return (0, 0);
     };
     let mut files = 0;
     let mut bytes = 0;
-    for entry in entries.flatten() {
-        let Ok(kind) = entry.file_type() else {
-            continue;
-        };
-        if kind.is_dir() {
-            let (nested_files, nested_bytes) = trash_usage(&entry.path());
+    for entry in entries {
+        if entry.kind == crate::store::EntryKind::Dir {
+            let (nested_files, nested_bytes) = trash_usage(store, &entry.path);
             files += nested_files;
             bytes += nested_bytes;
-        } else if kind.is_file() {
+        } else {
             files += 1;
-            bytes += entry.metadata().map_or(0, |meta| meta.len());
+            bytes += store.metadata(&entry.path).map_or(0, |meta| meta.len);
         }
     }
     (files, bytes)
@@ -3069,7 +3024,8 @@ mod rename_case_tests {
         let tmp = TempVault::new(&[("leaves.md", "body")]);
         let source = tmp.path().join("leaves.md");
         let target = tmp.path().join("Leaves.md");
-        rename_through_temp(&source, &target).expect("temp hop");
+        let store = FsStore::new(tmp.path());
+        rename_through_temp(&store, &source, &target).expect("temp hop");
         assert_eq!(disk_names(tmp.path()), vec!["Leaves.md"]);
         assert_eq!(fs::read_to_string(&target).unwrap(), "body");
     }
@@ -4091,5 +4047,303 @@ mod locked_note_tests {
             debug.contains("redacted"),
             "the overlay says it is redacted: {debug}"
         );
+    }
+}
+
+#[cfg(test)]
+mod memory_store_tests {
+    //! The write-sink contract, exercised with no filesystem at all.
+    //!
+    //! These tests drive every `Vault` mutation through [`MemoryStore`]. They
+    //! are what a browser (OPFS) store is validated against in slice 6b: the
+    //! same calls, the same observable results, without a temp folder.
+    use super::*;
+    use crate::store::MemoryStore;
+    use std::sync::Arc;
+
+    fn memory(root: &str, files: &[(&str, &[u8])]) -> (Arc<MemoryStore>, Vault) {
+        let store = Arc::new(MemoryStore::new(root));
+        for (rel, bytes) in files {
+            store.put_file(rel, bytes);
+        }
+        let vault = Vault::open(Arc::clone(&store) as Arc<dyn VaultStore>).expect("memory vault");
+        (store, vault)
+    }
+
+    fn names(store: &MemoryStore, rel: &str) -> Vec<String> {
+        store
+            .read_dir(&store.root().join(rel))
+            .expect("read dir")
+            .into_iter()
+            .map(|entry| entry.name.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn a_memory_vault_creates_writes_renames_moves_trashes_and_restores() {
+        let (store, v) = memory(
+            "/mem-mutations",
+            &[("Home.md", b"# Home\n\nSee [[Untitled]].\n")],
+        );
+        assert_eq!(v.notes.len(), 1);
+
+        // Create: the file lands in the store, and a reload indexes it once.
+        let created = v.create_note_in("Untitled", "").expect("create note");
+        assert_eq!(created, PathBuf::from("/mem-mutations/Untitled.md"));
+        assert!(store.is_file(&created), "create writes through the store");
+        let mut v = Vault::open(Arc::clone(&store) as Arc<dyn VaultStore>).expect("reload");
+        assert_eq!(v.notes.len(), 2);
+        let id = v.resolve("Untitled").expect("created note indexed");
+
+        // Write: bytes and the index move together.
+        let body = "# Untitled\n\nBack to [[Home]].\n";
+        v.write_note(id, body).expect("write");
+        assert_eq!(store.read_to_string(&created).unwrap(), body);
+        assert_eq!(v.note(id).source, body);
+        let home = v.resolve("Home").expect("Home");
+        assert!(v.note(home).backlinks.contains(&id));
+        assert!(v.note(id).links.contains(&home));
+
+        // Rename in place: the store's spelling follows the note.
+        let renamed = v.rename_note(id, "Journal entry").expect("rename");
+        assert_eq!(renamed, PathBuf::from("/mem-mutations/Journal entry.md"));
+        assert!(!store.is_file(&created), "the old spelling is gone");
+        assert!(store.is_file(&renamed));
+
+        // Move into a new folder: the note and the folder both follow.
+        v.create_folder("", "Journal").expect("create folder");
+        let moved = v.move_note(id, "Journal").expect("move");
+        assert_eq!(
+            moved,
+            PathBuf::from("/mem-mutations/Journal/Journal entry.md")
+        );
+        assert!(store.is_file(&moved));
+        assert_eq!(v.note(id).rel, "Journal/Journal entry.md");
+        assert!(v.folders().iter().any(|folder| folder == "Journal"));
+
+        // Trash: a real move into the hidden slot, enumerated by the budget.
+        let trash_rel = v.delete_note_to_trash(id, 1_700_000_000).expect("trash");
+        assert_eq!(
+            trash_rel,
+            ".muninn-trash/1700000000/Journal/Journal entry.md"
+        );
+        assert!(store.is_file(&Path::new("/mem-mutations").join(&trash_rel)));
+        assert_eq!(v.notes.len(), 1);
+        assert_eq!(v.trash_size(), (1, body.len() as u64));
+
+        // Restore: a rename back plus a reload from the same store.
+        let restored = v.restore_note(&trash_rel).expect("restore");
+        assert_eq!(
+            restored,
+            PathBuf::from("/mem-mutations/Journal/Journal entry.md")
+        );
+        assert!(store.is_file(&restored));
+        assert_eq!(v.trash_size(), (0, 0));
+        assert_eq!(v.notes.len(), 2);
+        let id = v.resolve("Journal entry").expect("restored indexed");
+        assert_eq!(v.note(id).source, body);
+        assert!(v.note(id).links.contains(&v.resolve("Home").expect("Home")));
+
+        // Folder rename: the subtree and every note path follow.
+        let target = v.rename_folder("Journal", "Diary").expect("rename folder");
+        assert_eq!(target, PathBuf::from("/mem-mutations/Diary"));
+        assert_eq!(v.note(id).rel, "Diary/Journal entry.md");
+        assert!(store.is_file(Path::new("/mem-mutations/Diary/Journal entry.md")));
+        assert!(names(&store, "").iter().any(|name| name == "Diary"));
+        assert!(!names(&store, "").iter().any(|name| name == "Journal"));
+    }
+
+    #[test]
+    fn a_memory_vault_case_only_rename_flips_the_store_spelling() {
+        let (store, mut v) = memory("/mem-case", &[("leaves.md", b"# leaves\n")]);
+        let id = v.resolve("leaves").expect("leaves");
+
+        let target = v.rename_note(id, "Leaves").expect("case-only rename");
+
+        // A plain rename would be a no-op on this case-insensitive store (the
+        // two spellings are one identity), so the observed new spelling is the
+        // temp hop landing.
+        assert_eq!(target, PathBuf::from("/mem-case/Leaves.md"));
+        assert_eq!(v.note(id).rel, "Leaves.md");
+        assert_eq!(names(&store, ""), ["Leaves.md"]);
+        assert!(
+            names(&store, "")
+                .iter()
+                .all(|name| !name.starts_with(".muninn-tmp-")),
+            "the hop leaves no temp behind"
+        );
+        assert_eq!(
+            store
+                .read_to_string(Path::new("/mem-case/Leaves.md"))
+                .unwrap(),
+            "# leaves\n"
+        );
+
+        // The reload (which a restore/scan performs) sees the new spelling.
+        let reloaded = Vault::open(Arc::clone(&store) as Arc<dyn VaultStore>).expect("reload");
+        assert_eq!(reloaded.notes[0].rel, "Leaves.md");
+        assert_eq!(reloaded.resolve("leaves"), Some(0));
+    }
+
+    #[test]
+    fn a_memory_vault_guarded_write_refuses_an_external_store_change() {
+        let (store, mut v) = memory("/mem-guard", &[("Note.md", b"# Note\n\nmine\n")]);
+        let id = v.resolve("Note").expect("Note");
+        let expected = v.disk_state(id).expect("state");
+
+        // Another writer replaces the file: longer, then same length. The
+        // store's logical stamp makes both visible, including the write a
+        // coarse native timestamp could miss.
+        store.put_file("Note.md", b"# Note\n\ntheirs, much longer\n");
+        assert!(
+            !v.write_note_if_unmodified(id, "# Note\n\nmine again\n", expected)
+                .expect("no io error"),
+            "a stale identity refuses the write"
+        );
+        assert_eq!(
+            store.read_to_string(&store.root().join("Note.md")).unwrap(),
+            "# Note\n\ntheirs, much longer\n"
+        );
+        assert_eq!(
+            v.note(id).source,
+            "# Note\n\nmine\n",
+            "the model is untouched"
+        );
+
+        let expected = v.disk_state(id).expect("state");
+        store.put_file("Note.md", b"# Note\n\nTHEIRS\n");
+        assert!(
+            !v.write_note_if_unmodified(id, "# Note\n\nmine\n", expected)
+                .expect("no io error"),
+            "same-length external write is still a change"
+        );
+
+        // The current identity writes through.
+        let expected = v.disk_state(id).expect("state");
+        assert!(
+            v.write_note_if_unmodified(id, "# Note\n\nmine\n", expected)
+                .expect("no io error")
+        );
+        assert_eq!(
+            store.read_to_string(&store.root().join("Note.md")).unwrap(),
+            "# Note\n\nmine\n"
+        );
+    }
+
+    #[test]
+    fn a_source_vault_keeps_one_file_per_case_insensitive_path() {
+        // The store models a case-insensitive volume, so two spellings of one
+        // path are one file; the first source wins, exactly as the note index
+        // and the store agree.
+        let sources = [
+            NoteSource {
+                rel: "Home.md",
+                bytes: b"first",
+            },
+            NoteSource {
+                rel: "home.md",
+                bytes: b"second",
+            },
+        ];
+        let v = Vault::from_sources("/mem-case-sources", &sources);
+        assert_eq!(v.notes.len(), 1);
+        assert_eq!(v.notes[0].rel, "Home.md");
+        assert_eq!(v.notes[0].source, "first");
+    }
+
+    #[test]
+    fn a_source_vault_lists_boards_and_sizes_attachments_from_store_bytes() {
+        const BOARD: &str =
+            r#"{"type":"excalidraw","version":2,"elements":[],"appState":{},"files":{}}"#;
+        const PIC: &[u8] = b"\x89PNG-not-really-a-picture";
+        let sources = [
+            NoteSource {
+                rel: "Home.md",
+                bytes: b"# Home\n\n![[Plan.excalidraw]] and ![[assets/pic.png]]\n",
+            },
+            NoteSource {
+                rel: "Plan.excalidraw",
+                bytes: BOARD.as_bytes(),
+            },
+            NoteSource {
+                rel: "assets/pic.png",
+                bytes: PIC,
+            },
+        ];
+        let v = Vault::from_sources("/sample", &sources);
+        assert_eq!(v.notes.len(), 1, "only the .md source is a note");
+        assert!(v.dirs.iter().any(|dir| dir == "assets"));
+
+        let boards = v.boards();
+        assert_eq!(boards.len(), 1, "the .excalidraw source is a board");
+        assert_eq!(boards[0].rel, "Plan.excalidraw");
+        assert_eq!(boards[0].title, "Plan");
+        assert_eq!(boards[0].path, PathBuf::from("/sample/Plan.excalidraw"));
+
+        let home = v.resolve("Home").expect("Home");
+        assert_eq!(
+            v.attachment_path("assets/pic.png", home),
+            Some(PathBuf::from("/sample/assets/pic.png"))
+        );
+        let attachments = v.attachments(&v.note(home).source, home);
+        assert_eq!(attachments.len(), 2);
+        let pic = attachments
+            .iter()
+            .find(|attachment| attachment.name == "pic.png")
+            .expect("the image embed resolves");
+        assert_eq!(pic.size, Some(PIC.len() as u64));
+        assert_eq!(
+            pic.path.as_deref(),
+            Some(Path::new("/sample/assets/pic.png"))
+        );
+
+        // The embed is not a broken link now that the store can answer for it,
+        // and the board bytes are readable through the same handle.
+        assert!(v.broken_links().is_empty(), "{:?}", v.broken_links());
+        assert_eq!(v.store().read_to_string(&boards[0].path).unwrap(), BOARD);
+    }
+
+    #[test]
+    fn a_source_vault_trashes_and_restores_through_its_store() {
+        let sources = [NoteSource {
+            rel: "Alpha.md",
+            bytes: b"# Alpha\n\nSee [[Beta]].\n",
+        }];
+        let mut v = Vault::from_sources("/source-trash", &sources);
+        let id = v.resolve("Alpha").expect("Alpha");
+        let trash_rel = v.delete_note_to_trash(id, 1_700_000_000).expect("trash");
+        assert_eq!(v.notes.len(), 0);
+
+        let restored = v.restore_note(&trash_rel).expect("restore");
+        assert_eq!(restored, PathBuf::from("/source-trash/Alpha.md"));
+        assert_eq!(v.notes.len(), 1, "the reload reads the store, not a folder");
+        assert_eq!(v.notes[0].source, "# Alpha\n\nSee [[Beta]].\n");
+    }
+
+    #[test]
+    fn a_memory_vault_trash_budget_enumerates_and_prunes_oldest_first() {
+        let store = Arc::new(MemoryStore::new("/mem-prune"));
+        store.put_file("Live.md", b"# Live\n");
+        // One file in each of 501 timestamp slots, one past the entry budget.
+        for stamp in 0..501u64 {
+            store.put_file(&format!(".muninn-trash/{stamp}/Old.md"), b"x");
+        }
+        let mut v = Vault::open(Arc::clone(&store) as Arc<dyn VaultStore>).expect("memory vault");
+        assert_eq!(v.trash_size(), (501, 501));
+        assert!(!v.dirs.iter().any(|dir| dir.contains("muninn-trash")));
+
+        // Deleting runs the budget: 502 entries, so the two oldest slots go.
+        let id = v.resolve("Live").expect("Live");
+        let rel = v.delete_note_to_trash(id, 1_700_000_000).expect("trash");
+        assert_eq!(
+            v.trash_size(),
+            (500, 506),
+            "the new file replaces the two pruned ones"
+        );
+        assert!(!store.is_dir(Path::new("/mem-prune/.muninn-trash/0")));
+        assert!(!store.is_dir(Path::new("/mem-prune/.muninn-trash/1")));
+        assert!(store.is_dir(Path::new("/mem-prune/.muninn-trash/2")));
+        assert!(store.is_file(&Path::new("/mem-prune").join(&rel)));
+        assert_eq!(v.notes.len(), 0, "live notes are never pruned");
     }
 }

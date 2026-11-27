@@ -6,10 +6,10 @@
 //! is self-contained: no fetch, no manifest, no build script.
 //!
 //! The sample is the repository's `vault/` folder verbatim (17 Markdown notes
-//! plus one `.excalidraw`). `Vault::from_sources` indexes `.md` only, so the
-//! board file is embedded for the future board seam and is not a note today:
-//! `Vault::boards()` still walks the filesystem, so Board mode lists nothing on
-//! web.
+//! plus one `.excalidraw`). `Vault::from_sources` indexes `.md` notes and
+//! seeds every non-note source into its memory store (slice 6a), so Board
+//! mode lists the embedded board on web; opening it still needs the store's
+//! read path, which the OPFS slice (6b) supplies.
 
 use muninn_core::NoteSource;
 
