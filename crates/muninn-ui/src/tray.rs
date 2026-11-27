@@ -265,29 +265,6 @@ impl State {
     pub fn closes_to_tray(&self) -> bool {
         self.settings.close_to_tray && self.settings.tray_icon && self.tray_shown()
     }
-
-    /// The tray's Quit: the same flush as closing the window (the open note
-    /// and settings), which Rune's quit skips.
-    ///
-    /// Board slice 4: unsaved drawing is saved on the close path too. When it
-    /// cannot be saved (the file changed or vanished), its recovery copy is
-    /// brought up to date instead, as a note's is. Returns `false` only when
-    /// neither worked: the caller must not quit then (see
-    /// `board_safety.rs`), and [`State::error`] says why.
-    ///
-    /// Kanban slice 7: unsaved kanban edits follow the board's rule
-    /// (`kanban_sync.rs`): saved, else kept in their recovery copy; only
-    /// when neither works, or the open card's text is refused, is the quit
-    /// refused, with the reason on the Kanban page.
-    pub fn flush_before_quit(&mut self) -> bool {
-        self.save_now();
-        let board = self.flush_board_before_quit();
-        let kanban = self.flush_kanban_before_quit();
-        // A board camera glide is a session thing, not a saved pose.
-        self.land_board_camera();
-        self.save_settings();
-        board && kanban
-    }
 }
 
 #[cfg(test)]

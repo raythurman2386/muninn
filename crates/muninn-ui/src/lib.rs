@@ -3,6 +3,7 @@
 //! The binary in `muninn-app` only wires these into `rune::run`; everything that can be
 //! tested headlessly lives here.
 
+#[cfg(feature = "native")]
 mod autostart;
 mod board_camera;
 mod board_edit;
@@ -22,6 +23,7 @@ mod doc_sync;
 mod focus;
 mod global_shortcut;
 mod graph_view;
+#[cfg(feature = "native")]
 mod import_document;
 mod kanban_archive;
 mod kanban_dates;
@@ -45,16 +47,21 @@ mod overlay;
 mod paste;
 mod poll;
 mod recovery;
+#[cfg(feature = "native")]
 pub mod self_update;
 mod settings;
 mod sidebar_drag;
 mod state;
+#[cfg(feature = "native")]
 mod sync_ui;
+#[cfg(feature = "native")]
 mod tray;
+#[cfg(feature = "native")]
 pub mod update;
 mod view;
 mod watch;
 
+#[cfg(feature = "native")]
 pub use autostart::{
     AUTOSTART_NAME, AutostartPort, NativeAutostart, WINDOWS_RUN_KEY, autostart_dir,
     autostart_supported, desktop_entry, desktop_entry_path, remove_desktop_entry,
@@ -74,6 +81,7 @@ pub use contrast::{TEXT, UI, at_least, board_stroke, meets, over, ratio as contr
 pub use doc_sync::DocConflict;
 pub use global_shortcut::{SHOW_SHORTCUT, ShortcutPhase, ShortcutPort, show_shortcut_label};
 pub use graph_view::node_footprint;
+#[cfg(feature = "native")]
 pub use import_document::DOCUMENT_EXTENSIONS;
 pub use kanban_dates::{KanbanPicker, PickerInsert, PickerKind};
 pub use kanban_edit::{CardSlot, KanbanHistory};
@@ -100,10 +108,12 @@ pub use state::{
     MoveConfirm, NamePrompt, RenameConfirm, RenamePrompt, State, TagComplete, TrashUndo,
     file_action_command,
 };
+#[cfg(feature = "native")]
 pub use tray::{
     TRAY_NEW_NOTE, TRAY_QUIT, TRAY_SHOW, TRAY_SYNC_NOW, TRAY_SYNC_STATUS, TrayAction, TrayFactory,
     TrayPort, tray_action, tray_icon, tray_menu, tray_spec, tray_status_label, tray_supported,
 };
+#[cfg(feature = "native")]
 pub use update::{AvailableUpdate, CheckOutcome, InstallMethod, InstallProbe, ReleasesClient};
 pub use view::view;
 

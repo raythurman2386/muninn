@@ -15,6 +15,8 @@ use rune::Tx;
 use crate::{Mode, State};
 
 /// How often `poll` wakes while a sync is in flight.
+/// native: sync.
+#[cfg(feature = "native")]
 pub(crate) const SYNC_WAKE: std::time::Duration = std::time::Duration::from_millis(250);
 
 pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
@@ -81,36 +83,44 @@ pub fn poll(s: &mut State, t: f64, tx: &mut Tx) -> bool {
     if s.kanban_find_tick() {
         changed = true;
     }
+    // native: drain a sync run's messages and status.
+    #[cfg(feature = "native")]
     if s.poll_sync() {
         changed = true;
     }
-    // #234: a release check runs on a worker; apply its one outcome here so
+    // native: a release check runs on a worker; apply its one outcome here so
     // the banner and settings change on the UI thread. It stays silent on
     // failure, so only a banner/state change wakes the window.
+    #[cfg(feature = "native")]
     if s.poll_update() {
         changed = true;
     }
-    // #254: the explicit Update action downloads and installs on a worker;
+    // native: the explicit Update action downloads and installs on a worker;
     // land each phase and the one result here, on the UI thread.
+    #[cfg(feature = "native")]
     if s.poll_self_update() {
         changed = true;
     }
-    // #189: a document converts on a worker; land the note here and keep the
+    // native: a document converts on a worker; land the note here and keep the
     // window polling while a conversion or a queued document waits.
+    #[cfg(feature = "native")]
     if s.poll_import() {
         changed = true;
     }
+    #[cfg(feature = "native")]
     if s.import_busy() {
         tx.wake_after(crate::import_document::IMPORT_WAKE);
     }
-    // A hidden window (closed to the tray) only polls on a timer, so keep
-    // checking while a run or sign-in is in flight; otherwise its result and
-    // the tray's status row would wait for the window to show again.
+    // native: a hidden window (closed to the tray) only polls on a timer, so
+    // keep checking while a run or sign-in is in flight; otherwise its result
+    // and the tray's status row would wait for the window to show again.
+    #[cfg(feature = "native")]
     if s.sync_busy() {
         tx.wake_after(SYNC_WAKE);
     }
-    // The tray's status row follows the sync status line. It is not drawn in
-    // the window, so it never sets `changed`.
+    // native: the tray's status row follows the sync status line. It is not
+    // drawn in the window, so it never sets `changed`.
+    #[cfg(feature = "native")]
     s.sync_tray();
     if s.complete_tick() {
         changed = true;

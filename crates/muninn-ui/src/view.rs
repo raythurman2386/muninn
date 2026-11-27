@@ -13,12 +13,15 @@ use rune_theme_opencode::icons as ic;
 use muninn_core::{KanbanView, Vault, block_anchors, headings};
 use muninn_i18n::{
     Key as TextKey, Lang, autosave_help, broken_links, deleted, files_skipped, focus_exit_help,
-    focus_help, link_impact, login_item_error, more_edits, new_folder_in, new_note_in, note_links,
+    focus_help, link_impact, more_edits, new_folder_in, new_note_in, note_links,
     note_links_in_folder, note_tag_filter_summary, palette_kanban_folder, recovered_copies,
     recovered_for, referrers, results, scan_ms, scan_progress, shortcut_failed, shortcut_on,
     show_with_chord, sidebar_summary, status_counts, t, targets, theme_label, trash_empty,
-    trash_summary, tray_error, update_available, version, welcome_vault_created,
+    trash_summary, version, welcome_vault_created,
 };
+// native: copy used only by the tray/login/update surfaces gated below.
+#[cfg(feature = "native")]
+use muninn_i18n::{login_item_error, tray_error, update_available};
 
 use crate::{
     BurnSpace, DeleteConfirm, GraphEffectIntensity, GraphEffects, LanguageChoice, LockPromptKind,
@@ -256,10 +259,13 @@ fn sidebar(s: &State, k: &Kit) -> El {
                 .font(k.ty.ui_medium)
                 .color(k.c.text_base)
                 .grow(1.0),
-        )
-        .child(import_button(k))
-        .child(help_button(k))
-        .child(settings_button(k));
+        );
+    // native: import a document through Rune's desktop file dialog.
+    #[cfg(feature = "native")]
+    {
+        brand = brand.child(import_button(k));
+    }
+    brand = brand.child(help_button(k)).child(settings_button(k));
     // Following the shared Omarchy palette hides the switcher: Omarchy is the
     // system theme, not a cycle stop. A diverged (pinned/system) or
     // non-Omarchy session keeps the button.
@@ -755,6 +761,8 @@ fn theme_button(k: &Kit, mode: ThemeMode) -> El {
 /// #189: import a document as a new note. A 26 pt icon beside Help and
 /// Settings in the sidebar's brand row; opening the desktop file dialog is the
 /// same path the palette action and ⌘I take.
+/// native: document import.
+#[cfg(feature = "native")]
 fn import_button(k: &Kit) -> El {
     pressable(k, "import-document".to_owned())
         .size(26.0, 26.0)
@@ -824,6 +832,8 @@ fn settings_button(k: &Kit) -> El {
 }
 
 /// Manual sync. One provider per vault. Nothing here starts a background sync.
+/// native: sync transports and credentials.
+#[cfg(feature = "native")]
 fn sync_section(s: &State, k: &Kit) -> El {
     let provider = t(match s.sync_ui.provider_index {
         0 => TextKey::SyncProviderGithubName,
@@ -959,6 +969,8 @@ fn sync_section(s: &State, k: &Kit) -> El {
         )
 }
 
+/// native: sync transports and credentials.
+#[cfg(feature = "native")]
 fn tailnet_fields(s: &State, k: &Kit) -> El {
     let role = SegmentedControl::new(
         &[
@@ -1010,6 +1022,8 @@ fn tailnet_fields(s: &State, k: &Kit) -> El {
 /// Host: the shared key stays masked unless Show key is on. Copy puts it on
 /// the clipboard as a secret (kept out of clipboard history, cleared after a
 /// minute); Rotate replaces it.
+/// native: sync transports and credentials.
+#[cfg(feature = "native")]
 fn tailnet_key_row(s: &State, k: &Kit) -> El {
     let shown = s.sync_ui.revealed_key.as_ref();
     let value = match shown {
@@ -1068,6 +1082,8 @@ fn tailnet_key_row(s: &State, k: &Kit) -> El {
 /// One labelled Sync text field. The visible label and the accessible name are
 /// the same catalog text; the element key comes from the key's id, so a copy
 /// edit moves the text without moving the key.
+/// native: sync transports and credentials.
+#[cfg(feature = "native")]
 fn sync_field(
     k: &Kit,
     label: TextKey,
@@ -1093,6 +1109,8 @@ fn sync_field(
 /// The element key of a Sync field: `sync.field.github_owner` becomes
 /// `sync-field-github-owner`, so the key follows the catalog id rather than the
 /// English label.
+/// native: sync transports and credentials.
+#[cfg(feature = "native")]
 fn sync_field_key(label: TextKey) -> String {
     let slug = label.id().rsplit('.').next().unwrap_or_default();
     format!("sync-field-{}", slug.replace('_', "-"))
@@ -1436,7 +1454,8 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
             .build(k)
             .key("settings-theme")
     };
-    col()
+    #[cfg_attr(not(feature = "native"), allow(unused_mut))]
+    let mut tab = col()
         .key("settings-tab-appearance")
         .w_full()
         .gap(18.0)
@@ -1446,9 +1465,13 @@ fn settings_appearance_tab(s: &State, k: &Kit) -> El {
             t(TextKey::SettingsAppearanceThemeTitle),
             None,
             theme,
-        ))
-        .child(settings_tray_section(s, k))
-        .child(settings_startup_section(s, k))
+        ));
+    // native: tray icon and close-to-tray.
+    #[cfg(feature = "native")]
+    {
+        tab = tab.child(settings_tray_section(s, k));
+    }
+    tab.child(settings_startup_section(s, k))
         .child(settings_updates_section(s, k))
 }
 
@@ -1483,6 +1506,8 @@ fn settings_language_section(s: &State, k: &Kit) -> El {
 /// Appearance › Tray icon: Show tray icon and Close to tray, each with a
 /// status line. Disabled where Rune has no tray (macOS at the pinned
 /// revision); Close to tray also needs the tray icon on.
+/// native: tray.
+#[cfg(feature = "native")]
 fn settings_tray_section(s: &State, k: &Kit) -> El {
     let supported = crate::tray_supported();
     let switch = Switch::new(s.tray_icon() && supported)
@@ -1544,24 +1569,29 @@ fn settings_tray_section(s: &State, k: &Kit) -> El {
 
 /// Appearance › Startup: Start Muninn at login and the global shortcut.
 fn settings_startup_section(s: &State, k: &Kit) -> El {
-    let autostart = crate::autostart_supported();
-    let login = Switch::new(s.auto_start() && autostart)
-        .label(t(TextKey::SettingsAppearanceLoginTitle))
-        .disabled(!autostart)
-        .on_toggle(|s: &mut State| {
-            let on = !s.auto_start();
-            s.set_auto_start(on);
-        })
-        .build(k)
-        .key("settings-auto-start");
-    let login_status = if !autostart {
-        t(TextKey::SettingsAppearanceUnavailable).to_owned()
-    } else if let Some(error) = s.auto_start_error() {
-        login_item_error(error)
-    } else if s.auto_start() {
-        t(TextKey::SettingsAppearanceLoginOn).to_owned()
-    } else {
-        t(TextKey::SettingsAppearanceStateOff).to_owned()
+    // native: Start Muninn at login (XDG autostart entry / Windows Run key).
+    #[cfg(feature = "native")]
+    let (login, login_status) = {
+        let autostart = crate::autostart_supported();
+        let login = Switch::new(s.auto_start() && autostart)
+            .label(t(TextKey::SettingsAppearanceLoginTitle))
+            .disabled(!autostart)
+            .on_toggle(|s: &mut State| {
+                let on = !s.auto_start();
+                s.set_auto_start(on);
+            })
+            .build(k)
+            .key("settings-auto-start");
+        let login_status = if !autostart {
+            t(TextKey::SettingsAppearanceUnavailable).to_owned()
+        } else if let Some(error) = s.auto_start_error() {
+            login_item_error(error)
+        } else if s.auto_start() {
+            t(TextKey::SettingsAppearanceLoginOn).to_owned()
+        } else {
+            t(TextKey::SettingsAppearanceStateOff).to_owned()
+        };
+        (login, login_status)
     };
     let chord = crate::show_shortcut_label();
     let shortcut = Switch::new(s.show_shortcut())
@@ -1581,25 +1611,25 @@ fn settings_startup_section(s: &State, k: &Kit) -> El {
         (true, _) => t(TextKey::SettingsAppearanceStateOn).to_owned(),
         (false, _) => t(TextKey::SettingsAppearanceStateOff).to_owned(),
     };
+    #[cfg_attr(not(feature = "native"), allow(unused_mut))]
+    let mut panel = col().w_full().gap(8.0);
+    #[cfg(feature = "native")]
+    {
+        panel = panel.child(login).child(settings_caption(
+            k,
+            "settings-auto-start-status",
+            &login_status,
+        ));
+    }
     settings_section(
         k,
         t(TextKey::SettingsAppearanceStartupTitle),
         None,
-        col()
-            .w_full()
-            .gap(8.0)
-            .child(login)
-            .child(settings_caption(
-                k,
-                "settings-auto-start-status",
-                &login_status,
-            ))
-            .child(shortcut)
-            .child(settings_caption(
-                k,
-                "settings-show-shortcut-status",
-                &shortcut_status,
-            )),
+        panel.child(shortcut).child(settings_caption(
+            k,
+            "settings-show-shortcut-status",
+            &shortcut_status,
+        )),
     )
 }
 
@@ -1731,10 +1761,21 @@ fn settings_graph_tab(s: &State, k: &Kit) -> El {
 /// Sync tab: the vault's sync provider, its fields, the status line, and
 /// Connect / Sync now / Cancel / Disconnect ([`sync_section`]).
 fn settings_sync_tab(s: &State, k: &Kit) -> El {
-    col()
-        .key("settings-tab-sync")
-        .w_full()
-        .child(sync_section(s, k))
+    // native: sync transports, credentials and the Tailnet host.
+    #[cfg(feature = "native")]
+    {
+        col()
+            .key("settings-tab-sync")
+            .w_full()
+            .child(sync_section(s, k))
+    }
+    // 4b replaces this with the browser sync surface; the tab itself is
+    // shared, so it keeps its key and an empty body here.
+    #[cfg(not(feature = "native"))]
+    {
+        let _ = (s, k);
+        col().key("settings-tab-sync").w_full()
+    }
 }
 
 fn vault_prompt_row(s: &State, k: &Kit) -> El {
@@ -2607,6 +2648,8 @@ fn main(s: &State, k: &Kit) -> El {
     if !s.recovered.is_empty() {
         page = page.child(recovery_banner(s, k));
     }
+    // native: the release/self-update banner.
+    #[cfg(feature = "native")]
     if s.update_available().is_some() {
         page = page.child(update_banner(s, k));
     }
@@ -4420,6 +4463,8 @@ fn recovery_banner(s: &State, k: &Kit) -> El {
 /// no action. While an update runs, the hint becomes the current phase and the
 /// actions are hidden. The row takes no focus and never blocks the page;
 /// Release notes opens the browser and Dismiss remembers the version.
+/// native: release check and self-update.
+#[cfg(feature = "native")]
 fn update_banner(s: &State, k: &Kit) -> El {
     let Some(update) = s.update_available() else {
         return el();
@@ -4500,6 +4545,8 @@ fn update_banner(s: &State, k: &Kit) -> El {
 }
 
 /// The catalog line for the phase a running self-update is in.
+/// native: self-update.
+#[cfg(feature = "native")]
 fn update_phase_text(phase: crate::self_update::Phase) -> TextKey {
     match phase {
         crate::self_update::Phase::Downloading => TextKey::UpdateDownloading,
@@ -4511,6 +4558,8 @@ fn update_phase_text(phase: crate::self_update::Phase) -> TextKey {
 
 /// The install-method hint shown beside the release banner: how to upgrade
 /// this copy by hand, never an automatic download.
+/// native: release check.
+#[cfg(feature = "native")]
 fn update_hint(method: crate::InstallMethod) -> TextKey {
     match method {
         crate::InstallMethod::AppImage => TextKey::UpdateHintAppImage,
