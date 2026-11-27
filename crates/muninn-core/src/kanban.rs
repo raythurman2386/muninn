@@ -46,6 +46,7 @@ use std::io::{self, ErrorKind};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
+use crate::store::VaultStore;
 use crate::vault::{Vault, atomic_write};
 
 pub use self::archive::{
@@ -316,8 +317,23 @@ impl Kanban {
     }
 
     /// Write the note atomically through the vault's temp-file rename.
+    ///
+    /// The no-store form, kept for callers with no vault (the core tests and
+    /// examples). The app's conflict-copy writes use
+    /// [`Kanban::save_to`] so they land in the vault's store.
     pub fn save(&self, path: impl AsRef<Path>) -> io::Result<()> {
         atomic_write(path.as_ref(), self.source.as_bytes())
+    }
+
+    /// Write the note through `store`, replacing any existing file at `path`.
+    ///
+    /// [`VaultStore::write_atomic`] is the store's hidden-temp + rename
+    /// replace: on an [`FsStore`](crate::FsStore) this is the exact call
+    /// [`Kanban::save`] makes, and a browser store writes the same bytes into
+    /// OPFS. A missing parent folder is an error, as it is for
+    /// [`Kanban::save`].
+    pub fn save_to(&self, store: &dyn VaultStore, path: impl AsRef<Path>) -> io::Result<()> {
+        store.write_atomic(path.as_ref(), self.source.as_bytes())
     }
 }
 

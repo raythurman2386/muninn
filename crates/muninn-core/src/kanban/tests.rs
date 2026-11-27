@@ -651,6 +651,27 @@ fn save_uses_the_atomic_writer() {
     assert_eq!(names, vec![std::ffi::OsString::from("Board.md")]);
 }
 
+/// #240 slice 6c: the store form the Kanban page's conflict copies use. A
+/// native store is the same atomic write; a memory store is the browser
+/// contract with no filesystem.
+#[test]
+fn save_to_writes_the_same_bytes_through_a_store() {
+    use crate::store::{FsStore, MemoryStore, VaultStore};
+
+    let kanban = parse("---\nkanban-plugin: board\n---\n\n## To do\n");
+    let dir = TempVault::new(&[]);
+    let via_store = dir.path().join("Store.md");
+    kanban
+        .save_to(&FsStore::new(dir.path()), &via_store)
+        .unwrap();
+    assert_eq!(fs::read_to_string(&via_store).unwrap(), kanban.source());
+
+    let store = MemoryStore::new("/mem-kanban");
+    let path = store.root().join("Board.md");
+    kanban.save_to(&store, &path).unwrap();
+    assert_eq!(store.read_to_string(&path).unwrap(), kanban.source());
+}
+
 #[test]
 fn card_wikilinks_stay_in_the_note_index() {
     let body = "\
