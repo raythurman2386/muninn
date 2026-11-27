@@ -6,7 +6,7 @@
 # cdylib discovery, the size-oriented release profile, `wasm-bindgen --target
 # web --out-name app`, the dep-info font copy, staged output, the generated
 # HTML marker and the raw+gzip size report are Rune's. Muninn's differences
-# are the generated page (WebGPU *or* WebGL2, and the read-only demo note), the
+# are the generated page (WebGPU *or* WebGL2, and the OPFS vault note), the
 # `--opt` fallback when `wasm-opt` is not installed, and the Rune marker
 # renamed. The WASI SDK block is gone: Muninn does not link rune-luau, so its
 # wasm build has no C or C++ in it.
@@ -116,10 +116,10 @@ $marker
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="Muninn in the browser: the sample vault, rendered read-only by the shared desktop UI.">
-<title>Muninn — sample vault</title>
+<meta name="description" content="Muninn in the browser: the shared desktop UI over an OPFS-backed vault.">
+<title>Muninn</title>
 <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:none}#status{font:16px/1.5 system-ui;padding:24px;max-width:42rem}#status small{display:block;margin-top:12px;opacity:.7}</style>
-<div id="status">Loading the sample vault…<small>Read-only demo: edits stay in this tab and are not saved anywhere.</small></div>
+<div id="status">Loading the browser vault…<small>Edits are saved in this browser (OPFS); a second tab opens read-only.</small></div>
 $reload
 <script type="module">
 $import
@@ -129,7 +129,6 @@ try {
     if (!navigator.gpu && !document.createElement('canvas').getContext('webgl2'))
         throw new Error('Muninn needs WebGPU or WebGL2, and this browser (or page context) offers neither.');
     $load
-    document.querySelector('#status').remove();
 } catch (error) {
     document.querySelector('#status').textContent = String(error);
     console.error(error);

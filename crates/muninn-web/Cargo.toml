@@ -1,6 +1,6 @@
 [package]
 name = "muninn-web"
-description = "Muninn in the browser: the read-only sample-vault demo."
+description = "Muninn in the browser: the OPFS-backed vault demo."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -33,6 +33,29 @@ rune-theme-opencode.workspace = true
 # The spec Rune's own wasm crates resolve (Cargo.lock: 0.2.130); the build
 # script reads the exact version from the lock and checks the CLI matches.
 wasm-bindgen = "0.2"
+# OPFS, the storage manager and the file-system handles (slice 6b). Web Locks
+# stay on `js_sys::Reflect`/inline JS because web-sys still gates `LockManager`
+# behind its unstable-API cfg; the rest is stable web-sys.
+web-sys = { version = "0.3", features = [
+    "Blob",
+    "console",
+    "Document",
+    "Element",
+    "FileSystemDirectoryHandle",
+    "FileSystemFileHandle",
+    "FileSystemGetDirectoryOptions",
+    "FileSystemGetFileOptions",
+    "FileSystemHandle",
+    "FileSystemHandleKind",
+    "FileSystemRemoveOptions",
+    "FileSystemWritableFileStream",
+    "Navigator",
+    "StorageManager",
+    "Window",
+    "WritableStream",
+] }
+js-sys = "0.3"
+wasm-bindgen-futures = "0.4"
 
 [lints]
 workspace = true

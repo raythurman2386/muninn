@@ -8,6 +8,19 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- **The browser vault is real and keeps edits across reloads (#240 slice 6b).**
+  `muninn-web` now boots an OPFS-backed vault instead of the read-only sample:
+  an in-memory mirror serves every synchronous `VaultStore` call, a dirty
+  journal drains to OPFS from the app's poll loop, and a reload walks OPFS back
+  into the mirror. On first run the 18 committed sample files seed the vault.
+  A Web Lock (`muninn-vault-<root>`) makes the first tab the writer; a second
+  tab loads the same bytes read-only and says so. `navigator.storage.persist()`
+  is requested before the first write, with an honest notice when the browser
+  declines. `doc_sync::read_text` now resolves a document path through its
+  vault's store, so boards, kanban reloads and attachment text read on web
+  (native still resolves to the same `fs::read_to_string`). Between flushes
+  OPFS lags the mirror; crash recovery, settings persistence and `LockRevs`
+  stay slice 6c's work.
 - **Muninn runs in the browser: a read-only sample-vault demo (#240 slice 5).**
   `muninn-web` is a thin wasm entry over the shared `muninn-ui` built with
   `default-features = false`: it embeds the committed `vault/` sample with

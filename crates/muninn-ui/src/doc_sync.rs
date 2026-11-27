@@ -26,10 +26,12 @@
 
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 
 use rune::{Cursor, El, Key, KeyEvent, Tx, el, row, text};
 use rune_kit::Kit;
 
+use muninn_core::VaultStore;
 use muninn_i18n::{Key as TextKey, could_not_be_read, t};
 
 use crate::State;
@@ -61,19 +63,69 @@ pub(crate) fn file_state(_path: &Path) -> Option<FileState> {
 }
 
 /// Read a document file's text. Shared flows (a board's reload, a kanban's
-/// follow, a write's compare) go through here so a browser build has one
-/// honest "no bytes yet" answer instead of a native read per caller.
-#[cfg(feature = "native")]
+/// follow, a write's compare) go through here so one seam serves both hosts.
+///
+/// The path's owning [`VaultStore`] answers when one is registered (a loaded
+/// vault registers its store). The native filesystem store resolves this to
+/// the same `fs::read_to_string` the desktop used before the seam; a browser
+/// vault answers from its OPFS mirror, so board files, kanban reloads and
+/// attachment text read on web too. A path no store owns keeps the old native
+/// filesystem read, and the old honest refusal in a browser build.
 pub(crate) fn read_text(path: &Path) -> io::Result<String> {
+    if let Some(store) = store_for(path) {
+        return store.read_to_string(path);
+    }
+    read_text_from_disk(path)
+}
+
+#[cfg(feature = "native")]
+fn read_text_from_disk(path: &Path) -> io::Result<String> {
     std::fs::read_to_string(path)
 }
 
 #[cfg(not(feature = "native"))]
-pub(crate) fn read_text(_path: &Path) -> io::Result<String> {
+fn read_text_from_disk(_path: &Path) -> io::Result<String> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
-        "a browser build reads vault bytes through the source seam (slice 5)",
+        "a browser build reads vault bytes through its vault store",
     ))
+}
+
+/// The stores loaded this session, weakest first. A strong reference here
+/// would keep every old vault (and its bytes) alive for the process.
+static STORES: OnceLock<Mutex<Vec<Weak<dyn VaultStore>>>> = OnceLock::new();
+
+fn registry() -> &'static Mutex<Vec<Weak<dyn VaultStore>>> {
+    STORES.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+/// Make `store` the answer for paths under its root. Later registrations win
+/// for the same root, so a rescan or a browser store install replaces the
+/// previous one; the old handle drops with the vault that owned it.
+pub(crate) fn register_store(store: &Arc<dyn VaultStore>) {
+    let mut stores = registry().lock().unwrap_or_else(PoisonError::into_inner);
+    stores.retain(|weak| weak.strong_count() > 0);
+    stores.push(Arc::downgrade(store));
+}
+
+/// The live store with the longest root containing `path`. On an equal root
+/// the newest registration wins (the iterator starts at the newest).
+fn store_for(path: &Path) -> Option<Arc<dyn VaultStore>> {
+    let mut stores = registry().lock().unwrap_or_else(PoisonError::into_inner);
+    stores.retain(|weak| weak.strong_count() > 0);
+    let mut best: Option<Arc<dyn VaultStore>> = None;
+    let mut best_depth = 0;
+    for store in stores.iter().rev().filter_map(Weak::upgrade) {
+        if !path.starts_with(store.root()) {
+            continue;
+        }
+        let depth = store.root().components().count();
+        if best.is_none() || depth > best_depth {
+            best_depth = depth;
+            best = Some(store);
+        }
+    }
+    best
 }
 
 /// #38 review M2: `path` lies inside the vault `root`: below it through
@@ -373,6 +425,34 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn a_registered_store_answers_the_document_read_seam() {
+        let root = Path::new("/muninn-doc-sync-registry");
+        let store = muninn_core::MemoryStore::new(root);
+        store.put_file("Board.excalidraw", b"{\"type\":\"excalidraw\"}");
+        let store: Arc<dyn VaultStore> = Arc::new(store);
+        register_store(&store);
+
+        assert_eq!(
+            read_text(&root.join("Board.excalidraw")).unwrap(),
+            "{\"type\":\"excalidraw\"}"
+        );
+        // A store only answers for paths under its root.
+        assert!(read_text(Path::new("/definitely-not-the-store-root.md")).is_err());
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn an_unregistered_path_keeps_the_exact_filesystem_read() {
+        let root = temp("read-seam");
+        let file = root.join("Note.md");
+        std::fs::write(&file, "# Note\n").unwrap();
+        // No store owns this temp root: the native answer is still the same
+        // `fs::read_to_string` a registered `FsStore` would call.
+        assert_eq!(read_text(&file).unwrap(), "# Note\n");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
