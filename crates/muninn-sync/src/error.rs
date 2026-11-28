@@ -112,6 +112,44 @@ pub enum SyncError {
 }
 
 impl SyncError {
+    /// A stable, locale-free name for the failure class.
+    ///
+    /// This is a protocol string, not user-visible copy: the browser worker
+    /// sends it to the page, which maps it to catalog text. Match on this
+    /// rather than parsing [`Display`](fmt::Display), which carries provider
+    /// text and paths.
+    #[must_use]
+    pub fn code(&self) -> &'static str {
+        match self {
+            SyncError::Offline { .. } => "offline",
+            SyncError::Timeout { mutation: true } => "timeout_mutation",
+            SyncError::Timeout { mutation: false } => "timeout",
+            SyncError::Cancelled => "cancelled",
+            SyncError::RateLimited { .. } => "rate_limited",
+            SyncError::Server { .. } => "server",
+            SyncError::Auth { .. } => "auth",
+            SyncError::Permission { .. } => "permission",
+            SyncError::Scope { .. } => "scope",
+            SyncError::NotFound { .. } => "not_found",
+            SyncError::ConflictRemote { .. } => "remote_changed",
+            SyncError::OutcomeUnknown { .. } => "outcome_unknown",
+            SyncError::ListingIncomplete { .. } => "listing_incomplete",
+            SyncError::Unsupported { .. } => "unsupported",
+            SyncError::Path { .. } => "path",
+            SyncError::Inventory { .. } => "inventory",
+            SyncError::Limit { .. } => "limit",
+            SyncError::Credentials { .. } => "credentials",
+            SyncError::LeaseBusy => "lease_busy",
+            SyncError::DirtyBuffer { .. } => "dirty_buffer",
+            SyncError::LocalChanged { .. } => "local_changed",
+            SyncError::Journal { .. } => "journal",
+            SyncError::Protocol { .. } => "protocol",
+            SyncError::InjectedFault { .. } => "injected_fault",
+            SyncError::Config { .. } => "config",
+            SyncError::Io { .. } => "io",
+        }
+    }
+
     /// Transient failures a bounded retry may repeat. Auth, permission, and
     /// conflict are never in this set.
     #[must_use]
@@ -361,5 +399,35 @@ mod tests {
             sanitize_provider_text("token ya29.leak was rejected"),
             "token [redacted] was rejected"
         );
+    }
+}
+
+#[cfg(test)]
+mod code_tests {
+    use super::SyncError;
+
+    #[test]
+    fn each_class_reports_a_stable_machine_code() {
+        let cases = [
+            (SyncError::Cancelled, "cancelled"),
+            (
+                SyncError::Auth {
+                    detail: "x".to_owned(),
+                },
+                "auth",
+            ),
+            (SyncError::Timeout { mutation: true }, "timeout_mutation"),
+            (SyncError::Timeout { mutation: false }, "timeout"),
+            (SyncError::LeaseBusy, "lease_busy"),
+            (
+                SyncError::Io {
+                    detail: "x".to_owned(),
+                },
+                "io",
+            ),
+        ];
+        for (error, expected) in cases {
+            assert_eq!(error.code(), expected);
+        }
     }
 }

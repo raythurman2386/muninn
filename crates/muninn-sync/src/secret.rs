@@ -136,7 +136,19 @@ impl TokenSet {
 }
 
 /// Wall-clock Unix milliseconds.
+///
+/// `std`'s clock panics on `wasm32-unknown-unknown`, so the browser reads
+/// `Date.now()` instead. The value has the same unit and epoch, which is all
+/// token expiry needs.
 #[must_use]
+#[cfg(target_arch = "wasm32")]
+pub fn now_unix_ms() -> u64 {
+    js_sys::Date::now() as u64
+}
+
+/// Wall-clock Unix milliseconds.
+#[must_use]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn now_unix_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

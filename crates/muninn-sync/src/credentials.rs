@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
+#[cfg(feature = "native")]
 use crate::CREDENTIAL_SERVICE;
 use crate::error::SyncError;
 use crate::model::{BindingId, ProviderKind};
@@ -97,8 +98,15 @@ impl CredentialStore for MemoryCredentialStore {
 /// does not talk to the OS. The first `get`/`put`/`delete` does, and any
 /// failure is [`SyncError::Credentials`] — callers must not write the token
 /// anywhere else.
+///
+/// Native only: a browser has no OS keyring. The worker receives the PAT with
+/// its run request and keeps it in `muninn-web`'s run-scoped store, which
+/// holds the typed `TokenSet` and zeroizes it on drop; it never uses this
+/// crate's `MemoryCredentialStore` (which serialises to a plain `String`).
+#[cfg(feature = "native")]
 pub struct NativeCredentialStore;
 
+#[cfg(feature = "native")]
 impl NativeCredentialStore {
     #[must_use]
     pub fn backend_name() -> &'static str {
@@ -106,6 +114,7 @@ impl NativeCredentialStore {
     }
 }
 
+#[cfg(feature = "native")]
 impl CredentialStore for NativeCredentialStore {
     fn get(&self, key: &CredentialKey) -> Result<Option<TokenSet>, SyncError> {
         let entry = native_entry(key)?;
@@ -138,16 +147,19 @@ impl CredentialStore for NativeCredentialStore {
     }
 }
 
+#[cfg(feature = "native")]
 fn native_entry(key: &CredentialKey) -> Result<keyring::Entry, SyncError> {
     keyring::Entry::new(CREDENTIAL_SERVICE, &key.account()).map_err(native_error)
 }
 
+#[cfg(feature = "native")]
 fn native_error(error: keyring::Error) -> SyncError {
     SyncError::Credentials {
         detail: format!("os credential store refused the request ({error})"),
     }
 }
 
+#[cfg(feature = "native")]
 fn is_missing(error: &keyring::Error) -> bool {
     matches!(error, keyring::Error::NoEntry)
 }
@@ -179,6 +191,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "native")]
     fn native_backend_is_compiled_and_not_opened() {
         // Touching the type is enough to compile the OS backend. Calling
         // `get` here would initialize the user keychain, which tests must not do.

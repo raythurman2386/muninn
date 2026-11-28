@@ -193,6 +193,64 @@ stay shared.
   and PKCE — never `MUNINN_GOOGLE_CLIENT_SECRET`, never the Desktop client id
   (slice 9, after the #238 canary exists).
 
+#### 8a. The PAT transport — what landed, and the seam that remains
+
+The auth decision is PAT entry with no hosted service: a probe showed
+`api.github.com` is CORS-open, while GitHub's OAuth endpoints are browser
+blocked, so device flow is impossible in page JS. 8a therefore builds the
+transport, not a sign-in flow.
+
+Two foundations were then verified in a real Chrome under the app's dev-server
+conditions: a sync XHR from a dedicated worker to `api.github.com` returns 200
+with a readable body, and a dedicated worker's sync OPFS access handle
+(`getFileHandle` → `createSyncAccessHandle` → `write` → `flush` → `getSize` →
+`close`) works. A third probe fixed the sleeper: on a non-isolated dev origin
+(no COOP/COEP) `SharedArrayBuffer` is undefined, so `Atomics.wait` is available
+only on the slice-7 image and the bounded spin fallback is required.
+
+Landed and gated:
+
+- `muninn-sync`'s non-default `web` feature compiles the browser's PAT surface
+  for `wasm32`: the HTTP boundary and its status mapping, the GitHub client,
+  the credential contract with its memory store, the journal's state-home API
+  and the state-key table. `clients.rs`, the keyring, the secret, the lease,
+  Drive, Tailnet and the engine stay native; `xtask wasm-check` compiles the
+  new surface.
+- `muninn-web` carries the page↔worker message contract, the pure response
+  parsing and the state-key pin (natively tested), plus a `worker` feature with
+  the worker's synchronous XHR transport (pinned to `api.github.com`), the
+  dedicated `muninn-sync-state/` OPFS state home, the `Atomics.wait` sleeper
+  with a bounded non-isolated fallback, and the run-scoped PAT store.
+
+Not landed: the **worker entry** that calls `run_sync_with_state_home`. The
+engine's *state* IO was seamed in #324, but its *vault* IO is still `std::fs`:
+`inventory`, `read_local_bytes`, `apply_plan_with` and the filesystem lease all
+take `RunRequest.root` as a real path, and a browser has no path to hand them —
+the vault lives behind `muninn_core`'s `VaultStore`/`MemoryStore` seam. A worker
+entry today would accept a run and fail at its first inventory. The honest next
+step is a vault-byte seam in the engine (the same shape as #324, for vault
+reads/writes), after which the entry is a thin message loop over the machinery
+above; §10's Tailscale question is unaffected.
+
+Two smaller recorded differences of the web twin:
+
+- **Sleeper.** `Atomics.wait` needs `crossOriginIsolated`. The slice-7 image
+  sets COOP/COEP and is isolated; a plain dev server is not, so the fallback
+  spins for at most 250 ms of a requested delay and then returns (a long
+  `Retry-After` is retried sooner rather than blocking the worker). The worst
+  case is documented on the sleeper.
+- **Lease.** There is no filesystem lease. The page's boot already holds a
+  `navigator.locks` lock for the vault (one writing tab), and a worker
+  processes one message at a time; the run entry additionally takes the named
+  Web Lock `muninn-sync-run` across tabs. No lease file and no timeout to
+  steal.
+- **State durability.** `StateHome` is synchronous and
+  `createSyncAccessHandle()` is a Promise, so the worker answers the engine from
+  a memory mirror and flushes with sync handles when the run yields. A worker
+  killed mid-run loses that run's state writes (the previous flush survives);
+  a later slice can pre-open handles for the four fixed keys to narrow that
+  window. The browser's live sync gate (8b) must include a mid-run reload.
+
 ### 10. Tailscale parity — the open decision.
 
 The desktop's third sync provider hosts a commit store on a Muninn device

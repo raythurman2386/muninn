@@ -33,6 +33,11 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 getrandom = { version = "0.4", optional = true }
 uuid = { version = "1", features = ["v4"], optional = true }
 
+# Web-only: `Date.now()` for the token-expiry clock. `std`'s clock panics on
+# `wasm32-unknown-unknown`, and the sync engine compares token expiry before a
+# run, so the browser needs the same function backed by the page clock.
+js-sys = { version = "0.3", optional = true }
+
 # `v1` selects the OS store: macOS Keychain, Windows Credential Manager,
 # Linux Secret Service via zbus. It does not enable the sample, CLI, or
 # SQLite fallback stores.
@@ -45,6 +50,14 @@ keyring = { version = "4.2.0", default-features = false, features = ["v1"], opti
 # compiles for `wasm32-unknown-unknown` and cannot reference the secret.
 default = ["native"]
 native = ["dep:reqwest", "dep:keyring", "dep:getrandom", "dep:uuid"]
+
+# The browser's PAT transport surface: the HTTP boundary, the GitHub client,
+# the credential contract plus its memory store, the journal's state-home API
+# and the state-key table. It is deliberately NOT the engine: a run also walks
+# and writes the vault, which is still a filesystem operation (see
+# `docs/web.md` slice 8). Never enable `native` together with `web` for a wasm
+# build, and never enable `native` on `wasm32` at all (`clients.rs` refuses).
+web = ["dep:js-sys"]
 
 # Exposes parser seams (`parse_journal_for_fuzzing`,
 # `parse_commit_for_fuzzing`) to `fuzz/`. Off by default; the app never

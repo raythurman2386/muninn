@@ -122,7 +122,13 @@ impl BindingId {
         Ok(Self(text.to_owned()))
     }
 
+    /// A random id for a binding created in this app.
+    ///
+    /// Native only: it uses the OS random source. A browser build receives an
+    /// id from the page (generated with `crypto.randomUUID`) and parses it
+    /// with [`BindingId::parse`], so the transport surface needs no RNG.
     #[must_use]
+    #[cfg(feature = "native")]
     pub fn fresh() -> Self {
         Self(uuid::Uuid::new_v4().simple().to_string())
     }
@@ -143,7 +149,10 @@ impl fmt::Display for BindingId {
 pub struct RunId(String);
 
 impl RunId {
+    /// Native only, like [`BindingId::fresh`]: the browser gets its run id
+    /// from the caller.
     #[must_use]
+    #[cfg(feature = "native")]
     pub fn fresh() -> Self {
         Self(uuid::Uuid::new_v4().simple().to_string())
     }
@@ -170,7 +179,10 @@ impl OperationId {
         Ok(Self(text.to_owned()))
     }
 
+    /// Native only, like [`BindingId::fresh`]. The browser must pass the
+    /// operation id with its run request; it is the publish idempotency key.
     #[must_use]
+    #[cfg(feature = "native")]
     pub fn fresh() -> Self {
         Self(uuid::Uuid::new_v4().simple().to_string())
     }

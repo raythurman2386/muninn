@@ -19,6 +19,11 @@
 //!   the poll loop drives,
 //! - the `#[wasm_bindgen(start)]` entry that boots asynchronously, then runs
 //!   the same `AppSpec` + Rune call the native binary runs.
+//! - [`sync_protocol`] and [`sync_wire`]: the page↔worker message contract and
+//!   the pure wire helpers for slice 8a's browser sync, tested natively; the
+//!   wasm-only `sync` module holds the worker's transport, state home, sleeper
+//!   and credential store. See its docs for the one seam still missing before
+//!   the engine can run in a worker.
 //!
 //! Edits, renames, moves and deletes now land in the store and survive a
 //! reload. Between flushes OPFS lags the mirror: that window is the crash
@@ -32,6 +37,9 @@
 mod sample;
 mod state_home;
 mod store;
+pub mod sync_protocol;
+pub mod sync_state;
+pub mod sync_wire;
 pub mod transfer;
 #[cfg(target_arch = "wasm32")]
 mod web_transfer;
@@ -44,6 +52,9 @@ pub use transfer::{ArchiveEntry, TransferError};
 
 #[cfg(target_arch = "wasm32")]
 mod opfs;
+
+#[cfg(all(target_arch = "wasm32", feature = "worker"))]
+pub mod sync;
 
 #[cfg(target_arch = "wasm32")]
 mod web {
