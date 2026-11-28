@@ -9,6 +9,12 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+# The host-state seam (slice 8a). Sync keeps small state beside the vault —
+# base, journal, prepared list, sha cache, staged bytes — through the same
+# string-keyed byte store the rest of the app uses, so the browser twin can
+# supply OPFS without a second trait. See `state_home.rs` and the documented
+# `muninn-sync → muninn-core` edge in xtask's allowlist.
+muninn-core.workspace = true
 base64 = "0.23"
 form_urlencoded = "1"
 hex = "0.4"

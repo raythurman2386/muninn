@@ -1,14 +1,14 @@
 //! Crash-safe journal stored outside the vault. A run that dies mid-apply
 //! resumes from the last recorded file instead of guessing.
 
-use std::fs;
 use std::path::{Path, PathBuf};
 
+use muninn_core::StateHome;
 use serde::{Deserialize, Serialize};
 
 use crate::SCHEMA_VERSION;
 use crate::error::SyncError;
-use crate::fsutil;
+use crate::state_home::{self, NativeStateHome};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -60,21 +60,38 @@ pub struct Journal {
 }
 
 impl Journal {
+    /// The native path of the journal for a binding state directory.
     #[must_use]
     pub fn path(state_dir: &Path) -> PathBuf {
-        state_dir.join("journal.json")
+        state_dir.join(state_home::JOURNAL)
     }
 
+    /// Load the journal from a native state directory.
+    ///
+    /// The path-based API stays for callers that only know a `state_dir`; the
+    /// engine itself goes through `load_from` so its IO is injectable.
     pub fn load(state_dir: &Path) -> Result<Option<Self>, SyncError> {
-        let path = Self::path(state_dir);
-        if !path.exists() {
-            return Ok(None);
-        }
-        let text = fs::read_to_string(&path).map_err(SyncError::io)?;
-        Ok(Some(parse_journal(&text)?))
+        Self::load_from(&NativeStateHome::new(state_dir.to_path_buf()))
     }
 
+    /// Load the journal through the state seam.
+    pub(crate) fn load_from(home: &dyn StateHome) -> Result<Option<Self>, SyncError> {
+        let Some(bytes) = home.get(state_home::JOURNAL) else {
+            return Ok(None);
+        };
+        let text = std::str::from_utf8(&bytes).map_err(|_| SyncError::Journal {
+            detail: "journal.json is corrupt; sync is paused until it is repaired".to_owned(),
+        })?;
+        Ok(Some(parse_journal(text)?))
+    }
+
+    /// Store the journal into a native state directory.
     pub fn store(&self, state_dir: &Path) -> Result<(), SyncError> {
+        self.store_from(&NativeStateHome::new(state_dir.to_path_buf()))
+    }
+
+    /// Store the journal through the state seam.
+    pub(crate) fn store_from(&self, home: &dyn StateHome) -> Result<(), SyncError> {
         if self.schema != SCHEMA_VERSION {
             return Err(SyncError::Journal {
                 detail: "refusing to write an unsupported journal schema".to_owned(),
@@ -83,16 +100,18 @@ impl Journal {
         let bytes = serde_json::to_vec_pretty(self).map_err(|error| SyncError::Journal {
             detail: error.to_string(),
         })?;
-        fsutil::write_outside(&Self::path(state_dir), &bytes)
+        home.put(state_home::JOURNAL, &bytes).map_err(SyncError::io)
     }
 
+    /// Clear the journal from a native state directory.
     pub fn clear(state_dir: &Path) -> Result<(), SyncError> {
-        let path = Self::path(state_dir);
-        match fs::remove_file(&path) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(SyncError::io(error)),
-        }
+        Self::clear_from(&NativeStateHome::new(state_dir.to_path_buf()))
+    }
+
+    /// Clear the journal through the state seam. Removal is idempotent in the
+    /// trait contract, so there is no special case for an absent journal.
+    pub(crate) fn clear_from(home: &dyn StateHome) -> Result<(), SyncError> {
+        home.remove(state_home::JOURNAL).map_err(SyncError::io)
     }
 
     /// True when a publish was accepted (or an apply started) and local files
