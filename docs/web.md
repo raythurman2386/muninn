@@ -244,7 +244,9 @@ call, walks `muninn-vault/` into a synchronous, case-sensitive mirror, passes
 that mirror, the `muninn-sync-state/` home and a `SyncLease` over the held
 lock to the engine, then flushes the vault and the state with sync access
 handles and exits. The page half is `muninn_web::page_sync::spawn`: it
-quiesces the page's vault flush, drains it, spawns the worker, relays events,
+quiesces the page's vault flush, drains it, spawns the worker, waits for the
+worker's `ready` handshake (a message posted before the worker's `onmessage`
+exists is dropped by the browser, not queued), posts the run, relays events,
 and re-reads OPFS into the page's mirror when the run ends (keeping any edit
 made while it was in flight). §10's Tailscale question is unaffected.
 

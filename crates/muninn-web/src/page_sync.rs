@@ -6,10 +6,15 @@
 //!    ([`crate::opfs::quiesce_for_sync`]) — the worker and the page must never
 //!    write the same OPFS directory at once;
 //! 2. creates the dedicated module worker (`worker.js`, built beside the page
-//!    by `scripts/web-build.sh`) and hands it the serialized `RunRequest`;
-//! 3. relays every `WorkerEvent` to the caller and, on the terminal event,
-//!    re-reads OPFS into the page's mirror before letting the flush resume
-//!    ([`crate::opfs::finish_sync_run`]).
+//!    by `scripts/web-build.sh`) and prepares the serialized `RunRequest`;
+//! 3. waits for the worker's `Ready` handshake and only then posts the run —
+//!    a dedicated worker **drops** a message that arrives before its
+//!    `onmessage` handler is installed (the handler is registered at the end
+//!    of the shim's `await init()`), so the request is held, never posted
+//!    eagerly;
+//! 4. relays every run `WorkerEvent` to the caller and, on the terminal
+//!    event, re-reads OPFS into the page's mirror before letting the flush
+//!    resume ([`crate::opfs::finish_sync_run`]).
 //!
 //! The state machine that decides when to restore is native-tested in
 //! [`crate::sync_spawn`]; this module is the wasm glue around it.
@@ -84,14 +89,17 @@ pub struct SyncRunHandle {
 }
 
 impl SyncRunHandle {
-    /// Ask the run in flight to stop at its next cancel check. See the module
-    /// docs: termination is the immediate cancel.
+    /// Ask the run to stop. Before the worker's `Ready` handshake nothing has
+    /// been sent, so this terminates the worker and reports a terminal
+    /// `cancelled` event through the callback. After that it posts
+    /// `WorkerRequest::Cancel`; see the module docs for why a run already
+    /// blocked in synchronous XHR needs termination instead.
     ///
     /// # Errors
     ///
     /// The worker refused the message (already terminated).
     pub fn cancel(&self) -> Result<(), String> {
-        match self.session.borrow().as_ref() {
+        match self.session.borrow_mut().as_mut() {
             Some(session) => session.cancel(),
             None => Ok(()),
         }
@@ -131,7 +139,7 @@ impl Drop for SyncRunHandle {
 ///
 /// The vault could not be quiesced (another tab holds its write lock, OPFS is
 /// not open, or a flush failed), the worker could not be created, or the run
-/// request could not be posted. On any of these the page's flush is left
+/// request could not be encoded. On any of these the page's flush is left
 /// running as before.
 pub async fn spawn(
     request: RunRequest,

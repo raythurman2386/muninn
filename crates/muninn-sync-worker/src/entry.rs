@@ -6,6 +6,18 @@
 //! is executed on a local task so the message handler returns immediately,
 //! and a `Cancel` flips the run's [`CancelToken`].
 //!
+//! # The ready handshake
+//!
+//! A dedicated worker's event loop is not dispatching while the shim's
+//! top-level `await init()` is pending, and a message delivered with no
+//! `onmessage` handler installed is **discarded**, not queued. Posting a run
+//! immediately after `new Worker(...)` is therefore a silent loss. [`start`]
+//! posts [`WorkerEvent::Ready`] only after `onmessage` is installed; the page
+//! holds the request until then. See `muninn_web::sync_protocol` for what a
+//! page may rely on. The generated `worker.js` shim additionally buffers any
+//! message a non-Muninn caller posts before init, so that caller is not
+//! surprised either.
+//!
 //! # The order of a run
 //!
 //! 1. **Validate** the wire request ([`PreparedRun::new`]). Failures are a
@@ -104,6 +116,17 @@ pub fn start() {
     .is_ok()
     {
         callback.forget();
+        // The page may send the run only now. A message posted before this
+        // point had no listener and was dropped by the browser, which is why
+        // the page-side session holds it until this handshake.
+        post(&WorkerEvent::Ready);
+    } else {
+        // Without a handler the worker cannot run anything; tell the page so
+        // it does not wait for a ready that will never come.
+        post(&WorkerEvent::Failed {
+            code: "worker".to_owned(),
+            detail: "the sync worker could not install its message handler".to_owned(),
+        });
     }
 }
 

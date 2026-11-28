@@ -3,9 +3,21 @@
 //!
 //! The browser sync runs in a dedicated worker (the `page_sync` module holds the
 //! wasm glue that spawns it). This module is the part that can be tested
-//! natively: it turns a [`RunRequest`] into the worker's first message, relays
-//! every [`WorkerEvent`] the worker posts to the caller, and restores the
-//! page's vault flush exactly once when the run reaches a terminal event.
+//! natively: it encodes the [`RunRequest`] and holds it until the worker's
+//! `Ready` handshake, posts it once, relays every run [`WorkerEvent`] the
+//! worker posts to the caller, and restores the page's vault flush exactly
+//! once when the run reaches a terminal event.
+//!
+//! # The ready handshake (a real race the browser forces)
+//!
+//! A dedicated worker's `onmessage` is installed at the end of the shim's
+//! top-level `await init()`. A message posted between `new Worker(...)` and
+//! that point is dispatched with no listener and **dropped** — it is not
+//! queued for a later handler. Posting eagerly therefore hangs the caller
+//! waiting for an event that can never arrive. [`SyncSession`] never posts a
+//! run before [`WorkerEvent::Ready`]; the fake port used by the tests models
+//! the browser and would record (and drop) such an eager message, so the race
+//! is pinned natively.
 //!
 //! # Why a gate
 //!
@@ -23,8 +35,9 @@
 //! # Failure never hangs the page
 //!
 //! Every way a run can end restores the gate: a terminal event, a message the
-//! contract cannot parse, a worker `error` event ([`SyncSession::abort`]), or
-//! the initial `postMessage` failing. The tests below pin each one.
+//! contract cannot parse, a worker `error` event ([`SyncSession::abort`]), a
+//! failed post after `Ready`, or a cancel before the handshake. The tests
+//! below pin each one.
 
 use crate::sync_protocol::{RunRequest, WorkerEvent, WorkerRequest};
 use std::fmt;
@@ -41,9 +54,10 @@ pub trait WorkerPort {
     /// The browser refused the message (a terminated worker, a clone error).
     fn post(&self, message: &str) -> Result<(), String>;
 
-    /// Stop the worker immediately. The page uses this after a terminal event
-    /// so a finished worker does not linger, and as the only immediate cancel
-    /// for a run blocked in synchronous XHR.
+    /// Stop the worker immediately. Used for a cancel before the handshake and
+    /// for dropping a handle; a run blocked in synchronous XHR can only be
+    /// stopped this way. Safe because the worker stages vault writes in memory
+    /// until the run ends.
     fn terminate(&self);
 }
 
@@ -63,20 +77,29 @@ pub struct SyncSession<P: WorkerPort, G: RunGate> {
     port: P,
     gate: G,
     on_event: Box<dyn FnMut(WorkerEvent)>,
+    /// The encoded `Run` request, held until the worker's `Ready` handshake.
+    ///
+    /// A dedicated worker discards a message that arrives before its
+    /// `onmessage` handler is installed (the handler is registered at the end
+    /// of the shim's `await init()`), so posting immediately after
+    /// `new Worker(...)` is a real, silent loss. Holding the request until the
+    /// worker says it can receive is the fix.
+    pending: Option<String>,
     running: bool,
+    ready: bool,
 }
 
 impl<P: WorkerPort, G: RunGate> SyncSession<P, G> {
-    /// Send the run to a worker whose starts are already quiesced, and wrap
-    /// the port and gate for the response relay.
+    /// Prepare the run against a worker whose starts are already quiesced.
     ///
-    /// The caller must have quiesced the page's vault flush before calling
-    /// this. If the first message cannot be posted the gate is restored here,
-    /// so a failed spawn cannot strand the page.
+    /// The request is **encoded and held**, not posted: the session posts it
+    /// when the worker's [`WorkerEvent::Ready`] arrives. The caller must have
+    /// quiesced the page's vault flush before calling this. A serialization
+    /// failure restores the gate, so a failed spawn cannot strand the page.
     ///
     /// # Errors
     ///
-    /// A serialization failure or the port's own post error.
+    /// The run request could not be encoded.
     pub fn start(
         port: P,
         gate: G,
@@ -90,21 +113,22 @@ impl<P: WorkerPort, G: RunGate> SyncSession<P, G> {
                 return Err(format!("the sync request could not be encoded: {error}"));
             }
         };
-        if let Err(error) = port.post(&message) {
-            gate.restore();
-            return Err(error);
-        }
         Ok(SyncSession {
             port,
             gate,
             on_event,
+            pending: Some(message),
             running: true,
+            ready: false,
         })
     }
 
     /// Relay one raw worker message.
     ///
-    /// A message that is not a [`WorkerEvent`] is reported to the caller as a
+    /// [`WorkerEvent::Ready`] is the handshake: it is consumed here (the
+    /// caller's callback never sees it) and releases the held request exactly
+    /// once. A second `Ready` is ignored rather than re-sending the PAT. A
+    /// message that is not a [`WorkerEvent`] is reported to the caller as a
     /// `Failed` event before the error is returned: the worker is not speaking
     /// the contract, and leaving the page quiesced would strand its vault.
     ///
@@ -114,6 +138,10 @@ impl<P: WorkerPort, G: RunGate> SyncSession<P, G> {
     /// that case; the gate has been restored.
     pub fn receive(&mut self, raw: &str) -> Result<(), String> {
         match serde_json::from_str::<WorkerEvent>(raw) {
+            Ok(WorkerEvent::Ready) => {
+                self.arrive();
+                Ok(())
+            }
             Ok(event) => {
                 self.deliver(event);
                 Ok(())
@@ -141,24 +169,61 @@ impl<P: WorkerPort, G: RunGate> SyncSession<P, G> {
         }
     }
 
-    /// Ask the worker to cancel. See the module docs: a run already blocked in
-    /// synchronous XHR cannot read this message until it returns; terminating
-    /// the worker is the immediate cancel, and it is safe because the worker
-    /// stages every vault write in memory until the run ends.
+    /// Ask the run to cancel.
+    ///
+    /// Before the handshake nothing has been sent, so there is nothing to ask:
+    /// the worker is terminated and the caller gets a terminal `cancelled`
+    /// event, which also restores the gate. After the handshake this posts
+    /// `WorkerRequest::Cancel`; see the module docs for why a run already
+    /// blocked in synchronous XHR cannot read it (termination is the immediate
+    /// cancel, and it is safe because the worker stages every vault write in
+    /// memory until the run ends).
     ///
     /// # Errors
     ///
-    /// The port refused the message.
-    pub fn cancel(&self) -> Result<(), String> {
+    /// The port refused the cancel message.
+    pub fn cancel(&mut self) -> Result<(), String> {
+        if !self.running {
+            return Ok(());
+        }
+        if !self.ready {
+            self.port.terminate();
+            self.deliver(WorkerEvent::Failed {
+                code: "cancelled".to_owned(),
+                detail: "the sync was cancelled before it started".to_owned(),
+            });
+            return Ok(());
+        }
         let message = serde_json::to_string(&WorkerRequest::Cancel)
             .map_err(|error| format!("the cancel message could not be encoded: {error}"))?;
         self.port.post(&message)
     }
 
-    /// Whether a run is still in flight (no terminal event yet).
+    /// Whether a run is still in flight (no terminal event yet). True while
+    /// the request is still held for the handshake.
     #[must_use]
     pub fn is_running(&self) -> bool {
         self.running
+    }
+
+    /// The worker says its handler is installed: post the held run exactly
+    /// once.
+    fn arrive(&mut self) {
+        if self.ready || !self.running {
+            return;
+        }
+        self.ready = true;
+        let Some(message) = self.pending.take() else {
+            return;
+        };
+        if let Err(detail) = self.port.post(&message) {
+            // The worker cannot take the run; report it as the terminal event
+            // so the caller is not waiting on a post that never happened.
+            self.deliver(WorkerEvent::Failed {
+                code: "worker".to_owned(),
+                detail,
+            });
+        }
     }
 
     fn deliver(&mut self, event: WorkerEvent) {
@@ -166,6 +231,8 @@ impl<P: WorkerPort, G: RunGate> SyncSession<P, G> {
         (self.on_event)(event);
         if terminal && self.running {
             self.running = false;
+            // The serialized request holds the PAT; drop it with the run.
+            self.pending = None;
             self.gate.restore();
         }
     }
@@ -175,6 +242,7 @@ impl<P: WorkerPort, G: RunGate> fmt::Debug for SyncSession<P, G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SyncSession")
             .field("running", &self.running)
+            .field("ready", &self.ready)
             .finish_non_exhaustive()
     }
 }
@@ -183,7 +251,7 @@ impl<P: WorkerPort, G: RunGate> fmt::Debug for SyncSession<P, G> {
 /// exhaustively so a future event variant must decide this question.
 fn is_terminal(event: &WorkerEvent) -> bool {
     match event {
-        WorkerEvent::Started => false,
+        WorkerEvent::Ready | WorkerEvent::Started => false,
         WorkerEvent::Completed { .. }
         | WorkerEvent::Conflicts { .. }
         | WorkerEvent::Failed { .. } => true,
@@ -193,12 +261,18 @@ fn is_terminal(event: &WorkerEvent) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::rc::Rc;
 
+    /// A worker port that behaves like the browser: a message posted before
+    /// the worker's `onmessage` handler exists is **dropped**, not queued.
+    /// `ready` is the fake worker's own capability flag; the tests set it when
+    /// the fake is about to deliver `WorkerEvent::Ready`.
     #[derive(Default)]
     struct Recorder {
+        ready: Cell<bool>,
         posted: RefCell<Vec<String>>,
+        dropped: RefCell<Vec<String>>,
         terminated: RefCell<u32>,
         fail_post: RefCell<bool>,
         restores: Rc<RefCell<u32>>,
@@ -209,6 +283,10 @@ mod tests {
         fn post(&self, message: &str) -> Result<(), String> {
             if *self.fail_post.borrow() {
                 return Err("the worker is gone".to_owned());
+            }
+            if !self.ready.get() {
+                self.dropped.borrow_mut().push(message.to_owned());
+                return Ok(());
             }
             self.posted.borrow_mut().push(message.to_owned());
             Ok(())
@@ -242,7 +320,9 @@ mod tests {
         Rc::new(Recorder::default())
     }
 
-    fn session(port: Rc<Recorder>) -> SyncSession<Rc<Recorder>, Rc<Recorder>> {
+    type Session = SyncSession<Rc<Recorder>, Rc<Recorder>>;
+
+    fn session(port: Rc<Recorder>) -> Session {
         let delivered = Rc::clone(&port.delivered);
         let on_event = Box::new(move |event| delivered.borrow_mut().push(event));
         SyncSession::start(Rc::clone(&port), Rc::clone(&port), request(), on_event)
@@ -253,22 +333,67 @@ mod tests {
         serde_json::to_string(event).unwrap()
     }
 
+    /// Deliver the worker's boot handshake: the fake becomes able to receive,
+    /// then the session sees `Ready`.
+    fn handshake(port: &Rc<Recorder>, session: &mut Session) {
+        port.ready.set(true);
+        session.receive(&raw(&WorkerEvent::Ready)).expect("ready");
+    }
+
     #[test]
-    fn start_posts_one_run_message_and_does_not_restore() {
+    fn start_holds_the_request_and_posts_nothing() {
         let port = recorder();
         let session = session(Rc::clone(&port));
+        assert!(
+            port.posted.borrow().is_empty(),
+            "nothing may be posted before the worker is ready"
+        );
+        assert!(
+            port.dropped.borrow().is_empty(),
+            "an implementation that posted now would be dropped by the browser;              the session must not even attempt it"
+        );
+        assert!(session.is_running(), "the run is pending the handshake");
+        assert_eq!(*port.restores.borrow(), 0);
+    }
+
+    #[test]
+    fn ready_unlocks_one_request_after_the_handshake_and_is_not_relayed() {
+        let port = recorder();
+        let mut session = session(Rc::clone(&port));
+        handshake(&port, &mut session);
+
         let posted = port.posted.borrow();
-        assert_eq!(posted.len(), 1);
-        let decoded: WorkerRequest = serde_json::from_str(&posted[0]).unwrap();
-        assert_eq!(decoded, WorkerRequest::Run(request()));
-        assert_eq!(*port.restores.borrow(), 0, "the run is still in flight");
+        assert_eq!(posted.len(), 1, "the handshake releases the held request");
+        assert_eq!(
+            serde_json::from_str::<WorkerRequest>(&posted[0]).unwrap(),
+            WorkerRequest::Run(request())
+        );
+        assert!(
+            port.dropped.borrow().is_empty(),
+            "the request went out after the worker was ready"
+        );
+        assert!(
+            port.delivered.borrow().is_empty(),
+            "Ready is the spawn API's handshake, not a run event for the caller"
+        );
         assert!(session.is_running());
+        assert_eq!(*port.restores.borrow(), 0);
+    }
+
+    #[test]
+    fn a_second_ready_does_not_re_send_the_pat() {
+        let port = recorder();
+        let mut session = session(Rc::clone(&port));
+        handshake(&port, &mut session);
+        session.receive(&raw(&WorkerEvent::Ready)).unwrap();
+        assert_eq!(port.posted.borrow().len(), 1);
     }
 
     #[test]
     fn events_are_relayed_in_order_and_only_the_terminal_one_restores() {
         let port = recorder();
         let mut session = session(Rc::clone(&port));
+        handshake(&port, &mut session);
         let started = WorkerEvent::Started;
         let completed = WorkerEvent::Completed {
             head: "abc123".to_owned(),
@@ -293,18 +418,18 @@ mod tests {
     }
 
     #[test]
-    fn a_post_failure_restores_the_gate() {
+    fn a_post_failure_when_ready_arrives_restores_the_gate_and_reports_it() {
         let port = recorder();
+        let mut session = session(Rc::clone(&port));
         *port.fail_post.borrow_mut() = true;
-        let delivered = Rc::clone(&port.delivered);
-        let result = SyncSession::start(
-            Rc::clone(&port),
-            Rc::clone(&port),
-            request(),
-            Box::new(move |event| delivered.borrow_mut().push(event)),
-        );
-        assert!(result.is_err());
+        handshake(&port, &mut session);
         assert_eq!(*port.restores.borrow(), 1);
+        assert!(!session.is_running());
+        let delivered = port.delivered.borrow();
+        assert!(matches!(
+            delivered.last(),
+            Some(WorkerEvent::Failed { code, .. }) if code == "worker"
+        ));
     }
 
     #[test]
@@ -334,9 +459,29 @@ mod tests {
     }
 
     #[test]
-    fn cancel_posts_the_cancel_message() {
+    fn cancelling_before_ready_terminates_and_reports_a_cancelled_run() {
         let port = recorder();
-        let session = session(Rc::clone(&port));
+        let mut session = session(Rc::clone(&port));
+        session.cancel().unwrap();
+        assert_eq!(*port.terminated.borrow(), 1, "the idle worker is stopped");
+        assert!(
+            port.posted.borrow().is_empty() && port.dropped.borrow().is_empty(),
+            "a cancel must not send the held run"
+        );
+        assert_eq!(*port.restores.borrow(), 1);
+        assert!(!session.is_running());
+        let delivered = port.delivered.borrow();
+        assert!(matches!(
+            delivered.last(),
+            Some(WorkerEvent::Failed { code, .. }) if code == "cancelled"
+        ));
+    }
+
+    #[test]
+    fn cancelling_after_ready_posts_the_cancel_message() {
+        let port = recorder();
+        let mut session = session(Rc::clone(&port));
+        handshake(&port, &mut session);
         session.cancel().unwrap();
         let posted = port.posted.borrow();
         assert_eq!(posted.len(), 2);
@@ -345,5 +490,6 @@ mod tests {
             WorkerRequest::Cancel
         );
         assert_eq!(*port.restores.borrow(), 0, "cancel is not a completion");
+        assert_eq!(*port.terminated.borrow(), 0);
     }
 }

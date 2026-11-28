@@ -15,8 +15,9 @@
 //!
 //! - **Progress.** The engine reports only completion: it has no progress
 //!   callback, and adding one would be a change to the engine. The worker
-//!   therefore emits [`WorkerEvent::Started`] and then exactly one terminal
-//!   event. A future slice can add steps if the engine grows a hook.
+//!   therefore emits [`WorkerEvent::Ready`] once at boot and then, per run,
+//!   [`WorkerEvent::Started`] and exactly one terminal event. A future slice
+//!   can add steps if the engine grows a hook.
 //! - **Vault bytes.** A run reads and writes the vault through the engine's
 //!   filesystem path, not through this message. Sending the vault here would
 //!   be a second transport for the same bytes and is not part of the design.
@@ -121,12 +122,25 @@ impl fmt::Debug for RunRequest {
 
 /// One message from the worker back to the page.
 ///
-/// There is no `Progress` variant on purpose: see the module docs. A run
-/// produces [`WorkerEvent::Started`] and then exactly one of `Completed`,
-/// `Conflicts` or `Failed`.
+/// The worker's very first message is [`WorkerEvent::Ready`]: its message
+/// handler is installed and it can accept a run. **A page must not post a
+/// `Run` before it arrives.** A dedicated worker's event loop is not running
+/// while its shim's top-level `await init()` is pending, so a message that
+/// arrives before the handler is installed is dispatched with no listener and
+/// discarded; there is no queue to replay it from. The page-side spawn state
+/// machine holds the request until `Ready` and then posts it exactly once.
+/// `Ready` is the worker's boot handshake, not a drawable run event: the
+/// spawn API consumes it and does not relay it to the caller's event callback.
+///
+/// There is no `Progress` variant on purpose: see the module docs. After the
+/// handshake a run produces [`WorkerEvent::Started`] and then exactly one of
+/// `Completed`, `Conflicts` or `Failed`.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum WorkerEvent {
+    /// The worker's message handler is installed. Sent exactly once, before
+    /// any run; the page sends the run request after it.
+    Ready,
     /// The run is about to make its first provider request.
     Started,
     /// The run converged; `head` is the published commit.
@@ -189,6 +203,7 @@ mod tests {
     #[test]
     fn an_event_round_trips_through_json() {
         let events = [
+            WorkerEvent::Ready,
             WorkerEvent::Started,
             WorkerEvent::Completed {
                 head: "abc123".to_owned(),

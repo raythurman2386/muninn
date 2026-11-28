@@ -356,10 +356,25 @@ write_worker_shim() {
     cat > "$out/worker.js" <<JS
 $marker
 // The dedicated sync worker (muninn-sync-worker). The wasm-bindgen start
-// function registers onmessage, so importing and initialising is enough; the
-// page posts a WorkerRequest and receives WorkerEvents from this module.
+// function installs onmessage, then posts a \`ready\` event; the page's spawn
+// API sends the run only after that. This shim also buffers a message posted
+// by any other caller before init resolves: a worker message delivered with
+// no onmessage listener is dropped, not queued.
 import init from './worker/${worker_out_name}.js';
+
+const buffered = [];
+const buffer = (event) => { buffered.push(event); };
+self.onmessage = buffer;
+
 await init();
+
+// The Rust start replaced \`onmessage\`. Hand it whatever arrived while the
+// wasm was loading. If start could not install a handler, keep buffering
+// instead of calling the buffer in a loop.
+const handler = self.onmessage;
+if (handler && handler !== buffer) {
+    for (const event of buffered.splice(0)) handler(event);
+}
 JS
 }
 
