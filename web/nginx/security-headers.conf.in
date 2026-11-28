@@ -16,17 +16,27 @@
 # style attribute on its panic/error label. Blocking those would leave the
 # error overlay unstyled; CSS is not an exfiltration path for this bundle.
 #
-# The bundle has no external script, style, font or network dependency, so
-# every source list beyond the hashes is 'self'.
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' __SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests" always;
+# The bundle's own assets are all same-origin. Three external sources are
+# admitted by name, for sync (#240 slices 8-9):
+# - script-src accounts.google.com: Google Identity Services' client, loaded
+#   lazily on the first Drive Connect. It sends CORP: cross-origin, so
+#   require-corp below still admits it.
+# - connect-src api.github.com: the GitHub PAT transport's data plane.
+# - connect-src Google's Drive hosts: the Drive API, the resumable upload and
+#   the access-token refresh.
+# No wildcard and no 'unsafe-inline' for scripts.
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com __SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.github.com https://www.googleapis.com https://oauth2.googleapis.com; media-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "no-referrer" always;
 add_header X-Frame-Options "DENY" always;
 add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
-# crossOriginIsolated is on with COOP same-origin + COEP require-corp. WebGPU
-# itself does not require it (the bundle works without it); SharedArrayBuffer
-# and some future worker/WASM-thread paths do, and the plan asks for it. Every
-# subresource is same-origin and CORP-protected, so require-corp breaks nothing.
-add_header Cross-Origin-Opener-Policy "same-origin" always;
+# COOP is same-origin-allow-popups, not same-origin, because Google Identity
+# Services' Drive sign-in is a popup that talks back to this page through
+# `window.opener`; COOP same-origin severs that and the popup cannot report a
+# token. The cost is honest and documented: `crossOriginIsolated` is then
+# false, so the sync worker's Atomics sleeper uses its bounded-spin fallback
+# (page_sync's seen) instead of SharedArrayBuffer. WebGPU does not need
+# isolation (the bundle works without it), and no other feature here does.
+add_header Cross-Origin-Opener-Policy "same-origin-allow-popups" always;
 add_header Cross-Origin-Embedder-Policy "require-corp" always;
 add_header Cross-Origin-Resource-Policy "same-origin" always;

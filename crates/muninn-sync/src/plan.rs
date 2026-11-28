@@ -575,7 +575,9 @@ pub fn tombstones_for(base: Option<&Snapshot>, desired: &Snapshot) -> Vec<Tombst
 ///
 /// The result depends only on its inputs, so two devices that merge the same
 /// heads at once produce the same tree, and the next merge is clean.
-#[cfg(feature = "native")]
+///
+/// Shared with the browser build: Drive's heads are merged by the same code in
+/// the worker (slice 9), and it touches only snapshots and paths.
 pub fn merge_keep_both(
     base: Option<&Snapshot>,
     left: &Snapshot,

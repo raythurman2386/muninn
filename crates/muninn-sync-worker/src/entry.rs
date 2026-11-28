@@ -219,7 +219,18 @@ async fn execute(request: &RunRequest, cancel: &CancelToken) -> WorkerEvent {
         sleeper: Box::new(AtomicsSleeper::new()),
         github_api: "https://api.github.com".to_owned(),
         github_oauth: "https://github.com".to_owned(),
+        // The same three bases the desktop app uses; the `web` allowlist admits
+        // exactly these Google hosts.
+        drive_api: muninn_sync::DRIVE_API_BASE.to_owned(),
+        drive_upload: muninn_sync::DRIVE_UPLOAD_BASE.to_owned(),
+        drive_oauth: muninn_sync::DRIVE_OAUTH_BASE.to_owned(),
         github_client_id: String::new(),
+        // The public Web-application client id the page's GIS popup signed in
+        // with. This is the one place the worker learns it; empty means the
+        // build is unconfigured and a Drive refresh fails closed.
+        google_web_client_id: muninn_web::google_auth::web_client_id()
+            .unwrap_or_default()
+            .to_owned(),
     };
 
     // About to make the run's first provider request. The engine's own

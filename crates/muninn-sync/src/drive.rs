@@ -16,16 +16,22 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
+#[cfg(feature = "native")]
 use base64::Engine;
+#[cfg(feature = "native")]
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+#[cfg(feature = "native")]
 use sha2::{Digest, Sha256};
 
 use crate::SCHEMA_VERSION;
+#[cfg(feature = "native")]
 use crate::clients::GoogleOAuthClient;
 use crate::error::SyncError;
-use crate::http::{
-    CancelToken, HttpRequest, HttpTransport, Sleeper, classify_status, ensure_allowed, with_retry,
-};
+#[cfg(feature = "native")]
+use crate::http::ensure_allowed;
+#[cfg(not(feature = "native"))]
+use crate::http::ensure_web_allowed;
+use crate::http::{CancelToken, HttpRequest, HttpTransport, Sleeper, classify_status, with_retry};
 use crate::limits::DEFAULT_LIMITS;
 use crate::model::{ContentHash, FileKind, FileRecord, Plan, Snapshot};
 use crate::pathutil::RelativePath;
@@ -33,6 +39,17 @@ use crate::plan;
 use crate::secret::{Secret, TokenSet};
 
 pub const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.appdata";
+
+/// Drive v3 data plane. The browser worker and the desktop app use the same
+/// three bases; only the transport behind them differs.
+pub const DRIVE_API_BASE: &str = "https://www.googleapis.com";
+/// Resumable-upload endpoint. A session's `Location` is on `www.googleapis.com`.
+pub const DRIVE_UPLOAD_BASE: &str = "https://www.googleapis.com/upload";
+/// Token endpoint: code exchange (desktop) and access-token refresh (both).
+pub const DRIVE_OAUTH_BASE: &str = "https://oauth2.googleapis.com";
+/// Google's consent page. The desktop opens it with a loopback redirect; the
+/// browser's GIS popup is loaded from the same host.
+pub const DRIVE_AUTH_BASE: &str = "https://accounts.google.com";
 /// The alias Drive v3 uses for the app's hidden data folder.
 pub const APP_DATA: &str = "appDataFolder";
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
@@ -158,6 +175,9 @@ pub struct DriveMerge {
     pub conflict_copies: Vec<RelativePath>,
 }
 
+/// The desktop's loopback PKCE request. The browser's GIS popup has no
+/// redirect URI, so this shape stays native.
+#[cfg(feature = "native")]
 #[derive(Clone, Debug)]
 pub struct PkceRequest {
     pub verifier: String,
@@ -519,6 +539,10 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         Ok(commit_id.to_owned())
     }
 
+    /// The desktop's consent URL: an installed app with PKCE and a loopback
+    /// redirect. The browser never builds one; Google Identity Services opens
+    /// its own popup for a public Web-application client.
+    #[cfg(feature = "native")]
     pub fn authorization_url(
         &self,
         client_id: &str,
@@ -542,6 +566,7 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
         ))
     }
 
+    #[cfg(feature = "native")]
     pub fn exchange_code(
         &self,
         client: &GoogleOAuthClient,
@@ -587,6 +612,10 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
     /// Trade the refresh token for a new access token. Google usually omits
     /// a new refresh token; the caller keeps the old one (see
     /// [`TokenSet::refreshed`]). A revoked or expired grant is `Auth`.
+    ///
+    /// Desktop only: the Desktop OAuth client's token endpoint requires its
+    /// client secret. The browser uses [`Self::refresh_public`] instead.
+    #[cfg(feature = "native")]
     pub fn refresh(
         &self,
         client: &GoogleOAuthClient,
@@ -600,6 +629,34 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh.expose()),
         ]);
+        self.token_request(&body)
+    }
+
+    /// Trade the refresh token for a new access token with a **public**
+    /// Web-application client id and no client secret.
+    ///
+    /// This is the browser's refresh path. The page's GIS popup signed in with
+    /// the same public id, and Google's token endpoint is reachable from a
+    /// dedicated worker (the web allowlist includes `oauth2.googleapis.com`).
+    /// A client that grants no refresh token never reaches this function: the
+    /// engine fails closed with "connect again" when the access token expires,
+    /// which is the honest behaviour for Google's token-only flow.
+    pub fn refresh_public(&self, client_id: &str, refresh: &Secret) -> Result<TokenSet, SyncError> {
+        require_client_id(client_id)?;
+        let body = form(&[
+            ("client_id", client_id),
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh.expose()),
+        ]);
+        self.token_request(&body)
+    }
+
+    /// POST a prepared form body to the token endpoint and map the answer.
+    ///
+    /// Shared by the desktop secret-bearing refresh and the browser's
+    /// public-client refresh: only the form body differs, so the error copy
+    /// and the token parsing cannot drift between the two doors.
+    fn token_request(&self, body: &str) -> Result<TokenSet, SyncError> {
         let response = self.transport.execute(&HttpRequest {
             method: "POST".to_owned(),
             url: format!("{}/token", self.oauth_base.trim_end_matches('/')),
@@ -610,7 +667,7 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
                 ),
                 ("Accept".to_owned(), "application/json".to_owned()),
             ],
-            body: body.into_bytes(),
+            body: body.as_bytes().to_vec(),
             mutation: false,
             timeout: self.request_timeout,
         })?;
@@ -826,13 +883,23 @@ impl<'a, T: HttpTransport> DriveClient<'a, T> {
                 detail: "resumable upload did not return a Location".to_owned(),
             })?
             .to_owned();
-        let extras =
-            if self.upload_base.contains("127.0.0.1") || self.upload_base.contains("localhost") {
+        // The upload session's `Location` is a second URL the provider chose,
+        // so it is checked against this build's own allowlist rather than
+        // trusted. Native admits its loopback test fixtures; the browser
+        // admits only the Google hosts, https, default port.
+        #[cfg(feature = "native")]
+        {
+            let extras = if self.upload_base.contains("127.0.0.1")
+                || self.upload_base.contains("localhost")
+            {
                 vec!["127.0.0.1".to_owned(), "localhost".to_owned()]
             } else {
                 Vec::new()
             };
-        ensure_allowed(&location, &extras)?;
+            ensure_allowed(&location, &extras)?;
+        }
+        #[cfg(not(feature = "native"))]
+        ensure_web_allowed(&location)?;
         let put = HttpRequest {
             method: "PUT".to_owned(),
             url: location,
@@ -1163,6 +1230,11 @@ pub fn parse_commit_for_fuzzing(bytes: &[u8]) -> Result<(), SyncError> {
     parse_commit(bytes).map(|_| ())
 }
 
+/// A desktop sign-in's PKCE verifier, challenge and state.
+///
+/// Native only: the browser's GIS popup performs the PKCE exchange itself, so
+/// no verifier is built in the page.
+#[cfg(feature = "native")]
 pub fn new_pkce(redirect_uri: &str) -> PkceRequest {
     let verifier = random_token(32);
     let digest = Sha256::digest(verifier.as_bytes());
@@ -1174,6 +1246,7 @@ pub fn new_pkce(redirect_uri: &str) -> PkceRequest {
     }
 }
 
+#[cfg(feature = "native")]
 pub fn parse_oauth_redirect(query: &str, expected_state: &str) -> Result<OAuthRedirect, SyncError> {
     let pairs: Vec<(String, String)> = form_urlencoded::parse(query.as_bytes())
         .map(|(key, value)| (key.into_owned(), value.into_owned()))
@@ -1217,6 +1290,7 @@ pub fn parse_oauth_redirect(query: &str, expected_state: &str) -> Result<OAuthRe
     })
 }
 
+#[cfg(feature = "native")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OAuthRedirect {
     pub code: String,
@@ -1224,6 +1298,10 @@ pub struct OAuthRedirect {
 }
 
 /// `bytes` from the OS CSPRNG, base64url. Used for PKCE verifiers and state.
+///
+/// Native only: `getrandom` has no browser source here, and the page never
+/// builds a verifier (Google Identity Services owns the browser exchange).
+#[cfg(feature = "native")]
 pub(crate) fn random_token(bytes: usize) -> String {
     let mut raw = vec![0u8; bytes];
     getrandom::fill(&mut raw).expect("the OS random source is unavailable");
@@ -1276,6 +1354,7 @@ fn token_from_oauth(json: &serde_json::Value) -> Result<TokenSet, SyncError> {
 
 /// Google refuses a Desktop client's token request without its secret, so
 /// an empty one fails closed here instead of sending a request.
+#[cfg(feature = "native")]
 fn require_client_secret(client: &GoogleOAuthClient) -> Result<(), SyncError> {
     if client.secret.expose().trim().is_empty() {
         return Err(crate::clients::missing_google_secret());
@@ -1294,4 +1373,141 @@ fn require_client_id(client_id: &str) -> Result<(), SyncError> {
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    use super::*;
+    use crate::http::{HttpResponse, RecordingSleeper};
+
+    /// Answers every request with `reply` and keeps the request bytes.
+    struct RecordingTransport {
+        reply: HttpResponse,
+        requests: Mutex<Vec<HttpRequest>>,
+    }
+
+    impl HttpTransport for RecordingTransport {
+        fn execute(&self, request: &HttpRequest) -> Result<HttpResponse, SyncError> {
+            self.requests
+                .lock()
+                .expect("requests")
+                .push(request.clone());
+            Ok(self.reply.clone())
+        }
+    }
+
+    fn token_client(transport: RecordingTransport) -> DriveClient<'static, RecordingTransport> {
+        // The client borrows its sleeper; the tests are short-lived and one
+        // per process, so a leaked recording sleeper is the simplest holder.
+        let sleeper: &'static RecordingSleeper = Box::leak(Box::new(RecordingSleeper::default()));
+        DriveClient {
+            api_base: DRIVE_API_BASE.to_owned(),
+            upload_base: DRIVE_UPLOAD_BASE.to_owned(),
+            oauth_base: DRIVE_OAUTH_BASE.to_owned(),
+            auth_base: DRIVE_AUTH_BASE.to_owned(),
+            transport,
+            cancel: CancelToken::new(),
+            sleeper,
+            request_timeout: Duration::from_secs(5),
+        }
+    }
+
+    fn refresh_reply() -> HttpResponse {
+        HttpResponse {
+            status: 200,
+            headers: Vec::new(),
+            body: br#"{"access_token":"new-access","expires_in":3599,"scope":"https://www.googleapis.com/auth/drive.appdata"}"#
+                .to_vec(),
+        }
+    }
+
+    #[test]
+    fn the_public_refresh_sends_the_client_id_and_no_secret() {
+        let client = token_client(RecordingTransport {
+            reply: refresh_reply(),
+            requests: Mutex::new(Vec::new()),
+        });
+        let token = client
+            .refresh_public(
+                "123-muninn.apps.googleusercontent.com",
+                &Secret::new("stored-refresh-token"),
+            )
+            .expect("a refreshed pair");
+        assert_eq!(token.access.expose(), "new-access");
+        assert!(token.expires_unix_ms.is_some());
+        assert!(
+            token.refresh.is_none(),
+            "Google keeps the old refresh token; the engine's `refreshed` retains it"
+        );
+
+        let requests = client.transport.requests.lock().expect("requests");
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.url, "https://oauth2.googleapis.com/token");
+        let body = String::from_utf8_lossy(&request.body);
+        assert!(
+            body.contains("client_id=123-muninn.apps.googleusercontent.com"),
+            "{body}"
+        );
+        assert!(body.contains("grant_type=refresh_token"), "{body}");
+        assert!(
+            body.contains("refresh_token=stored-refresh-token"),
+            "{body}"
+        );
+        assert!(
+            !body.contains("client_secret"),
+            "a public web client never sends a secret: {body}"
+        );
+        assert!(
+            !request.url.contains("stored-refresh-token"),
+            "the refresh token never rides in a URL"
+        );
+    }
+
+    #[test]
+    fn the_public_refresh_fails_closed_without_a_configured_client_id() {
+        let client = token_client(RecordingTransport {
+            reply: refresh_reply(),
+            requests: Mutex::new(Vec::new()),
+        });
+        for id in ["", "   "] {
+            let error = client
+                .refresh_public(id, &Secret::new("stored-refresh-token"))
+                .expect_err("no client id");
+            assert!(matches!(error, SyncError::Config { .. }), "{error}");
+        }
+        assert!(
+            client
+                .transport
+                .requests
+                .lock()
+                .expect("requests")
+                .is_empty(),
+            "nothing was sent"
+        );
+    }
+
+    #[test]
+    fn a_refused_public_refresh_is_auth_and_names_the_provider_text() {
+        let client = token_client(RecordingTransport {
+            reply: HttpResponse {
+                status: 400,
+                headers: Vec::new(),
+                body: br#"{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"#
+                    .to_vec(),
+            },
+            requests: Mutex::new(Vec::new()),
+        });
+        let error = client
+            .refresh_public("client", &Secret::new("stale"))
+            .expect_err("invalid_grant");
+        assert!(matches!(error, SyncError::Auth { .. }), "{error}");
+        let text = error.to_string();
+        assert!(text.contains("connect again"), "{text}");
+        assert!(text.contains("expired or revoked"), "{text}");
+    }
 }

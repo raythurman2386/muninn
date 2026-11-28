@@ -215,9 +215,10 @@ Landed and gated:
   the credential contract with its memory store, the journal's state-home API,
   the state-key table, and — from slice 8a-vault — the sync engine itself
   (`engine`, `inventory`, `apply`) over `muninn_core::VaultStore` and
-  `StateHome`. `clients.rs`, the keyring, the secret, Drive, Tailnet and the
-  *filesystem* lease implementation stay native; `xtask wasm-check` compiles
-  the whole engine on wasm32.
+  `StateHome`. `clients.rs`, the keyring, the secret, Tailnet and the *filesystem* lease
+  implementation stay native; slice 9 un-gates the Drive client (its
+  secret-bearing Desktop sign-in stays native). `xtask wasm-check` compiles
+  the whole engine and both provider clients on wasm32.
 - `muninn-web` carries the page↔worker message contract, the pure response
   parsing and the state-key pin (natively tested), plus a `worker` feature with
   the worker's synchronous XHR transport (pinned to `api.github.com`), the
@@ -278,10 +279,10 @@ Two smaller recorded differences of the web twin:
 
 #### 8b. The Sync surface — what landed
 
-The Settings › Sync tab is the browser twin of the desktop's. GitHub only:
-device flow is impossible in page JS (the CORS evidence on #240), so the auth
-is **personal access token entry with no hosted service**. Drive waits for
-slice 9; Tailscale is a desktop-only door until §10 is decided.
+The Settings › Sync tab is the browser twin of the desktop's. Slice 8b landed
+GitHub only: device flow is impossible in page JS (the CORS evidence on #240),
+so the auth is **personal access token entry with no hosted service**. Slice 9
+adds Drive (§9); Tailscale is a desktop-only door until §10 is decided.
 
 - **Form and config.** Owner, repository, branch (default `main`) and an
   optional path prefix are a `VaultSyncBinding` in `settings.json`, written
@@ -309,6 +310,90 @@ slice 9; Tailscale is a desktop-only door until §10 is decided.
   engine ever stops on conflicts, the status names the paths; an interactive
   per-file picker is not part of this slice and remains a follow-up (the desktop
   keeps both automatically too).
+
+#### 9. Google Drive — GIS web OAuth, what landed
+
+Drive is the browser's second provider. It inherits slice 8's worker, seams
+and UI wholesale; the new pieces are the auth flow, the Drive client on
+wasm32, the provider control and the web allowlist's Google hosts.
+
+- **Auth.** The page loads Google Identity Services' token client
+  (`https://accounts.google.com/gsi/client`) on the first Connect and asks it
+  to open **Google's own popup**. There is no redirect page and no hosted
+  service of ours. GIS performs the exchange; the callback hands the page an
+  access token, sometimes a refresh token, and an `expires_in`. The page stores
+  them in the state home under `muninn/sync/drive` as the desktop
+  `TokenSet`'s JSON shape (`access_token`, `refresh_token`,
+  `expires_unix_ms`, `account`), then queues a token-free event for the form.
+  The run takes the tokens from that key, puts them in the worker's wire
+  request exactly as the PAT travels, and the worker seeds the engine's
+  `RunCredentials` with a `TokenSet`. Disconnect removes the binding and the
+  key.
+- **The at-rest tradeoff is the PAT's.** Origin-private storage is not an OS
+  keychain: any script on this origin, or anyone with the browser profile, can
+  read it. The surface never re-displays a Drive token (there is no token
+  field); the copies that travel to a run are zeroized. The key is
+  `muninn/sync/drive` rather than `muninn/sync/drive-<account>` because GIS's
+  token flow discloses no account label unless an identity scope is requested,
+  and this slice deliberately requests `drive.appdata` only. `web_sync::drive_key`
+  keeps the `<account>` spelling ready for a later slice.
+- **Refresh.** The engine already refreshes an access token within five
+  minutes of expiry (or on the first 401) through the same transport. The
+  worker's `oauth2.googleapis.com/token` call uses the **public** client id and
+  no secret (`DriveClient::refresh_public`); the web allowlist admits the host.
+  Google's token flow may grant no refresh token at all — the honest outcome is
+  an `auth` failure when the access token expires and a Connect again, not a
+  silent retry.
+- **The client.** `drive.rs` is now shared (`any(native, web)`): the same
+  pagination (100/page, `incompleteSearch` refused, 200-page cap), the same
+  immutable blobs and commit manifests, the same head merge with keep-both
+  conflict copies. Only the secret-bearing Desktop sign-in (loopback PKCE, the
+  Desktop client) stays native. Its errors go through the worker's raw-detail
+  contract, so the page's catalogued copy never doubles its prefix.
+- **The UI.** The web Sync tab now draws the desktop's segmented provider
+  control with two real options, GitHub and Drive; the "only provider" note is
+  gone. GitHub keeps its four fields and masked PAT. Drive shows a store name
+  and a connected/not status, never a token. Connect, Sync now, Cancel and
+  Disconnect are the same buttons through the same `spawn` path, with the same
+  terminal-event re-index. Tailscale stays a desktop-only door (§10).
+- **The allowlist.** `ensure_web_allowed` widens from exactly `api.github.com`
+  to that host plus `www.googleapis.com`, `oauth2.googleapis.com`,
+  `accounts.google.com` and `upload.googleapis.com` — https only, no userinfo,
+  no explicit port, an exact host match. The native Tailscale host and the
+  browser-blocked GitHub OAuth pages remain refused.
+- **Serving headers.** The image's CSP admits Google's Drive hosts in
+  `connect-src`, `https://accounts.google.com` in `script-src` (the GIS loader
+  sends `Cross-Origin-Resource-Policy: cross-origin`, so `require-corp` keeps
+  working), and COOP changes to `same-origin-allow-popups` so the popup keeps
+  its opener. `same-origin-allow-popups` means `crossOriginIsolated` is no
+  longer set on the image; the sync sleeper's documented bounded-spin fallback
+  applies (the `Atomics.wait` path is used only where isolation is on).
+
+**Registering the web client id (Raymond's checklist).** The id is a
+registration, not code; a build without it is honestly unconfigured.
+
+1. Open <https://console.cloud.google.com/> and select the Muninn project
+   (`muninn-514218`, the project that already owns the Desktop OAuth client).
+2. **APIs & Services → OAuth consent screen**: keep the existing External app
+   ("Muninn"); confirm the `.../auth/drive.appdata` scope is listed. The
+   Desktop client's consent screen is the same one.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**,
+   Application type **Web application**. Name it `Muninn Web`.
+4. Under **Authorized JavaScript origins**, add every origin the browser build
+   is served from, without a path: `https://vault.muninn.app` for the hosted
+   build, and `http://localhost:8080` for the local image (add the exact
+   scheme, host and port you use; Google matches origins exactly). Do **not**
+   add an Authorized redirect URI: the GIS token client has none.
+5. Copy the new **Client ID** (it ends in `.apps.googleusercontent.com`). It is
+   the *Web application* client, not the Desktop one, and it has no secret to
+   copy.
+6. Build the page and worker with it:
+   `MUNINN_GOOGLE_WEB_CLIENT_ID=<the new id> bash scripts/web-build.sh muninn-web --out target/web`.
+   The id is public by design; do not set `MUNINN_GOOGLE_CLIENT_SECRET` for a
+   web build, and never paste the Desktop client id here.
+7. Open Settings › Sync › Drive. If the id is present, Connect opens Google's
+   popup; if it is absent, the build says it needs configuration and Connect
+   sends nothing.
 
 ### 10. Tailscale parity — the open decision.
 The desktop's third sync provider hosts a commit store on a Muninn device

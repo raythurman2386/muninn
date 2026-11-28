@@ -51,9 +51,9 @@ keyring = { version = "4.2.0", default-features = false, features = ["v1"], opti
 default = ["native"]
 native = ["dep:reqwest", "dep:keyring", "dep:getrandom", "dep:uuid"]
 
-# The browser's PAT surface: the HTTP boundary, the GitHub client, the
-# credential contract plus its memory store, the journal's state-home API, the
-# state-key table, and the sync engine over `muninn_core::VaultStore` +
+# The browser's sync surface: the HTTP boundary, the GitHub and Drive clients,
+# the credential contract plus its memory store, the journal's state-home API,
+# the state-key table, and the sync engine over `muninn_core::VaultStore` +
 # `StateHome` (inventory, plan, apply, the lease contract). The browser entry
 # supplies the OPFS store/state home and its Web Lock lease to
 # `run_sync_with_parts`. Never enable `native` together with `web` for a wasm

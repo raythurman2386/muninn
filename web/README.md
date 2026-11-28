@@ -47,6 +47,33 @@ A CSP detail: a worker inherits the page's Content-Security-Policy, and
 'wasm-unsafe-eval'` list covers both `worker.js` and the worker's wasm
 instantiation.
 
+## Google Drive sign-in (slice 9)
+
+Drive sync needs no relay and no redirect page: the page loads Google Identity
+Services' client from `https://accounts.google.com/gsi/client` on the first
+Connect and Google opens its own popup. That means this image's headers carry
+two deliberate settings:
+
+- `script-src` admits `https://accounts.google.com` (the GIS loader sends
+  `Cross-Origin-Resource-Policy: cross-origin`, so `require-corp` still
+  admits it) and `connect-src` admits `https://api.github.com`,
+  `https://www.googleapis.com` and `https://oauth2.googleapis.com` for the two
+  sync providers' data planes.
+- `Cross-Origin-Opener-Policy` is **`same-origin-allow-popups`**. The OAuth
+  popup reports back through `window.opener`; `same-origin` would sever it and
+  Drive sign-in could not complete. `crossOriginIsolated` is therefore not set
+  on this image, so the sync worker's `Atomics.wait` sleeper uses its
+  documented bounded-spin fallback. WebGPU and the rest of the app do not need
+  isolation.
+
+The client id is a build input, not a secret. A build with no
+`MUNINN_GOOGLE_WEB_CLIENT_ID` is honestly unconfigured: the Drive surface says
+so and Connect sends nothing. The registration steps (a **Web application**
+OAuth client bound to this deployment's origins) are in
+`docs/web.md` at slice 9. Never set `MUNINN_GOOGLE_CLIENT_SECRET` for this
+image and never use the Desktop client id; the #238 canary enforces that the
+secret cannot reach a wasm artifact.
+
 ## What nginx sends
 
 - `Content-Type: application/wasm` for `app_bg.wasm` and the sync worker's

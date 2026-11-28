@@ -35,6 +35,9 @@
 
 #![forbid(unsafe_code)]
 
+/// The Google Identity Services client id and GIS token parsing (#240 slice 9):
+/// native-tested, no browser.
+pub mod google_auth;
 /// The page's run request builder (#240 slice 8b): native-tested, no browser.
 pub mod page_request;
 mod sample;
@@ -62,6 +65,9 @@ mod opfs;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub mod page_sync;
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+mod page_drive;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod page_sync_ui;

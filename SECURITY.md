@@ -53,11 +53,15 @@ module at all, and CI's `secret-canary` job builds a wasm target with a sentinel
 secret and fails if the sentinel appears in any artifact, while also asserting
 the native build still carries it.
 
-A web build, when it exists, must use a separate public **Web application**
-OAuth client id with PKCE and Google Identity Services. It must never reference
-`MUNINN_GOOGLE_CLIENT_SECRET` or the Desktop client id: a public browser bundle
-cannot hold a secret, and the Desktop client's credentials belong to the native
-app only.
+A web build uses a separate public **Web application** OAuth client id with
+PKCE and Google Identity Services. It is compiled in from
+`MUNINN_GOOGLE_WEB_CLIENT_ID`, is safe to embed by design, and is bound by
+Google to the deployment origins registered for it (see the checklist in
+`docs/web.md`). It must never reference `MUNINN_GOOGLE_CLIENT_SECRET` or the
+Desktop client id: a public browser bundle cannot hold a secret, and the
+Desktop client's credentials belong to the native app only. A browser build
+never sends a `client_secret`; its token refresh uses the public client id, and
+a client id it was not configured with fails closed before any request.
 
 ## Scope
 

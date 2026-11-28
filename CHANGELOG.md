@@ -8,6 +8,25 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- **Google Drive sync in the browser (#240 slice 9).** The web build's
+  Settings › Sync tab is now a real two-provider surface: GitHub and Google
+  Drive, the desktop's segmented control. Drive signs in through **Google
+  Identity Services' own popup** with a public **Web application** client id
+  — no relay, no redirect page, no Desktop client and no
+  `MUNINN_GOOGLE_CLIENT_SECRET`. The access token (and Google's refresh token,
+  when the flow grants one) is stored under `muninn/sync/drive` in the
+  browser's own OPFS state home, never in `settings.json` or a log; Drive's
+  surface never displays a token, only connected/not, and **Disconnect** clears
+  the binding and the key. **Sync now** runs the same worker and engine as
+  GitHub — the Drive client (immutable blobs, commit manifests, the 200-page
+  cap, keep-both head merges) now compiles on wasm32 — and an expiring token is
+  refreshed with the public client id against `oauth2.googleapis.com`. The
+  browser transport's allowlist widens from `api.github.com` to that host plus
+  Google's four Drive hosts. A build with no `MUNINN_GOOGLE_WEB_CLIENT_ID` says
+  it needs configuration and Connect sends nothing; `docs/web.md` carries the
+  Google Cloud registration checklist. The serving image's CSP admits Google's
+  Drive hosts and the GIS loader, and COOP becomes
+  `same-origin-allow-popups` so the popup works. Native builds are unchanged.
 - **GitHub sync in the browser: PAT entry, run, status and re-index (#240
   slice 8b).** The web build's Settings › Sync tab is now a real GitHub sync
   surface. It shows the repository (owner, repo, branch defaulting to `main`,
