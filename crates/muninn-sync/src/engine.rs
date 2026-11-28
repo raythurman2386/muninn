@@ -22,7 +22,6 @@ use crate::apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_pl
 #[cfg(feature = "native")]
 use crate::clients::GoogleOAuthClient;
 use crate::credentials::{CredentialKey, CredentialStore};
-#[cfg(feature = "native")]
 use crate::drive::{self, DriveClient, DriveScope};
 use crate::error::SyncError;
 use crate::github::{GitHubClient, GitHubScope};
@@ -53,11 +52,10 @@ pub struct EngineParts<T, C> {
     pub sleeper: Box<dyn Sleeper>,
     pub github_api: String,
     pub github_oauth: String,
-    #[cfg(feature = "native")]
+    /// Drive v3's data-plane, resumable-upload and token bases. The shared
+    /// Drive client uses them on both hosts.
     pub drive_api: String,
-    #[cfg(feature = "native")]
     pub drive_upload: String,
-    #[cfg(feature = "native")]
     pub drive_oauth: String,
     /// OAuth clients, used only to refresh an expiring access token.
     pub github_client_id: String,
@@ -66,6 +64,16 @@ pub struct EngineParts<T, C> {
     /// fails closed without sending anything.
     #[cfg(feature = "native")]
     pub google_client: Option<GoogleOAuthClient>,
+    /// The browser's public Web-application client id, used only to refresh an
+    /// expiring Drive access token. Empty when the build has no configured id;
+    /// the refresh then fails closed with `Config` and nothing is sent.
+    ///
+    /// It is *not* the Desktop client id and carries no secret: the page and
+    /// this worker receive it from the one public constant in `muninn-web`,
+    /// and the #238 canary proves the Desktop secret cannot be in a wasm
+    /// artifact.
+    #[cfg(not(feature = "native"))]
+    pub google_web_client_id: String,
     /// Test-only override for a Tailscale peer's base URL. Production derives
     /// `https://<host>` from the binding.
     #[cfg(feature = "native")]
@@ -87,7 +95,8 @@ pub struct RunRequest {
     pub binding: BindingId,
     pub provider: ProviderKind,
     pub github: Option<GitHubScope>,
-    #[cfg(feature = "native")]
+    /// The Drive store this run syncs, on both hosts. The browser's worker
+    /// fills it from the wire request; Tailscale remains native.
     pub drive: Option<DriveScope>,
     #[cfg(feature = "native")]
     pub tailnet: Option<TailnetScope>,
@@ -272,10 +281,21 @@ fn refresh_token<T: HttpTransport, C: CredentialStore>(
             })?;
             drive_client(engine).refresh(client, refresh)?
         }
+        // The browser: a public Web-application client id and no secret. An
+        // unconfigured id fails closed before anything is sent.
+        #[cfg(not(feature = "native"))]
+        ProviderKind::GoogleDrive => {
+            if engine.google_web_client_id.trim().is_empty() {
+                return Err(SyncError::Config {
+                    detail: "Google Drive cannot refresh its sign-in: this web build has no configured Web client id. Connect again.".to_owned(),
+                });
+            }
+            drive_client(engine).refresh_public(&engine.google_web_client_id, refresh)?
+        }
         #[cfg(feature = "native")]
         ProviderKind::Tailscale => unreachable!("can_refresh excludes Tailscale"),
         #[cfg(not(feature = "native"))]
-        ProviderKind::GoogleDrive | ProviderKind::Tailscale => {
+        ProviderKind::Tailscale => {
             return Err(unsupported_provider(provider));
         }
     };
@@ -284,14 +304,14 @@ fn refresh_token<T: HttpTransport, C: CredentialStore>(
     Ok(next)
 }
 
-/// A provider this build does not carry. The browser bundle compiles only the
-/// GitHub transport; Drive and Tailscale are desktop concerns and their modules
-/// are not built there.
+/// A provider this build does not carry. The browser bundle compiles GitHub
+/// and Drive; Tailscale is a desktop concern (a browser cannot reach a tailnet
+/// commit store without a relay, #240 slice 10).
 #[cfg(not(feature = "native"))]
 fn unsupported_provider(provider: ProviderKind) -> SyncError {
     SyncError::Config {
         detail: format!(
-            "{} sync is not available in this build; the browser syncs GitHub only",
+            "{} sync is not available in this build; the browser syncs GitHub and Google Drive only",
             provider.as_str()
         ),
     }
@@ -366,7 +386,6 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
         lease,
     )?;
     save_base(home, &request.binding, request.provider, &head, &desired)?;
-    #[allow(irrefutable_let_patterns)] // only the GitHub anchor exists in a web build
     if let Anchor::GitHub { remote, .. } = &fetched.anchor {
         save_sha_cache(home, remote, &local_bytes)?;
     }
@@ -391,7 +410,6 @@ enum Anchor {
         scope: GitHubScope,
         remote: crate::github::GitHubRemote,
     },
-    #[cfg(feature = "native")]
     Drive {
         scope: DriveScope,
         remote: drive::DriveRemote,
@@ -416,7 +434,6 @@ fn remote_bytes_for<T: HttpTransport, C: CredentialStore>(
     inventory: &Inventory,
 ) -> Result<BTreeMap<ContentHash, Vec<u8>>, SyncError> {
     let mut blobs = fetched.blobs.clone();
-    #[allow(irrefutable_let_patterns)] // only the GitHub anchor exists in a web build
     if let Anchor::GitHub { scope, remote } = &fetched.anchor {
         let client = github_client(engine);
         for (path, record) in &desired.files {
@@ -544,7 +561,6 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
                 anchor: Anchor::GitHub { scope, remote },
             })
         }
-        #[cfg(feature = "native")]
         ProviderKind::GoogleDrive => {
             let scope = request.drive.clone().ok_or_else(|| SyncError::Config {
                 detail: "Drive folder is missing".to_owned(),
@@ -583,9 +599,7 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
             })
         }
         #[cfg(not(feature = "native"))]
-        ProviderKind::GoogleDrive | ProviderKind::Tailscale => {
-            Err(unsupported_provider(request.provider))
-        }
+        ProviderKind::Tailscale => Err(unsupported_provider(request.provider)),
     }
 }
 
@@ -634,13 +648,12 @@ fn publish<T: HttpTransport, C: CredentialStore>(
     tombstones: &[Tombstone],
     local_bytes: &BTreeMap<RelPath, Vec<u8>>,
 ) -> Result<String, SyncError> {
-    #[cfg(feature = "native")]
+    // Drive and the Tailscale store name a tombstone as (path, base hash);
+    // GitHub's tree is a whole-tree publish and ignores the list.
     let tombstones: Vec<_> = tombstones
         .iter()
         .map(|tomb| (tomb.path.clone(), tomb.base_hash))
         .collect();
-    #[cfg(not(feature = "native"))]
-    let _ = tombstones;
     match &fetched.anchor {
         Anchor::GitHub { scope, remote } => github_client(engine).publish(
             scope,
@@ -650,7 +663,6 @@ fn publish<T: HttpTransport, C: CredentialStore>(
             local_bytes,
             request.operation.as_str(),
         ),
-        #[cfg(feature = "native")]
         Anchor::Drive {
             scope,
             remote,
@@ -804,13 +816,12 @@ fn github_client<'a, T: HttpTransport, C>(
     }
 }
 
-#[cfg(feature = "native")]
 fn drive_client<'a, T: HttpTransport, C>(engine: &'a EngineParts<T, C>) -> DriveClient<'a, &'a T> {
     DriveClient {
         api_base: engine.drive_api.clone(),
         upload_base: engine.drive_upload.clone(),
         oauth_base: engine.drive_oauth.clone(),
-        auth_base: GOOGLE_AUTH_BASE.to_owned(),
+        auth_base: crate::drive::DRIVE_AUTH_BASE.to_owned(),
         transport: &engine.transport,
         cancel: engine.cancel.clone(),
         sleeper: engine.sleeper.as_ref(),

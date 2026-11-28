@@ -72,6 +72,7 @@ web-sys = { version = "0.3", features = [
     "FileSystemRemoveOptions",
     "FileSystemSyncAccessHandle",
     "FileSystemWritableFileStream",
+    "HtmlHeadElement",
     "MessageEvent",
     "Navigator",
     "StorageManager",
@@ -86,6 +87,9 @@ web-sys = { version = "0.3", features = [
 ] }
 js-sys = "0.3"
 wasm-bindgen-futures = "0.4"
+# The GIS glue hands Drive's tokens to the UI as `Zeroizing` copies, so an
+# unused one is wiped like the PAT's.
+zeroize = "1"
 
 [lints]
 workspace = true

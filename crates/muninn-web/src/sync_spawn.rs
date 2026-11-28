@@ -305,13 +305,17 @@ mod tests {
 
     fn request() -> RunRequest {
         RunRequest {
+            provider: crate::sync_protocol::Provider::Github,
             binding_id: "0123456789abcdef".to_owned(),
             operation_id: "fedcba9876543210".to_owned(),
             owner: "octocat".to_owned(),
             repo: "notes".to_owned(),
             branch: "main".to_owned(),
             prefix: "vault".to_owned(),
+            drive_store: String::new(),
             token: "github_pat_example".to_owned(),
+            refresh_token: String::new(),
+            expires_unix_ms: None,
             keep_both: true,
         }
     }

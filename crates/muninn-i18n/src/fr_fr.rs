@@ -334,12 +334,12 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Clé renouvelée\u{a0}; l’ancienne ne fonctionne plus. Sur chaque appareil rejoint, cliquez sur Déconnecter et rejoignez à nouveau avec la nouvelle clé (Copier la clé)."
         }
         Key::SyncStatusCurrentConnectionKept => "La connexion actuelle n’a pas été modifiée.",
-        Key::SyncWebHeading => "Synchronisation GitHub dans ce navigateur",
+        Key::SyncWebHeading => "Synchronisation dans ce navigateur",
         Key::SyncWebHeadingCaption => {
-            "Synchronisation manuelle uniquement, un dépôt par coffre du navigateur. Le jeton reste dans ce navigateur\u{a0}; les paramètres gardent le dépôt, la branche et le préfixe."
+            "Synchronisation manuelle uniquement, un dépôt distant par coffre du navigateur. Les paramètres gardent le dépôt distant\u{a0}; les identifiants restent dans le stockage de ce navigateur."
         }
         Key::SyncWebProviderNote => {
-            "GitHub est le seul fournisseur du navigateur. Google Drive arrive dans une tranche ultérieure\u{a0}; Tailscale reste une porte réservée au bureau."
+            "GitHub utilise un jeton d’accès personnel. Google Drive se connecte via la fenêtre de connexion de Google\u{a0}; Tailscale reste une porte réservée à l’application de bureau."
         }
         Key::SyncWebFieldPat => "Jeton d’accès personnel",
         Key::SyncWebPatCaption => {
@@ -370,6 +370,31 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncWebErrorBusy => "Une synchronisation est déjà en cours dans un autre onglet.",
         Key::SyncWebErrorStateUnavailable => {
             "Ce navigateur ne peut pas enregistrer le jeton\u{a0}: son stockage est indisponible."
+        }
+        Key::SyncWebDriveNote => {
+            "Drive conserve un historique de commits géré par l’application dans les données privées de Muninn, et non dans un dossier visible. Connecter ouvre la fenêtre de connexion de Google\u{a0}; aucun jeton n’est affiché ni collé."
+        }
+        Key::SyncWebDriveUnconfigured => {
+            "La synchronisation Google Drive nécessite un identifiant client Web dans cette version. Enregistrez un client OAuth de type Application Web, puis recompilez avec MUNINN_GOOGLE_WEB_CLIENT_ID\u{a0}; voir docs/web.md."
+        }
+        Key::SyncWebDriveNotConnected => {
+            "Non connecté. Saisissez le nom du stockage, puis cliquez sur Connecter pour vous connecter à Google."
+        }
+        Key::SyncWebDriveConnected => {
+            "Connecté à Google Drive. Synchroniser maintenant publie et récupère ce coffre."
+        }
+        Key::SyncWebDriveSigningIn => "Terminez la connexion à Google dans la fenêtre…",
+        Key::SyncWebDriveSignInFailed => {
+            "La connexion à Google ne s’est pas terminée. Cliquez sur Connecter pour réessayer."
+        }
+        Key::SyncWebDriveTokenMissing => {
+            "La connexion Google est absente de ce navigateur. Cliquez sur Connecter pour vous reconnecter."
+        }
+        Key::SyncWebDriveStoreMissing => {
+            "Saisissez le nom du stockage Drive avant Synchroniser maintenant."
+        }
+        Key::SyncWebDriveStoreShape => {
+            "Un nom de stockage Drive contient 1 à 64 lettres, chiffres ou espaces, ainsi que le point, le tiret et le souligné."
         }
         Key::SyncErrorVaultNotCanonical => {
             "Le dossier de ce coffre ne peut pas être résolu en chemin canonique\u{a0}; il ne peut donc pas être lié à la synchronisation."

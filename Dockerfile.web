@@ -28,6 +28,14 @@ ENV CARGO_TERM_COLOR=never \
     CARGO_NET_RETRY=5 \
     CARGO_NET_GIT_FETCH_WITH_CLI=true
 
+# The public Google Identity Services **Web application** client id (#240
+# slice 9). Empty is the honest unconfigured state: the Drive surface says it
+# needs configuration and Connect sends nothing. Set it at build time:
+#   docker build -f Dockerfile.web \
+#     --build-arg MUNINN_GOOGLE_WEB_CLIENT_ID=....apps.googleusercontent.com .
+# It is not a secret, and the Desktop client id/secret must never go here.
+ARG MUNINN_GOOGLE_WEB_CLIENT_ID=""
+
 # scripts/web-build.sh reads Cargo.lock through python3 (tomllib, 3.11+);
 # cargo needs git for the pinned Rune revision; gcc/libc6-dev link the CLI
 # installed below. The slim image ships rustc, cargo and gcc but not git or

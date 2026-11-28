@@ -1,9 +1,10 @@
-//! The worker's credential store: one run-scoped PAT, memory only (#240
-//! slice 8a).
+//! The worker's credential store: one run-scoped credential, memory only
+//! (#240 slices 8a and 9).
 //!
-//! The page receives the personal access token from the person (slice 8b owns
-//! that UI) and sends it in the run request. The worker keeps it in this store
-//! for the duration of the run; the store is dropped when the run ends, and
+//! The page receives the credential from the person (a GitHub personal access
+//! token, or Google Identity Services' access + optional refresh token) and
+//! sends it in the run request. The worker keeps it in this store for the
+//! duration of the run; the store is dropped when the run ends, and
 //! [`muninn_sync::Secret`]'s `Drop` wipes each token's bytes.
 //!
 //! This is deliberately *not* `muninn_sync::MemoryCredentialStore`: that store
@@ -18,34 +19,25 @@
 
 use std::sync::Mutex;
 
-use muninn_sync::{
-    BindingId, CredentialKey, CredentialStore, ProviderKind, Secret, SyncError, TokenSet,
-};
+use muninn_sync::{BindingId, CredentialKey, CredentialStore, ProviderKind, SyncError, TokenSet};
 
-/// A [`CredentialStore`] holding one PAT for one binding.
+/// A [`CredentialStore`] holding one credential for one `(provider, binding)`
+/// key. GitHub supplies an access token with no expiry or refresh token; Drive
+/// supplies a [`TokenSet`] with whatever GIS returned.
 pub struct RunCredentials {
     key: CredentialKey,
     token: Mutex<Option<TokenSet>>,
 }
 
 impl RunCredentials {
-    /// A store seeded with `token` for `binding` on GitHub.
+    /// A store seeded with `token` for `binding` and `provider`.
     ///
     /// The engine asks for exactly this key before its first request; a
     /// different provider or binding gets `None` and the engine reports the
     /// ordinary "connect the provider first" auth error.
     #[must_use]
-    pub fn new(binding: BindingId, token: Secret) -> RunCredentials {
-        let key = CredentialKey {
-            provider: ProviderKind::GitHub,
-            binding,
-        };
-        let token = TokenSet {
-            access: token,
-            refresh: None,
-            expires_unix_ms: None,
-            account: String::new(),
-        };
+    pub fn new(binding: BindingId, provider: ProviderKind, token: TokenSet) -> RunCredentials {
+        let key = CredentialKey { provider, binding };
         RunCredentials {
             key,
             token: Mutex::new(Some(token)),

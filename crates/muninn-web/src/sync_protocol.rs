@@ -21,14 +21,49 @@
 //! - **Vault bytes.** A run reads and writes the vault through the engine's
 //!   filesystem path, not through this message. Sending the vault here would
 //!   be a second transport for the same bytes and is not part of the design.
-//! - **A refresh token.** PAT auth has no refresh token; the worker receives
-//!   one access token and keeps it in a run-scoped in-memory store.
+//! - **A refresh token.** GitHub's PAT auth has no refresh token. Drive
+//!   (slice 9) may: Google Identity Services can hand the page an access
+//!   token, a refresh token and an expiry, so the wire carries all three and
+//!   the worker keeps them in a run-scoped in-memory store. A Drive run
+//!   without a refresh token is still valid; the engine fails closed with
+//!   "connect again" when the access token expires.
 
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+/// Which provider one browser run syncs.
+///
+/// The browser's Sync tab offers GitHub and Google Drive (slice 9). Tailscale
+/// stays a desktop door: a browser cannot reach a tailnet commit store without
+/// a relay (#240 slice 10).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Provider {
+    /// A personal access token against a GitHub repository.
+    #[default]
+    Github,
+    /// Google Drive's hidden app data, signed in through GIS.
+    Drive,
+}
+
+impl Provider {
+    /// The provider's `muninn_sync::ProviderKind` spelling, for tests and
+    /// diagnostics.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Provider::Github => "github",
+            Provider::Drive => "google_drive",
+        }
+    }
+}
+
 /// One message from the page to the worker.
+///
+/// The request variant is a few hundred bytes and crosses the channel once per
+/// run; boxing it would change the public wire type for no runtime gain.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum WorkerRequest {
@@ -46,24 +81,43 @@ pub enum WorkerRequest {
 /// PAT.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RunRequest {
+    /// Which provider this run syncs. Absent means GitHub, so a slice-8 gate
+    /// call keeps working unchanged.
+    #[serde(default)]
+    pub provider: Provider,
     /// The binding id the page uses in settings; must parse as a
     /// `muninn_sync::BindingId`.
     pub binding_id: String,
     /// The operation id for this run; it is the publish idempotency key, so
     /// the page generates it once per Sync Now and reuses it on retry.
     pub operation_id: String,
-    /// `owner/name` of the GitHub repository.
+    /// `owner/name` of the GitHub repository. Empty for a Drive run.
+    #[serde(default)]
     pub owner: String,
-    /// The repository name.
+    /// The repository name. Empty for a Drive run.
+    #[serde(default)]
     pub repo: String,
-    /// The branch to publish to and read from.
+    /// The branch to publish to and read from. Empty for a Drive run.
+    #[serde(default)]
     pub branch: String,
     /// Vault root inside the repository; empty means the repository root.
     #[serde(default)]
     pub prefix: String,
-    /// The personal access token. Memory only; the worker's credential store
-    /// never writes it to OPFS, settings or a log.
+    /// The Drive store name inside the app's hidden `appDataFolder`. Empty for
+    /// a GitHub run.
+    #[serde(default)]
+    pub drive_store: String,
+    /// The access token (GitHub PAT or a Drive access token). Memory only; the
+    /// worker's credential store never writes it to OPFS, settings or a log.
     pub token: String,
+    /// Drive only: the refresh token GIS returned, when it returned one.
+    /// Memory only, and redacted from `Debug` like `token`.
+    #[serde(default)]
+    pub refresh_token: String,
+    /// Drive only: absolute Unix milliseconds when `token` expires. The engine
+    /// refreshes within five minutes of this, or on the first 401.
+    #[serde(default)]
+    pub expires_unix_ms: Option<u64>,
     /// Resolve every conflict as "keep both": the local version keeps the
     /// path and the remote one lands beside it. The app's Sync Now always
     /// chooses this, so a note edited on two devices never stops a run.
@@ -80,7 +134,7 @@ impl RunRequest {
     ///
     /// The ids are validated by `muninn-sync` when the worker builds its
     /// request; this only rejects the shapes that would make the HTTP calls
-    /// meaningless (an empty owner, repo, branch or token).
+    /// meaningless (an empty id, token, or provider field).
     ///
     /// # Errors
     ///
@@ -89,17 +143,32 @@ impl RunRequest {
         for (name, value) in [
             ("binding id", self.binding_id.as_str()),
             ("operation id", self.operation_id.as_str()),
-            ("repository owner", self.owner.as_str()),
-            ("repository name", self.repo.as_str()),
-            ("branch", self.branch.as_str()),
             ("access token", self.token.as_str()),
         ] {
             if value.is_empty() {
                 return Err(format!("the sync request is missing its {name}"));
             }
         }
-        if self.owner.contains('/') || self.repo.contains('/') {
-            return Err("repository owner and name are separate fields".to_owned());
+        match self.provider {
+            Provider::Github => {
+                for (name, value) in [
+                    ("repository owner", self.owner.as_str()),
+                    ("repository name", self.repo.as_str()),
+                    ("branch", self.branch.as_str()),
+                ] {
+                    if value.is_empty() {
+                        return Err(format!("the sync request is missing its {name}"));
+                    }
+                }
+                if self.owner.contains('/') || self.repo.contains('/') {
+                    return Err("repository owner and name are separate fields".to_owned());
+                }
+            }
+            Provider::Drive => {
+                if self.drive_store.is_empty() {
+                    return Err("the sync request is missing its Drive store name".to_owned());
+                }
+            }
         }
         Ok(())
     }
@@ -108,13 +177,20 @@ impl RunRequest {
 impl fmt::Debug for RunRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RunRequest")
+            .field("provider", &self.provider)
             .field("binding_id", &self.binding_id)
             .field("operation_id", &self.operation_id)
             .field("owner", &self.owner)
             .field("repo", &self.repo)
             .field("branch", &self.branch)
             .field("prefix", &self.prefix)
+            .field("drive_store", &self.drive_store)
             .field("token", &"Secret([redacted])")
+            .field(
+                "refresh_token",
+                &(!self.refresh_token.is_empty()).then_some("Secret([redacted])"),
+            )
+            .field("expires_unix_ms", &self.expires_unix_ms)
             .field("keep_both", &self.keep_both)
             .finish()
     }
@@ -187,13 +263,34 @@ mod tests {
 
     fn request() -> RunRequest {
         RunRequest {
+            provider: Provider::Github,
             binding_id: "0123456789abcdef".to_owned(),
             operation_id: "fedcba9876543210".to_owned(),
             owner: "octocat".to_owned(),
             repo: "notes".to_owned(),
             branch: "main".to_owned(),
             prefix: "vault".to_owned(),
+            drive_store: String::new(),
             token: "github_pat_example".to_owned(),
+            refresh_token: String::new(),
+            expires_unix_ms: None,
+            keep_both: true,
+        }
+    }
+
+    fn drive_request() -> RunRequest {
+        RunRequest {
+            provider: Provider::Drive,
+            binding_id: "0123456789abcdef".to_owned(),
+            operation_id: "fedcba9876543210".to_owned(),
+            owner: String::new(),
+            repo: String::new(),
+            branch: String::new(),
+            prefix: String::new(),
+            drive_store: "Muninn".to_owned(),
+            token: "ya29.access".to_owned(),
+            refresh_token: "1//refresh".to_owned(),
+            expires_unix_ms: Some(1_700_000_000_000),
             keep_both: true,
         }
     }
@@ -254,12 +351,68 @@ mod tests {
     }
 
     #[test]
-    fn debug_never_reveals_the_token() {
-        let request = request();
-        let rendered = format!("{request:?}");
-        assert!(!rendered.contains("github_pat_example"));
+    fn debug_never_reveals_either_token() {
+        let drive = drive_request();
+        let rendered = format!("{drive:?}");
+        assert!(!rendered.contains("ya29.access"));
+        assert!(!rendered.contains("1//refresh"));
         assert!(rendered.contains("redacted"));
+        assert!(rendered.contains("Muninn"));
+        let github = request();
+        let rendered = format!("{github:?}");
+        assert!(!rendered.contains("github_pat_example"));
         assert!(rendered.contains("octocat"));
+    }
+
+    #[test]
+    fn a_drive_request_round_trips_and_defaults_to_github_when_absent() {
+        let request = drive_request();
+        let encoded = serde_json::to_string(&WorkerRequest::Run(request.clone())).unwrap();
+        assert!(encoded.contains("\"provider\":\"drive\""));
+        let decoded: WorkerRequest = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded, WorkerRequest::Run(request.clone()));
+        assert!(request.validate().is_ok());
+
+        // A slice-8 request has no provider field and must still parse as
+        // GitHub, with the Drive fields empty.
+        let encoded = serde_json::json!({
+            "kind": "run",
+            "binding_id": "0123456789abcdef",
+            "operation_id": "fedcba9876543210",
+            "owner": "octocat",
+            "repo": "notes",
+            "branch": "main",
+            "token": "pat"
+        });
+        let decoded: WorkerRequest = serde_json::from_value(encoded).unwrap();
+        let WorkerRequest::Run(run) = decoded else {
+            panic!("expected a run request");
+        };
+        assert_eq!(run.provider, Provider::Github);
+        assert!(run.drive_store.is_empty());
+        assert!(run.refresh_token.is_empty());
+        assert_eq!(run.expires_unix_ms, None);
+    }
+
+    #[test]
+    fn drive_validation_wants_a_store_and_a_token_not_a_repository() {
+        let mut request = drive_request();
+        assert!(request.validate().is_ok());
+        // GitHub's fields are absent on purpose and are not required.
+        assert!(request.owner.is_empty() && request.repo.is_empty());
+        request.drive_store.clear();
+        assert_eq!(
+            request.validate().unwrap_err(),
+            "the sync request is missing its Drive store name"
+        );
+        request.drive_store = "Muninn".to_owned();
+        request.token.clear();
+        assert!(request.validate().unwrap_err().contains("access token"));
+        // A refresh token is optional: GIS's token flow may not return one.
+        request.token = "ya29.access".to_owned();
+        request.refresh_token.clear();
+        request.expires_unix_ms = None;
+        assert!(request.validate().is_ok());
     }
 
     #[test]

@@ -27,15 +27,17 @@
 //!
 //! The default `native` feature carries every transport and credential store
 //! in this crate, plus the build-time Google Desktop secret. The non-default
-//! `web` feature compiles the browser's PAT surface for
+//! `web` feature compiles the browser's surface for
 //! `wasm32-unknown-unknown`: the HTTP boundary and its status mapping, the
-//! GitHub client, the credential contract with its memory store, the journal's
-//! state-home API, the state-key table, and the sync engine itself — inventory,
-//! planning, apply and the lease contract — over `muninn_core::VaultStore` and
-//! `StateHome`. The browser supplies `muninn-web`'s OPFS store, state home and
-//! Web Lock lease to `run_sync_with_parts`. `clients.rs`, the OS keyring, the
-//! loopback sign-in listener, Drive, Tailnet and the filesystem lease
-//! implementation stay native. A wasm build must never enable `native`.
+//! GitHub and Drive clients, the credential contract with its memory store,
+//! the journal's state-home API, the state-key table, and the sync engine
+//! itself — inventory, planning, apply and the lease contract — over
+//! `muninn_core::VaultStore` and `StateHome`. The browser supplies
+//! `muninn-web`'s OPFS store, state home and Web Lock lease to
+//! `run_sync_with_parts`. `clients.rs`, the OS keyring, the loopback sign-in
+//! listener, the Drive client's secret-bearing sign-in helpers, Tailnet and
+//! the filesystem lease implementation stay native. A wasm build must never
+//! enable `native`.
 
 #![forbid(unsafe_code)]
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -58,7 +60,11 @@ mod auth;
 mod clients;
 #[cfg(any(feature = "native", feature = "web"))]
 mod credentials;
-#[cfg(feature = "native")]
+// Slice 9: the Drive client is shared. It talks to Google over the same
+// `HttpTransport` trait as GitHub, so the browser's worker drives the same
+// pagination, head-merge and publish code the desktop does. Only its
+// secret-bearing sign-in (loopback PKCE, the Desktop client) stays native.
+#[cfg(any(feature = "native", feature = "web"))]
 mod drive;
 #[cfg(any(feature = "native", feature = "web"))]
 mod engine;
@@ -122,11 +128,13 @@ pub use clients::{
 pub use credentials::NativeCredentialStore;
 #[cfg(any(feature = "native", feature = "web"))]
 pub use credentials::{CredentialKey, CredentialStore, MemoryCredentialStore};
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web"))]
 pub use drive::{
-    DRIVE_SCOPE, DriveClient, DriveCommitDoc, DriveRemote, DriveScope, OAuthRedirect, PkceRequest,
-    merge_heads, new_pkce, parse_oauth_redirect,
+    DRIVE_API_BASE, DRIVE_AUTH_BASE, DRIVE_OAUTH_BASE, DRIVE_SCOPE, DRIVE_UPLOAD_BASE, DriveClient,
+    DriveCommitDoc, DriveRemote, DriveScope, merge_heads,
 };
+#[cfg(feature = "native")]
+pub use drive::{OAuthRedirect, PkceRequest, new_pkce, parse_oauth_redirect};
 #[cfg(any(feature = "native", feature = "web"))]
 pub use engine::{EngineParts, RunRequest, SyncReport, run_sync_with_parts};
 #[cfg(feature = "native")]
@@ -143,7 +151,7 @@ pub use github::{
 #[cfg(any(feature = "native", feature = "web"))]
 pub use http::{
     CancelToken, HttpRequest, HttpResponse, HttpTransport, RecordingSleeper, Sleeper,
-    WEB_GITHUB_API_HOST, classify_status, ensure_web_allowed,
+    WEB_GITHUB_API_HOST, WEB_GOOGLE_HOSTS, classify_status, ensure_web_allowed,
 };
 #[cfg(feature = "native")]
 pub use http::{RealSleeper, ReqwestTransport};

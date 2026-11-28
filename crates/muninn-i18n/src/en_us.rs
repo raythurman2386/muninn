@@ -285,12 +285,12 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Key rotated; the old key no longer works. On each joined device, Disconnect and join again with the new key (Copy key)."
         }
         Key::SyncStatusCurrentConnectionKept => "The current connection was not changed.",
-        Key::SyncWebHeading => "GitHub sync in this browser",
+        Key::SyncWebHeading => "Sync in this browser",
         Key::SyncWebHeadingCaption => {
-            "Manual Sync now only, one repository for this browser vault. The token stays in this browser; settings hold the repository, branch and prefix."
+            "Manual Sync now only, one remote for this browser vault. Settings hold the remote; the credential stays in this browser's storage."
         }
         Key::SyncWebProviderNote => {
-            "GitHub is the browser's only provider. Google Drive arrives in a later slice; Tailscale stays a desktop-only door."
+            "GitHub uses a personal access token. Google Drive signs in through Google's own popup; Tailscale stays a desktop-only door."
         }
         Key::SyncWebFieldPat => "Personal access token",
         Key::SyncWebPatCaption => {
@@ -319,6 +319,27 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncWebErrorBusy => "A sync is already running in another tab.",
         Key::SyncWebErrorStateUnavailable => {
             "This browser cannot save the token: its storage is unavailable."
+        }
+        Key::SyncWebDriveNote => {
+            "Drive keeps an app-managed commit history in Muninn's private app data, not a visible folder. Connect opens Google's sign-in popup; no token is shown or pasted."
+        }
+        Key::SyncWebDriveUnconfigured => {
+            "Google Drive sync needs a Web client id in this build. Register a Web-application OAuth client and rebuild with MUNINN_GOOGLE_WEB_CLIENT_ID; see docs/web.md."
+        }
+        Key::SyncWebDriveNotConnected => {
+            "Not connected. Enter the store name and Connect to sign in with Google."
+        }
+        Key::SyncWebDriveConnected => {
+            "Connected to Google Drive. Sync now publishes and pulls this vault."
+        }
+        Key::SyncWebDriveSigningIn => "Finish signing in to Google in the popup…",
+        Key::SyncWebDriveSignInFailed => "Google sign-in did not finish. Connect to try again.",
+        Key::SyncWebDriveTokenMissing => {
+            "The Google sign-in is missing from this browser. Connect to sign in again."
+        }
+        Key::SyncWebDriveStoreMissing => "Enter the Drive store name before Sync now.",
+        Key::SyncWebDriveStoreShape => {
+            "A Drive store name is 1–64 letters, digits, spaces, '.', '-' or '_'."
         }
         Key::SyncErrorVaultNotCanonical => {
             "This vault folder cannot be canonicalized, so it cannot be bound."

@@ -228,7 +228,7 @@ const WASM_TARGET: &str = "wasm32-unknown-unknown";
 /// `muninn-core`, `muninn-graph`, `muninn-i18n` and a no-native `muninn-ui`
 /// all compile for `wasm32-unknown-unknown`; `muninn-sync` is checked twice —
 /// with its `native` feature off (the near-empty crate) and with `web` on
-/// (the browser's PAT surface: HTTP boundary, GitHub client, credential
+/// (the browser's surface: HTTP boundary, GitHub and Drive clients, credential
 /// contract, state keys, and the engine over `VaultStore` + `StateHome`). It is
 /// never checked with `native` on wasm. The UI's `native` feature is the
 /// desktop-only boundary (filesystem, clock, threads, tray, sync transports), so
@@ -289,9 +289,10 @@ fn wasm_check() -> Result<()> {
         "-D",
         "warnings",
     ])?;
-    // The browser's PAT transport surface (slice 8a): the HTTP boundary and
-    // its status mapping, the GitHub client, the credential contract and the
-    // state-key table. Still without the engine, keyring or Desktop secret.
+    // The browser's transport surface (slices 8a and 9): the HTTP boundary and
+    // its status mapping, the GitHub and Drive clients, the credential
+    // contract and the state-key table. Still without the keyring or the
+    // Desktop secret; the canary proves the latter.
     run_cargo(&[
         "check",
         "--locked",

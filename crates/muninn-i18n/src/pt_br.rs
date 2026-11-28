@@ -325,12 +325,12 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Chave rotacionada; a chave antiga não funciona mais. Em cada dispositivo conectado, clique em Desconectar e entre novamente com a chave nova (Copiar chave)."
         }
         Key::SyncStatusCurrentConnectionKept => "A conexão atual não foi alterada.",
-        Key::SyncWebHeading => "Sincronização com o GitHub neste navegador",
+        Key::SyncWebHeading => "Sincronização neste navegador",
         Key::SyncWebHeadingCaption => {
-            "Somente Sincronizar agora manual, um repositório por cofre do navegador. O token fica neste navegador; as configurações guardam o repositório, o branch e o prefixo."
+            "Somente Sincronizar agora manual, um remoto por cofre do navegador. As configurações guardam o remoto; as credenciais ficam no armazenamento deste navegador."
         }
         Key::SyncWebProviderNote => {
-            "O GitHub é o único provedor do navegador. O Google Drive chega numa etapa posterior; o Tailscale continua uma porta só do desktop."
+            "O GitHub usa um token de acesso pessoal. O Google Drive entra pela janela do próprio Google; o Tailscale continua sendo uma porta só do aplicativo de desktop."
         }
         Key::SyncWebFieldPat => "Token de acesso pessoal",
         Key::SyncWebPatCaption => {
@@ -359,6 +359,31 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncWebErrorBusy => "Já existe uma sincronização em andamento em outra aba.",
         Key::SyncWebErrorStateUnavailable => {
             "Este navegador não pode guardar o token: o armazenamento dele não está disponível."
+        }
+        Key::SyncWebDriveNote => {
+            "O Drive mantém um histórico de commits gerenciado pelo aplicativo nos dados privados do Muninn, não em uma pasta visível. Conectar abre a janela de login do Google; nenhum token é exibido ou colado."
+        }
+        Key::SyncWebDriveUnconfigured => {
+            "A sincronização com o Google Drive precisa de um id de cliente web nesta compilação. Registre um cliente OAuth de aplicativo web e compile de novo com MUNINN_GOOGLE_WEB_CLIENT_ID; veja docs/web.md."
+        }
+        Key::SyncWebDriveNotConnected => {
+            "Não conectado. Informe o nome do armazenamento e clique em Conectar para entrar com o Google."
+        }
+        Key::SyncWebDriveConnected => {
+            "Conectado ao Google Drive. Sincronizar agora publica e baixa este cofre."
+        }
+        Key::SyncWebDriveSigningIn => "Conclua o login no Google na janela…",
+        Key::SyncWebDriveSignInFailed => {
+            "O login no Google não foi concluído. Clique em Conectar para tentar de novo."
+        }
+        Key::SyncWebDriveTokenMissing => {
+            "O login do Google está ausente neste navegador. Clique em Conectar para entrar de novo."
+        }
+        Key::SyncWebDriveStoreMissing => {
+            "Informe o nome do armazenamento do Drive antes de Sincronizar agora."
+        }
+        Key::SyncWebDriveStoreShape => {
+            "Um nome de armazenamento do Drive tem de 1 a 64 letras, dígitos, espaços, '.', '-' ou '_'."
         }
         Key::SyncErrorVaultNotCanonical => {
             "Esta pasta de cofre não pode ser canonicalizada, então não pode ser vinculada."

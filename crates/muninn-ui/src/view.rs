@@ -1795,22 +1795,91 @@ fn settings_sync_tab(s: &State, k: &Kit) -> El {
     }
 }
 
-/// The browser's GitHub sync tab (#240 slice 8b): the provider, its four public
-/// fields and the masked PAT, the status line, and Connect / Sync now / Cancel /
-/// Disconnect. The shape mirrors `sync_section` so the two doors read as one
-/// app; the copy and the honest absence of Drive and Tailscale are this
-/// surface's own.
+/// The browser's sync tab (#240 slices 8b, 9): a two-option provider control
+/// (GitHub, Google Drive), that provider's fields, the status line, and
+/// Connect / Sync now / Cancel / Disconnect. The shape mirrors `sync_section`
+/// so the two doors read as one app.
+///
+/// GitHub shows a masked PAT field; Drive shows a store name and no token field
+/// at all, because its sign-in is Google Identity Services' popup and the
+/// surface never re-displays a token. Tailscale is not an option here: it stays
+/// a desktop-only door (#240 slice 10).
 ///
 /// Compiled for the browser and, under test, on the host: the native Settings
 /// page draws the desktop surface, but the web surface's layout is still
 /// asserted headlessly.
 #[cfg(any(test, not(feature = "native")))]
 fn web_sync_section(s: &State, k: &Kit) -> El {
-    let status = format!(
-        "{}. {}",
-        t(TextKey::SyncProviderGithubName),
-        s.web_sync_status()
-    );
+    let provider = match s.web_sync.provider() {
+        crate::web_sync::WebSyncProvider::Github => t(TextKey::SyncProviderGithubName),
+        crate::web_sync::WebSyncProvider::Drive => t(TextKey::SyncProviderDriveName),
+    };
+    let status = format!("{provider}. {}", s.web_sync_status());
+    let fields = match s.web_sync.provider() {
+        crate::web_sync::WebSyncProvider::Github => col()
+            .w_full()
+            .gap(4.0)
+            .child(sync_field(
+                k,
+                TextKey::SyncFieldGithubOwner,
+                &s.web_sync.owner,
+                |state| &mut state.web_sync.owner,
+            ))
+            .child(sync_field(
+                k,
+                TextKey::SyncFieldRepository,
+                &s.web_sync.repo,
+                |state| &mut state.web_sync.repo,
+            ))
+            .child(sync_field(
+                k,
+                TextKey::SyncFieldBranch,
+                &s.web_sync.branch,
+                |state| &mut state.web_sync.branch,
+            ))
+            .child(sync_field(
+                k,
+                TextKey::SyncFieldPrefix,
+                &s.web_sync.prefix,
+                |state| &mut state.web_sync.prefix,
+            ))
+            .child(sync_field(
+                k,
+                TextKey::SyncWebFieldPat,
+                &s.web_sync.token,
+                |state| &mut state.web_sync.token,
+            ))
+            .child(
+                text(t(TextKey::SyncWebPatCaption))
+                    .key("settings-sync-pat-caption")
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint)
+                    .wrap(),
+            ),
+        crate::web_sync::WebSyncProvider::Drive => col()
+            .w_full()
+            .gap(4.0)
+            .child(sync_field(
+                k,
+                TextKey::SyncFieldStoreName,
+                &s.web_sync.drive_store,
+                |state| &mut state.web_sync.drive_store,
+            ))
+            .child(
+                text(t(TextKey::SyncProviderDriveCaption))
+                    .key("settings-sync-drive-caption")
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint)
+                    .wrap(),
+            )
+            .child(
+                text(t(TextKey::SyncWebDriveNote))
+                    .key("settings-sync-drive-note")
+                    .font(k.ty.caption())
+                    .color(k.c.text_faint)
+                    .wrap(),
+            ),
+    };
     settings_card(k)
         .key("settings-sync")
         .child(settings_heading(
@@ -1821,12 +1890,21 @@ fn web_sync_section(s: &State, k: &Kit) -> El {
         .child(
             col()
                 .w_full()
-                .gap(2.0)
+                .gap(6.0)
                 .child(
-                    text(t(TextKey::SyncProviderGithubName))
-                        .key("settings-sync-provider")
-                        .font(k.ty.ui_compact)
-                        .color(k.c.text_base),
+                    SegmentedControl::new(
+                        &[
+                            t(TextKey::SyncProviderGithubName),
+                            t(TextKey::SyncProviderDriveShortName),
+                        ],
+                        Some(s.web_sync.provider().index()),
+                    )
+                    .label(t(TextKey::SyncHeadingProvider))
+                    .on_pick(|state: &mut State, index, _: &mut Tx| {
+                        state.set_web_sync_provider(index)
+                    })
+                    .build(k)
+                    .key("settings-sync-provider"),
                 )
                 .child(
                     text(t(TextKey::SyncWebProviderNote))
@@ -1836,48 +1914,7 @@ fn web_sync_section(s: &State, k: &Kit) -> El {
                         .wrap(),
                 ),
         )
-        .child(
-            col()
-                .w_full()
-                .gap(4.0)
-                .child(sync_field(
-                    k,
-                    TextKey::SyncFieldGithubOwner,
-                    &s.web_sync.owner,
-                    |state| &mut state.web_sync.owner,
-                ))
-                .child(sync_field(
-                    k,
-                    TextKey::SyncFieldRepository,
-                    &s.web_sync.repo,
-                    |state| &mut state.web_sync.repo,
-                ))
-                .child(sync_field(
-                    k,
-                    TextKey::SyncFieldBranch,
-                    &s.web_sync.branch,
-                    |state| &mut state.web_sync.branch,
-                ))
-                .child(sync_field(
-                    k,
-                    TextKey::SyncFieldPrefix,
-                    &s.web_sync.prefix,
-                    |state| &mut state.web_sync.prefix,
-                ))
-                .child(sync_field(
-                    k,
-                    TextKey::SyncWebFieldPat,
-                    &s.web_sync.token,
-                    |state| &mut state.web_sync.token,
-                ))
-                .child(
-                    text(t(TextKey::SyncWebPatCaption))
-                        .key("settings-sync-pat-caption")
-                        .font(k.ty.caption())
-                        .color(k.c.text_faint)
-                        .wrap(),
-                ),
-        )
+        .child(fields)
         .child(divider_h(k))
         .child(
             col()
@@ -6292,6 +6329,59 @@ mod web_sync_tab_tests {
             rt.state.web_sync.token.is_secure(),
             "the PAT field is masked, like the Tailnet key"
         );
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(root.with_extension("state"));
+    }
+
+    /// Slice 9: the provider control is a real two-option control, and each
+    /// provider draws its own fields. Drive has no token field at all: it
+    /// authenticates through the GIS popup.
+    #[test]
+    fn the_web_sync_tab_offers_both_providers_and_drive_has_no_token_field() {
+        let root = std::env::temp_dir().join(format!(
+            "muninn-web-drive-tab-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let mut state = State::with_state_home(root.clone(), root.with_extension("state"));
+        state.set_web_sync_provider(1);
+        assert_eq!(
+            state.web_sync.provider(),
+            crate::web_sync::WebSyncProvider::Drive
+        );
+        let mut rt = Runtime::new(state, web_sync_view, (1180.0, 780.0), Env::new(true, 2.0));
+        rt.frame(0.0);
+        for key in [
+            "settings-sync-provider",
+            "settings-sync-provider-note",
+            "sync-field-store-name",
+            "settings-sync-drive-caption",
+            "settings-sync-drive-note",
+            "settings-sync-status",
+            "settings-sync-connect",
+            "settings-sync-now",
+            "settings-sync-cancel",
+            "settings-sync-disconnect",
+        ] {
+            assert!(rt.find(key).is_some(), "{key} is on screen for Drive");
+        }
+        for github_only in [
+            "sync-field-github-owner",
+            "sync-field-repository",
+            "sync-field-branch",
+            "sync-field-prefix",
+            "sync-field-pat",
+        ] {
+            assert!(
+                rt.find(github_only).is_none(),
+                "{github_only} is a GitHub field and must not draw for Drive"
+            );
+        }
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(root.with_extension("state"));
     }

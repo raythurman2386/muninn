@@ -1,10 +1,11 @@
-//! The page half of the browser's GitHub sync surface (#240 slice 8b).
+//! The page half of the browser's sync surface (#240 slices 8b, 9).
 //!
-//! [`muninn_ui::web_sync`] owns the form, the saved config, the PAT and the
-//! status line. This module is the only part that touches the browser: it
-//! registers the shared UI's two callbacks at boot, turns a form config into a
+//! [`muninn_ui::web_sync`] owns the form, the saved config, the credentials and
+//! the status line. This module is the only part that touches the browser: it
+//! registers the shared UI's callbacks at boot, turns a form config into a
 //! [`RunRequest`](crate::sync_protocol::RunRequest), spawns the run through
-//! [`crate::page_sync::spawn`], and relays the worker's events back.
+//! [`crate::page_sync::spawn`], relays the worker's events back, and hands
+//! Drive's Connect to the Google Identity Services glue.
 //!
 //! # Why the terminal event waits
 //!
@@ -29,12 +30,12 @@
 use std::cell::{Cell, RefCell};
 
 use muninn_ui::State;
-use muninn_ui::web_sync::{WebSyncConfig, WebSyncEvent, WebSyncHooks};
+use muninn_ui::web_sync::{WebSyncConfig, WebSyncEvent, WebSyncHooks, WebSyncProvider};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::page_request::{self, PageRequest};
+use crate::page_request::{self, DrivePageRequest, PageRequest};
 use crate::page_sync::{SyncRunHandle, spawn};
 use crate::sync_protocol::WorkerEvent;
 
@@ -52,7 +53,19 @@ thread_local! {
 /// Register the shared UI's sync callbacks. Called once from the boot, before
 /// `rune::run` asks for the first frame.
 pub fn install() {
-    muninn_ui::web_sync::install(WebSyncHooks { start, cancel });
+    muninn_ui::web_sync::install(WebSyncHooks {
+        start,
+        cancel,
+        drive_connect: crate::page_drive::connect,
+        drive_configured,
+    });
+}
+
+/// Whether this build embeds a public Google Web-application client id. Empty
+/// is the honest unconfigured state: Connect says what is needed and sends
+/// nothing.
+fn drive_configured() -> bool {
+    crate::google_auth::web_client_id().is_some()
 }
 
 /// Start one run. The shared UI has already refused a second concurrent run,
@@ -71,18 +84,28 @@ fn start(config: WebSyncConfig) {
         return;
     }
     let operation_id = fresh_operation_id();
-    let request = page_request::request_for(PageRequest {
-        binding_id: &config.binding_id,
-        operation_id: &operation_id,
-        owner: &config.owner,
-        repo: &config.repo,
-        branch: &config.branch,
-        prefix: &config.prefix,
-        token: config.token.as_str(),
-    });
-    // The wire request owns one copy of the PAT and the spawn session's
-    // serialized message owns another; the config's copy is wiped when it
-    // drops at the end of this function.
+    let request = match config.provider {
+        WebSyncProvider::Github => page_request::request_for(PageRequest {
+            binding_id: &config.binding_id,
+            operation_id: &operation_id,
+            owner: &config.owner,
+            repo: &config.repo,
+            branch: &config.branch,
+            prefix: &config.prefix,
+            token: config.access.as_str(),
+        }),
+        WebSyncProvider::Drive => page_request::drive_request_for(DrivePageRequest {
+            binding_id: &config.binding_id,
+            operation_id: &operation_id,
+            store: &config.store,
+            access: config.access.as_str(),
+            refresh: config.refresh.as_ref().map_or("", |token| token.as_str()),
+            expires_unix_ms: config.expires_unix_ms,
+        }),
+    };
+    // The wire request owns one copy of the access (and refresh) token and the
+    // spawn session's serialized message owns another; the config's copies are
+    // wiped when it drops at the end of this function.
     CANCELLED.with(|flag| flag.set(false));
     spawn_local(async move {
         match spawn(request, relay).await {

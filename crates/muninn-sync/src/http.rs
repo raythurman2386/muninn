@@ -187,8 +187,9 @@ fn map_reqwest(error: reqwest::Error, mutation: bool) -> SyncError {
 /// that passed [`crate::tailnet::validate_tailnet_host`].
 ///
 /// The browser transport uses [`ensure_web_allowed`] instead: it is narrower
-/// on purpose, because PAT sync has exactly one data-plane host and the page
-/// cannot reach the OAuth or Tailnet endpoints.
+/// on purpose, because a browser run reaches the GitHub API and Google's Drive
+/// hosts only — never the Tailscale host, and never GitHub's browser-blocked
+/// OAuth pages.
 #[cfg(feature = "native")]
 pub fn ensure_allowed(raw: &str, extra_hosts: &[String]) -> Result<(), SyncError> {
     let url = Url::parse(raw).map_err(|_| SyncError::Protocol {
@@ -231,24 +232,37 @@ pub fn ensure_allowed(raw: &str, extra_hosts: &[String]) -> Result<(), SyncError
     }
 }
 
-/// The one host the browser's data plane talks to.
+/// The GitHub host the browser's data plane talks to.
 ///
 /// PAT sync needs `api.github.com` for reads and writes. The page's OAuth
 /// endpoints (`github.com/login/...`) are browser-blocked and are not part of
-/// a PAT run, and Drive/Tailnet are later slices, so the web allowlist is
-/// deliberately narrower than the native one: no userinfo, https only, the
-/// exact host, and the default port. [`HttpTransport`] implementations for
-/// the browser call this before every request; the worker additionally pins
-/// its base URL to this host.
+/// a PAT run.
 pub const WEB_GITHUB_API_HOST: &str = "api.github.com";
 
-/// The browser twin of the native allowlist (`ensure_allowed`): https and
-/// exactly [`WEB_GITHUB_API_HOST`], no credentials in the URL, no port.
+/// The Google hosts the browser's Drive run talks to.
+///
+/// These are the native allowlist's Google entries, unchanged: the Drive v3
+/// API and its resumable-upload endpoint, the token endpoint the engine uses
+/// to refresh an expiring access token, and the consent page that Google
+/// Identity Services opens in its own popup. The popup is a page, not a
+/// transport call, but the host stays listed so the client-id check fails
+/// closed against the same set a desktop build uses.
+pub const WEB_GOOGLE_HOSTS: &[&str] = &[
+    "www.googleapis.com",
+    "oauth2.googleapis.com",
+    "accounts.google.com",
+    "upload.googleapis.com",
+];
+
+/// The browser twin of the native allowlist (`ensure_allowed`): https, one of
+/// [`WEB_GITHUB_API_HOST`] or [`WEB_GOOGLE_HOSTS`], no credentials in the URL,
+/// no explicit port.
 ///
 /// This is not a superset of the native list on purpose. A browser transport
-/// must never be able to reach the TOS-blocked OAuth endpoints or an unrelated
-/// provider just because a native build may; a later slice that adds Drive
-/// widens this list explicitly.
+/// must never be able to reach the browser-blocked GitHub OAuth endpoints or a
+/// Tailnet host just because a native build may. GitHub's data plane and
+/// Google's Drive hosts are the complete set a browser run needs: PAT sync
+/// (slice 8) and GIS Drive sync (slice 9).
 pub fn ensure_web_allowed(raw: &str) -> Result<(), SyncError> {
     let url = Url::parse(raw).map_err(|_| SyncError::Protocol {
         detail: "refusing a provider url that did not parse".to_owned(),
@@ -269,10 +283,10 @@ pub fn ensure_web_allowed(raw: &str) -> Result<(), SyncError> {
         });
     }
     let host = url.host_str().unwrap_or("");
-    if host != WEB_GITHUB_API_HOST {
+    if host != WEB_GITHUB_API_HOST && !WEB_GOOGLE_HOSTS.contains(&host) {
         return Err(SyncError::Protocol {
             detail: format!(
-                "host {host} is not available to the browser sync transport; only {WEB_GITHUB_API_HOST} is"
+                "host {host} is not available to the browser sync transport; only {WEB_GITHUB_API_HOST} and the Google Drive hosts are"
             ),
         });
     }
@@ -457,29 +471,42 @@ mod tests {
         }
     }
 
-    /// The web allowlist is deliberately narrower than the native one: PAT
-    /// sync has one data-plane host, and the browser cannot reach the OAuth
-    /// endpoints or a Tailnet host. This test is the boundary's contract.
+    /// The web allowlist is deliberately narrower than the native one: the
+    /// GitHub data plane and Google's Drive hosts, and nothing else. This test
+    /// is the boundary's contract.
     #[test]
-    fn web_allowlist_is_exactly_the_github_api() {
+    fn web_allowlist_is_the_github_api_and_the_google_drive_hosts() {
         for allowed in [
             "https://api.github.com/repos/o/r/git/ref/heads/main",
             "https://api.github.com/repos/o/r/git/trees/abc?recursive=1",
+            // Slice 9: the Drive client's three data-plane hosts plus the
+            // consent page the GIS popup loads.
+            "https://www.googleapis.com/drive/v3/files?q=appDataFolder",
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+            "https://oauth2.googleapis.com/token",
+            "https://accounts.google.com/o/oauth2/v2/auth",
+            "https://upload.googleapis.com/upload/drive/v3/files",
         ] {
             assert!(ensure_web_allowed(allowed).is_ok(), "{allowed} is allowed");
         }
         for refused in [
-            // The page's OAuth endpoints are browser-blocked; a PAT run never
+            // GitHub's OAuth endpoints are browser-blocked; a PAT run never
             // uses them and the worker must not even try.
             "https://github.com/login/oauth/access_token",
-            // Drive and Tailnet are later slices.
-            "https://www.googleapis.com/drive/v3/files",
-            "https://oauth2.googleapis.com/token",
+            // A Tailnet host is desktop-only until #240's slice 10 decides.
+            "https://minis.tail1234.ts.net:8443/state",
+            // A Drive-adjacent host that is not on the list, including a
+            // Google-hosted one (the list is exact, not a suffix match).
+            "https://www.google.com/drive",
+            "https://storage.googleapis.com/bucket",
+            "https://www.googleapis.com.evil.example/drive/v3/files",
             // Scheme and URL-shape rules.
             "http://api.github.com/repos/o/r",
+            "http://www.googleapis.com/drive/v3/files",
             "https://api.github.com:8443/repos/o/r",
+            "https://www.googleapis.com:8443/drive/v3/files",
             "https://user:secret@api.github.com/repos/o/r",
-            "https://api.github.com.evil.example/repos/o/r",
+            "https://user@www.googleapis.com/drive/v3/files",
             "not a url",
         ] {
             assert!(
@@ -487,6 +514,7 @@ mod tests {
                 "{refused} must be refused"
             );
         }
+        assert_eq!(WEB_GOOGLE_HOSTS.len(), 4, "the exact Google host set");
     }
 
     /// The status→error mapping is shared by both transports, so pin each

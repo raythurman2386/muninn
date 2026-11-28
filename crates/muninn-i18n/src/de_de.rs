@@ -322,12 +322,12 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Schlüssel erneuert; der alte Schlüssel funktioniert nicht mehr. Wählen Sie auf jedem beigetretenen Gerät Trennen und treten Sie mit dem neuen Schlüssel erneut bei (Schlüssel kopieren)."
         }
         Key::SyncStatusCurrentConnectionKept => "Die aktuelle Verbindung wurde nicht geändert.",
-        Key::SyncWebHeading => "GitHub-Synchronisierung in diesem Browser",
+        Key::SyncWebHeading => "Synchronisierung in diesem Browser",
         Key::SyncWebHeadingCaption => {
-            "Nur manuelles Jetzt synchronisieren, ein Repository pro Browser-Tresor. Das Token bleibt in diesem Browser; die Einstellungen halten Repository, Branch und Präfix."
+            "Nur manuelles Jetzt synchronisieren, ein Gegenstück pro Browser-Tresor. Die Einstellungen halten das Gegenstück; die Anmeldedaten bleiben im Speicher dieses Browsers."
         }
         Key::SyncWebProviderNote => {
-            "GitHub ist der einzige Anbieter im Browser. Google Drive folgt in einem späteren Schritt; Tailscale bleibt eine reine Desktop-Tür."
+            "GitHub verwendet ein persönliches Zugriffstoken. Google Drive meldet sich über Googles eigenes Popup an; Tailscale bleibt ein reiner Desktop-Zugang."
         }
         Key::SyncWebFieldPat => "Persönliches Zugriffstoken",
         Key::SyncWebPatCaption => {
@@ -360,6 +360,31 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::SyncWebErrorBusy => "In einem anderen Tab läuft bereits eine Synchronisierung.",
         Key::SyncWebErrorStateUnavailable => {
             "Dieser Browser kann das Token nicht speichern: Sein Speicher ist nicht verfügbar."
+        }
+        Key::SyncWebDriveNote => {
+            "Drive führt einen app-verwalteten Commit-Verlauf in Muninns privaten App-Daten, nicht in einem sichtbaren Ordner. Verbinden öffnet Googles Anmelde-Popup; kein Token wird angezeigt oder eingefügt."
+        }
+        Key::SyncWebDriveUnconfigured => {
+            "Die Google-Drive-Synchronisierung braucht eine Web-Client-ID in diesem Build. Registriere einen OAuth-Client vom Typ Webanwendung und baue mit MUNINN_GOOGLE_WEB_CLIENT_ID neu; siehe docs/web.md."
+        }
+        Key::SyncWebDriveNotConnected => {
+            "Nicht verbunden. Gib den Speichernamen ein und wähle Verbinden, um dich bei Google anzumelden."
+        }
+        Key::SyncWebDriveConnected => {
+            "Mit Google Drive verbunden. Jetzt synchronisieren veröffentlicht und lädt diesen Tresor."
+        }
+        Key::SyncWebDriveSigningIn => "Schließe die Google-Anmeldung im Popup ab …",
+        Key::SyncWebDriveSignInFailed => {
+            "Die Google-Anmeldung wurde nicht abgeschlossen. Wähle Verbinden, um es erneut zu versuchen."
+        }
+        Key::SyncWebDriveTokenMissing => {
+            "Die Google-Anmeldung fehlt in diesem Browser. Wähle Verbinden, um dich erneut anzumelden."
+        }
+        Key::SyncWebDriveStoreMissing => {
+            "Gib den Drive-Speichernamen vor Jetzt synchronisieren ein."
+        }
+        Key::SyncWebDriveStoreShape => {
+            "Ein Drive-Speichername hat 1–64 Buchstaben, Ziffern, Leerzeichen, '.', '-' oder '_'."
         }
         Key::SyncErrorVaultNotCanonical => {
             "Der Pfad dieses Tresorordners kann nicht kanonisiert werden, daher kann er nicht gebunden werden."
