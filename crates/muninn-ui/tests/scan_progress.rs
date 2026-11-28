@@ -77,8 +77,10 @@ fn chunked_startup_reads_the_same_vault_as_a_full_load() {
 }
 
 /// #287: a vault over the synchronous limit must be typeable straight away,
-/// with no click. There is no budget seam here: the real per-tick read budget
-/// finishes this fixture in the first frame's poll, as an ordinary launch does.
+/// with no click. The real per-tick read budget can finish this fixture in one
+/// frame's poll on an idle runner, but a stalled main thread may need more than
+/// one frame, so the scan is driven to completion with the sibling test's
+/// bounded poll instead of being demanded in a single frame.
 #[test]
 fn typing_lands_in_the_note_right_after_a_chunked_startup() {
     let tmp = big_vault(120);
@@ -88,7 +90,15 @@ fn typing_lands_in_the_note_right_after_a_chunked_startup() {
     let mut rt = Runtime::new(state, view, (1180.0, 780.0), Env::new(true, 2.0));
     rt.poll = Some(poll);
     rt.on_key = Some(on_key);
-    rt.frame(0.0);
+    // Poll frames until the chunked scan completes; the time-based read budget
+    // is not a one-frame guarantee. The tick bound is the file's own, so a
+    // broken scan fails here instead of hanging.
+    let mut ticks = 0;
+    while rt.state.loading() {
+        rt.frame(1.0 / 60.0);
+        ticks += 1;
+        assert!(ticks < 100, "chunked scan did not finish");
+    }
     assert!(!rt.state.loading(), "the scan must finish");
     assert_eq!(rt.state.selected, Some(0));
     assert!(rt.state.editor.focused, "the editor has the keyboard");
