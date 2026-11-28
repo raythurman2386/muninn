@@ -20,3 +20,20 @@ site/.astro
 site/.proof-w1
 site/.proof-w3
 site/.proof-w7
+
+# Build context for Dockerfile.web: the wasm bundle is compiled from source
+# inside the image, so the workspace, the pinned toolchain, the Rune font and
+# sample-vault assets, the vendored crates patches, the build script and the
+# nginx config all join the context. target/ stays out: web-build.sh writes it
+# inside the image, and the host's copy is never needed.
+!Dockerfile.web
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml
+!crates/
+!xtask/
+!vendor/
+!assets/
+!vault/
+!scripts/
+!web/

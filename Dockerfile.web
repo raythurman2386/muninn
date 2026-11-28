@@ -1,0 +1,93 @@
+# Image of the Muninn browser vault (crates/muninn-web, compiled to wasm by
+# scripts/web-build.sh).
+# Build from the repo root:  docker build -f Dockerfile.web -t muninn-web .
+# Run it:                    docker run --rm -p 8080:80 muninn-web
+# Served by nginx on port 80; GET / returns index.html (2xx for the GoForge
+# health check).
+# GoForge: Dockerfile Path = Dockerfile.web, Build Context = . (repo root).
+# The desktop app is built with Cargo and is not affected by this file.
+#
+# Stage 1 compiles the wasm bundle with the Rust toolchain pinned in
+# rust-toolchain.toml (1.99.1) and the wasm-bindgen CLI version read from
+# Cargo.lock. Stage 2 is plain nginx serving the static folder. Rust, cargo,
+# the crates.io and git caches, and the source never reach the runtime image.
+#
+# Nothing is prebuilt. target/web is ignored by git and by .dockerignore, and
+# scripts/web-build.sh writes the whole bundle (index.html, app.js,
+# app_bg.wasm, the Inter faces, snippets/) inside stage 1. The build needs
+# network access: crates.io, the pinned Rune revision on GitHub, and the
+# wasm-bindgen CLI from crates.io.
+
+# rust:1.99.1-slim-bookworm, pinned by index digest (multi-arch).
+# Keep the tag in step with rust-toolchain.toml (channel 1.99.1); the wasm
+# target and the matching wasm-bindgen CLI are installed at build time.
+FROM rust:1.99.1-slim-bookworm@sha256:f2c004e3d2d8b547e8cf7ffbc29205385f4e71d23e53e4e383065db5e9f822cd AS build
+
+ENV CARGO_TERM_COLOR=never \
+    CARGO_NET_RETRY=5 \
+    CARGO_NET_GIT_FETCH_WITH_CLI=true
+
+# scripts/web-build.sh reads Cargo.lock through python3 (tomllib, 3.11+);
+# cargo needs git for the pinned Rune revision; gcc/libc6-dev link the CLI
+# installed below. The slim image ships rustc, cargo and gcc but not git or
+# python3.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git python3 libc6-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# The CLI must match the wasm-bindgen crate the bundle links, exactly; read
+# the version at build time so a lockfile bump cannot leave the image on an
+# old CLI (web-build.sh itself refuses a mismatch). The install runs outside
+# /src so cargo does not mistake the workspace for the package to install.
+COPY Cargo.lock ./
+RUN rustup target add wasm32-unknown-unknown \
+ && version=$(python3 -c 'import tomllib; print(next(p["version"] for p in tomllib.load(open("Cargo.lock", "rb"))["package"] if p["name"] == "wasm-bindgen"))') \
+ && cd /tmp \
+ && cargo install --locked wasm-bindgen-cli --version "$version"
+
+# Everything the workspace build and the bundle need: the pinned toolchain,
+# the manifests, the crates, the vendored [patch.crates-io] copies (they are
+# path dependencies of Rune), the committed assets and sample vault embedded
+# with include_bytes!, the build script (it copies Rune's Inter faces from the
+# dependency checkout) and the nginx config (the CSP hash is generated from
+# the finished page).
+COPY rust-toolchain.toml Cargo.toml ./
+COPY crates ./crates
+COPY xtask ./xtask
+COPY vendor ./vendor
+COPY assets ./assets
+COPY vault ./vault
+COPY scripts ./scripts
+COPY web ./web
+
+# scripts/web-build.sh finds Rune's Inter faces through `cargo metadata
+# --offline`, and that resolve reads every workspace member's dependencies.
+# The wasm build only downloads what muninn-web needs, so fetch the whole
+# lockfile once while the network is available; the offline lookup then works
+# in a clean image. This is also the only step that touches native-only crates.
+RUN cargo fetch --locked
+
+# Build the bundle, then pre-compress the two files that dominate the
+# download (app_bg.wasm is ~15 MB raw / ~5.6 MB gzip; app.js is the
+# wasm-bindgen glue). nginx's gzip_static serves the .gz without per-request
+# CPU. The CSP snippet is generated from this exact index.html last, so its
+# inline-script hash belongs to the bytes being served.
+RUN bash scripts/web-build.sh muninn-web --out /out \
+ && gzip -9 -k /out/app_bg.wasm /out/app.js \
+ && python3 web/nginx/csp-hash.py --html /out/index.html --out /src/security-headers.conf
+
+# nginx:1.30-alpine, pinned by index digest (multi-arch). Same digest as
+# Dockerfile.marketing so the repo runs one nginx build; bump both together.
+FROM nginx:1.30-alpine@sha256:901e593c95dc85f5a729f5765516321366ef4ac401821431d408897e95287d0a
+
+COPY web/nginx/default.conf /etc/nginx/conf.d/default.conf
+# Generated in stage 1 from the built page: do not copy a committed snippet.
+COPY --from=build /src/security-headers.conf /etc/nginx/snippets/security-headers.conf
+# Only the static output. No source, no Rust, no cargo, no build cache.
+COPY --from=build /out/ /usr/share/nginx/html/
+
+EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1
