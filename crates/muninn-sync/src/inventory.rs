@@ -369,14 +369,29 @@ mod tests {
         std::fs::write(dir.join("a.md"), "a").unwrap();
         std::fs::hard_link(dir.join("a.md"), dir.join("b.md")).unwrap();
         let store = muninn_core::FsStore::new(dir.canonicalize().unwrap());
-        let error = inventory_with(&store, DEFAULT_LIMITS).unwrap_err();
-        assert!(
-            matches!(
-                error,
-                SyncError::Unsupported { ref detail, .. } if detail.contains("hard link")
-            ),
-            "{error:?}"
-        );
+        // Stable `std` exposes no link count on Windows, so there is nothing
+        // to refuse there: the same hard link inventories as two ordinary
+        // files, exactly as the pre-seam walk did. Pin both behaviours.
+        #[cfg(unix)]
+        {
+            let error = inventory_with(&store, DEFAULT_LIMITS).unwrap_err();
+            assert!(
+                matches!(
+                    error,
+                    SyncError::Unsupported { ref detail, .. } if detail.contains("hard link")
+                ),
+                "{error:?}"
+            );
+        }
+        #[cfg(not(unix))]
+        {
+            let inventory = inventory_with(&store, DEFAULT_LIMITS).unwrap();
+            assert_eq!(
+                inventory.snapshot.files.len(),
+                2,
+                "without a link count both names inventory as ordinary files"
+            );
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
