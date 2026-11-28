@@ -36,12 +36,17 @@ use crate::store::OpfsStore;
 use crate::{SAMPLE_ROOT, SAMPLE_SOURCES};
 
 /// The browser vault is open read-only because another tab holds the lock.
-pub const READ_ONLY_MESSAGE: &str =
-    "Read-only: another Muninn tab holds this browser vault's write lock.";
+///
+/// The English text lives in the catalog (`web.vault_read_only`), like every
+/// other status line the browser build can draw.
+pub fn read_only_message() -> &'static str {
+    t(Key::WebVaultReadOnly)
+}
 
 /// The browser cannot offer the single-writer guarantee at all.
-pub const NO_LOCK_MESSAGE: &str =
-    "Read-only: this browser has no Web Locks, so a second tab could write over this one.";
+pub fn no_lock_message() -> &'static str {
+    t(Key::WebVaultNoLock)
+}
 
 /// The directory inside OPFS. It is one vault: the demo has one root.
 const OPFS_VAULT_DIR: &str = "muninn-vault";
@@ -388,7 +393,7 @@ async fn acquire_write_lock(name: &str) -> Lock {
         return Lock {
             granted: false,
             lost: None,
-            error: Some(NO_LOCK_MESSAGE.to_owned()),
+            error: Some(no_lock_message().to_owned()),
         };
     }
     let acquired = get(&control, "acquired")
@@ -664,6 +669,16 @@ fn session() -> Option<(
                 session.state_root.clone(),
             )
         })
+    })
+}
+
+/// The vault store this tab is serving, for export and import. `None` when
+/// OPFS could not mount and the demo is running on the embedded sample.
+pub(crate) fn session_store() -> Option<Arc<OpfsStore>> {
+    SESSION.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .map(|session| Arc::clone(&session.store))
     })
 }
 

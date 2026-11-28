@@ -2237,6 +2237,13 @@ impl State {
         }
         let query = self.palette_field.text.trim().to_lowercase();
         let mut actions = PaletteAction::ALL.to_vec();
+        // #240 slice 6e: export/import exist only where a browser host
+        // registered its picker and download, so the native palette (and a
+        // browser tab that never mounted storage) does not offer dead rows.
+        if crate::vault_transfer::available() {
+            actions.push(PaletteAction::ExportVault);
+            actions.push(PaletteAction::ImportVault);
+        }
         if self.can_convert_to_kanban() {
             actions.push(PaletteAction::ConvertToKanban);
         }
@@ -2398,6 +2405,12 @@ impl State {
             PaletteAction::ToggleKanban => self.toggle_kanban(),
             PaletteAction::ToggleFocusMode => self.toggle_focus_mode(),
             PaletteAction::NewKanban => self.new_kanban(),
+            PaletteAction::ExportVault => {
+                self.export_vault();
+            }
+            PaletteAction::ImportVault => {
+                self.import_vault();
+            }
             PaletteAction::ConvertToKanban => self.convert_to_kanban(),
             PaletteAction::LockNote => {
                 if let Some(id) = self.selected {

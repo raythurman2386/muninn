@@ -334,6 +334,8 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionNewKanban => "New Kanban",
         Key::PaletteActionConvertToKanban => "Convert empty note to Kanban",
         Key::PaletteActionImportDocument => "Import document…",
+        Key::PaletteActionExportVault => "Export vault…",
+        Key::PaletteActionImportVault => "Import vault…",
         Key::PaletteHintGraphLocal => "Graph · Local",
         Key::PaletteHintVaults => "Vaults",
         Key::PaletteHintHelp => "Help",
@@ -354,6 +356,8 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteKeywordsImportDocument => {
             "import document docx doc word pdf office odt rtf epub csv"
         }
+        Key::PaletteKeywordsExportVault => "export vault backup download zip archive save copy",
+        Key::PaletteKeywordsImportVault => "import vault restore upload zip archive open",
         Key::PaletteSectionRecent => "Recent",
         Key::PaletteSectionNotes => "Notes",
         Key::PaletteSectionActions => "Actions",
@@ -990,5 +994,22 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::WebReadOnlySample => {
             "This read-only tab shows the embedded sample until the writing tab saves it."
         }
+        Key::WebVaultReadOnly => {
+            "Read-only: another Muninn tab holds this browser vault's write lock."
+        }
+        Key::WebVaultNoLock => {
+            "Read-only: this browser has no Web Locks, so a second tab could write over this one."
+        }
+        Key::WebExportUnavailable => "Export is unavailable until browser storage opens.",
+        Key::WebExportFailed => "The vault could not be exported.",
+        Key::WebExportDone => "Vault export downloaded.",
+        Key::WebImportUnavailable => "Import is unavailable until browser storage opens.",
+        Key::WebImportFailed => "The vault could not be imported.",
+        Key::WebImportDone => "Vault import complete.",
+        Key::WebImportRefusedDirty => {
+            "Import refused: save or discard the open note's unsaved changes first."
+        }
+        Key::WebImportUnreadable => "That file is not a Muninn vault archive.",
+        Key::WebArchiveFileType => "ZIP archive",
     }
 }

@@ -383,6 +383,8 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionNewKanban => "Neues Kanban",
         Key::PaletteActionConvertToKanban => "Leere Notiz in Kanban umwandeln",
         Key::PaletteActionImportDocument => "Dokument importieren…",
+        Key::PaletteActionExportVault => "Tresor exportieren…",
+        Key::PaletteActionImportVault => "Tresor importieren…",
         Key::PaletteHintGraphLocal => "Graph · Lokal",
         Key::PaletteHintVaults => "Tresore",
         Key::PaletteHintHelp => "Hilfe",
@@ -404,6 +406,12 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteKeywordsConvertToKanban => "kanban leer umwandeln spalten karten aufgaben",
         Key::PaletteKeywordsImportDocument => {
             "import dokument docx doc word pdf office odt rtf epub csv"
+        }
+        Key::PaletteKeywordsExportVault => {
+            "export tresor sicherung herunterladen zip archiv speichern kopie"
+        }
+        Key::PaletteKeywordsImportVault => {
+            "import tresor wiederherstellen hochladen zip archiv öffnen"
         }
         Key::PaletteSectionRecent => "Zuletzt",
         Key::PaletteSectionNotes => "Notizen",
@@ -1104,5 +1112,26 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::WebReadOnlySample => {
             "Dieser schreibgeschützte Tab zeigt das mitgelieferte Beispiel, bis der schreibende Tab es speichert."
         }
+        Key::WebVaultReadOnly => {
+            "Schreibgeschützt: Ein anderer Muninn-Tab hält die Schreibsperre für diesen Browser-Tresor."
+        }
+        Key::WebVaultNoLock => {
+            "Schreibgeschützt: Dieser Browser hat keine Web Locks, sodass ein zweiter Tab diesen überschreiben könnte."
+        }
+        Key::WebExportUnavailable => {
+            "Der Export ist nicht verfügbar, solange der Browserspeicher nicht geöffnet ist."
+        }
+        Key::WebExportFailed => "Der Tresor konnte nicht exportiert werden.",
+        Key::WebExportDone => "Der Tresor-Export wurde heruntergeladen.",
+        Key::WebImportUnavailable => {
+            "Der Import ist nicht verfügbar, solange der Browserspeicher nicht geöffnet ist."
+        }
+        Key::WebImportFailed => "Der Tresor konnte nicht importiert werden.",
+        Key::WebImportDone => "Der Tresor-Import ist abgeschlossen.",
+        Key::WebImportRefusedDirty => {
+            "Import abgelehnt: Speichern oder verwerfen Sie zuerst die ungespeicherten Änderungen der geöffneten Notiz."
+        }
+        Key::WebImportUnreadable => "Diese Datei ist kein Muninn-Tresor-Archiv.",
+        Key::WebArchiveFileType => "ZIP-Archiv",
     }
 }

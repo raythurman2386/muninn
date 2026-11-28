@@ -60,6 +60,7 @@ mod sync_ui;
 mod tray;
 #[cfg(feature = "native")]
 pub mod update;
+pub mod vault_transfer;
 mod view;
 mod watch;
 

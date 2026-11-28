@@ -393,6 +393,8 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionNewKanban => "Nouveau Kanban",
         Key::PaletteActionConvertToKanban => "Convertir une note vide en Kanban",
         Key::PaletteActionImportDocument => "Importer un document…",
+        Key::PaletteActionExportVault => "Exporter le coffre…",
+        Key::PaletteActionImportVault => "Importer un coffre…",
         Key::PaletteHintGraphLocal => "Graphique · Local",
         Key::PaletteHintVaults => "Coffres",
         Key::PaletteHintHelp => "Aide",
@@ -416,6 +418,12 @@ pub(crate) fn text(key: Key) -> &'static str {
         }
         Key::PaletteKeywordsImportDocument => {
             "importer document docx doc word pdf office odt rtf epub csv"
+        }
+        Key::PaletteKeywordsExportVault => {
+            "exporter coffre sauvegarde télécharger zip archive enregistrer copie"
+        }
+        Key::PaletteKeywordsImportVault => {
+            "importer coffre restaurer téléverser zip archive ouvrir"
         }
         Key::PaletteSectionRecent => "Récents",
         Key::PaletteSectionNotes => "Notes",
@@ -1115,5 +1123,26 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::WebReadOnlySample => {
             "Cet onglet en lecture seule affiche l’exemple intégré jusqu’à ce que l’onglet en écriture l’enregistre."
         }
+        Key::WebVaultReadOnly => {
+            "Lecture seule\u{a0}: un autre onglet Muninn détient le verrou d’écriture de ce coffre du navigateur."
+        }
+        Key::WebVaultNoLock => {
+            "Lecture seule\u{a0}: ce navigateur n’a pas de Web Locks, donc un second onglet pourrait écraser celui-ci."
+        }
+        Key::WebExportUnavailable => {
+            "L’exportation est indisponible tant que le stockage du navigateur n’est pas ouvert."
+        }
+        Key::WebExportFailed => "Le coffre n’a pas pu être exporté.",
+        Key::WebExportDone => "L’exportation du coffre a été téléchargée.",
+        Key::WebImportUnavailable => {
+            "L’importation est indisponible tant que le stockage du navigateur n’est pas ouvert."
+        }
+        Key::WebImportFailed => "Le coffre n’a pas pu être importé.",
+        Key::WebImportDone => "L’importation du coffre est terminée.",
+        Key::WebImportRefusedDirty => {
+            "Importation refusée\u{a0}: enregistrez ou abandonnez d’abord les modifications non enregistrées de la note ouverte."
+        }
+        Key::WebImportUnreadable => "Ce fichier n’est pas une archive de coffre Muninn.",
+        Key::WebArchiveFileType => "Archive ZIP",
     }
 }
