@@ -8,6 +8,17 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- **The browser vault has a serving image (#240 slice 7).** `Dockerfile.web`
+  builds `muninn-web` from source in a Rust stage and serves the static
+  bundle from plain nginx on port 80, so the browser vault can be self-hosted
+  with `docker build -f Dockerfile.web -t muninn-web .` and
+  `docker run -p 8080:80 muninn-web`. The runtime image carries no Rust or
+  source: just the page, `app.js`, `app_bg.wasm`, the Inter faces and
+  `snippets/`. nginx declares `application/wasm`, sends a per-build CSP that
+  hashes the inline boot script, turns on `crossOriginIsolated` with
+  COOP/COEP/CORP, revalidates the files that change per build, and ships the
+  wasm pre-compressed. No hosted service is created; hosting remains a
+  separate decision.
 - **The browser vault exports and imports (#240 slice 6e).** Two new command
   palette actions on the web build: **Export vault…** downloads every note,
   board, attachment and folder in the OPFS vault as a stored (uncompressed)
