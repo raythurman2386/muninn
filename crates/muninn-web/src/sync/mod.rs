@@ -15,15 +15,13 @@
 //!
 //! This slice compiles and tests the transport, the state home, the run-scoped
 //! credential store and the sleeper for `wasm32-unknown-unknown`. It does
-//! **not** ship the worker entry that calls `run_sync_with_state_home`, for a
-//! reason outside the transport itself: the engine still reaches the *vault*
-//! through `std::fs` (`inventory`, `read_local_bytes`, `apply_plan_with`, the
-//! filesystem lease). `RunRequest.root` is a real path, and a browser has no
-//! filesystem path to hand it — the vault lives behind `muninn_core`'s
-//! `VaultStore`/`MemoryStore` seam. Running the engine unchanged therefore
-//! needs a vault-byte seam first; until it lands, a worker entry would accept
-//! a run and fail at its first inventory. See `docs/web.md` slice 8 for the
-//! recorded seam.
+//! **not** ship the worker entry that maps a `Run` message onto the engine.
+//! The vault seam that entry needs has landed (`muninn-sync` 8a-vault): the
+//! engine takes a `&dyn VaultStore`, a `&dyn StateHome` and a `&dyn SyncLease`
+//! through `run_sync_with_parts`, and `RunRequest.root` is only a label there.
+//! The entry will pass this worker's OPFS vault store, [`state_home`], and a
+//! `SyncLease` over [`lock::RunLock`]; until that lands, a run has nothing to
+//! drive it.
 //!
 //! The state home has a second, smaller honesty note: `StateHome` is
 //! synchronous and `createSyncAccessHandle()` is a Promise. The mirror below

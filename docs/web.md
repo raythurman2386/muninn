@@ -212,25 +212,35 @@ Landed and gated:
 
 - `muninn-sync`'s non-default `web` feature compiles the browser's PAT surface
   for `wasm32`: the HTTP boundary and its status mapping, the GitHub client,
-  the credential contract with its memory store, the journal's state-home API
-  and the state-key table. `clients.rs`, the keyring, the secret, the lease,
-  Drive, Tailnet and the engine stay native; `xtask wasm-check` compiles the
-  new surface.
+  the credential contract with its memory store, the journal's state-home API,
+  the state-key table, and — from slice 8a-vault — the sync engine itself
+  (`engine`, `inventory`, `apply`) over `muninn_core::VaultStore` and
+  `StateHome`. `clients.rs`, the keyring, the secret, Drive, Tailnet and the
+  *filesystem* lease implementation stay native; `xtask wasm-check` compiles
+  the whole engine on wasm32.
 - `muninn-web` carries the page↔worker message contract, the pure response
   parsing and the state-key pin (natively tested), plus a `worker` feature with
   the worker's synchronous XHR transport (pinned to `api.github.com`), the
   dedicated `muninn-sync-state/` OPFS state home, the `Atomics.wait` sleeper
   with a bounded non-isolated fallback, and the run-scoped PAT store.
 
-Not landed: the **worker entry** that calls `run_sync_with_state_home`. The
-engine's *state* IO was seamed in #324, but its *vault* IO is still `std::fs`:
-`inventory`, `read_local_bytes`, `apply_plan_with` and the filesystem lease all
-take `RunRequest.root` as a real path, and a browser has no path to hand them —
-the vault lives behind `muninn_core`'s `VaultStore`/`MemoryStore` seam. A worker
-entry today would accept a run and fail at its first inventory. The honest next
-step is a vault-byte seam in the engine (the same shape as #324, for vault
-reads/writes), after which the entry is a thin message loop over the machinery
-above; §10's Tailscale question is unaffected.
+The vault seam (8a-vault, #240): the engine takes the vault as a
+`&dyn VaultStore`, the host state as a `&dyn StateHome`, and the lease as a
+`&dyn SyncLease` through `run_sync_with_parts`. `run_sync`,
+`run_sync_with_state_home` and the other native wrappers construct `FsStore`,
+`NativeStateHome` and `FsLease`, so desktop bytes and lease files are unchanged.
+`RunRequest.root` is no longer read by the engine at all: the store's root is
+the only path it has, and a browser passes its vault label there. The engine's
+inventory, local reads and apply write only through the store; the test suite
+runs a full round against `MemoryStore` + `MemoryStateHome` with an empty
+`state_dir`, which would fail at the first `std::fs` call.
+
+Not landed: the **worker entry** that maps a `Run` message onto
+`run_sync_with_parts`. That is now a thin message loop over the machinery above:
+parse the request, take the Web Lock lease (`muninn-web`'s `RunLock` behind
+`SyncLease`), pass the OPFS vault store, the OPFS state home and the
+`GitHubScope`, then flush state after the run. §10's Tailscale question is
+unaffected.
 
 Two smaller recorded differences of the web twin:
 

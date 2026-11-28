@@ -7,6 +7,8 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
+use muninn_core::{StateHome, VaultStore};
+
 use crate::credentials::{CredentialKey, CredentialStore, MemoryCredentialStore};
 use crate::drive::{self, DriveClient, DriveCommitDoc, DriveScope};
 use crate::engine::{EngineParts, RunRequest, SyncReport, run_sync};
@@ -1212,6 +1214,188 @@ fn engine_pushes_and_pulls_between_two_synthetic_vaults() {
     let _ = std::fs::remove_dir_all(&root);
     let _ = std::fs::remove_dir_all(&state);
     let _ = std::fs::remove_dir_all(&other);
+}
+
+/// A lease for the store-based engine test: counts acquisitions and proves the
+/// guard is held (so the engine really takes it) and released.
+#[derive(Default)]
+struct CountingLease {
+    open: std::sync::atomic::AtomicBool,
+    acquisitions: std::sync::atomic::AtomicUsize,
+}
+
+struct CountingGuard(Arc<CountingLease>);
+
+impl crate::lease::LeaseGuard for CountingGuard {}
+
+impl crate::lease::SyncLease for Arc<CountingLease> {
+    fn acquire(
+        &self,
+        _identity: &crate::model::VaultIdentity,
+    ) -> Result<Box<dyn crate::lease::LeaseGuard>, SyncError> {
+        assert!(
+            !self.open.swap(true, std::sync::atomic::Ordering::SeqCst),
+            "the engine acquired the lease twice without releasing it"
+        );
+        self.acquisitions
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(Box::new(CountingGuard(Arc::clone(self))))
+    }
+}
+
+impl Drop for CountingGuard {
+    fn drop(&mut self) {
+        self.0
+            .open
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// The worker entry's proof: a full plan/publish/apply round with every vault
+/// and state byte in memory. `root` is a label and `state_dir` is empty, so any
+/// `std::fs` call the engine still made would fail rather than pass silently.
+#[test]
+fn the_engine_runs_against_a_memory_vault_and_memory_state() {
+    let store = Arc::new(Mutex::new(git_store()));
+    let server = git_server(Arc::clone(&store));
+    let (credentials, binding) = connected(ProviderKind::GitHub);
+    let engine = github_engine(&server, &credentials);
+
+    let vault = muninn_core::MemoryStore::new("/Muninn sample");
+    vault.put_file("a.md", b"hello");
+    vault.put_file(".secret", b"nope");
+    let home = muninn_core::MemoryStateHome::new();
+    let lease = Arc::new(CountingLease::default());
+    let request = RunRequest {
+        root: std::path::PathBuf::from("/Muninn sample"),
+        state_dir: std::path::PathBuf::new(),
+        binding: binding.clone(),
+        provider: ProviderKind::GitHub,
+        github: Some(scope()),
+        drive: None,
+        tailnet: None,
+        operation: OperationId::parse("abcde00000000011").unwrap(),
+        protected: Default::default(),
+        resolutions: Vec::new(),
+        default_resolution: None,
+    };
+    let report =
+        crate::engine::run_sync_with_parts(&engine, &request, &vault, &home, &lease).unwrap();
+    assert!(matches!(report, SyncReport::Succeeded { .. }), "{report:?}");
+    assert_eq!(vault.read_bytes("a.md"), Some(b"hello".to_vec()));
+    assert_eq!(vault.read_bytes(".secret"), Some(b"nope".to_vec()));
+    assert_eq!(
+        lease.acquisitions.load(std::sync::atomic::Ordering::SeqCst),
+        2,
+        "the inventory read and the apply each take the lease"
+    );
+    assert!(
+        !lease.open.load(std::sync::atomic::Ordering::SeqCst),
+        "the last guard is released"
+    );
+    assert!(home.get("base.json").is_some(), "state landed in the home");
+    assert!(
+        home.get("journal.json").is_none(),
+        "the run cleared its journal"
+    );
+    assert!(
+        home.list("staged/").is_empty(),
+        "staged bytes were consumed by the apply"
+    );
+
+    let pulled = muninn_core::MemoryStore::new("/Muninn sample");
+    let pulled_home = muninn_core::MemoryStateHome::new();
+    let pulled_request = RunRequest {
+        root: std::path::PathBuf::from("/Muninn sample"),
+        state_dir: std::path::PathBuf::new(),
+        binding,
+        provider: ProviderKind::GitHub,
+        github: Some(scope()),
+        drive: None,
+        tailnet: None,
+        operation: OperationId::parse("abcde00000000012").unwrap(),
+        protected: Default::default(),
+        resolutions: Vec::new(),
+        default_resolution: None,
+    };
+    crate::engine::run_sync_with_parts(&engine, &pulled_request, &pulled, &pulled_home, &lease)
+        .unwrap();
+    assert_eq!(
+        pulled.read_bytes("a.md"),
+        Some(b"hello".to_vec()),
+        "the second memory vault pulled the note"
+    );
+    assert!(!pulled.exists(&pulled.root().join(".secret")));
+}
+
+/// A published run whose apply never started resumes entirely in memory: the
+/// engine reads the journal and prepared list from the state home, writes the
+/// staged bytes into the memory vault, and takes the lease again.
+#[test]
+fn a_memory_run_resumes_a_published_apply_without_a_filesystem() {
+    let server = git_server(Arc::new(Mutex::new(git_store())));
+    let (credentials, binding) = connected(ProviderKind::GitHub);
+    let engine = github_engine(&server, &credentials);
+
+    let vault = muninn_core::MemoryStore::new("/Muninn sample");
+    let home = muninn_core::MemoryStateHome::new();
+    let lease = Arc::new(CountingLease::default());
+    let operation = OperationId::parse("abcde00000000021").unwrap();
+    let bytes = b"hello".to_vec();
+    let after = ContentHash::of(&bytes).to_hex();
+    let journal = json!({
+        "schema": crate::SCHEMA_VERSION,
+        "run_id": "abcde00000000020",
+        "operation_id": operation.as_str(),
+        "binding_id": binding.as_str(),
+        "vault_identity": "unused-on-resume",
+        "provider": "github",
+        "phase": "published",
+        "remote_head": "head",
+        "published": true,
+        "files": [],
+    });
+    home.put("journal.json", journal.to_string().as_bytes())
+        .unwrap();
+    let prepared = json!({
+        "head": "head",
+        "writes": [{
+            "path": "a.md",
+            "before": null,
+            "after": after,
+            "file": "staged/a.md",
+        }],
+        "deletes": [],
+        "entries": { "a.md": after },
+    });
+    home.put("prepared.json", prepared.to_string().as_bytes())
+        .unwrap();
+    home.put("staged/a.md", &bytes).unwrap();
+
+    let request = RunRequest {
+        root: std::path::PathBuf::from("/Muninn sample"),
+        state_dir: std::path::PathBuf::new(),
+        binding,
+        provider: ProviderKind::GitHub,
+        github: Some(scope()),
+        drive: None,
+        tailnet: None,
+        operation,
+        protected: Default::default(),
+        resolutions: Vec::new(),
+        default_resolution: None,
+    };
+    let report =
+        crate::engine::run_sync_with_parts(&engine, &request, &vault, &home, &lease).unwrap();
+    assert!(matches!(report, SyncReport::Succeeded { .. }));
+    assert_eq!(vault.read_bytes("a.md"), Some(bytes));
+    assert_eq!(
+        lease.acquisitions.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "the resume takes the lease too"
+    );
+    assert!(home.get("journal.json").is_none(), "the journal is cleared");
+    assert!(home.get("base.json").is_some(), "the base is saved");
 }
 
 fn github_engine<'a>(

@@ -208,8 +208,21 @@ impl VaultIdentity {
                 detail: format!("{} is not a directory", canonical.display()),
             });
         }
+        Ok(Self::of_root(&canonical))
+    }
+
+    /// The identity of a vault whose root is already canonical.
+    ///
+    /// [`of_canonical`](VaultIdentity::of_canonical) is this plus the host
+    /// filesystem's `canonicalize`; a caller that reached the root through a
+    /// [`VaultStore`](muninn_core::VaultStore) spells it the same way and calls
+    /// this directly. The digest is over the root's path bytes, so a browser
+    /// store with no filesystem path behind its root uses the root label it
+    /// carries.
+    #[must_use]
+    pub fn of_root(canonical: &std::path::Path) -> Self {
         let bytes = canonical.as_os_str().as_encoded_bytes();
-        Ok(Self(ContentHash::of(bytes).to_hex()))
+        Self(ContentHash::of(bytes).to_hex())
     }
 
     /// Rebuild an identity already computed by [`VaultIdentity::of_canonical`].

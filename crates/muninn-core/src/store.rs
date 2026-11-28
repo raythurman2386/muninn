@@ -55,6 +55,11 @@ pub struct StoreMeta {
     /// [`VaultStore::symlink_metadata`]).
     pub symlink: bool,
     pub len: u64,
+    /// How many directory entries name this file. An ordinary file reports 1; a
+    /// hard link reports more. A logical store that cannot tell reports 1.
+    /// Sync refuses a multiply-linked file because replacing one name would not
+    /// change the bytes behind the others.
+    pub links: u64,
     /// The file's modification time when the store has one. A logical store may
     /// supply its own monotonic stamp; see [`MemoryStore`].
     pub modified: Option<SystemTime>,
@@ -108,6 +113,11 @@ pub trait VaultStore: Send + Sync {
     /// Read a file as UTF-8. Invalid UTF-8 is
     /// [`io::ErrorKind::InvalidData`], like [`std::fs::read_to_string`].
     fn read_to_string(&self, path: &Path) -> io::Result<String>;
+
+    /// Read a file's raw bytes, binary included: the counterpart to
+    /// [`read_to_string`](VaultStore::read_to_string) for attachments, sync hashes
+    /// and any caller that must not assume UTF-8.
+    fn read_bytes(&self, path: &Path) -> io::Result<Vec<u8>>;
 
     /// Replace `path` with `bytes` atomically.
     fn write_atomic(&self, path: &Path, bytes: &[u8]) -> io::Result<()>;
@@ -192,6 +202,10 @@ impl VaultStore for FsStore {
         fs::read_to_string(path)
     }
 
+    fn read_bytes(&self, path: &Path) -> io::Result<Vec<u8>> {
+        fs::read(path)
+    }
+
     fn write_atomic(&self, path: &Path, bytes: &[u8]) -> io::Result<()> {
         atomic_write(path, bytes)
     }
@@ -260,6 +274,7 @@ impl VaultStore for FsStore {
             },
             symlink: false,
             len: meta.len(),
+            links: link_count(&meta),
             modified: meta.modified().ok(),
         })
     }
@@ -274,6 +289,7 @@ impl VaultStore for FsStore {
             },
             symlink: meta.file_type().is_symlink(),
             len: meta.len(),
+            links: link_count(&meta),
             modified: meta.modified().ok(),
         })
     }
@@ -285,6 +301,20 @@ impl VaultStore for FsStore {
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
         fs::canonicalize(path)
     }
+}
+
+/// The number of names a file has, where the platform can tell.
+#[cfg(unix)]
+fn link_count(meta: &fs::Metadata) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    meta.nlink()
+}
+
+#[cfg(not(unix))]
+fn link_count(_meta: &fs::Metadata) -> u64 {
+    // Stable `std` exposes no link count on Windows; report the ordinary case,
+    // exactly as the pre-seam inventory did there.
+    1
 }
 
 /// #292: whether two paths name one file on this filesystem.
@@ -499,6 +529,16 @@ impl VaultStore for MemoryStore {
                 "stream did not contain valid UTF-8",
             )
         })
+    }
+
+    fn read_bytes(&self, path: &Path) -> io::Result<Vec<u8>> {
+        let rel = self.rel_of(path)?;
+        let entries = self.entries();
+        entries
+            .files
+            .get(&rel.to_lowercase())
+            .map(|file| file.bytes.clone())
+            .ok_or_else(|| not_found(path))
     }
 
     fn write_atomic(&self, path: &Path, bytes: &[u8]) -> io::Result<()> {
@@ -750,6 +790,7 @@ impl VaultStore for MemoryStore {
                 kind: EntryKind::File,
                 symlink: false,
                 len: file.bytes.len() as u64,
+                links: 1,
                 // The logical write stamp, expressed as a time so the guarded
                 // writes keep their `(mtime, length)` shape.
                 modified: Some(SystemTime::UNIX_EPOCH + Duration::from_secs(file.stamp)),
@@ -760,6 +801,7 @@ impl VaultStore for MemoryStore {
                 kind: EntryKind::Dir,
                 symlink: false,
                 len: 0,
+                links: 1,
                 modified: None,
             });
         }
@@ -1058,5 +1100,39 @@ mod tests {
                 .kind(),
             io::ErrorKind::InvalidData
         );
+    }
+
+    #[test]
+    fn a_memory_store_reads_raw_bytes_and_reports_one_link() {
+        let store = store();
+        let path = store.root().join("assets/pic.png");
+        store.put_file("assets/pic.png", &[0xff, 0xfe]);
+        assert_eq!(
+            VaultStore::read_bytes(&store, &path).unwrap(),
+            vec![0xff, 0xfe],
+            "binary bytes come back unchanged"
+        );
+        assert_eq!(store.metadata(&path).unwrap().links, 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_native_store_reports_a_hard_link_count() {
+        let dir = std::env::temp_dir().join(format!(
+            "muninn-store-links-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("a.md"), b"a").unwrap();
+        let store = FsStore::new(dir.canonicalize().unwrap());
+        let path = store.root().join("a.md");
+        assert_eq!(store.metadata(&path).unwrap().links, 1);
+        fs::hard_link(&path, dir.join("b.md")).unwrap();
+        assert_eq!(store.metadata(&path).unwrap().links, 2);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

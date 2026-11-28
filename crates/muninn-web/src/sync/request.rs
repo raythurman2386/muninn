@@ -2,9 +2,9 @@
 //!
 //! This is the worker's first step: it parses the binding and operation ids,
 //! validates the git ref and vault prefix, and seeds the run-scoped credential
-//! store. The result is everything `run_sync_with_state_home` needs except the
-//! vault itself — see the module docs for why that last piece is not wired in
-//! this slice.
+//! store. The result is the engine-side request minus the three host seams
+//! (`VaultStore`, `StateHome`, `SyncLease`), which the worker entry will pass
+//! to `run_sync_with_parts`.
 
 use muninn_sync::{BindingId, GitHubScope, OperationId, Secret, SyncError};
 

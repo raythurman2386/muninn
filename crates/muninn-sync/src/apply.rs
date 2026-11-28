@@ -3,19 +3,22 @@
 //! Each file is checkpointed, journaled, then replaced. A crash resumes at the
 //! next file that is not marked done. Dirty editor paths and hash mismatches
 //! abort before the first byte changes.
+//!
+//! Vault bytes flow through [`VaultStore`] and host state through [`StateHome`]:
+//! the apply has no filesystem path of its own. The native wrappers below build
+//! the desktop store and state home and keep the path-based API unchanged.
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use muninn_core::StateHome;
+use muninn_core::{StateHome, VaultStore};
 
 use crate::error::SyncError;
-use crate::fsutil::{self, RootDir};
-use crate::inventory::file_hash;
+use crate::inventory::{file_hash_with, read_tracked_file};
 use crate::journal::{FileAction, FileStep, Journal, JournalFile, JournalPhase};
 use crate::model::ContentHash;
 use crate::pathutil::RelativePath;
-use crate::state_home::{self, NativeStateHome};
+use crate::state_home;
 
 #[derive(Clone)]
 pub struct ApplyWrite {
@@ -32,7 +35,10 @@ pub struct ApplyDelete {
 }
 
 pub struct ApplyRequest {
+    /// Native vault root. The store-based apply does not read it; the native
+    /// wrappers resolve it into an [`FsStore`](muninn_core::FsStore).
     pub root: PathBuf,
+    /// Native sync state directory. Likewise only the native wrappers use it.
     pub state_dir: PathBuf,
     pub journal: Journal,
     pub writes: Vec<ApplyWrite>,
@@ -53,14 +59,23 @@ pub enum ApplyOutcome {
 
 /// Apply a plan against the native state directory named in `request`.
 ///
-/// The engine calls `apply_plan_with` with its own state home; this wrapper
-/// keeps the path-based API for direct callers and tests unchanged.
+/// The engine calls `apply_plan_with` with its own vault store and state home;
+/// this wrapper keeps the path-based API for direct callers and tests unchanged.
+#[cfg(feature = "native")]
 pub fn apply_plan(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
-    apply_plan_with(&NativeStateHome::new(request.state_dir.clone()), request)
+    let canonical = request.root.canonicalize().map_err(SyncError::io)?;
+    crate::fsutil::require_real_dir(&canonical)?;
+    apply_plan_with(
+        &muninn_core::FsStore::new(canonical),
+        &state_home::NativeStateHome::new(request.state_dir.clone()),
+        request,
+    )
 }
 
-/// Apply a plan whose journal and checkpoints live in `home`.
+/// Apply a plan whose vault bytes live behind `store` and whose journal and
+/// checkpoints live in `home`.
 pub(crate) fn apply_plan_with(
+    store: &dyn VaultStore,
     home: &dyn StateHome,
     request: &ApplyRequest,
 ) -> Result<ApplyOutcome, SyncError> {
@@ -80,7 +95,7 @@ pub(crate) fn apply_plan_with(
             });
         }
     }
-    preflight(&request.root, &journal)?;
+    preflight(store, &journal)?;
     journal.store_from(home)?;
     for file in &journal.files {
         let path = RelativePath::parse(&file.path)?;
@@ -90,9 +105,7 @@ pub(crate) fn apply_plan_with(
             });
         }
     }
-    preflight(&request.root, &journal)?;
-    let canonical = request.root.canonicalize().map_err(SyncError::io)?;
-    let dir = fsutil::open_root(&canonical)?;
+    preflight(store, &journal)?;
     let mut completed = journal
         .files
         .iter()
@@ -102,13 +115,13 @@ pub(crate) fn apply_plan_with(
         if journal.files[index].step == FileStep::Done {
             continue;
         }
-        checkpoint_one(home, &dir, &mut journal, index)?;
+        checkpoint_one(store, home, &mut journal, index)?;
         if request.fault_after_checkpoint == Some(index + 1) {
             return Ok(ApplyOutcome::Faulted {
                 completed_files: completed,
             });
         }
-        replace_one(home, request, &dir, &mut journal, index)?;
+        replace_one(store, home, request, &mut journal, index)?;
         completed += 1;
         if request.fault_after_files == Some(completed) {
             return Ok(ApplyOutcome::Faulted {
@@ -121,8 +134,9 @@ pub(crate) fn apply_plan_with(
     Ok(ApplyOutcome::Applied)
 }
 
+#[cfg(feature = "native")]
 pub fn resume_apply(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
-    let home = NativeStateHome::new(request.state_dir.clone());
+    let home = state_home::NativeStateHome::new(request.state_dir.clone());
     let Some(saved) = Journal::load_from(&home)? else {
         return Err(SyncError::Journal {
             detail: "there is no journal to resume".to_owned(),
@@ -149,7 +163,9 @@ pub fn resume_apply(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
             detail: "resumable journal has no files".to_owned(),
         });
     }
-    apply_plan_with(&home, &request)
+    let canonical = request.root.canonicalize().map_err(SyncError::io)?;
+    crate::fsutil::require_real_dir(&canonical)?;
+    apply_plan_with(&muninn_core::FsStore::new(canonical), &home, &request)
 }
 
 fn journal_files(writes: &[ApplyWrite], deletes: &[ApplyDelete]) -> Vec<JournalFile> {
@@ -177,10 +193,10 @@ fn journal_files(writes: &[ApplyWrite], deletes: &[ApplyDelete]) -> Vec<JournalF
     files
 }
 
-fn preflight(root: &Path, journal: &Journal) -> Result<(), SyncError> {
+fn preflight(store: &dyn VaultStore, journal: &Journal) -> Result<(), SyncError> {
     for file in &journal.files {
         let path = RelativePath::parse(&file.path)?;
-        let current = file_hash(root, &path)?;
+        let current = file_hash_with(store, &path)?;
         let expected = match file.step {
             FileStep::Done => file.after.as_deref(),
             FileStep::Pending | FileStep::Checkpointed => file.before.as_deref(),
@@ -199,8 +215,8 @@ fn preflight(root: &Path, journal: &Journal) -> Result<(), SyncError> {
 }
 
 fn checkpoint_one(
+    store: &dyn VaultStore,
     home: &dyn StateHome,
-    dir: &RootDir,
     journal: &mut Journal,
     index: usize,
 ) -> Result<(), SyncError> {
@@ -209,7 +225,7 @@ fn checkpoint_one(
     }
     let path = RelativePath::parse(&journal.files[index].path)?;
     if journal.files[index].before.is_some() {
-        let bytes = dir.read_file(&path, crate::limits::DEFAULT_LIMITS.max_file_bytes)?;
+        let bytes = read_tracked_file(store, &path, crate::limits::DEFAULT_LIMITS.max_file_bytes)?;
         let key = state_home::checkpoint_key(&journal.files[index].path);
         home.put(&key, &bytes).map_err(SyncError::io)?;
         // The journal still records a path relative to the state dir: the
@@ -222,9 +238,9 @@ fn checkpoint_one(
 }
 
 fn replace_one(
+    store: &dyn VaultStore,
     home: &dyn StateHome,
     request: &ApplyRequest,
-    dir: &RootDir,
     journal: &mut Journal,
     index: usize,
 ) -> Result<(), SyncError> {
@@ -245,12 +261,64 @@ fn replace_one(
                     detail: format!("staged bytes for {path} do not match the journal"),
                 });
             }
-            dir.write_file(&path, &write.bytes)?;
+            write_vault_file(store, &path, &write.bytes)?;
         }
-        FileAction::Delete => dir.remove_file(&path)?,
+        FileAction::Delete => remove_vault_file(store, &path)?,
     }
     journal.files[index].step = FileStep::Done;
     journal.store_from(home)
+}
+
+/// Replace one vault file: create the folders the path implies, refuse to
+/// replace a folder or a link, then write atomically through the store.
+fn write_vault_file(
+    store: &dyn VaultStore,
+    rel: &RelativePath,
+    bytes: &[u8],
+) -> Result<(), SyncError> {
+    if let Some(parent) = rel.parent() {
+        store
+            .create_dir_all(&parent.under(store.root()))
+            .map_err(SyncError::io)?;
+    }
+    let path = rel.under(store.root());
+    match store.symlink_metadata(&path) {
+        Ok(meta) if meta.symlink => {
+            return Err(SyncError::Unsupported {
+                path: rel.to_string(),
+                detail: "symlink".to_owned(),
+            });
+        }
+        Ok(meta) if !meta.is_file() => {
+            return Err(SyncError::Unsupported {
+                path: rel.to_string(),
+                detail: "refusing to replace a non-file".to_owned(),
+            });
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(SyncError::io(error)),
+    }
+    store.write_atomic(&path, bytes).map_err(SyncError::io)
+}
+
+/// Remove one vault file. A missing file is success; a folder, link, or hard
+/// link is refused.
+fn remove_vault_file(store: &dyn VaultStore, rel: &RelativePath) -> Result<(), SyncError> {
+    let path = rel.under(store.root());
+    match store.symlink_metadata(&path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(SyncError::io(error)),
+        Ok(meta) if meta.symlink => Err(SyncError::Unsupported {
+            path: rel.to_string(),
+            detail: "symlink".to_owned(),
+        }),
+        Ok(meta) if !meta.is_file() || meta.links > 1 => Err(SyncError::Unsupported {
+            path: rel.to_string(),
+            detail: "refusing to delete a directory, link, or hard link".to_owned(),
+        }),
+        Ok(_) => store.remove_file(&path).map_err(SyncError::io),
+    }
 }
 
 #[cfg(test)]
@@ -259,6 +327,7 @@ mod tests {
     use crate::journal::JournalPhase;
     use crate::model::{BindingId, ContentHash, OperationId, RunId};
     use std::fs;
+    use std::path::PathBuf;
 
     fn scratch(name: &str) -> PathBuf {
         let path = std::env::temp_dir().join(format!(
@@ -394,6 +463,44 @@ mod tests {
         let saved = Journal::load(&state).unwrap().unwrap();
         let checkpoint = state.join(saved.files[0].checkpoint.as_ref().unwrap());
         assert_eq!(fs::read_to_string(checkpoint).unwrap(), "body");
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&state);
+    }
+
+    /// The store path writes a new nested file with exactly the bytes and the
+    /// path the plan names, creates its folder, and leaves no temp file behind.
+    #[test]
+    fn a_store_apply_writes_the_planned_bytes_and_path() {
+        let root = scratch("store-root");
+        let state = scratch("store-state");
+        let store = muninn_core::FsStore::new(root.canonicalize().unwrap());
+        let home = state_home::NativeStateHome::new(state.clone());
+        let bytes = b"# New\n\nbody\n".to_vec();
+        let request = ApplyRequest {
+            root: root.clone(),
+            state_dir: state.clone(),
+            journal: journal(),
+            writes: vec![ApplyWrite {
+                path: RelativePath::parse("notes/deep/New.md").unwrap(),
+                before: None,
+                after: ContentHash::of(&bytes),
+                bytes: bytes.clone(),
+            }],
+            deletes: Vec::new(),
+            protected: BTreeSet::new(),
+            fault_after_checkpoint: None,
+            fault_after_files: None,
+        };
+        assert_eq!(
+            apply_plan_with(&store, &home, &request).unwrap(),
+            ApplyOutcome::Applied
+        );
+        assert_eq!(fs::read(root.join("notes/deep/New.md")).unwrap(), bytes);
+        let names: Vec<_> = fs::read_dir(root.join("notes/deep"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["New.md"], "no temp file is left behind");
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(&state);
     }
