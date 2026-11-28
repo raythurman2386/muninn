@@ -2478,6 +2478,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "muninn-sync-worker"
+version = "0.11.5"
+dependencies = [
+ "js-sys",
+ "muninn-core",
+ "muninn-sync",
+ "muninn-web",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "muninn-ui"
 version = "0.11.5"
 dependencies = [

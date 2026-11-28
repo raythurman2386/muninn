@@ -19,11 +19,12 @@
 //!   the poll loop drives,
 //! - the `#[wasm_bindgen(start)]` entry that boots asynchronously, then runs
 //!   the same `AppSpec` + Rune call the native binary runs.
-//! - [`sync_protocol`] and [`sync_wire`]: the page↔worker message contract and
-//!   the pure wire helpers for slice 8a's browser sync, tested natively; the
-//!   wasm-only `sync` module holds the worker's transport, state home, sleeper
-//!   and credential store. See its docs for the one seam still missing before
-//!   the engine can run in a worker.
+//! - [`sync_protocol`], [`sync_spawn`] and [`sync_wire`]: the page↔worker
+//!   message contract, the native-tested spawn state machine and the pure wire
+//!   helpers for slice 8a's browser sync. `page_sync` is the wasm glue that
+//!   spawns the dedicated worker; the worker's own bundle, transport, OPFS
+//!   stores and engine entry live in the `muninn-sync-worker` crate, so the
+//!   page's `app_bg.wasm` never carries them.
 //!
 //! Edits, renames, moves and deletes now land in the store and survive a
 //! reload. Between flushes OPFS lags the mirror: that window is the crash
@@ -38,10 +39,11 @@ mod sample;
 mod state_home;
 mod store;
 pub mod sync_protocol;
+pub mod sync_spawn;
 pub mod sync_state;
 pub mod sync_wire;
 pub mod transfer;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod web_transfer;
 pub mod zip;
 
@@ -51,12 +53,18 @@ pub use store::{FlushPlan, OpfsStore};
 pub use transfer::{ArchiveEntry, TransferError};
 
 #[cfg(target_arch = "wasm32")]
+mod web_lock;
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod opfs;
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+pub mod page_sync;
 
 #[cfg(all(target_arch = "wasm32", feature = "worker"))]
 pub mod sync;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod web {
     use std::cell::RefCell;
     use std::path::PathBuf;

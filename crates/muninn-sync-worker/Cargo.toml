@@ -1,0 +1,49 @@
+[package]
+name = "muninn-sync-worker"
+description = "Muninn's browser sync worker: the OPFS vault store, request mapping and wasm entry."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+# `cdylib` for the worker's second wasm-bindgen bundle, `rlib` so the portable
+# half (the vault mirror, the request mapping, the report mapping) is linked
+# and tested as an ordinary crate.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The vault seam: VaultStore, StoreEntry, StoreMeta. It is never wasm-gated.
+muninn-core.workspace = true
+# The page↔worker contract and, on wasm, the worker's state home, transport,
+# sleeper and run lock. `default-features = false` drops the page's UI and
+# Rune; the target-specific dependency below adds the `worker` surface on wasm.
+muninn-web = { workspace = true, default-features = false }
+serde_json.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# The browser engine surface on wasm; the host (test) build gets the native
+# surface in the `cfg(not(wasm32))` table below. The two never meet, so
+# `native` is never enabled for a wasm build.
+muninn-sync = { workspace = true, default-features = false, features = ["web"] }
+muninn-web = { workspace = true, default-features = false, features = ["worker"] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "FileSystemDirectoryHandle",
+] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Host builds are this crate's tests: the request and report mappings are
+# native-testable, so they compile against the native engine surface (the same
+# feature set the rest of the workspace's tests use).
+muninn-sync.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

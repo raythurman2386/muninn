@@ -37,7 +37,7 @@ impl RunLock {
     /// A short diagnostic when the browser has no Web Locks, when the lock
     /// request fails, or when another tab is already running a sync.
     pub async fn acquire() -> Result<RunLock, String> {
-        let control = crate::opfs::lock_control(SYNC_LOCK_NAME);
+        let control = crate::web_lock::lock_control(SYNC_LOCK_NAME);
         let supported = get(&control, "supported")
             .ok()
             .and_then(|value| value.as_bool())

@@ -23,7 +23,6 @@ use js_sys::{Array, Promise, Reflect};
 use muninn_i18n::{Key, t};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
-use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{
     FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetDirectoryOptions,
@@ -80,7 +79,17 @@ thread_local! {
     static FLUSHING: Cell<bool> = const { Cell::new(false) };
     static NEXT_FLUSH: Cell<f64> = const { Cell::new(0.0) };
     static FLUSH_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
+    /// True while a sync worker owns the vault directory. The poll loop must
+    /// not start a flush then: a sync access handle is exclusive per file
+    /// across contexts, and the page's mirror is stale until the run ends.
+    static SYNC_QUIESCED: Cell<bool> = const { Cell::new(false) };
 }
+
+/// How many drain rounds a sync start will wait for. The UI can edit while a
+/// flush is awaiting, so one round is not always enough; a person typing
+/// continuously through every round leaves the newest edit pending, and the
+/// post-run re-read keeps it rather than dropping it.
+const SYNC_DRAIN_ROUNDS: usize = 8;
 
 /// What [`open`] found. `store` is `None` only when OPFS itself could not be
 /// mounted; the demo then falls back to the embedded sample in memory. `home`
@@ -129,6 +138,9 @@ pub fn deactivate() {
 /// Called once per poll frame by the app wrapper: start a flush when either
 /// journal is dirty and the last one is old enough.
 pub fn schedule_flush() {
+    if SYNC_QUIESCED.with(Cell::get) {
+        return;
+    }
     let Some((store, home, root, state_root)) = session() else {
         return;
     };
@@ -169,6 +181,114 @@ pub fn schedule_flush() {
 /// The last flush failure, for the app wrapper's status bar.
 pub fn take_flush_error() -> Option<String> {
     FLUSH_ERROR.with(|slot| slot.borrow_mut().take())
+}
+
+/// Stop the page's vault flush for a sync run and make OPFS match the mirror.
+///
+/// The sync worker ([`crate::page_sync::spawn`]) calls this before it starts
+/// the worker. It sets the quiesce flag, waits for a flush already scheduled,
+/// then drains the dirty set so the worker reads the person's newest bytes
+/// rather than a stale OPFS. A drain failure aborts the spawn: a sync that
+/// started over stale bytes would mis-plan the vault.
+///
+/// Only the vault journal is drained. The worker writes `muninn-sync-state/`,
+/// a sibling the page never touches, so the page's own state home does not
+/// need to wait.
+///
+/// The flag stays set until [`finish_sync_run`] has re-read OPFS, so no flush
+/// can overwrite the run's result. A failure here puts the flag back: the
+/// page keeps its ordinary write-behind.
+pub(crate) async fn quiesce_for_sync() -> Result<(), String> {
+    if SYNC_QUIESCED.with(Cell::get) {
+        return Err("a sync is already running in this tab".to_owned());
+    }
+    SYNC_QUIESCED.with(|flag| flag.set(true));
+    let result = quiesce_inner().await;
+    if result.is_err() {
+        SYNC_QUIESCED.with(|flag| flag.set(false));
+    }
+    result
+}
+
+async fn quiesce_inner() -> Result<(), String> {
+    let Some((store, _home, root, _state_root)) = session() else {
+        return Err("the browser vault is not open for writing, so it cannot sync".to_owned());
+    };
+    if !store.is_writable() {
+        return Err(read_only_message().to_owned());
+    }
+    // A flush that started before the flag went up still holds a writable
+    // stream on the same directory; wait it out before the worker opens a
+    // sync access handle. `next_task` yields to the browser, so the flush's
+    // own continuation runs.
+    while FLUSHING.with(Cell::get) {
+        next_task().await;
+    }
+    for _ in 0..SYNC_DRAIN_ROUNDS {
+        if !store.has_dirty() {
+            return Ok(());
+        }
+        flush_store(&store, &root).await?;
+    }
+    Ok(())
+}
+
+/// The sync run is over: re-read OPFS into the page's mirror, then resume the
+/// flush.
+///
+/// The worker may have replaced, created or deleted files under `muninn-vault/`
+/// while the page's mirror still held the pre-run vault. [`OpfsStore::resnapshot`]
+/// differs the mirror against the walk and keeps any path the person edited
+/// during the run, so the next flush does not drop that edit.
+pub(crate) fn finish_sync_run() {
+    spawn_local(async {
+        if let Err(error) = resnapshot_vault().await {
+            // The mirror is stale but OPFS is the source of truth; the next
+            // boot re-reads it. Surfacing beats failing silently.
+            web_sys::console::error_1(
+                &format!("muninn: the vault could not be re-read after sync: {error}").into(),
+            );
+        }
+        SYNC_QUIESCED.with(|flag| flag.set(false));
+    });
+}
+
+async fn resnapshot_vault() -> Result<(), String> {
+    let Some((store, _home, root, _state_root)) = session() else {
+        return Ok(());
+    };
+    let mut entries = Vec::new();
+    let mut dirs = Vec::new();
+    walk(&root, "", &mut entries, &mut dirs)
+        .await
+        .map_err(js_message)?;
+    // The first-run marker is page bookkeeping, not vault content; the boot
+    // leaves it out of the mirror, so the re-read does too. The sync
+    // inventory would otherwise list it as an exclusion.
+    let files = entries
+        .into_iter()
+        .filter(|entry| entry.rel != MARKER_REL)
+        .map(|entry| (entry.rel, entry.bytes))
+        .collect();
+    store.resnapshot(files, dirs);
+    Ok(())
+}
+
+/// Yield to the browser's task queue once. A `setTimeout(0)` promise keeps
+/// the wait out of a spin: the flush continuation is a queued task of its
+/// own and needs the event loop to run.
+async fn next_task() {
+    let promise = js_sys::Promise::new(&mut |resolve, _| {
+        let Some(set_timeout) = get(&js_sys::global(), "setTimeout")
+            .ok()
+            .and_then(|value| value.dyn_into::<js_sys::Function>().ok())
+        else {
+            let _ = resolve.call0(&JsValue::UNDEFINED);
+            return;
+        };
+        let _ = set_timeout.call2(&JsValue::UNDEFINED, &resolve, &JsValue::from_f64(0.0));
+    });
+    let _ = JsFuture::from(promise).await;
 }
 
 /// The origin-private root, the parent of the vault's own folder.
@@ -384,7 +504,7 @@ struct Lock {
 }
 
 async fn acquire_write_lock(name: &str) -> Lock {
-    let control = lock_control(name);
+    let control = crate::web_lock::lock_control(name);
     let supported = get(&control, "supported")
         .ok()
         .and_then(|value| value.as_bool())
@@ -702,44 +822,4 @@ fn js_message(error: JsValue) -> String {
         .ok()
         .and_then(|value| value.as_string())
         .unwrap_or_else(|| format!("{error:?}"))
-}
-
-/// The Web Lock control object, in JS because `LockManager` is still behind
-/// web-sys's unstable-API cfg. The callback keeps the lock for the page by
-/// returning a promise that only resolves on [`release`]; `ifAvailable` makes
-/// the second tab fail fast instead of waiting.
-#[wasm_bindgen(inline_js = r#"
-export function muninn_lock(name) {
-  let grant;
-  const acquired = new Promise((resolve) => { grant = resolve; });
-  let lose;
-  const lost = new Promise((resolve) => { lose = resolve; });
-  const control = { acquired, lost, release: null, supported: false };
-  control.supported = !!(navigator.locks && navigator.locks.request);
-  if (!control.supported) {
-    grant(false);
-    return control;
-  }
-  try {
-    navigator.locks.request(name, { mode: "exclusive", ifAvailable: true }, (lock) => {
-      if (!lock) {
-        grant(false);
-        return;
-      }
-      grant(true);
-      return new Promise((resolve) => {
-        control.release = () => { lose(); resolve(); };
-      });
-    }).catch(() => grant(false));
-  } catch (_) {
-    grant(false);
-  }
-  return control;
-}
-"#)]
-extern "C" {
-    // Shared with the sync worker's run lock (`crate::sync::lock`): both want
-    // the same fail-fast Web Lock control object.
-    #[wasm_bindgen(js_name = muninn_lock)]
-    pub(crate) fn lock_control(name: &str) -> JsValue;
 }

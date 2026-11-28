@@ -235,12 +235,18 @@ inventory, local reads and apply write only through the store; the test suite
 runs a full round against `MemoryStore` + `MemoryStateHome` with an empty
 `state_dir`, which would fail at the first `std::fs` call.
 
-Not landed: the **worker entry** that maps a `Run` message onto
-`run_sync_with_parts`. That is now a thin message loop over the machinery above:
-parse the request, take the Web Lock lease (`muninn-web`'s `RunLock` behind
-`SyncLease`), pass the OPFS vault store, the OPFS state home and the
-`GitHubScope`, then flush state after the run. §10's Tailscale question is
-unaffected.
+Landed in 8a-entry: the **worker entry** that maps a `Run` message onto
+`run_sync_with_parts`, plus the worker-side vault store. It is a second
+wasm-bindgen bundle (`muninn-sync-worker`, built by `scripts/web-build.sh`
+beside the page as `worker.js` + `worker/`) so the page's `app_bg.wasm` never
+grows by the engine. The worker takes the named Web Lock before the blocking
+call, walks `muninn-vault/` into a synchronous, case-sensitive mirror, passes
+that mirror, the `muninn-sync-state/` home and a `SyncLease` over the held
+lock to the engine, then flushes the vault and the state with sync access
+handles and exits. The page half is `muninn_web::page_sync::spawn`: it
+quiesces the page's vault flush, drains it, spawns the worker, relays events,
+and re-reads OPFS into the page's mirror when the run ends (keeping any edit
+made while it was in flight). §10's Tailscale question is unaffected.
 
 Two smaller recorded differences of the web twin:
 
@@ -260,6 +266,13 @@ Two smaller recorded differences of the web twin:
   killed mid-run loses that run's state writes (the previous flush survives);
   a later slice can pre-open handles for the four fixed keys to narrow that
   window. The browser's live sync gate (8b) must include a mid-run reload.
+- **Vault durability.** The worker's vault store is the same mirror shape, and
+  the run's vault writes reach OPFS only in the end-of-run flush (vault first,
+  then state). A worker killed mid-run therefore leaves the vault exactly as
+  the run found it; terminating the worker is the immediate cancel. The flush
+  itself is per-file (truncate + write through one sync handle), not a
+  transactional directory rename, so a crash inside it can leave a partial
+  file that the next run treats as a local change and replans.
 
 ### 10. Tailscale parity — the open decision.
 

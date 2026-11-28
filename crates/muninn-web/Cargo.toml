@@ -23,6 +23,9 @@ muninn-i18n.workspace = true
 # The page↔worker message contract (`sync_protocol`) is shared by the wasm
 # worker and the native tests, so serde is a plain dependency.
 serde = { version = "1", features = ["derive"] }
+# The page↔worker message contract is JSON, and the spawn state machine
+# encodes/decodes it in the portable half (so it is native-tested too).
+serde_json.workspace = true
 
 # Everything below is the browser build: the UI, Rune and the wasm entry. A
 # native `cargo test -p muninn-web` builds neither, so the demo cannot pull the
@@ -30,9 +33,11 @@ serde = { version = "1", features = ["derive"] }
 # dev-dependency (below), used only by the state-key equality test; it is never
 # linked into this crate's wasm build, which uses the `web` feature instead.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-# `default-features = false` is the browser configuration from slice 4: no
-# tray, autostart, sync transports, native dialogs, fs watcher or self-update.
-muninn-ui = { workspace = true, default-features = false }
+# The page (the `page` feature) is `default-features = false` muninn-ui from
+# slice 4: no tray, autostart, sync transports, native dialogs, fs watcher or
+# self-update. Optional so the worker build (`--no-default-features --features
+# worker`) never links the shared UI or Rune at all.
+muninn-ui = { workspace = true, default-features = false, optional = true }
 # The PAT sync transport surface (slice 8a): the GitHub client, the HTTP
 # boundary and its status mapping, the credential contract and the state-key
 # table. `web` never enables the native engine, keyring or Desktop secret.
@@ -40,8 +45,8 @@ muninn-sync = { workspace = true, default-features = false, features = ["web"] }
 # `webgl` is Rune's WebGL2 fallback for browsers without WebGPU, the coverage
 # the slice-5 gate measures. `hot` and `native-file-dialog` stay off (off by
 # default) so no devtools or native dialog code reaches the bundle.
-rune = { workspace = true, features = ["webgl"] }
-rune-theme-opencode.workspace = true
+rune = { workspace = true, features = ["webgl"], optional = true }
+rune-theme-opencode = { workspace = true, optional = true }
 # The spec Rune's own wasm crates resolve (Cargo.lock: 0.2.130); the build
 # script reads the exact version from the lock and checks the CLI matches.
 wasm-bindgen = "0.2"
@@ -56,6 +61,7 @@ web-sys = { version = "0.3", features = [
     "console",
     "Document",
     "Element",
+    "Event",
     "FileSystemDirectoryHandle",
     "FileSystemFileHandle",
     "FileSystemGetDirectoryOptions",
@@ -66,10 +72,14 @@ web-sys = { version = "0.3", features = [
     "FileSystemRemoveOptions",
     "FileSystemSyncAccessHandle",
     "FileSystemWritableFileStream",
+    "MessageEvent",
     "Navigator",
     "StorageManager",
     "Window",
+    "Worker",
     "WorkerNavigator",
+    "WorkerOptions",
+    "WorkerType",
     "WritableStream",
     "XmlHttpRequest",
     "XmlHttpRequestResponseType",
@@ -81,16 +91,21 @@ wasm-bindgen-futures = "0.4"
 workspace = true
 
 [features]
-# Compile the browser sync worker's transport surface (slice 8a): sync XHR,
-# the OPFS state home, the Atomics sleeper and the run-scoped credential
-# store. Off by default so the page bundle does not carry machinery it does
-# not call; the worker entry and `xtask wasm-check` turn it on.
+# The page build: the Rune application, the OPFS boot, export/import and the
+# wasm entry. On by default, so `cargo build -p muninn-web` is the page bundle.
+# The sync worker crate turns it off and enables `worker` instead, which keeps
+# the page's UI and Rune out of the worker's wasm.
+default = ["page"]
+page = ["dep:muninn-ui", "dep:rune", "dep:rune-theme-opencode"]
+# Compile the browser sync worker's shared surface (slice 8a): sync XHR, the
+# OPFS state home, the Atomics sleeper, the run Web Lock and the shared OPFS
+# primitives. Off by default so the page bundle does not carry machinery it
+# does not call; the `muninn-sync-worker` crate and `xtask wasm-check` turn it
+# on.
 worker = []
 
 [dev-dependencies]
-# The message contract's round-trip tests and the sync state-key equality test
-# need only the host build. `muninn-sync` here is the native build: its
-# state-key functions and `NativeStateHome` are what the wasm worker's keys
-# must match key-for-key.
-serde_json.workspace = true
+# The sync state-key equality test needs only the host build. `muninn-sync`
+# here is the native build: its state-key functions and `NativeStateHome` are
+# what the wasm worker's keys must match key-for-key.
 muninn-sync.workspace = true
