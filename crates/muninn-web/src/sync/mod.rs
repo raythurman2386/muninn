@@ -6,28 +6,15 @@
 //!
 //! - **sync XHR** for the provider calls ([`transport::WebTransport`]), and
 //! - **synchronous OPFS access handles** for the run's state files
-//!   ([`state_home`]).
+//!   ([`state_home`]) and for the vault ([`opfs_util`] plus the worker crate's
+//!   `vault` module).
 //!
-//! This module is that machinery. `sync_protocol` is the message contract
-//! between the page and the worker; the pieces here are the worker half.
-//!
-//! # What this slice does and does not wire
-//!
-//! This slice compiles and tests the transport, the state home, the run-scoped
-//! credential store and the sleeper for `wasm32-unknown-unknown`. It does
-//! **not** ship the worker entry that maps a `Run` message onto the engine.
-//! The vault seam that entry needs has landed (`muninn-sync` 8a-vault): the
-//! engine takes a `&dyn VaultStore`, a `&dyn StateHome` and a `&dyn SyncLease`
-//! through `run_sync_with_parts`, and `RunRequest.root` is only a label there.
-//! The entry will pass this worker's OPFS vault store, [`state_home`], and a
-//! `SyncLease` over [`lock::RunLock`]; until that lands, a run has nothing to
-//! drive it.
-//!
-//! The state home has a second, smaller honesty note: `StateHome` is
-//! synchronous and `createSyncAccessHandle()` is a Promise. The mirror below
-//! therefore answers the engine synchronously and flushes with sync handles
-//! when the run yields; the durability window is documented on
-//! [`state_home::SyncStateHome`].
+//! `sync_protocol` is the message contract between the page and the worker.
+//! The worker entry itself lives in the `muninn-sync-worker` crate: a second
+//! wasm-bindgen bundle so the page's `app_bg.wasm` never grows by the engine
+//! or this machinery. This module is the shared half the worker crate calls:
+//! the state home, the transport, the sleeper, the run lock and the OPFS
+//! primitives.
 //!
 //! # The lease
 //!
@@ -39,11 +26,20 @@
 //! It is fail-fast (`ifAvailable`), matching the vault's boot lock: a second
 //! tab is told a run is already in progress instead of silently queueing.
 //! There is no long-lived lease and no lock file; a worker that dies drops the
-//! lock with its document.
+//! lock with its document. The worker's `entry` module wraps a held
+//! [`lock::RunLock`] in the engine's `SyncLease` and takes it **before** the
+//! blocking `run_sync_with_parts` call, because Web Locks are asynchronous.
+//!
+//! # Durability
+//!
+//! `StateHome` is synchronous and `createSyncAccessHandle()` is a Promise. The
+//! state home and the vault store therefore answer the engine from memory
+//! mirrors and flush with sync handles when the run ends; the windows are
+//! documented on [`state_home::SyncStateHome`] and the worker crate's `vault`
+//! module.
 
-pub mod credentials;
 pub mod lock;
-pub mod request;
+pub mod opfs_util;
 pub mod sleeper;
 pub mod state_home;
 pub mod transport;

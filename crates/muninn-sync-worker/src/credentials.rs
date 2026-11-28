@@ -3,8 +3,8 @@
 //!
 //! The page receives the personal access token from the person (slice 8b owns
 //! that UI) and sends it in the run request. The worker keeps it in this store
-//! for the duration of the run; the store is dropped when the message handler
-//! returns, and [`muninn_sync::Secret`]'s `Drop` wipes each token's bytes.
+//! for the duration of the run; the store is dropped when the run ends, and
+//! [`muninn_sync::Secret`]'s `Drop` wipes each token's bytes.
 //!
 //! This is deliberately *not* `muninn_sync::MemoryCredentialStore`: that store
 //! serialises a token to a JSON `String` so it can mirror the OS keyring's

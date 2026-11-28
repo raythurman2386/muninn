@@ -122,6 +122,99 @@ impl OpfsStore {
         }
     }
 
+    /// Re-read the vault from an OPFS snapshot taken by another writer (the
+    /// sync worker), keeping every path with a pending local write.
+    ///
+    /// The sync worker replaces this mirror as the vault's writer for the
+    /// length of a run: it reads OPFS, applies the run's changes there, and
+    /// the page's mirror is stale afterwards. The caller quiesces the flush,
+    /// walks OPFS, and passes the result here. Because the UI can still edit
+    /// while a run is in flight, a path with a pending write — or any path
+    /// under a dirty folder — keeps the page's bytes and stays dirty, so the
+    /// next flush writes the person's edit over the run's result; the next
+    /// sync then sees a local change and reconciles it. Nothing is dropped.
+    ///
+    /// Paths without a pending write take the snapshot's state, including
+    /// deletions: a file the run removed from OPFS disappears from the mirror.
+    ///
+    /// No await happens between reading the dirty set and finishing the swap,
+    /// so an edit cannot land halfway through on the single browser thread.
+    ///
+    /// Returns how many pending paths were preserved.
+    pub fn resnapshot(&self, files: Vec<(String, Vec<u8>)>, dirs: Vec<String>) -> usize {
+        let dirty = self.dirty().clone();
+        let affected = |rel: &str| {
+            dirty.iter().any(|pending| {
+                rel == pending
+                    || rel
+                        .strip_prefix(pending)
+                        .is_some_and(|rest| rest.starts_with('/'))
+                    || pending
+                        .strip_prefix(rel)
+                        .is_some_and(|rest| rest.starts_with('/'))
+            })
+        };
+        let snapshot_files: std::collections::BTreeMap<String, Vec<u8>> = files
+            .into_iter()
+            .map(|(rel, bytes)| (normalise_rel(&rel), bytes))
+            .collect();
+        let mut snapshot_dirs: BTreeSet<String> = dirs
+            .into_iter()
+            .map(|rel| normalise_rel(&rel))
+            .filter(|rel| !rel.is_empty())
+            .collect();
+        // Every file implies its parents; a walk that started at the root also
+        // lists them, but keep the mirror's shape independent of walk details.
+        for rel in snapshot_files.keys() {
+            let mut parent = rel.rsplit_once('/').map(|(parent, _)| parent.to_owned());
+            while let Some(dir) = parent {
+                snapshot_dirs.insert(dir.clone());
+                parent = dir.rsplit_once('/').map(|(parent, _)| parent.to_owned());
+            }
+        }
+
+        let (current_files, current_dirs) = self.collect_all();
+        for (rel, bytes) in &snapshot_files {
+            if affected(rel) {
+                continue;
+            }
+            if self.mirror.read_bytes(rel).as_deref() != Some(bytes.as_slice()) {
+                self.mirror.put_file(rel, bytes);
+            }
+        }
+        for rel in current_files {
+            if snapshot_files.contains_key(&rel) || affected(&rel) {
+                continue;
+            }
+            let _ = self.mirror.remove_file(&self.mirror.root().join(&rel));
+        }
+        for rel in &snapshot_dirs {
+            if affected(rel) || self.mirror.is_dir(&self.mirror.root().join(rel)) {
+                continue;
+            }
+            let _ = self.mirror.create_dir_all(&self.mirror.root().join(rel));
+        }
+        let mut stale: Vec<String> = current_dirs
+            .into_iter()
+            .filter(|rel| !snapshot_dirs.contains(rel) && !affected(rel))
+            .collect();
+        // Deepest first: a removed child folder must not keep its parent
+        // non-empty when the parent itself is going away.
+        stale.sort_by(|a, b| depth(b).cmp(&depth(a)).then_with(|| b.cmp(a)));
+        for rel in stale {
+            let _ = self.mirror.remove_dir(&self.mirror.root().join(&rel));
+        }
+        dirty.len()
+    }
+
+    /// Every file and folder in the mirror, as vault-relative paths.
+    fn collect_all(&self) -> (Vec<String>, Vec<String>) {
+        let mut files = Vec::new();
+        let mut dirs = Vec::new();
+        collect_mirror(&self.mirror, "", &mut files, &mut dirs);
+        (files, dirs)
+    }
+
     fn dirty(&self) -> std::sync::MutexGuard<'_, BTreeSet<String>> {
         self.dirty
             .lock()
@@ -341,6 +434,29 @@ impl FlushPlan {
 
 fn depth(rel: &str) -> usize {
     rel.split('/').filter(|part| !part.is_empty()).count()
+}
+
+/// Collect every file and folder below `rel` in the mirror, spelling each
+/// entry as a `/`-separated vault-relative path.
+fn collect_mirror(store: &MemoryStore, rel: &str, files: &mut Vec<String>, dirs: &mut Vec<String>) {
+    let Ok(entries) = store.read_dir(&store.root().join(rel)) else {
+        return;
+    };
+    for entry in entries {
+        let name = entry.name.to_string_lossy();
+        let child = if rel.is_empty() {
+            name.into_owned()
+        } else {
+            format!("{rel}/{name}")
+        };
+        match entry.kind {
+            EntryKind::Dir => {
+                dirs.push(child.clone());
+                collect_mirror(store, &child, files, dirs);
+            }
+            EntryKind::File => files.push(child),
+        }
+    }
 }
 
 /// Normalise a caller-supplied relative path the way [`MemoryStore`] does:
@@ -620,5 +736,89 @@ mod tests {
             .unwrap();
         let plan = store.take_flush_plan();
         assert_eq!(plan.files, ["A.md"]);
+    }
+
+    #[test]
+    fn a_resnapshot_applies_the_workers_changes_and_keeps_pending_edits() {
+        let store = store();
+        store.load("Notes/One.md", b"one");
+        store.load("Notes/Two.md", b"two");
+        store.load("Gone.md", b"gone");
+        store.load_dir("Empty");
+
+        // The person edits Two.md while the worker runs; the page's dirty
+        // journal holds it but it has not reached OPFS.
+        store
+            .write_atomic(&store.root().join("Notes/Two.md"), b"local edit")
+            .unwrap();
+
+        // What the worker left in OPFS: One.md pulled from the remote, a new
+        // Three.md, Gone.md deleted, and the empty folder gone.
+        let files = vec![
+            ("Notes/One.md".to_owned(), b"one from remote".to_vec()),
+            ("Notes/Three.md".to_owned(), b"three".to_vec()),
+        ];
+        let dirs = vec!["Notes".to_owned()];
+        let preserved = store.resnapshot(files, dirs);
+        assert_eq!(preserved, 1, "the pending edit is counted");
+
+        let root = store.root();
+        assert_eq!(
+            store.read_to_string(&root.join("Notes/One.md")).unwrap(),
+            "one from remote"
+        );
+        assert_eq!(
+            store.read_to_string(&root.join("Notes/Three.md")).unwrap(),
+            "three"
+        );
+        assert_eq!(
+            store.read_to_string(&root.join("Notes/Two.md")).unwrap(),
+            "local edit",
+            "a pending write wins over the run's result"
+        );
+        assert!(
+            !store.exists(&root.join("Gone.md")),
+            "the run's delete lands"
+        );
+        assert!(!store.exists(&root.join("Empty")), "a removed folder goes");
+        // The pending edit is still dirty, so the next flush writes it over
+        // the worker's OPFS bytes; nothing else is re-dirtied.
+        let plan = store.take_flush_plan();
+        assert_eq!(plan.files, ["Notes/Two.md"]);
+        assert!(plan.removals.is_empty());
+        assert!(plan.dirs.is_empty());
+    }
+
+    #[test]
+    fn a_resnapshot_keeps_a_pending_folder_rename_whole() {
+        let store = store();
+        store.load("Old/Note.md", b"note");
+        store.load("Other.md", b"other");
+        store
+            .rename(&store.root().join("Old"), &store.root().join("New"))
+            .expect("a folder rename");
+
+        // The worker saw the old spelling and also pulled Other.md.
+        let files = vec![
+            ("Old/Note.md".to_owned(), b"stale".to_vec()),
+            ("Other.md".to_owned(), b"remote".to_vec()),
+        ];
+        store.resnapshot(files, vec!["Old".to_owned()]);
+
+        let root = store.root();
+        assert_eq!(
+            store.read_to_string(&root.join("New/Note.md")).unwrap(),
+            "note",
+            "the pending rename keeps its subtree"
+        );
+        assert!(
+            !store.exists(&root.join("Old/Note.md")),
+            "the old spelling does not come back"
+        );
+        assert_eq!(
+            store.read_to_string(&root.join("Other.md")).unwrap(),
+            "remote",
+            "an untouched path takes the run's bytes"
+        );
     }
 }

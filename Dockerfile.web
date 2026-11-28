@@ -14,7 +14,8 @@
 #
 # Nothing is prebuilt. target/web is ignored by git and by .dockerignore, and
 # scripts/web-build.sh writes the whole bundle (index.html, app.js,
-# app_bg.wasm, the Inter faces, snippets/) inside stage 1. The build needs
+# app_bg.wasm, the Inter faces, snippets/, and the sync worker's worker.js and
+# worker/ folder) inside stage 1. The build needs
 # network access: crates.io, the pinned Rune revision on GitHub, and the
 # wasm-bindgen CLI from crates.io.
 
@@ -69,13 +70,14 @@ COPY web ./web
 # in a clean image. This is also the only step that touches native-only crates.
 RUN cargo fetch --locked
 
-# Build the bundle, then pre-compress the two files that dominate the
-# download (app_bg.wasm is ~15 MB raw / ~5.6 MB gzip; app.js is the
-# wasm-bindgen glue). nginx's gzip_static serves the .gz without per-request
-# CPU. The CSP snippet is generated from this exact index.html last, so its
-# inline-script hash belongs to the bytes being served.
+# Build the bundle, then pre-compress the files that dominate the download
+# (app_bg.wasm is ~15 MB raw / ~5.6 MB gzip; app.js is the wasm-bindgen glue;
+# the sync worker's wasm is its own, smaller, bundle). nginx's gzip_static
+# serves the .gz without per-request CPU. The CSP snippet is generated from
+# this exact index.html last, so its inline-script hash belongs to the bytes
+# being served.
 RUN bash scripts/web-build.sh muninn-web --out /out \
- && gzip -9 -k /out/app_bg.wasm /out/app.js \
+ && gzip -9 -k /out/app_bg.wasm /out/app.js /out/worker/sync_worker_bg.wasm /out/worker/sync_worker.js \
  && python3 web/nginx/csp-hash.py --html /out/index.html --out /src/security-headers.conf
 
 # nginx:1.30-alpine, pinned by index digest (multi-arch). Same digest as

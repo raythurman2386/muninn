@@ -206,6 +206,15 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
         "muninn-web",
         BTreeSet::from(["muninn-core", "muninn-i18n", "muninn-sync", "muninn-ui"]),
     );
+    // The browser sync worker (slice 8a-entry): a second wasm-bindgen bundle
+    // over `muninn-web`'s worker machinery (`worker` feature, page off) and
+    // the engine. It is the only crate that links the engine into a worker and
+    // owns the OPFS vault store; the page keeps only the spawn API and the
+    // shared message contract, so `app_bg.wasm` does not grow by this edge.
+    allowed.insert(
+        "muninn-sync-worker",
+        BTreeSet::from(["muninn-core", "muninn-sync", "muninn-web"]),
+    );
     allowed.insert("xtask", BTreeSet::new());
     allowed
 }
@@ -226,8 +235,10 @@ const WASM_TARGET: &str = "wasm32-unknown-unknown";
 /// `--no-default-features` is the browser crate. `muninn-web` is the demo entry
 /// point: all of it is wasm-only, so its `check`/`clippy` need no feature
 /// juggling, and it now includes the sync worker's transport, state home,
-/// sleeper and protocol. This is a compile-only guard; it builds no bundle and
-/// runs nothing in a browser.
+/// sleeper and protocol. `muninn-sync-worker` is the second bundle: the page is
+/// off (`--no-default-features --features worker` for its `muninn-web`
+/// dependency) and the engine-to-worker entry is on. This is a compile-only
+/// guard; it builds no bundle and runs nothing in a browser.
 fn wasm_check() -> Result<()> {
     check_wasm_target()?;
     run_cargo(&[
@@ -369,6 +380,56 @@ fn wasm_check() -> Result<()> {
         "muninn-web",
         "--features",
         "worker",
+        "--target",
+        WASM_TARGET,
+        "--",
+        "-D",
+        "warnings",
+    ])?;
+    // The worker build has the page off (`--no-default-features`): no Rune, no
+    // shared UI, no page boot. This is the feature set the sync worker crate
+    // compiles `muninn-web` with.
+    run_cargo(&[
+        "check",
+        "--locked",
+        "-p",
+        "muninn-web",
+        "--no-default-features",
+        "--features",
+        "worker",
+        "--target",
+        WASM_TARGET,
+    ])?;
+    run_cargo(&[
+        "clippy",
+        "--locked",
+        "-p",
+        "muninn-web",
+        "--no-default-features",
+        "--features",
+        "worker",
+        "--target",
+        WASM_TARGET,
+        "--",
+        "-D",
+        "warnings",
+    ])?;
+    // The worker's own wasm-bindgen bundle (slice 8a-entry): the OPFS vault
+    // store, the message loop and the `run_sync_with_parts` call. Compile-only
+    // like the rest of this check; the browser gate runs it.
+    run_cargo(&[
+        "check",
+        "--locked",
+        "-p",
+        "muninn-sync-worker",
+        "--target",
+        WASM_TARGET,
+    ])?;
+    run_cargo(&[
+        "clippy",
+        "--locked",
+        "-p",
+        "muninn-sync-worker",
         "--target",
         WASM_TARGET,
         "--",
