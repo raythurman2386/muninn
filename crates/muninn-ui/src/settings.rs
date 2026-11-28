@@ -1181,6 +1181,46 @@ mod tests {
         dir
     }
 
+    /// The browser's settings are the desktop's JSON shape (#240 slice 8b): the
+    /// Sync tab's public config round-trips through the state home, and there is
+    /// no place in it for a token.
+    #[test]
+    fn the_browser_settings_round_trip_the_public_sync_config() {
+        let home = muninn_core::MemoryStateHome::new();
+        let settings = Settings {
+            sync: SyncPrefs {
+                vaults: vec![VaultSyncBinding {
+                    identity: "/Muninn sample".to_owned(),
+                    provider: "github".to_owned(),
+                    binding_id: "0123456789abcdef0123456789abcdef".to_owned(),
+                    github_owner: "octocat".to_owned(),
+                    github_repo: "notes".to_owned(),
+                    github_branch: "main".to_owned(),
+                    github_prefix: "vault".to_owned(),
+                    last_success_unix_ms: Some(1_700_000_000_000),
+                    last_head: "abc1234".to_owned(),
+                    ..VaultSyncBinding::default()
+                }],
+                ..SyncPrefs::default()
+            },
+            ..Settings::default()
+        };
+        web_save(Some(&home), &settings).expect("the state home accepts settings");
+        assert_eq!(web_load(Some(&home)), settings);
+        let bytes = home
+            .get(SETTINGS_KEY)
+            .expect("settings.json is in the state home");
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(
+            text.contains("\"github_owner\": \"octocat\""),
+            "the public config is in the same JSON shape as the desktop: {text}"
+        );
+        assert!(
+            !text.contains("token") && !text.contains("secret"),
+            "no credential field belongs in settings.json: {text}"
+        );
+    }
+
     #[test]
     fn settings_round_trip_through_disk() {
         let home = temp_config("round-trip");

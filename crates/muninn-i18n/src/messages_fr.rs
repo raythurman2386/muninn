@@ -167,6 +167,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncConflictCopies => {
             "Une note a changé sur deux appareils\u{a0}; les deux versions ont été conservées\u{a0}: {0}."
         }
+        MsgKey::SyncWebFailed => "Échec de la synchronisation\u{a0}: {0}",
 
         MsgKey::BoardNameTaken => "Un tableau nommé «\u{a0}{0}\u{a0}» existe déjà dans ce dossier",
         MsgKey::NoNoteNamed => "Aucune note nommée «\u{a0}{0}\u{a0}» dans ce coffre",

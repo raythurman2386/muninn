@@ -142,6 +142,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncConflictCopies => {
             "A note changed on two devices; both versions were kept: {0}."
         }
+        MsgKey::SyncWebFailed => "Sync failed: {0}",
 
         MsgKey::BoardNameTaken => "A board named “{0}” is already in this folder",
         MsgKey::NoNoteNamed => "No note named “{0}” in this vault",

@@ -16,6 +16,9 @@ rune.workspace = true
 rune-kit.workspace = true
 rune-theme-opencode.workspace = true
 serde_json.workspace = true
+# The browser's saved PAT (slice 8b). `Zeroizing` wipes the copy that travels
+# to a run; a browser has no OS keychain to keep the token out of the page.
+zeroize = "1"
 
 # Native-only: self-update (blocking HTTP, tarball decompression, checksums)
 # and the two crates whose modules are gated with `native` (sync transports,

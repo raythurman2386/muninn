@@ -285,6 +285,41 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Key rotated; the old key no longer works. On each joined device, Disconnect and join again with the new key (Copy key)."
         }
         Key::SyncStatusCurrentConnectionKept => "The current connection was not changed.",
+        Key::SyncWebHeading => "GitHub sync in this browser",
+        Key::SyncWebHeadingCaption => {
+            "Manual Sync now only, one repository for this browser vault. The token stays in this browser; settings hold the repository, branch and prefix."
+        }
+        Key::SyncWebProviderNote => {
+            "GitHub is the browser's only provider. Google Drive arrives in a later slice; Tailscale stays a desktop-only door."
+        }
+        Key::SyncWebFieldPat => "Personal access token",
+        Key::SyncWebPatCaption => {
+            "Masked, and stored only in this browser's storage: never in settings.json and never in a log. A browser cannot use the OS keychain, so Disconnect removes it; paste it again to reconnect."
+        }
+        Key::SyncWebStatusNotConnected => {
+            "Not connected. Enter the repository and a personal access token, then Connect."
+        }
+        Key::SyncWebStatusConnected => "Connected. Sync now publishes and pulls this vault.",
+        Key::SyncWebStatusDisconnected => {
+            "Disconnected. The repository and the saved token were removed; notes were not."
+        }
+        Key::SyncWebErrorTokenMissing => {
+            "Enter a personal access token before Connect, or paste it again if it was removed."
+        }
+        Key::SyncWebErrorTokenShape => {
+            "A personal access token has no spaces. Paste it exactly as GitHub showed it."
+        }
+        Key::SyncWebErrorBranch => "Enter the branch to sync, for example main.",
+        Key::SyncWebErrorUnavailable => {
+            "Sync needs the browser build; this build has no sync worker."
+        }
+        Key::SyncWebErrorWorker => {
+            "The sync worker stopped unexpectedly. Nothing was written mid-run; Sync now again."
+        }
+        Key::SyncWebErrorBusy => "A sync is already running in another tab.",
+        Key::SyncWebErrorStateUnavailable => {
+            "This browser cannot save the token: its storage is unavailable."
+        }
         Key::SyncErrorVaultNotCanonical => {
             "This vault folder cannot be canonicalized, so it cannot be bound."
         }

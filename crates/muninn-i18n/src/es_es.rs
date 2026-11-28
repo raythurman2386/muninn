@@ -327,6 +327,43 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Clave rotada; la clave anterior ya no funciona. En cada dispositivo unido, pulsa Desconectar y vuelve a unirte con la clave nueva (Copiar clave)."
         }
         Key::SyncStatusCurrentConnectionKept => "La conexión actual no cambió.",
+        Key::SyncWebHeading => "Sincronización con GitHub en este navegador",
+        Key::SyncWebHeadingCaption => {
+            "Solo Sincronizar ahora manual, un repositorio por bóveda del navegador. El token permanece en este navegador; los ajustes guardan el repositorio, la rama y el prefijo."
+        }
+        Key::SyncWebProviderNote => {
+            "GitHub es el único proveedor del navegador. Google Drive llegará en una fase posterior; Tailscale sigue siendo una puerta solo de escritorio."
+        }
+        Key::SyncWebFieldPat => "Token de acceso personal",
+        Key::SyncWebPatCaption => {
+            "Enmascarado y guardado solo en el almacenamiento de este navegador: nunca en settings.json ni en un registro. Un navegador no puede usar el llavero del sistema, así que Desconectar lo elimina. Vuelve a pegarlo para reconectarte."
+        }
+        Key::SyncWebStatusNotConnected => {
+            "Sin conexión. Introduce el repositorio y un token de acceso personal, y pulsa Conectar."
+        }
+        Key::SyncWebStatusConnected => {
+            "Conectado. Sincronizar ahora publica y descarga esta bóveda."
+        }
+        Key::SyncWebStatusDisconnected => {
+            "Desconectado. Se eliminaron el repositorio y el token guardado; las notas no."
+        }
+        Key::SyncWebErrorTokenMissing => {
+            "Introduce un token de acceso personal antes de Conectar, o vuelve a pegarlo si se eliminó."
+        }
+        Key::SyncWebErrorTokenShape => {
+            "Un token de acceso personal no contiene espacios. Pégalo exactamente como lo mostró GitHub."
+        }
+        Key::SyncWebErrorBranch => "Introduce la rama que se va a sincronizar, por ejemplo main.",
+        Key::SyncWebErrorUnavailable => {
+            "La sincronización necesita la versión de navegador; esta versión no tiene worker de sincronización."
+        }
+        Key::SyncWebErrorWorker => {
+            "El worker de sincronización se detuvo de forma inesperada. No se escribió nada durante la ejecución; vuelve a pulsar Sincronizar ahora."
+        }
+        Key::SyncWebErrorBusy => "Ya hay una sincronización en curso en otra pestaña.",
+        Key::SyncWebErrorStateUnavailable => {
+            "Este navegador no puede guardar el token: su almacenamiento no está disponible."
+        }
         Key::SyncErrorVaultNotCanonical => {
             "Esta carpeta de bóveda no se puede canonicalizar, así que no se puede vincular."
         }

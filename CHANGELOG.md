@@ -8,6 +8,24 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- **GitHub sync in the browser: PAT entry, run, status and re-index (#240
+  slice 8b).** The web build's Settings › Sync tab is now a real GitHub sync
+  surface. It shows the repository (owner, repo, branch defaulting to `main`,
+  optional path prefix) and a masked **personal access token** field — no
+  device flow and no hosted service, because GitHub's OAuth endpoints are not
+  CORS-open to page JavaScript. **Connect** validates the fields and saves the
+  public config in `settings.json` (the same JSON shape as the desktop) and the
+  token under `muninn/sync/github-pat` in the browser's own OPFS state home;
+  the token never reaches `settings.json`, a log line or the screen again, and
+  **Disconnect** clears both. **Sync now** spawns the sync worker, streams its
+  events into the status line, and on the terminal event re-indexes the vault
+  from the store mirror (the post-run OPFS re-read has completed first), so
+  pulled notes appear in the list and the open note without a manual reload.
+  Conflicts keep both versions (the engine's default), and the status names the
+  copies. One run at a time: a second Sync now is refused, and Disconnect asks
+  for Cancel first. GitHub is the browser's only provider in this slice; Drive
+  follows in slice 9 and Tailscale stays a desktop-only door. Native builds are
+  unchanged.
 - **The browser vault has a serving image (#240 slice 7).** `Dockerfile.web`
   builds `muninn-web` from source in a Rust stage and serves the static
   bundle from plain nginx on port 80, so the browser vault can be self-hosted

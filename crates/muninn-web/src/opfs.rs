@@ -83,6 +83,11 @@ thread_local! {
     /// not start a flush then: a sync access handle is exclusive per file
     /// across contexts, and the page's mirror is stale until the run ends.
     static SYNC_QUIESCED: Cell<bool> = const { Cell::new(false) };
+    /// True from the terminal event's gate restore until the post-run OPFS
+    /// re-read has finished. The Sync surface must not re-index the vault
+    /// before then: it would index the pre-run mirror and look stale until a
+    /// manual reload.
+    static SYNC_RESNAPSHOT: Cell<bool> = const { Cell::new(false) };
 }
 
 /// How many drain rounds a sync start will wait for. The UI can edit while a
@@ -241,6 +246,7 @@ async fn quiesce_inner() -> Result<(), String> {
 /// differs the mirror against the walk and keeps any path the person edited
 /// during the run, so the next flush does not drop that edit.
 pub(crate) fn finish_sync_run() {
+    SYNC_RESNAPSHOT.with(|flag| flag.set(true));
     spawn_local(async {
         if let Err(error) = resnapshot_vault().await {
             // The mirror is stale but OPFS is the source of truth; the next
@@ -250,7 +256,16 @@ pub(crate) fn finish_sync_run() {
             );
         }
         SYNC_QUIESCED.with(|flag| flag.set(false));
+        SYNC_RESNAPSHOT.with(|flag| flag.set(false));
     });
+}
+
+/// Whether the post-run OPFS re-read is still running.
+///
+/// The Sync surface holds the run's terminal event until this is false, so its
+/// re-index runs against the mirror the worker's result was read into.
+pub(crate) fn sync_resnapshot_pending() -> bool {
+    SYNC_RESNAPSHOT.with(Cell::get)
 }
 
 async fn resnapshot_vault() -> Result<(), String> {

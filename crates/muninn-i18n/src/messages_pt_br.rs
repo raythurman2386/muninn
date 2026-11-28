@@ -158,6 +158,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncConflictCopies => {
             "Uma nota mudou em dois dispositivos; as duas versões foram mantidas: {0}."
         }
+        MsgKey::SyncWebFailed => "Falha na sincronização: {0}",
 
         MsgKey::BoardNameTaken => "Já existe um quadro chamado “{0}” nesta pasta",
         MsgKey::NoNoteNamed => "Não há nenhuma nota chamada “{0}” neste cofre",

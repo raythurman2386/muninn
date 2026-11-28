@@ -206,6 +206,7 @@ messages! {
     SyncExcluded => "msg.sync.excluded", 1;
     SyncConflicts => "msg.sync.conflicts", 2;
     SyncConflictCopies => "msg.sync.conflict_copies", 1;
+    SyncWebFailed => "msg.sync.web_failed", 1;
 
     // ---- Board and links ---------------------------------------------------
     BoardNameTaken => "msg.board.name_taken", 1;

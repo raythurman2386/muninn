@@ -6,10 +6,30 @@
 //! silent rename here would be a UI regression rather than a compile error.
 //!
 //! `Failed.code` is `SyncError::code` — the stable machine string the native
-//! app already keys on — and `Failed.detail` is the error's `Display`, which
-//! may carry the provider's text. The worker never constructs a code of its
-//! own for an engine failure: a fake class would tell 8b a different story
-//! than the desktop.
+//! app already keys on. The worker never constructs a code of its own for an
+//! engine failure: a fake class would tell 8b a different story than the
+//! desktop.
+//!
+//! # `Failed.detail`: the inner detail, not the `Display` rendering
+//!
+//! The page maps `code` to a catalogued phrase and interpolates `detail` as
+//! data, exactly as the desktop's `sync_ui::sync_error_text` interpolates the
+//! variant's field. The desktop passes the **raw inner detail** (`Auth {
+//! detail }` → `sync_authentication_needed(detail)`), so the worker must too;
+//! passing `Display` would double the catalogue's prefix ("Authentication
+//! needed: Authentication needed: …"). [`page_detail`] therefore extracts the
+//! same field the desktop's mapping passes for every code whose copy has a
+//! detail slot: `offline`, `auth`, `permission`, `scope`, `not_found`,
+//! `remote_changed`, `outcome_unknown`, `listing_incomplete`, `limit`,
+//! `credentials`, `dirty_buffer`, `local_changed`, `config` and `io`.
+//!
+//! Codes whose page copy has no detail slot (`timeout`, `cancelled`,
+//! `rate_limited`, `lease_busy`, and the page's own `worker`/`busy`) carry the
+//! `Display` rendering; the page ignores it. The developer-facing composites
+//! the desktop renders raw (`path`, `inventory`, `journal`, `protocol`,
+//! `injected_fault`) and the ones with no single inner field (`server`,
+//! `unsupported`) also keep `Display`, and the page renders them inside its
+//! generic translated frame.
 
 use muninn_sync::{SyncError, SyncReport};
 use muninn_web::sync_protocol::WorkerEvent;
@@ -40,13 +60,44 @@ pub fn outcome_event(outcome: Result<SyncReport, SyncError>) -> WorkerEvent {
     }
 }
 
-/// The `Failed` event for an engine error, using the engine's own code and
-/// rendering.
+/// The `Failed` event for an engine error, using the engine's own code and the
+/// detail field the page's copy interpolates.
 #[must_use]
 pub fn failed_event(error: &SyncError) -> WorkerEvent {
     WorkerEvent::Failed {
         code: error.code().to_owned(),
-        detail: error.to_string(),
+        detail: page_detail(error),
+    }
+}
+
+/// The payload `WorkerEvent::Failed.detail` carries for `error`.
+///
+/// For a code whose catalogued copy takes a detail, this is the same inner
+/// field the desktop's `sync_ui::sync_error_text` passes: the variant's
+/// `detail`, or its `path` for `dirty_buffer`/`local_changed`. Everything else
+/// keeps the engine's `Display` rendering, which the page draws inside its
+/// generic frame (or ignores, when its copy has no detail slot). See the
+/// module docs for why this is not `Display` everywhere.
+#[must_use]
+pub fn page_detail(error: &SyncError) -> String {
+    match error {
+        SyncError::Offline { detail }
+        | SyncError::Auth { detail }
+        | SyncError::Permission { detail }
+        | SyncError::Scope { detail }
+        | SyncError::NotFound { detail }
+        | SyncError::ConflictRemote { detail }
+        | SyncError::OutcomeUnknown { detail }
+        | SyncError::ListingIncomplete { detail }
+        | SyncError::Limit { detail }
+        | SyncError::Credentials { detail }
+        | SyncError::Config { detail }
+        | SyncError::Io { detail } => detail.clone(),
+        // The page's copy takes the path, as the desktop's does.
+        SyncError::DirtyBuffer { path } | SyncError::LocalChanged { path } => path.clone(),
+        // No single inner field the page interpolates, or no detail slot at
+        // all: the rendering is the honest payload and the page frames it.
+        _ => error.to_string(),
     }
 }
 
@@ -145,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn an_engine_error_keeps_the_engines_code_and_rendering() {
+    fn an_engine_error_carries_the_code_and_the_pages_inner_detail() {
         let error = SyncError::Auth {
             detail: "Bad credentials".to_owned(),
         };
@@ -154,7 +205,128 @@ mod tests {
             panic!("expected a failure");
         };
         assert_eq!(code, "auth");
-        assert_eq!(detail, error.to_string());
+        assert_eq!(
+            detail, "Bad credentials",
+            "the page's copy owns the prefix; the detail is the raw field"
+        );
+        assert_ne!(
+            detail,
+            error.to_string(),
+            "Display would double the catalogued prefix"
+        );
+    }
+
+    #[test]
+    fn every_interpolated_code_carries_the_raw_inner_field() {
+        let detail = "the provider's own text";
+        for error in [
+            SyncError::Offline {
+                detail: detail.to_owned(),
+            },
+            SyncError::Auth {
+                detail: detail.to_owned(),
+            },
+            SyncError::Permission {
+                detail: detail.to_owned(),
+            },
+            SyncError::Scope {
+                detail: detail.to_owned(),
+            },
+            SyncError::NotFound {
+                detail: detail.to_owned(),
+            },
+            SyncError::ConflictRemote {
+                detail: detail.to_owned(),
+            },
+            SyncError::OutcomeUnknown {
+                detail: detail.to_owned(),
+            },
+            SyncError::ListingIncomplete {
+                detail: detail.to_owned(),
+            },
+            SyncError::Limit {
+                detail: detail.to_owned(),
+            },
+            SyncError::Credentials {
+                detail: detail.to_owned(),
+            },
+            SyncError::Config {
+                detail: detail.to_owned(),
+            },
+            SyncError::Io {
+                detail: detail.to_owned(),
+            },
+        ] {
+            assert_eq!(
+                page_detail(&error),
+                detail,
+                "{} must pass its inner detail, not its Display",
+                error.code()
+            );
+        }
+        // The two path-carrying codes interpolate the path, as the desktop's
+        // `sync_dirty_buffer`/`sync_local_changed` do.
+        assert_eq!(
+            page_detail(&SyncError::DirtyBuffer {
+                path: "Notes/A.md".to_owned()
+            }),
+            "Notes/A.md"
+        );
+        assert_eq!(
+            page_detail(&SyncError::LocalChanged {
+                path: "Notes/A.md".to_owned()
+            }),
+            "Notes/A.md"
+        );
+    }
+
+    #[test]
+    fn codes_the_page_does_not_interpolate_keep_the_display_rendering() {
+        // No detail slot in the page's copy: the payload is unused, and the
+        // rendering is the simplest honest value.
+        for error in [
+            SyncError::Timeout { mutation: false },
+            SyncError::Cancelled,
+            SyncError::RateLimited {
+                retry_after_ms: Some(1000),
+            },
+            SyncError::LeaseBusy,
+        ] {
+            assert_eq!(page_detail(&error), error.to_string(), "{}", error.code());
+        }
+        // Composites the page renders inside its generic frame.
+        for error in [
+            SyncError::Server {
+                status: 500,
+                detail: "upstream".to_owned(),
+            },
+            SyncError::Unsupported {
+                path: "Notes/A.docx".to_owned(),
+                detail: "not convertible".to_owned(),
+            },
+            SyncError::Path {
+                detail: "escapes the vault".to_owned(),
+            },
+            SyncError::Inventory {
+                detail: "unreadable".to_owned(),
+            },
+            SyncError::Journal {
+                detail: "corrupt".to_owned(),
+            },
+            SyncError::Protocol {
+                detail: "unexpected body".to_owned(),
+            },
+            SyncError::InjectedFault {
+                at: "test".to_owned(),
+            },
+        ] {
+            assert_eq!(
+                page_detail(&error),
+                error.to_string(),
+                "{} keeps its diagnostic rendering",
+                error.code()
+            );
+        }
     }
 
     #[test]
@@ -199,7 +371,7 @@ mod tests {
 
         let auth = WorkerEvent::Failed {
             code: "auth".to_owned(),
-            detail: "Authentication needed".to_owned(),
+            detail: "Bad credentials".to_owned(),
         };
         assert_eq!(
             final_event(auth.clone(), &refused(), &refused()),
