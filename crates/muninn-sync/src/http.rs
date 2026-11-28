@@ -80,11 +80,13 @@ impl<T: HttpTransport + ?Sized> HttpTransport for &T {
     }
 }
 
+#[cfg(feature = "native")]
 pub struct ReqwestTransport {
     client: reqwest::blocking::Client,
     extra_hosts: Vec<String>,
 }
 
+#[cfg(feature = "native")]
 impl ReqwestTransport {
     pub fn production() -> Result<Self, SyncError> {
         Self::build(&[])
@@ -116,6 +118,7 @@ impl ReqwestTransport {
     }
 }
 
+#[cfg(feature = "native")]
 impl HttpTransport for ReqwestTransport {
     fn execute(&self, request: &HttpRequest) -> Result<HttpResponse, SyncError> {
         ensure_allowed(&request.url, &self.extra_hosts)?;
@@ -161,6 +164,7 @@ impl HttpTransport for ReqwestTransport {
     }
 }
 
+#[cfg(feature = "native")]
 fn map_reqwest(error: reqwest::Error, mutation: bool) -> SyncError {
     if error.is_timeout() {
         return if mutation {
@@ -179,6 +183,13 @@ fn map_reqwest(error: reqwest::Error, mutation: bool) -> SyncError {
     }
 }
 
+/// The native allowlist: https, the provider hosts above, and a Tailscale host
+/// that passed [`crate::tailnet::validate_tailnet_host`].
+///
+/// The browser transport uses [`ensure_web_allowed`] instead: it is narrower
+/// on purpose, because PAT sync has exactly one data-plane host and the page
+/// cannot reach the OAuth or Tailnet endpoints.
+#[cfg(feature = "native")]
 pub fn ensure_allowed(raw: &str, extra_hosts: &[String]) -> Result<(), SyncError> {
     let url = Url::parse(raw).map_err(|_| SyncError::Protocol {
         detail: "refusing a provider url that did not parse".to_owned(),
@@ -218,6 +229,54 @@ pub fn ensure_allowed(raw: &str, extra_hosts: &[String]) -> Result<(), SyncError
             detail: format!("host {host} is not an allowlisted sync provider"),
         })
     }
+}
+
+/// The one host the browser's data plane talks to.
+///
+/// PAT sync needs `api.github.com` for reads and writes. The page's OAuth
+/// endpoints (`github.com/login/...`) are browser-blocked and are not part of
+/// a PAT run, and Drive/Tailnet are later slices, so the web allowlist is
+/// deliberately narrower than the native one: no userinfo, https only, the
+/// exact host, and the default port. [`HttpTransport`] implementations for
+/// the browser call this before every request; the worker additionally pins
+/// its base URL to this host.
+pub const WEB_GITHUB_API_HOST: &str = "api.github.com";
+
+/// The browser twin of the native allowlist (`ensure_allowed`): https and
+/// exactly [`WEB_GITHUB_API_HOST`], no credentials in the URL, no port.
+///
+/// This is not a superset of the native list on purpose. A browser transport
+/// must never be able to reach the TOS-blocked OAuth endpoints or an unrelated
+/// provider just because a native build may; a later slice that adds Drive
+/// widens this list explicitly.
+pub fn ensure_web_allowed(raw: &str) -> Result<(), SyncError> {
+    let url = Url::parse(raw).map_err(|_| SyncError::Protocol {
+        detail: "refusing a provider url that did not parse".to_owned(),
+    })?;
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(SyncError::Protocol {
+            detail: "refusing a provider url with embedded credentials".to_owned(),
+        });
+    }
+    if url.scheme() != "https" {
+        return Err(SyncError::Protocol {
+            detail: format!("the browser transport requires https, got {}", url.scheme()),
+        });
+    }
+    if url.port().is_some() {
+        return Err(SyncError::Protocol {
+            detail: "refusing a provider url with an explicit port".to_owned(),
+        });
+    }
+    let host = url.host_str().unwrap_or("");
+    if host != WEB_GITHUB_API_HOST {
+        return Err(SyncError::Protocol {
+            detail: format!(
+                "host {host} is not available to the browser sync transport; only {WEB_GITHUB_API_HOST} is"
+            ),
+        });
+    }
+    Ok(())
 }
 
 pub fn classify_status(response: &HttpResponse, mutation: bool) -> Result<(), SyncError> {
@@ -350,8 +409,13 @@ pub trait Sleeper: Send + Sync {
     fn sleep(&self, delay: Duration, cancel: &CancelToken) -> Result<(), SyncError>;
 }
 
+/// The desktop sleeper: real wall-clock delay in 50 ms slices so a cancel is
+/// noticed promptly. The browser supplies its own (see `muninn-web`): a
+/// thread sleep is not available in a `wasm32-unknown-unknown` worker.
+#[cfg(feature = "native")]
 pub struct RealSleeper;
 
+#[cfg(feature = "native")]
 impl Sleeper for RealSleeper {
     fn sleep(&self, delay: Duration, cancel: &CancelToken) -> Result<(), SyncError> {
         let slice = Duration::from_millis(50);
@@ -378,5 +442,86 @@ impl Sleeper for RecordingSleeper {
         cancel.check()?;
         self.delays.lock().expect("sleeper").push(delay);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn response(status: u16, body: &str) -> HttpResponse {
+        HttpResponse {
+            status,
+            headers: Vec::new(),
+            body: body.as_bytes().to_vec(),
+        }
+    }
+
+    /// The web allowlist is deliberately narrower than the native one: PAT
+    /// sync has one data-plane host, and the browser cannot reach the OAuth
+    /// endpoints or a Tailnet host. This test is the boundary's contract.
+    #[test]
+    fn web_allowlist_is_exactly_the_github_api() {
+        for allowed in [
+            "https://api.github.com/repos/o/r/git/ref/heads/main",
+            "https://api.github.com/repos/o/r/git/trees/abc?recursive=1",
+        ] {
+            assert!(ensure_web_allowed(allowed).is_ok(), "{allowed} is allowed");
+        }
+        for refused in [
+            // The page's OAuth endpoints are browser-blocked; a PAT run never
+            // uses them and the worker must not even try.
+            "https://github.com/login/oauth/access_token",
+            // Drive and Tailnet are later slices.
+            "https://www.googleapis.com/drive/v3/files",
+            "https://oauth2.googleapis.com/token",
+            // Scheme and URL-shape rules.
+            "http://api.github.com/repos/o/r",
+            "https://api.github.com:8443/repos/o/r",
+            "https://user:secret@api.github.com/repos/o/r",
+            "https://api.github.com.evil.example/repos/o/r",
+            "not a url",
+        ] {
+            assert!(
+                ensure_web_allowed(refused).is_err(),
+                "{refused} must be refused"
+            );
+        }
+    }
+
+    /// The status→error mapping is shared by both transports, so pin each
+    /// class here rather than in the browser-only code.
+    #[test]
+    fn status_mapping_matches_the_native_contract() {
+        let auth = classify_status(&response(401, r#"{"message":"Bad credentials"}"#), false)
+            .expect_err("401");
+        assert!(matches!(auth, SyncError::Auth { .. }));
+
+        let permission =
+            classify_status(&response(403, r#"{"message":"Forbidden"}"#), false).expect_err("403");
+        assert!(matches!(permission, SyncError::Permission { .. }));
+
+        let mut limited = response(403, r#"{"message":"rate limit"}"#);
+        limited.headers = vec![("Retry-After".to_owned(), "7".to_owned())];
+        let limited = classify_status(&limited, false).expect_err("rate limit");
+        assert!(matches!(
+            limited,
+            SyncError::RateLimited {
+                retry_after_ms: Some(7000)
+            }
+        ));
+
+        let conflict = classify_status(&response(409, "{}"), false).expect_err("409");
+        assert!(matches!(conflict, SyncError::ConflictRemote { .. }));
+
+        let server = classify_status(&response(503, "down"), false).expect_err("503");
+        assert!(matches!(server, SyncError::Server { status: 503, .. }));
+
+        let unknown = classify_status(&response(418, "teapot"), true).expect_err("mutation");
+        assert!(matches!(unknown, SyncError::OutcomeUnknown { .. }));
+        let protocol = classify_status(&response(418, "teapot"), false).expect_err("read");
+        assert!(matches!(protocol, SyncError::Protocol { .. }));
+
+        assert!(classify_status(&response(204, ""), true).is_ok());
     }
 }

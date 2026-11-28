@@ -738,6 +738,8 @@ export function muninn_lock(name) {
 }
 "#)]
 extern "C" {
+    // Shared with the sync worker's run lock (`crate::sync::lock`): both want
+    // the same fail-fast Web Lock control object.
     #[wasm_bindgen(js_name = muninn_lock)]
-    fn lock_control(name: &str) -> JsValue;
+    pub(crate) fn lock_control(name: &str) -> JsValue;
 }

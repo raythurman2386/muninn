@@ -959,3 +959,92 @@ fn token_from_json(json: &serde_json::Value) -> Result<TokenSet, SyncError> {
         account: String::new(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::http::{HttpResponse, HttpTransport, RecordingSleeper};
+    use std::sync::Mutex;
+
+    /// A transport that records every request and answers with one canned
+    /// response. It is the fake both the native and the wasm builds share, so
+    /// this test pins the request the browser's sync XHR will actually send.
+    #[derive(Default)]
+    struct FakeTransport {
+        seen: Mutex<Vec<HttpRequest>>,
+        status: u16,
+        body: Vec<u8>,
+    }
+
+    impl FakeTransport {
+        fn answering(status: u16, body: &str) -> Self {
+            Self {
+                seen: Mutex::new(Vec::new()),
+                status,
+                body: body.as_bytes().to_vec(),
+            }
+        }
+    }
+
+    impl HttpTransport for FakeTransport {
+        fn execute(&self, request: &HttpRequest) -> Result<HttpResponse, SyncError> {
+            self.seen
+                .lock()
+                .expect("fake transport")
+                .push(request.clone());
+            Ok(HttpResponse {
+                status: self.status,
+                headers: Vec::new(),
+                body: self.body.clone(),
+            })
+        }
+    }
+
+    #[test]
+    fn a_fetch_builds_the_allowlisted_github_request() {
+        let transport = FakeTransport::answering(404, r#"{"message":"Not Found"}"#);
+        let sleeper = RecordingSleeper::default();
+        let client = GitHubClient {
+            api_base: format!("https://{}", crate::http::WEB_GITHUB_API_HOST),
+            oauth_base: "https://github.com".to_owned(),
+            transport: &transport,
+            cancel: CancelToken::new(),
+            sleeper: &sleeper,
+            request_timeout: Duration::from_secs(20),
+        };
+        let scope = GitHubScope {
+            owner: "octocat".to_owned(),
+            repo: "notes".to_owned(),
+            branch: "main".to_owned(),
+            prefix: String::new(),
+        };
+        let remote = client
+            .fetch(&scope, &Secret::new("pat-token"))
+            .expect("a missing branch is an empty remote");
+
+        assert!(remote.commit.is_none());
+        let requests = transport.seen.lock().expect("fake transport");
+        assert_eq!(requests.len(), 1, "one ref read, no tree read on a 404");
+        let request = &requests[0];
+        assert_eq!(request.method, "GET");
+        assert_eq!(
+            request.url,
+            "https://api.github.com/repos/octocat/notes/git/ref/heads/main"
+        );
+        assert!(
+            crate::http::ensure_web_allowed(&request.url).is_ok(),
+            "the browser allowlist must accept every request the client builds"
+        );
+        assert!(!request.mutation, "a read is retryable");
+        let header = |name: &str| {
+            request
+                .headers
+                .iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value.as_str())
+        };
+        assert_eq!(header("Authorization"), Some("Bearer pat-token"));
+        assert_eq!(header("Accept"), Some("application/vnd.github+json"));
+        assert_eq!(header("X-GitHub-Api-Version"), Some("2022-11-28"));
+    }
+}

@@ -26,52 +26,65 @@
 //! contract the native and browser twins share; the path column is native-only
 //! detail pinned by the tests below.
 
+#[cfg(feature = "native")]
 use std::io;
+
+#[cfg(feature = "native")]
 use std::path::{Path, PathBuf};
 
 pub use muninn_core::StateHome;
 
 /// The base snapshot: the remote state the last successful run applied.
-pub(crate) const BASE: &str = "base.json";
+pub const BASE: &str = "base.json";
 /// The crash-recovery journal, used to resume an interrupted local apply.
-pub(crate) const JOURNAL: &str = "journal.json";
+pub const JOURNAL: &str = "journal.json";
 /// The prepared apply list and its staged-bytes manifest.
-pub(crate) const PREPARED: &str = "prepared.json";
+pub const PREPARED: &str = "prepared.json";
 /// GitHub blob sha → content hash cache.
-pub(crate) const SHA_CACHE: &str = "github-blob-cache.json";
+pub const SHA_CACHE: &str = "github-blob-cache.json";
 
 /// Key for the staged bytes of one vault path.
-pub(crate) fn staged_key(path: &str) -> String {
+#[must_use]
+pub fn staged_key(path: &str) -> String {
     format!("staged/{path}")
 }
 
 /// Key for the checkpoint preimage of one vault path.
-pub(crate) fn checkpoint_key(path: &str) -> String {
+#[must_use]
+pub fn checkpoint_key(path: &str) -> String {
     format!("checkpoints/{path}")
 }
 
 /// [`StateHome`] over the existing native per-binding state directory.
 ///
-/// This is the only implementation wired in today. It is a wrapper around the
-/// old layout — its root is the `state_dir` the app already computes — not a
-/// new directory scheme. Parent creation and atomic replacement still come
-/// from `fsutil::write_outside`, so on-disk bytes are unchanged.
-pub(crate) struct NativeStateHome {
+/// This is the desktop implementation; the browser twin spells the same keys
+/// in its OPFS directory. It is a wrapper around the old layout — its root is
+/// the `state_dir` the app already computes — not a new directory scheme.
+/// Parent creation and atomic replacement still come from
+/// `fsutil::write_outside`, so on-disk bytes are unchanged.
+#[cfg(feature = "native")]
+pub struct NativeStateHome {
     root: PathBuf,
 }
 
+#[cfg(feature = "native")]
 impl NativeStateHome {
     /// A home rooted at an existing (or about-to-be-created) state directory.
-    pub(crate) fn new(root: PathBuf) -> Self {
+    #[must_use]
+    pub fn new(root: PathBuf) -> Self {
         Self { root }
     }
 
-    /// The native path a key resolves to. Exposed so tests can pin the layout.
-    pub(crate) fn path_for(&self, key: &str) -> PathBuf {
+    /// The native path a key resolves to. Exposed so tests can pin the layout
+    /// and the browser twin can prove key-for-key equality with its own
+    /// mapping.
+    #[must_use]
+    pub fn path_for(&self, key: &str) -> PathBuf {
         self.root.join(key)
     }
 }
 
+#[cfg(feature = "native")]
 impl StateHome for NativeStateHome {
     fn get(&self, key: &str) -> Option<Vec<u8>> {
         // The trait's contract is "absent → None, never an error". An unreadable
@@ -121,7 +134,7 @@ impl StateHome for NativeStateHome {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests {
     use super::*;
     use crate::journal::{Journal, JournalPhase};

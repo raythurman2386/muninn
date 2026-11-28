@@ -20,14 +20,23 @@ muninn-core.workspace = true
 # The typed message catalog: the two web notices (persist denial, read-only
 # sample) resolve through it like every other user-visible string.
 muninn-i18n.workspace = true
+# The page↔worker message contract (`sync_protocol`) is shared by the wasm
+# worker and the native tests, so serde is a plain dependency.
+serde = { version = "1", features = ["derive"] }
 
 # Everything below is the browser build: the UI, Rune and the wasm entry. A
-# native `cargo test -p muninn-web` builds neither, so the demo cannot pull a
-# desktop dependency into its test path.
+# native `cargo test -p muninn-web` builds neither, so the demo cannot pull the
+# UI or Rune into its test path. The one native addition is a `muninn-sync`
+# dev-dependency (below), used only by the state-key equality test; it is never
+# linked into this crate's wasm build, which uses the `web` feature instead.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # `default-features = false` is the browser configuration from slice 4: no
 # tray, autostart, sync transports, native dialogs, fs watcher or self-update.
 muninn-ui = { workspace = true, default-features = false }
+# The PAT sync transport surface (slice 8a): the GitHub client, the HTTP
+# boundary and its status mapping, the credential contract and the state-key
+# table. `web` never enables the native engine, keyring or Desktop secret.
+muninn-sync = { workspace = true, default-features = false, features = ["web"] }
 # `webgl` is Rune's WebGL2 fallback for browsers without WebGPU, the coverage
 # the slice-5 gate measures. `hot` and `native-file-dialog` stay off (off by
 # default) so no devtools or native dialog code reaches the bundle.
@@ -36,7 +45,10 @@ rune-theme-opencode.workspace = true
 # The spec Rune's own wasm crates resolve (Cargo.lock: 0.2.130); the build
 # script reads the exact version from the lock and checks the CLI matches.
 wasm-bindgen = "0.2"
-# OPFS, the storage manager and the file-system handles (slice 6b). Web Locks
+# OPFS, the storage manager and the file-system handles (slice 6b), plus the
+# worker's synchronous half (slice 8a): a sync access handle is the only way a
+# worker can read and write OPFS while the engine blocks, and sync XHR is the
+# only way it can reach the provider without making the engine async. Web Locks
 # stay on `js_sys::Reflect`/inline JS because web-sys still gates `LockManager`
 # behind its unstable-API cfg; the rest is stable web-sys.
 web-sys = { version = "0.3", features = [
@@ -50,15 +62,35 @@ web-sys = { version = "0.3", features = [
     "FileSystemGetFileOptions",
     "FileSystemHandle",
     "FileSystemHandleKind",
+    "FileSystemReadWriteOptions",
     "FileSystemRemoveOptions",
+    "FileSystemSyncAccessHandle",
     "FileSystemWritableFileStream",
     "Navigator",
     "StorageManager",
     "Window",
+    "WorkerNavigator",
     "WritableStream",
+    "XmlHttpRequest",
+    "XmlHttpRequestResponseType",
 ] }
 js-sys = "0.3"
 wasm-bindgen-futures = "0.4"
 
 [lints]
 workspace = true
+
+[features]
+# Compile the browser sync worker's transport surface (slice 8a): sync XHR,
+# the OPFS state home, the Atomics sleeper and the run-scoped credential
+# store. Off by default so the page bundle does not carry machinery it does
+# not call; the worker entry and `xtask wasm-check` turn it on.
+worker = []
+
+[dev-dependencies]
+# The message contract's round-trip tests and the sync state-key equality test
+# need only the host build. `muninn-sync` here is the native build: its
+# state-key functions and `NativeStateHome` are what the wasm worker's keys
+# must match key-for-key.
+serde_json.workspace = true
+muninn-sync.workspace = true

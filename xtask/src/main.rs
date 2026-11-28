@@ -196,10 +196,15 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
     );
     // The browser demo: the shared UI (no native features) over the sample
     // vault's bytes. Like the app it sits at the top; it adds no edge any
-    // other front end could not have.
+    // other front end could not have. Slice 8a adds `muninn-sync`: the sync
+    // worker needs the PAT transport surface (the GitHub client, the HTTP
+    // boundary's status mapping, the credential contract and the state-key
+    // table) with its `web` feature, never the native engine. The edge is
+    // wasm-only in Cargo.toml, so a native test build of this crate still
+    // does not link a desktop transport.
     allowed.insert(
         "muninn-web",
-        BTreeSet::from(["muninn-core", "muninn-i18n", "muninn-ui"]),
+        BTreeSet::from(["muninn-core", "muninn-i18n", "muninn-sync", "muninn-ui"]),
     );
     allowed.insert("xtask", BTreeSet::new());
     allowed
@@ -212,13 +217,17 @@ const WASM_TARGET: &str = "wasm32-unknown-unknown";
 /// crate building for the browser.
 ///
 /// `muninn-core`, `muninn-graph`, `muninn-i18n` and a no-native `muninn-ui`
-/// all compile for `wasm32-unknown-unknown`; `muninn-sync` is checked with its
-/// `native` feature off, the configuration a web build uses. The UI's
-/// `native` feature is the desktop-only boundary (filesystem, clock, threads,
-/// tray, sync transports), so `--no-default-features` is the browser crate.
-/// `muninn-web` is the demo entry point: all of it is wasm-only, so its
-/// `check`/`clippy` need no feature juggling. This is a compile-only guard;
-/// it builds no bundle and runs nothing in a browser.
+/// all compile for `wasm32-unknown-unknown`; `muninn-sync` is checked twice —
+/// with its `native` feature off (the near-empty crate) and with `web` on
+/// (the browser's PAT transport surface: HTTP boundary, GitHub client,
+/// credential contract, state keys). It is never checked with `native` on
+/// wasm. The UI's `native` feature is the desktop-only boundary (filesystem,
+/// clock, threads, tray, sync transports), so `--no-default-features` is the
+/// browser crate. `muninn-web` is the demo entry point: all of it is
+/// wasm-only, so its `check`/`clippy` need no feature juggling, and it now
+/// includes the sync worker's transport, state home, sleeper and protocol.
+/// This is a compile-only guard; it builds no bundle and runs nothing in a
+/// browser.
 fn wasm_check() -> Result<()> {
     check_wasm_target()?;
     run_cargo(&[
@@ -269,6 +278,34 @@ fn wasm_check() -> Result<()> {
         "-D",
         "warnings",
     ])?;
+    // The browser's PAT transport surface (slice 8a): the HTTP boundary and
+    // its status mapping, the GitHub client, the credential contract and the
+    // state-key table. Still without the engine, keyring or Desktop secret.
+    run_cargo(&[
+        "check",
+        "--locked",
+        "-p",
+        "muninn-sync",
+        "--no-default-features",
+        "--features",
+        "web",
+        "--target",
+        WASM_TARGET,
+    ])?;
+    run_cargo(&[
+        "clippy",
+        "--locked",
+        "-p",
+        "muninn-sync",
+        "--no-default-features",
+        "--features",
+        "web",
+        "--target",
+        WASM_TARGET,
+        "--",
+        "-D",
+        "warnings",
+    ])?;
     run_cargo(&[
         "check",
         "--locked",
@@ -305,6 +342,33 @@ fn wasm_check() -> Result<()> {
         "--locked",
         "-p",
         "muninn-web",
+        "--target",
+        WASM_TARGET,
+        "--",
+        "-D",
+        "warnings",
+    ])?;
+    // The sync worker's surface (slice 8a) is behind the off-by-default
+    // `worker` feature so the page bundle does not carry it. Check it with the
+    // feature on: this is CI's compile gate for sync XHR, sync OPFS handles,
+    // the Atomics sleeper and the run-scoped credential store.
+    run_cargo(&[
+        "check",
+        "--locked",
+        "-p",
+        "muninn-web",
+        "--features",
+        "worker",
+        "--target",
+        WASM_TARGET,
+    ])?;
+    run_cargo(&[
+        "clippy",
+        "--locked",
+        "-p",
+        "muninn-web",
+        "--features",
+        "worker",
         "--target",
         WASM_TARGET,
         "--",
