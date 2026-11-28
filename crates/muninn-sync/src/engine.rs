@@ -2,25 +2,37 @@
 //!
 //! Network work uses the snapshots taken at the start. The lease is held only
 //! while reading or writing the vault, not while waiting on a provider.
+//!
+//! The vault is a [`VaultStore`] and the host state a [`StateHome`]; the engine
+//! never holds a filesystem path of its own. [`run_sync`] is the desktop
+//! wrapper that builds the native store, state home and lease; a browser entry
+//! calls [`run_sync_with_parts`] with its own. The orchestration below is one
+//! implementation for both.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+#[cfg(feature = "native")]
+use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
-use muninn_core::StateHome;
+use muninn_core::{StateHome, VaultStore};
 
 use crate::SCHEMA_VERSION;
 use crate::apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_plan_with};
+#[cfg(feature = "native")]
 use crate::clients::GoogleOAuthClient;
 use crate::credentials::{CredentialKey, CredentialStore};
+#[cfg(feature = "native")]
 use crate::drive::{self, DriveClient, DriveScope};
 use crate::error::SyncError;
 use crate::github::{GitHubClient, GitHubScope};
 use crate::http::{CancelToken, HttpTransport, Sleeper};
 use crate::inventory::{self, Inventory};
 use crate::journal::{Journal, JournalPhase};
-use crate::lease::VaultLease;
-use crate::limits::Exclusion;
+#[cfg(feature = "native")]
+use crate::lease::FsLease;
+use crate::lease::SyncLease;
+use crate::limits::{DEFAULT_LIMITS, Exclusion};
 use crate::model::{
     BindingId, Conflict, ContentHash, FileKind, FileRecord, OperationId, Plan, ProviderKind,
     Resolution, Snapshot, Tombstone,
@@ -28,7 +40,10 @@ use crate::model::{
 use crate::pathutil::RelativePath as RelPath;
 use crate::plan::{self, plan};
 use crate::secret::TokenSet;
-use crate::state_home::{self, NativeStateHome};
+use crate::state_home;
+#[cfg(feature = "native")]
+use crate::state_home::NativeStateHome;
+#[cfg(feature = "native")]
 use crate::tailnet::{self, DirStore, HttpStore, TailnetRole, TailnetScope};
 
 pub struct EngineParts<T, C> {
@@ -38,27 +53,43 @@ pub struct EngineParts<T, C> {
     pub sleeper: Box<dyn Sleeper>,
     pub github_api: String,
     pub github_oauth: String,
+    #[cfg(feature = "native")]
     pub drive_api: String,
+    #[cfg(feature = "native")]
     pub drive_upload: String,
+    #[cfg(feature = "native")]
     pub drive_oauth: String,
     /// OAuth clients, used only to refresh an expiring access token.
     pub github_client_id: String,
     /// The Google client id and its secret. `None` when this build has no
     /// secret or the person set their own client id: a Google refresh then
     /// fails closed without sending anything.
+    #[cfg(feature = "native")]
     pub google_client: Option<GoogleOAuthClient>,
     /// Test-only override for a Tailscale peer's base URL. Production derives
     /// `https://<host>` from the binding.
+    #[cfg(feature = "native")]
     pub tailnet_api: Option<String>,
 }
 
 pub struct RunRequest {
-    pub root: std::path::PathBuf,
-    pub state_dir: std::path::PathBuf,
+    /// The native vault root.
+    ///
+    /// The engine never reads this field: the vault is the store passed to
+    /// [`run_sync_with_parts`], and every vault path the engine builds is
+    /// relative to that store's root. The desktop wrappers resolve `root` into
+    /// an `FsStore`; a browser entry passes its store's root label, so code that
+    /// displays the vault still has a name for it.
+    pub root: PathBuf,
+    /// The native sync state directory. Only the desktop wrappers read it, to
+    /// build the native state home and the filesystem lease.
+    pub state_dir: PathBuf,
     pub binding: BindingId,
     pub provider: ProviderKind,
     pub github: Option<GitHubScope>,
+    #[cfg(feature = "native")]
     pub drive: Option<DriveScope>,
+    #[cfg(feature = "native")]
     pub tailnet: Option<TailnetScope>,
     pub operation: OperationId,
     pub protected: BTreeSet<RelPath>,
@@ -91,6 +122,7 @@ pub enum SyncReport {
 /// remote moves underneath it. Each round plans from a fresh read.
 const MAX_PUBLISH_ROUNDS: u32 = 4;
 
+#[cfg(feature = "native")]
 pub fn run_sync<T: HttpTransport, C: CredentialStore>(
     engine: &EngineParts<T, C>,
     request: &RunRequest,
@@ -101,25 +133,52 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
 
 /// Run one sync with an explicit host-state seam.
 ///
-/// This is the injection point a browser build uses: it supplies the OPFS state
-/// home instead of the native file home, and the engine's base, journal,
-/// prepared list, sha cache and staged bytes all go through it. The lease is
-/// still native and stays a separate concern.
+/// This desktop wrapper keeps the store and the lease native: it resolves
+/// `request.root` into an `FsStore` and builds an `FsLease` below
+/// `request.state_dir`, then runs the one engine in
+/// [`run_sync_with_parts`]. A browser build calls that directly with its OPFS
+/// store, state home and Web Lock lease.
+#[cfg(feature = "native")]
 pub fn run_sync_with_state_home<T: HttpTransport, C: CredentialStore>(
     engine: &EngineParts<T, C>,
     request: &RunRequest,
     home: &dyn StateHome,
+) -> Result<SyncReport, SyncError> {
+    let store = native_store(&request.root)?;
+    let lease = FsLease::new(request.state_dir.clone());
+    run_sync_with_parts(engine, request, &store, home, &lease)
+}
+
+/// Run one sync with every host seam supplied by the caller.
+///
+/// `vault` is where the vault's bytes live, `home` is where the run's small
+/// state lives, and `lease` is the host's exclusive run lease. The engine takes
+/// the lease around the inventory read and again around the apply, releasing it
+/// in between as the desktop implementation always has; it never runs
+/// lock-free on its own account. The desktop wrappers above pass the
+/// filesystem implementations; the browser entry passes its OPFS twins.
+///
+/// # Errors
+///
+/// The run's own failures, including [`SyncError::LeaseBusy`] when another run
+/// holds the vault lease.
+pub fn run_sync_with_parts<T: HttpTransport, C: CredentialStore>(
+    engine: &EngineParts<T, C>,
+    request: &RunRequest,
+    vault: &dyn VaultStore,
+    home: &dyn StateHome,
+    lease: &dyn SyncLease,
 ) -> Result<SyncReport, SyncError> {
     engine.cancel.check()?;
     if let Some(journal) = Journal::load_from(home)?
         && journal.needs_apply_resume()
         && journal.operation_id == request.operation.as_str()
     {
-        return resume_local(engine, request, home);
+        return resume_local(engine, request, vault, home, lease);
     }
-    let identity = crate::model::VaultIdentity::of_canonical(&request.root)?;
-    let _lease = VaultLease::try_acquire(&request.state_dir, &identity)?;
-    let inventory = inventory::inventory_default(&request.root)?;
+    let identity = inventory::vault_identity(vault)?;
+    let _lease = lease.acquire(&identity)?;
+    let inventory = inventory::inventory_with(vault, DEFAULT_LIMITS)?;
     drop(_lease);
 
     let key = CredentialKey {
@@ -141,7 +200,7 @@ pub fn run_sync_with_state_home<T: HttpTransport, C: CredentialStore>(
     let mut round = 0;
     loop {
         round += 1;
-        let outcome = match sync_round(engine, request, &token, &inventory, home) {
+        let outcome = match sync_round(engine, request, &token, &inventory, vault, home, lease) {
             // A 401 with a refresh token on hand: refresh once and retry.
             Err(SyncError::Auth { .. }) if !refreshed && can_refresh(request.provider, &token) => {
                 token = refresh_token(engine, request.provider, &key, &token)?;
@@ -163,6 +222,20 @@ pub fn run_sync_with_state_home<T: HttpTransport, C: CredentialStore>(
             Round::RemoteMoved(error) => return Err(error),
         }
     }
+}
+
+/// Resolve a native vault root into the store the desktop wrappers use.
+///
+/// The vault must be a real folder: the pre-seam code canonicalised it and
+/// refused a link or a non-folder, and that check stays here rather than in the
+/// shared engine.
+#[cfg(feature = "native")]
+fn native_store(root: &Path) -> Result<muninn_core::FsStore, SyncError> {
+    let canonical = root.canonicalize().map_err(|error| SyncError::Io {
+        detail: format!("could not canonicalize {}: {error}", root.display()),
+    })?;
+    crate::fsutil::require_real_dir(&canonical)?;
+    Ok(muninn_core::FsStore::new(canonical))
 }
 
 /// Refresh an access token this close to its expiry before using it.
@@ -192,17 +265,36 @@ fn refresh_token<T: HttpTransport, C: CredentialStore>(
     };
     let next = match provider {
         ProviderKind::GitHub => github_client(engine).refresh(&engine.github_client_id, refresh)?,
+        #[cfg(feature = "native")]
         ProviderKind::GoogleDrive => {
             let client = engine.google_client.as_ref().ok_or_else(|| SyncError::Config {
                 detail: "Google Drive cannot refresh its sign-in: this build has no Google client secret, or a custom Google client id is set under Sync. Nothing was sent.".to_owned(),
             })?;
             drive_client(engine).refresh(client, refresh)?
         }
+        #[cfg(feature = "native")]
         ProviderKind::Tailscale => unreachable!("can_refresh excludes Tailscale"),
+        #[cfg(not(feature = "native"))]
+        ProviderKind::GoogleDrive | ProviderKind::Tailscale => {
+            return Err(unsupported_provider(provider));
+        }
     };
     let next = token.refreshed(next);
     engine.credentials.put(key, &next)?;
     Ok(next)
+}
+
+/// A provider this build does not carry. The browser bundle compiles only the
+/// GitHub transport; Drive and Tailscale are desktop concerns and their modules
+/// are not built there.
+#[cfg(not(feature = "native"))]
+fn unsupported_provider(provider: ProviderKind) -> SyncError {
+    SyncError::Config {
+        detail: format!(
+            "{} sync is not available in this build; the browser syncs GitHub only",
+            provider.as_str()
+        ),
+    }
 }
 
 enum Round {
@@ -220,7 +312,9 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
     request: &RunRequest,
     token: &TokenSet,
     inventory: &Inventory,
+    vault: &dyn VaultStore,
     home: &dyn StateHome,
+    lease: &dyn SyncLease,
 ) -> Result<Round, SyncError> {
     let base = load_base(home, &request.binding, request.provider)?;
     let fetched = fetch(engine, request, token, home)?;
@@ -244,7 +338,7 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
     } else {
         (planned.desired.clone(), planned.tombstones.clone())
     };
-    let local_bytes = read_local_bytes(&request.root, &desired, &inventory.snapshot)?;
+    let local_bytes = read_local_bytes(vault, &desired, &inventory.snapshot)?;
     let remote_blobs = remote_bytes_for(engine, request, token, &fetched, &desired, inventory)?;
     let head = match publish(
         engine,
@@ -267,9 +361,12 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
         &remote_blobs,
         &local_bytes,
         &head,
+        vault,
         home,
+        lease,
     )?;
     save_base(home, &request.binding, request.provider, &head, &desired)?;
+    #[allow(irrefutable_let_patterns)] // only the GitHub anchor exists in a web build
     if let Anchor::GitHub { remote, .. } = &fetched.anchor {
         save_sha_cache(home, remote, &local_bytes)?;
     }
@@ -294,11 +391,13 @@ enum Anchor {
         scope: GitHubScope,
         remote: crate::github::GitHubRemote,
     },
+    #[cfg(feature = "native")]
     Drive {
         scope: DriveScope,
         remote: drive::DriveRemote,
         parents: Vec<String>,
     },
+    #[cfg(feature = "native")]
     Tailscale {
         scope: TailnetScope,
         parents: Vec<String>,
@@ -317,6 +416,7 @@ fn remote_bytes_for<T: HttpTransport, C: CredentialStore>(
     inventory: &Inventory,
 ) -> Result<BTreeMap<ContentHash, Vec<u8>>, SyncError> {
     let mut blobs = fetched.blobs.clone();
+    #[allow(irrefutable_let_patterns)] // only the GitHub anchor exists in a web build
     if let Anchor::GitHub { scope, remote } = &fetched.anchor {
         let client = github_client(engine);
         for (path, record) in &desired.files {
@@ -374,10 +474,15 @@ fn conflicts_or_desired(
 fn resume_local<T: HttpTransport, C: CredentialStore>(
     _engine: &EngineParts<T, C>,
     request: &RunRequest,
+    vault: &dyn VaultStore,
     home: &dyn StateHome,
+    lease: &dyn SyncLease,
 ) -> Result<SyncReport, SyncError> {
+    let identity = inventory::vault_identity(vault)?;
+    let _lease = lease.acquire(&identity)?;
     let prepared = load_prepared(home)?;
     let outcome = apply_plan_with(
+        vault,
         home,
         &ApplyRequest {
             root: request.root.clone(),
@@ -439,6 +544,7 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
                 anchor: Anchor::GitHub { scope, remote },
             })
         }
+        #[cfg(feature = "native")]
         ProviderKind::GoogleDrive => {
             let scope = request.drive.clone().ok_or_else(|| SyncError::Config {
                 detail: "Drive folder is missing".to_owned(),
@@ -459,6 +565,7 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
                 },
             })
         }
+        #[cfg(feature = "native")]
         ProviderKind::Tailscale => {
             let scope = tailnet_scope(request)?;
             let remote = with_tailnet_store(engine, &scope, token, tailnet::fetch)?;
@@ -475,9 +582,14 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
                 },
             })
         }
+        #[cfg(not(feature = "native"))]
+        ProviderKind::GoogleDrive | ProviderKind::Tailscale => {
+            Err(unsupported_provider(request.provider))
+        }
     }
 }
 
+#[cfg(feature = "native")]
 fn tailnet_scope(request: &RunRequest) -> Result<TailnetScope, SyncError> {
     let scope = request.tailnet.clone().ok_or_else(|| SyncError::Config {
         detail: "Tailscale host is missing".to_owned(),
@@ -486,6 +598,7 @@ fn tailnet_scope(request: &RunRequest) -> Result<TailnetScope, SyncError> {
     Ok(scope)
 }
 
+#[cfg(feature = "native")]
 fn with_tailnet_store<T: HttpTransport, C, R>(
     engine: &EngineParts<T, C>,
     scope: &TailnetScope,
@@ -521,10 +634,13 @@ fn publish<T: HttpTransport, C: CredentialStore>(
     tombstones: &[Tombstone],
     local_bytes: &BTreeMap<RelPath, Vec<u8>>,
 ) -> Result<String, SyncError> {
+    #[cfg(feature = "native")]
     let tombstones: Vec<_> = tombstones
         .iter()
         .map(|tomb| (tomb.path.clone(), tomb.base_hash))
         .collect();
+    #[cfg(not(feature = "native"))]
+    let _ = tombstones;
     match &fetched.anchor {
         Anchor::GitHub { scope, remote } => github_client(engine).publish(
             scope,
@@ -534,6 +650,7 @@ fn publish<T: HttpTransport, C: CredentialStore>(
             local_bytes,
             request.operation.as_str(),
         ),
+        #[cfg(feature = "native")]
         Anchor::Drive {
             scope,
             remote,
@@ -559,6 +676,7 @@ fn publish<T: HttpTransport, C: CredentialStore>(
                 request.operation.as_str(),
             )
         }
+        #[cfg(feature = "native")]
         Anchor::Tailscale { scope, parents } => with_tailnet_store(engine, scope, token, |store| {
             let remote = tailnet::listing(store)?;
             tailnet::publish(
@@ -581,7 +699,9 @@ fn apply_desired(
     remote_blobs: &BTreeMap<ContentHash, Vec<u8>>,
     local_bytes: &BTreeMap<RelPath, Vec<u8>>,
     head: &str,
+    vault: &dyn VaultStore,
     home: &dyn StateHome,
+    lease: &dyn SyncLease,
 ) -> Result<(), SyncError> {
     let mut writes = Vec::new();
     let mut deletes = Vec::new();
@@ -631,9 +751,11 @@ fn apply_desired(
     };
     store_prepared(home, &writes, &deletes, head, desired)?;
     let identity = inventory.identity.clone();
-    // The lease stays native: its web twin (Web Locks) is a later slice.
-    let _lease = VaultLease::try_acquire(&request.state_dir, &identity)?;
+    // The lease is the host's: here it is the desktop lock file, and a browser
+    // entry passes its Web Lock. It covers the vault writes below only.
+    let _lease = lease.acquire(&identity)?;
     let outcome = apply_plan_with(
+        vault,
         home,
         &ApplyRequest {
             root: request.root.clone(),
@@ -655,16 +777,14 @@ fn apply_desired(
 }
 
 fn read_local_bytes(
-    root: &Path,
+    store: &dyn VaultStore,
     desired: &Snapshot,
     local: &Snapshot,
 ) -> Result<BTreeMap<RelPath, Vec<u8>>, SyncError> {
-    let canonical = root.canonicalize().map_err(SyncError::io)?;
-    let dir = crate::fsutil::open_root(&canonical)?;
     let mut out = BTreeMap::new();
     for (path, record) in &desired.files {
         if local.hash_of(path) == Some(record.hash) {
-            let bytes = dir.read_file(path, crate::limits::DEFAULT_LIMITS.max_file_bytes)?;
+            let bytes = inventory::read_tracked_file(store, path, DEFAULT_LIMITS.max_file_bytes)?;
             out.insert(path.clone(), bytes);
         }
     }
@@ -684,6 +804,7 @@ fn github_client<'a, T: HttpTransport, C>(
     }
 }
 
+#[cfg(feature = "native")]
 fn drive_client<'a, T: HttpTransport, C>(engine: &'a EngineParts<T, C>) -> DriveClient<'a, &'a T> {
     DriveClient {
         api_base: engine.drive_api.clone(),
@@ -698,6 +819,7 @@ fn drive_client<'a, T: HttpTransport, C>(engine: &'a EngineParts<T, C>) -> Drive
 }
 
 /// Google's consent page. Runs never open it; only sign-in does.
+#[cfg(feature = "native")]
 pub const GOOGLE_AUTH_BASE: &str = "https://accounts.google.com";
 
 fn load_base(
@@ -766,6 +888,7 @@ fn save_base(
 
 /// Files a run keeps in its state dir. Listed so a legacy shared dir can be
 /// moved into the binding it belongs to. These are native paths, not seam keys.
+#[cfg(feature = "native")]
 const STATE_FILES: [&str; 5] = [
     state_home::BASE,
     state_home::JOURNAL,
@@ -781,6 +904,7 @@ const STATE_FILES: [&str; 5] = [
 /// left in the old shared `<sync_home>` by an earlier build moves here when
 /// it names this binding; one that names another binding stays put. The
 /// dirs are private to the user on Unix.
+#[cfg(feature = "native")]
 pub fn binding_state_dir(sync_home: &Path, binding: &BindingId) -> Result<PathBuf, SyncError> {
     let bindings = sync_home.join("bindings");
     let dir = bindings.join(binding.as_str());
@@ -800,6 +924,7 @@ pub fn binding_state_dir(sync_home: &Path, binding: &BindingId) -> Result<PathBu
     Ok(dir)
 }
 
+#[cfg(feature = "native")]
 fn legacy_base_names(path: &Path, binding: &BindingId) -> bool {
     std::fs::read_to_string(path)
         .ok()
@@ -808,13 +933,13 @@ fn legacy_base_names(path: &Path, binding: &BindingId) -> bool {
         .is_some_and(|id| id == binding.as_str())
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, feature = "native"))]
 fn private_dir(path: &Path) -> Result<(), SyncError> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).map_err(SyncError::io)
 }
 
-#[cfg(not(unix))]
+#[cfg(all(not(unix), feature = "native"))]
 fn private_dir(_path: &Path) -> Result<(), SyncError> {
     Ok(())
 }
@@ -1002,6 +1127,7 @@ fn load_prepared(home: &dyn StateHome) -> Result<Prepared, SyncError> {
     })
 }
 
+#[cfg(feature = "native")]
 pub fn disconnect<C: CredentialStore>(store: &C, key: &CredentialKey) -> Result<(), SyncError> {
     store.delete(key)
 }
@@ -1009,6 +1135,7 @@ pub fn disconnect<C: CredentialStore>(store: &C, key: &CredentialKey) -> Result<
 /// Re-export the sleeper the clients should share. The helpers above build a
 /// recording sleeper so unit tests of the engine do not wait. Production
 /// passes [`crate::http::RealSleeper`] by constructing clients directly.
+#[cfg(feature = "native")]
 pub fn production_sleeper() -> Box<dyn Sleeper> {
     Box::new(crate::http::RealSleeper)
 }

@@ -241,6 +241,10 @@ impl VaultStore for OpfsStore {
         self.mirror.read_to_string(path)
     }
 
+    fn read_bytes(&self, path: &Path) -> io::Result<Vec<u8>> {
+        VaultStore::read_bytes(&self.mirror, path)
+    }
+
     fn write_atomic(&self, path: &Path, bytes: &[u8]) -> io::Result<()> {
         self.require_writable()?;
         self.mirror.write_atomic(path, bytes)?;

@@ -27,27 +27,30 @@
 //!
 //! The default `native` feature carries every transport and credential store
 //! in this crate, plus the build-time Google Desktop secret. The non-default
-//! `web` feature compiles the browser's PAT transport surface for
+//! `web` feature compiles the browser's PAT surface for
 //! `wasm32-unknown-unknown`: the HTTP boundary and its status mapping, the
-//! GitHub client, the credential contract with its memory store, the
-//! journal's state-home API, and the state-key table. It does not compile the
-//! engine — a run also walks and writes the vault, and those calls are still
-//! `std::fs` (see `docs/web.md` slice 8) — nor `clients.rs`, the OS keyring,
-//! the loopback sign-in listener, Drive, Tailnet or the filesystem lease.
-//! A wasm build must never enable `native`.
+//! GitHub client, the credential contract with its memory store, the journal's
+//! state-home API, the state-key table, and the sync engine itself — inventory,
+//! planning, apply and the lease contract — over `muninn_core::VaultStore` and
+//! `StateHome`. The browser supplies `muninn-web`'s OPFS store, state home and
+//! Web Lock lease to `run_sync_with_parts`. `clients.rs`, the OS keyring, the
+//! loopback sign-in listener, Drive, Tailnet and the filesystem lease
+//! implementation stay native. A wasm build must never enable `native`.
 
 #![forbid(unsafe_code)]
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 // The browser's transport surface (`web`) and the desktop build (`native`)
-// share the modules below. Everything else is a native concern today: the
-// filesystem lease, the vault walk/apply, the loopback sign-in listener, the
-// Tailnet host, Drive, and the build-time Google Desktop secret. A wasm build
-// with `--no-default-features` leaves this crate nearly empty on purpose: it
-// cannot link a native transport, and `clients.rs` is not even compiled, so
-// the wasm artifact has no path to the Desktop secret. Slices 8-9 add the
-// web-relevant pieces behind their own gates.
-#[cfg(feature = "native")]
+// share the modules below. The engine, inventory and apply are shared too: they
+// reach the vault through `muninn_core::VaultStore` and host state through
+// `StateHome`, so the same orchestration compiles for wasm32. Native keeps the
+// filesystem implementations (the store wrapper, the state home, the lease),
+// the loopback sign-in listener, the Tailnet host, Drive, and the build-time
+// Google Desktop secret. A wasm build with `--no-default-features` leaves this
+// crate nearly empty on purpose: it cannot link a native transport, and
+// `clients.rs` is not even compiled, so the wasm artifact has no path to the
+// Desktop secret.
+#[cfg(any(feature = "native", feature = "web"))]
 mod apply;
 #[cfg(feature = "native")]
 mod auth;
@@ -57,7 +60,7 @@ mod clients;
 mod credentials;
 #[cfg(feature = "native")]
 mod drive;
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web"))]
 mod engine;
 #[cfg(any(feature = "native", feature = "web"))]
 mod error;
@@ -67,11 +70,11 @@ mod fsutil;
 mod github;
 #[cfg(any(feature = "native", feature = "web"))]
 mod http;
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web"))]
 mod inventory;
 #[cfg(any(feature = "native", feature = "web"))]
 mod journal;
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web"))]
 mod lease;
 #[cfg(any(feature = "native", feature = "web"))]
 mod limits;
@@ -79,7 +82,7 @@ mod limits;
 mod model;
 #[cfg(any(feature = "native", feature = "web"))]
 mod pathutil;
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web"))]
 mod plan;
 #[cfg(any(feature = "native", feature = "web"))]
 mod secret;
@@ -100,8 +103,10 @@ mod tailnet_tests;
 #[cfg(all(test, feature = "native"))]
 mod testkit;
 
+#[cfg(any(feature = "native", feature = "web"))]
+pub use apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite};
 #[cfg(feature = "native")]
-pub use apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_plan, resume_apply};
+pub use apply::{apply_plan, resume_apply};
 #[cfg(feature = "native")]
 pub use auth::{
     BrowserOpener, LoopbackRedirect, PendingAnswer, SignInEvents, SystemBrowser, browser_command,
@@ -122,10 +127,12 @@ pub use drive::{
     DRIVE_SCOPE, DriveClient, DriveCommitDoc, DriveRemote, DriveScope, OAuthRedirect, PkceRequest,
     merge_heads, new_pkce, parse_oauth_redirect,
 };
+#[cfg(any(feature = "native", feature = "web"))]
+pub use engine::{EngineParts, RunRequest, SyncReport, run_sync_with_parts};
 #[cfg(feature = "native")]
 pub use engine::{
-    EngineParts, GOOGLE_AUTH_BASE, RunRequest, SyncReport, binding_state_dir, disconnect,
-    production_sleeper, run_sync, run_sync_with_state_home,
+    GOOGLE_AUTH_BASE, binding_state_dir, disconnect, production_sleeper, run_sync,
+    run_sync_with_state_home,
 };
 #[cfg(any(feature = "native", feature = "web"))]
 pub use error::SyncError;
@@ -140,8 +147,10 @@ pub use http::{
 };
 #[cfg(feature = "native")]
 pub use http::{RealSleeper, ReqwestTransport};
+#[cfg(any(feature = "native", feature = "web"))]
+pub use inventory::{Inventory, exclusion_summary, inventory_with, vault_identity};
 #[cfg(feature = "native")]
-pub use inventory::{Inventory, exclusion_summary, inventory, inventory_default};
+pub use inventory::{inventory, inventory_default};
 #[cfg(any(feature = "native", feature = "web"))]
 pub use journal::{Journal, JournalPhase};
 // Fuzz-harness seams; see the `fuzzing` feature in Cargo.toml.
@@ -150,7 +159,9 @@ pub use drive::parse_commit_for_fuzzing;
 #[cfg(all(feature = "native", feature = "fuzzing"))]
 pub use journal::parse_journal_for_fuzzing;
 #[cfg(feature = "native")]
-pub use lease::VaultLease;
+pub use lease::{FsLease, VaultLease, lock_path};
+#[cfg(any(feature = "native", feature = "web"))]
+pub use lease::{LeaseGuard, SyncLease};
 #[cfg(any(feature = "native", feature = "web"))]
 pub use limits::{DEFAULT_LIMITS, Exclusion, Limits, included_path};
 #[cfg(any(feature = "native", feature = "web"))]

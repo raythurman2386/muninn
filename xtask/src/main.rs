@@ -219,15 +219,15 @@ const WASM_TARGET: &str = "wasm32-unknown-unknown";
 /// `muninn-core`, `muninn-graph`, `muninn-i18n` and a no-native `muninn-ui`
 /// all compile for `wasm32-unknown-unknown`; `muninn-sync` is checked twice —
 /// with its `native` feature off (the near-empty crate) and with `web` on
-/// (the browser's PAT transport surface: HTTP boundary, GitHub client,
-/// credential contract, state keys). It is never checked with `native` on
-/// wasm. The UI's `native` feature is the desktop-only boundary (filesystem,
-/// clock, threads, tray, sync transports), so `--no-default-features` is the
-/// browser crate. `muninn-web` is the demo entry point: all of it is
-/// wasm-only, so its `check`/`clippy` need no feature juggling, and it now
-/// includes the sync worker's transport, state home, sleeper and protocol.
-/// This is a compile-only guard; it builds no bundle and runs nothing in a
-/// browser.
+/// (the browser's PAT surface: HTTP boundary, GitHub client, credential
+/// contract, state keys, and the engine over `VaultStore` + `StateHome`). It is
+/// never checked with `native` on wasm. The UI's `native` feature is the
+/// desktop-only boundary (filesystem, clock, threads, tray, sync transports), so
+/// `--no-default-features` is the browser crate. `muninn-web` is the demo entry
+/// point: all of it is wasm-only, so its `check`/`clippy` need no feature
+/// juggling, and it now includes the sync worker's transport, state home,
+/// sleeper and protocol. This is a compile-only guard; it builds no bundle and
+/// runs nothing in a browser.
 fn wasm_check() -> Result<()> {
     check_wasm_target()?;
     run_cargo(&[

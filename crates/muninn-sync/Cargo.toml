@@ -51,11 +51,12 @@ keyring = { version = "4.2.0", default-features = false, features = ["v1"], opti
 default = ["native"]
 native = ["dep:reqwest", "dep:keyring", "dep:getrandom", "dep:uuid"]
 
-# The browser's PAT transport surface: the HTTP boundary, the GitHub client,
-# the credential contract plus its memory store, the journal's state-home API
-# and the state-key table. It is deliberately NOT the engine: a run also walks
-# and writes the vault, which is still a filesystem operation (see
-# `docs/web.md` slice 8). Never enable `native` together with `web` for a wasm
+# The browser's PAT surface: the HTTP boundary, the GitHub client, the
+# credential contract plus its memory store, the journal's state-home API, the
+# state-key table, and the sync engine over `muninn_core::VaultStore` +
+# `StateHome` (inventory, plan, apply, the lease contract). The browser entry
+# supplies the OPFS store/state home and its Web Lock lease to
+# `run_sync_with_parts`. Never enable `native` together with `web` for a wasm
 # build, and never enable `native` on `wasm32` at all (`clients.rs` refuses).
 web = ["dep:js-sys"]
 

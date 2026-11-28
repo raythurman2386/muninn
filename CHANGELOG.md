@@ -60,6 +60,10 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Fixed
 
+- **A resumed sync now takes the vault lease (#240 slice 8).** Resume-from-
+  journal previously applied without the lease, so it could race a concurrent
+  run's writes. A contended resume now reports the lease as busy instead of
+  writing; an uncontended one is unchanged.
 - **Crash recovery, settings and the lock high-water mark persist in the
   browser (#240 slice 6d).** A new OPFS-backed state home (`muninn-state/`,
   beside the vault) loads at boot through the same mirror-and-dirty-journal
@@ -78,6 +82,15 @@ All notable changes to Muninn are documented here. The format is based on
   writes, and the Kanban page's, take the same store path; the read a save
   compares against and the read that flags an external change both come from
   the store too.
+
+### Changed
+
+- **A symbolic link in the vault no longer aborts the whole sync (#240 slice
+  8).** The strict local walk used to refuse the entire vault when it met a
+  link or a device node. The store-based walk now skips such an entry — it is
+  never synced, never treated as content, and never becomes a deletion — and
+  syncs the rest of the vault. A link a store does list is still refused
+  outright, and the hard-link refusal is unchanged.
 
 ## [0.11.5] - 2026-11-25
 

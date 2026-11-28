@@ -15,34 +15,9 @@
 use std::io;
 use std::path::Path;
 
-use muninn_core::{EntryKind, MemoryStore, VaultStore};
+use muninn_core::{EntryKind, VaultStore};
 
-use crate::OpfsStore;
 use crate::zip::{self, ZipEntry};
-
-/// A store that can hand over one file's raw bytes.
-///
-/// [`VaultStore`] reads notes as UTF-8; boards and attachments need the bytes
-/// exactly as OPFS holds them (slice 6b added the binary read to `OpfsStore`
-/// and `MemoryStore` for the flush). Export needs the same handle, and it must
-/// work for both stores, so it names the read itself instead of widening the
-/// core trait for the browser.
-pub trait VaultBytes {
-    /// The mirror's bytes for `rel`, or `None` when it holds no such file.
-    fn read_bytes(&self, rel: &str) -> Option<Vec<u8>>;
-}
-
-impl VaultBytes for OpfsStore {
-    fn read_bytes(&self, rel: &str) -> Option<Vec<u8>> {
-        self.read_bytes(rel)
-    }
-}
-
-impl VaultBytes for MemoryStore {
-    fn read_bytes(&self, rel: &str) -> Option<Vec<u8>> {
-        self.read_bytes(rel)
-    }
-}
 
 /// One member of an import: a file's bytes, or a directory (`None`).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -95,7 +70,7 @@ impl std::error::Error for TransferError {
 /// byte-identical.
 pub fn export_zip<S>(store: &S) -> Result<Vec<u8>, TransferError>
 where
-    S: VaultStore + VaultBytes + ?Sized,
+    S: VaultStore + ?Sized,
 {
     let entries = export_entries(store)?;
     zip::write(&entries).map_err(TransferError::Zip)
@@ -104,7 +79,7 @@ where
 /// The archive members an export would write, before serializing them.
 pub fn export_entries<S>(store: &S) -> Result<Vec<ZipEntry>, TransferError>
 where
-    S: VaultStore + VaultBytes + ?Sized,
+    S: VaultStore + ?Sized,
 {
     let mut out = Vec::new();
     walk(store, store.root(), "", &mut out)?;
@@ -113,7 +88,7 @@ where
 
 fn walk<S>(store: &S, dir: &Path, rel: &str, out: &mut Vec<ZipEntry>) -> Result<(), TransferError>
 where
-    S: VaultStore + VaultBytes + ?Sized,
+    S: VaultStore + ?Sized,
 {
     let mut children = store.read_dir(dir).map_err(|error| TransferError::Io {
         rel: if rel.is_empty() {
@@ -138,13 +113,10 @@ where
             }
             EntryKind::File => {
                 let bytes = store
-                    .read_bytes(&child_rel)
-                    .ok_or_else(|| TransferError::Io {
+                    .read_bytes(&entry.path)
+                    .map_err(|error| TransferError::Io {
                         rel: child_rel.clone(),
-                        error: io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "the store reported a file it could not read back",
-                        ),
+                        error,
                     })?;
                 out.push(ZipEntry::file(child_rel, bytes));
             }
@@ -278,7 +250,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use muninn_core::Vault;
+    use muninn_core::{MemoryStore, Vault};
 
     const ROOT: &str = "/Muninn sample";
     const BOARD: &str =
