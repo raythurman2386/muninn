@@ -169,7 +169,11 @@ fn allowed_edges() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
     allowed.insert("muninn-import", BTreeSet::new());
     // Sync is UI-free. It does not depend on the vault index: the file bytes
     // are the source of truth, and the UI coordinates editor/watcher state.
-    allowed.insert("muninn-sync", BTreeSet::new());
+    // Slice 8a adds exactly one edge, to core's `StateHome`: sync's small host
+    // state (base, journal, prepared, sha cache, staged bytes) goes through
+    // that seam so a browser build can supply OPFS. Core stays leafward of
+    // sync; no vault/UI dependency is introduced.
+    allowed.insert("muninn-sync", BTreeSet::from(["muninn-core"]));
     allowed.insert(
         "muninn-ui",
         BTreeSet::from([

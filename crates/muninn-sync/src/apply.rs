@@ -7,12 +7,15 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use muninn_core::StateHome;
+
 use crate::error::SyncError;
 use crate::fsutil::{self, RootDir};
 use crate::inventory::file_hash;
 use crate::journal::{FileAction, FileStep, Journal, JournalFile, JournalPhase};
 use crate::model::ContentHash;
 use crate::pathutil::RelativePath;
+use crate::state_home::{self, NativeStateHome};
 
 #[derive(Clone)]
 pub struct ApplyWrite {
@@ -48,7 +51,19 @@ pub enum ApplyOutcome {
     Faulted { completed_files: usize },
 }
 
+/// Apply a plan against the native state directory named in `request`.
+///
+/// The engine calls `apply_plan_with` with its own state home; this wrapper
+/// keeps the path-based API for direct callers and tests unchanged.
 pub fn apply_plan(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
+    apply_plan_with(&NativeStateHome::new(request.state_dir.clone()), request)
+}
+
+/// Apply a plan whose journal and checkpoints live in `home`.
+pub(crate) fn apply_plan_with(
+    home: &dyn StateHome,
+    request: &ApplyRequest,
+) -> Result<ApplyOutcome, SyncError> {
     let mut journal = if request.journal.files.is_empty() {
         let mut journal = request.journal.clone();
         journal.files = journal_files(&request.writes, &request.deletes);
@@ -66,7 +81,7 @@ pub fn apply_plan(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
         }
     }
     preflight(&request.root, &journal)?;
-    journal.store(&request.state_dir)?;
+    journal.store_from(home)?;
     for file in &journal.files {
         let path = RelativePath::parse(&file.path)?;
         if request.protected.contains(&path) {
@@ -87,13 +102,13 @@ pub fn apply_plan(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
         if journal.files[index].step == FileStep::Done {
             continue;
         }
-        checkpoint_one(&request.state_dir, &dir, &mut journal, index)?;
+        checkpoint_one(home, &dir, &mut journal, index)?;
         if request.fault_after_checkpoint == Some(index + 1) {
             return Ok(ApplyOutcome::Faulted {
                 completed_files: completed,
             });
         }
-        replace_one(request, &dir, &mut journal, index)?;
+        replace_one(home, request, &dir, &mut journal, index)?;
         completed += 1;
         if request.fault_after_files == Some(completed) {
             return Ok(ApplyOutcome::Faulted {
@@ -102,12 +117,13 @@ pub fn apply_plan(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
         }
     }
     journal.phase = JournalPhase::Applied;
-    journal.store(&request.state_dir)?;
+    journal.store_from(home)?;
     Ok(ApplyOutcome::Applied)
 }
 
 pub fn resume_apply(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
-    let Some(saved) = Journal::load(&request.state_dir)? else {
+    let home = NativeStateHome::new(request.state_dir.clone());
+    let Some(saved) = Journal::load_from(&home)? else {
         return Err(SyncError::Journal {
             detail: "there is no journal to resume".to_owned(),
         });
@@ -133,7 +149,7 @@ pub fn resume_apply(request: &ApplyRequest) -> Result<ApplyOutcome, SyncError> {
             detail: "resumable journal has no files".to_owned(),
         });
     }
-    apply_plan(&request)
+    apply_plan_with(&home, &request)
 }
 
 fn journal_files(writes: &[ApplyWrite], deletes: &[ApplyDelete]) -> Vec<JournalFile> {
@@ -183,7 +199,7 @@ fn preflight(root: &Path, journal: &Journal) -> Result<(), SyncError> {
 }
 
 fn checkpoint_one(
-    state_dir: &Path,
+    home: &dyn StateHome,
     dir: &RootDir,
     journal: &mut Journal,
     index: usize,
@@ -194,17 +210,19 @@ fn checkpoint_one(
     let path = RelativePath::parse(&journal.files[index].path)?;
     if journal.files[index].before.is_some() {
         let bytes = dir.read_file(&path, crate::limits::DEFAULT_LIMITS.max_file_bytes)?;
-        let rel_checkpoint = format!("checkpoints/{}", journal.files[index].path);
-        let dest = state_dir.join(&rel_checkpoint);
-        fsutil::write_outside(&dest, &bytes)?;
-        journal.files[index].checkpoint = Some(rel_checkpoint);
+        let key = state_home::checkpoint_key(&journal.files[index].path);
+        home.put(&key, &bytes).map_err(SyncError::io)?;
+        // The journal still records a path relative to the state dir: the
+        // checkpoint key is that same path, so older journals resume unchanged.
+        journal.files[index].checkpoint = Some(key);
     }
     journal.files[index].step = FileStep::Checkpointed;
     journal.phase = JournalPhase::Applying;
-    journal.store(state_dir)
+    journal.store_from(home)
 }
 
 fn replace_one(
+    home: &dyn StateHome,
     request: &ApplyRequest,
     dir: &RootDir,
     journal: &mut Journal,
@@ -232,7 +250,7 @@ fn replace_one(
         FileAction::Delete => dir.remove_file(&path)?,
     }
     journal.files[index].step = FileStep::Done;
-    journal.store(&request.state_dir)
+    journal.store_from(home)
 }
 
 #[cfg(test)]

@@ -7,8 +7,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use muninn_core::StateHome;
+
 use crate::SCHEMA_VERSION;
-use crate::apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_plan};
+use crate::apply::{ApplyDelete, ApplyOutcome, ApplyRequest, ApplyWrite, apply_plan_with};
 use crate::clients::GoogleOAuthClient;
 use crate::credentials::{CredentialKey, CredentialStore};
 use crate::drive::{self, DriveClient, DriveScope};
@@ -26,6 +28,7 @@ use crate::model::{
 use crate::pathutil::RelativePath as RelPath;
 use crate::plan::{self, plan};
 use crate::secret::TokenSet;
+use crate::state_home::{self, NativeStateHome};
 use crate::tailnet::{self, DirStore, HttpStore, TailnetRole, TailnetScope};
 
 pub struct EngineParts<T, C> {
@@ -92,12 +95,27 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
     engine: &EngineParts<T, C>,
     request: &RunRequest,
 ) -> Result<SyncReport, SyncError> {
+    let home = NativeStateHome::new(request.state_dir.clone());
+    run_sync_with_state_home(engine, request, &home)
+}
+
+/// Run one sync with an explicit host-state seam.
+///
+/// This is the injection point a browser build uses: it supplies the OPFS state
+/// home instead of the native file home, and the engine's base, journal,
+/// prepared list, sha cache and staged bytes all go through it. The lease is
+/// still native and stays a separate concern.
+pub fn run_sync_with_state_home<T: HttpTransport, C: CredentialStore>(
+    engine: &EngineParts<T, C>,
+    request: &RunRequest,
+    home: &dyn StateHome,
+) -> Result<SyncReport, SyncError> {
     engine.cancel.check()?;
-    if let Some(journal) = Journal::load(&request.state_dir)?
+    if let Some(journal) = Journal::load_from(home)?
         && journal.needs_apply_resume()
         && journal.operation_id == request.operation.as_str()
     {
-        return resume_local(engine, request);
+        return resume_local(engine, request, home);
     }
     let identity = crate::model::VaultIdentity::of_canonical(&request.root)?;
     let _lease = VaultLease::try_acquire(&request.state_dir, &identity)?;
@@ -123,7 +141,7 @@ pub fn run_sync<T: HttpTransport, C: CredentialStore>(
     let mut round = 0;
     loop {
         round += 1;
-        let outcome = match sync_round(engine, request, &token, &inventory) {
+        let outcome = match sync_round(engine, request, &token, &inventory, home) {
             // A 401 with a refresh token on hand: refresh once and retry.
             Err(SyncError::Auth { .. }) if !refreshed && can_refresh(request.provider, &token) => {
                 token = refresh_token(engine, request.provider, &key, &token)?;
@@ -202,9 +220,10 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
     request: &RunRequest,
     token: &TokenSet,
     inventory: &Inventory,
+    home: &dyn StateHome,
 ) -> Result<Round, SyncError> {
-    let base = load_base(&request.state_dir, &request.binding, request.provider)?;
-    let fetched = fetch(engine, request, token)?;
+    let base = load_base(home, &request.binding, request.provider)?;
+    let fetched = fetch(engine, request, token, home)?;
     let planned = plan(base.as_ref(), &inventory.snapshot, &fetched.snapshot);
     if let Some(report) = conflicts_or_desired(&planned, request, inventory, &fetched.snapshot)? {
         return Ok(Round::Done(report));
@@ -248,18 +267,13 @@ fn sync_round<T: HttpTransport, C: CredentialStore>(
         &remote_blobs,
         &local_bytes,
         &head,
+        home,
     )?;
-    save_base(
-        &request.state_dir,
-        &request.binding,
-        request.provider,
-        &head,
-        &desired,
-    )?;
+    save_base(home, &request.binding, request.provider, &head, &desired)?;
     if let Anchor::GitHub { remote, .. } = &fetched.anchor {
-        save_sha_cache(&request.state_dir, remote, &local_bytes)?;
+        save_sha_cache(home, remote, &local_bytes)?;
     }
-    Journal::clear(&request.state_dir)?;
+    Journal::clear_from(home)?;
     Ok(Round::Done(SyncReport::Succeeded {
         head,
         exclusions: inventory.exclusions.clone(),
@@ -360,31 +374,35 @@ fn conflicts_or_desired(
 fn resume_local<T: HttpTransport, C: CredentialStore>(
     _engine: &EngineParts<T, C>,
     request: &RunRequest,
+    home: &dyn StateHome,
 ) -> Result<SyncReport, SyncError> {
-    let prepared = load_prepared(&request.state_dir)?;
-    let outcome = apply_plan(&ApplyRequest {
-        root: request.root.clone(),
-        state_dir: request.state_dir.clone(),
-        journal: Journal::load(&request.state_dir)?.unwrap_or(prepared.journal),
-        writes: prepared.writes,
-        deletes: prepared.deletes,
-        protected: request.protected.clone(),
-        fault_after_checkpoint: None,
-        fault_after_files: None,
-    })?;
+    let prepared = load_prepared(home)?;
+    let outcome = apply_plan_with(
+        home,
+        &ApplyRequest {
+            root: request.root.clone(),
+            state_dir: request.state_dir.clone(),
+            journal: Journal::load_from(home)?.unwrap_or(prepared.journal),
+            writes: prepared.writes,
+            deletes: prepared.deletes,
+            protected: request.protected.clone(),
+            fault_after_checkpoint: None,
+            fault_after_files: None,
+        },
+    )?;
     if outcome != ApplyOutcome::Applied {
         return Err(SyncError::InjectedFault {
             at: "resume".to_owned(),
         });
     }
     save_base(
-        &request.state_dir,
+        home,
         &request.binding,
         request.provider,
         &prepared.head,
         &prepared.desired,
     )?;
-    Journal::clear(&request.state_dir)?;
+    Journal::clear_from(home)?;
     Ok(SyncReport::Succeeded {
         head: prepared.head,
         exclusions: Vec::new(),
@@ -404,6 +422,7 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
     engine: &EngineParts<T, C>,
     request: &RunRequest,
     token: &TokenSet,
+    home: &dyn StateHome,
 ) -> Result<Fetched, SyncError> {
     match request.provider {
         ProviderKind::GitHub => {
@@ -411,7 +430,7 @@ fn fetch<T: HttpTransport, C: CredentialStore>(
                 detail: "GitHub scope is missing".to_owned(),
             })?;
             let client = github_client(engine);
-            let known = load_sha_cache(&request.state_dir);
+            let known = load_sha_cache(home);
             let remote = client.fetch_cached(&scope, &token.access, &known)?;
             Ok(Fetched {
                 conflict_copies: Vec::new(),
@@ -562,6 +581,7 @@ fn apply_desired(
     remote_blobs: &BTreeMap<ContentHash, Vec<u8>>,
     local_bytes: &BTreeMap<RelPath, Vec<u8>>,
     head: &str,
+    home: &dyn StateHome,
 ) -> Result<(), SyncError> {
     let mut writes = Vec::new();
     let mut deletes = Vec::new();
@@ -609,19 +629,23 @@ fn apply_desired(
         published: true,
         files: Vec::new(),
     };
-    store_prepared(&request.state_dir, &writes, &deletes, head, desired)?;
+    store_prepared(home, &writes, &deletes, head, desired)?;
     let identity = inventory.identity.clone();
+    // The lease stays native: its web twin (Web Locks) is a later slice.
     let _lease = VaultLease::try_acquire(&request.state_dir, &identity)?;
-    let outcome = apply_plan(&ApplyRequest {
-        root: request.root.clone(),
-        state_dir: request.state_dir.clone(),
-        journal,
-        writes,
-        deletes,
-        protected: request.protected.clone(),
-        fault_after_checkpoint: None,
-        fault_after_files: None,
-    })?;
+    let outcome = apply_plan_with(
+        home,
+        &ApplyRequest {
+            root: request.root.clone(),
+            state_dir: request.state_dir.clone(),
+            journal,
+            writes,
+            deletes,
+            protected: request.protected.clone(),
+            fault_after_checkpoint: None,
+            fault_after_files: None,
+        },
+    )?;
     if outcome != ApplyOutcome::Applied {
         return Err(SyncError::InjectedFault {
             at: "apply".to_owned(),
@@ -677,18 +701,17 @@ fn drive_client<'a, T: HttpTransport, C>(engine: &'a EngineParts<T, C>) -> Drive
 pub const GOOGLE_AUTH_BASE: &str = "https://accounts.google.com";
 
 fn load_base(
-    state_dir: &Path,
+    home: &dyn StateHome,
     binding: &BindingId,
     provider: ProviderKind,
 ) -> Result<Option<Snapshot>, SyncError> {
-    let path = state_dir.join("base.json");
-    if !path.exists() {
+    let Some(bytes) = home.get(state_home::BASE) else {
         return Ok(None);
-    }
-    let text = std::fs::read_to_string(&path).map_err(SyncError::io)?;
-    let json: serde_json::Value = serde_json::from_str(&text).map_err(|_| SyncError::Journal {
-        detail: "base.json is corrupt; sync will not guess a deletion plan".to_owned(),
-    })?;
+    };
+    let json: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|_| SyncError::Journal {
+            detail: "base.json is corrupt; sync will not guess a deletion plan".to_owned(),
+        })?;
     if json.get("schema").and_then(|value| value.as_u64()) != Some(u64::from(SCHEMA_VERSION)) {
         return Err(SyncError::Journal {
             detail: "base schema is not supported".to_owned(),
@@ -717,7 +740,7 @@ fn load_base(
 }
 
 fn save_base(
-    state_dir: &Path,
+    home: &dyn StateHome,
     binding: &BindingId,
     provider: ProviderKind,
     head: &str,
@@ -737,19 +760,18 @@ fn save_base(
         "remote_head": head,
         "entries": entries,
     });
-    crate::fsutil::write_outside(&state_dir.join("base.json"), json.to_string().as_bytes())
+    home.put(state_home::BASE, json.to_string().as_bytes())
+        .map_err(SyncError::io)
 }
 
-const SHA_CACHE: &str = "github-blob-cache.json";
-
 /// Files a run keeps in its state dir. Listed so a legacy shared dir can be
-/// moved into the binding it belongs to.
+/// moved into the binding it belongs to. These are native paths, not seam keys.
 const STATE_FILES: [&str; 5] = [
-    "base.json",
-    "journal.json",
-    "prepared.json",
+    state_home::BASE,
+    state_home::JOURNAL,
+    state_home::PREPARED,
     "staged",
-    SHA_CACHE,
+    state_home::SHA_CACHE,
 ];
 
 /// The state dir for one vault binding: `<sync_home>/bindings/<binding>`.
@@ -800,11 +822,11 @@ fn private_dir(_path: &Path) -> Result<(), SyncError> {
 /// git blob sha → content hash for blobs this binding has already read or
 /// written. It is a fact about bytes, so a stale or missing cache only costs
 /// downloads; a corrupt one is ignored.
-fn load_sha_cache(state_dir: &Path) -> BTreeMap<String, ContentHash> {
-    let Ok(text) = std::fs::read_to_string(state_dir.join(SHA_CACHE)) else {
+fn load_sha_cache(home: &dyn StateHome) -> BTreeMap<String, ContentHash> {
+    let Some(bytes) = home.get(state_home::SHA_CACHE) else {
         return BTreeMap::new();
     };
-    let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else {
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
         return BTreeMap::new();
     };
     json.get("entries")
@@ -817,7 +839,7 @@ fn load_sha_cache(state_dir: &Path) -> BTreeMap<String, ContentHash> {
 
 /// Keep only the blobs the branch now names, plus what this run uploaded.
 fn save_sha_cache(
-    state_dir: &Path,
+    home: &dyn StateHome,
     remote: &crate::github::GitHubRemote,
     local_bytes: &BTreeMap<RelPath, Vec<u8>>,
 ) -> Result<(), SyncError> {
@@ -834,11 +856,12 @@ fn save_sha_cache(
         );
     }
     let json = serde_json::json!({ "schema": SCHEMA_VERSION, "entries": entries });
-    crate::fsutil::write_outside(&state_dir.join(SHA_CACHE), json.to_string().as_bytes())
+    home.put(state_home::SHA_CACHE, json.to_string().as_bytes())
+        .map_err(SyncError::io)
 }
 
 fn store_prepared(
-    state_dir: &Path,
+    home: &dyn StateHome,
     writes: &[ApplyWrite],
     deletes: &[ApplyDelete],
     head: &str,
@@ -846,8 +869,10 @@ fn store_prepared(
 ) -> Result<(), SyncError> {
     let mut staged = Vec::new();
     for write in writes {
-        let rel = format!("staged/{}", write.path.as_str());
-        crate::fsutil::write_outside(&state_dir.join(&rel), &write.bytes)?;
+        // The key is the same relative path the old code joined onto the state
+        // dir, so `prepared.json`'s recorded "file" value is byte-identical.
+        let rel = state_home::staged_key(write.path.as_str());
+        home.put(&rel, &write.bytes).map_err(SyncError::io)?;
         staged.push(serde_json::json!({
             "path": write.path.as_str(),
             "before": write.before.map(|hash| hash.to_hex()),
@@ -877,19 +902,20 @@ fn store_prepared(
         "deletes": deletes_json,
         "entries": entries,
     });
-    crate::fsutil::write_outside(
-        &state_dir.join("prepared.json"),
-        json.to_string().as_bytes(),
-    )
+    home.put(state_home::PREPARED, json.to_string().as_bytes())
+        .map_err(SyncError::io)
 }
 
-fn load_prepared(state_dir: &Path) -> Result<Prepared, SyncError> {
-    let text = std::fs::read_to_string(state_dir.join("prepared.json")).map_err(|_| {
-        SyncError::Journal {
+fn load_prepared(home: &dyn StateHome) -> Result<Prepared, SyncError> {
+    let bytes = home
+        .get(state_home::PREPARED)
+        .ok_or_else(|| SyncError::Journal {
             detail: "prepared apply state is missing".to_owned(),
-        }
+        })?;
+    let text = std::str::from_utf8(&bytes).map_err(|_| SyncError::Journal {
+        detail: "prepared apply state is corrupt".to_owned(),
     })?;
-    let json: serde_json::Value = serde_json::from_str(&text).map_err(|_| SyncError::Journal {
+    let json: serde_json::Value = serde_json::from_str(text).map_err(|_| SyncError::Journal {
         detail: "prepared apply state is corrupt".to_owned(),
     })?;
     let mut writes = Vec::new();
@@ -908,7 +934,9 @@ fn load_prepared(state_dir: &Path) -> Result<Prepared, SyncError> {
             .get("file")
             .and_then(|value| value.as_str())
             .unwrap_or("");
-        let bytes = crate::fsutil::read_outside(&state_dir.join(file))?;
+        let bytes = home
+            .get(file)
+            .ok_or_else(|| SyncError::io(format!("staged bytes for {path} are missing")))?;
         let before = item
             .get("before")
             .and_then(|value| value.as_str())
@@ -958,7 +986,7 @@ fn load_prepared(state_dir: &Path) -> Result<Prepared, SyncError> {
             },
         );
     }
-    let journal = Journal::load(state_dir)?.ok_or_else(|| SyncError::Journal {
+    let journal = Journal::load_from(home)?.ok_or_else(|| SyncError::Journal {
         detail: "journal disappeared before resume".to_owned(),
     })?;
     Ok(Prepared {

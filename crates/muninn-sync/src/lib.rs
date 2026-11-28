@@ -78,6 +78,10 @@ mod pathutil;
 mod plan;
 #[cfg(feature = "native")]
 mod secret;
+// The engine's small host-state IO goes through core's `StateHome`; the native
+// twin here keeps the existing per-binding file layout byte-for-byte.
+#[cfg(feature = "native")]
+mod state_home;
 #[cfg(feature = "native")]
 mod tailnet;
 
@@ -115,7 +119,7 @@ pub use drive::{
 #[cfg(feature = "native")]
 pub use engine::{
     EngineParts, GOOGLE_AUTH_BASE, RunRequest, SyncReport, binding_state_dir, disconnect,
-    production_sleeper, run_sync,
+    production_sleeper, run_sync, run_sync_with_state_home,
 };
 #[cfg(feature = "native")]
 pub use error::SyncError;
