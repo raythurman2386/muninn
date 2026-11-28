@@ -161,18 +161,25 @@ pub enum WorkerEvent {
         paths: Vec<String>,
     },
     /// The run stopped. `code` is a stable machine string; `detail` is the
-    /// engine's diagnostic rendering, which 8b maps to catalog copy.
+    /// payload the page interpolates, not a whole sentence. 8b maps `code` to
+    /// catalog copy and never renders `detail` as the line.
     Failed {
         /// Stable failure class, e.g. `auth` or `rate_limited`.
         code: String,
-        /// The engine's `Display` rendering, including the provider's text.
+        /// The engine's **inner detail** for a code whose catalogued copy
+        /// takes one (`auth`, `permission`, `config`, …), the path for
+        /// `dirty_buffer`/`local_changed`, and otherwise the engine's `Display`
+        /// rendering (which the page frames or ignores). The page owns the
+        /// prefix, so a detail never repeats it.
         detail: String,
     },
 }
 
 // There is deliberately no constructor for `WorkerEvent::Failed` here: the
 // worker fills `code` from `muninn_sync::SyncError::code` and `detail` from
-// the error's `Display`. Keeping the protocol free of `muninn-sync` types is
+// `muninn_sync_worker::report::page_detail` — the inner field the page's copy
+// interpolates, not the whole `Display` rendering (which would double the
+// catalogue's prefix). Keeping the protocol free of `muninn-sync` types is
 // what lets `cargo test -p muninn-web` run natively.
 #[cfg(test)]
 mod tests {
@@ -215,7 +222,9 @@ mod tests {
             },
             WorkerEvent::Failed {
                 code: "auth".to_owned(),
-                detail: "Authentication needed: bad token".to_owned(),
+                // The inner detail, not a whole sentence: the page owns the
+                // framing (see `Failed`).
+                detail: "Bad credentials".to_owned(),
             },
         ];
         for event in events {

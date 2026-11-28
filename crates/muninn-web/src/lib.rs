@@ -35,6 +35,8 @@
 
 #![forbid(unsafe_code)]
 
+/// The page's run request builder (#240 slice 8b): native-tested, no browser.
+pub mod page_request;
 mod sample;
 mod state_home;
 mod store;
@@ -60,6 +62,9 @@ mod opfs;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub mod page_sync;
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+mod page_sync_ui;
 
 #[cfg(all(target_arch = "wasm32", feature = "worker"))]
 pub mod sync;
@@ -192,6 +197,9 @@ mod web {
             // page half: register before the first frame, after the store is
             // in hand.
             crate::web_transfer::install();
+            // The Sync tab's run callbacks, for the same reason: the form is
+            // drawn from the first frame, so a press must already have a host.
+            crate::page_sync_ui::install();
 
             // The generated page keeps its loading line until boot has the
             // vault in hand; removing it here means a slow OPFS walk or a
@@ -229,6 +237,9 @@ mod web {
         // A picked archive waits here for the poll that has the State: its
         // import guard and the re-index both need it.
         crate::web_transfer::poll(state);
-        poll(state, t, tx)
+        // The Sync tab's terminal event waits here until the post-run OPFS
+        // re-read is done, then its status and re-index land on the UI thread.
+        let synced = crate::page_sync_ui::poll(state);
+        poll(state, t, tx) || synced
     }
 }

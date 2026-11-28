@@ -276,8 +276,41 @@ Two smaller recorded differences of the web twin:
   transactional directory rename, so a crash inside it can leave a partial
   file that the next run treats as a local change and replans.
 
-### 10. Tailscale parity — the open decision.
+#### 8b. The Sync surface — what landed
 
+The Settings › Sync tab is the browser twin of the desktop's. GitHub only:
+device flow is impossible in page JS (the CORS evidence on #240), so the auth
+is **personal access token entry with no hosted service**. Drive waits for
+slice 9; Tailscale is a desktop-only door until §10 is decided.
+
+- **Form and config.** Owner, repository, branch (default `main`) and an
+  optional path prefix are a `VaultSyncBinding` in `settings.json`, written
+  through the same `web_save` path as the rest of the browser settings, so the
+  JSON shape is the desktop's. The PAT is a masked field and is stored under
+  `muninn/sync/github-pat` in the page's state home (`muninn-state/`), never in
+  settings, never logged, never re-displayed; the copy that travels to a run is
+  zeroized. Disconnect removes the binding and the key. The at-rest tradeoff is
+  recorded in `muninn_ui::web_sync`'s module docs: origin-private storage is not
+  an OS keychain, so any script on this origin or anyone with the browser
+  profile can read it.
+- **Runs.** Sync now builds the wire request (`muninn_web::page_request`), where
+  `keep_both` is always true, and calls `page_sync::spawn`. The binding id is
+  derived deterministically from the vault label and the (case-insensitive)
+  repository, so the worker's journals are the same on every run; the operation
+  id is fresh per Sync now. The page holds the terminal event until the post-run
+  OPFS re-read has finished, so the UI's re-index reads the mirror the run's
+  result was read into; the note list and the open note then reflect pulled
+  files without a manual reload. A clean buffer is reloaded; a dirty one keeps
+  its text and only the index refreshes, with the "changed while sync ran" note.
+- **One run at a time.** A second Sync now is refused, and Disconnect asks for
+  Cancel first. Cancel drops the run handle — the documented immediate cancel —
+  because the worker stages every vault write until its end-of-run flush.
+- **Conflicts.** Keep-both is the default, so a run normally converges. If the
+  engine ever stops on conflicts, the status names the paths; an interactive
+  per-file picker is not part of this slice and remains a follow-up (the desktop
+  keeps both automatically too).
+
+### 10. Tailscale parity — the open decision.
 The desktop's third sync provider hosts a commit store on a Muninn device
 reached over the tailnet; a browser cannot reach it directly. Full parity
 (recorded target above) needs one of:

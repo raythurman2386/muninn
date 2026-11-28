@@ -932,40 +932,58 @@ fn sync_section(s: &State, k: &Kit) -> El {
                         .color(k.c.text_base)
                         .wrap(),
                 )
-                .child(
-                    row()
-                        .w_full()
-                        .gap(6.0)
-                        .flex_wrap()
-                        .child(
-                            Button::new(t(TextKey::SyncActionConnect))
-                                .variant(ButtonVariant::Ghost)
-                                .on_press(|state: &mut State| state.connect_sync())
-                                .build(k)
-                                .key("settings-sync-connect"),
-                        )
-                        .child(
-                            Button::new(t(TextKey::SyncActionSyncNow))
-                                .variant(ButtonVariant::Ghost)
-                                .on_press(|state: &mut State| state.sync_now())
-                                .build(k)
-                                .key("settings-sync-now"),
-                        )
-                        .child(
-                            Button::new(t(TextKey::Cancel))
-                                .variant(ButtonVariant::Ghost)
-                                .on_press(|state: &mut State| state.cancel_sync())
-                                .build(k)
-                                .key("settings-sync-cancel"),
-                        )
-                        .child(
-                            Button::new(t(TextKey::SyncActionDisconnect))
-                                .variant(ButtonVariant::Ghost)
-                                .on_press(|state: &mut State| state.disconnect_sync())
-                                .build(k)
-                                .key("settings-sync-disconnect"),
-                        ),
-                ),
+                .child(sync_actions_row(
+                    k,
+                    State::connect_sync,
+                    State::sync_now,
+                    State::cancel_sync,
+                    State::disconnect_sync,
+                )),
+        )
+}
+
+/// The four Sync actions, in one order and with one set of element keys on both
+/// hosts: Connect, Sync now, Cancel, Disconnect. The handlers differ (the
+/// desktop signs in and runs the engine on a worker; the browser spawns its
+/// sync worker), so the caller passes them.
+fn sync_actions_row(
+    k: &Kit,
+    connect: fn(&mut State),
+    sync_now: fn(&mut State),
+    cancel: fn(&mut State),
+    disconnect: fn(&mut State),
+) -> El {
+    row()
+        .w_full()
+        .gap(6.0)
+        .flex_wrap()
+        .child(
+            Button::new(t(TextKey::SyncActionConnect))
+                .variant(ButtonVariant::Ghost)
+                .on_press(connect)
+                .build(k)
+                .key("settings-sync-connect"),
+        )
+        .child(
+            Button::new(t(TextKey::SyncActionSyncNow))
+                .variant(ButtonVariant::Ghost)
+                .on_press(sync_now)
+                .build(k)
+                .key("settings-sync-now"),
+        )
+        .child(
+            Button::new(t(TextKey::Cancel))
+                .variant(ButtonVariant::Ghost)
+                .on_press(cancel)
+                .build(k)
+                .key("settings-sync-cancel"),
+        )
+        .child(
+            Button::new(t(TextKey::SyncActionDisconnect))
+                .variant(ButtonVariant::Ghost)
+                .on_press(disconnect)
+                .build(k)
+                .key("settings-sync-disconnect"),
         )
 }
 
@@ -1081,9 +1099,8 @@ fn tailnet_key_row(s: &State, k: &Kit) -> El {
 
 /// One labelled Sync text field. The visible label and the accessible name are
 /// the same catalog text; the element key comes from the key's id, so a copy
-/// edit moves the text without moving the key.
-/// native: sync transports and credentials.
-#[cfg(feature = "native")]
+/// edit moves the text without moving the key. Shared by the desktop's Sync tab
+/// and the browser's GitHub tab (#240 slice 8b).
 fn sync_field(
     k: &Kit,
     label: TextKey,
@@ -1109,8 +1126,6 @@ fn sync_field(
 /// The element key of a Sync field: `sync.field.github_owner` becomes
 /// `sync-field-github-owner`, so the key follows the catalog id rather than the
 /// English label.
-/// native: sync transports and credentials.
-#[cfg(feature = "native")]
 fn sync_field_key(label: TextKey) -> String {
     let slug = label.id().rsplit('.').next().unwrap_or_default();
     format!("sync-field-{}", slug.replace('_', "-"))
@@ -1769,13 +1784,120 @@ fn settings_sync_tab(s: &State, k: &Kit) -> El {
             .w_full()
             .child(sync_section(s, k))
     }
-    // 4b replaces this with the browser sync surface; the tab itself is
-    // shared, so it keeps its key and an empty body here.
+    // The browser's GitHub surface (#240 slice 8b). The tab itself is shared,
+    // so it keeps its key and the body is this host's own.
     #[cfg(not(feature = "native"))]
     {
-        let _ = (s, k);
-        col().key("settings-tab-sync").w_full()
+        col()
+            .key("settings-tab-sync")
+            .w_full()
+            .child(web_sync_section(s, k))
     }
+}
+
+/// The browser's GitHub sync tab (#240 slice 8b): the provider, its four public
+/// fields and the masked PAT, the status line, and Connect / Sync now / Cancel /
+/// Disconnect. The shape mirrors `sync_section` so the two doors read as one
+/// app; the copy and the honest absence of Drive and Tailscale are this
+/// surface's own.
+///
+/// Compiled for the browser and, under test, on the host: the native Settings
+/// page draws the desktop surface, but the web surface's layout is still
+/// asserted headlessly.
+#[cfg(any(test, not(feature = "native")))]
+fn web_sync_section(s: &State, k: &Kit) -> El {
+    let status = format!(
+        "{}. {}",
+        t(TextKey::SyncProviderGithubName),
+        s.web_sync_status()
+    );
+    settings_card(k)
+        .key("settings-sync")
+        .child(settings_heading(
+            k,
+            t(TextKey::SyncWebHeading),
+            Some(t(TextKey::SyncWebHeadingCaption)),
+        ))
+        .child(
+            col()
+                .w_full()
+                .gap(2.0)
+                .child(
+                    text(t(TextKey::SyncProviderGithubName))
+                        .key("settings-sync-provider")
+                        .font(k.ty.ui_compact)
+                        .color(k.c.text_base),
+                )
+                .child(
+                    text(t(TextKey::SyncWebProviderNote))
+                        .key("settings-sync-provider-note")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint)
+                        .wrap(),
+                ),
+        )
+        .child(
+            col()
+                .w_full()
+                .gap(4.0)
+                .child(sync_field(
+                    k,
+                    TextKey::SyncFieldGithubOwner,
+                    &s.web_sync.owner,
+                    |state| &mut state.web_sync.owner,
+                ))
+                .child(sync_field(
+                    k,
+                    TextKey::SyncFieldRepository,
+                    &s.web_sync.repo,
+                    |state| &mut state.web_sync.repo,
+                ))
+                .child(sync_field(
+                    k,
+                    TextKey::SyncFieldBranch,
+                    &s.web_sync.branch,
+                    |state| &mut state.web_sync.branch,
+                ))
+                .child(sync_field(
+                    k,
+                    TextKey::SyncFieldPrefix,
+                    &s.web_sync.prefix,
+                    |state| &mut state.web_sync.prefix,
+                ))
+                .child(sync_field(
+                    k,
+                    TextKey::SyncWebFieldPat,
+                    &s.web_sync.token,
+                    |state| &mut state.web_sync.token,
+                ))
+                .child(
+                    text(t(TextKey::SyncWebPatCaption))
+                        .key("settings-sync-pat-caption")
+                        .font(k.ty.caption())
+                        .color(k.c.text_faint)
+                        .wrap(),
+                ),
+        )
+        .child(divider_h(k))
+        .child(
+            col()
+                .w_full()
+                .gap(10.0)
+                .child(
+                    text(status)
+                        .key("settings-sync-status")
+                        .font(k.ty.caption())
+                        .color(k.c.text_base)
+                        .wrap(),
+                )
+                .child(sync_actions_row(
+                    k,
+                    State::connect_web_sync,
+                    State::web_sync_now,
+                    State::cancel_web_sync,
+                    State::disconnect_web_sync,
+                )),
+        )
 }
 
 fn vault_prompt_row(s: &State, k: &Kit) -> El {
@@ -6115,5 +6237,62 @@ mod icon_centring_tests {
             gear.0.abs() <= 0.5 && gear.1.abs() <= 0.5,
             "SETTINGS_GEAR is off-centre by {gear:?} pt"
         );
+    }
+}
+
+/// #240 slice 8b: the browser's GitHub Sync tab must lay out every field and
+/// action. The desktop draws its own surface, so this renders the web one
+/// directly (it is compiled under `test` for exactly this check).
+#[cfg(test)]
+mod web_sync_tab_tests {
+    use super::*;
+    use rune::{Env, Runtime};
+
+    fn web_sync_view(s: &State, cx: &mut Cx<State>) -> El {
+        let k = crate::omarchy::resolve_kit(s, cx.system_dark());
+        col()
+            .key("web-sync-test")
+            .w_full()
+            .child(web_sync_section(s, &k))
+    }
+
+    #[test]
+    fn the_web_sync_tab_lays_out_every_field_and_action() {
+        let root = std::env::temp_dir().join(format!(
+            "muninn-web-tab-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let state = State::with_state_home(root.clone(), root.with_extension("state"));
+        let mut rt = Runtime::new(state, web_sync_view, (1180.0, 780.0), Env::new(true, 2.0));
+        rt.frame(0.0);
+        for key in [
+            "settings-sync-provider",
+            "settings-sync-provider-note",
+            "sync-field-github-owner",
+            "sync-field-repository",
+            "sync-field-branch",
+            "sync-field-prefix",
+            "sync-field-pat",
+            "settings-sync-pat-caption",
+            "settings-sync-status",
+            "settings-sync-connect",
+            "settings-sync-now",
+            "settings-sync-cancel",
+            "settings-sync-disconnect",
+        ] {
+            assert!(rt.find(key).is_some(), "{key} is on screen");
+        }
+        assert!(
+            rt.state.web_sync.token.is_secure(),
+            "the PAT field is masked, like the Tailnet key"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(root.with_extension("state"));
     }
 }

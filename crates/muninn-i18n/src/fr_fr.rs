@@ -334,6 +334,43 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Clé renouvelée\u{a0}; l’ancienne ne fonctionne plus. Sur chaque appareil rejoint, cliquez sur Déconnecter et rejoignez à nouveau avec la nouvelle clé (Copier la clé)."
         }
         Key::SyncStatusCurrentConnectionKept => "La connexion actuelle n’a pas été modifiée.",
+        Key::SyncWebHeading => "Synchronisation GitHub dans ce navigateur",
+        Key::SyncWebHeadingCaption => {
+            "Synchronisation manuelle uniquement, un dépôt par coffre du navigateur. Le jeton reste dans ce navigateur\u{a0}; les paramètres gardent le dépôt, la branche et le préfixe."
+        }
+        Key::SyncWebProviderNote => {
+            "GitHub est le seul fournisseur du navigateur. Google Drive arrive dans une tranche ultérieure\u{a0}; Tailscale reste une porte réservée au bureau."
+        }
+        Key::SyncWebFieldPat => "Jeton d’accès personnel",
+        Key::SyncWebPatCaption => {
+            "Masqué, et stocké uniquement dans le stockage de ce navigateur\u{a0}: jamais dans settings.json ni dans un journal. Un navigateur ne peut pas utiliser le trousseau du système\u{a0}: le bouton Déconnecter le supprime. Collez-le à nouveau pour vous reconnecter."
+        }
+        Key::SyncWebStatusNotConnected => {
+            "Non connecté. Saisissez le dépôt et un jeton d’accès personnel, puis cliquez sur Connecter."
+        }
+        Key::SyncWebStatusConnected => {
+            "Connecté. La commande Synchroniser maintenant publie et récupère ce coffre."
+        }
+        Key::SyncWebStatusDisconnected => {
+            "Déconnecté. Le dépôt et le jeton enregistré ont été supprimés\u{a0}; les notes ne l’ont pas été."
+        }
+        Key::SyncWebErrorTokenMissing => {
+            "Saisissez un jeton d’accès personnel avant de cliquer sur Connecter, ou collez-le à nouveau s’il a été supprimé."
+        }
+        Key::SyncWebErrorTokenShape => {
+            "Un jeton d’accès personnel ne contient pas d’espace. Collez-le exactement tel que GitHub l’a affiché."
+        }
+        Key::SyncWebErrorBranch => "Saisissez la branche à synchroniser, par exemple main.",
+        Key::SyncWebErrorUnavailable => {
+            "La synchronisation nécessite la version navigateur\u{a0}; cette version n’a pas de worker de synchronisation."
+        }
+        Key::SyncWebErrorWorker => {
+            "Le worker de synchronisation s’est arrêté de façon inattendue. Rien n’a été écrit pendant la synchronisation\u{a0}; relancez Synchroniser maintenant."
+        }
+        Key::SyncWebErrorBusy => "Une synchronisation est déjà en cours dans un autre onglet.",
+        Key::SyncWebErrorStateUnavailable => {
+            "Ce navigateur ne peut pas enregistrer le jeton\u{a0}: son stockage est indisponible."
+        }
         Key::SyncErrorVaultNotCanonical => {
             "Le dossier de ce coffre ne peut pas être résolu en chemin canonique\u{a0}; il ne peut donc pas être lié à la synchronisation."
         }

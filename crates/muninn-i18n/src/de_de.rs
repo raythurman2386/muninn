@@ -322,6 +322,45 @@ pub(crate) fn text(key: Key) -> &'static str {
             "Schlüssel erneuert; der alte Schlüssel funktioniert nicht mehr. Wählen Sie auf jedem beigetretenen Gerät Trennen und treten Sie mit dem neuen Schlüssel erneut bei (Schlüssel kopieren)."
         }
         Key::SyncStatusCurrentConnectionKept => "Die aktuelle Verbindung wurde nicht geändert.",
+        Key::SyncWebHeading => "GitHub-Synchronisierung in diesem Browser",
+        Key::SyncWebHeadingCaption => {
+            "Nur manuelles Jetzt synchronisieren, ein Repository pro Browser-Tresor. Das Token bleibt in diesem Browser; die Einstellungen halten Repository, Branch und Präfix."
+        }
+        Key::SyncWebProviderNote => {
+            "GitHub ist der einzige Anbieter im Browser. Google Drive folgt in einem späteren Schritt; Tailscale bleibt eine reine Desktop-Tür."
+        }
+        Key::SyncWebFieldPat => "Persönliches Zugriffstoken",
+        Key::SyncWebPatCaption => {
+            "Maskiert und nur im Speicher dieses Browsers abgelegt: nie in settings.json und nie in einem Protokoll. Ein Browser kann den Schlüsselbund des Systems nicht nutzen, deshalb entfernt Trennen das Token. Fügen Sie es zum erneuten Verbinden wieder ein."
+        }
+        Key::SyncWebStatusNotConnected => {
+            "Nicht verbunden. Geben Sie das Repository und ein persönliches Zugriffstoken ein, dann Verbinden."
+        }
+        Key::SyncWebStatusConnected => {
+            "Verbunden. Jetzt synchronisieren veröffentlicht und lädt diesen Tresor."
+        }
+        Key::SyncWebStatusDisconnected => {
+            "Getrennt. Das Repository und das gespeicherte Token wurden entfernt; Notizen nicht."
+        }
+        Key::SyncWebErrorTokenMissing => {
+            "Geben Sie vor Verbinden ein persönliches Zugriffstoken ein, oder fügen Sie es wieder ein, wenn es entfernt wurde."
+        }
+        Key::SyncWebErrorTokenShape => {
+            "Ein persönliches Zugriffstoken enthält keine Leerzeichen. Fügen Sie es genau so ein, wie GitHub es angezeigt hat."
+        }
+        Key::SyncWebErrorBranch => {
+            "Geben Sie den zu synchronisierenden Branch ein, zum Beispiel main."
+        }
+        Key::SyncWebErrorUnavailable => {
+            "Synchronisierung braucht die Browser-Version; diese Version hat keinen Synchronisierungs-Worker."
+        }
+        Key::SyncWebErrorWorker => {
+            "Der Synchronisierungs-Worker wurde unerwartet beendet. Während der Ausführung wurde nichts geschrieben; starten Sie Jetzt synchronisieren erneut."
+        }
+        Key::SyncWebErrorBusy => "In einem anderen Tab läuft bereits eine Synchronisierung.",
+        Key::SyncWebErrorStateUnavailable => {
+            "Dieser Browser kann das Token nicht speichern: Sein Speicher ist nicht verfügbar."
+        }
         Key::SyncErrorVaultNotCanonical => {
             "Der Pfad dieses Tresorordners kann nicht kanonisiert werden, daher kann er nicht gebunden werden."
         }

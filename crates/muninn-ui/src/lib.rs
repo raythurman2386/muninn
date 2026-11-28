@@ -63,6 +63,10 @@ pub mod update;
 pub mod vault_transfer;
 mod view;
 mod watch;
+// The browser's GitHub sync surface (#240 slice 8b). Compiled for both hosts so
+// its storage and event logic is native-tested; the desktop's Settings tab
+// draws its own `sync_ui` instead and never calls into this module.
+pub mod web_sync;
 
 #[cfg(feature = "native")]
 pub use autostart::{

@@ -147,6 +147,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncConflictCopies => {
             "Una nota cambió en dos dispositivos; se conservaron ambas versiones: {0}."
         }
+        MsgKey::SyncWebFailed => "Error de sincronización: {0}",
         MsgKey::BoardNameTaken => "Ya hay un tablero llamado «{0}» en esta carpeta",
         MsgKey::NoNoteNamed => "No hay ninguna nota llamada «{0}» en esta bóveda",
         MsgKey::LinkedNoteHint => "Nota vinculada: {0} · ⌘Enter abre",

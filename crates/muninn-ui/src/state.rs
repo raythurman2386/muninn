@@ -937,6 +937,10 @@ pub struct State {
     /// native: sync session (worker, credentials, transports).
     #[cfg(feature = "native")]
     pub sync_ui: crate::sync_ui::SyncUi,
+    /// The browser's GitHub sync form and status (#240 slice 8b). Inert on the
+    /// desktop: the Sync tab draws [`State::sync_ui`], and no browser host is
+    /// registered, so `web_sync_now` reports the honest unavailable status.
+    pub web_sync: crate::web_sync::WebSyncUi,
     /// #234: the newer stable release offered by the last completed check.
     /// `None` when no banner should draw (current, skipped, failed or off).
     /// native: release check.
@@ -1305,6 +1309,8 @@ impl State {
             // native: sync session.
             #[cfg(feature = "native")]
             sync_ui: crate::sync_ui::SyncUi::memory(),
+            // The browser's sync form and status; inert on the desktop.
+            web_sync: crate::web_sync::WebSyncUi::new(),
             // native: release check.
             #[cfg(feature = "native")]
             update_available: None,
@@ -1403,6 +1409,11 @@ impl State {
         // calls `apply_saved_language` in `init` to make the order explicit:
         // it runs before the tray and UI are built.
         state.apply_saved_language();
+        // The browser's Sync tab starts on its saved repository and reports the
+        // stored token as saved; the token itself never reaches the form. After
+        // the language, so its first status line is in the saved language.
+        #[cfg(not(feature = "native"))]
+        state.reflect_web_sync();
         state
     }
 

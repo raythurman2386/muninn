@@ -177,6 +177,57 @@ mod tests {
     }
 
     #[test]
+    fn the_pages_wire_request_builds_the_engine_request_key_by_key() {
+        // Slice 8b: the page builds the wire request from the saved config and
+        // the PAT. The test above pins the #326 seam map; this one pins that
+        // the page's builder is that same wire request field for field, and
+        // that the worker's `PreparedRun` still lands on the map.
+        let page = muninn_web::page_request::request_for(muninn_web::page_request::PageRequest {
+            binding_id: "0123456789abcdef",
+            operation_id: "fedcba9876543210",
+            owner: "octocat",
+            repo: "notes",
+            branch: "main",
+            prefix: "vault",
+            token: "github_pat_example",
+        });
+        assert_eq!(page, wire(), "the page builder is the wire request");
+        let engine = PreparedRun::new(&page)
+            .expect("a valid page request")
+            .engine_request();
+        assert_eq!(
+            engine.root,
+            PathBuf::from(VAULT_LABEL),
+            "the worker's store root label is the engine's root"
+        );
+        assert_eq!(
+            engine.state_dir,
+            PathBuf::new(),
+            "the state home is a trait"
+        );
+        assert_eq!(engine.binding.as_str(), "0123456789abcdef");
+        assert_eq!(engine.operation.as_str(), "fedcba9876543210");
+        assert_eq!(engine.provider, ProviderKind::GitHub);
+        let scope = engine.github.expect("a GitHub scope");
+        assert_eq!(
+            (
+                scope.owner.as_str(),
+                scope.repo.as_str(),
+                scope.branch.as_str(),
+                scope.prefix.as_str(),
+            ),
+            ("octocat", "notes", "main", "vault")
+        );
+        assert!(engine.protected.is_empty());
+        assert!(engine.resolutions.is_empty());
+        assert_eq!(
+            engine.default_resolution,
+            Some(Resolution::KeepBoth),
+            "the page's Sync now keeps both copies"
+        );
+    }
+
+    #[test]
     fn the_vault_label_is_the_identity_the_engine_hashes() {
         // The engine's identity is `VaultIdentity::of_root` over the store's
         // canonical root. The label is stable across runs and distinct from a

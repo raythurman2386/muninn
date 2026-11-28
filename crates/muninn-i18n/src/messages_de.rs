@@ -150,6 +150,7 @@ pub(crate) fn template(key: MsgKey) -> &'static str {
         MsgKey::SyncConflictCopies => {
             "Eine Notiz wurde auf zwei Geräten geändert; beide Versionen wurden behalten: {0}."
         }
+        MsgKey::SyncWebFailed => "Synchronisierung fehlgeschlagen: {0}",
         MsgKey::BoardNameTaken => "Eine Tafel namens „{0}“ ist bereits in diesem Ordner",
         MsgKey::NoNoteNamed => "Keine Notiz namens „{0}“ in diesem Tresor",
         MsgKey::LinkedNoteHint => "Verknüpfte Notiz: {0} · ⌘Enter öffnet",
