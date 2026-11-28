@@ -8,6 +8,19 @@ All notable changes to Muninn are documented here. The format is based on
 
 ### Added
 
+- **The browser vault exports and imports (#240 slice 6e).** Two new command
+  palette actions on the web build: **Export vault…** downloads every note,
+  board, attachment and folder in the OPFS vault as a stored (uncompressed)
+  zip archive through `showSaveFilePicker` where available and a Blob download
+  everywhere else; **Import vault…** picks a `.zip` (or a single `.md`),
+  writes every member through the vault's store, and re-indexes. The archive is
+  lossless: members keep their exact bytes and folder structure, empty folders
+  included, and the CRC-32 of every file is checked on import. A read-only tab
+  can still export; import refuses there with the existing lock message, and
+  refuses while the open note, board or kanban has unsaved edits (the ordinary
+  save guard runs first), so an import never silently clobbers work. Native
+  builds are unchanged: they already have the whole filesystem, and the palette
+  rows appear only where a browser host registered its picker.
 - **The browser vault is real and keeps edits across reloads (#240 slice 6b).**
   `muninn-web` now boots an OPFS-backed vault instead of the read-only sample:
   an in-memory mirror serves every synchronous `VaultStore` call, a dirty

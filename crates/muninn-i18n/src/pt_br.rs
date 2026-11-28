@@ -386,6 +386,8 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteActionNewKanban => "Novo Kanban",
         Key::PaletteActionConvertToKanban => "Converter uma nota vazia em Kanban",
         Key::PaletteActionImportDocument => "Importar documento…",
+        Key::PaletteActionExportVault => "Exportar o cofre…",
+        Key::PaletteActionImportVault => "Importar o cofre…",
         Key::PaletteHintGraphLocal => "Gráfico · Local",
         Key::PaletteHintVaults => "Cofres",
         Key::PaletteHintHelp => "Ajuda",
@@ -408,6 +410,8 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::PaletteKeywordsImportDocument => {
             "importar documento docx doc word pdf office odt rtf epub csv"
         }
+        Key::PaletteKeywordsExportVault => "exportar cofre backup cópia baixar zip arquivo salvar",
+        Key::PaletteKeywordsImportVault => "importar cofre restaurar enviar zip arquivo abrir",
         Key::PaletteSectionRecent => "Recentes",
         Key::PaletteSectionNotes => "Notas",
         Key::PaletteSectionActions => "Ações",
@@ -1074,5 +1078,26 @@ pub(crate) fn text(key: Key) -> &'static str {
         Key::WebReadOnlySample => {
             "Esta aba somente leitura mostra o exemplo incorporado até a aba com permissão de gravação salvá-lo."
         }
+        Key::WebVaultReadOnly => {
+            "Somente leitura: outra aba do Muninn detém o bloqueio de escrita deste cofre do navegador."
+        }
+        Key::WebVaultNoLock => {
+            "Somente leitura: este navegador não tem Web Locks, então outra aba poderia sobrescrever esta."
+        }
+        Key::WebExportUnavailable => {
+            "A exportação não está disponível enquanto o armazenamento do navegador não for aberto."
+        }
+        Key::WebExportFailed => "Não foi possível exportar o cofre.",
+        Key::WebExportDone => "A exportação do cofre foi baixada.",
+        Key::WebImportUnavailable => {
+            "A importação não está disponível enquanto o armazenamento do navegador não for aberto."
+        }
+        Key::WebImportFailed => "Não foi possível importar o cofre.",
+        Key::WebImportDone => "A importação do cofre foi concluída.",
+        Key::WebImportRefusedDirty => {
+            "Importação recusada: salve ou descarte primeiro as alterações não salvas da nota aberta."
+        }
+        Key::WebImportUnreadable => "Esse arquivo não é um arquivo de cofre do Muninn.",
+        Key::WebArchiveFileType => "Arquivo ZIP",
     }
 }

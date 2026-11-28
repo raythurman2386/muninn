@@ -14,6 +14,9 @@
 //!   high-water record (#240 slice 6d),
 //! - the OPFS boot in `opfs`: mount, snapshot-load, Web Lock, `persist()`,
 //!   and the first-run seed,
+//! - [`transfer`] and `zip`: the stored-zip vault export/import over the
+//!   store's mirror (#240 slice 6e), and the browser download/file-picker half
+//!   the poll loop drives,
 //! - the `#[wasm_bindgen(start)]` entry that boots asynchronously, then runs
 //!   the same `AppSpec` + Rune call the native binary runs.
 //!
@@ -29,10 +32,15 @@
 mod sample;
 mod state_home;
 mod store;
+pub mod transfer;
+#[cfg(target_arch = "wasm32")]
+mod web_transfer;
+pub mod zip;
 
 pub use sample::{SAMPLE_ROOT, SAMPLE_SOURCES};
 pub use state_home::{OpfsStateHome, StateFlushPlan};
 pub use store::{FlushPlan, OpfsStore};
+pub use transfer::{ArchiveEntry, TransferError};
 
 #[cfg(target_arch = "wasm32")]
 mod opfs;
@@ -154,12 +162,17 @@ mod web {
                 // state; otherwise the lock posture gets the status line.
                 state.notice = Some(notice);
             } else if opened.read_only && installed {
-                state.notice = Some(crate::opfs::READ_ONLY_MESSAGE.to_owned());
+                state.notice = Some(crate::opfs::read_only_message().to_owned());
             }
             if let Some(error) = opened.error {
                 state.error = Some(error);
             }
             READY.with(|slot| *slot.borrow_mut() = Some(state));
+
+            // The palette's export/import rows exist only when a host has the
+            // page half: register before the first frame, after the store is
+            // in hand.
+            crate::web_transfer::install();
 
             // The generated page keeps its loading line until boot has the
             // vault in hand; removing it here means a slow OPFS walk or a
@@ -194,6 +207,9 @@ mod web {
         {
             state.error = Some(error);
         }
+        // A picked archive waits here for the poll that has the State: its
+        // import guard and the re-index both need it.
+        crate::web_transfer::poll(state);
         poll(state, t, tx)
     }
 }

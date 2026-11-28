@@ -146,6 +146,14 @@ pub enum PaletteAction {
     ToggleFocusMode,
     /// Write `Untitled Kanban.md` and open it on the Kanban page.
     NewKanban,
+    /// #240 slice 6e: download the browser vault as a zip archive. Offered only
+    /// while a browser host registered the export hook, so it is not in
+    /// [`PaletteAction::ALL`].
+    ExportVault,
+    /// #240 slice 6e: import a zip archive (or one Markdown file) into the
+    /// browser vault. Offered only while a browser host registered the import
+    /// hook, so it is not in [`PaletteAction::ALL`].
+    ImportVault,
     /// #189: open Rune's file dialog and convert the chosen document into a
     /// new note in the current folder. Its hint is ⌘I.
     /// native: document import.
@@ -212,6 +220,8 @@ impl PaletteAction {
             PaletteAction::ToggleKanban => TextKey::PaletteActionToggleKanban,
             PaletteAction::ToggleFocusMode => TextKey::PaletteActionToggleFocusMode,
             PaletteAction::NewKanban => TextKey::PaletteActionNewKanban,
+            PaletteAction::ExportVault => TextKey::PaletteActionExportVault,
+            PaletteAction::ImportVault => TextKey::PaletteActionImportVault,
             PaletteAction::ConvertToKanban => TextKey::PaletteActionConvertToKanban,
             PaletteAction::LockNote => TextKey::PaletteActionLockNote,
             PaletteAction::UnlockNote => TextKey::PaletteActionUnlockNote,
@@ -239,6 +249,11 @@ impl PaletteAction {
             PaletteAction::NewKanban | PaletteAction::ConvertToKanban => {
                 t(TextKey::PaletteHintKanban)
             }
+            // #240 slice 6e: a vault archive is a vault operation; the hint
+            // names the surface, not a keycap.
+            PaletteAction::ExportVault | PaletteAction::ImportVault => {
+                t(TextKey::PaletteHintVaults)
+            }
             // #134: the lock actions have no chord; their prompt asks for a
             // password, so the field's label is the affordance shown.
             PaletteAction::LockNote | PaletteAction::UnlockNote => t(TextKey::LockPassword),
@@ -264,6 +279,8 @@ impl PaletteAction {
             PaletteAction::ToggleKanban => TextKey::PaletteKeywordsToggleKanban,
             PaletteAction::ToggleFocusMode => TextKey::PaletteKeywordsToggleFocusMode,
             PaletteAction::NewKanban => TextKey::PaletteKeywordsNewKanban,
+            PaletteAction::ExportVault => TextKey::PaletteKeywordsExportVault,
+            PaletteAction::ImportVault => TextKey::PaletteKeywordsImportVault,
             PaletteAction::ConvertToKanban => TextKey::PaletteKeywordsConvertToKanban,
             PaletteAction::LockNote => TextKey::PaletteKeywordsLockNote,
             PaletteAction::UnlockNote => TextKey::PaletteKeywordsUnlockNote,
@@ -665,13 +682,16 @@ mod tests {
     /// #155: every action's copy is catalog data. `ConvertToKanban` is offered
     /// only over an empty note, so it is not in `ALL` and needs its own row.
     /// #134 adds the two note-lock actions, offered only over the matching
-    /// note, the same way.
+    /// note, the same way. #240 slice 6e adds the browser export/import pair,
+    /// offered only while a browser host is registered.
     #[test]
     fn every_palette_action_has_label_hint_keywords_and_section() {
         let actions = PaletteAction::ALL.into_iter().chain([
             PaletteAction::ConvertToKanban,
             PaletteAction::LockNote,
             PaletteAction::UnlockNote,
+            PaletteAction::ExportVault,
+            PaletteAction::ImportVault,
         ]);
         for action in actions {
             assert!(!action.label().is_empty(), "{action:?} has no label");
@@ -692,6 +712,8 @@ mod tests {
             PaletteAction::ConvertToKanban,
             PaletteAction::LockNote,
             PaletteAction::UnlockNote,
+            PaletteAction::ExportVault,
+            PaletteAction::ImportVault,
         ]);
         for action in actions {
             let keyword = action
